@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CULT Terminal</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="top-section">
+        <!-- Top Navigation -->
+        <div class="terminal-nav">
+            <div class="nav-left">
+                <span class="nav-arrows">&lt; &gt;</span>
+                <span class="nav-title">CULT EXECUTIVE ENTERPRISE INCORPORATED TERMINAL ⌄</span>
+                <span class="nav-mode">MS2 ⭐️</span>
+                <span class="nav-menu">Related Functions Menu ↡</span>
+            </div>
+            <div class="nav-right">
+                <span class="nav-icon">✉️ Message</span>
+                <span class="nav-icon">⭑↓</span>
+                <span class="nav-icon">⎐↓</span>
+                <span class="nav-icon yellow">?↓</span>
+            </div>
+        </div>
+
+        <!-- Top Runner -->
+        <div class="price-runner">
+            <div class="ticker-info">
+                <span class="ticker-symbol">💎CULT US $</span>
+                <span class="price up" id="currentPrice">1000.00</span>
+                <span class="change up" id="priceChange">+10000000</span>
+                <span class="mini-chart">📈</span>
+                <span class="price-range" id="priceRange">P123.12/123.24P</span>
+                <span class="multiplier">3×5</span>
+            </div>
+            <div class="ticker-details">
+                <span class="detail-item">At <span id="timeStamp">17:20</span></span>
+                <span class="detail-item">Vol <span id="cult volume">81,241,971</span></span>
+                <span class="detail-item">O <span id="openPrice" class="price">120.50P</span></span>
+                <span class="detail-item">H <span id="highPrice" class="price">123.87Z</span></span>
+                <span class="detail-item">L <span id="lowPrice" class="price">120.15Q</span></span>
+                <span class="detail-item">Val <span id="marketValue">9.993B</span></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="middle-section">
+        <!-- GIF Display -->
+        <div class="gif-container">
+            <img src="public/0109_2.gif" alt="Terminal Animation" class="terminal-gif">
+        </div>
+    </div>
+
+    <div class="bottom-section">
+        <!-- Color Bar -->
+        <div class="color-bar">
+            <div class="yellow-section">CULT EXEC</div>
+            <div class="red-section">
+                <span>99) Report</span>
+                <span class="security-desc">Page 1/4 Security Description: Dual Nature</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active">
+                <span class="tab-desktop">1) Whitelist Check</span>
+                <span class="tab-mobile">Whitelist</span>
+            </div>
+            <div class="tab">
+                <span class="tab-desktop">2) Bonding Curve</span>
+                <span class="tab-mobile">Presale</span>
+            </div>
+            <div class="tab">
+                <span class="tab-desktop">3) Live Trading</span>
+                <span class="tab-mobile">Live</span>
+            </div>
+            <div class="tab">
+                <span class="tab-desktop">4) Revenue & Stats</span>
+                <span class="tab-mobile">Rev</span>
+            </div>
+            <div class="tab">
+                <span class="tab-desktop">5) Balance Mint</span>
+                <span class="tab-mobile">Mint</span>
+            </div>
+        </div>
+
+        <!-- Existing content -->
+        <main class="main-content">
+            <div class="panel checker-panel">
+                <h2>1) ADDRESS VERIFICATION | VRF</h2>
+                <input type="text" id="walletAddress" placeholder="ENTER ETH ADDRESS" autofocus>
+                <p class="instructions desktop">PASTE ADDRESS (CTRL+V) AND PRESS ENTER ↵</p>
+                <p class="instructions mobile">PASTE ETH ADDRESS AND TAP GO</p>
+                <button id="checkButton">CHECK</button>
+                <div id="result"></div>
+                
+                <div class="market-data">
+                    <h2>2) MARKET DATA | MKT</h2>
+                    <div class="market-row">
+                        <span>ETH/USD</span>
+                        <span class="price-up" id="ethPrice">13,482.45 +2.3%</span>
+                    </div>
+                    <div class="market-row">
+                        <span>GAS (GWEI)</span>
+                        <span class="price-down" id="gasPrice">0.004 -5</span>
+                    </div>
+                    <div class="market-row">
+                        <span>24H VOLUME</span>
+                        <span id="ethVolume">10.2B ETH</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel stats-panel">
+                <h2>3) SYSTEM STATUS | SYS</h2>
+                <div class="stats-content">
+                    <p>NETWORK: <span class="status-indicator">CONNECTED</span></p>
+                    <p>CHAIN ID: <span>1 (ETHEREUM)</span></p>
+                    <p>BLOCK: <span>19,234,567</span></p>
+                    <p>LAST UPDATE: <span>2024-03-14 19:32</span></p>
+                    <p>API STATUS: <span class="status-indicator">ACTIVE</span></p>
+                    <p>CACHE: <span class="status-indicator">SYNCED</span></p>
+                    <p>TOTAL CHECKS: <span>1,234</span></p>
+                    <p>SUCCESS RATE: <span>99.9%</span></p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="news-ticker">
+            <div class="ticker-content">
+                <span class="ticker-item">SYSTEM ONLINE</span>
+                <span class="ticker-item">ETH NETWORK: HIGH ACTIVITY</span>
+                <span class="ticker-item">API V2.1.0 DEPLOYED</span>
+                <span class="ticker-item">CACHE UPDATED: 30S AGO</span>
+                <span class="ticker-item">NEW ADDRESSES INDEXED: 1.2K</span>
+                <span class="ticker-item">VERIFICATION RATE: 240/MIN</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

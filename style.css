@@ -1,0 +1,418 @@
+:root {
+  --bg-dark: #111111;
+  --bg-darker: #000000;
+  --text-primary: #ffffff;
+  --text-yellow: #fdb523;
+  --text-green: #00ff00;
+  --text-red: #ff3b30;
+  --text-blue: #00bfff;
+  --border-color: #333333;
+  --header-height: 30px;
+  --footer-height: 25px;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-darker);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+/* Header styles */
+.top-nav {
+    background-color: var(--bg-dark);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-height);
+}
+
+.top-nav-title {
+    color: var(--text-yellow);
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.top-nav-time {
+    color: var(--text-blue);
+    font-size: 12px;
+}
+
+/* Main content area */
+.main-content {
+    display: grid;
+    grid-template-columns: 60% 40%;
+    gap: 1px;
+    background-color: var(--border-color);
+}
+
+.panel {
+    background-color: var(--bg-darker);
+    padding: 10px;
+    border: 1px solid var(--border-color);
+}
+
+h2 {
+    color: var(--text-yellow);
+    font-size: 14px;
+    margin: 0 0 10px 0;
+    font-weight: normal;
+}
+
+/* Form styling */
+input {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 5px;
+    width: calc(100% - 12px);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+button {
+    background-color: var(--bg-dark);
+    color: var(--text-green);
+    border: 1px solid var(--border-color);
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+button:hover {
+    background-color: var(--border-color);
+}
+
+/* Stats panel */
+.stats-content p {
+    margin: 5px 0;
+    color: var(--text-primary);
+}
+
+.status-indicator {
+    color: var(--text-green);
+}
+
+.market-data {
+    margin-top: 15px;
+    font-size: 12px;
+}
+
+.market-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 2px 0;
+}
+
+.price-up {
+    color: var(--text-green);
+}
+
+.price-down {
+    color: var(--text-red);
+}
+
+/* News ticker */
+.news-ticker {
+    background-color: var(--bg-dark);
+    border-top: 1px solid var(--border-color);
+    padding: 5px;
+    overflow: hidden;
+    height: var(--footer-height);
+}
+
+.ticker-content {
+    display: flex;
+    gap: 30px;
+    animation: ticker 30s linear infinite;
+    white-space: nowrap;
+}
+
+.ticker-item {
+    color: var(--text-yellow);
+    font-size: 12px;
+}
+
+@keyframes ticker {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+}
+
+/* Status messages */
+#result {
+    margin-top: 10px;
+    font-family: 'Courier New', monospace;
+}
+
+.instructions {
+    color: var(--text-blue);
+    font-size: 12px;
+    margin: 5px 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .instructions.desktop {
+        display: none;
+    }
+    
+    .instructions.mobile {
+        display: block;
+    }
+}
+
+/* Add to existing CSS */
+.terminal-nav {
+    background-color: var(--bg-dark);
+    height: 25px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 5px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.nav-left, .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nav-left {
+    flex: 1;
+    min-width: 0;  /* Required for text truncation */
+}
+
+.nav-arrows {
+    color: var(--text-primary);
+}
+
+.nav-title {
+    color: var(--text-primary);
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50%;
+}
+
+.nav-mode, .nav-menu {
+    white-space: nowrap;
+}
+
+.yellow {
+    color: var(--text-yellow);
+}
+
+.price-runner {
+    background-color: var(--bg-dark);
+    height: 40px;
+    padding: 0 5px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    overflow: hidden;
+}
+
+.ticker-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.ticker-details {
+    display: flex;
+    gap: 8px;
+    height: 20px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.detail-item {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.price-range {
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Adjust spacing for specific elements */
+.ticker-symbol {
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+.multiplier {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.up {
+    color: var(--text-green);
+}
+
+.down {
+    color: var(--text-red);
+}
+
+.color-bar {
+    display: flex;
+    height: 25px;
+    font-size: 12px;
+}
+
+.yellow-section {
+    background-color: var(--text-yellow);
+    color: var(--bg-dark);
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    width: 200px;
+}
+
+.red-section {
+    background-color: #8b0000;
+    color: var(--text-primary);
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+}
+
+.tabs {
+    display: flex;
+    background-color: var(--bg-dark);
+    border-bottom: 1px solid var(--border-color);
+    height: 25px;
+    overflow-x: auto;  /* Allow horizontal scroll on very small screens */
+    -webkit-overflow-scrolling: touch;  /* Smooth scrolling on iOS */
+}
+
+.tab {
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    border-right: 1px solid var(--border-color);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.tab.active {
+    background-color: var(--bg-darker);
+    border-bottom: none;
+}
+
+.tab-mobile {
+    display: none;
+}
+
+.calendar-links {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.calendar-button {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    color: white;
+    font-size: 14px;
+    transition: opacity 0.2s;
+}
+
+.calendar-button:hover {
+    opacity: 0.9;
+}
+
+.calendar-button.google {
+    background-color: #4285f4;
+}
+
+.calendar-button.ical {
+    background-color: #34A853;
+}
+
+/* GIF Display */
+.gif-container {
+    text-align: center;
+}
+
+.terminal-gif {
+    max-width: 90%;
+    height: auto;
+    max-height: 280px; /* Adjust this value as needed */
+}
+
+/* Color Bar */
+.color-bar {
+    display: flex;
+    height: 25px;
+    font-size: 12px;
+}
+
+/* Layout containers */
+.top-section {
+    flex-shrink: 0;
+}
+
+.middle-section {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px; /* Adjust this value as needed */
+    background-color: var(--bg-darker);
+}
+
+.bottom-section {
+    flex-shrink: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .tab {
+        padding: 0 8px;  /* Smaller padding on mobile */
+    }
+
+    .tab-desktop {
+        display: none;
+    }
+
+    .tab-mobile {
+        display: inline;
+    }
+    
+    .instructions.desktop {
+        display: none;
+    }
+}
