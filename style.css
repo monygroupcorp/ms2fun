@@ -366,7 +366,11 @@ button:hover {
 .terminal-gif {
     max-width: 90%;
     height: auto;
-    max-height: 280px; /* Adjust this value as needed */
+    max-height: 280px;
+}
+
+.mobile-gif {
+    display: none;
 }
 
 /* Color Bar */
@@ -400,18 +404,18 @@ button:hover {
         grid-template-columns: 1fr;
     }
     
-    .tab {
-        padding: 0 8px;  /* Smaller padding on mobile */
-    }
-
-    .tab-desktop {
+    .desktop-gif {
         display: none;
     }
 
-    .tab-mobile {
-        display: inline;
+    .mobile-gif {
+        display: inline-block;
     }
     
+    .tab {
+        padding: 0 8px;
+    }
+
     .instructions.desktop {
         display: none;
     }

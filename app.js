@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateVolume() {
-        const volumeElement = document.getElementById('volume');
+        const volumeElement = document.getElementById('cult volume');
         if (!volumeElement) {
             console.warn('Volume element not found in DOM');
             return;

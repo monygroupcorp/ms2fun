@@ -29,4 +29,5 @@ This platform will serve as the launch platform for the StationThisBot collectio
 VPL
 
 ## Contact
-[Contact information to be added]
+owner of miladystation #598
+owner of remilio 4681
