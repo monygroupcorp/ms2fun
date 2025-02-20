@@ -39,7 +39,7 @@
                 <span class="nav-arrows">&lt; &gt;</span>
                 <span class="nav-title">CULT EXECUTIVE ENTERPRISE INCORPORATED TERMINAL ⌄</span>
                 <span class="nav-mode">MS2 ⭐️</span>
-                <span class="nav-menu">Related Functions Menu ↡</span>
+                <span class="nav-menu desktop-only">Related Functions Menu ↡</span>
             </div>
             <div class="nav-right">
                 <span class="nav-icon">✉️ Message</span>
@@ -71,6 +71,95 @@
     </div>
 
     <div class="middle-section">
+        <!-- Contract Interaction Section -->
+        <div id="contractInterface" style="display: none;" class="full-width">
+            <div class="contract-status">
+                <div id="contractStatus" class="status-message">INITIALIZING SYSTEM...</div>
+                
+                <!-- Add Selected Wallet Display -->
+                <div id="selectedWalletDisplay" class="selected-wallet-display">
+                    <img id="selectedWalletIcon" src="" alt="Selected Wallet">
+                    <span class="wallet-name" id="selectedWalletName"></span>
+                </div>
+                <div id="continuePrompt" class="continue-prompt" style="display: none;">
+                    CONTINUE IN YOUR WALLET
+                </div>
+                
+                <button id="selectWallet" class="connect-button">
+                    <span class="button-text">SELECT WALLET</span>
+                </button>
+            </div>
+
+            <!-- Add Wallet Selection Modal -->
+            <div id="walletModal" class="wallet-modal">
+                <div class="wallet-modal-content">
+                    <h3>Select Your Wallet</h3>
+                    <div class="wallet-options">
+                        <button class="wallet-option" data-wallet="rabby">
+                            <picture>
+                                <source srcset="public/wallets/rabby.avif" type="image/avif">
+                                <source srcset="public/wallets/rabby.webp" type="image/webp">
+                                <img src="public/wallets/rabby.png" alt="Rabby">
+                            </picture>
+                            <span>Rabby</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="rainbow">
+                            <picture>
+                                <source srcset="public/wallets/rainbow.avif" type="image/avif">
+                                <source srcset="public/wallets/rainbow.webp" type="image/webp">
+                                <img src="public/wallets/rainbow.png" alt="Rainbow">
+                            </picture>
+                            <span>Rainbow</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="phantom">
+                            <picture>
+                                <source srcset="public/wallets/phantom.avif" type="image/avif">
+                                <source srcset="public/wallets/phantom.webp" type="image/webp">
+                                <img src="public/wallets/phantom.png" alt="Phantom">
+                            </picture>
+                            <span>Phantom</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="metamask">
+                            <picture>
+                                <source srcset="public/wallets/metamask.avif" type="image/avif">
+                                <source srcset="public/wallets/metamask.webp" type="image/webp">
+                                <img src="public/wallets/metamask.png" alt="MetaMask">
+                            </picture>
+                            <span>MetaMask</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="walletconnect">
+                            <picture>
+                                <source srcset="public/wallets/walletconnect.avif" type="image/avif">
+                                <source srcset="public/wallets/walletconnect.webp" type="image/webp">
+                                <img src="public/wallets/walletconnect.png" alt="WalletConnect">
+                            </picture>
+                            <span>WalletConnect</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="bondingCurveInterface" style="display: none;">
+                <div class="presale-info">
+                    <h3>EXEC404 PRESALE STATUS</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">TOTAL RAISED:</span>
+                            <span class="stat-value" id="totalRaised">0.00 ETH</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">CURRENT PRICE:</span>
+                            <span class="stat-value" id="currentTokenPrice">0.00 ETH</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">TOKENS REMAINING:</span>
+                            <span class="stat-value" id="tokensRemaining">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- GIF Display -->
         <div class="gif-container">
             <img src="public/cultexec.gif" alt="Terminal Animation" class="terminal-gif desktop-gif">
@@ -90,23 +179,23 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <div class="tab active">
+            <div id="whitelistTab" class="tab active">
                 <span class="tab-desktop">1) Whitelist Check</span>
                 <span class="tab-mobile">Whitelist</span>
             </div>
-            <div class="tab">
+            <div id="presaleTab" class="tab">
                 <span class="tab-desktop">2) Bonding Curve</span>
                 <span class="tab-mobile">Presale</span>
             </div>
-            <div class="tab">
+            <div id="liveTab" class="tab">
                 <span class="tab-desktop">3) Live Trading</span>
                 <span class="tab-mobile">Live</span>
             </div>
-            <div class="tab">
+            <div id="statsTab" class="tab">
                 <span class="tab-desktop">4) Revenue & Stats</span>
                 <span class="tab-mobile">Rev</span>
             </div>
-            <div class="tab">
+            <div id="mintTab" class="tab">
                 <span class="tab-desktop">5) Balance Mint</span>
                 <span class="tab-mobile">Mint</span>
             </div>
@@ -167,5 +256,38 @@
     </div>
 
     <script src="app.js"></script>
+    <!-- Add type="module" to use ES modules -->
+    <script type="module">
+        import Web3Handler from './web3Handler.js';
+
+        // Initialize Web3Handler when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            const web3Handler = new Web3Handler();
+            const contractInterface = document.getElementById('contractInterface');
+            const contractStatus = document.getElementById('contractStatus');
+            const selectWalletBtn = document.getElementById('selectWallet');
+
+            // Initialize web3 handler
+            const hasContract = await web3Handler.init();
+            
+            if (hasContract) {
+                contractInterface.style.display = 'block';
+                contractStatus.textContent = 'Contract detected. Please connect your wallet.';
+                
+                // Add connect wallet button listener
+                selectWalletBtn.addEventListener('click', async () => {
+                    try {
+                        const account = await web3Handler.connectWallet();
+                        contractStatus.textContent = `Connected: ${account}`;
+                        selectWalletBtn.style.display = 'none';
+                    } catch (error) {
+                        contractStatus.textContent = `Error: ${error.message}`;
+                    }
+                });
+            } else {
+                contractInterface.style.display = 'none';
+            }
+        });
+    </script>
 </body>
 </html>
