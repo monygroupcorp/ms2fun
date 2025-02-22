@@ -1,5 +1,12 @@
 import WalletModal from './src/components/WalletModal/WalletModal.js';
 import StatusMessage from './src/components/StatusMessage/StatusMessage.js';
+import TradingInterface from './src/components/TradingInterface/TradingInterface.js';
+import ChatPanel from './src/components/ChatPanel/ChatPanel.js';
+import { ethers } from './node_modules/ethers/dist/ethers.esm.js';
+import ContractHandler from './contractHandler.js';
+import { eventBus } from './src/eventBus.js';
+
+console.log('Ethers imported:', ethers);
 
 class Web3Handler {
     constructor() {
@@ -9,6 +16,7 @@ class Web3Handler {
         this.connected = false;
         this.selectedWallet = null;
         this.connectedAddress = null;
+        this.contractHandler = null;
         
         this.statusMessage = new StatusMessage('contractStatus');
         
@@ -31,14 +39,15 @@ class Web3Handler {
             rabby: () => window.rabby || window.ethereum,
             rainbow: () => window.rainbow || window.ethereum,
             phantom: () => window.phantom?.ethereum,
-            metamask: () => {
-                // MetaMask specific detection
-                const provider = window.ethereum;
-                if (provider?.isMetaMask && !provider.isRabby) {
-                    return provider;
-                }
-                return null;
-            },
+            metamask: () => window.metamask?.ethereum || window.ethereum,
+            // metamask: () => {
+            //     // MetaMask specific detection
+            //     const provider = window.ethereum;
+            //     if (provider?.isMetaMask && !provider.isRabby) {
+            //         return provider;
+            //     }
+            //     return null;
+            // },
             walletconnect: () => null // Will implement later with WalletConnect v2
         };
         
@@ -51,7 +60,12 @@ class Web3Handler {
             walletconnect: '/public/wallets/walletconnect.webp'
         };
 
-        this.walletModal = new WalletModal(this.providerMap, this.walletIcons);
+        this.walletModal = new WalletModal(
+            this.providerMap, 
+            this.walletIcons,
+            (walletType) => this.handleWalletSelection(walletType)  // Pass callback
+        );
+        this.chatPanel = new ChatPanel();
     }
 
     async init() {
@@ -67,6 +81,7 @@ class Web3Handler {
             }
             
             this.contractData = await response.json();
+            console.log('Contract data loaded:', this.contractData);
             
             // Replace system status panel with chat panel
             const statsPanel = document.querySelector('.stats-panel');
@@ -88,7 +103,7 @@ class Web3Handler {
                 statsPanel.parentNode.replaceChild(chatInterface, statsPanel);
                 
                 // Initialize chat messages
-                await this.loadChatMessages();
+                await this.chatPanel.loadMessages();
             }
             
             // Check if wallet is available but don't connect yet
@@ -109,6 +124,7 @@ class Web3Handler {
             
             return true;
         } catch (error) {
+            console.error('Error in init:', error);
             this.statusMessage.update(this.statusMessages.ERROR + error.message, true);
             return false;
         }
@@ -124,20 +140,76 @@ class Web3Handler {
     }
 
     async handleWalletSelection(walletType) {
+        console.log('Wallet selected:', walletType);
         this.selectedWallet = walletType;
         
         try {
             const provider = this.providerMap[walletType]();
+            console.log('Raw provider obtained:', provider);
             
             if (!provider) {
                 throw new Error(`${walletType} not detected`);
             }
 
+            // Check and enforce network settings
+            const targetNetwork = this.contractData.network;
+            const targetRpcUrl = this.contractData.rpcUrl;
+            
+            // Get current network
+            const currentNetwork = await provider.request({ method: 'eth_chainId' });
+            console.log('Current network:', currentNetwork);
+            
+            // If network doesn't match, try to switch
+            if (currentNetwork !== `0x${Number(targetNetwork).toString(16)}`) {
+                try {
+                    await provider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: `0x${Number(targetNetwork).toString(16)}` }],
+                    });
+                } catch (switchError) {
+                    // If the network doesn't exist, add it
+                    if (switchError.code === 4902) {
+                        await provider.request({
+                            method: 'wallet_addEthereumChain',
+                            params: [{
+                                chainId: `0x${Number(targetNetwork).toString(16)}`,
+                                rpcUrls: [targetRpcUrl],
+                                chainName: 'Local Test Network',
+                                nativeCurrency: {
+                                    name: 'ETH',
+                                    symbol: 'ETH',
+                                    decimals: 18
+                                }
+                            }]
+                        });
+                    } else {
+                        throw switchError;
+                    }
+                }
+            }
+
             // Store the provider for future use
             this.provider = provider;
 
+            // Initialize ContractHandler with provider and contract address
+            console.log('Initializing ContractHandler with address:', this.contractData.address);
+            console.log('Provider state before ContractHandler:', {
+                isConnected: provider.connected,
+                chainId: provider.chainId,
+                selectedAddress: provider.selectedAddress
+            });
+
+            this.contractHandler = new ContractHandler(
+                provider,
+                this.contractData.address
+            );
+
+            // Wait for initialization
+            await this.contractHandler.initialize();
+            console.log('ContractHandler initialized:', this.contractHandler);
+
             // Update the selected wallet display
-            this.updateSelectedWalletDisplay(walletType);
+            this.walletModal.updateSelectedWalletDisplay(walletType);
 
             // Some providers (like Rabby) need to be explicitly activated
             if (walletType === 'rabby' && provider.activate) {
@@ -148,28 +220,10 @@ class Web3Handler {
             await this.connectWallet();
 
         } catch (error) {
+            console.error('Error in handleWalletSelection:', error);
             this.statusMessage.update(`${error.message}. Please install ${walletType}.`, true);
+            throw error;
         }
-    }
-
-    updateSelectedWalletDisplay(walletType) {
-        const display = document.getElementById('selectedWalletDisplay');
-        const icon = document.getElementById('selectedWalletIcon');
-        const name = document.getElementById('selectedWalletName');
-        const continuePrompt = document.getElementById('continuePrompt');
-        const selectButton = document.getElementById('selectWallet');
-
-        // Update display
-        icon.src = this.walletIcons[walletType];
-        name.textContent = walletType.toUpperCase();
-        display.classList.add('active');
-        continuePrompt.style.display = 'block';
-        selectButton.style.display = 'none';
-
-        // Add fallback for icon load error
-        icon.onerror = () => {
-            icon.style.display = 'none';
-        };
     }
 
     async connectWallet() {
@@ -180,6 +234,7 @@ class Web3Handler {
         this.statusMessage.update(this.statusMessages.CONNECTING);
         
         try {
+            console.log('Requesting wallet connection...');
             await new Promise(resolve => setTimeout(resolve, 500));
             
             let accounts;
@@ -197,31 +252,34 @@ class Web3Handler {
                     });
             }
             
+            console.log('Got accounts:', accounts);
+            
             if (accounts && accounts[0]) {
+                console.log('Setting up connection with address:', accounts[0]);
                 this.connected = true;
                 this.connectedAddress = accounts[0];
+                
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
+                console.log('Removing wallet UI elements...');
                 // Remove the wallet selection display completely
-                const selectedWalletDisplay = document.getElementById('selectedWalletDisplay');
-                if (selectedWalletDisplay) {
-                    selectedWalletDisplay.remove();
-                }
-                document.getElementById('continuePrompt')?.remove();
-                document.getElementById('selectWallet')?.remove();
+                this.walletModal.hideWalletDisplay();
                 
+                console.log('Showing trading interface...');
                 // Skip verification and show trading interface directly
                 await this.showTradingInterface();
+                
+                // Emit wallet connected event
+                eventBus.emit('wallet:connected', this.connectedAddress);
                 
                 return this.connectedAddress;
             } else {
                 throw new Error('No accounts found');
             }
         } catch (error) {
+            console.error('Connection error:', error);
             // Show select button again on error
-            document.getElementById('selectWallet').style.display = 'block';
-            document.getElementById('selectedWalletDisplay').classList.remove('active');
-            document.getElementById('continuePrompt').style.display = 'none';
+            this.walletModal.showSelectButton();
             
             if (error.code === 4001) {
                 this.statusMessage.update('Connection request declined. Please try again.', true);
@@ -283,7 +341,6 @@ class Web3Handler {
         }
 
         const currentPrice = await this.getCurrentPrice();
-        const shortAddress = this.connectedAddress.slice(0, 6) + '...' + this.connectedAddress.slice(-4);
         
         // Remove the original status message element
         const originalStatus = document.getElementById('contractStatus');
@@ -291,126 +348,67 @@ class Web3Handler {
             originalStatus.remove();
         }
 
-        const tradingInterface = document.createElement('div');
-        tradingInterface.className = 'trading-interface';
-        tradingInterface.innerHTML = `
-            <div class="trading-container">
-                <div class="curve-display">
-                    <canvas id="curveChart"></canvas>
-                </div>
-                <div class="swap-interface">
-                    <h2>CULT EXECS</h2>
-                    <div class="price-info">
-                        <div class="price-display">
-                            <span class="current-price">0.0025ETH/1M</span>
-                        </div>
-                        <div class="connection-status">
-                            <span class="status-message" id="contractStatus">CONNECTION ESTABLISHED: ${shortAddress}</span>
-                        </div>
-                    </div>
-                    <div class="swap-module">
-                        <div class="quick-fill-buttons">
-                            <button class="quick-fill eth-fill" data-value="0.0025">0.0025</button>
-                            <button class="quick-fill eth-fill" data-value="0.005">0.005</button>
-                            <button class="quick-fill eth-fill" data-value="0.01">0.01</button>
-                            <button class="quick-fill eth-fill" data-value="0.1">0.1</button>
-                            <button class="quick-fill exec-fill hidden" data-value="25">25%</button>
-                            <button class="quick-fill exec-fill hidden" data-value="50">50%</button>
-                            <button class="quick-fill exec-fill hidden" data-value="75">75%</button>
-                            <button class="quick-fill exec-fill hidden" data-value="100">100%</button>
-                        </div>
-                        <div class="input-group">
-                            <input type="number" id="ethAmount" placeholder="0.0" autofocus>
-                            <span class="currency-label">ETH</span>
-                        </div>
-                        <button class="swap-arrow-button"><span class="arrow">↓</span></button>
-                        <div class="input-group">
-                            <input type="number" id="execAmount" placeholder="0.0">
-                            <span class="currency-label">EXEC</span>
-                        </div>
-                        <button id="swapButton" class="swap-button">BUY EXEC</button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Mobile Tab Controls -->
-            <div class="mobile-tabs">
-                <button class="tab-button active" data-view="curve">Price Curve</button>
-                <button class="tab-button" data-view="swap">Swap</button>
-            </div>
-        `;
+        // Create and render trading interface
+        const tradingInterface = new TradingInterface(this.connectedAddress, this.contractHandler, ethers);
+        const tradingElement = tradingInterface.render();
 
+        // Add to DOM
         const bondingInterface = document.getElementById('bondingCurveInterface');
         bondingInterface.innerHTML = '';
-        bondingInterface.appendChild(tradingInterface);
+        bondingInterface.appendChild(tradingElement);
         bondingInterface.style.display = 'block';
         bondingInterface.classList.add('active');
         
         // Initialize the curve chart
         requestAnimationFrame(() => {
             this.initializeCurveChart(currentPrice);
-            this.setupSwapListeners();
         });
 
-        // After adding the interface to the DOM
+        // Setup mobile tabbing if needed
         if (window.innerWidth <= 768) {
-            this.setupMobileTabbing();
-            // Remove the forced swap interface visibility
-            // document.querySelector('.swap-interface').classList.add('active');
+            tradingInterface.setupMobileTabbing();
         }
 
+        // Update panels
+        await this.updateInterfacePanels();
+    }
+
+    async updateInterfacePanels() {
         // Restore system status panel
         const chatPanel = document.querySelector('.chat-panel');
         if (chatPanel) {
-            const statsPanel = document.createElement('div');
+            const statsPanel = this.chatPanel.render('stats');
             statsPanel.className = 'panel stats-panel';
-            statsPanel.innerHTML = `
-                <h2>3) SYSTEM STATUS | SYS</h2>
-                <div class="stats-content">
-                    <p>NETWORK: <span class="status-indicator">CONNECTED</span></p>
-                    <p>CHAIN ID: <span>1 (ETHEREUM)</span></p>
-                    <p>BLOCK: <span>19,234,567</span></p>
-                    <p>LAST UPDATE: <span>2024-03-14 19:32</span></p>
-                    <p>API STATUS: <span class="status-indicator">ACTIVE</span></p>
-                    <p>CACHE: <span class="status-indicator">SYNCED</span></p>
-                    <p>TOTAL CHECKS: <span>1,234</span></p>
-                    <p>SUCCESS RATE: <span>99.9%</span></p>
-                </div>
-            `;
             chatPanel.parentNode.replaceChild(statsPanel, chatPanel);
         }
 
         // Replace the checker panel with the chat interface
         const checkerPanel = document.querySelector('.checker-panel');
         if (checkerPanel) {
-            const chatInterface = document.createElement('div');
-            chatInterface.className = 'chat-panel';
-            chatInterface.innerHTML = `
-                <div class="chat-header">
-                    <h2>EXEC INSIDER BULLETIN</h2>
-                </div>
-                <div class="chat-messages" id="chatMessages">
-                    <!-- Messages will be populated here -->
-                </div>
-                <div class="chat-status">
-                    <span>MESSAGES LOADED FROM CHAIN</span>
-                    <span class="message-count">0</span>
-                </div>
-            `;
+            const chatInterface = this.chatPanel.render('bulletin');
             checkerPanel.parentNode.replaceChild(chatInterface, checkerPanel);
         }
 
-        //update the tabs active
-        document.querySelector('#whitelistTab').classList.remove('active');
-        document.querySelector('#presaleTab').classList.add('active');
+        // Update the tabs active state
+        document.querySelector('#whitelistTab')?.classList.remove('active');
+        document.querySelector('#presaleTab')?.classList.add('active');
 
         // Initialize the chat messages
-        await this.loadChatMessages();
+        await this.chatPanel.loadMessages();
     }
 
     async getCurrentPrice() {
-        // Implement contract call to get current price
-        return 0.0025; // Example price
+        try {
+            if (!this.contractHandler) {
+                throw new Error('Contract handler not initialized');
+            }
+            const price = await this.contractHandler.getCurrentPrice();
+            // Use ethers.utils.formatEther instead of ethers.formatEther
+            return price.eth/10;
+        } catch (error) {
+            console.error('Error in getCurrentPrice:', error);
+            throw error;
+        }
     }
 
     async initializeCurveChart(currentPrice) {
@@ -428,10 +426,18 @@ class Web3Handler {
         ctx.strokeStyle = '#FFD700';
         ctx.lineWidth = 2;
         
-        // Simple quadratic curve function
+        // Modified curve function with even more dramatic curve
         const curve = (x) => {
-            return Math.pow(x, 1.5); // Slightly gentler curve
+            // Add padding of 10% at bottom and top
+            const paddedX = 0.1 + (x * 0.8);
+            return Math.pow(paddedX, 3.5); // Increased from 2.5 to 3.5 for steeper curve
         }
+        
+        // Calculate the maximum price point for scaling
+        const maxPrice = curve(1);
+        
+        // Adjust position calculation to account for padding
+        const currentPosition = Math.max(0.1, Math.min(0.9, Math.pow(currentPrice / maxPrice, 1/3.5))); // Match the curve power
         
         // Draw main curve
         ctx.beginPath();
@@ -442,6 +448,7 @@ class Web3Handler {
         const points = 100;
         const curvePoints = []; // Store points for later use
         
+        // First populate all curve points
         for (let i = 0; i <= points; i++) {
             const x = i / points;
             const y = curve(x);
@@ -450,125 +457,59 @@ class Web3Handler {
             const canvasY = canvas.height * 0.9 - y * canvas.height * 0.8;
             
             curvePoints.push({ x: canvasX, y: canvasY });
-            ctx.lineTo(canvasX, canvasY);
         }
         
-        ctx.stroke();
-        
-        // Draw current position indicator
-        // Let's say we're at 20% of the curve
-        const currentPosition = 0.2;
-        const segmentSize = 0.1; // Size of highlighted segment
-        
-        // Find the points around our current position
-        const startIndex = Math.floor(currentPosition * points);
-        const endIndex = Math.floor((currentPosition + segmentSize) * points);
-        
-        // Draw highlighted segment
+        // Now draw the main curve using the points
         ctx.beginPath();
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 4; // Slightly thicker
-        
-        // Start slightly before the current position
-        ctx.moveTo(curvePoints[startIndex].x, curvePoints[startIndex].y);
-        
-        // Draw the highlighted segment
-        for (let i = startIndex; i <= endIndex; i++) {
+        ctx.moveTo(curvePoints[0].x, curvePoints[0].y);
+        for (let i = 0; i < curvePoints.length; i++) {
             ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
         }
-        
         ctx.stroke();
         
-        // Draw the indicator dot at the center of the highlighted segment
-        const centerIndex = Math.floor((startIndex + endIndex) / 2);
-        const centerPoint = curvePoints[centerIndex];
+        // Update position indicator code
+        const segmentSize = 0.05; // Reduced size for more precise indication
         
-        ctx.beginPath();
-        ctx.arc(centerPoint.x, centerPoint.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#FF0000';
-        ctx.fill();
+        // Ensure position stays within bounds
+        const boundedPosition = Math.max(0, Math.min(0.99, currentPosition));
+        
+        // Calculate indices for highlighted segment
+        const startIndex = Math.max(0, Math.min(points - 1, Math.floor((boundedPosition - segmentSize/2) * points)));
+        const endIndex = Math.max(0, Math.min(points - 1, Math.floor((boundedPosition + segmentSize/2) * points)));
+        
+        if (startIndex < curvePoints.length && endIndex < curvePoints.length) {
+            // Draw highlighted segment
+            ctx.beginPath();
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 4; // Slightly thicker
+            
+            // Start slightly before the current position
+            ctx.moveTo(curvePoints[startIndex].x, curvePoints[startIndex].y);
+            
+            // Draw the highlighted segment
+            for (let i = startIndex; i <= endIndex && i < curvePoints.length; i++) {
+                ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
+            }
+            
+            ctx.stroke();
+            
+            // Draw the indicator dot at the center of the highlighted segment
+            const centerIndex = Math.floor((startIndex + endIndex) / 2);
+            if (centerIndex < curvePoints.length) {
+                const centerPoint = curvePoints[centerIndex];
+                
+                ctx.beginPath();
+                ctx.arc(centerPoint.x, centerPoint.y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#FF0000';
+                ctx.fill();
+            }
+        }
         
         // Add labels with dimmer color
         ctx.fillStyle = '#666666';
         ctx.font = '12px Courier New';
-        ctx.fillText('reserve y', 10, 20);
-        ctx.fillText('reserve x', canvas.width - 70, canvas.height - 10);
-    }
-
-    setupSwapListeners() {
-        const ethInput = document.getElementById('ethAmount');
-        const execInput = document.getElementById('execAmount');
-        const swapButton = document.getElementById('swapButton');
-
-        ethInput.addEventListener('input', (e) => {
-            const ethAmount = parseFloat(e.target.value) || 0;
-            execInput.value = (ethAmount * 400000).toFixed(2); // Example conversion rate
-        });
-
-        execInput.addEventListener('input', (e) => {
-            const execAmount = parseFloat(e.target.value) || 0;
-            ethInput.value = (execAmount / 400000).toFixed(4); // Example conversion rate
-        });
-
-        swapButton.addEventListener('click', () => {
-            // Implement swap functionality
-            console.log('Swap clicked:', {
-                eth: ethInput.value,
-                exec: execInput.value
-            });
-        });
-    }
-
-    setupMobileTabbing() {
-        const tabButtons = document.querySelectorAll('.tab-button');
-        const curveDisplay = document.querySelector('.curve-display');
-        const swapInterface = document.querySelector('.swap-interface');
-
-        // Set initial state
-        curveDisplay.classList.add('active');
-        swapInterface.classList.remove('active');
-        
-        // Set initial active tab
-        tabButtons.forEach(b => b.classList.remove('active'));
-        const curveTab = Array.from(tabButtons).find(b => b.dataset.view === 'curve');
-        if (curveTab) curveTab.classList.add('active');
-
-        tabButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                // Update active tab
-                tabButtons.forEach(b => b.classList.remove('active'));
-                button.classList.add('active');
-
-                // Show/hide appropriate view
-                if (button.dataset.view === 'curve') {
-                    curveDisplay.classList.add('active');
-                    swapInterface.classList.remove('active');
-                    // Redraw curve AFTER setting display classes
-                    this.initializeCurveChart(this.getCurrentPrice());
-                } else {
-                    swapInterface.classList.add('active');
-                    curveDisplay.classList.remove('active');
-                }
-            });
-        });
-    }
-
-    // Add new method to handle chat messages
-    async loadChatMessages() {
-        try {
-            // Here you would fetch messages from your smart contract
-            // For now we'll just show a placeholder
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.innerHTML = `
-                <div class="message">
-                    <span class="message-address">0x1234...5678</span>
-                    <span class="message-time">19:32</span>
-                    <p class="message-content">First message on EXEC chain</p>
-                </div>
-            `;
-        } catch (error) {
-            console.error('Error loading chat messages:', error);
-        }
+        ctx.fillText(`${currentPrice.toFixed(4)} ETH / CULT EXECUTIVE COLLECTIBLE`, 10, 20); // Price in top left
+        //ctx.fillText('', canvas.width - 70, canvas.height - 10); // $EXEC label at bottom
     }
 
     setupBottomSectionCollapse() {
@@ -602,18 +543,23 @@ class Web3Handler {
     }
 }
 
-export default Web3Handler; 
-
 function initializeSwapInterface() {
+    // Wait for DOM elements to exist
     const ethAmount = document.getElementById('ethAmount');
     const execAmount = document.getElementById('execAmount');
     const swapArrowButton = document.querySelector('.swap-arrow-button');
     const swapButton = document.getElementById('swapButton');
+    
+    // Check if required elements exist
+    if (!ethAmount || !execAmount || !swapArrowButton || !swapButton) {
+        console.log('Swap interface elements not found, skipping initialization');
+        return;
+    }
+
     const ethFillButtons = document.querySelectorAll('.eth-fill');
     const execFillButtons = document.querySelectorAll('.exec-fill');
-    let isEthToExec = true; // Track the current swap direction
+    let isEthToExec = true;
 
-    // Update the arrow button HTML to include a span for rotation
     swapArrowButton.innerHTML = '<span class="arrow">↓</span>';
 
     // Set initial focus
@@ -680,3 +626,15 @@ function initializeSwapInterface() {
 
 // Call this function after your DOM is loaded
 document.addEventListener('DOMContentLoaded', initializeSwapInterface); 
+export default Web3Handler; 
+
+async function executeTrade(tradeDetails) {
+    // ... existing trade execution code ...
+    
+    // Emit trade executed event
+    eventBus.emit('trade:executed', {
+        address: tradeDetails.address,
+        amount: tradeDetails.amount,
+        timestamp: Date.now()
+    });
+} 

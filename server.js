@@ -11,6 +11,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.use((req, res, next) => {
+    if (req.url.endsWith('.js')) {
+        res.type('application/javascript');
+    }
+    next();
+});
+
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 }); 

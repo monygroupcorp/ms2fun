@@ -8,7 +8,10 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "express": "^4.17.1"
+    "ethers": "^5.7.2",
+    "express": "^4.17.1",
+    "merkletreejs": "^0.4.1",
+    "web3": "^4.16.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.15"

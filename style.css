@@ -392,6 +392,7 @@ button:hover {
     justify-content: center;
     min-height: 300px; /* Adjust this value as needed */
     background-color: var(--bg-darker);
+    padding-bottom: 20px;
 }
 
 .bottom-section {
@@ -457,7 +458,7 @@ button:hover {
 }
 
 .status-message {
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.0);
     color: #00FF00;
     padding: 10px;
     border-radius: 4px;
@@ -827,7 +828,7 @@ button:hover {
 
 .swap-arrow-button .arrow {
     display: inline-block;
-    transition: transform 0.3s;
+    transition: transform 0.3s ease;
 }
 
 .swap-arrow-button:hover {
@@ -837,10 +838,10 @@ button:hover {
 .swap-arrow-button:hover .arrow {
     transform: rotate(180deg);
 }
-
+/* 
 .swap-arrow-button.flipped .arrow {
     transform: rotate(180deg);
-}
+} */
 
 /* Ensure the bonding curve interface is visible */
 #bondingCurveInterface {
@@ -1047,4 +1048,50 @@ button:hover {
     .main-content.collapsed {
         max-height: 0;
     }
+}
+
+.user-holdings {
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.balance-info {
+    display: flex;
+    justify-content: space-between;
+    color: #ffd700;
+    font-family: monospace;
+}
+
+.transaction-options {
+    margin: 15px 0;
+}
+
+.option-group {
+    margin: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.option-group label {
+    color: #ffd700;
+    font-size: 0.9em;
+}
+
+#transactionMessage {
+    width: 90%;
+    margin-top: 5px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #ffd700;
+    border-radius: 4px;
+    color: #ffd700;
+    resize: vertical;
+    min-height: 60px;
+}
+
+.hidden {
+    display: none;
 }

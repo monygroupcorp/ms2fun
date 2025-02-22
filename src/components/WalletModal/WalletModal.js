@@ -1,7 +1,8 @@
 class WalletModal {
-    constructor(providerMap, walletIcons) {
+    constructor(providerMap, walletIcons, onWalletSelected) {
         this.providerMap = providerMap;
         this.walletIcons = walletIcons;
+        this.onWalletSelected = onWalletSelected;
         this.modal = document.getElementById('walletModal');
         this.selectedWalletDisplay = document.getElementById('selectedWalletDisplay');
         this.continuePrompt = document.getElementById('continuePrompt');
@@ -23,7 +24,7 @@ class WalletModal {
         walletOptions.forEach(option => {
             option.addEventListener('click', async () => {
                 const walletType = option.dataset.wallet;
-                await this.handleWalletSelection(walletType);
+                await this.onWalletSelected(walletType);
                 this.hide();
             });
         });
