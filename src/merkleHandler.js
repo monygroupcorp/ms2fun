@@ -1,5 +1,6 @@
 const { MerkleTree } = window;
-import { ethers } from '/node_modules/ethers/dist/ethers.esm.js';
+// import { ethers } from '/node_modules/ethers/dist/ethers.esm.js';
+import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 
 // Wrapper function for Ethers.js hashing
 const hashWithEthers = (input) => ethers.utils.solidityKeccak256(["address"], [input]);
@@ -51,7 +52,7 @@ class MerkleHandler {
         
         try {
             // Add debug logging
-            console.log('Creating tree for addresses:', addresses);
+            //console.log('Creating tree for addresses:', addresses);
             
             const leaves = addresses.map(addr => {
                 const leaf = ethers.utils.solidityKeccak256(['address'], [addr]);
@@ -71,7 +72,7 @@ class MerkleHandler {
             });
 
             // Log final root
-            console.log(`Tree root for tier ${tier}:`, tree.getHexRoot());
+            //console.log(`Tree root for tier ${tier}:`, tree.getHexRoot());
 
             return tree;
         } catch (error) {

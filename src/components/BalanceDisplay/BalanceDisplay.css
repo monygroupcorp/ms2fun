@@ -1,0 +1,98 @@
+.balance-display {
+    background: var(--component-bg, #ffffff);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.balance-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.balance-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--text-primary, #333);
+}
+
+.last-updated {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #666);
+}
+
+.connection-status {
+    margin-left: 10px;
+}
+
+.balance-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.balance-item {
+    background: var(--item-bg, #f5f5f5);
+    padding: 16px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+.balance-item .label {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #666);
+    margin-bottom: 8px;
+}
+
+.balance-item .amount {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary, #333);
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary, #666);
+}
+
+.error-message {
+    color: var(--error-color, #dc3545);
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.retry-button {
+    display: block;
+    margin: 0 auto;
+    padding: 8px 16px;
+    background: var(--primary-color, #007bff);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.retry-button:hover {
+    background: var(--primary-color-dark, #0056b3);
+}
+
+/* Loading state styles */
+.balance-display.loading .balance-content {
+    opacity: 0.7;
+}
+
+/* Error state styles */
+.balance-display.error .balance-content {
+    border: 1px solid var(--error-color, #dc3545);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+/* Connection status colors */
+.connection-status.connected { color: #28a745; }
+.connection-status.connecting { color: #ffc107; }
+.connection-status.disconnected { color: #dc3545; } 

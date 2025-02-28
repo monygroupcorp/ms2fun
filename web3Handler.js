@@ -2,25 +2,25 @@ import WalletModal from './src/components/WalletModal/WalletModal.js';
 import StatusMessage from './src/components/StatusMessage/StatusMessage.js';
 import TradingInterface from './src/components/TradingInterface/TradingInterface.js';
 import ChatPanel from './src/components/ChatPanel/ChatPanel.js';
-import { ethers } from './node_modules/ethers/dist/ethers.esm.js';
-import ContractHandler from './contractHandler.js';
-import { eventBus } from './src/eventBus.js';
+//import BlockchainService from './src/services/BlockchainService.js';
+import { eventBus } from './src/core/EventBus.js';
+// import { ethers } from './node_modules/ethers/dist/ethers.esm.js';
+import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 
 console.log('Ethers imported:', ethers);
 
 class Web3Handler {
-    constructor() {
+    constructor(blockchainService) {
         this.contractData = null;
         this.web3 = null;
         this.contract = null;
         this.connected = false;
         this.selectedWallet = null;
         this.connectedAddress = null;
-        this.contractHandler = null;
+        this.blockchainService = blockchainService;
         
         this.statusMessage = new StatusMessage('contractStatus');
         
-        console.log('Web3Handler initialized');
         this.statusMessages = {
             INITIALIZING: 'INITIALIZING SYSTEM...',
             CONTRACT_FOUND: 'SECURE SYSTEM READY',
@@ -48,7 +48,7 @@ class Web3Handler {
             //     }
             //     return null;
             // },
-            walletconnect: () => null // Will implement later with WalletConnect v2
+            //walletconnect: () => null // Will implement later with WalletConnect v2
         };
         
         // Add wallet icons mapping
@@ -57,7 +57,7 @@ class Web3Handler {
             rainbow: '/public/wallets/rainbow.webp',
             phantom: '/public/wallets/phantom.webp',
             metamask: '/public/wallets/metamask.webp',
-            walletconnect: '/public/wallets/walletconnect.webp'
+            //walletconnect: '/public/wallets/walletconnect.webp'
         };
 
         this.walletModal = new WalletModal(
@@ -69,9 +69,8 @@ class Web3Handler {
     }
 
     async init() {
-        console.log('Starting Web3Handler init...');
+
         try {
-            console.log('Attempting to load switch.json from EXEC404 directory...');
             const response = await fetch('/EXEC404/switch.json');
             console.log('Response:', response);
             
@@ -81,7 +80,6 @@ class Web3Handler {
             }
             
             this.contractData = await response.json();
-            console.log('Contract data loaded:', this.contractData);
             
             // Replace system status panel with chat panel
             const statsPanel = document.querySelector('.stats-panel');
@@ -140,12 +138,10 @@ class Web3Handler {
     }
 
     async handleWalletSelection(walletType) {
-        console.log('Wallet selected:', walletType);
         this.selectedWallet = walletType;
         
         try {
             const provider = this.providerMap[walletType]();
-            console.log('Raw provider obtained:', provider);
             
             if (!provider) {
                 throw new Error(`${walletType} not detected`);
@@ -157,7 +153,6 @@ class Web3Handler {
             
             // Get current network
             const currentNetwork = await provider.request({ method: 'eth_chainId' });
-            console.log('Current network:', currentNetwork);
             
             // If network doesn't match, try to switch
             if (currentNetwork !== `0x${Number(targetNetwork).toString(16)}`) {
@@ -191,22 +186,11 @@ class Web3Handler {
             // Store the provider for future use
             this.provider = provider;
 
-            // Initialize ContractHandler with provider and contract address
-            console.log('Initializing ContractHandler with address:', this.contractData.address);
-            console.log('Provider state before ContractHandler:', {
-                isConnected: provider.connected,
-                chainId: provider.chainId,
-                selectedAddress: provider.selectedAddress
-            });
-
-            this.contractHandler = new ContractHandler(
-                provider,
-                this.contractData.address
-            );
-
-            // Wait for initialization
-            await this.contractHandler.initialize();
-            console.log('ContractHandler initialized:', this.contractHandler);
+            // Initialize BlockchainService instead of ContractHandler
+            //console.log('Initializing BlockchainService...');
+            //this.blockchainService = new BlockchainService();
+            //await this.blockchainService.initialize();
+            //console.log('BlockchainService initialized:', this.blockchainService);
 
             // Update the selected wallet display
             this.walletModal.updateSelectedWalletDisplay(walletType);
@@ -226,14 +210,15 @@ class Web3Handler {
         }
     }
 
+
     async connectWallet() {
         if (!this.selectedWallet || !this.provider) {
             throw new Error('Please select a wallet first');
         }
 
-        this.statusMessage.update(this.statusMessages.CONNECTING);
-        
         try {
+            this.statusMessage.update(this.statusMessages.CONNECTING);
+            
             console.log('Requesting wallet connection...');
             await new Promise(resolve => setTimeout(resolve, 500));
             
@@ -252,30 +237,27 @@ class Web3Handler {
                     });
             }
             
-            console.log('Got accounts:', accounts);
-            
-            if (accounts && accounts[0]) {
-                console.log('Setting up connection with address:', accounts[0]);
-                this.connected = true;
-                this.connectedAddress = accounts[0];
-                
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                console.log('Removing wallet UI elements...');
-                // Remove the wallet selection display completely
-                this.walletModal.hideWalletDisplay();
-                
-                console.log('Showing trading interface...');
-                // Skip verification and show trading interface directly
-                await this.showTradingInterface();
-                
-                // Emit wallet connected event
-                eventBus.emit('wallet:connected', this.connectedAddress);
-                
-                return this.connectedAddress;
-            } else {
+            if (!accounts || !accounts[0]) {
                 throw new Error('No accounts found');
             }
+
+            console.log('Got accounts:', accounts);
+            this.connected = true;
+            this.connectedAddress = accounts[0];
+            
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Remove wallet UI elements
+            this.walletModal.hideWalletDisplay();
+            
+            // Show trading interface
+            await this.showTradingInterface();
+            
+            // Emit wallet connected event
+            eventBus.emit('wallet:connected', this.connectedAddress);
+            
+            return this.connectedAddress;
+
         } catch (error) {
             console.error('Connection error:', error);
             // Show select button again on error
@@ -340,37 +322,48 @@ class Web3Handler {
             throw new Error('No connected address found');
         }
 
-        const currentPrice = await this.getCurrentPrice();
-        
-        // Remove the original status message element
-        const originalStatus = document.getElementById('contractStatus');
-        if (originalStatus) {
-            originalStatus.remove();
+        try {
+            // Remove the original status message element
+            const originalStatus = document.getElementById('contractStatus');
+            if (originalStatus) {
+                originalStatus.remove();
+            }
+
+            // Get the container
+            const bondingInterface = document.getElementById('bondingCurveInterface');
+            if (!bondingInterface) {
+                throw new Error('Bonding interface container not found');
+            }
+
+            // Clear the container
+            bondingInterface.innerHTML = '';
+
+            // Create and mount trading interface using BlockchainService
+            const tradingInterface = new TradingInterface(
+                this.connectedAddress, 
+                this.blockchainService,
+                ethers,
+                {
+                    walletAddress: this.connectedAddress,
+                    isConnected: true,
+                    networkId: this.contractData.network
+                }
+            );
+
+            // Mount the interface
+            tradingInterface.mount(bondingInterface);
+
+            // Show the container
+            bondingInterface.style.display = 'block';
+            bondingInterface.classList.add('active');
+
+            // Update panels
+            await this.updateInterfacePanels();
+
+        } catch (error) {
+            console.error('Error showing trading interface:', error);
+            throw error;
         }
-
-        // Create and render trading interface
-        const tradingInterface = new TradingInterface(this.connectedAddress, this.contractHandler, ethers);
-        const tradingElement = tradingInterface.render();
-
-        // Add to DOM
-        const bondingInterface = document.getElementById('bondingCurveInterface');
-        bondingInterface.innerHTML = '';
-        bondingInterface.appendChild(tradingElement);
-        bondingInterface.style.display = 'block';
-        bondingInterface.classList.add('active');
-        
-        // Initialize the curve chart
-        requestAnimationFrame(() => {
-            this.initializeCurveChart(currentPrice);
-        });
-
-        // Setup mobile tabbing if needed
-        if (window.innerWidth <= 768) {
-            tradingInterface.setupMobileTabbing();
-        }
-
-        // Update panels
-        await this.updateInterfacePanels();
     }
 
     async updateInterfacePanels() {
@@ -399,11 +392,10 @@ class Web3Handler {
 
     async getCurrentPrice() {
         try {
-            if (!this.contractHandler) {
-                throw new Error('Contract handler not initialized');
+            if (!this.blockchainService) {
+                throw new Error('BlockchainService not initialized');
             }
-            const price = await this.contractHandler.getCurrentPrice();
-            // Use ethers.utils.formatEther instead of ethers.formatEther
+            const price = await this.blockchainService.getCurrentPrice();
             return price.eth/10;
         } catch (error) {
             console.error('Error in getCurrentPrice:', error);
@@ -543,98 +535,98 @@ class Web3Handler {
     }
 }
 
-function initializeSwapInterface() {
-    // Wait for DOM elements to exist
-    const ethAmount = document.getElementById('ethAmount');
-    const execAmount = document.getElementById('execAmount');
-    const swapArrowButton = document.querySelector('.swap-arrow-button');
-    const swapButton = document.getElementById('swapButton');
+// function initializeSwapInterface() {
+//     // Wait for DOM elements to exist
+//     const ethAmount = document.getElementById('ethAmount');
+//     const execAmount = document.getElementById('execAmount');
+//     const swapArrowButton = document.querySelector('.swap-arrow-button');
+//     const swapButton = document.getElementById('swapButton');
     
-    // Check if required elements exist
-    if (!ethAmount || !execAmount || !swapArrowButton || !swapButton) {
-        console.log('Swap interface elements not found, skipping initialization');
-        return;
-    }
+//     // Check if required elements exist
+//     if (!ethAmount || !execAmount || !swapArrowButton || !swapButton) {
+//         console.log('Swap interface elements not found, skipping initialization');
+//         return;
+//     }
 
-    const ethFillButtons = document.querySelectorAll('.eth-fill');
-    const execFillButtons = document.querySelectorAll('.exec-fill');
-    let isEthToExec = true;
+//     const ethFillButtons = document.querySelectorAll('.eth-fill');
+//     const execFillButtons = document.querySelectorAll('.exec-fill');
+//     let isEthToExec = true;
 
-    swapArrowButton.innerHTML = '<span class="arrow">↓</span>';
+//     swapArrowButton.innerHTML = '<span class="arrow">↓</span>';
 
-    // Set initial focus
-    ethAmount.focus();
+//     // Set initial focus
+//     ethAmount.focus();
 
-    // Handle quick fill buttons
-    ethFillButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            ethAmount.value = button.dataset.value;
-            updateExecAmount(); // You'll need to implement this based on your conversion rate
-        });
-    });
+//     // Handle quick fill buttons
+//     ethFillButtons.forEach(button => {
+//         button.addEventListener('click', () => {
+//             ethAmount.value = button.dataset.value;
+//             updateExecAmount(); // You'll need to implement this based on your conversion rate
+//         });
+//     });
 
-    execFillButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const percentage = parseInt(button.dataset.value);
-            // Implement max balance calculation here
-            execAmount.value = (maxBalance * percentage / 100).toFixed(6);
-            updateEthAmount(); // You'll need to implement this based on your conversion rate
-        });
-    });
+//     execFillButtons.forEach(button => {
+//         button.addEventListener('click', () => {
+//             const percentage = parseInt(button.dataset.value);
+//             // Implement max balance calculation here
+//             execAmount.value = (maxBalance * percentage / 100).toFixed(6);
+//             updateEthAmount(); // You'll need to implement this based on your conversion rate
+//         });
+//     });
 
-    // Handle swap button
-    swapArrowButton.addEventListener('click', () => {
-        isEthToExec = !isEthToExec; // Toggle direction
-        swapArrowButton.classList.toggle('flipped');
+//     // Handle swap button
+//     swapArrowButton.addEventListener('click', () => {
+//         isEthToExec = !isEthToExec; // Toggle direction
+//         swapArrowButton.classList.toggle('flipped');
 
-        // Swap input values
-        const tempValue = ethAmount.value;
-        ethAmount.value = execAmount.value;
-        execAmount.value = tempValue;
+//         // Swap input values
+//         const tempValue = ethAmount.value;
+//         ethAmount.value = execAmount.value;
+//         execAmount.value = tempValue;
 
-        // Swap IDs
-        const tempId = ethAmount.id;
-        ethAmount.id = execAmount.id;
-        execAmount.id = tempId;
+//         // Swap IDs
+//         const tempId = ethAmount.id;
+//         ethAmount.id = execAmount.id;
+//         execAmount.id = tempId;
 
-        // Swap labels
-        const labels = document.querySelectorAll('.currency-label');
-        const tempLabel = labels[0].textContent;
-        labels[0].textContent = labels[1].textContent;
-        labels[1].textContent = tempLabel;
+//         // Swap labels
+//         const labels = document.querySelectorAll('.currency-label');
+//         const tempLabel = labels[0].textContent;
+//         labels[0].textContent = labels[1].textContent;
+//         labels[1].textContent = tempLabel;
 
-        // Toggle quick fill buttons
-        document.querySelectorAll('.eth-fill').forEach(btn => btn.classList.toggle('hidden'));
-        document.querySelectorAll('.exec-fill').forEach(btn => btn.classList.toggle('hidden'));
+//         // Toggle quick fill buttons
+//         document.querySelectorAll('.eth-fill').forEach(btn => btn.classList.toggle('hidden'));
+//         document.querySelectorAll('.exec-fill').forEach(btn => btn.classList.toggle('hidden'));
 
-        // Update swap button text
-        swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
+//         // Update swap button text
+//         swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
 
-        // Focus the top input
-        document.querySelector('.input-group input').focus();
-    });
+//         // Focus the top input
+//         document.querySelector('.input-group input').focus();
+//     });
 
-    // Update the swap button text when values change
-    ethAmount.addEventListener('input', () => {
-        swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
-    });
+//     // Update the swap button text when values change
+//     ethAmount.addEventListener('input', () => {
+//         swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
+//     });
 
-    execAmount.addEventListener('input', () => {
-        swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
-    });
-}
+//     execAmount.addEventListener('input', () => {
+//         swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
+//     });
+// }
 
 // Call this function after your DOM is loaded
-document.addEventListener('DOMContentLoaded', initializeSwapInterface); 
-export default Web3Handler; 
 
-async function executeTrade(tradeDetails) {
-    // ... existing trade execution code ...
+//document.addEventListener('DOMContentLoaded', initializeSwapInterface); 
+export default Web3Handler; 
+// async function executeTrade(tradeDetails) {
+//     // ... existing trade execution code ...
     
-    // Emit trade executed event
-    eventBus.emit('trade:executed', {
-        address: tradeDetails.address,
-        amount: tradeDetails.amount,
-        timestamp: Date.now()
-    });
-} 
+//     // Emit trade executed event
+//     eventBus.emit('trade:executed', {
+//         address: tradeDetails.address,
+//         amount: tradeDetails.amount,
+//         timestamp: Date.now()
+//     });
+// } 

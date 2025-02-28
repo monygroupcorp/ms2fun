@@ -1,5 +1,6 @@
 class StatusMessage {
     constructor(elementId) {
+        console.log('StatusMessage constructor', elementId);
         this.statusEl = document.getElementById(elementId);
     }
 

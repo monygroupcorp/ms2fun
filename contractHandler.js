@@ -1,6 +1,7 @@
-import { ethers } from '/node_modules/ethers/dist/ethers.esm.js';
-import MessagePopup from '/src/components/MessagePopup/MessagePopup.js';
-import MerkleHandler from '/src/merkleHandler.js';
+import { ethers } from './node_modules/ethers/dist/ethers.esm.js';
+import MessagePopup from './src/components/MessagePopup/MessagePopup.js';
+import MerkleHandler from './src/merkleHandler.js';
+import BlockchainService from './src/services/BlockchainService.js';
 
 console.log('ContractHandler: Ethers imported:', ethers);
 
@@ -9,91 +10,39 @@ class ContractHandler {
         console.log('ContractHandler: Initializing with provider:', provider);
         this.web3Provider = provider; // Injected provider (Rainbow, MetaMask etc)
         this.contractAddress = contractAddress;
-        this.contract = null;
-        this.mirrorContract = null;
-        this.signer = null;
         this.messagePopup = new MessagePopup();
         this.merkleHandler = new MerkleHandler();
-        this.initialize();
-        this.initializeMerkleHandler();
+        this.blockchainService = new BlockchainService();
+        this.initialize(provider);
     }
 
-    async initialize() {
+    // Helper method to get contract instance
+    get contract() {
+        return this.blockchainService.contract;
+    }
+
+    // Helper method to get mirror contract instance
+    get mirrorContract() {
+        return this.blockchainService.mirrorContract;
+    }
+
+    // Helper method to get provider
+    get provider() {
+        return this.blockchainService.provider;
+    }
+
+    // Helper method to get signer
+    get signer() {
+        return this.blockchainService.signer;
+    }
+
+    async initialize(provider) {
         try {
-            // Get RPC URL from contract data
-            const response = await fetch('/EXEC404/switch.json');
-            const contractData = await response.json();
-            
-            // Create ethers provider for local fork - keep this for reading data
-            this.provider = new ethers.providers.JsonRpcProvider(contractData.rpcUrl);
-            console.log('ContractHandler: Created provider for:', contractData.rpcUrl);
-
-            // If we have a web3Provider, set up the signer
-            if (this.web3Provider) {
-                const injectedProvider = new ethers.providers.Web3Provider(this.web3Provider);
-                this.signer = injectedProvider.getSigner();
-                console.log('ContractHandler: Got signer from wallet');
-            }
-
-            // Initialize contracts with provider (for reading)
-            const contractABI = await (await fetch('/EXEC404/abi.json')).json();
-            this.contract = new ethers.Contract(
-                this.contractAddress, 
-                contractABI, 
-                this.provider
-            );
-
-            const mirrorAddress = await this.getMirrorAddress();
-            const mirrorABI = await (await fetch('/EXEC404/mirrorabi.json')).json();
-            this.mirrorContract = new ethers.Contract(
-                mirrorAddress,
-                mirrorABI,
-                this.provider
-            );
-
-            // Check network
-            const network = await this.provider.getNetwork();
-            console.log('ContractHandler: Connected to network:', network);
-
-            // Test RPC connection by getting block number
-            const blockNumber = await this.getBlock();
-            console.log('ContractHandler: Current block number:', blockNumber);
-
-            // Log contract address we're trying to use
-            console.log('ContractHandler: Attempting to connect to contract at:', this.contractAddress);
-
-            // Verify contract exists by checking code at address
-            try {
-                console.log('ContractHandler: Checking code at address:', this.contractAddress);
-                const code = await this.provider.getCode(this.contractAddress);
-                //console.log('ContractHandler: Contract code at address:', code);
-                console.log('ContractHandler: Contract code length:', code.length);
-                if (code === '0x') {
-                    throw new Error(`No contract found at address ${this.contractAddress} on local fork`);
-                }
-            } catch (error) {
-                console.error('ContractHandler: Error checking contract code:', error);
-                throw error;
-            }
-
-            // Try to get contract name first (usually a safer call)
-            try {
-                const name = await this.contract.name();
-                console.log('ContractHandler: Contract name:', name);
-            } catch (error) {
-                console.error('ContractHandler: Error getting contract name:', error);
-            }
-
-            // Now try totalSupply
-            try {
-                const supply = await this.contract.totalSupply();
-                console.log('ContractHandler: Total supply:', supply.toString());
-            } catch (error) {
-                console.error('ContractHandler: Error getting total supply:', error);
-            }
-
+            await this.blockchainService.initialize();
+            await this.initializeMerkleHandler();
         } catch (error) {
-            console.error('ContractHandler: Error initializing contracts:', error);
+            console.error('ContractHandler: Error initializing:', error);
+            this.messagePopup.error(error.message);
             throw error;
         }
     }
@@ -206,17 +155,15 @@ class ContractHandler {
             if (!this.contract) {
                 throw new Error('Contract not initialized');
             }
-            const priceInWei = await this.getPrice(1000000);
-            
-            // For display purposes, also calculate ETH value
-            const priceInEth = ethers.utils.formatEther(priceInWei);
+            const price = await this.blockchainService.executeContractCall('getPrice', [1000000]);
+            const priceInWei = price.toString();
+            const priceInEth = ethers.utils.formatEther(price);
             
             console.log('ContractHandler: Current price:', {
                 wei: priceInWei,
                 eth: priceInEth
             });
             
-            // Return the raw wei string for contract interactions
             return { wei: priceInWei, eth: priceInEth };
         } catch (error) {
             console.error('Error getting current price:', error);
@@ -230,17 +177,7 @@ class ContractHandler {
      * @returns {Promise<string>} The balance in wei
      */
     async getTokenBalance(address) {
-        try {
-            if (!this.contract) {
-                throw new Error('Contract not initialized');
-            }
-            const balance = await this.contract.balanceOf(address);
-            console.log('ContractHandler: Token balance for', address, ':', balance.toString());
-            return balance.toString();
-        } catch (error) {
-            console.error('Error getting token balance:', error);
-            throw error;
-        }
+        return this.blockchainService.getTokenBalance(address);
     }
 
     /**
@@ -249,17 +186,7 @@ class ContractHandler {
      * @returns {Promise<number>} The number of NFTs owned
      */
     async getNFTBalance(address) {
-        try {
-            if (!this.mirrorContract) {
-                throw new Error('Mirror contract not initialized');
-            }
-            const balance = await this.mirrorContract.balanceOf(address);
-            console.log('ContractHandler: NFT balance for', address, ':', balance.toString());
-            return parseInt(balance.toString());
-        } catch (error) {
-            console.error('Error getting NFT balance:', error);
-            throw error;
-        }
+        return this.blockchainService.getNFTBalance(address);
     }
 
     /**
@@ -281,66 +208,9 @@ class ContractHandler {
     }
 
     async buyBonding(params, ethValue) {
-        const { amount, maxCost, mintNFT, proof, message } = params;
-        
-        try {
-            if (!this.contract) {
-                throw new Error('Contract not initialized');
-            }
-            if (!this.signer) {
-                throw new Error('No wallet connected');
-            }
-
-            const contractWithSigner = this.contract.connect(this.signer);
-            const valueInWei = ethers.utils.parseEther(ethValue.toString());
-            
-            // Show pending transaction message
-            this.messagePopup.info('Please confirm the transaction in your wallet', 'Transaction Pending');
-            
-            const tx = await contractWithSigner.buyBonding(
-                amount,
-                maxCost,
-                mintNFT,
-                proof,
-                message,
-                { value: valueInWei }
-            );
-
-            // Show transaction sent message
-            this.messagePopup.info(`Transaction sent! Hash: ${tx.hash}`, 'Transaction Sent');
-            
-            // Wait for transaction confirmation using the provider
-            const receipt = await this.provider.waitForTransaction(tx.hash);
-            
-            // Show success message
-            this.messagePopup.success('Transaction confirmed!', 'Success');
-            
-            return receipt;
-        } catch (error) {
-            console.error('Buy bonding failed:', error);
-            
-            // Handle specific error types
-            if (error.code === 'INSUFFICIENT_FUNDS') {
-                this.messagePopup.error(
-                    'You do not have enough funds to complete this transaction. Please make sure you have enough ETH to cover the amount plus gas fees.',
-                    'Insufficient Funds'
-                );
-            } else if (error.code === 'USER_REJECTED') {
-                this.messagePopup.warning(
-                    'Transaction was rejected in your wallet',
-                    'Transaction Cancelled'
-                );
-            } else {
-                this.messagePopup.error(
-                    'There was an error processing your transaction. Please try again.',
-                    'Transaction Failed'
-                );
-            }
-            
-            throw error;
-        }
+        return this.blockchainService.buyBonding(params, ethValue);
     }
-    
+
     async getMerkleProof(address) {
         try {
             // Find which tier the address belongs to
@@ -375,60 +245,46 @@ class ContractHandler {
     }
 
     async sellBonding(params) {
-        const { amount, minReturn, proof, message } = params;
-        
-        try {
-            if (!this.contract) {
-                throw new Error('Contract not initialized');
-            }
-            if (!this.signer) {
-                throw new Error('No wallet connected');
-            }
+        return this.blockchainService.sellBonding(params);
+    }
 
-            const contractWithSigner = this.contract.connect(this.signer);
-            
-            // Show pending transaction message
-            this.messagePopup.info('Please confirm the transaction in your wallet', 'Transaction Pending');
-            
-            const tx = await contractWithSigner.sellBonding(
-                amount,
-                minReturn,
-                proof,
-                message
+    handleTransactionError(error) {
+        if (error.code === 'INSUFFICIENT_FUNDS') {
+            this.messagePopup.error(
+                'You do not have enough funds to complete this transaction.',
+                'Insufficient Funds'
             );
+        } else if (error.code === 'USER_REJECTED') {
+            this.messagePopup.warning(
+                'Transaction was rejected in your wallet',
+                'Transaction Cancelled'
+            );
+        } else {
+            this.messagePopup.error(
+                'There was an error processing your transaction. Please try again.',
+                'Transaction Failed'
+            );
+        }
+    }
 
-            // Show transaction sent message
-            this.messagePopup.info(`Transaction sent! Hash: ${tx.hash}`, 'Transaction Sent');
+    async loadBalances() {
+        try {
+            const [tokenBalance, nftBalance, ethBalance] = await Promise.all([
+                this.blockchainService.getTokenBalance(this.contractAddress),
+                this.blockchainService.getNFTBalance(this.contractAddress),
+                this.blockchainService.getEthBalance(this.contractAddress)
+            ]);
             
-            // Wait for transaction confirmation using the provider
-            const receipt = await this.provider.waitForTransaction(tx.hash);
-            
-            // Show success message
-            this.messagePopup.success('Transaction confirmed!', 'Success');
-            
-            return receipt;
+            tradingStore.setState({
+                userBalance: {
+                    eth: parseFloat(ethers.utils.formatEther(ethBalance)),
+                    exec: parseInt(tokenBalance),
+                    nfts: nftBalance
+                }
+            });
         } catch (error) {
-            console.error('Sell bonding failed:', error);
-            
-            // Handle specific error types
-            if (error.code === 'INSUFFICIENT_FUNDS') {
-                this.messagePopup.error(
-                    'You do not have enough EXEC tokens to complete this transaction.',
-                    'Insufficient Tokens'
-                );
-            } else if (error.code === 'USER_REJECTED') {
-                this.messagePopup.warning(
-                    'Transaction was rejected in your wallet',
-                    'Transaction Cancelled'
-                );
-            } else {
-                this.messagePopup.error(
-                    'There was an error processing your transaction. Please try again.',
-                    'Transaction Failed'
-                );
-            }
-            
-            throw error;
+            console.error('Error loading balances:', error);
+            this.messagePopup.error('Failed to load balances');
         }
     }
 }

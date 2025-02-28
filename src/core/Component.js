@@ -1,11 +1,10 @@
-import { eventBus } from './eventBus.js';
+//import { eventBus } from './EventBus.js';
 
 export class Component {
-    constructor(props = {}) {
-        this.props = props;
+    constructor(rootElement) {
+        this.element = rootElement;
         this.state = {};
         this.mounted = false;
-        this.element = null;
         this.boundEvents = new Map();
     }
 
@@ -14,35 +13,20 @@ export class Component {
      * @param {Object} initialState 
      */
     setState(newState) {
-        const oldState = { ...this.state };
         this.state = { ...this.state, ...newState };
-        
-        if (this.mounted) {
-            this.update(oldState);
-        }
+        this.update();
     }
 
     /**
      * Mount component to DOM
      * @param {HTMLElement} container 
      */
-    mount(container) {
-        if (this.mounted) return;
-
-        // Create element from template
-        const template = document.createElement('template');
-        template.innerHTML = this.render().trim();
-        this.element = template.content.firstElementChild;
-
-        // Add to DOM
-        container.appendChild(this.element);
-        
-        // Bind events
-        this.bindEvents();
-        
-        // Call lifecycle method
-        this.mounted = true;
-        this.onMount();
+    mount(element) {
+        this.element = element;
+        this.update();
+        if (this.onMount) {
+            this.onMount();
+        }
     }
 
     /**
@@ -67,6 +51,9 @@ export class Component {
      * Bind DOM events based on this.events()
      */
     bindEvents() {
+        // First unbind any existing events
+        this.unbindEvents();
+        
         const events = this.events();
         if (!events) return;
 
@@ -104,25 +91,16 @@ export class Component {
 
     /**
      * Update component after state change
-     * @param {Object} oldState 
      */
-    update(oldState) {
-        // Re-render
-        const newHtml = this.render();
-        const template = document.createElement('template');
-        template.innerHTML = newHtml.trim();
-        const newElement = template.content.firstElementChild;
-
-        // Replace old element
-        this.element.replaceWith(newElement);
-        this.element = newElement;
-
-        // Rebind events
-        this.unbindEvents();
-        this.bindEvents();
-
-        // Call lifecycle method
-        this.onUpdate(oldState);
+    update() {
+        if (!this.element) return;
+        const newContent = this.render();
+        this.element.innerHTML = newContent;
+        
+        // Re-attach event listeners after DOM update
+        if (this.setupDOMEventListeners) {
+            this.setupDOMEventListeners();
+        }
     }
 
     // Lifecycle methods (to be overridden by child classes)
@@ -132,7 +110,7 @@ export class Component {
 
     // Methods to be implemented by child classes
     render() {
-        throw new Error('Component must implement render()');
+        return this.template ? this.template() : '';
     }
 
     events() {
