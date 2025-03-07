@@ -51,8 +51,6 @@ class MerkleHandler {
     createTree(tier, addresses) {
         
         try {
-            // Add debug logging
-            //console.log('Creating tree for addresses:', addresses);
             
             const leaves = addresses.map(addr => {
                 const leaf = ethers.utils.solidityKeccak256(['address'], [addr]);
@@ -70,9 +68,6 @@ class MerkleHandler {
                 addresses,
                 root: tree.getHexRoot()
             });
-
-            // Log final root
-            //console.log(`Tree root for tier ${tier}:`, tree.getHexRoot());
 
             return tree;
         } catch (error) {

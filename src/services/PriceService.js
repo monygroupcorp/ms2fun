@@ -45,9 +45,6 @@ class PriceService {
             // Get price from blockchain service
             const price = await this._blockchainService.getTokenPrice();
             
-            // Debug logging
-            console.log('Price from blockchain service:', price);
-            
             // Validate price
             if (typeof price !== 'number' || isNaN(price) || price <= 0) {
                 console.error('Invalid price value:', price);
@@ -95,19 +92,13 @@ class PriceService {
                 this._blockchainService.getEthBalance(address),
                 this._blockchainService.getTokenBalance(address),
                 this._blockchainService.getNFTBalance(address),
-                this._blockchainService.getNFTSupply()
+                this._blockchainService.getNFTSupply(),
             ]);
-            console.log('Total Bonding Supply:', totalBondingSupply);
-            console.log('Total Messages:', totalMessages);
-            console.log('Eth Balance:', ethBalance);
-            console.log('Token Balance:', tokenBalance);
-            console.log('NFT Balance:', nftBalance);
-            console.log('Total NFTs:', totalNFTs);
+
             // Fetch recent messages if there are any
             let recentMessages = [];
             if (totalMessages > 0) {
                 const startIndex = Math.max(0, totalMessages - 5);
-                console.log('Fetching recent messages from index:', startIndex, 'to', totalMessages-1);
                 recentMessages = await this._blockchainService.getMessagesBatch(startIndex, totalMessages-1);
             }
 

@@ -58,7 +58,6 @@ export class TransactionOptions extends Component {
     }
 
     removeEventListeners() {
-        console.log('TransactionOptions - REMOVING EVENT LISTENERS');
         
         if (this._messageInput) {
             this._messageInput.removeEventListener('input', this.handleMessageInput);

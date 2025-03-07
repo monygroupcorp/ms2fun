@@ -32,27 +32,46 @@ export class BondingCurve extends Component {
         let priceUpdated = false;
         let contractDataUpdated = false;
 
+        // Get initial values from store
+        const currentPrice = tradingStore.selectPrice();
+        const contractData = tradingStore.selectContractData();
+        if (currentPrice) {
+            priceUpdated = true;
+        }
+        if (contractData) {
+            contractDataUpdated = true;
+        }
+        this.checkAndUpdateState(priceUpdated, contractDataUpdated);
+
+        // Set up eventBus subscriptions
         this.unsubscribeEvents = [
             eventBus.on('price:updated', () => {
-                //const currentPrice = tradingStore.selectPrice();
                 priceUpdated = true;
                 this.checkAndUpdateState(priceUpdated, contractDataUpdated);
             }),
 
             eventBus.on('contractData:updated', () => {
-                //const { totalBondingSupply, totalMessages, totalNFTs } = tradingStore.selectContractData();
                 contractDataUpdated = true;
+                this.checkAndUpdateState(priceUpdated, contractDataUpdated);
+            }),
+
+            eventBus.on('trading:click:tab', () => {
+                // Re-check and update state when tab changes
                 this.checkAndUpdateState(priceUpdated, contractDataUpdated);
             })
         ];
+
+        // Add resize handler separately
+        this.resizeHandler = () => {
+            requestAnimationFrame(() => this.drawCurve());
+        };
+        window.addEventListener('resize', this.resizeHandler);
     }
 
     checkAndUpdateState(priceUpdated, contractDataUpdated) {
         if (priceUpdated && contractDataUpdated) {
             const currentPrice = tradingStore.selectPrice();
             const { totalBondingSupply, totalMessages, totalNFTs } = tradingStore.selectContractData();
-            
-            console.log('All data received:', { currentPrice, totalBondingSupply, totalMessages, totalNFTs });
             
             this.setState({
                 currentPrice,
@@ -115,7 +134,7 @@ export class BondingCurve extends Component {
             return Math.pow(paddedX, 3.5);
         }
 
-        const maxPrice = curve(1);
+        const maxPrice = 0.08;
         const currentPosition = Math.max(0.1, Math.min(0.9, 
             Math.pow(this.state.currentPrice.current / maxPrice, 1/3.5)));
 
@@ -161,7 +180,6 @@ export class BondingCurve extends Component {
     }
 
     drawCurrentPosition(ctx, points, currentPosition) {
-        console.log("drawing current position")
         const segmentSize = 0.05;
         const startIndex = Math.floor((currentPosition - segmentSize/2) * points.length);
         const endIndex = Math.floor((currentPosition + segmentSize/2) * points.length);
@@ -190,7 +208,6 @@ export class BondingCurve extends Component {
     }
 
     drawLabels(ctx) {
-        console.log("drawing labels")
         ctx.fillStyle = '#666666';
         ctx.font = '12px Courier New';
         ctx.fillText(`${this.state.currentPrice.current.toFixed(4)} ETH / EXEC`, 10, 20);
@@ -202,12 +219,6 @@ export class BondingCurve extends Component {
     mount(container) {
         super.mount(container);
         this.initialize();
-        
-        // Add resize handler
-        this.resizeHandler = () => {
-            requestAnimationFrame(() => this.drawCurve());
-        };
-        window.addEventListener('resize', this.resizeHandler);
     }
 
     unmount() {
@@ -232,10 +243,11 @@ export class BondingCurve extends Component {
         return `
             .bonding-curve {
                 width: 100%;
-                height: 100%;
+                height: 90%;
+                min-height: 400px;
                 background: #1a1a1a;
                 border-radius: 8px;
-                padding: 10px;
+                padding: 0px;
             }
 
             #curveChart {

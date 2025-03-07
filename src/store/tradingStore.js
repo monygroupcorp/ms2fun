@@ -11,7 +11,8 @@ export const TRADING_ACTIONS = {
     TOGGLE_OPTIONS: 'trading/toggleOptions',
     SET_LOADING: 'trading/setLoading',
     SET_ERROR: 'trading/setError',
-    RESET_STATE: 'trading/resetState'
+    RESET_STATE: 'trading/resetState',
+    LOAD_MESSAGE_BATCH: 'trading/loadMessageBatch',
 };
 
 const initialState = {
@@ -59,7 +60,8 @@ const initialState = {
         totalBondingSupply: 0,
         lastUpdated: null,
         totalMessages: 0,
-        totalNFTs: 0
+        totalNFTs: 0,
+        recentMessages: null
     }
 };
 
@@ -146,6 +148,22 @@ class TradingStore extends Store {
         });
     }
 
+    async updateMessageHistory(newStartIndex, newEndIndex) {
+        try {
+            const messages = await this.blockchainService.getMessagesBatch(newStartIndex, newEndIndex);
+            this.setState({
+                contractData: {
+                    ...this.state.contractData,
+                    recentMessages: messages,
+                    lastUpdated: Date.now()
+                }
+            });
+        } catch (error) {
+            console.error('Error updating message history:', error);
+            this.setError('Failed to update message history');
+        }
+    }
+
     toggleOption(option, value) {
         this.setState({
             options: {
@@ -219,6 +237,33 @@ class TradingStore extends Store {
                 lastUpdated: Date.now()
             }
         });
+    }
+
+    async loadMessageBatch(startIndex, endIndex) {
+        try {
+            this.setLoading(true);
+            const messages = await this.blockchainService.getMessagesBatch(startIndex, endIndex);
+            
+            // Merge with existing messages if any
+            const currentMessages = this.state.contractData.recentMessages || [];
+            const updatedMessages = [...currentMessages];
+            
+            // Update the arrays with new messages
+            updatedMessages[0] = currentMessages[0] ? currentMessages[0] + ',' + messages[0] : messages[0];
+            updatedMessages[1] = currentMessages[1] ? currentMessages[1] + ',' + messages[1] : messages[1];
+            updatedMessages[2] = currentMessages[2] ? currentMessages[2] + ',' + messages[2] : messages[2];
+            updatedMessages[3] = currentMessages[3] ? currentMessages[3] + ',' + messages[3] : messages[3];
+            updatedMessages[4] = currentMessages[4] ? currentMessages[4] + ',' + messages[4] : messages[4];
+
+            this.updateContractData({
+                ...this.state.contractData,
+                recentMessages: updatedMessages
+            });
+        } catch (error) {
+            this.setError('Failed to load messages: ' + error.message);
+        } finally {
+            this.setLoading(false);
+        }
     }
 
     // Selectors

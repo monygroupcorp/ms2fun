@@ -1,7 +1,7 @@
 class EventBus {
     constructor() {
         this.listeners = new Map();
-        this.debugMode = true;
+        this.debugMode = false;
     }
 
     /**

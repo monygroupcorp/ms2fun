@@ -56,13 +56,11 @@ export default class PriceDisplay extends Component {
     }
 
     handlePriceUpdate({ price }) {
-        console.log('PriceDisplay - handlePriceUpdate called with price:', price);
         this.update();  // This will trigger a re-render
         // The actual price data will come from tradingStore during render
     }
 
     handleStatusUpdate({ loading, error }) {
-        console.log('PriceDisplay - handleStatusUpdate called with loading:', loading, 'and error:', error);
         this.update();  // This will trigger a re-render
         // The status data will come from tradingStore during render
     }

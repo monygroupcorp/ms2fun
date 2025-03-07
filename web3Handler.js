@@ -2,12 +2,9 @@ import WalletModal from './src/components/WalletModal/WalletModal.js';
 import StatusMessage from './src/components/StatusMessage/StatusMessage.js';
 import TradingInterface from './src/components/TradingInterface/TradingInterface.js';
 import ChatPanel from './src/components/ChatPanel/ChatPanel.js';
-//import BlockchainService from './src/services/BlockchainService.js';
+import StatusPanel from './src/components/StatusPanel/StatusPanel.js';
 import { eventBus } from './src/core/EventBus.js';
-// import { ethers } from './node_modules/ethers/dist/ethers.esm.js';
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
-
-console.log('Ethers imported:', ethers);
 
 class Web3Handler {
     constructor(blockchainService) {
@@ -18,6 +15,11 @@ class Web3Handler {
         this.selectedWallet = null;
         this.connectedAddress = null;
         this.blockchainService = blockchainService;
+        
+        // Initialize trading interface first
+        this.tradingInterface = null;
+        this.chatPanel = null;  // Don't create immediately
+        this.statusPanel = null;
         
         this.statusMessage = new StatusMessage('contractStatus');
         
@@ -65,14 +67,12 @@ class Web3Handler {
             this.walletIcons,
             (walletType) => this.handleWalletSelection(walletType)  // Pass callback
         );
-        this.chatPanel = new ChatPanel();
     }
 
     async init() {
 
         try {
             const response = await fetch('/EXEC404/switch.json');
-            console.log('Response:', response);
             
             if (!response.ok) {
                 this.statusMessage.update('System offline', true);
@@ -80,29 +80,6 @@ class Web3Handler {
             }
             
             this.contractData = await response.json();
-            
-            // Replace system status panel with chat panel
-            const statsPanel = document.querySelector('.stats-panel');
-            if (statsPanel) {
-                const chatInterface = document.createElement('div');
-                chatInterface.className = 'chat-panel';
-                chatInterface.innerHTML = `
-                    <div class="chat-header">
-                        <h2>EXEC INSIDER BULLETIN</h2>
-                    </div>
-                    <div class="chat-messages" id="chatMessages">
-                        <!-- Messages will be populated here -->
-                    </div>
-                    <div class="chat-status">
-                        <span>MESSAGES LOADED FROM CHAIN</span>
-                        <span class="message-count">0</span>
-                    </div>
-                `;
-                statsPanel.parentNode.replaceChild(chatInterface, statsPanel);
-                
-                // Initialize chat messages
-                await this.chatPanel.loadMessages();
-            }
             
             // Check if wallet is available but don't connect yet
             if (typeof window.ethereum !== 'undefined') {
@@ -186,12 +163,6 @@ class Web3Handler {
             // Store the provider for future use
             this.provider = provider;
 
-            // Initialize BlockchainService instead of ContractHandler
-            //console.log('Initializing BlockchainService...');
-            //this.blockchainService = new BlockchainService();
-            //await this.blockchainService.initialize();
-            //console.log('BlockchainService initialized:', this.blockchainService);
-
             // Update the selected wallet display
             this.walletModal.updateSelectedWalletDisplay(walletType);
 
@@ -219,7 +190,6 @@ class Web3Handler {
         try {
             this.statusMessage.update(this.statusMessages.CONNECTING);
             
-            console.log('Requesting wallet connection...');
             await new Promise(resolve => setTimeout(resolve, 500));
             
             let accounts;
@@ -241,7 +211,6 @@ class Web3Handler {
                 throw new Error('No accounts found');
             }
 
-            console.log('Got accounts:', accounts);
             this.connected = true;
             this.connectedAddress = accounts[0];
             
@@ -339,7 +308,7 @@ class Web3Handler {
             bondingInterface.innerHTML = '';
 
             // Create and mount trading interface using BlockchainService
-            const tradingInterface = new TradingInterface(
+            this.tradingInterface = new TradingInterface(
                 this.connectedAddress, 
                 this.blockchainService,
                 ethers,
@@ -350,8 +319,12 @@ class Web3Handler {
                 }
             );
 
+            // Create ChatPanel after TradingInterface is initialized
+            this.chatPanel = new ChatPanel();
+            this.statusPanel = new StatusPanel();
+
             // Mount the interface
-            tradingInterface.mount(bondingInterface);
+            this.tradingInterface.mount(bondingInterface);
 
             // Show the container
             bondingInterface.style.display = 'block';
@@ -367,27 +340,38 @@ class Web3Handler {
     }
 
     async updateInterfacePanels() {
-        // Restore system status panel
-        const chatPanel = document.querySelector('.chat-panel');
-        if (chatPanel) {
-            const statsPanel = this.chatPanel.render('stats');
-            statsPanel.className = 'panel stats-panel';
-            chatPanel.parentNode.replaceChild(statsPanel, chatPanel);
+        if (!this.chatPanel) {
+            console.warn('ChatPanel not initialized');
+            return;
         }
 
         // Replace the checker panel with the chat interface
         const checkerPanel = document.querySelector('.checker-panel');
         if (checkerPanel) {
-            const chatInterface = this.chatPanel.render('bulletin');
-            checkerPanel.parentNode.replaceChild(chatInterface, checkerPanel);
+            // Create a new container for the chat panel
+            const chatContainer = document.createElement('div');
+            chatContainer.className = 'chat-panel-container';
+            
+            // Replace the checker panel with our new container
+            checkerPanel.parentNode.replaceChild(chatContainer, checkerPanel);
+            
+            // Mount the chat panel to the container
+            this.chatPanel.mount(chatContainer);
+        }
+        const statsPanel = document.querySelector('.stats-panel')
+        if (statsPanel) {
+            // Create a new ocntainer for the status panel 
+            const statusContainer = document.createElement('div');
+            statsPanel.className = 'status-panel-container';
+
+            statsPanel.parentNode.replaceChild(statusContainer, statsPanel)
+
+            this.statusPanel.mount(statusContainer)
         }
 
-        // Update the tabs active state
+        // Update the tabs active state (if still needed)
         document.querySelector('#whitelistTab')?.classList.remove('active');
         document.querySelector('#presaleTab')?.classList.add('active');
-
-        // Initialize the chat messages
-        await this.chatPanel.loadMessages();
     }
 
     async getCurrentPrice() {
@@ -403,106 +387,106 @@ class Web3Handler {
         }
     }
 
-    async initializeCurveChart(currentPrice) {
-        const canvas = document.getElementById('curveChart');
-        const ctx = canvas.getContext('2d');
+    // async initializeCurveChart(currentPrice) {
+    //     const canvas = document.getElementById('curveChart');
+    //     const ctx = canvas.getContext('2d');
         
-        // Set canvas size
-        canvas.width = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
+    //     // Set canvas size
+    //     canvas.width = canvas.offsetWidth;
+    //     canvas.height = canvas.offsetHeight;
         
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    //     // Clear canvas
+    //     ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Set styles
-        ctx.strokeStyle = '#FFD700';
-        ctx.lineWidth = 2;
+    //     // Set styles
+    //     ctx.strokeStyle = '#FFD700';
+    //     ctx.lineWidth = 2;
         
-        // Modified curve function with even more dramatic curve
-        const curve = (x) => {
-            // Add padding of 10% at bottom and top
-            const paddedX = 0.1 + (x * 0.8);
-            return Math.pow(paddedX, 3.5); // Increased from 2.5 to 3.5 for steeper curve
-        }
+    //     // Modified curve function with even more dramatic curve
+    //     const curve = (x) => {
+    //         // Add padding of 10% at bottom and top
+    //         const paddedX = 0.1 + (x * 0.8);
+    //         return Math.pow(paddedX, 3.5); // Increased from 2.5 to 3.5 for steeper curve
+    //     }
         
-        // Calculate the maximum price point for scaling
-        const maxPrice = curve(1);
+    //     // Calculate the maximum price point for scaling
+    //     const maxPrice = curve(1);
         
-        // Adjust position calculation to account for padding
-        const currentPosition = Math.max(0.1, Math.min(0.9, Math.pow(currentPrice / maxPrice, 1/3.5))); // Match the curve power
+    //     // Adjust position calculation to account for padding
+    //     const currentPosition = Math.max(0.1, Math.min(0.9, Math.pow(currentPrice / maxPrice, 1/3.5))); // Match the curve power
         
-        // Draw main curve
-        ctx.beginPath();
-        const startX = canvas.width * 0.1;
-        const startY = canvas.height * 0.9;
-        ctx.moveTo(startX, startY);
+    //     // Draw main curve
+    //     ctx.beginPath();
+    //     const startX = canvas.width * 0.1;
+    //     const startY = canvas.height * 0.9;
+    //     ctx.moveTo(startX, startY);
         
-        const points = 100;
-        const curvePoints = []; // Store points for later use
+    //     const points = 100;
+    //     const curvePoints = []; // Store points for later use
         
-        // First populate all curve points
-        for (let i = 0; i <= points; i++) {
-            const x = i / points;
-            const y = curve(x);
+    //     // First populate all curve points
+    //     for (let i = 0; i <= points; i++) {
+    //         const x = i / points;
+    //         const y = curve(x);
             
-            const canvasX = x * canvas.width * 0.8 + canvas.width * 0.1;
-            const canvasY = canvas.height * 0.9 - y * canvas.height * 0.8;
+    //         const canvasX = x * canvas.width * 0.8 + canvas.width * 0.1;
+    //         const canvasY = canvas.height * 0.9 - y * canvas.height * 0.8;
             
-            curvePoints.push({ x: canvasX, y: canvasY });
-        }
+    //         curvePoints.push({ x: canvasX, y: canvasY });
+    //     }
         
-        // Now draw the main curve using the points
-        ctx.beginPath();
-        ctx.moveTo(curvePoints[0].x, curvePoints[0].y);
-        for (let i = 0; i < curvePoints.length; i++) {
-            ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
-        }
-        ctx.stroke();
+    //     // Now draw the main curve using the points
+    //     ctx.beginPath();
+    //     ctx.moveTo(curvePoints[0].x, curvePoints[0].y);
+    //     for (let i = 0; i < curvePoints.length; i++) {
+    //         ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
+    //     }
+    //     ctx.stroke();
         
-        // Update position indicator code
-        const segmentSize = 0.05; // Reduced size for more precise indication
+    //     // Update position indicator code
+    //     const segmentSize = 0.05; // Reduced size for more precise indication
         
-        // Ensure position stays within bounds
-        const boundedPosition = Math.max(0, Math.min(0.99, currentPosition));
+    //     // Ensure position stays within bounds
+    //     const boundedPosition = Math.max(0, Math.min(0.99, currentPosition));
         
-        // Calculate indices for highlighted segment
-        const startIndex = Math.max(0, Math.min(points - 1, Math.floor((boundedPosition - segmentSize/2) * points)));
-        const endIndex = Math.max(0, Math.min(points - 1, Math.floor((boundedPosition + segmentSize/2) * points)));
+    //     // Calculate indices for highlighted segment
+    //     const startIndex = Math.max(0, Math.min(points - 1, Math.floor((boundedPosition - segmentSize/2) * points)));
+    //     const endIndex = Math.max(0, Math.min(points - 1, Math.floor((boundedPosition + segmentSize/2) * points)));
         
-        if (startIndex < curvePoints.length && endIndex < curvePoints.length) {
-            // Draw highlighted segment
-            ctx.beginPath();
-            ctx.strokeStyle = '#FFD700';
-            ctx.lineWidth = 4; // Slightly thicker
+    //     if (startIndex < curvePoints.length && endIndex < curvePoints.length) {
+    //         // Draw highlighted segment
+    //         ctx.beginPath();
+    //         ctx.strokeStyle = '#FFD700';
+    //         ctx.lineWidth = 4; // Slightly thicker
             
-            // Start slightly before the current position
-            ctx.moveTo(curvePoints[startIndex].x, curvePoints[startIndex].y);
+    //         // Start slightly before the current position
+    //         ctx.moveTo(curvePoints[startIndex].x, curvePoints[startIndex].y);
             
-            // Draw the highlighted segment
-            for (let i = startIndex; i <= endIndex && i < curvePoints.length; i++) {
-                ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
-            }
+    //         // Draw the highlighted segment
+    //         for (let i = startIndex; i <= endIndex && i < curvePoints.length; i++) {
+    //             ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
+    //         }
             
-            ctx.stroke();
+    //         ctx.stroke();
             
-            // Draw the indicator dot at the center of the highlighted segment
-            const centerIndex = Math.floor((startIndex + endIndex) / 2);
-            if (centerIndex < curvePoints.length) {
-                const centerPoint = curvePoints[centerIndex];
+    //         // Draw the indicator dot at the center of the highlighted segment
+    //         const centerIndex = Math.floor((startIndex + endIndex) / 2);
+    //         if (centerIndex < curvePoints.length) {
+    //             const centerPoint = curvePoints[centerIndex];
                 
-                ctx.beginPath();
-                ctx.arc(centerPoint.x, centerPoint.y, 4, 0, Math.PI * 2);
-                ctx.fillStyle = '#FF0000';
-                ctx.fill();
-            }
-        }
+    //             ctx.beginPath();
+    //             ctx.arc(centerPoint.x, centerPoint.y, 4, 0, Math.PI * 2);
+    //             ctx.fillStyle = '#FF0000';
+    //             ctx.fill();
+    //         }
+    //     }
         
-        // Add labels with dimmer color
-        ctx.fillStyle = '#666666';
-        ctx.font = '12px Courier New';
-        ctx.fillText(`${currentPrice.toFixed(4)} ETH / CULT EXECUTIVE COLLECTIBLE`, 10, 20); // Price in top left
-        //ctx.fillText('', canvas.width - 70, canvas.height - 10); // $EXEC label at bottom
-    }
+    //     // Add labels with dimmer color
+    //     ctx.fillStyle = '#666666';
+    //     ctx.font = '12px Courier New';
+    //     ctx.fillText(`${currentPrice.toFixed(4)} ETH / CULT EXECUTIVE COLLECTIBLE`, 10, 20); // Price in top left
+    //     //ctx.fillText('', canvas.width - 70, canvas.height - 10); // $EXEC label at bottom
+    // }
 
     setupBottomSectionCollapse() {
         const toggleBar = document.createElement('div');
@@ -535,98 +519,4 @@ class Web3Handler {
     }
 }
 
-// function initializeSwapInterface() {
-//     // Wait for DOM elements to exist
-//     const ethAmount = document.getElementById('ethAmount');
-//     const execAmount = document.getElementById('execAmount');
-//     const swapArrowButton = document.querySelector('.swap-arrow-button');
-//     const swapButton = document.getElementById('swapButton');
-    
-//     // Check if required elements exist
-//     if (!ethAmount || !execAmount || !swapArrowButton || !swapButton) {
-//         console.log('Swap interface elements not found, skipping initialization');
-//         return;
-//     }
-
-//     const ethFillButtons = document.querySelectorAll('.eth-fill');
-//     const execFillButtons = document.querySelectorAll('.exec-fill');
-//     let isEthToExec = true;
-
-//     swapArrowButton.innerHTML = '<span class="arrow">↓</span>';
-
-//     // Set initial focus
-//     ethAmount.focus();
-
-//     // Handle quick fill buttons
-//     ethFillButtons.forEach(button => {
-//         button.addEventListener('click', () => {
-//             ethAmount.value = button.dataset.value;
-//             updateExecAmount(); // You'll need to implement this based on your conversion rate
-//         });
-//     });
-
-//     execFillButtons.forEach(button => {
-//         button.addEventListener('click', () => {
-//             const percentage = parseInt(button.dataset.value);
-//             // Implement max balance calculation here
-//             execAmount.value = (maxBalance * percentage / 100).toFixed(6);
-//             updateEthAmount(); // You'll need to implement this based on your conversion rate
-//         });
-//     });
-
-//     // Handle swap button
-//     swapArrowButton.addEventListener('click', () => {
-//         isEthToExec = !isEthToExec; // Toggle direction
-//         swapArrowButton.classList.toggle('flipped');
-
-//         // Swap input values
-//         const tempValue = ethAmount.value;
-//         ethAmount.value = execAmount.value;
-//         execAmount.value = tempValue;
-
-//         // Swap IDs
-//         const tempId = ethAmount.id;
-//         ethAmount.id = execAmount.id;
-//         execAmount.id = tempId;
-
-//         // Swap labels
-//         const labels = document.querySelectorAll('.currency-label');
-//         const tempLabel = labels[0].textContent;
-//         labels[0].textContent = labels[1].textContent;
-//         labels[1].textContent = tempLabel;
-
-//         // Toggle quick fill buttons
-//         document.querySelectorAll('.eth-fill').forEach(btn => btn.classList.toggle('hidden'));
-//         document.querySelectorAll('.exec-fill').forEach(btn => btn.classList.toggle('hidden'));
-
-//         // Update swap button text
-//         swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
-
-//         // Focus the top input
-//         document.querySelector('.input-group input').focus();
-//     });
-
-//     // Update the swap button text when values change
-//     ethAmount.addEventListener('input', () => {
-//         swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
-//     });
-
-//     execAmount.addEventListener('input', () => {
-//         swapButton.textContent = isEthToExec ? 'BUY EXEC' : 'SELL EXEC';
-//     });
-// }
-
-// Call this function after your DOM is loaded
-
-//document.addEventListener('DOMContentLoaded', initializeSwapInterface); 
 export default Web3Handler; 
-// async function executeTrade(tradeDetails) {
-//     // ... existing trade execution code ...
-    
-//     // Emit trade executed event
-//     eventBus.emit('trade:executed', {
-//         address: tradeDetails.address,
-//         amount: tradeDetails.amount,
-//         timestamp: Date.now()
-//     });
-// } 

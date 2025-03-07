@@ -158,7 +158,8 @@ class BlockchainService {
     }
 
     async getMessagesBatch(startIndex, endIndex) {
-        return this.executeContractCall('getMessagesBatch', [startIndex, endIndex]);
+        const messages = await this.executeContractCall('getMessagesBatch', [startIndex, endIndex]);
+        return messages.map(message => message.toString());
     }
 
     /**
@@ -446,7 +447,6 @@ class BlockchainService {
             
             // Get price using calculateCost
             const price = await this.executeContractCall('calculateCost', [amount]);
-            console.log('Raw price from contract:', price.toString());
             
             // Ensure price is properly formatted
             if (!price || !ethers.BigNumber.isBigNumber(price)) {
@@ -455,7 +455,6 @@ class BlockchainService {
 
             // Convert BigNumber to number and format
             const priceInEth = parseFloat(this.ethers.utils.formatEther(price));
-            console.log('Formatted price in ETH:', priceInEth);
 
             return priceInEth;
         } catch (error) {
@@ -474,7 +473,6 @@ class BlockchainService {
     async calculateCost(execAmount) {
         try {
             const response = await this.executeContractCall('calculateCost', [execAmount]);
-            console.log('Response:', response);
             return response;
 
         } catch (error) {

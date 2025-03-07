@@ -23,6 +23,15 @@ export class Component {
      */
     mount(element) {
         this.element = element;
+        
+        // Apply styles if they exist
+        if (this.constructor.styles) {
+            const styleElement = document.createElement('style');
+            styleElement.textContent = this.constructor.styles;
+            document.head.appendChild(styleElement);
+            this.styleElement = styleElement;
+        }
+
         this.update();
         if (this.onMount) {
             this.onMount();
@@ -37,6 +46,11 @@ export class Component {
 
         // Unbind all events
         this.unbindEvents();
+        
+        // Remove styles if they exist
+        if (this.styleElement) {
+            this.styleElement.remove();
+        }
         
         // Remove element
         this.element.remove();

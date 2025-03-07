@@ -47,6 +47,7 @@ export class TradingInterface extends Component {
         this.address = address;
         this.blockchainService = blockchainService;
         this.ethers = ethers;
+        this.walletConnection = walletConnection;
         
         // Initialize services
         priceService.initialize(blockchainService);
@@ -55,14 +56,23 @@ export class TradingInterface extends Component {
         this.bondingCurve = new BondingCurve();
         this.swapInterface = new SwapInterface(blockchainService);
         
-        // Initialize state
-        this.state = {
-            activeView: 'swap', // Default view
-            visibleViews: ['swap', 'curve'],
-            isMobile: layoutService.getState().isMobile
+        // Single source of truth for layout state
+        this.layoutState = {
+            isMobile: layoutService.getState().isMobile,
+            activeView: 'swap',
+            visibleViews: layoutService.getState().isMobile ? ['swap'] : ['swap', 'curve']
         };
 
-        // Initialize store with zero values
+        // Initialize store with layout state
+        tradingStore.setState({
+            view: {
+                isMobile: this.layoutState.isMobile,
+                showCurve: !this.layoutState.isMobile,
+                showSwap: true,
+                current: this.layoutState.activeView
+            }
+        });
+        
         tradingStore.updateBalances({
             eth: '0',
             exec: '0',
@@ -193,41 +203,81 @@ export class TradingInterface extends Component {
         eventBus.on(LAYOUT_EVENTS.RESIZE, this.handleLayoutChange);
 
         // Setup tab click listeners
-        const tabButtons = this.element.querySelectorAll('.tab-button');
-        tabButtons.forEach(button => {
-            button.addEventListener('click', this.handleTabClick);
-        });
+        this.setupTabListeners();
 
         // Mount child components based on visibility
         this.mountChildComponents();
     }
 
     mountChildComponents() {
-        if (this.shouldShowComponent('curve')) {
+        const showCurve = this.shouldShowComponent('curve');
+        const showSwap = this.shouldShowComponent('swap');
+
+        console.log('Mounting components:', {
+            layoutState: this.layoutState,
+            showCurve,
+            showSwap,
+            swapExists: !!this.swapInterface,
+            curveExists: !!this.bondingCurve,
+            containers: {
+                swap: !!this.element.querySelector('#swap-container'),
+                curve: !!this.element.querySelector('#curve-container')
+            }
+        });
+
+        // Initialize components if they don't exist
+        if (!this.bondingCurve) {
+            console.log('Creating new bonding curve');
+            this.bondingCurve = new BondingCurve();
+        }
+        if (!this.swapInterface) {
+            console.log('Creating new swap interface');
+            this.swapInterface = new SwapInterface(this.blockchainService);
+        }
+
+        if (showCurve) {
             const curveContainer = this.element.querySelector('#curve-container');
             if (curveContainer) {
+                console.log('Mounting curve with current trading store state:', tradingStore.getState());
                 this.bondingCurve.mount(curveContainer);
             } else {
                 console.warn('Curve container not found');
             }
+        } else {
+            console.log('Unmounting curve');
+            this.bondingCurve?.unmount();
         }
 
-        if (this.shouldShowComponent('swap')) {
+        if (showSwap) {
             const swapContainer = this.element.querySelector('#swap-container');
             if (swapContainer) {
+                console.log('Mounting swap with current trading store state:', tradingStore.getState());
                 this.swapInterface.mount(swapContainer);
             } else {
                 console.warn('Swap container not found');
             }
+        } else {
+            console.log('Unmounting swap');
+            this.swapInterface?.unmount();
         }
+
+        this.mounted = true;
     }
 
     unmount() {
         if (!this.mounted) return;
 
+        console.log('Unmounting trading interface components');
+        
         // Unmount child components
-        this.swapInterface.unmount();
-        this.priceDisplay.unmount();
+        if (this.swapInterface) {
+            console.log('Unmounting swap interface');
+            this.swapInterface.unmount();
+        }
+        if (this.bondingCurve) {
+            console.log('Unmounting bonding curve');
+            this.bondingCurve.unmount();
+        }
 
         // Remove tab click listeners
         const tabButtons = this.element.querySelectorAll('.tab-button');
@@ -314,37 +364,80 @@ export class TradingInterface extends Component {
     }
 
     handleLayoutChange(layoutState) {
-        const currentState = tradingStore.getState().view;
-        const newState = {
+        console.log('Layout Change:', {
+            previous: this.layoutState,
+            new: layoutState
+        });
+
+        // Update layout state
+        this.layoutState = {
+            ...this.layoutState,
             isMobile: layoutState.isMobile,
-            showCurve: layoutState.visibleViews?.includes('curve'),
-            showSwap: layoutState.visibleViews?.includes('swap'),
-            current: layoutState.activeTab || currentState.current
+            visibleViews: layoutState.isMobile ? 
+                [this.layoutState.activeView] : 
+                ['swap', 'curve']
         };
 
-        // Only update if state actually changed
-        if (JSON.stringify(currentState) !== JSON.stringify(newState)) {
+        // Update store to match
+        tradingStore.setState({
+            view: {
+                isMobile: this.layoutState.isMobile,
+                showCurve: this.shouldShowComponent('curve'),
+                showSwap: this.shouldShowComponent('swap'),
+                current: this.layoutState.activeView
+            }
+        });
+
+        // Force remount of components
+        this.mountChildComponents();
+    }
+
+    handleViewChange(viewState) {
+        console.log('View Change:', {
+            previous: this.layoutState,
+            new: viewState
+        });
+
+        // Skip if this is a response to our own tab click
+        if (viewState.activeTab === this.layoutState.activeView) {
+            console.log('View change matches current state, skipping update');
+            return;
+        }
+
+        // Update layout state
+        this.layoutState = {
+            ...this.layoutState,
+            activeView: viewState.activeTab,
+            visibleViews: this.layoutState.isMobile ? 
+                [viewState.activeTab] : 
+                viewState.visibleViews
+        };
+
+        // Update store and UI
+        this.batchUpdate(() => {
             tradingStore.setState({
                 view: {
-                    ...newState,
-                    lastUpdated: Date.now()
+                    isMobile: this.layoutState.isMobile,
+                    showCurve: this.shouldShowComponent('curve'),
+                    showSwap: this.shouldShowComponent('swap'),
+                    current: this.layoutState.activeView
                 }
             });
 
-            // Request chart redraw if curve visibility changed
-            if (currentState.showCurve !== newState.showCurve && newState.showCurve) {
-                requestAnimationFrame(() => {
-                    this.bondingCurve.initializeCurveChart();
-                });
-            }
-        }
+            this.render();
+            this.mountChildComponents();
+        });
     }
 
-    handleViewChange({ visibleViews, activeTab }) {
-        this.setState({
-            activeView: activeTab,
-            visibleViews: visibleViews
-        });
+    batchUpdate(updateFn) {
+        if (this._batchTimeout) {
+            clearTimeout(this._batchTimeout);
+        }
+
+        this._batchTimeout = setTimeout(() => {
+            updateFn();
+            this._batchTimeout = null;
+        }, 0);
     }
 
     setupDOMEventListeners() {
@@ -583,15 +676,56 @@ export class TradingInterface extends Component {
 
     handleTabClick(event) {
         const view = event.target.dataset.view;
-        if (!view) return;
-
-        this.setState({
-            activeView: view,
-            visibleViews: this.state.isMobile ? [view] : ['swap', 'curve']
+        console.log('Tab Click:', {
+            view,
+            previousState: this.layoutState,
+            element: event.target
         });
 
-        // Remount components after view change
-        this.mountChildComponents();
+        if (view === this.layoutState.activeView) {
+            console.log('Tab already active, skipping update');
+            return;
+        }
+
+        // Update layout state
+        this.layoutState = {
+            ...this.layoutState,
+            activeView: view,
+            visibleViews: this.layoutState.isMobile ? [view] : ['swap', 'curve']
+        };
+
+        // Batch our updates to prevent multiple renders
+        this.batchUpdate(() => {
+            // Update store
+            tradingStore.setState({
+                view: {
+                    isMobile: this.layoutState.isMobile,
+                    showCurve: this.shouldShowComponent('curve'),
+                    showSwap: this.shouldShowComponent('swap'),
+                    current: view
+                }
+            });
+
+            // Notify layout service
+            eventBus.emit(LAYOUT_EVENTS.VIEW_CHANGE, {
+                activeTab: view,
+                visibleViews: this.layoutState.visibleViews
+            });
+
+            // Update UI
+            this.render();
+            this.mountChildComponents();
+        });
+    }
+
+    setupTabListeners() {
+        console.log('Setting up tab listeners');
+        const tabButtons = this.element.querySelectorAll('.tab-button');
+        tabButtons.forEach(button => {
+            button.removeEventListener('click', this.handleTabClick);
+            button.addEventListener('click', this.handleTabClick.bind(this));
+            console.log('Added listener to button:', button.dataset.view);
+        });
     }
 
     async handleBuyExec() {
@@ -780,21 +914,29 @@ export class TradingInterface extends Component {
         }
     }
 
-    shouldShowComponent(viewName) {
-        return this.state.visibleViews.includes(viewName);
+    shouldShowComponent(view) {
+        // Only use layoutState for decisions
+        if (this.layoutState.isMobile) {
+            return view === this.layoutState.activeView;
+        }
+        return this.layoutState.visibleViews.includes(view);
     }
 
     render() {
-        const { isMobile, activeView } = this.state;
+        const { isMobile, activeView } = this.layoutState;
         
-        // console.log('Rendering trading interface', {
-        //     isMobile,
-        //     activeView,
-        //     shouldShowCurve: this.shouldShowComponent('curve'),
-        //     shouldShowSwap: this.shouldShowComponent('swap')
-        // });
+        // Cache visibility results
+        const showCurve = this.shouldShowComponent('curve');
+        const showSwap = this.shouldShowComponent('swap');
         
-        return `
+        console.log('Rendering trading interface', {
+            isMobile,
+            activeView,
+            shouldShowCurve: showCurve,
+            shouldShowSwap: showSwap
+        });
+        
+        const html = `
             <div class="trading-interface ${isMobile ? 'mobile' : ''}">
                 ${isMobile ? `
                     <div class="tab-navigation">
@@ -809,68 +951,56 @@ export class TradingInterface extends Component {
                     </div>
                 ` : ''}
 
-                <div id="curve-container" class="view-container ${activeView === 'curve' ? 'active' : ''}"
-                     style="display: ${this.shouldShowComponent('curve') ? 'block' : 'none'}">
-                </div>
-                
-                <div id="swap-container" class="view-container ${activeView === 'swap' ? 'active' : ''}"
-                     style="display: ${this.shouldShowComponent('swap') ? 'block' : 'none'}">
+                <div class="trading-container">
+                    <div id="curve-container" 
+                         class="view-container ${activeView === 'curve' ? 'active' : ''}"
+                         style="display: ${showCurve ? 'block' : 'none'}">
+                    </div>
+                    
+                    <div id="swap-container" 
+                         class="view-container ${activeView === 'swap' ? 'active' : ''}"
+                         style="display: ${showSwap ? 'block' : 'none'}">
+                    </div>
                 </div>
             </div>
         `;
+
+        if (this.element) {
+            this.element.innerHTML = html;
+            this.setupTabListeners();
+        }
+
+        return html;
     }
 
     static get styles() {
         return `
-        //     .trading-interface {
-        //         display: flex;
-        //         flex-direction: column;
-        //         gap: 20px;
-        //         padding: 20px;
-        //     }
+            .trading-interface {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+                height: 100%;
+            }
 
-        //     #curve-container {
-        //         width: 100%;
-        //         height: 300px;
-        //         background: #1a1a1a;
-        //         border-radius: 8px;
-        //         padding: 10px;
-        //     }
+            .trading-interface.mobile {
+                flex-direction: column;
+            }
 
-        //     #curveChart {
-        //         width: 100%;
-        //         height: 100%;
-        //     }
+            .view-container {
+                flex: 1;
+                min-height: 0;  /* Important for flex containers */
+            }
 
-        //     .view-container {
-        //         margin-bottom: 20px;
-        //     }
+            .view-container.active {
+                display: flex;
+            }
 
-        //     .view-container:not(.active) {
-        //         opacity: 0.7;
-        //     }
-
-        //     .tab-navigation {
-        //         display: flex;
-        //         gap: 10px;
-        //         margin-bottom: 20px;
-        //     }
-
-        //     .tab-button {
-        //         padding: 10px 20px;
-        //         border: none;
-        //         border-radius: 8px;
-        //         background: #1a1a1a;
-        //         color: #fff;
-        //         cursor: pointer;
-        //         transition: all 0.3s ease;
-        //     }
-
-        //     .tab-button.active {
-        //         background: #FFD700;
-        //         color: #000;
-        //     }
-        // `;
+            .tab-navigation {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+        `;
     }
 }
 

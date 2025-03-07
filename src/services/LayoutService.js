@@ -22,7 +22,7 @@ class LayoutService {
             currentBreakpoint: this.getCurrentBreakpoint(),
             isMobile: window.innerWidth <= this.breakpoints.mobile,
             activeTab: 'swap',
-            visibleViews: ['swap', 'curve'],
+            visibleViews: [],  // Start empty and let initialize() set the correct views
             dimensions: {
                 width: window.innerWidth,
                 height: window.innerHeight
@@ -41,6 +41,9 @@ class LayoutService {
      * Initialize the service and set up event listeners
      */
     initialize() {
+        // Set initial visible views based on mobile state
+        this.state.visibleViews = this.state.isMobile ? [this.state.activeTab] : ['swap', 'curve'];
+
         // Add window resize listener
         window.addEventListener('resize', this.debouncedResize);
 
@@ -70,16 +73,19 @@ class LayoutService {
         const oldBreakpoint = this.state.currentBreakpoint;
         const newBreakpoint = this.getCurrentBreakpoint();
 
+        // Force check isMobile based on actual viewport width
+        const isMobile = newWidth <= this.breakpoints.mobile;
+
         // Update state
         const newState = {
             ...this.state,
             currentBreakpoint: newBreakpoint,
-            isMobile: newWidth <= this.breakpoints.mobile,
+            isMobile: isMobile,  // Explicitly set based on width
             dimensions: { width: newWidth, height: newHeight }
         };
 
         // Update visible views based on mobile state
-        if (newState.isMobile) {
+        if (isMobile) {
             newState.visibleViews = [newState.activeTab];
         } else {
             newState.visibleViews = ['swap', 'curve'];
@@ -91,7 +97,7 @@ class LayoutService {
         eventBus.emit(EVENTS.RESIZE, {
             width: newWidth,
             height: newHeight,
-            isMobile: newState.isMobile
+            isMobile: isMobile  // Make sure we're passing the correct mobile state
         });
 
         // Emit breakpoint change if it changed
@@ -115,16 +121,26 @@ class LayoutService {
     handleTabChange({ view }) {
         if (!view || this.state.activeTab === view) return;
 
-        this.state.activeTab = view;
+        const newState = {
+            ...this.state,
+            activeTab: view,
+            // Always update visibleViews based on current mobile state
+            visibleViews: this.state.isMobile ? [view] : ['swap', 'curve']
+        };
 
-        // Update visible views for mobile
-        if (this.state.isMobile) {
-            this.state.visibleViews = [view];
-        }
+        // Update the state
+        this.state = newState;
 
+        // Emit view change event
+        eventBus.emit(EVENTS.VIEW_CHANGE, {
+            activeTab: view,
+            visibleViews: newState.visibleViews
+        });
+
+        // Emit tab change event
         eventBus.emit(EVENTS.TAB_CHANGE, {
             activeTab: view,
-            visibleViews: this.state.visibleViews
+            visibleViews: newState.visibleViews
         });
     }
 
@@ -143,10 +159,12 @@ class LayoutService {
      * Emit current state to synchronize new subscribers
      */
     emitCurrentState() {
+        const isMobile = window.innerWidth <= this.breakpoints.mobile;
+        
         eventBus.emit(EVENTS.RESIZE, {
             width: this.state.dimensions.width,
             height: this.state.dimensions.height,
-            isMobile: this.state.isMobile
+            isMobile: isMobile
         });
 
         eventBus.emit(EVENTS.VIEW_CHANGE, {

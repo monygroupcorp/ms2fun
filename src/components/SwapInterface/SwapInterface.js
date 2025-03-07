@@ -91,13 +91,11 @@ export default class SwapInterface extends Component {
             if (inputType === 'eth') {
                 // Calculate how much EXEC user will receive for their ETH
                 const execAmount = await this.blockchainService.getExecForEth(amount);
-                console.log('EXEC amount:', execAmount);
                 // Round down to ensure we don't exceed maxCost
                 return Math.floor(execAmount).toString();
             } else {
                 // Calculate how much ETH user will receive for their EXEC
                 const ethAmount = await this.blockchainService.getEthForExec(amount);
-                console.log('ETH amount:', ethAmount);
                 // Reduce the minRefund slightly (0.1% less) to account for any calculation differences
                 // This ensures we stay above the actual minRefund requirement
                 return (parseFloat(ethAmount) * 0.999).toFixed(18); // Use more decimals for precision
@@ -320,15 +318,12 @@ export default class SwapInterface extends Component {
             this.priceDisplay.mount(priceContainer);
         }
         
-        console.log('SwapInterface - after direction switch, options state:', this.transactionOptionsState);
-        
         // Rebind events
         this.bindEvents();
     }
 
     async handleSwap() {
         try {
-            console.log('SwapInterface - handleSwap called');
             
             // Remove any commas from execAmount and convert to string
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
@@ -341,12 +336,6 @@ export default class SwapInterface extends Component {
             const proof = await this.blockchainService.getMerkleProof(
                 await this.store.selectConnectedAddress()
             );
-
-            console.log('Parsed values for contract:', {
-                ethValue,
-                execAmount,
-                direction: this.state.direction
-            });
 
             if (this.state.direction === 'buy') {
                 await this.blockchainService.buyBonding({
@@ -416,57 +405,50 @@ export default class SwapInterface extends Component {
         const formattedEthBalance = parseFloat(balances.eth).toFixed(6);
         const formattedExecBalance = parseInt(balances.exec).toLocaleString();
         
-        console.log('Rendering with values:', { direction, ethAmount, execAmount, balances });
         return `
-            <div class="swap-interface">
-                <div class="price-display-container"></div>
-                <div class="quick-fill-buttons">
-                    ${direction === 'buy' ? 
-                        `
-                        <button data-amount="0.0025">0.0025</button>
-                        <button data-amount="0.01">0.01</button>
-                        <button data-amount="0.05">0.05</button>
-                        <button data-amount="0.1">0.1</button>
-                        `
-                    :
-                        `
-                        <button data-percentage="25">25%</button>
-                        <button data-percentage="50">50%</button>
-                        <button data-percentage="75">75%</button>
-                        <button data-percentage="100">100%</button>
-                        `
-                    }
-                </div>
-                <div class="swap-inputs">
-                    <div class="input-container">
-                        <input type="text" 
-                               class="top-input" 
-                               value="${direction === 'buy' ? ethAmount : execAmount}" 
-                               placeholder="0.0"
-                               pattern="^[0-9]*[.]?[0-9]*$">
-                        <div class="token-info">
-                            <span class="token-symbol">${direction === 'buy' ? 'ETH' : '$EXEC'}</span>
-                            <span class="token-balance">Balance: ${direction === 'buy' ? formattedEthBalance : formattedExecBalance}</span>
-                        </div>
-                    </div>
-                    <button class="direction-switch">↑↓</button>
-                    <div class="input-container">
-                        <input type="text" 
-                               class="bottom-input" 
-                               value="${direction === 'buy' ? execAmount : ethAmount}" 
-                               placeholder="0.0"
-                               pattern="^[0-9]*[.]?[0-9]*$">
-                        <div class="token-info">
-                            <span class="token-symbol">${direction === 'buy' ? '$EXEC' : 'ETH'}</span>
-                            <span class="token-balance">Balance: ${direction === 'buy' ? formattedExecBalance : formattedEthBalance}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="transaction-options-container"></div>
-                <button class="swap-button">
-                    ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
-                </button>
+            <div class="price-display-container"></div>
+            <div class="quick-fill-buttons">
+                ${direction === 'buy' ? 
+                    `<button data-amount="0.0025">0.0025</button>
+                    <button data-amount="0.01">0.01</button>
+                    <button data-amount="0.05">0.05</button>
+                    <button data-amount="0.1">0.1</button>`
+                :
+                    `<button data-percentage="25">25%</button>
+                    <button data-percentage="50">50%</button>
+                    <button data-percentage="75">75%</button>
+                    <button data-percentage="100">100%</button>`
+                }
             </div>
+            <div class="swap-inputs">
+                <div class="input-container">
+                    <input type="text" 
+                           class="top-input" 
+                           value="${direction === 'buy' ? ethAmount : execAmount}" 
+                           placeholder="0.0"
+                           pattern="^[0-9]*[.]?[0-9]*$">
+                    <div class="token-info">
+                        <span class="token-symbol">${direction === 'buy' ? 'ETH' : '$EXEC'}</span>
+                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedEthBalance : formattedExecBalance}</span>
+                    </div>
+                </div>
+                <button class="direction-switch">↑↓</button>
+                <div class="input-container">
+                    <input type="text" 
+                           class="bottom-input" 
+                           value="${direction === 'buy' ? execAmount : ethAmount}" 
+                           placeholder="0.0"
+                           pattern="^[0-9]*[.]?[0-9]*$">
+                    <div class="token-info">
+                        <span class="token-symbol">${direction === 'buy' ? '$EXEC' : 'ETH'}</span>
+                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedExecBalance : formattedEthBalance}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="transaction-options-container"></div>
+            <button class="swap-button">
+                ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
+            </button>
         `;
     }
 }

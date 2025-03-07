@@ -1,0 +1,11 @@
+.chat-messages {
+    height: 400px; /* or whatever height fits your design */
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 10px;
+    color: #666;
+}
