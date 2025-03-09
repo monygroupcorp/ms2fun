@@ -175,13 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
             resultDiv.innerHTML = `
                 <p class="success">Congratulations! You are whitelisted!</p>
                 <p>Address: ${formatAddress(address)}</p>
-                <p>You can participate in the bonding curve presale on <strong>${result.date}</strong> (Day ${result.day})</p>
+                <p>You can participate in the bonding curve presale on Day ${result.day}</p>
                 <p>Note: This not the final snapshot, your position on the sequential whitelist is subject to change</p>
-                <p class="note">Make sure to mark your calendar!</p>
-                <div class="calendar-links">
-                    <a href="${calendarLinks.google}" target="_blank" class="calendar-button google">Add to Google Calendar</a>
-                    <a href="${calendarLinks.ical}" download="cultexec-mint-day-${result.day}.ics" class="calendar-button ical">Download iCal File</a>
-                </div>
             `;
             
             // Clean up the Blob URL when the component is updated
