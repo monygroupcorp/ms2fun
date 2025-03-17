@@ -15,6 +15,8 @@ export default class SwapInterface extends Component {
             ethAmount: '',
             execAmount: '',
             activeInput: null,
+            freeMint: false,
+            freeSupply: 0,
             calculatingAmount: false
         };
         
@@ -47,6 +49,11 @@ export default class SwapInterface extends Component {
         const balances = this.store.selectBalances();
         const formattedEthBalance = parseFloat(balances.eth).toFixed(6);
         const formattedExecBalance = parseInt(balances.exec).toLocaleString();
+
+        const { freeSupply, freeMint } = this.store.selectFreeSituation();
+        console.log('handleBalanceUpdate freeMint', freeMint);
+        this.freeMint = freeMint;
+        this.freeSupply = freeSupply;
 
         // Update all balance displays
         const balanceDisplays = this.element.querySelectorAll('.token-balance');
@@ -91,14 +98,23 @@ export default class SwapInterface extends Component {
             if (inputType === 'eth') {
                 // Calculate how much EXEC user will receive for their ETH
                 const execAmount = await this.blockchainService.getExecForEth(amount);
+
+                // Check if user is eligible for free mint
+                const { freeSupply, freeMint } = this.store.selectFreeSituation();
+                console.log('calculateSwapAmount freeMint', freeMint);
+                // If free supply is available and user hasn't claimed their free mint
+                const freeMintBonus = (freeSupply > 0 && !freeMint) ? 1000000 : 0;
+                
                 // Round down to ensure we don't exceed maxCost
-                return Math.floor(execAmount).toString();
+                return Math.floor(execAmount + freeMintBonus).toString();
             } else {
                 // Calculate how much ETH user will receive for their EXEC
                 const ethAmount = await this.blockchainService.getEthForExec(amount);
                 // Reduce the minRefund slightly (0.1% less) to account for any calculation differences
                 // This ensures we stay above the actual minRefund requirement
-                return (parseFloat(ethAmount) * 0.999).toFixed(18); // Use more decimals for precision
+
+                //update lets do this tailoring amount at the contract call in handle sawp
+                return ethAmount.toString();//(parseFloat(ethAmount) * 0.999).toFixed(18); // Use more decimals for precision
             }
         } catch (error) {
             console.error('Error calculating swap amount:', error);
@@ -290,6 +306,14 @@ export default class SwapInterface extends Component {
 
         const newDirection = this.state.direction === 'buy' ? 'sell' : 'buy';
         
+
+        console.log('Direction Switch - Current State:', {
+            direction: this.state.direction,
+            newDirection,
+            freeMint: this.state.freeMint,
+            freeSupply: this.state.freeSupply
+        });
+
         // Store current values but DON'T swap them
         // Just change the direction
         this.state = {
@@ -298,6 +322,12 @@ export default class SwapInterface extends Component {
             calculatingAmount: false,
             activeInput: null
         };
+
+        console.log('Direction Switch - Updated State:', {
+            direction: this.state.direction,
+            freeMint: this.state.freeMint,
+            freeSupply: this.state.freeSupply
+        });
 
         // Unbind events before updating content
         this.unbindEvents();
@@ -328,9 +358,21 @@ export default class SwapInterface extends Component {
             // Remove any commas from execAmount and convert to string
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
             
+            // If buying and eligible for free mint, subtract the bonus amount before sending transaction
+            let adjustedExecAmount = cleanExecAmount;
+            if (this.state.direction === 'buy') {
+                const { freeSupply, freeMint } = this.store.selectFreeSituation();
+                console.log('handle swap freeSupply, freeMint', freeSupply, freeMint);
+                if (freeSupply > 0 && !freeMint) {
+                    // Subtract 1,000,000 from the amount since contract will add it automatically
+                    const numAmount = parseInt(cleanExecAmount);
+                    adjustedExecAmount = Math.max(0, numAmount - 1000000).toString();
+                }
+            }
+
             // Parse amounts with proper decimal handling for contract interaction
             const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
-            const execAmount = this.blockchainService.parseExec(cleanExecAmount);
+            const execAmount = this.blockchainService.parseExec(adjustedExecAmount);
             
             // Get merkle proof
             const proof = await this.blockchainService.getMerkleProof(
@@ -346,9 +388,12 @@ export default class SwapInterface extends Component {
                     message: this.transactionOptionsState.message
                 }, ethValue);
             } else {
+                // For sells, we calculate minRefund as slightly less than the expected return
+                const minReturn = BigInt(ethValue) * BigInt(999) / BigInt(1000); // 0.1% less
+                console.log('handleSwap minReturn', minReturn);
                 await this.blockchainService.sellBonding({
                     amount: execAmount,      // Will be like "1000000000000000000000000" for 1M EXEC
-                    minReturn: ethValue,     // Will be like "2500000000000000" for 0.0025 ETH
+                    minReturn: minReturn,     // Will be like "2500000000000000" for 0.0025 ETH
                     proof: proof.proof,
                     message: this.transactionOptionsState.message
                 });
@@ -381,8 +426,22 @@ export default class SwapInterface extends Component {
             }
 
             // Convert from full decimal representation to human-readable number first
-            const readableBalance = BigInt(execBalance) / BigInt(1e18);
-            // Calculate percentage
+            let readableBalance = BigInt(execBalance) / BigInt(1e18);
+            
+            // If user has free mint, subtract 1M from available balance
+            if (this.freeMint) {
+                readableBalance = readableBalance - BigInt(1000000);    
+                // Check if there's any sellable balance after subtracting free mint
+                if (readableBalance <= 0) {
+                    this.messagePopup.info(
+                        'You only have free mint tokens which cannot be sold.',
+                        'Cannot Quick Fill'
+                    );
+                    return;
+                }
+            }
+
+            // Calculate percentage of sellable balance
             const amount = (readableBalance * BigInt(percentage)) / BigInt(100);
             value = amount.toString();
         }
@@ -399,14 +458,36 @@ export default class SwapInterface extends Component {
 
     render() {
         const { direction, ethAmount, execAmount, calculatingAmount } = this.state;
+
+        console.log('Render - Current State:', {
+            direction,
+            freeMint: this.state.freeMint,
+            freeSupply: this.state.freeSupply,
+            condition: `direction === 'sell' && this.freeMint = ${direction === 'sell' && this.freeMint}`
+        });
+        
         const balances = this.store.selectBalances();
         
         // Format balances with appropriate decimals
         const formattedEthBalance = parseFloat(balances.eth).toFixed(6);
         const formattedExecBalance = parseInt(balances.exec).toLocaleString();
+        // Calculate available balance for selling
+        const availableExecBalance = direction === 'sell' && this.freeMint
+        ? `Available: ${(parseInt(balances.exec) - 1000000).toLocaleString()}`
+        : `Balance: ${formattedExecBalance}`;
         
         return `
             <div class="price-display-container"></div>
+            ${direction === 'sell' && this.freeMint ? 
+                `<div class="free-mint-notice">
+                    You have 1,000,000 $EXEC you received for free that cannot be sold here.
+                </div>` 
+                : direction === 'buy' && this.freeSupply > 0 && !this.freeMint ?
+                `<div class="free-mint-notice free-mint-bonus">
+                    1,000,000 $EXEC will be added to your purchase. Thank you.
+                </div>`
+                : ''
+            }
             <div class="quick-fill-buttons">
                 ${direction === 'buy' ? 
                     `<button data-amount="0.0025">0.0025</button>
@@ -429,7 +510,7 @@ export default class SwapInterface extends Component {
                            pattern="^[0-9]*[.]?[0-9]*$">
                     <div class="token-info">
                         <span class="token-symbol">${direction === 'buy' ? 'ETH' : '$EXEC'}</span>
-                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedEthBalance : formattedExecBalance}</span>
+                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedEthBalance : availableExecBalance}</span>
                     </div>
                 </div>
                 <button class="direction-switch">↑↓</button>

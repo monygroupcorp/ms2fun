@@ -1095,3 +1095,30 @@ button:hover {
 .hidden {
     display: none;
 }
+
+.gif-container {
+    position: relative;
+}
+
+.gif-container.loading::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #1a1a1a; /* Or your preferred background color */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* 
+    background-image: url('path/to/small-placeholder.png');
+    Add a loading spinner or placeholder image */
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+.terminal-gif {
+    transition: opacity 0.3s ease;
+}

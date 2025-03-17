@@ -4,6 +4,7 @@ import TradingInterface from './src/components/TradingInterface/TradingInterface
 import ChatPanel from './src/components/ChatPanel/ChatPanel.js';
 import StatusPanel from './src/components/StatusPanel/StatusPanel.js';
 import { eventBus } from './src/core/EventBus.js';
+
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 
 class Web3Handler {

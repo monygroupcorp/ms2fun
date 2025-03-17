@@ -7,6 +7,8 @@ import SwapInterface from '../SwapInterface/SwapInterface.js';
 
 import BondingCurve from '../BondingCurve/BondingCurve.js';
 
+import PortfolioModal from '../PortfolioModal/PortfolioModal.js';
+
 // Add event name constants at the top of the file
 const EVENTS = {
     INPUT: {
@@ -93,16 +95,21 @@ export class TradingInterface extends Component {
         this.handleLayoutChange = this.handleLayoutChange.bind(this);
         this.handleViewChange = this.handleViewChange.bind(this);
         this.handleTabClick = this.handleTabClick.bind(this);
+
+        // Add portfolio modal handling
+        this.handlePortfolioClick = this.handlePortfolioClick.bind(this);
+        this.handlePortfolioClose = this.handlePortfolioClose.bind(this);
     }
 
     async initialize() {
         try {
             // Fetch initial balances and price concurrently
-            const [ethAmount, execAmount, nfts, currentPrice] = await Promise.all([
+            const [ethAmount, execAmount, nfts, currentPrice, freeSituation] = await Promise.all([
                 this.blockchainService.getEthBalance(this.address),
                 this.blockchainService.getTokenBalance(this.address),
                 this.blockchainService.getNFTBalance(this.address),
-                this.blockchainService.getCurrentPrice()
+                this.blockchainService.getCurrentPrice(),
+                this.blockchainService.getFreeSituation(this.address)
             ]);
 
             // Update store with fetched balances
@@ -112,6 +119,8 @@ export class TradingInterface extends Component {
                 nfts: nfts,
                 lastUpdated: Date.now()
             });
+
+            tradingStore.updateFreeSituation(freeSituation);
 
             // Update store with fetched price
             tradingStore.updatePrice(currentPrice);
@@ -207,6 +216,15 @@ export class TradingInterface extends Component {
 
         // Mount child components based on visibility
         this.mountChildComponents();
+
+        // Add portfolio event listeners
+        eventBus.on('portfolio:close', this.handlePortfolioClose);
+        
+        // Add portfolio button click listener
+        const portfolioButton = this.element.querySelector('.portfolio-button');
+        if (portfolioButton) {
+            portfolioButton.addEventListener('click', this.handlePortfolioClick);
+        }
     }
 
     mountChildComponents() {
@@ -323,6 +341,10 @@ export class TradingInterface extends Component {
             this.messageDebounce = null;
         }
 
+        // Clean up portfolio modal if it exists
+        this.handlePortfolioClose();
+        eventBus.off('portfolio:close', this.handlePortfolioClose);
+
         // Call parent unmount last
         super.unmount();
     }
@@ -427,6 +449,23 @@ export class TradingInterface extends Component {
             this.render();
             this.mountChildComponents();
         });
+    }
+
+    handlePortfolioClick() {
+        const modalContainer = document.createElement('div');
+        modalContainer.id = 'portfolio-modal-container';
+        document.body.appendChild(modalContainer);
+        
+        this.portfolioModal = new PortfolioModal();
+        this.portfolioModal.mount(modalContainer);
+    }
+
+    handlePortfolioClose() {
+        const container = document.getElementById('portfolio-modal-container');
+        if (container) {
+            container.remove();
+        }
+        this.portfolioModal = null;
     }
 
     batchUpdate(updateFn) {
@@ -948,8 +987,16 @@ export class TradingInterface extends Component {
                                 data-view="swap">
                             Swap
                         </button>
+                        <button class="portfolio-button">
+                            Portfolio
+                        </button>
                     </div>
-                ` : ''}
+                ` : `<div class="tab-navigation">
+                        <button class="portfolio-button">
+                            Portfolio
+                        </button>
+                    </div>`
+                 }
 
                 <div class="trading-container">
                     <div id="curve-container" 
@@ -999,6 +1046,19 @@ export class TradingInterface extends Component {
                 display: flex;
                 gap: 10px;
                 margin-bottom: 20px;
+            }
+
+            .portfolio-button {
+                padding: 8px 16px;
+                border-radius: 4px;
+                background-color: #f0f0f0;
+                border: none;
+                cursor: pointer;
+                margin-left: auto;
+            }
+
+            .portfolio-button:hover {
+                background-color: #e0e0e0;
             }
         `;
     }

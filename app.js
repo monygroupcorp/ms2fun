@@ -292,73 +292,73 @@ function generateCalendarLinks(date, day) {
 //     }
 // };
 
-// async function getListData(percent) {
-//     try {
-//         // First try to fetch from file
-//         const response = await fetch(`lists/unique_addresses_cultexec_${percent}pct.json`);
-//         if (!response.ok) {
-//             throw new Error(`HTTP error! status: ${response.status}`);
-//         }
-//         return await response.json();
-//     } catch (error) {
-//         console.log(`Fetch failed, using fallback data for ${percent}%`, error);
-//         // Fall back to local data if fetch fails
-//         return whitelistData[percent];
-//     }
-// }
+async function getListData(percent) {
+    try {
+        // First try to fetch from file
+        const response = await fetch(`lists/unique_addresses_cultexec_${percent}pct.json`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.log(`Fetch failed, using fallback data for ${percent}%`, error);
+        // Fall back to local data if fetch fails
+        return whitelistData[percent];
+    }
+}
 
-// async function checkWhitelist(address) {
-//     // Normalize the address to lowercase for consistent comparison
-//     address = address.toLowerCase();
+async function checkWhitelist(address) {
+    // Normalize the address to lowercase for consistent comparison
+    address = address.toLowerCase();
     
-//     // Define our lists and their corresponding days
-//     const lists = [
-//         { percent: '001', day: 1 },
-//         { percent: '002', day: 2 },
-//         { percent: '003', day: 3 },
-//         { percent: '008', day: 4 },
-//         { percent: '015', day: 5 },
-//         { percent: '029', day: 6 },
-//         { percent: '056', day: 7 }
-//     ];
+    // Define our lists and their corresponding days
+    const lists = [
+        { percent: '001', day: 1 },
+        { percent: '002', day: 2 },
+        { percent: '003', day: 3 },
+        { percent: '008', day: 4 },
+        { percent: '015', day: 5 },
+        { percent: '029', day: 6 },
+        { percent: '056', day: 7 }
+    ];
 
-//     // Define the mint dates
-//     const mintDates = {
-//         1: 'February 28th, 2025',
-//         2: 'March 1st, 2025',
-//         3: 'March 2nd, 2025',
-//         4: 'March 3rd, 2025',
-//         5: 'March 4th, 2025',
-//         6: 'March 5th, 2025',
-//         7: 'March 6th, 2025'
-//     };
+    // Define the mint dates
+    const mintDates = {
+        1: 'February 28th, 2025',
+        2: 'March 1st, 2025',
+        3: 'March 2nd, 2025',
+        4: 'March 3rd, 2025',
+        5: 'March 4th, 2025',
+        6: 'March 5th, 2025',
+        7: 'March 6th, 2025'
+    };
 
-//     // Check each list in order
-//     for (const list of lists) {
-//         try {
-//             const data = await getListData(list.percent);
-//             // Convert all addresses in the list to lowercase for comparison
-//             const lowercaseAddresses = data.addresses.map(addr => addr.toLowerCase());
+    // Check each list in order
+    for (const list of lists) {
+        try {
+            const data = await getListData(list.percent);
+            // Convert all addresses in the list to lowercase for comparison
+            const lowercaseAddresses = data.addresses.map(addr => addr.toLowerCase());
             
-//             if (lowercaseAddresses.includes(address)) {
-//                 return {
-//                     day: list.day,
-//                     date: mintDates[list.day]
-//                 };
-//             }
-//         } catch (error) {
-//             console.error(`Error checking list ${list.percent}:`, error);
-//         }
-//     }
+            if (lowercaseAddresses.includes(address)) {
+                return {
+                    day: list.day,
+                    date: mintDates[list.day]
+                };
+            }
+        } catch (error) {
+            console.error(`Error checking list ${list.percent}:`, error);
+        }
+    }
     
-//     return null;
-// }
+    return null;
+}
 
 // // Add this helper function
-// function formatAddress(address) {
-//     if (address.length > 12) {
-//         // Show 0x + 5 characters, then ..., then last 5 characters
-//         return address.slice(0, 7) + '...' + address.slice(-5);
-//     }
-//     return address;
-// }
+function formatAddress(address) {
+    if (address.length > 12) {
+        // Show 0x + 5 characters, then ..., then last 5 characters
+        return address.slice(0, 7) + '...' + address.slice(-5);
+    }
+    return address;
+}

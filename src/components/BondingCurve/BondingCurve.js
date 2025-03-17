@@ -10,7 +10,8 @@ export class BondingCurve extends Component {
             totalBondingSupply: 0,
             totalMessages: 0,
             totalNFTs: 0,
-            dataReady: false
+            dataReady: false,
+            contractEthBalance: 0
         };
     }
 
@@ -71,14 +72,15 @@ export class BondingCurve extends Component {
     checkAndUpdateState(priceUpdated, contractDataUpdated) {
         if (priceUpdated && contractDataUpdated) {
             const currentPrice = tradingStore.selectPrice();
-            const { totalBondingSupply, totalMessages, totalNFTs } = tradingStore.selectContractData();
+            const { totalBondingSupply, totalMessages, totalNFTs, contractEthBalance } = tradingStore.selectContractData();
             
             this.setState({
                 currentPrice,
                 totalBondingSupply,
                 totalMessages,
                 totalNFTs,
-                dataReady: true
+                dataReady: true,
+                contractEthBalance
             });
             
             // Redraw curve with complete data
@@ -214,6 +216,7 @@ export class BondingCurve extends Component {
         ctx.fillText(`Total Supply: ${this.state.totalBondingSupply.toLocaleString()} EXEC`, 10, 40);
         ctx.fillText(`Total Messages: ${this.state.totalMessages.toLocaleString()}`, 10, 60);
         ctx.fillText(`Total NFTs: ${this.state.totalNFTs.toLocaleString()}`, 10, 80);
+        ctx.fillText(`Contract ETH Balance: ${this.state.contractEthBalance.toLocaleString()}`, 10, 100);
     }
 
     mount(container) {

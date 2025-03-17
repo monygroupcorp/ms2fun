@@ -32,15 +32,23 @@ class BlockchainService {
     // Initialize the service with contract details
     async initialize() {
         try {
-            // Load network configuration
-            const response = await this.retryOperation(
-                () => fetch('/EXEC404/switch.json'),
-                'Failed to load network configuration'
-            );
-            this.networkConfig = await response.json();
+            // Define fallback config
+            const fallbackConfig = {
+                address: '0x0000000000000000000000000000000000000000',
+                networkId: 1,
+                rpcUrl: window.ethereum ? window.ethereum.url : 'https://ethereum.publicnode.com',
+            };
 
-            if (!this.networkConfig.address) {
-                throw new Error('Contract address not found in network configuration');
+            try {
+                // Attempt to load network configuration
+                const response = await this.retryOperation(
+                    () => fetch('/EXEC404/switch.json'),
+                    'Failed to load network configuration'
+                );
+                this.networkConfig = await response.json();
+            } catch (error) {
+                console.warn('Using fallback configuration:', error);
+                this.networkConfig = fallbackConfig;
             }
 
             // Initialize provider
@@ -500,6 +508,67 @@ class BlockchainService {
         }
     }
 
+    async getFreeSupply() {
+        try {
+            const freeExec = await this.executeContractCall('freeSupply');
+            return this.formatExec(freeExec);
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get free supply');
+        }
+    }
+
+    async getFreeMint(address) {
+        try {
+            const freeMint = await this.executeContractCall('freeMint', [address]);
+            console.log('FREE MINT', freeMint);
+            return freeMint;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get free mint');
+        }
+    }
+
+    async getFreeSituation(address) {
+        try {
+            const freeMint = await this.getFreeMint(address);
+            const freeSupply = await this.getFreeSupply();
+            const freeSituation = {
+                freeMint,
+                freeSupply
+            };
+            return freeSituation;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get free situation');
+        }
+    }
+
+    async getUserNFTIds(address) {
+        try {
+            const nftIds = await this.executeContractCall('getOwnerTokens', [address]);
+            return nftIds;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get user NFT IDs');
+        }
+    }
+
+    async getTokenUri(tokenId) {
+        try {
+            const uri = await this.executeContractCall('tokenURI', [tokenId]);
+            return uri;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get token URI');
+        }
+    }
+    
+    async getContractEthBalance() {
+        try {
+            const balance = await this.provider.getBalance(this.contract.address);
+            return this.formatEther(balance);
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get contract ETH balance');
+        }
+    }
+
+   
     /**
      * Convert ETH amount to Wei
      * @param {string} ethAmount 

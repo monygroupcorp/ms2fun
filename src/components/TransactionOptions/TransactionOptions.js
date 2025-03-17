@@ -204,7 +204,7 @@ export class TransactionOptions extends Component {
 
     template() {
         const { nftMintingEnabled, message, isValid, swapDirection } = this.state;
-        
+        console.log('swap direction', swapDirection);
         return `
             <div class="transaction-options">
                 <div class="option-group ${swapDirection === 'sell' ? 'hidden' : ''}">

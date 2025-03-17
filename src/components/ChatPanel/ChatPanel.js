@@ -108,7 +108,7 @@ class ChatPanel extends Component {
                 }
             });
         } else {
-            console.warn('ChatPanel: Load more button not found');
+            //console.warn('ChatPanel: Load more button not found');
         }
     }
 

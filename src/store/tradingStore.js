@@ -61,7 +61,9 @@ const initialState = {
         lastUpdated: null,
         totalMessages: 0,
         totalNFTs: 0,
-        recentMessages: null
+        recentMessages: null,
+        freeSupply: 0,
+        freeMint: 0
     }
 };
 
@@ -125,6 +127,16 @@ class TradingStore extends Store {
             balances: {
                 ...balances,
                 lastUpdated: Date.now()
+            }
+        });
+    }
+
+    updateFreeSituation(freeSituation) {
+        this.setState({
+            contractData: {
+                ...this.state.contractData,
+                freeMint: freeSituation.freeMint,
+                freeSupply: freeSituation.freeSupply
             }
         });
     }
@@ -317,6 +329,16 @@ class TradingStore extends Store {
 
     selectContractData() {
         return this.state.contractData;
+    }
+
+    selectFreeSituation() {
+        const { freeSupply, freeMint } = this.state.contractData;
+        const address = this.selectConnectedAddress();
+        return {
+            freeSupply,
+            freeMint,
+            address
+        }
     }
 }
 
