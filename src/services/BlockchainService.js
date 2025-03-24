@@ -1,6 +1,7 @@
-// import { ethers } from './node_modules/ethers/dist/ethers.esm.js';
+
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import { eventBus } from '../core/EventBus.js';
+import { tradingStore } from '../store/tradingStore.js';
 import MerkleHandler from '../merkleHandler.js';
 
 class BlockchainService {
@@ -117,6 +118,8 @@ class BlockchainService {
             );
             const mirrorABI = await mirrorAbiResponse.json();
 
+            tradingStore.setContracts(contractAddress, mirrorAddress);
+
             this.mirrorContract = new ethers.Contract(
                 mirrorAddress,
                 mirrorABI,
@@ -191,6 +194,7 @@ class BlockchainService {
                 [address],
                 { useContract: 'mirror' }
             );
+            console.log('NFT BALANCE', balance.toString());
             return parseInt(balance.toString());
         } catch (error) {
             throw this.wrapError(error, 'Failed to get NFT balance');
@@ -562,9 +566,119 @@ class BlockchainService {
     async getContractEthBalance() {
         try {
             const balance = await this.provider.getBalance(this.contract.address);
-            return this.formatEther(balance);
+            const formattedBalance = this.formatEther(balance);
+            console.log('CONTRACT ETH BALANCE', formattedBalance);
+            return formattedBalance;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get contract ETH balance');
+        }
+    }
+
+    async getUserNFTs(address) {
+        try {
+            const nftIds = await this.executeContractCall('getOwnerTokens', [address]);
+            return nftIds;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get user NFT IDs');
+        }
+    }
+
+    async getNFTMetadata(tokenId) {
+        try {
+            const metadata = await this.executeContractCall('tokenURI', [tokenId]);
+            console.log('NFT METADATA', metadata);
+            return metadata;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get NFT metadata');
+        }
+    }
+
+    async getNFTMetadataBatch(tokenIds) {
+        try {
+            const metadataPromises = tokenIds.map(id => 
+                this.executeContractCall('tokenURI', [id])
+            );
+            
+            const metadata = await Promise.all(metadataPromises);
+            console.log('Batch NFT Metadata:', metadata);
+            return metadata;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get NFT metadata batch');
+        }
+    }
+
+    async getUserNFTsWithMetadata(address, limit = 5) {
+        try {
+            // Get all NFT IDs for the user
+            const nftIds = await this.getUserNFTs(address);
+            
+            // Take only the first 'limit' number of NFTs
+            const selectedIds = nftIds.slice(0, limit);
+            
+            // Fetch metadata for selected NFTs
+            const metadata = await this.getNFTMetadataBatch(selectedIds);
+            
+            // Combine IDs with their metadata
+            const nftsWithMetadata = selectedIds.map((id, index) => ({
+                tokenId: id,
+                metadata: metadata[index]
+            }));
+
+            console.log('NFTs with metadata:', nftsWithMetadata);
+            return nftsWithMetadata;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get user NFTs with metadata');
+        }
+    }
+
+    async balanceMint(amount) {
+        try {
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'mint' });
+            
+            const receipt = await this.executeContractCall(
+                'balanceMint', 
+                [amount], 
+                { requiresSigner: true }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'mint',
+                receipt,
+                amount: amount
+            });
+
+            return receipt;
+        } catch (error) {
+            // Emit error event
+            eventBus.emit('transaction:error', {
+                type: 'mint',
+                error: this.wrapError(error, 'Failed to mint NFTs')
+            });
+            throw error;
+        }
+    }
+
+    async transferNFT(address, recipient, tokenId) {
+        try {
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'send' });
+            const receipt = await this.executeContractCall('transferFrom', [address, recipient, tokenId], { requiresSigner: true, useContract: 'mirror' });
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'send',
+                receipt,
+                tokenId: tokenId,
+                recipient: recipient
+            });
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'send',
+                error: this.wrapError(error, 'Failed to send NFT')
+            });
+            throw error;
         }
     }
 

@@ -188,7 +188,7 @@ export default class SwapInterface extends Component {
         }
 
         // For successful transactions
-        if (event.receipt) {
+        if (event.receipt && (event.type == 'buy' || event.type == 'sell')) {
             const amount = this.state.direction === 'buy' 
                 ? this.state.execAmount + ' EXEC'
                 : this.state.ethAmount + ' ETH';
@@ -322,6 +322,8 @@ export default class SwapInterface extends Component {
             calculatingAmount: false,
             activeInput: null
         };
+
+        this.store.setDirection(newDirection === 'buy');
 
         console.log('Direction Switch - Updated State:', {
             direction: this.state.direction,

@@ -16,6 +16,8 @@ export const TRADING_ACTIONS = {
 };
 
 const initialState = {
+    ca: '',
+    mirror: '',
     isEthToExec: true,
     ethAmount: '',
     execAmount: '',
@@ -35,6 +37,7 @@ const initialState = {
         eth: '0',
         exec: '0',
         nfts: '0',
+        userNFTs: [],
         lastUpdated: null
     },
     message: {
@@ -278,6 +281,20 @@ class TradingStore extends Store {
         }
     }
 
+    setContracts(ca, mirror) {
+        this.setState({
+            ca,
+            mirror
+        });
+    }
+
+    selectContracts() {
+        return {
+            ca: this.state.ca,
+            mirror: this.state.mirror
+        };
+    }
+
     // Selectors
     selectDirection() {
         return this.state.isEthToExec;
@@ -297,6 +314,10 @@ class TradingStore extends Store {
 
     selectBalances() {
         return this.state.balances;
+    }
+
+    selectUserNFTs() {
+        return this.state.balances.userNFTs;
     }
 
     selectView() {
@@ -339,6 +360,15 @@ class TradingStore extends Store {
             freeMint,
             address
         }
+    }
+
+    updateUserNFTs(nftData) {
+        this.setState({
+            balances: {
+                ...this.state.balances,
+                userNFTs: nftData
+            }
+        });
     }
 }
 

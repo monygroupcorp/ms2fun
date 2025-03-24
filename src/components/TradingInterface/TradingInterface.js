@@ -96,8 +96,8 @@ export class TradingInterface extends Component {
         this.handleViewChange = this.handleViewChange.bind(this);
         this.handleTabClick = this.handleTabClick.bind(this);
 
-        // Add portfolio modal handling
-        this.handlePortfolioClick = this.handlePortfolioClick.bind(this);
+        // Add portfolio handling
+        this.handlePortfolioOpen = this.handlePortfolioOpen.bind(this);
         this.handlePortfolioClose = this.handlePortfolioClose.bind(this);
     }
 
@@ -210,21 +210,17 @@ export class TradingInterface extends Component {
         // Setup event listeners
         eventBus.on(LAYOUT_EVENTS.VIEW_CHANGE, this.handleViewChange);
         eventBus.on(LAYOUT_EVENTS.RESIZE, this.handleLayoutChange);
+        eventBus.on('portfolio:open', this.handlePortfolioOpen);
+        eventBus.on('portfolio:close', this.handlePortfolioClose);
 
         // Setup tab click listeners
         this.setupTabListeners();
+        
+        // Setup portfolio button
+        this.setupPortfolioButton();
 
         // Mount child components based on visibility
         this.mountChildComponents();
-
-        // Add portfolio event listeners
-        eventBus.on('portfolio:close', this.handlePortfolioClose);
-        
-        // Add portfolio button click listener
-        const portfolioButton = this.element.querySelector('.portfolio-button');
-        if (portfolioButton) {
-            portfolioButton.addEventListener('click', this.handlePortfolioClick);
-        }
     }
 
     mountChildComponents() {
@@ -341,8 +337,8 @@ export class TradingInterface extends Component {
             this.messageDebounce = null;
         }
 
-        // Clean up portfolio modal if it exists
-        this.handlePortfolioClose();
+        // Remove portfolio event listeners
+        eventBus.off('portfolio:open', this.handlePortfolioOpen);
         eventBus.off('portfolio:close', this.handlePortfolioClose);
 
         // Call parent unmount last
@@ -452,15 +448,22 @@ export class TradingInterface extends Component {
     }
 
     handlePortfolioClick() {
+        console.log('Portfolio click handler triggered');
+        eventBus.emit('portfolio:open');
+    }
+
+    handlePortfolioOpen() {
+        console.log('Portfolio open handler triggered');
         const modalContainer = document.createElement('div');
         modalContainer.id = 'portfolio-modal-container';
         document.body.appendChild(modalContainer);
         
-        this.portfolioModal = new PortfolioModal();
+        this.portfolioModal = new PortfolioModal(this.blockchainService);
         this.portfolioModal.mount(modalContainer);
     }
 
     handlePortfolioClose() {
+        console.log('Portfolio close handler triggered');
         const container = document.getElementById('portfolio-modal-container');
         if (container) {
             container.remove();
@@ -754,6 +757,9 @@ export class TradingInterface extends Component {
             // Update UI
             this.render();
             this.mountChildComponents();
+            
+            // Re-setup portfolio button after render
+            this.setupPortfolioButton();
         });
     }
 
@@ -1051,8 +1057,9 @@ export class TradingInterface extends Component {
             .portfolio-button {
                 padding: 8px 16px;
                 border-radius: 4px;
-                background-color: #f0f0f0;
-                border: none;
+                color: white;
+                background-color: #000000;
+                border: 1px solid #fdb523;
                 cursor: pointer;
                 margin-left: auto;
             }
@@ -1061,6 +1068,14 @@ export class TradingInterface extends Component {
                 background-color: #e0e0e0;
             }
         `;
+    }
+
+    setupPortfolioButton() {
+        const portfolioButton = this.element.querySelector('.portfolio-button');
+        if (portfolioButton) {
+            console.log('Setting up portfolio button');
+            portfolioButton.addEventListener('click', this.handlePortfolioClick.bind(this));
+        }
     }
 }
 

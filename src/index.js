@@ -1,6 +1,13 @@
  import BlockchainService from './services/BlockchainService.js';
  import Web3Handler from '../web3Handler.js';
 
+ // Add this simple performance marker in your code
+performance.mark('startIndex');
+
+// At key points in your code:
+performance.mark('componentLoaded');
+performance.measure('componentLoadTime', 'startIndex', 'componentLoaded');
+
 async function initializeApp() {
     try {
         // Get container

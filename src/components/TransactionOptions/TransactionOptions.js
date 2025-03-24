@@ -14,7 +14,7 @@ export class TransactionOptions extends Component {
             message: '',
             isValid: true,
             nftBalance: 0,
-            swapDirection: 'buy',
+            swapDirection: this.store.selectDirection() ? 'buy' : 'sell',
             lastValidationState: true
         };
 
@@ -203,7 +203,8 @@ export class TransactionOptions extends Component {
     }
 
     template() {
-        const { nftMintingEnabled, message, isValid, swapDirection } = this.state;
+        const { nftMintingEnabled, message, isValid } = this.state;
+        const swapDirection = this.store.selectDirection() ? 'buy' : 'sell';
         console.log('swap direction', swapDirection);
         return `
             <div class="transaction-options">

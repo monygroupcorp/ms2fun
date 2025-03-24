@@ -1,5 +1,12 @@
 // just the silly front page phase 1 stuff
 
+// Add this simple performance marker in your code
+performance.mark('startApp');
+
+// At key points in your code:
+performance.mark('componentLoaded');
+performance.measure('componentLoadTime', 'startApp', 'componentLoaded');
+
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('walletAddress');
     const button = document.getElementById('checkButton');

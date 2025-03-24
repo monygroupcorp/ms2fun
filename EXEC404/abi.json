@@ -993,6 +993,25 @@
   },
   {
     "type": "function",
+    "name": "tokenURI",
+    "inputs": [
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "totalBondingSupply",
     "inputs": [],
     "outputs": [
@@ -1143,25 +1162,6 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "Debug",
-    "inputs": [
-      {
-        "name": "label",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "data",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
       }
     ],
     "anonymous": false

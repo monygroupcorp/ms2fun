@@ -216,7 +216,8 @@ export class BondingCurve extends Component {
         ctx.fillText(`Total Supply: ${this.state.totalBondingSupply.toLocaleString()} EXEC`, 10, 40);
         ctx.fillText(`Total Messages: ${this.state.totalMessages.toLocaleString()}`, 10, 60);
         ctx.fillText(`Total NFTs: ${this.state.totalNFTs.toLocaleString()}`, 10, 80);
-        ctx.fillText(`Contract ETH Balance: ${this.state.contractEthBalance.toLocaleString()}`, 10, 100);
+        console.log('CONTRACT ETH BALANCE', this.state.contractEthBalance);
+        ctx.fillText(`Contract ETH Balance: ${this.state.contractEthBalance}`, 10, 100);
     }
 
     mount(container) {
