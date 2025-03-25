@@ -154,6 +154,9 @@ export default class PortfolioModal extends Component {
                                     <button class="toggle-details" data-nft-id="${nft.tokenId}">
                                         Show Details
                                     </button>
+                                    <button class="send-button" data-nft-id="${nft.tokenId}">
+                                        Send ⌲
+                                    </button>
                                     <a href="https://opensea.io/assets/${mirror}/${nft.tokenId}" 
                                        target="_blank" 
                                        rel="noopener noreferrer" 
@@ -661,18 +664,49 @@ export default class PortfolioModal extends Component {
                 margin: 0 0 8px 0;
             }
 
+            .nft-buttons {
+                display: grid;
+                grid-template-areas:
+                    "details send"
+                    "opensea opensea";
+                gap: 8px;
+                margin-bottom: 8px;
+                width: 100%;
+            }
+
             .toggle-details {
+                grid-area: details;
                 background-color: #007bff;
                 color: white;
                 border: none;
                 padding: 8px 16px;
                 border-radius: 4px;
                 cursor: pointer;
-                margin-bottom: 8px;
+                width: 100%;
             }
 
-            .toggle-details:hover {
-                background-color: #0056b3;
+            .send-button {
+                grid-area: send;
+                background-color: #ff3366;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                width: 100%;
+            }
+
+            .opensea-button {
+                grid-area: opensea;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: pointer;
+                text-decoration: none;
+                text-align: center;
+                width: 47%;
             }
 
             .nft-details {
@@ -886,43 +920,6 @@ export default class PortfolioModal extends Component {
                 padding: 20px;
                 color: #666;
                 font-style: italic;
-            }
-
-            .nft-buttons {
-                display: flex;
-                gap: 8px;
-                margin-bottom: 8px;
-            }
-
-            .opensea-button {
-                background-color: #2081e2;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-                text-decoration: none;
-                font-size: 14px;
-                transition: background-color 0.2s;
-            }
-
-            .opensea-button:hover {
-                background-color: #1868b7;
-            }
-
-            .send-button {
-                background-color: #ff3366;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                transition: background-color 0.2s;
-            }
-
-            .send-button:hover {
-                background-color: #e61e4d;
             }
         `;
     }

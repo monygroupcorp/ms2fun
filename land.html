@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MS2.FUN | Dual Nature Token Launch Pad</title>
+    <style>
+        :root {
+            --primary-color: #ff69b4;
+            --secondary-color: #4a4a4a;
+            --background-color: #1a1a1a;
+            --text-color: #ffffff;
+            --font-family: 'math';
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        .hero p {
+            font-size: 1.5rem;
+            max-width: 800px;
+            margin-bottom: 2rem;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 4rem 0;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .remilia-badge {
+            margin-top: 2rem;
+            font-style: italic;
+            color: var(--primary-color);
+        }
+
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero {
+            background: rgba(26, 26, 26, 0.3);
+            backdrop-filter: blur(3px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="starfield"></div>
+    <div id="background"></div>
+    <div id="constellation-container"></div>
+    <div class="content-wrapper">
+        <section class="hero">
+            <h1>MS2.FUN</h1>
+            <p>The stationthisbot onchain Art Collection Auction House</p>
+            
+            <div class="features">
+                <div class="feature-card">
+                    <h3>Open Source Platform</h3>
+                    <p>Fully transparent and community-auditable codebase</p>
+                    <p><svg height="32" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="18" data-view-component="true" class="octicon octicon-mark-github">
+                        <path d="M12 1C5.9225 1 1 5.9225 1 12C1 16.8675 4.14875 20.9787 8.52125 22.4362C9.07125 22.5325 9.2775 22.2025 9.2775 21.9137C9.2775 21.6525 9.26375 20.7862 9.26375 19.865C6.5 20.3737 5.785 19.1912 5.565 18.5725C5.44125 18.2562 4.905 17.28 4.4375 17.0187C4.0525 16.8125 3.5025 16.3037 4.42375 16.29C5.29 16.2762 5.90875 17.0875 6.115 17.4175C7.105 19.0812 8.68625 18.6137 9.31875 18.325C9.415 17.61 9.70375 17.1287 10.02 16.8537C7.5725 16.5787 5.015 15.63 5.015 11.4225C5.015 10.2262 5.44125 9.23625 6.1425 8.46625C6.0325 8.19125 5.6475 7.06375 6.2525 5.55125C6.2525 5.55125 7.17375 5.2625 9.2775 6.67875C10.1575 6.43125 11.0925 6.3075 12.0275 6.3075C12.9625 6.3075 13.8975 6.43125 14.7775 6.67875C16.8813 5.24875 17.8025 5.55125 17.8025 5.55125C18.4075 7.06375 18.0225 8.19125 17.9125 8.46625C18.6138 9.23625 19.04 10.2125 19.04 11.4225C19.04 15.6437 16.4688 16.5787 14.0213 16.8537C14.42 17.1975 14.7638 17.8575 14.7638 18.8887C14.7638 20.36 14.75 21.5425 14.75 21.9137C14.75 22.2025 14.9563 22.5462 15.5063 22.4362C19.8513 20.9787 23 16.8537 23 12C23 5.9225 18.0775 1 12 1Z"></path>
+                    </svg><a href="https://github.com/lifehaverdev/ms2fun" target="_blank">Site</a></p>
+                    <p><svg height="32" aria-hidden="true" viewBox="0 0 24 24" version="1.1" width="18" data-view-component="true" class="octicon octicon-mark-github">
+                        <path d="M12 1C5.9225 1 1 5.9225 1 12C1 16.8675 4.14875 20.9787 8.52125 22.4362C9.07125 22.5325 9.2775 22.2025 9.2775 21.9137C9.2775 21.6525 9.26375 20.7862 9.26375 19.865C6.5 20.3737 5.785 19.1912 5.565 18.5725C5.44125 18.2562 4.905 17.28 4.4375 17.0187C4.0525 16.8125 3.5025 16.3037 4.42375 16.29C5.29 16.2762 5.90875 17.0875 6.115 17.4175C7.105 19.0812 8.68625 18.6137 9.31875 18.325C9.415 17.61 9.70375 17.1287 10.02 16.8537C7.5725 16.5787 5.015 15.63 5.015 11.4225C5.015 10.2262 5.44125 9.23625 6.1425 8.46625C6.0325 8.19125 5.6475 7.06375 6.2525 5.55125C6.2525 5.55125 7.17375 5.2625 9.2775 6.67875C10.1575 6.43125 11.0925 6.3075 12.0275 6.3075C12.9625 6.3075 13.8975 6.43125 14.7775 6.67875C16.8813 5.24875 17.8025 5.55125 17.8025 5.55125C18.4075 7.06375 18.0225 8.19125 17.9125 8.46625C18.6138 9.23625 19.04 10.2125 19.04 11.4225C19.04 15.6437 16.4688 16.5787 14.0213 16.8537C14.42 17.1975 14.7638 17.8575 14.7638 18.8887C14.7638 20.36 14.75 21.5425 14.75 21.9137C14.75 22.2025 14.9563 22.5462 15.5063 22.4362C19.8513 20.9787 23 16.8537 23 12C23 5.9225 18.0775 1 12 1Z"></path>
+                    </svg><a href="https://github.com/lifehaverdev/exec404" target="_blank">Contracts</a></p>
+                </div>
+                <div class="feature-card">
+                    <h3>Factory Integration</h3>
+                    <p>Add your own contract factory to the platform</p>
+                    <p><a href="/documentation">Coming Soon</a></p>
+                </div>
+                <div class="feature-card">
+                    <h3>StationThisBot Integration</h3>
+                    <p>Seamless pairing with image generation and collection mode capabilities</p>
+                    <p><a href="https://miladystation2.net/" target="_blank">Coming Soon</a></p>
+                </div>
+            </div>
+
+            <a href="https://twitter.com/miladystation" class="cta-button" target="_blank">
+                Follow MiladyStation for Updates
+            </a>
+
+            <div class="remilia-badge">
+                vpl license 2025
+            </div>
+            <div class="remilia-badge">
+                built by milady
+            </div>
+            <div class="remilia-badge">
+                <img src="/public/remilia.gif" alt="charlottefangsavedme" >
+            </div>
+        </section>
+    </div>
+
+    <script type="module">
+        // import { StarfieldBackground } from './src/components/landing/StarfieldBackground/StarfieldBackground.js';
+        
+        // const starfield = new StarfieldBackground();
+        // starfield.mount(document.getElementById('starfield'));
+
+        import { LiquidStarfield } from './src/components/landing/LiquidStarfield/LiquidStarfield.js';
+        
+        const backgroundElement = document.getElementById('background');
+        const liquidStarfield = new LiquidStarfield(backgroundElement);
+        liquidStarfield.mount(backgroundElement);
+
+        // import { ConstellationBackground } from './src/components/landing/ConstellationBackground/ConstellationBackground.js';
+    
+        // const container = document.getElementById('constellation-container');
+        // const constellation = new ConstellationBackground(container);
+        // constellation.mount(container);
+    </script>
+</body>
+</html>

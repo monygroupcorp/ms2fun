@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <!-- Add these in your head tag -->
+<!-- <link rel="preload" href="critical.css" as="style">
+<link rel="preload" href="main.js" as="script">
+<link rel="dns-prefetch" href="//api.yourservice.com"> -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CULT EXECS Terminal</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="CULT EXECS Terminal">
+    <meta name="description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="//ms2.fun">
+    <meta property="og:title" content="CULT EXECS Terminal">
+    <meta property="og:description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
+    <meta property="og:image" content="//ms2.fun/og-image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="//ms2.fun">
+    <meta property="twitter:title" content="CULT EXECS Terminal">
+    <meta property="twitter:description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
+    <meta property="twitter:image" content="//ms2.fun/og-image.png">
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="src/components/SwapInterface/SwapInterface.css">
+    <script src="https://cdn.jsdelivr.net/npm/merkletreejs@latest/merkletree.js"></script>
+    <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js" integrity="sha512-KmJieQAYZM+jvcGHQzpnSjqjoWVwMAbziPWQnWfvWkQ91R7XlMUVJZgGuw6gUhJnwOo92Z3sr3vE7dREsSEjRQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="top-section">
+        <!-- Top Navigation -->
+        <div class="terminal-nav">
+            <div class="nav-left">
+                <span class="nav-arrows">&lt; &gt;</span>
+                <span class="nav-title">CULT EXECUTIVE ENTERPRISE INCORPORATED TERMINAL ⌄</span>
+                <span class="nav-mode">MS2 ⭐️</span>
+                <span class="nav-menu desktop-only">Related Functions Menu ↡</span>
+            </div>
+            <div class="nav-right">
+                <span class="nav-icon">✉️ Message</span>
+                <span class="nav-icon">⭑↓</span>
+                <span class="nav-icon">⎐↓</span>
+                <span class="nav-icon yellow">?↓</span>
+            </div>
+        </div>
+
+        <!-- Top Runner -->
+        <div class="price-runner">
+            <div class="ticker-info">
+                <span class="ticker-symbol">💎CULT US $</span>
+                <span class="price up" id="currentPrice">1000.00</span>
+                <span class="change up" id="priceChange">+10000000</span>
+                <span class="mini-chart">📈</span>
+                <span class="price-range" id="priceRange">P123.12/123.24P</span>
+                <span class="multiplier">3×5</span>
+            </div>
+            <div class="ticker-details">
+                <span class="detail-item">At <span id="timeStamp">17:20</span></span>
+                <span class="detail-item">Vol <span id="cult volume">81,241,971</span></span>
+                <span class="detail-item">O <span id="openPrice" class="price">120.50P</span></span>
+                <span class="detail-item">H <span id="highPrice" class="price">123.87Z</span></span>
+                <span class="detail-item">L <span id="lowPrice" class="price">120.15Q</span></span>
+                <span class="detail-item">Val <span id="marketValue">9.993B</span></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="middle-section">
+        <!-- Contract Interaction Section -->
+        <div id="contractInterface" style="display: none;" class="full-width">
+            <div class="contract-status">
+                <div id="contractStatus" class="status-message">INITIALIZING SYSTEM...</div>
+                
+                <!-- Add Selected Wallet Display -->
+                <div id="selectedWalletDisplay" class="selected-wallet-display">
+                    <img id="selectedWalletIcon" src="" alt="Selected Wallet">
+                    <span class="wallet-name" id="selectedWalletName"></span>
+                </div>
+                <div id="continuePrompt" class="continue-prompt" style="display: none;">
+                    CONTINUE IN YOUR WALLET
+                </div>
+                
+                <button id="selectWallet" class="connect-button">
+                    <span class="button-text">SELECT WALLET</span>
+                </button>
+            </div>
+
+            <!-- Add Wallet Selection Modal -->
+            <div id="walletModal" class="wallet-modal">
+                <div class="wallet-modal-content">
+                    <h3>Select Your Wallet</h3>
+                    <div class="wallet-options">
+                        <button class="wallet-option" data-wallet="rabby">
+                            <picture>
+                                <source srcset="public/wallets/rabby.avif" type="image/avif">
+                                <source srcset="public/wallets/rabby.webp" type="image/webp">
+                                <img src="public/wallets/rabby.png" alt="Rabby">
+                            </picture>
+                            <span>Rabby</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="rainbow">
+                            <picture>
+                                <source srcset="public/wallets/rainbow.avif" type="image/avif">
+                                <source srcset="public/wallets/rainbow.webp" type="image/webp">
+                                <img src="public/wallets/rainbow.png" alt="Rainbow">
+                            </picture>
+                            <span>Rainbow</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="phantom">
+                            <picture>
+                                <source srcset="public/wallets/phantom.avif" type="image/avif">
+                                <source srcset="public/wallets/phantom.webp" type="image/webp">
+                                <img src="public/wallets/phantom.png" alt="Phantom">
+                            </picture>
+                            <span>Phantom</span>
+                        </button>
+                        <button class="wallet-option" data-wallet="metamask">
+                            <picture>
+                                <source srcset="public/wallets/metamask.avif" type="image/avif">
+                                <source srcset="public/wallets/metamask.webp" type="image/webp">
+                                <img src="public/wallets/metamask.png" alt="MetaMask">
+                            </picture>
+                            <span>MetaMask</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="bondingCurveInterface" style="display: none;">
+                <div class="presale-info">
+                    <h3>EXEC404 PRESALE STATUS</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">TOTAL RAISED:</span>
+                            <span class="stat-value" id="totalRaised">0.00 ETH</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">CURRENT PRICE:</span>
+                            <span class="stat-value" id="currentTokenPrice">0.00 ETH</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">TOKENS REMAINING:</span>
+                            <span class="stat-value" id="tokensRemaining">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GIF Display -->
+        <div class="gif-container">
+            <img src="public/cultexec.gif" alt="Terminal Animation" class="terminal-gif desktop-gif">
+            <img src="public/0109_2.gif" alt="Terminal Animation Mobile" class="terminal-gif mobile-gif">
+        </div>
+    </div>
+
+    <div class="bottom-section">
+        <!-- Color Bar -->
+        <div class="color-bar">
+            <div class="yellow-section">CULT EXEC</div>
+            <div class="red-section">
+                <span>99) Report</span>
+                <span class="security-desc">Page 1/4 Security Description: Dual Nature</span>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div id="whitelistTab" class="tab active">
+                <span class="tab-desktop">1) Whitelist Check</span>
+                <span class="tab-mobile">Whitelist</span>
+            </div>
+            <div id="presaleTab" class="tab">
+                <span class="tab-desktop">2) Bonding Curve</span>
+                <span class="tab-mobile">Presale</span>
+            </div>
+            <div id="liveTab" class="tab">
+                <span class="tab-desktop">3) Live Trading</span>
+                <span class="tab-mobile">Live</span>
+            </div>
+            <div id="statsTab" class="tab">
+                <span class="tab-desktop">4) Revenue & Stats</span>
+                <span class="tab-mobile">Rev</span>
+            </div>
+            <div id="mintTab" class="tab">
+                <span class="tab-desktop">5) Balance Mint</span>
+                <span class="tab-mobile">Mint</span>
+            </div>
+        </div>
+
+        <!-- Existing content -->
+        <main class="main-content">
+            <div class="panel checker-panel">
+                <h2>1) ADDRESS VERIFICATION | VRF</h2>
+                <input type="text" id="walletAddress" placeholder="ENTER ETH ADDRESS" autofocus>
+                <p class="instructions desktop">PASTE ADDRESS (CTRL+V) AND PRESS ENTER ↵</p>
+                <p class="instructions mobile">PASTE ETH ADDRESS AND TAP GO</p>
+                <button id="checkButton">CHECK</button>
+                <div id="result"></div>
+                
+                <div class="market-data">
+                    <h2>2) MARKET DATA | MKT</h2>
+                    <div class="market-row">
+                        <span>ETH/USD</span>
+                        <span class="price-up" id="ethPrice">13,482.45 +2.3%</span>
+                    </div>
+                    <div class="market-row">
+                        <span>GAS (GWEI)</span>
+                        <span class="price-down" id="gasPrice">0.004 -5</span>
+                    </div>
+                    <div class="market-row">
+                        <span>24H VOLUME</span>
+                        <span id="ethVolume">10.2B ETH</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="panel stats-panel">
+                <h2>3) SYSTEM STATUS | SYS</h2>
+                <div class="stats-content">
+                    <p>NETWORK: <span class="status-indicator">CONNECTED</span></p>
+                    <p>CHAIN ID: <span>1 (ETHEREUM)</span></p>
+                    <p>BLOCK: <span>19,234,567</span></p>
+                    <p>LAST UPDATE: <span>2024-03-14 19:32</span></p>
+                    <p>API STATUS: <span class="status-indicator">ACTIVE</span></p>
+                    <p>CACHE: <span class="status-indicator">SYNCED</span></p>
+                    <p>TOTAL CHECKS: <span>1,234</span></p>
+                    <p>SUCCESS RATE: <span>99.9%</span></p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="news-ticker">
+            <div class="ticker-content">
+                <span class="ticker-item">SYSTEM ONLINE</span>
+                <span class="ticker-item">ETH NETWORK: HIGH ACTIVITY</span>
+                <span class="ticker-item">API V2.1.0 DEPLOYED</span>
+                <span class="ticker-item">CACHE UPDATED: 30S AGO</span>
+                <span class="ticker-item">NEW ADDRESSES INDEXED: 1.2K</span>
+                <span class="ticker-item">VERIFICATION RATE: 240/MIN</span>
+            </div>
+        </footer>
+    </div>
+    <script type="module" src="app.js"></script>
+    <script type="module" src="./src/index.js"></script>
+    <!-- Add type="module" to use ES modules -->
+    <!-- <script type="module">
+        import Web3Handler from './web3Handler.js';
+
+        // Initialize Web3Handler when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            const web3Handler = new Web3Handler();
+            const contractInterface = document.getElementById('contractInterface');
+            const contractStatus = document.getElementById('contractStatus');
+            const selectWalletBtn = document.getElementById('selectWallet');
+
+            // Initialize web3 handler
+            const hasContract = await web3Handler.init();
+            
+            if (hasContract) {
+                contractInterface.style.display = 'block';
+                contractStatus.textContent = 'Contract detected. Please connect your wallet.';
+                
+                // Add connect wallet button listener
+                selectWalletBtn.addEventListener('click', async () => {
+                    try {
+                        const account = await web3Handler.connectWallet();
+                        contractStatus.textContent = `Connected: ${account}`;
+                        selectWalletBtn.style.display = 'none';
+                    } catch (error) {
+                        contractStatus.textContent = `Error: ${error.message}`;
+                    }
+                });
+            } else {
+                contractInterface.style.display = 'none';
+            }
+        });
+    </script> -->
+
+
+    <!-- Add this where you want the transaction options to appear -->
+    <div id="transaction-options-container"></div>
+</body>
+</html>
