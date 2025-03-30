@@ -299,18 +299,40 @@ function generateCalendarLinks(date, day) {
 //     }
 // };
 
-async function getListData(percent) {
+async function getListData(day) {
     try {
-        // First try to fetch from file
-        const response = await fetch(`lists/unique_addresses_cultexec_${percent}pct.json`);
+        // Convert day number to two-digit string (1 -> "01")
+        const dayString = day.toString().padStart(2, '0');
+        
+        // Map of known filenames
+        const fileMap = {
+            '01': '01_cult_1.json',
+            '02': '02_fumoms2bonkler.json',
+            '03': '03_cult_2.json',
+            '04': '04_miladystation.json',
+            '05': '05_cult_4.json',
+            '06': '06_kagami.json',
+            '07': '07_cult_8.json',
+            '08': '08_remixbitch.json',
+            '09': '09_cult_15.json',
+            '10': '10_remilio.json',
+            '11': '11_cult_29.json',
+            '12': '12_cult_56.json'
+        };
+
+        const filename = fileMap[dayString];
+        if (!filename) {
+            throw new Error(`No file mapping for day ${day}`);
+        }
+
+        const response = await fetch(`lists/${filename}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         return await response.json();
     } catch (error) {
-        console.log(`Fetch failed, using fallback data for ${percent}%`, error);
-        // Fall back to local data if fetch fails
-        return whitelistData[percent];
+        console.log(`Fetch failed for day ${day}:`, error);
+        throw error; // Remove fallback data since we're using new structure
     }
 }
 
@@ -318,43 +340,37 @@ async function checkWhitelist(address) {
     // Normalize the address to lowercase for consistent comparison
     address = address.toLowerCase();
     
-    // Define our lists and their corresponding days
-    const lists = [
-        { percent: '001', day: 1 },
-        { percent: '002', day: 2 },
-        { percent: '003', day: 3 },
-        { percent: '008', day: 4 },
-        { percent: '015', day: 5 },
-        { percent: '029', day: 6 },
-        { percent: '056', day: 7 }
-    ];
-
-    // Define the mint dates
+    // Define mint dates starting from April 4th
     const mintDates = {
-        1: 'February 28th, 2025',
-        2: 'March 1st, 2025',
-        3: 'March 2nd, 2025',
-        4: 'March 3rd, 2025',
-        5: 'March 4th, 2025',
-        6: 'March 5th, 2025',
-        7: 'March 6th, 2025'
+        1: 'April 4th, 2024',
+        2: 'April 5th, 2024',
+        3: 'April 6th, 2024',
+        4: 'April 7th, 2024',
+        5: 'April 8th, 2024',
+        6: 'April 9th, 2024',
+        7: 'April 10th, 2024',
+        8: 'April 11th, 2024',
+        9: 'April 12th, 2024',
+        10: 'April 13th, 2024',
+        11: 'April 14th, 2024',
+        12: 'April 15th, 2024'
     };
 
-    // Check each list in order
-    for (const list of lists) {
+    // Check each day in order
+    for (let day = 1; day <= 12; day++) {
         try {
-            const data = await getListData(list.percent);
+            const data = await getListData(day);
             // Convert all addresses in the list to lowercase for comparison
             const lowercaseAddresses = data.addresses.map(addr => addr.toLowerCase());
             
             if (lowercaseAddresses.includes(address)) {
                 return {
-                    day: list.day,
-                    date: mintDates[list.day]
+                    day: day,
+                    date: mintDates[day]
                 };
             }
         } catch (error) {
-            console.error(`Error checking list ${list.percent}:`, error);
+            console.error(`Error checking list for day ${day}:`, error);
         }
     }
     

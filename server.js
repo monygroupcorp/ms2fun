@@ -51,9 +51,14 @@ app.get('/land', (req, res) => {
     res.sendFile(path.join(__dirname, 'land.html'));
 });
 
+app.get('/collection', (req, res) => {
+    console.log('Collection page requested');
+    res.sendFile(path.join(__dirname, 'collection.html'));
+});
+
 // This should be LAST - the catch-all route
 app.get('*', (req, res) => {
-    //console.log('Fallback route hit for:', req.url);
+    console.log('Fallback route hit for:', req.url);
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 

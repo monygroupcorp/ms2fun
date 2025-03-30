@@ -14,35 +14,49 @@ class MerkleHandler {
     // Initialize trees for all whitelist tiers
     async initializeTrees() {
         try {
-            // Define the tiers we want to load
-            const tiers = ['001', '002', '004', '008', '015', '029', '056'];
+            // Define the files in order of days
+            const files = [
+                '01_cult_1.json',
+                '02_fumoms2bonkler.json',
+                '03_cult_2.json',
+                '04_miladystation.json',
+                '05_cult_4.json',
+                '06_kagami.json',
+                '07_cult_8.json',
+                '08_remixbitch.json',
+                '09_cult_15.json',
+                '10_remilio.json',
+                '11_cult_29.json',
+                '12_cult_56.json'
+            ];
             
-            for (const tier of tiers) {
-                const addresses = await this.loadAddresses(tier);
+            for (let i = 0; i < files.length; i++) {
+                const dayNumber = (i + 1).toString().padStart(2, '0'); // Convert to "01", "02", etc.
+                const addresses = await this.loadAddresses(files[i], dayNumber);
                 if (addresses && addresses.length > 0) {
-                    // Create and store tree for this tier
-                    this.createTree(tier, addresses);
+                    // Create and store tree for this day
+                    this.createTree(dayNumber, addresses);
                 }
             }
             
-            console.log('Merkle trees initialized for all tiers');
+            console.log('Merkle trees initialized for all days');
         } catch (error) {
             console.error('Error initializing merkle trees:', error);
             throw error;
         }
     }
 
-    // Load addresses for a specific tier
-    async loadAddresses(tier) {
+    // Load addresses for a specific file
+    async loadAddresses(filename, day) {
         try {
-            const response = await fetch(`/lists/unique_addresses_cultexec_${tier}pct.json`);
+            const response = await fetch(`/lists/${filename}`);
             if (!response.ok) {
-                throw new Error(`Failed to load addresses for tier ${tier}`);
+                throw new Error(`Failed to load addresses for day ${day} (${filename})`);
             }
             const data = await response.json();
             return data.addresses;
         } catch (error) {
-            console.error(`Error loading addresses for tier ${tier}:`, error);
+            console.error(`Error loading addresses for day ${day} (${filename}):`, error);
             return null;
         }
     }

@@ -15,12 +15,16 @@ class Web3Handler {
         this.connected = false;
         this.selectedWallet = null;
         this.connectedAddress = null;
+        this.contractAddress = null;
         this.blockchainService = blockchainService;
         
         // Initialize trading interface first
         this.tradingInterface = null;
         this.chatPanel = null;  // Don't create immediately
         this.statusPanel = null;
+
+        // Add property to track if we're in collection view
+        this.isCollectionView = window.location.pathname.includes('collection.html');
         
         this.statusMessage = new StatusMessage('contractStatus');
         
@@ -73,14 +77,35 @@ class Web3Handler {
     async init() {
 
         try {
-            const response = await fetch('/EXEC404/switch.json');
-            
-            if (!response.ok) {
-                this.statusMessage.update('System offline', true);
-                return false;
+            // Check if we're in collection view
+            if (this.isCollectionView) {
+                console.log('Collection view detected');
+                // Get contract address from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const contractAddress = urlParams.get('contract');
+
+                if (!contractAddress) {
+                    // Show contract input interface
+                    this.showContractInput();
+                    return true; // Return true but don't proceed with contract initialization
+                }
+
+                // Validate contract address
+                if (!ethers.utils.isAddress(contractAddress)) {
+                    throw new Error('Invalid contract address');
+                }
+
+                this.contractAddress = contractAddress;
+                // Continue with contract initialization
+            } else {
+                // Original behavior for main page
+                const response = await fetch('/EXEC404/switch.json');
+                if (!response.ok) {
+                    this.statusMessage.update('System offline', true);
+                    return false;
+                }
+                this.contractData = await response.json();
             }
-            
-            this.contractData = await response.json();
             
             // Check if wallet is available but don't connect yet
             if (typeof window.ethereum !== 'undefined') {
@@ -516,6 +541,68 @@ class Web3Handler {
             const isCollapsed = mainContent.classList.contains('collapsed');
             toggleBar.querySelector('.toggle-arrow').textContent = isCollapsed ? '↑' : '↓';
             toggleBar.querySelector('.toggle-text').textContent = isCollapsed ? 'SHOW INFO' : 'HIDE INFO';
+        });
+    }
+
+    showContractInput() {
+        // Get the middle section
+        const middleSection = document.querySelector('.middle-section');
+        if (!middleSection) return;
+
+        // Create contract input interface
+        const inputHTML = `
+            <div class="contract-input-container">
+                <h2>Enter Contract Address</h2>
+                <div class="input-group">
+                    <input type="text" 
+                           id="contractAddressInput" 
+                           placeholder="0x..." 
+                           class="contract-address-input">
+                    <button id="loadContractButton" class="load-contract-button">
+                        Load Contract
+                    </button>
+                </div>
+                <div id="contractInputStatus" class="input-status"></div>
+            </div>
+        `;
+
+        // Clear existing content and add input interface
+        middleSection.innerHTML = inputHTML;
+
+        // Add event listeners
+        const input = document.getElementById('contractAddressInput');
+        const button = document.getElementById('loadContractButton');
+        const status = document.getElementById('contractInputStatus');
+
+        // Handle input validation
+        input.addEventListener('input', () => {
+            const address = input.value.trim();
+            if (ethers.utils.isAddress(address)) {
+                input.classList.add('valid');
+                input.classList.remove('invalid');
+                button.disabled = false;
+            } else {
+                input.classList.add('invalid');
+                input.classList.remove('valid');
+                button.disabled = true;
+            }
+        });
+
+        // Handle contract loading
+        button.addEventListener('click', async () => {
+            const address = input.value.trim();
+            if (ethers.utils.isAddress(address)) {
+                // Update URL without reload
+                const newUrl = `${window.location.pathname}?contract=${address}`;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+                
+                // Reinitialize with new address
+                this.contractAddress = address;
+                await this.init();
+            } else {
+                status.textContent = 'Please enter a valid contract address';
+                status.classList.add('error');
+            }
         });
     }
 }
