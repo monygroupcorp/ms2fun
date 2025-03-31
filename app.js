@@ -312,7 +312,7 @@ async function getListData(day) {
             '05': '05_cult_4.json',
             '06': '06_kagami.json',
             '07': '07_cult_8.json',
-            '08': '08_remixbitch.json',
+            '08': '08_bannersremix.json',
             '09': '09_cult_15.json',
             '10': '10_remilio.json',
             '11': '11_cult_29.json',
