@@ -150,38 +150,39 @@ class Web3Handler {
                 throw new Error(`${walletType} not detected`);
             }
 
-            // Check and enforce network settings
-            const targetNetwork = this.contractData.network;
-            const targetRpcUrl = this.contractData.rpcUrl;
-            
-            // Get current network
+            // Get current network from provider
             const currentNetwork = await provider.request({ method: 'eth_chainId' });
             
-            // If network doesn't match, try to switch
-            if (currentNetwork !== `0x${Number(targetNetwork).toString(16)}`) {
-                try {
-                    await provider.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: `0x${Number(targetNetwork).toString(16)}` }],
-                    });
-                } catch (switchError) {
-                    // If the network doesn't exist, add it
-                    if (switchError.code === 4902) {
+            // Only attempt network switch if explicitly specified in contractData
+            if (this.contractData && this.contractData.network) {
+                const targetNetwork = this.contractData.network;
+                
+                // If network doesn't match, try to switch
+                if (currentNetwork !== `0x${Number(targetNetwork).toString(16)}`) {
+                    try {
                         await provider.request({
-                            method: 'wallet_addEthereumChain',
-                            params: [{
-                                chainId: `0x${Number(targetNetwork).toString(16)}`,
-                                rpcUrls: [targetRpcUrl],
-                                chainName: 'Local Test Network',
-                                nativeCurrency: {
-                                    name: 'ETH',
-                                    symbol: 'ETH',
-                                    decimals: 18
-                                }
-                            }]
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: `0x${Number(targetNetwork).toString(16)}` }],
                         });
-                    } else {
-                        throw switchError;
+                    } catch (switchError) {
+                        // If the network doesn't exist, add it
+                        if (switchError.code === 4902) {
+                            await provider.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: `0x${Number(targetNetwork).toString(16)}`,
+                                    rpcUrls: [this.contractData.rpcUrl || 'https://eth-sepolia.g.alchemy.com/v2/demo'],
+                                    chainName: 'Sepolia Test Network',
+                                    nativeCurrency: {
+                                        name: 'ETH',
+                                        symbol: 'ETH',
+                                        decimals: 18
+                                    }
+                                }]
+                            });
+                        } else {
+                            throw switchError;
+                        }
                     }
                 }
             }

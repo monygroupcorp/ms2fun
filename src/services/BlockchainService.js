@@ -1,4 +1,3 @@
-
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import { eventBus } from '../core/EventBus.js';
 import { tradingStore } from '../store/tradingStore.js';
@@ -28,6 +27,7 @@ class BlockchainService {
 
         // Add merkleHandler initialization
         this.merkleHandler = new MerkleHandler();
+        this.isInternalNetworkChange = false;
     }
 
     // Initialize the service with contract details
@@ -36,7 +36,7 @@ class BlockchainService {
             // Define fallback config
             const fallbackConfig = {
                 address: '0x0000000000000000000000000000000000000000',
-                networkId: 1,
+                networkId: 11155111,
                 rpcUrl: window.ethereum ? window.ethereum.url : 'https://ethereum.publicnode.com',
             };
 
@@ -74,24 +74,109 @@ class BlockchainService {
 
     async initializeProvider() {
         try {
-            // Create read-only provider for data queries
-            this.provider = new ethers.providers.JsonRpcProvider(this.networkConfig.rpcUrl);
-            
-            // Test provider connection
-            await this.provider.getNetwork();
-            
-            // Initialize Web3 provider if available
             if (window.ethereum) {
+                console.log('NETWORK DEBUG: Starting provider initialization');
+                console.log('NETWORK DEBUG: Initial ethereum chainId:', await window.ethereum.request({ method: 'eth_chainId' }));
+                
                 const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+                this.provider = web3Provider;
                 this.signer = web3Provider.getSigner();
+
+                const network = await this.provider.getNetwork();
+                const targetNetwork = parseInt(this.networkConfig?.network || '1');
+                
+                console.log('NETWORK DEBUG: Current network:', network.chainId);
+                console.log('NETWORK DEBUG: Target network:', targetNetwork);
+                console.log('NETWORK DEBUG: Network config:', this.networkConfig);
+
+                if (network.chainId !== targetNetwork) {
+                    console.log('NETWORK DEBUG: Network mismatch detected, requesting switch...');
+                    // Emit event before attempting switch
+                    eventBus.emit('network:switching', {
+                        from: network.chainId,
+                        to: targetNetwork,
+                        automatic: true
+                    });
+
+                    try {
+                        this.isInternalNetworkChange = true;
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: `0x${targetNetwork.toString(16)}` }],
+                        });
+                        
+                        console.log('NETWORK DEBUG: Network switch completed');
+                        // Refresh provider after switch
+                        this.provider = new ethers.providers.Web3Provider(window.ethereum);
+                        this.signer = this.provider.getSigner();
+                        
+                        // Emit success event
+                        eventBus.emit('network:switched', {
+                            from: network.chainId,
+                            to: targetNetwork,
+                            success: true
+                        });
+
+                    } catch (switchError) {
+                        this.isInternalNetworkChange = false;
+                        console.log('NETWORK DEBUG: Switch error:', switchError);
+                        
+                        // Emit failure event
+                        eventBus.emit('network:switched', {
+                            from: network.chainId,
+                            to: targetNetwork,
+                            success: false,
+                            error: switchError.message
+                        });
+
+                        if (switchError.code === 4902) {
+                            console.log('NETWORK DEBUG: Network not found, attempting to add...');
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: `0x${targetNetwork.toString(16)}`,
+                                    rpcUrls: [this.networkConfig.rpcUrl || 'https://eth-sepolia.g.alchemy.com/v2/demo'],
+                                    chainName: 'Sepolia Test Network',
+                                    nativeCurrency: {
+                                        name: 'ETH',
+                                        symbol: 'ETH',
+                                        decimals: 18
+                                    }
+                                }]
+                            });
+                            // Refresh provider after adding network
+                            this.provider = new ethers.providers.Web3Provider(window.ethereum);
+                            this.signer = this.provider.getSigner();
+                        } else {
+                            throw switchError;
+                        }
+                    }
+                    this.isInternalNetworkChange = false;
+                } else {
+                    console.log('NETWORK DEBUG: Already on correct network');
+                }
+            } else {
+                console.log('NETWORK DEBUG: No injected provider, using fallback');
+                const rpcUrl = this.networkConfig?.rpcUrl || 'https://ethereum.publicnode.com';
+                this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);
             }
+            
+            // Final test of provider connection
+            const finalNetwork = await this.provider.getNetwork();
+            console.log('NETWORK DEBUG: Final network state:', finalNetwork.chainId);
+            
         } catch (error) {
+            this.isInternalNetworkChange = false;
+            console.error('NETWORK DEBUG: Provider initialization failed:', error);
             throw this.wrapError(error, 'Provider initialization failed');
         }
     }
 
     async initializeContract(contractAddress) {
         try {
+            console.log('INITIALIZING CONTRACT', contractAddress);
+            console.log('PROVIDER', this.provider);
+            console.log('NETWORK CONFIG', this.networkConfig);
             // Load contract ABI
             const abiResponse = await this.retryOperation(
                 () => fetch('/EXEC404/abi.json'),
@@ -419,6 +504,11 @@ class BlockchainService {
     // Network and account change handlers
     async handleNetworkChange() {
         try {
+            if (this.isInternalNetworkChange) {
+                console.log('NETWORK DEBUG: Ignoring internal network change');
+                return;
+            }
+            console.log('NETWORK DEBUG: External network change detected');
             await this.initializeProvider();
             eventBus.emit('network:changed');
         } catch (error) {

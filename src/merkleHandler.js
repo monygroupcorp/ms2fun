@@ -23,7 +23,7 @@ class MerkleHandler {
                 '05_cult_4.json',
                 '06_kagami.json',
                 '07_cult_8.json',
-                '08_remixbitch.json',
+                '08_bannersremix.json',
                 '09_cult_15.json',
                 '10_remilio.json',
                 '11_cult_29.json',
@@ -82,6 +82,8 @@ class MerkleHandler {
                 addresses,
                 root: tree.getHexRoot()
             });
+
+            console.log(`Merkle tree created for day ${tier}: ${tree.getHexRoot()}`);
 
             return tree;
         } catch (error) {
