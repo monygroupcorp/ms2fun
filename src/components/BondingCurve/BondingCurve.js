@@ -11,21 +11,85 @@ export class BondingCurve extends Component {
             totalMessages: 0,
             totalNFTs: 0,
             dataReady: false,
-            contractEthBalance: 0
+            contractEthBalance: 0,
+            liquidityPool: null,
+            chainId: null
         };
     }
 
     async initialize() {
         try {
-            // Draw initial curve without data
-            this.drawCurve();
+            // Fetch network ID from switch.json
+            const response = await fetch('/EXEC404/switch.json');
+            const config = await response.json();
+            this.setState({ chainId: config.network });
             
-            // Set up event listeners for data updates
-            this.setupEventListeners();
+            // Check liquidity pool status first
+            const liquidityPool = tradingStore.selectContractData().liquidityPool;
+            this.setState({ liquidityPool });
+
+            if (this.isLiquidityDeployed()) {
+                // If liquidity is deployed, we don't need to set up bonding curve
+                this.renderDexToolsChart();
+            } else {
+                // Draw initial curve without data
+                this.drawCurve();
+                
+                // Set up event listeners for data updates
+                this.setupEventListeners();
+            }
             
         } catch (error) {
             console.error('Error initializing bonding curve:', error);
         }
+    }
+
+    isLiquidityDeployed() {
+        return this.state.liquidityPool && 
+               this.state.liquidityPool !== '0x0000000000000000000000000000000000000000';
+    }
+
+    renderDexToolsChart() {
+        const canvas = this.element.querySelector('#curveChart');
+        if (canvas) {
+            canvas.style.display = 'none';
+        }
+
+        const container = this.element.querySelector('.bonding-curve');
+        if (!container) return;
+
+        // Create and append iframe
+        const iframe = document.createElement('iframe');
+        iframe.id = 'dextools-widget';
+        iframe.title = 'DEXTools Trading Chart';
+        iframe.width = '100%';
+        iframe.height = '100%';
+        iframe.style.border = 'none';
+        
+        // Construct DEXTools URL
+        const params = new URLSearchParams({
+            theme: 'dark',
+            chartType: '2',
+            chartResolution: '30',
+            drawingToolbars: 'false',
+            tvPlatformColor: '1a1a1a',
+            tvPaneColor: '1a1a1a',
+            headerColor: '1a1a1a'
+        });
+
+        const network = this.getNetworkName(this.state.chainId);
+        iframe.src = `https://www.dextools.io/widget-chart/en/${network}/pe-light/${this.state.liquidityPool}?${params.toString()}`;
+
+        container.appendChild(iframe);
+    }
+
+    getNetworkName(chainId) {
+        const networks = {
+            1: 'ether',
+            5: 'goerli',
+            // Add more networks as needed
+        };
+        return networks[chainId] || 'ether';
     }
 
     setupEventListeners() {
@@ -238,7 +302,7 @@ export class BondingCurve extends Component {
     render() {
         return `
             <div class="bonding-curve">
-                <canvas id="curveChart"></canvas>
+                ${this.isLiquidityDeployed() ? '' : '<canvas id="curveChart"></canvas>'}
             </div>
         `;
     }
@@ -252,11 +316,18 @@ export class BondingCurve extends Component {
                 background: #1a1a1a;
                 border-radius: 8px;
                 padding: 0px;
+                overflow: hidden;
             }
 
             #curveChart {
                 width: 100%;
                 height: 100%;
+            }
+
+            #dextools-widget {
+                width: 100%;
+                height: 100%;
+                border: none;
             }
         `;
     }

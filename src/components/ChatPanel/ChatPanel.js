@@ -34,7 +34,7 @@ class ChatPanel extends Component {
                 }
             });
         } else {
-            console.warn('ChatPanel: Load more button not found');
+            //console.warn('ChatPanel: Load more button not found');
         }
     }
 
@@ -63,9 +63,10 @@ class ChatPanel extends Component {
     checkAndLoadMessages() {
         if (this.contractDataUpdated) {
             const contractData = tradingStore.selectContractData();
-            this.totalMessages = contractData.totalMessages;
-            if (contractData.recentMessages) {
-                
+            this.totalMessages = contractData.totalMessages || 0;
+            
+            // Check if recentMessages exists and has data
+            if (contractData.recentMessages && Array.isArray(contractData.recentMessages) && contractData.recentMessages.length >= 5) {
                 // Split the comma-separated strings into arrays
                 const senders = contractData.recentMessages[0].split(',');
                 const timestamps = contractData.recentMessages[1].split(',').map(Number);
@@ -91,6 +92,13 @@ class ChatPanel extends Component {
                 // Setup load more button after state update
                 requestAnimationFrame(() => {
                     this.setupLoadMoreButton();
+                });
+            } else {
+                // Handle empty state
+                this.setState({
+                    messages: [],
+                    totalMessages: 0,
+                    dataReady: true
                 });
             }
         } else {

@@ -108,6 +108,11 @@ class MessagePopup {
     }
 
     show(options) {
+        console.log('MessagePopup.show called with:', {
+            options,
+            stack: new Error().stack // This will show us the call stack
+        });
+
         const {
             title = '',
             message = '',
@@ -157,6 +162,11 @@ class MessagePopup {
 
     // Helper methods for common message types
     error(message, title = 'Error') {
+        console.log('MessagePopup.error called with:', {
+            message,
+            title,
+            stack: new Error().stack
+        });
         return this.show({ title, message, type: 'error' });
     }
 

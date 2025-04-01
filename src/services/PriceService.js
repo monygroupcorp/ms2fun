@@ -88,6 +88,8 @@ class PriceService {
                 freeSupply,
                 freeMint,
                 contractEthBalance,
+                currentTier,
+                liquidityPool,
             ] = await Promise.all([
                 this._blockchainService.getCurrentPrice(),
                 this._blockchainService.getTotalBondingSupply(),
@@ -99,6 +101,8 @@ class PriceService {
                 this._blockchainService.getFreeSupply(),
                 this._blockchainService.getFreeMint(address),
                 this._blockchainService.getContractEthBalance(),
+                this._blockchainService.getCurrentTier(),
+                this._blockchainService.getLiquidityPool(),
             ]);
 
             // Fetch recent messages if there are any
@@ -117,7 +121,9 @@ class PriceService {
                 totalNFTs,
                 freeSupply,
                 freeMint,
-                contractEthBalance
+                contractEthBalance,
+                currentTier,
+                liquidityPool,
             });
 
             // Update price in the store
@@ -140,6 +146,8 @@ class PriceService {
                 freeSupply,
                 freeMint,
                 contractEthBalance,
+                currentTier,
+                liquidityPool,
             });
 
         } catch (error) {

@@ -17,7 +17,8 @@ export default class SwapInterface extends Component {
             activeInput: null,
             freeMint: false,
             freeSupply: 0,
-            calculatingAmount: false
+            calculatingAmount: false,
+            liquidityPool: null
         };
         
         // Initialize child components
@@ -122,26 +123,85 @@ export default class SwapInterface extends Component {
         }
     }
 
-    onMount() {
-        this.bindEvents();
-        
-        // Mount transaction options
-        const optionsContainer = this.element.querySelector('.transaction-options-container');
-        if (optionsContainer) {
-            this.transactionOptions.mount(optionsContainer);
-        }
-        this.priceDisplay.mount(this.element.querySelector('.price-display-container'));
+    async loadUniswapWidget() {
+        // Load Uniswap Widget CSS
+        const cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = 'https://unpkg.com/@uniswap/widgets@latest/dist/fonts.css';
+        document.head.appendChild(cssLink);
 
-        // Subscribe to transaction events
-        eventBus.on('transaction:pending', this.handleTransactionEvents);
-        eventBus.on('transaction:confirmed', this.handleTransactionEvents);
-        eventBus.on('transaction:success', this.handleTransactionEvents);
-        eventBus.on('transaction:error', this.handleTransactionEvents);
-        eventBus.on('balances:updated', this.handleBalanceUpdate);
-        
-        // Subscribe to transaction options updates
-        eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate);
-        
+        // Load Uniswap Widget JS
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/@uniswap/widgets@latest/dist/uniswap-widgets.js';
+        script.async = true;
+
+        script.onload = () => {
+            this.renderUniswapWidget();
+        };
+
+        document.head.appendChild(script);
+    }
+
+    renderUniswapWidget() {
+        const container = this.element.querySelector('.swap-container');
+        if (!container) return;
+
+        // Clear existing content
+        container.innerHTML = '';
+
+        // Create widget container
+        const widgetContainer = document.createElement('div');
+        widgetContainer.className = 'uniswap-widget';
+
+        // Initialize widget using the global UniswapWidget object
+        const widget = new window.UniswapWidget({
+            theme: 'dark',
+            tokenList: [
+                // EXEC token address
+                this.store.selectContractData().tokenAddress,
+                // WETH address
+                '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
+            ],
+            defaultInputTokenAddress: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
+            defaultOutputTokenAddress: this.store.selectContractData().tokenAddress, // EXEC
+        });
+
+        widgetContainer.appendChild(widget);
+        container.appendChild(widgetContainer);
+    }
+
+    async onMount() {
+        // Check if liquidity is deployed
+        const contractData = this.store.selectContractData();
+        this.setState({ liquidityPool: contractData.liquidityPool });
+
+        if (this.isLiquidityDeployed()) {
+            // Load and render Uniswap widget
+            await this.loadUniswapWidget();
+        } else {
+            // Original bonding curve swap interface
+            this.bindEvents();
+            
+            // Mount transaction options
+            const optionsContainer = this.element.querySelector('.transaction-options-container');
+            if (optionsContainer) {
+                this.transactionOptions.mount(optionsContainer);
+            }
+            this.priceDisplay.mount(this.element.querySelector('.price-display-container'));
+
+            // Subscribe to events
+            eventBus.on('transaction:pending', this.handleTransactionEvents);
+            eventBus.on('transaction:confirmed', this.handleTransactionEvents);
+            eventBus.on('transaction:success', this.handleTransactionEvents);
+            eventBus.on('transaction:error', this.handleTransactionEvents);
+            eventBus.on('balances:updated', this.handleBalanceUpdate);
+            eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate);
+        }
+    }
+
+    isLiquidityDeployed() {
+        return this.state.liquidityPool && 
+               this.state.liquidityPool !== '0x0000000000000000000000000000000000000000';
     }
 
     onUnmount() {
@@ -162,6 +222,13 @@ export default class SwapInterface extends Component {
     }
 
     handleTransactionEvents(event) {
+        console.log('handleTransactionEvents called with:', {
+            event,
+            eventType: event?.type,
+            hasError: !!event?.error,
+            hasHash: !!event?.hash,
+            stack: new Error().stack
+        });
         
         const direction = this.state.direction === 'buy' ? 'Buy' : 'Sell';
 
@@ -171,10 +238,11 @@ export default class SwapInterface extends Component {
             return;
         }
 
-        // For transaction events
-        if (event.type === 'buy' || event.type === 'sell') {
+        // For transaction events - only show if it's not an error
+        if ((event.type === 'buy' || event.type === 'sell') && !event.error) {
+            console.log('Showing transaction submitted message for type:', event.type);
             this.messagePopup.info(
-                `${direction} transaction submitted. Waiting for confirmation...`,
+                `${direction} transaction. Simulating...`,
                 'Transaction Pending'
             );
         }
@@ -219,12 +287,26 @@ export default class SwapInterface extends Component {
         }
 
         // For error transactions
-        if (event.error) {
-            const errorMessage = event.error?.message || 'Transaction failed';
+        if (event.error && !event.handled) {
+            console.log('Handling error in handleTransactionEvents:', event.error);
+            
+            let errorMessage = event.error?.message || 'Transaction failed';
+            
+            if (errorMessage.includes('Contract call')) {
+                const parts = errorMessage.split(': ');
+                errorMessage = parts[parts.length - 1];
+            }
+            
+            const context = this.state.direction === 'buy' ? 
+                'Buy Failed' : 
+                'Sell Failed';
+            
             this.messagePopup.error(
-                errorMessage,
+                `${context}: ${errorMessage}`,
                 'Transaction Failed'
             );
+
+            event.handled = true;
         }
     }
 
@@ -356,10 +438,33 @@ export default class SwapInterface extends Component {
 
     async handleSwap() {
         try {
-            
             // Remove any commas from execAmount and convert to string
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
             
+            // Get merkle proof with proper error handling
+            let proof;
+            try {
+                const currentTier = await this.blockchainService.getCurrentTier();
+                proof = await this.blockchainService.getMerkleProof(
+                    await this.store.selectConnectedAddress(),
+                    currentTier
+                );
+                
+                if (!proof) {
+                    this.messagePopup.error(
+                        `You are not whitelisted for Tier ${currentTier + 1}. Please wait for your tier to be activated.`,
+                        'Not Whitelisted'
+                    );
+                    return;
+                }
+            } catch (error) {
+                this.messagePopup.error(
+                    'Failed to verify whitelist status. Please try again later.',
+                    'Whitelist Check Failed'
+                );
+                return;
+            }
+
             // If buying and eligible for free mint, subtract the bonus amount before sending transaction
             let adjustedExecAmount = cleanExecAmount;
             if (this.state.direction === 'buy') {
@@ -375,11 +480,6 @@ export default class SwapInterface extends Component {
             // Parse amounts with proper decimal handling for contract interaction
             const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
             const execAmount = this.blockchainService.parseExec(adjustedExecAmount);
-            
-            // Get merkle proof
-            const proof = await this.blockchainService.getMerkleProof(
-                await this.store.selectConnectedAddress()
-            );
 
             if (this.state.direction === 'buy') {
                 await this.blockchainService.buyBonding({
@@ -402,7 +502,23 @@ export default class SwapInterface extends Component {
             }
         } catch (error) {
             console.error('Swap failed:', error);
-            this.messagePopup.error(error.message, 'Swap Failed');
+            
+            // Clean up the error message but preserve the Tx Reverted prefix
+            let errorMessage = error.message;
+            if (errorMessage.includes('Contract call')) {
+                const parts = errorMessage.split(': ');
+                errorMessage = parts[parts.length - 1];
+            }
+            
+            // Add context based on the operation
+            const context = this.state.direction === 'buy' ? 
+                'Buy Failed' : 
+                'Sell Failed';
+            
+            this.messagePopup.error(
+                `${context}: ${errorMessage}`,
+                'Transaction Failed'
+            );
         }
     }
 
@@ -459,6 +575,15 @@ export default class SwapInterface extends Component {
     }
 
     render() {
+        if (this.isLiquidityDeployed()) {
+            return `
+                <div class="swap-container">
+                    <div class="loading-widget">Loading Uniswap widget...</div>
+                </div>
+            `;
+        }
+
+        // Original bonding curve swap interface render
         const { direction, ethAmount, execAmount, calculatingAmount } = this.state;
 
         console.log('Render - Current State:', {
@@ -532,6 +657,35 @@ export default class SwapInterface extends Component {
             <button class="swap-button">
                 ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
             </button>
+        `;
+    }
+
+    static get styles() {
+        return `
+            ${super.styles || ''}
+            
+            .swap-container {
+                width: 100%;
+                min-height: 600px;
+                background: #1a1a1a;
+                border-radius: 8px;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+
+            .uniswap-widget {
+                width: 100%;
+                height: 100%;
+                min-height: 560px;
+            }
+
+            .loading-widget {
+                color: #666;
+                text-align: center;
+                padding: 20px;
+            }
+
+            /* ... rest of the original styles ... */
         `;
     }
 }

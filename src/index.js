@@ -1,7 +1,7 @@
- import BlockchainService from './services/BlockchainService.js';
- import Web3Handler from '../web3Handler.js';
+import BlockchainService from './services/BlockchainService.js';
+import Web3Handler from '../web3Handler.js';
 
- // Add this simple performance marker in your code
+// Add this simple performance marker in your code
 performance.mark('startIndex');
 
 // At key points in your code:
@@ -14,6 +14,25 @@ async function initializeApp() {
         const container = document.getElementById('contractInterface');
         if (!container) {
             throw new Error('App container not found');
+        }
+
+        // Try to fetch switch config
+        try {
+            const switchResponse = await fetch('/EXEC404/switch.json');
+            const switchData = await switchResponse.json();
+            
+            if (!switchData.network) {
+                // No network value in config, exit initialization
+                console.log('Invalid switch configuration (no network value) - exiting initialization');
+                return;
+            } else {
+                console.log('Valid switch configuration found - continuing initialization');
+                console.log(switchData);
+            }
+        } catch (error) {
+            // Fetch failed, exit initialization
+            //console.log('No switch configuration found - exiting initialization');
+            return;
         }
 
         // Initialize blockchain service
@@ -29,19 +48,41 @@ async function initializeApp() {
             const selectWalletBtn = document.getElementById('selectWallet');
 
             if (contractInterface) contractInterface.style.display = 'block';
-            if (contractStatus) contractStatus.textContent = 'Contract detected. Please connect your wallet.';
             
-            // Add connect wallet button listener
-            if (selectWalletBtn) {
-                selectWalletBtn.addEventListener('click', async () => {
-                    try {
-                        const account = await web3Handler.connectWallet();
-                        if (contractStatus) contractStatus.textContent = `Connected: ${account}`;
-                        if (selectWalletBtn) selectWalletBtn.style.display = 'none';
-                    } catch (error) {
-                        if (contractStatus) contractStatus.textContent = `Error: ${error.message}`;
+            // Check for existing connected wallet first
+            try {
+                const accounts = await ethereum.request({ method: 'eth_accounts' });
+                if (accounts && accounts.length > 0) {
+                    // Detect which wallet is connected
+                    let walletType = 'metamask'; // default
+                    if (window.ethereum.isRabby) walletType = 'rabby';
+                    if (window.ethereum.isPhantom) walletType = 'phantom';
+                    if (window.rainbow) walletType = 'rainbow';
+                    
+                    // Set up the wallet through proper channels
+                    await web3Handler.handleWalletSelection(walletType);
+                    
+                    if (contractStatus) contractStatus.textContent = `Connected: ${accounts[0]}`;
+                    if (selectWalletBtn) selectWalletBtn.style.display = 'none';
+                } else {
+                    // No connected account, show connect wallet prompt
+                    if (contractStatus) contractStatus.textContent = 'Contract detected. Please connect your wallet.';
+                    if (selectWalletBtn) {
+                        selectWalletBtn.style.display = 'block';
+                        selectWalletBtn.addEventListener('click', async () => {
+                            try {
+                                const account = await web3Handler.connectWallet();
+                                if (contractStatus) contractStatus.textContent = `Connected: ${account}`;
+                                if (selectWalletBtn) selectWalletBtn.style.display = 'none';
+                            } catch (error) {
+                                if (contractStatus) contractStatus.textContent = `Error: ${error.message}`;
+                            }
+                        });
                     }
-                });
+                }
+            } catch (error) {
+                console.error('Error checking wallet connection:', error);
+                if (contractStatus) contractStatus.textContent = `Error checking wallet: ${error.message}`;
             }
         } else {
             const contractInterface = document.getElementById('contractInterface');

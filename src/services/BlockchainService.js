@@ -225,13 +225,47 @@ class BlockchainService {
         }
     }
 
-    async getMerkleProof(address) {
-        const tier = this.merkleHandler.findAddressTier(address);
-        if (!tier) {
-            return null; // Address not found in any tier
+    async getMerkleProof(address, tier = null) {
+        try {
+            // If no tier specified, get current tier from contract and add 1
+            if (tier === null) {
+                const currentTier = await this.getCurrentTier();
+                tier = currentTier + 1;
+            }
+
+            // Find the proof for this address in the specified tier
+            const proof = this.merkleHandler.getProof(tier, address);
+            
+            // If proof is null or proof.valid is false, the address is not whitelisted for this tier
+            if (!proof || !proof.valid) {
+                console.log(`Address ${address} not whitelisted for tier ${tier}`);
+                return null;
+            }
+
+            return proof;
+        } catch (error) {
+            console.error('Error getting merkle proof:', error);
+            return null;
         }
-        const proof = this.merkleHandler.getProof(tier, address);
-        return proof;
+    }
+
+    async getCurrentTier() {
+        try {
+            const tier = await this.executeContractCall('getCurrentTier');
+            console.log('CURRENT TIER', tier.toString());
+            return parseInt(tier.toString());
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get current tier');
+        }
+    }
+
+    async getLiquidityPool() {
+        try {
+            const liquidityPool = await this.executeContractCall('liquidityPair');
+            return liquidityPool.toString();
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get liquidity pool address');
+        }
     }
 
     async getTotalBondingSupply() {
@@ -470,20 +504,32 @@ class BlockchainService {
 
     // Error handling methods
     handleContractError(error, method) {
+        // Extract the revert reason if it exists
+        let message = error.message;
+        
         // Handle common contract errors
         if (error.code === 'INSUFFICIENT_FUNDS') {
             return new Error('Insufficient funds to complete transaction');
         }
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-            return new Error('Transaction would fail - check your inputs');
+            // Try to extract the revert reason from the error
+            const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
+            message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : 'Transaction would fail - check your inputs';
+            return new Error(message);
         }
         if (error.code === 4001) {
             return new Error('Transaction rejected by user');
         }
+
+        // Extract revert reason from other error types
+        if (error.message.includes('execution reverted')) {
+            const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
+            message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : error.message;
+        }
         
         // Log unexpected errors
         console.error(`Contract error in ${method}:`, error);
-        return error;
+        return new Error(message);
     }
 
     isNonRetryableError(error) {

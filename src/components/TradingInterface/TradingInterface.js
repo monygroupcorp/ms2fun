@@ -50,6 +50,8 @@ export class TradingInterface extends Component {
         this.blockchainService = blockchainService;
         this.ethers = ethers;
         this.walletConnection = walletConnection;
+        this.currentWhitelistTier = null;
+        this.showNotAllowedOverlay = false;
         
         // Initialize services
         priceService.initialize(blockchainService);
@@ -104,13 +106,35 @@ export class TradingInterface extends Component {
     async initialize() {
         try {
             // Fetch initial balances and price concurrently
-            const [ethAmount, execAmount, nfts, currentPrice, freeSituation] = await Promise.all([
+            const [ethAmount, execAmount, nfts, currentPrice, freeSituation, currentTier] = await Promise.all([
                 this.blockchainService.getEthBalance(this.address),
                 this.blockchainService.getTokenBalance(this.address),
                 this.blockchainService.getNFTBalance(this.address),
                 this.blockchainService.getCurrentPrice(),
-                this.blockchainService.getFreeSituation(this.address)
+                this.blockchainService.getFreeSituation(this.address),
+                this.blockchainService.getCurrentTier()
             ]);
+
+            const proof = await this.blockchainService.getMerkleProof(this.address, currentTier);
+            if(!proof) {
+                this.showNotAllowedOverlay = true;
+                this.currentWhitelistTier = currentTier + 1;
+                
+                // Update the tier text directly
+                const tierText = this.element.querySelector('.tier-text');
+                if (tierText) {
+                    tierText.innerHTML = `Current Whitelist: Tier ${this.currentWhitelistTier}`;
+                }
+                
+                // Add click handler when showing overlay
+                const overlay = this.element.querySelector('.not-allowed-overlay');
+                if (overlay) {
+                    overlay.addEventListener('click', () => {
+                        this.hideOverlay();
+                    });
+                }
+                return;
+            }
 
             // Update store with fetched balances
             tradingStore.updateBalances({
@@ -129,13 +153,13 @@ export class TradingInterface extends Component {
             this.setupEventListeners();
 
         } catch (error) {
-            console.error('Error initializing trading interface:', error);
-            tradingStore.setState({
-                status: {
-                    error: 'Failed to load initial data',
-                    loading: false
-                }
-            });
+            console.error('Error in initialize:', error);
+            const tierText = this.element.querySelector('.tier-text');
+            if (tierText) {
+                tierText.innerHTML = 'Current Whitelist: Tier ?';
+            }
+            this.currentWhitelistTier = '?'; // Set a fallback value if there's an error
+            this.render(); // Re-render on error too
         }
     }
 
@@ -1005,6 +1029,11 @@ export class TradingInterface extends Component {
                  }
 
                 <div class="trading-container">
+                    <div v-if="showNotAllowedOverlay" class="not-allowed-overlay" @click="hideOverlay">
+                        <img src="/public/stop.png" alt="Not Allowed" />
+                        <div class="overlay-text">NOT ALLOW</div>
+                        <div class="tier-text">Current Whitelist: Tier ${this.currentWhitelistTier !== null ? this.currentWhitelistTier : 'Loading...'}</div>
+                    </div>
                     <div id="curve-container" 
                          class="view-container ${activeView === 'curve' ? 'active' : ''}"
                          style="display: ${showCurve ? 'block' : 'none'}">
@@ -1067,6 +1096,44 @@ export class TradingInterface extends Component {
             .portfolio-button:hover {
                 background-color: #e0e0e0;
             }
+
+            .trading-interface-container {
+                position: relative;
+            }
+
+            .not-allowed-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            }
+
+            .not-allowed-overlay img {
+                max-width: 200px;
+                margin-bottom: 20px;
+            }
+
+            .overlay-text {
+                color: white;
+                font-size: 32px;
+                font-weight: bold;
+                text-align: center;
+            }
+
+            .tier-text {
+                color: white;
+                font-size: 24px;
+                margin-top: 10px;
+                text-align: center;
+                font-family: monospace;
+            }
         `;
     }
 
@@ -1075,6 +1142,14 @@ export class TradingInterface extends Component {
         if (portfolioButton) {
             console.log('Setting up portfolio button');
             portfolioButton.addEventListener('click', this.handlePortfolioClick.bind(this));
+        }
+    }
+
+    hideOverlay() {
+        this.showNotAllowedOverlay = false;
+        const overlay = this.element.querySelector('.not-allowed-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
         }
     }
 }

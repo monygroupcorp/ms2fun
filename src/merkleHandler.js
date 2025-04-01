@@ -30,12 +30,11 @@ class MerkleHandler {
                 '12': '12_cult_56.json'
             };
             
-            for (let i = 0; i < files.length; i++) {
-                const dayNumber = (i + 1).toString().padStart(2, '0'); // Convert to "01", "02", etc.
-                const addresses = await this.loadAddresses(files[i], dayNumber);
+            for (const [day, filename] of Object.entries(files)) {
+                const addresses = await this.loadAddresses(filename, day);
                 if (addresses && addresses.length > 0) {
                     // Create and store tree for this day
-                    this.createTree(dayNumber, addresses);
+                    this.createTree(day, addresses);
                 }
             }
             
@@ -63,7 +62,6 @@ class MerkleHandler {
 
     // Create merkle tree for a specific tier
     createTree(tier, addresses) {
-        
         try {
             
             const leaves = addresses.map(addr => {
@@ -76,14 +74,14 @@ class MerkleHandler {
                 sortPairs: true
             });
 
+            console.log(`Merkle tree created for day ${tier}: ${tree.getHexRoot()}`);
+
             // Store tree for later use
             this.trees.set(tier, {
                 tree,
                 addresses,
                 root: tree.getHexRoot()
             });
-
-            console.log(`Merkle tree created for day ${tier}: ${tree.getHexRoot()}`);
 
             return tree;
         } catch (error) {
@@ -95,7 +93,8 @@ class MerkleHandler {
     // Get merkle proof for an address in a specific tier
     getProof(tier, address) {
         try {
-            const treeData = this.trees.get(tier);
+            const paddedTier = tier.toString().padStart(2, '0');  // Convert 2 to '02'
+            const treeData = this.trees.get(paddedTier);
             if (!treeData) {
                 throw new Error(`No tree found for tier ${tier}`);
             }
@@ -121,7 +120,8 @@ class MerkleHandler {
     // Get merkle root for a specific tier
     getRoot(tier) {
         try {
-            const treeData = this.trees.get(tier);
+            const paddedTier = tier.toString().padStart(2, '0');  // Convert 2 to '02'
+            const treeData = this.trees.get(paddedTier);
             if (!treeData) {
                 throw new Error(`No tree found for tier ${tier}`);
             }
@@ -135,7 +135,8 @@ class MerkleHandler {
     // Verify if an address is in a specific tier
     verifyAddress(tier, address) {
         try {
-            const treeData = this.trees.get(tier);
+            const paddedTier = tier.toString().padStart(2, '0');  // Convert 2 to '02'
+            const treeData = this.trees.get(paddedTier);
             if (!treeData) {
                 return false;
             }
