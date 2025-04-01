@@ -306,15 +306,15 @@ async function getListData(day) {
         // Map of known filenames
         const fileMap = {
             '01': '01_cult_1.json',
-            '02': '02_fumoms2bonkler.json',
+            '02': '02_fumo.json',
             '03': '03_cult_2.json',
-            '04': '04_miladystation.json',
+            '04': '04_remixbonkler.json',
             '05': '05_cult_4.json',
-            '06': '06_kagami.json',
+            '06': '06_monyms2.json',
             '07': '07_cult_8.json',
-            '08': '08_bannersremix.json',
+            '08': '08_kagamibanners.json',
             '09': '09_cult_15.json',
-            '10': '10_remilio.json',
+            '10': '10_milady.json',
             '11': '11_cult_29.json',
             '12': '12_cult_56.json'
         };

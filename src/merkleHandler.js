@@ -15,20 +15,20 @@ class MerkleHandler {
     async initializeTrees() {
         try {
             // Define the files in order of days
-            const files = [
-                '01_cult_1.json',
-                '02_fumoms2bonkler.json',
-                '03_cult_2.json',
-                '04_miladystation.json',
-                '05_cult_4.json',
-                '06_kagami.json',
-                '07_cult_8.json',
-                '08_bannersremix.json',
-                '09_cult_15.json',
-                '10_remilio.json',
-                '11_cult_29.json',
-                '12_cult_56.json'
-            ];
+            const files = {
+                '01': '01_cult_1.json',
+                '02': '02_fumo.json',
+                '03': '03_cult_2.json',
+                '04': '04_remixbonkler.json',
+                '05': '05_cult_4.json',
+                '06': '06_monyms2.json',
+                '07': '07_cult_8.json',
+                '08': '08_kagamibanners.json',
+                '09': '09_cult_15.json',
+                '10': '10_milady.json',
+                '11': '11_cult_29.json',
+                '12': '12_cult_56.json'
+            };
             
             for (let i = 0; i < files.length; i++) {
                 const dayNumber = (i + 1).toString().padStart(2, '0'); // Convert to "01", "02", etc.
