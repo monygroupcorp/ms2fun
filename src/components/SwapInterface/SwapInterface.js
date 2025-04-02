@@ -129,13 +129,13 @@ export default class SwapInterface extends Component {
             // Load Uniswap Widget CSS
             const cssLink = document.createElement('link');
             cssLink.rel = 'stylesheet';
-            cssLink.href = 'https://widgets.uniswap.org/fonts.css';
+            cssLink.href = 'https://unpkg.com/@uniswap/widgets@2.59.0/dist/fonts.css';
             document.head.appendChild(cssLink);
             console.log('CSS loaded');
 
             // Load Uniswap Widget JS
             const script = document.createElement('script');
-            script.src = 'https://widgets.uniswap.org/uniswapWidget.js';
+            script.src = 'https://unpkg.com/@uniswap/widgets@2.59.0/dist/uniswap-widgets.js';
             script.async = true;
 
             // Create a promise to handle script loading
@@ -146,14 +146,7 @@ export default class SwapInterface extends Component {
                 };
                 script.onerror = (error) => {
                     console.error('Error loading Uniswap script:', error);
-                    // Try fallback URL if primary fails
-                    const fallbackScript = document.createElement('script');
-                    fallbackScript.src = 'https://unpkg.com/@uniswap/widgets@1.3.0/dist/uniswap-widgets.js';
-                    fallbackScript.async = true;
-                    
-                    fallbackScript.onload = resolve;
-                    fallbackScript.onerror = reject;
-                    document.head.appendChild(fallbackScript);
+                    reject(error);
                 };
                 document.head.appendChild(script);
             });
@@ -163,7 +156,6 @@ export default class SwapInterface extends Component {
 
         } catch (error) {
             console.error('Failed to load Uniswap widget:', error);
-            // Show error state in container
             const container = this.element.querySelector('.swap-container');
             if (container) {
                 container.innerHTML = `
@@ -199,12 +191,12 @@ export default class SwapInterface extends Component {
         });
 
         try {
-            // Initialize widget using the global UniswapWidget object
-            if (!window.UniswapWidget) {
-                throw new Error('Uniswap widget not loaded properly');
+            // Check for SwapWidget instead of UniswapWidget
+            if (!window.SwapWidget) {
+                throw new Error('Uniswap SwapWidget not loaded properly');
             }
 
-            const widget = new window.UniswapWidget({
+            const widget = new window.SwapWidget({
                 theme: 'dark',
                 tokenList: [tokenAddress, wethAddress],
                 defaultInputTokenAddress: wethAddress,
