@@ -124,97 +124,109 @@ export default class SwapInterface extends Component {
     }
 
     async loadUniswapWidget() {
-        console.log('Starting Uniswap widget load...');
+        console.log('Starting Uniswap interface load...');
         try {
-            // Load Uniswap Widget CSS
-            const cssLink = document.createElement('link');
-            cssLink.rel = 'stylesheet';
-            cssLink.href = 'https://unpkg.com/@uniswap/widgets@2.59.0/dist/fonts.css';
-            document.head.appendChild(cssLink);
-            console.log('CSS loaded');
-
-            // Load Uniswap Widget JS
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/@uniswap/widgets@2.59.0/dist/uniswap-widgets.js';
-            script.async = true;
-
-            // Create a promise to handle script loading
-            await new Promise((resolve, reject) => {
-                script.onload = () => {
-                    console.log('Uniswap script loaded successfully');
-                    resolve();
-                };
-                script.onerror = (error) => {
-                    console.error('Error loading Uniswap script:', error);
-                    reject(error);
-                };
-                document.head.appendChild(script);
-            });
-
-            console.log('Attempting to render widget...');
-            await this.renderUniswapWidget();
-
+            await this.renderUniswapIframe();
         } catch (error) {
-            console.error('Failed to load Uniswap widget:', error);
+            console.error('Failed to load Uniswap interface:', error);
             const container = this.element.querySelector('.swap-container');
             if (container) {
                 container.innerHTML = `
                     <div class="widget-error">
-                        Failed to load Uniswap widget. Please try refreshing the page.
+                        Failed to load Uniswap interface. Please try refreshing the page.
+                        <br>
+                        Error: ${error.message || 'Unknown error'}
                     </div>
                 `;
             }
         }
     }
 
-    async renderUniswapWidget() {
+    async renderUniswapIframe() {
         const container = this.element.querySelector('.swap-container');
         if (!container) {
             console.error('Swap container not found');
             return;
         }
 
-        console.log('Found container, clearing content...');
-        container.innerHTML = '';
+        console.log('Rendering Uniswap iframe');
+        
+        // Get contract address
+        const { ca } = this.store.selectContracts();
+        if (!ca) {
+            console.error('Contract address not found');
+            return;
+        }
 
-        // Create widget container
-        const widgetContainer = document.createElement('div');
-        widgetContainer.className = 'uniswap-widget';
+        // Get the current provider and ensure we're connected
+        const provider = window.ethereum;
+        if (provider) {
+            try {
+                // Request accounts first
+                await provider.request({ method: 'eth_requestAccounts' });
+                const chainId = await provider.request({ method: 'eth_chainId' });
+                
+                // Construct iframe URL with our token and chain
+                const uniswapUrl = new URL('https://app.uniswap.org/#/swap');
+                uniswapUrl.searchParams.set('outputCurrency', ca);
+                uniswapUrl.searchParams.set('chain', parseInt(chainId, 16));
 
-        // Get token addresses
-        const tokenAddress = this.store.selectContractData().tokenAddress;
-        const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+                console.log('Loading Uniswap with URL:', uniswapUrl.toString());
 
-        console.log('Initializing widget with tokens:', {
-            exec: tokenAddress,
-            weth: wethAddress
-        });
+                container.innerHTML = `
+                    <iframe
+                        src="${uniswapUrl.toString()}"
+                        height="660px"
+                        width="100%"
+                        style="
+                            border: 0;
+                            margin: 0 auto;
+                            display: block;
+                            border-radius: 10px;
+                            max-width: 600px;
+                            min-width: 300px;
+                            background: transparent;
+                        "
+                        title="Uniswap Interface"
+                    ></iframe>
+                `;
 
-        try {
-            // Check for SwapWidget instead of UniswapWidget
-            if (!window.SwapWidget) {
-                throw new Error('Uniswap SwapWidget not loaded properly');
+                // Try to inject provider into iframe
+                const iframe = container.querySelector('iframe');
+                iframe.onload = () => {
+                    if (window.ethereum) {
+                        try {
+                            // Send only the necessary provider information
+                            iframe.contentWindow.postMessage({
+                                type: 'ETHEREUM_PROVIDER_INJECTED',
+                                // Send only the necessary properties
+                                providerInfo: {
+                                    chainId,
+                                    selectedAddress: provider.selectedAddress,
+                                    isConnected: provider.isConnected(),
+                                    networkVersion: provider.networkVersion
+                                }
+                            }, '*');
+                        } catch (error) {
+                            console.warn('Failed to send provider info to iframe:', error);
+                        }
+                    }
+                };
+            } catch (error) {
+                console.error('Failed to setup provider:', error);
+                container.innerHTML = `
+                    <div class="widget-error">
+                        Failed to connect wallet. Please ensure your wallet is connected.
+                        <br>
+                        Error: ${error.message || 'Unknown error'}
+                    </div>
+                `;
             }
-
-            const widget = new window.SwapWidget({
-                theme: 'dark',
-                tokenList: [tokenAddress, wethAddress],
-                defaultInputTokenAddress: wethAddress,
-                defaultOutputTokenAddress: tokenAddress,
-                width: '100%',
-                height: '100%'
-            });
-
-            console.log('Widget created, appending to container...');
-            widgetContainer.appendChild(widget);
-            container.appendChild(widgetContainer);
-            console.log('Widget mounted successfully');
-
-        } catch (error) {
-            console.error('Error creating Uniswap widget:', error);
+        } else {
+            console.error('No provider found');
             container.innerHTML = `
                 <div class="widget-error">
-                    Error initializing Uniswap widget: ${error.message}
+                    No Web3 provider found. Please install a Web3 wallet.
                 </div>
             `;
         }
@@ -735,11 +747,12 @@ export default class SwapInterface extends Component {
             
             .swap-container {
                 width: 100%;
-                min-height: 600px;
-                background: #1a1a1a;
+                min-height: 660px;
+                background: transparent;
                 border-radius: 8px;
-                padding: 20px;
+                padding: 0px;
                 box-sizing: border-box;
+                overflow: hidden;
             }
 
             .uniswap-widget {
