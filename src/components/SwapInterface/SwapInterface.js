@@ -124,61 +124,136 @@ export default class SwapInterface extends Component {
     }
 
     async loadUniswapWidget() {
-        // Load Uniswap Widget CSS
-        const cssLink = document.createElement('link');
-        cssLink.rel = 'stylesheet';
-        cssLink.href = 'https://unpkg.com/@uniswap/widgets@latest/dist/fonts.css';
-        document.head.appendChild(cssLink);
+        console.log('Starting Uniswap widget load...');
+        try {
+            // Load Uniswap Widget CSS
+            const cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = 'https://widgets.uniswap.org/fonts.css';
+            document.head.appendChild(cssLink);
+            console.log('CSS loaded');
 
-        // Load Uniswap Widget JS
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/@uniswap/widgets@latest/dist/uniswap-widgets.js';
-        script.async = true;
+            // Load Uniswap Widget JS
+            const script = document.createElement('script');
+            script.src = 'https://widgets.uniswap.org/uniswapWidget.js';
+            script.async = true;
 
-        script.onload = () => {
-            this.renderUniswapWidget();
-        };
+            // Create a promise to handle script loading
+            await new Promise((resolve, reject) => {
+                script.onload = () => {
+                    console.log('Uniswap script loaded successfully');
+                    resolve();
+                };
+                script.onerror = (error) => {
+                    console.error('Error loading Uniswap script:', error);
+                    // Try fallback URL if primary fails
+                    const fallbackScript = document.createElement('script');
+                    fallbackScript.src = 'https://unpkg.com/@uniswap/widgets@1.3.0/dist/uniswap-widgets.js';
+                    fallbackScript.async = true;
+                    
+                    fallbackScript.onload = resolve;
+                    fallbackScript.onerror = reject;
+                    document.head.appendChild(fallbackScript);
+                };
+                document.head.appendChild(script);
+            });
 
-        document.head.appendChild(script);
+            console.log('Attempting to render widget...');
+            await this.renderUniswapWidget();
+
+        } catch (error) {
+            console.error('Failed to load Uniswap widget:', error);
+            // Show error state in container
+            const container = this.element.querySelector('.swap-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="widget-error">
+                        Failed to load Uniswap widget. Please try refreshing the page.
+                    </div>
+                `;
+            }
+        }
     }
 
-    renderUniswapWidget() {
+    async renderUniswapWidget() {
         const container = this.element.querySelector('.swap-container');
-        if (!container) return;
+        if (!container) {
+            console.error('Swap container not found');
+            return;
+        }
 
-        // Clear existing content
+        console.log('Found container, clearing content...');
         container.innerHTML = '';
 
         // Create widget container
         const widgetContainer = document.createElement('div');
         widgetContainer.className = 'uniswap-widget';
 
-        // Initialize widget using the global UniswapWidget object
-        const widget = new window.UniswapWidget({
-            theme: 'dark',
-            tokenList: [
-                // EXEC token address
-                this.store.selectContractData().tokenAddress,
-                // WETH address
-                '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-            ],
-            defaultInputTokenAddress: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
-            defaultOutputTokenAddress: this.store.selectContractData().tokenAddress, // EXEC
+        // Get token addresses
+        const tokenAddress = this.store.selectContractData().tokenAddress;
+        const wethAddress = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+
+        console.log('Initializing widget with tokens:', {
+            exec: tokenAddress,
+            weth: wethAddress
         });
 
-        widgetContainer.appendChild(widget);
-        container.appendChild(widgetContainer);
+        try {
+            // Initialize widget using the global UniswapWidget object
+            if (!window.UniswapWidget) {
+                throw new Error('Uniswap widget not loaded properly');
+            }
+
+            const widget = new window.UniswapWidget({
+                theme: 'dark',
+                tokenList: [tokenAddress, wethAddress],
+                defaultInputTokenAddress: wethAddress,
+                defaultOutputTokenAddress: tokenAddress,
+                width: '100%',
+                height: '100%'
+            });
+
+            console.log('Widget created, appending to container...');
+            widgetContainer.appendChild(widget);
+            container.appendChild(widgetContainer);
+            console.log('Widget mounted successfully');
+
+        } catch (error) {
+            console.error('Error creating Uniswap widget:', error);
+            container.innerHTML = `
+                <div class="widget-error">
+                    Error initializing Uniswap widget: ${error.message}
+                </div>
+            `;
+        }
     }
 
     async onMount() {
-        // Check if liquidity is deployed
+        // Check initial liquidity pool status
         const contractData = this.store.selectContractData();
+        console.log('SwapInterface - Initial Liquidity Pool:', contractData.liquidityPool);
         this.setState({ liquidityPool: contractData.liquidityPool });
 
+        // Subscribe to contract data updates
+        eventBus.on('contractData:updated', () => {
+            const contractData = this.store.selectContractData();
+            console.log('SwapInterface - Contract Data Updated, New Liquidity Pool:', contractData.liquidityPool);
+            
+            if (contractData.liquidityPool !== this.state.liquidityPool) {
+                this.setState({ liquidityPool: contractData.liquidityPool });
+                
+                if (this.isLiquidityDeployed()) {
+                    console.log('SwapInterface - Switching to Uniswap Widget');
+                    this.loadUniswapWidget();
+                }
+            }
+        });
+
         if (this.isLiquidityDeployed()) {
-            // Load and render Uniswap widget
+            console.log('SwapInterface - Loading Uniswap Widget');
             await this.loadUniswapWidget();
         } else {
+            console.log('SwapInterface - Setting up bonding curve interface');
             // Original bonding curve swap interface
             this.bindEvents();
             
@@ -205,20 +280,22 @@ export default class SwapInterface extends Component {
     }
 
     onUnmount() {
-        if (this.transactionOptions) {
-            this.transactionOptions.unmount();
-        }
-        this.priceDisplay.unmount();
-
-        // Unsubscribe from transaction events
+        // Clean up all event listeners
+        eventBus.off('contractData:updated');
         eventBus.off('transaction:pending', this.handleTransactionEvents);
         eventBus.off('transaction:confirmed', this.handleTransactionEvents);
         eventBus.off('transaction:success', this.handleTransactionEvents);
         eventBus.off('transaction:error', this.handleTransactionEvents);
         eventBus.off('balances:updated', this.handleBalanceUpdate);
-        
-        // Unsubscribe from transaction options updates
         eventBus.off('transactionOptions:update', this.handleTransactionOptionsUpdate);
+
+        // Unmount child components if they exist
+        if (this.transactionOptions) {
+            this.transactionOptions.unmount();
+        }
+        if (this.priceDisplay) {
+            this.priceDisplay.unmount();
+        }
     }
 
     handleTransactionEvents(event) {
@@ -677,6 +754,15 @@ export default class SwapInterface extends Component {
                 width: 100%;
                 height: 100%;
                 min-height: 560px;
+            }
+
+            .widget-error {
+                color: #ff4444;
+                text-align: center;
+                padding: 20px;
+                background: #2a2a2a;
+                border-radius: 8px;
+                margin: 20px 0;
             }
 
             .loading-widget {

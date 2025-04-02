@@ -118,7 +118,7 @@ export class TradingInterface extends Component {
             const proof = await this.blockchainService.getMerkleProof(this.address, currentTier);
             if(!proof) {
                 this.showNotAllowedOverlay = true;
-                this.currentWhitelistTier = currentTier + 1;
+                this.currentWhitelistTier = currentTier;
                 
                 // Update the tier text directly
                 const tierText = this.element.querySelector('.tier-text');
@@ -134,6 +134,13 @@ export class TradingInterface extends Component {
                     });
                 }
                 return;
+            }
+
+            // If we have a valid proof, make sure overlay is hidden
+            this.showNotAllowedOverlay = false;
+            const overlay = this.element.querySelector('.not-allowed-overlay');
+            if (overlay) {
+                overlay.style.display = 'none';
             }
 
             // Update store with fetched balances
@@ -251,38 +258,38 @@ export class TradingInterface extends Component {
         const showCurve = this.shouldShowComponent('curve');
         const showSwap = this.shouldShowComponent('swap');
 
-        console.log('Mounting components:', {
-            layoutState: this.layoutState,
-            showCurve,
-            showSwap,
-            swapExists: !!this.swapInterface,
-            curveExists: !!this.bondingCurve,
-            containers: {
-                swap: !!this.element.querySelector('#swap-container'),
-                curve: !!this.element.querySelector('#curve-container')
-            }
-        });
+        // console.log('Mounting components:', {
+        //     layoutState: this.layoutState,
+        //     showCurve,
+        //     showSwap,
+        //     swapExists: !!this.swapInterface,
+        //     curveExists: !!this.bondingCurve,
+        //     containers: {
+        //         swap: !!this.element.querySelector('#swap-container'),
+        //         curve: !!this.element.querySelector('#curve-container')
+        //     }
+        // });
 
         // Initialize components if they don't exist
         if (!this.bondingCurve) {
-            console.log('Creating new bonding curve');
+            //console.log('Creating new bonding curve');
             this.bondingCurve = new BondingCurve();
         }
         if (!this.swapInterface) {
-            console.log('Creating new swap interface');
+            //console.log('Creating new swap interface');
             this.swapInterface = new SwapInterface(this.blockchainService);
         }
 
         if (showCurve) {
             const curveContainer = this.element.querySelector('#curve-container');
             if (curveContainer) {
-                console.log('Mounting curve with current trading store state:', tradingStore.getState());
+                //console.log('Mounting curve with current trading store state:', tradingStore.getState());
                 this.bondingCurve.mount(curveContainer);
             } else {
-                console.warn('Curve container not found');
+                //console.warn('Curve container not found');
             }
         } else {
-            console.log('Unmounting curve');
+            //console.log('Unmounting curve');
             this.bondingCurve?.unmount();
         }
 

@@ -230,12 +230,14 @@ class BlockchainService {
             // If no tier specified, get current tier from contract and add 1
             if (tier === null) {
                 const currentTier = await this.getCurrentTier();
-                tier = currentTier + 1;
+                tier = currentTier;
+                console.log('CURRENT TIER', currentTier+1);
+                console.log('TIER', tier);
             }
-
+            console.log('GETTING MERKLE PROOF FOR TIER', tier+1);
             // Find the proof for this address in the specified tier
-            const proof = this.merkleHandler.getProof(tier, address);
-            
+            const proof = this.merkleHandler.getProof(tier+1, address);
+            console.log('PROOF', proof);
             // If proof is null or proof.valid is false, the address is not whitelisted for this tier
             if (!proof || !proof.valid) {
                 console.log(`Address ${address} not whitelisted for tier ${tier}`);
@@ -256,6 +258,15 @@ class BlockchainService {
             return parseInt(tier.toString());
         } catch (error) {
             throw this.wrapError(error, 'Failed to get current tier');
+        }
+    }
+
+    async getCurrentRoot() {
+        try {
+            const root = await this.executeContractCall('getCurrentRoot');
+            return root.toString();
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get current root');
         }
     }
 
@@ -533,11 +544,18 @@ class BlockchainService {
     }
 
     isNonRetryableError(error) {
-        return (
-            error.code === 4001 || // User rejected
+        // Check for various user rejection scenarios
+        if (
+            error.code === 4001 || // Standard MetaMask user rejection
+            error.message?.includes('User denied transaction signature') ||
+            error.message?.includes('user rejected') ||
+            error.code === 'ACTION_REJECTED' || // Common wallet rejection code
             error.code === 'INSUFFICIENT_FUNDS' ||
             error.code === 'INVALID_ARGUMENT'
-        );
+        ) {
+            return true;
+        }
+        return false;
     }
 
     wrapError(error, context) {

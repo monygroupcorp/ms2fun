@@ -246,6 +246,7 @@ class TradingStore extends Store {
     }
 
     updateContractData(data) {
+        console.log('Updating contract data:', data.liquidityPool);
         this.setState({
             contractData: {
                 ...data,
