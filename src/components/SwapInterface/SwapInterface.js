@@ -17,8 +17,7 @@ export default class SwapInterface extends Component {
             activeInput: null,
             freeMint: false,
             freeSupply: 0,
-            calculatingAmount: false,
-            liquidityPool: null
+            calculatingAmount: false
         };
         
         // Initialize child components
@@ -123,183 +122,43 @@ export default class SwapInterface extends Component {
         }
     }
 
-    async loadUniswapWidget() {
-        console.log('Starting Uniswap interface load...');
-        try {
-            await this.renderUniswapIframe();
-        } catch (error) {
-            console.error('Failed to load Uniswap interface:', error);
-            const container = this.element.querySelector('.swap-container');
-            if (container) {
-                container.innerHTML = `
-                    <div class="widget-error">
-                        Failed to load Uniswap interface. Please try refreshing the page.
-                        <br>
-                        Error: ${error.message || 'Unknown error'}
-                    </div>
-                `;
-            }
-        }
-    }
-
-    async renderUniswapIframe() {
-        const container = this.element.querySelector('.swap-container');
-        if (!container) {
-            console.error('Swap container not found');
-            return;
-        }
-
-        console.log('Rendering Uniswap iframe');
+    onMount() {
+        this.bindEvents();
         
-        // Get contract address
-        const { ca } = this.store.selectContracts();
-        if (!ca) {
-            console.error('Contract address not found');
-            return;
+        // Mount transaction options
+        const optionsContainer = this.element.querySelector('.transaction-options-container');
+        if (optionsContainer) {
+            this.transactionOptions.mount(optionsContainer);
         }
+        this.priceDisplay.mount(this.element.querySelector('.price-display-container'));
 
-        // Get the current provider and ensure we're connected
-        const provider = window.ethereum;
-        if (provider) {
-            try {
-                // Request accounts first
-                await provider.request({ method: 'eth_requestAccounts' });
-                const chainId = await provider.request({ method: 'eth_chainId' });
-                
-                // Construct iframe URL with our token and chain
-                const uniswapUrl = new URL('https://app.uniswap.org/#/swap');
-                uniswapUrl.searchParams.set('outputCurrency', ca);
-                uniswapUrl.searchParams.set('chain', parseInt(chainId, 16));
-
-                console.log('Loading Uniswap with URL:', uniswapUrl.toString());
-
-                container.innerHTML = `
-                    <iframe
-                        src="${uniswapUrl.toString()}"
-                        height="660px"
-                        width="100%"
-                        style="
-                            border: 0;
-                            margin: 0 auto;
-                            display: block;
-                            border-radius: 10px;
-                            max-width: 600px;
-                            min-width: 300px;
-                            background: transparent;
-                        "
-                        title="Uniswap Interface"
-                    ></iframe>
-                `;
-
-                // Try to inject provider into iframe
-                const iframe = container.querySelector('iframe');
-                iframe.onload = () => {
-                    if (window.ethereum) {
-                        try {
-                            // Send only the necessary provider information
-                            iframe.contentWindow.postMessage({
-                                type: 'ETHEREUM_PROVIDER_INJECTED',
-                                // Send only the necessary properties
-                                providerInfo: {
-                                    chainId,
-                                    selectedAddress: provider.selectedAddress,
-                                    isConnected: provider.isConnected(),
-                                    networkVersion: provider.networkVersion
-                                }
-                            }, '*');
-                        } catch (error) {
-                            console.warn('Failed to send provider info to iframe:', error);
-                        }
-                    }
-                };
-            } catch (error) {
-                console.error('Failed to setup provider:', error);
-                container.innerHTML = `
-                    <div class="widget-error">
-                        Failed to connect wallet. Please ensure your wallet is connected.
-                        <br>
-                        Error: ${error.message || 'Unknown error'}
-                    </div>
-                `;
-            }
-        } else {
-            console.error('No provider found');
-            container.innerHTML = `
-                <div class="widget-error">
-                    No Web3 provider found. Please install a Web3 wallet.
-                </div>
-            `;
-        }
-    }
-
-    async onMount() {
-        // Check initial liquidity pool status
-        const contractData = this.store.selectContractData();
-        console.log('SwapInterface - Initial Liquidity Pool:', contractData.liquidityPool);
-        this.setState({ liquidityPool: contractData.liquidityPool });
-
-        // Subscribe to contract data updates
-        eventBus.on('contractData:updated', () => {
-            const contractData = this.store.selectContractData();
-            console.log('SwapInterface - Contract Data Updated, New Liquidity Pool:', contractData.liquidityPool);
-            
-            if (contractData.liquidityPool !== this.state.liquidityPool) {
-                this.setState({ liquidityPool: contractData.liquidityPool });
-                
-                if (this.isLiquidityDeployed()) {
-                    console.log('SwapInterface - Switching to Uniswap Widget');
-                    this.loadUniswapWidget();
-                }
-            }
-        });
-
-        if (this.isLiquidityDeployed()) {
-            console.log('SwapInterface - Loading Uniswap Widget');
-            await this.loadUniswapWidget();
-        } else {
-            console.log('SwapInterface - Setting up bonding curve interface');
-            // Original bonding curve swap interface
-            this.bindEvents();
-            
-            // Mount transaction options
-            const optionsContainer = this.element.querySelector('.transaction-options-container');
-            if (optionsContainer) {
-                this.transactionOptions.mount(optionsContainer);
-            }
-            this.priceDisplay.mount(this.element.querySelector('.price-display-container'));
-
-            // Subscribe to events
-            eventBus.on('transaction:pending', this.handleTransactionEvents);
-            eventBus.on('transaction:confirmed', this.handleTransactionEvents);
-            eventBus.on('transaction:success', this.handleTransactionEvents);
-            eventBus.on('transaction:error', this.handleTransactionEvents);
-            eventBus.on('balances:updated', this.handleBalanceUpdate);
-            eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate);
-        }
-    }
-
-    isLiquidityDeployed() {
-        return this.state.liquidityPool && 
-               this.state.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        // Subscribe to transaction events
+        eventBus.on('transaction:pending', this.handleTransactionEvents);
+        eventBus.on('transaction:confirmed', this.handleTransactionEvents);
+        eventBus.on('transaction:success', this.handleTransactionEvents);
+        eventBus.on('transaction:error', this.handleTransactionEvents);
+        eventBus.on('balances:updated', this.handleBalanceUpdate);
+        
+        // Subscribe to transaction options updates
+        eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate);
+        
     }
 
     onUnmount() {
-        // Clean up all event listeners
-        eventBus.off('contractData:updated');
+        if (this.transactionOptions) {
+            this.transactionOptions.unmount();
+        }
+        this.priceDisplay.unmount();
+
+        // Unsubscribe from transaction events
         eventBus.off('transaction:pending', this.handleTransactionEvents);
         eventBus.off('transaction:confirmed', this.handleTransactionEvents);
         eventBus.off('transaction:success', this.handleTransactionEvents);
         eventBus.off('transaction:error', this.handleTransactionEvents);
         eventBus.off('balances:updated', this.handleBalanceUpdate);
+        
+        // Unsubscribe from transaction options updates
         eventBus.off('transactionOptions:update', this.handleTransactionOptionsUpdate);
-
-        // Unmount child components if they exist
-        if (this.transactionOptions) {
-            this.transactionOptions.unmount();
-        }
-        if (this.priceDisplay) {
-            this.priceDisplay.unmount();
-        }
     }
 
     handleTransactionEvents(event) {
@@ -656,15 +515,6 @@ export default class SwapInterface extends Component {
     }
 
     render() {
-        if (this.isLiquidityDeployed()) {
-            return `
-                <div class="swap-container">
-                    <div class="loading-widget">Loading Uniswap widget...</div>
-                </div>
-            `;
-        }
-
-        // Original bonding curve swap interface render
         const { direction, ethAmount, execAmount, calculatingAmount } = this.state;
 
         console.log('Render - Current State:', {
@@ -738,45 +588,6 @@ export default class SwapInterface extends Component {
             <button class="swap-button">
                 ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
             </button>
-        `;
-    }
-
-    static get styles() {
-        return `
-            ${super.styles || ''}
-            
-            .swap-container {
-                width: 100%;
-                min-height: 660px;
-                background: transparent;
-                border-radius: 8px;
-                padding: 0px;
-                box-sizing: border-box;
-                overflow: hidden;
-            }
-
-            .uniswap-widget {
-                width: 100%;
-                height: 100%;
-                min-height: 560px;
-            }
-
-            .widget-error {
-                color: #ff4444;
-                text-align: center;
-                padding: 20px;
-                background: #2a2a2a;
-                border-radius: 8px;
-                margin: 20px 0;
-            }
-
-            .loading-widget {
-                color: #666;
-                text-align: center;
-                padding: 20px;
-            }
-
-            /* ... rest of the original styles ... */
         `;
     }
 }
