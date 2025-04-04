@@ -488,7 +488,7 @@ class BlockchainService {
         const config = { ...this.retryConfig, ...customConfig };
         let lastError;
         
-        for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+        //for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
             try {
                 return await operation();
             } catch (error) {
@@ -508,9 +508,9 @@ class BlockchainService {
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
-        }
+        // }
         
-        throw this.wrapError(lastError, `${errorMessage} after ${config.maxAttempts} attempts`);
+        throw this.wrapError(lastError, `${errorMessage}`);// after ${config.maxAttempts} attempts`);
     }
 
     // Error handling methods
