@@ -836,6 +836,95 @@ class BlockchainService {
         }
     }
 
+    async swapExactEthForTokenSupportingFeeOnTransfer(address, params, ethValue) {
+        try {
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'swap' });
+
+            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const path = [WETH, TOKEN];
+            
+            // Get the connected address for the 'to' parameter
+            const to = await this.selectConnectedAddress();
+            
+            // Set deadline to 20 minutes from now
+            const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+            const receipt = await this.executeContractCall(
+                'swapExactETHForTokensSupportingFeeOnTransferTokens',
+                [
+                    params.amount,  // amountOutMin
+                    path,
+                    to,
+                    deadline
+                ],
+                { requiresSigner: true, txOptions: { value: ethValue } }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'swap',
+                receipt,
+                amount: params.amount
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'swap',
+                error: this.wrapError(error, 'Failed to swap ETH for tokens')
+            });
+            throw error;
+        }
+    }
+
+    async swapExactTokenForEthSupportingFeeOnTransfer(params) {
+        try {
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'swap' });
+
+            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const path = [TOKEN, WETH];
+            
+            // Get the connected address for the 'to' parameter
+            const to = await this.selectConnectedAddress();
+            
+            // Set deadline to 20 minutes from now
+            const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+            // Calculate minimum amount out (0.5% slippage)
+            const amountOutMin = BigInt(params.amount) * BigInt(995) / BigInt(1000);
+
+            const receipt = await this.executeContractCall(
+                'swapExactTokensForETHSupportingFeeOnTransferTokens',
+                [
+                    params.amount,  // amountIn
+                    amountOutMin,   // amountOutMin
+                    path,
+                    to,
+                    deadline
+                ],
+                { requiresSigner: true }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'swap',
+                receipt,
+                amount: params.amount
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'swap',
+                error: this.wrapError(error, 'Failed to swap tokens for ETH')
+            });
+            throw error;
+        }
+    }
    
     /**
      * Convert ETH amount to Wei

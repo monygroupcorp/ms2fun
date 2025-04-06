@@ -378,9 +378,14 @@ export default class SwapInterface extends Component {
 
     async handleSwap() {
         try {
+            // First check if liquidity pool is deployed
+            const liquidityPool = await this.blockchainService.getLiquidityPool();
+            const isLiquidityDeployed = liquidityPool && 
+                                      liquidityPool !== '0x0000000000000000000000000000000000000000';
+
             // Remove any commas from execAmount and convert to string
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
-            
+
             // Get merkle proof with proper error handling
             let proof;
             try {
@@ -405,40 +410,53 @@ export default class SwapInterface extends Component {
                 return;
             }
 
-            // If buying and eligible for free mint, subtract the bonus amount before sending transaction
-            let adjustedExecAmount = cleanExecAmount;
-            if (this.state.direction === 'buy') {
-                const { freeSupply, freeMint } = this.store.selectFreeSituation();
-                console.log('handle swap freeSupply, freeMint', freeSupply, freeMint);
-                if (freeSupply > 0 && !freeMint) {
-                    // Subtract 1,000,000 from the amount since contract will add it automatically
-                    const numAmount = parseInt(cleanExecAmount);
-                    adjustedExecAmount = Math.max(0, numAmount - 1000000).toString();
+            if (isLiquidityDeployed) {
+                // Use Uniswap-style swaps
+                const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
+                const execAmount = this.blockchainService.parseExec(cleanExecAmount);
+
+                const address = await this.store.selectConnectedAddress();
+
+                if (this.state.direction === 'buy') {
+                    await this.blockchainService.swapExactEthForTokenSupportingFeeOnTransfer(address, {
+                        amount: execAmount,
+                    }, ethValue);
+                } else {
+                    await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
+                        amount: execAmount,
+                    }, ethValue);
                 }
-            }
-
-            // Parse amounts with proper decimal handling for contract interaction
-            const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
-            const execAmount = this.blockchainService.parseExec(adjustedExecAmount);
-
-            if (this.state.direction === 'buy') {
-                await this.blockchainService.buyBonding({
-                    amount: execAmount,      // Will be like "1000000000000000000000000" for 1M EXEC
-                    maxCost: ethValue,       // Will be like "2500000000000000" for 0.0025 ETH
-                    mintNFT: this.transactionOptionsState.nftMintingEnabled,
-                    proof: proof.proof,
-                    message: this.transactionOptionsState.message
-                }, ethValue);
             } else {
-                // For sells, we calculate minRefund as slightly less than the expected return
-                const minReturn = BigInt(ethValue) * BigInt(999) / BigInt(1000); // 0.1% less
-                console.log('handleSwap minReturn', minReturn);
-                await this.blockchainService.sellBonding({
-                    amount: execAmount,      // Will be like "1000000000000000000000000" for 1M EXEC
-                    minReturn: minReturn,     // Will be like "2500000000000000" for 0.0025 ETH
-                    proof: proof.proof,
-                    message: this.transactionOptionsState.message
-                });
+                // Use original bonding curve logic
+                let adjustedExecAmount = cleanExecAmount;
+                if (this.state.direction === 'buy') {
+                    const { freeSupply, freeMint } = this.store.selectFreeSituation();
+                    if (freeSupply > 0 && !freeMint) {
+                        const numAmount = parseInt(cleanExecAmount);
+                        adjustedExecAmount = Math.max(0, numAmount - 1000000).toString();
+                    }
+                }
+
+                const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
+                const execAmount = this.blockchainService.parseExec(adjustedExecAmount);
+
+                if (this.state.direction === 'buy') {
+                    await this.blockchainService.buyBonding({
+                        amount: execAmount,
+                        maxCost: ethValue,
+                        mintNFT: this.transactionOptionsState.nftMintingEnabled,
+                        proof: proof.proof,
+                        message: this.transactionOptionsState.message
+                    }, ethValue);
+                } else {
+                    const minReturn = BigInt(ethValue) * BigInt(999) / BigInt(1000);
+                    await this.blockchainService.sellBonding({
+                        amount: execAmount,
+                        minReturn: minReturn,
+                        proof: proof.proof,
+                        message: this.transactionOptionsState.message
+                    });
+                }
             }
         } catch (error) {
             console.error('Swap failed:', error);

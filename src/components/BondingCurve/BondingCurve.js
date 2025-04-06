@@ -83,10 +83,10 @@ export class BondingCurve extends Component {
         container.innerHTML = `
             <iframe 
                 id="dextools-widget"
-                title="DEXTools Trading Chart"
+                title="$EXEC DEXTools Trading Chart"
                 width="100%"
                 height="100%"
-                src="https://www.dextools.io/widget-chart/en/ether/pe-light/0xc4ce8e63921b8b6cbdb8fcb6bd64cc701fb926f2?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false"
+                src="https://www.dextools.io/widget-chart/en/ether/pe-light/0xd158011926d19dDC00F83144D5CF1C2499995c40?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false"
                 style="border: none;"
             ></iframe>
         `;
