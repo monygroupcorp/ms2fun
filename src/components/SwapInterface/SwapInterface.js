@@ -4,6 +4,7 @@ import { TransactionOptions } from '../TransactionOptions/TransactionOptions.js'
 import MessagePopup from '../MessagePopup/MessagePopup.js';
 import { eventBus } from '../../core/EventBus.js';
 import PriceDisplay  from '../PriceDisplay/PriceDisplay.js';
+import { ApproveModal } from '../ApprovalModal/ApprovalModal.js';
 
 export default class SwapInterface extends Component {
     constructor(blockchainService , address = null) {
@@ -46,6 +47,8 @@ export default class SwapInterface extends Component {
             message: '',
             nftMintingEnabled: false
         };
+
+        this.approveModal = null;
     }
 
     // Add new method to handle balance updates
@@ -108,13 +111,15 @@ export default class SwapInterface extends Component {
                 if (inputType === 'eth') {
                     // Calculate EXEC amount based on ETH input
                     const ethAmount = parseFloat(amount);
-                    const execAmount = ethAmount / price * 1000000; // Convert to millions of EXEC
+                    // Apply a 0.5% reduction to account for fees and slippage
+                    const execAmount = (ethAmount / price * 1000000) * 0.995;
                     console.log('calculateSwapAmount execAmount', execAmount);
-                    return execAmount.toFixed(6);
+                    return execAmount.toFixed(0); // Use integer amounts for EXEC
                 } else {
                     // Calculate ETH amount based on EXEC input
                     const execAmount = parseFloat(amount);
-                    const ethAmount = (execAmount / 1000000) * price; // Convert from millions of EXEC
+                    // Add a 0.5% buffer for fees and slippage
+                    const ethAmount = (execAmount / 1000000) * price * 1.005;
                     console.log('calculateSwapAmount ethAmount', ethAmount);
                     return ethAmount.toFixed(6);
                 }
@@ -457,10 +462,8 @@ export default class SwapInterface extends Component {
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
 
             if (isLiquidityDeployed) {
-                // Use Uniswap-style swaps
                 const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
                 const execAmount = this.blockchainService.parseExec(cleanExecAmount);
-
                 const address = await this.address;
 
                 if (this.state.direction === 'buy') {
@@ -468,6 +471,26 @@ export default class SwapInterface extends Component {
                         amount: execAmount,
                     }, ethValue);
                 } else {
+                    // Check router allowance before selling
+                    const routerAllowance = await this.blockchainService.getApproval(address, this.blockchainService.swapRouter);
+                    if (BigInt(routerAllowance) < BigInt(execAmount)) {
+                        // Show approve modal
+                        if (!this.approveModal) {
+                            this.approveModal = new ApproveModal(cleanExecAmount, this.blockchainService);
+                            this.approveModal.mount(document.body);
+                            
+                            // Listen for approval completion
+                            eventBus.once('approve:complete', async () => {
+                                // Retry the sell after approval
+                                await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
+                                    amount: execAmount,
+                                });
+                            });
+                        }
+                        this.approveModal.show();
+                        return;
+                    }
+
                     await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
                         amount: execAmount,
                     });
