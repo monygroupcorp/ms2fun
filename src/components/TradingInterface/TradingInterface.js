@@ -50,15 +50,19 @@ export class TradingInterface extends Component {
         this.blockchainService = blockchainService;
         this.ethers = ethers;
         this.walletConnection = walletConnection;
-        this.currentWhitelistTier = null;
-        this.showNotAllowedOverlay = false;
+        this.state = {
+            isPhase2: false, // New state to track phase 2
+            activeView: 'swap',
+            showNotAllowedOverlay: false,
+            currentWhitelistTier: null
+        };
         
         // Initialize services
         priceService.initialize(blockchainService);
 
         // Initialize child components
         this.bondingCurve = new BondingCurve();
-        this.swapInterface = new SwapInterface(blockchainService);
+        this.swapInterface = new SwapInterface(blockchainService, address);
         
         // Single source of truth for layout state
         this.layoutState = {
@@ -116,14 +120,14 @@ export class TradingInterface extends Component {
             ]);
 
             const proof = await this.blockchainService.getMerkleProof(this.address, currentTier);
-            if(!proof) {
-                this.showNotAllowedOverlay = true;
-                this.currentWhitelistTier = currentTier;
+            if (!proof && !this.state.isPhase2) {
+                this.state.showNotAllowedOverlay = true;
+                this.state.currentWhitelistTier = currentTier;
                 
                 // Update the tier text directly
                 const tierText = this.element.querySelector('.tier-text');
                 if (tierText) {
-                    tierText.innerHTML = `Current Whitelist: Tier ${this.currentWhitelistTier}`;
+                    tierText.innerHTML = `Current Whitelist: Tier ${this.state.currentWhitelistTier}`;
                 }
                 
                 // Add click handler when showing overlay
@@ -136,8 +140,8 @@ export class TradingInterface extends Component {
                 return;
             }
 
-            // If we have a valid proof, make sure overlay is hidden
-            this.showNotAllowedOverlay = false;
+            // If we have a valid proof or phase 2 is active, make sure overlay is hidden
+            this.state.showNotAllowedOverlay = false;
             const overlay = this.element.querySelector('.not-allowed-overlay');
             if (overlay) {
                 overlay.style.display = 'none';
@@ -156,6 +160,9 @@ export class TradingInterface extends Component {
             // Update store with fetched price
             tradingStore.updatePrice(currentPrice);
 
+            // Check phase 2 status
+            this.checkPhase2Status();
+
             // Set up event listeners
             this.setupEventListeners();
 
@@ -165,9 +172,15 @@ export class TradingInterface extends Component {
             if (tierText) {
                 tierText.innerHTML = 'Current Whitelist: Tier ?';
             }
-            this.currentWhitelistTier = '?'; // Set a fallback value if there's an error
+            this.state.currentWhitelistTier = '?'; // Set a fallback value if there's an error
             this.render(); // Re-render on error too
         }
+    }
+
+    checkPhase2Status() {
+        const contractData = tradingStore.selectContractData();
+        const isPhase2 = contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        this.setState({ isPhase2 });
     }
 
     setupEventListeners() {
@@ -258,51 +271,33 @@ export class TradingInterface extends Component {
         const showCurve = this.shouldShowComponent('curve');
         const showSwap = this.shouldShowComponent('swap');
 
-        // console.log('Mounting components:', {
-        //     layoutState: this.layoutState,
-        //     showCurve,
-        //     showSwap,
-        //     swapExists: !!this.swapInterface,
-        //     curveExists: !!this.bondingCurve,
-        //     containers: {
-        //         swap: !!this.element.querySelector('#swap-container'),
-        //         curve: !!this.element.querySelector('#curve-container')
-        //     }
-        // });
-
         // Initialize components if they don't exist
         if (!this.bondingCurve) {
-            //console.log('Creating new bonding curve');
             this.bondingCurve = new BondingCurve();
         }
         if (!this.swapInterface) {
-            //console.log('Creating new swap interface');
             this.swapInterface = new SwapInterface(this.blockchainService);
         }
 
         if (showCurve) {
             const curveContainer = this.element.querySelector('#curve-container');
             if (curveContainer) {
-                //console.log('Mounting curve with current trading store state:', tradingStore.getState());
                 this.bondingCurve.mount(curveContainer);
             } else {
-                //console.warn('Curve container not found');
+                console.warn('Curve container not found');
             }
         } else {
-            //console.log('Unmounting curve');
             this.bondingCurve?.unmount();
         }
 
         if (showSwap) {
             const swapContainer = this.element.querySelector('#swap-container');
             if (swapContainer) {
-                console.log('Mounting swap with current trading store state:', tradingStore.getState());
                 this.swapInterface.mount(swapContainer);
             } else {
                 console.warn('Swap container not found');
             }
         } else {
-            console.log('Unmounting swap');
             this.swapInterface?.unmount();
         }
 
@@ -312,15 +307,11 @@ export class TradingInterface extends Component {
     unmount() {
         if (!this.mounted) return;
 
-        console.log('Unmounting trading interface components');
-        
         // Unmount child components
         if (this.swapInterface) {
-            console.log('Unmounting swap interface');
             this.swapInterface.unmount();
         }
         if (this.bondingCurve) {
-            console.log('Unmounting bonding curve');
             this.bondingCurve.unmount();
         }
 
@@ -413,10 +404,6 @@ export class TradingInterface extends Component {
     }
 
     handleLayoutChange(layoutState) {
-        console.log('Layout Change:', {
-            previous: this.layoutState,
-            new: layoutState
-        });
 
         // Update layout state
         this.layoutState = {
@@ -442,14 +429,10 @@ export class TradingInterface extends Component {
     }
 
     handleViewChange(viewState) {
-        console.log('View Change:', {
-            previous: this.layoutState,
-            new: viewState
-        });
+
 
         // Skip if this is a response to our own tab click
         if (viewState.activeTab === this.layoutState.activeView) {
-            console.log('View change matches current state, skipping update');
             return;
         }
 
@@ -479,12 +462,10 @@ export class TradingInterface extends Component {
     }
 
     handlePortfolioClick() {
-        console.log('Portfolio click handler triggered');
         eventBus.emit('portfolio:open');
     }
 
     handlePortfolioOpen() {
-        console.log('Portfolio open handler triggered');
         const modalContainer = document.createElement('div');
         modalContainer.id = 'portfolio-modal-container';
         document.body.appendChild(modalContainer);
@@ -494,7 +475,6 @@ export class TradingInterface extends Component {
     }
 
     handlePortfolioClose() {
-        console.log('Portfolio close handler triggered');
         const container = document.getElementById('portfolio-modal-container');
         if (container) {
             container.remove();
@@ -749,14 +729,8 @@ export class TradingInterface extends Component {
 
     handleTabClick(event) {
         const view = event.target.dataset.view;
-        console.log('Tab Click:', {
-            view,
-            previousState: this.layoutState,
-            element: event.target
-        });
 
         if (view === this.layoutState.activeView) {
-            console.log('Tab already active, skipping update');
             return;
         }
 
@@ -795,12 +769,10 @@ export class TradingInterface extends Component {
     }
 
     setupTabListeners() {
-        console.log('Setting up tab listeners');
         const tabButtons = this.element.querySelectorAll('.tab-button');
         tabButtons.forEach(button => {
             button.removeEventListener('click', this.handleTabClick);
             button.addEventListener('click', this.handleTabClick.bind(this));
-            console.log('Added listener to button:', button.dataset.view);
         });
     }
 
@@ -999,18 +971,12 @@ export class TradingInterface extends Component {
     }
 
     render() {
-        const { isMobile, activeView } = this.layoutState;
+        const { isMobile, activeView, showNotAllowedOverlay, currentWhitelistTier } = this.state;
         
         // Cache visibility results
         const showCurve = this.shouldShowComponent('curve');
         const showSwap = this.shouldShowComponent('swap');
         
-        console.log('Rendering trading interface', {
-            isMobile,
-            activeView,
-            shouldShowCurve: showCurve,
-            shouldShowSwap: showSwap
-        });
         
         const html = `
             <div class="trading-interface ${isMobile ? 'mobile' : ''}">
@@ -1036,11 +1002,13 @@ export class TradingInterface extends Component {
                  }
 
                 <div class="trading-container">
-                    <div v-if="showNotAllowedOverlay" class="not-allowed-overlay" @click="hideOverlay">
-                        <img src="/public/stop.png" alt="Not Allowed" />
-                        <div class="overlay-text">NOT ALLOW</div>
-                        <div class="tier-text">Current Whitelist: Tier ${this.currentWhitelistTier !== null ? this.currentWhitelistTier : 'Loading...'}</div>
-                    </div>
+                    ${!this.state.isPhase2 && showNotAllowedOverlay ? `
+                        <div class="not-allowed-overlay" @click="hideOverlay">
+                            <img src="/public/stop.png" alt="Not Allowed" />
+                            <div class="overlay-text">NOT ALLOWED</div>
+                            <div class="tier-text">Current Whitelist: Tier ${currentWhitelistTier !== null ? currentWhitelistTier : 'Loading...'}</div>
+                        </div>
+                    ` : ''}
                     <div id="curve-container" 
                          class="view-container ${activeView === 'curve' ? 'active' : ''}"
                          style="display: ${showCurve ? 'block' : 'none'}">
@@ -1147,13 +1115,12 @@ export class TradingInterface extends Component {
     setupPortfolioButton() {
         const portfolioButton = this.element.querySelector('.portfolio-button');
         if (portfolioButton) {
-            console.log('Setting up portfolio button');
             portfolioButton.addEventListener('click', this.handlePortfolioClick.bind(this));
         }
     }
 
     hideOverlay() {
-        this.showNotAllowedOverlay = false;
+        this.state.showNotAllowedOverlay = false;
         const overlay = this.element.querySelector('.not-allowed-overlay');
         if (overlay) {
             overlay.style.display = 'none';

@@ -109,7 +109,7 @@ class PriceService {
             let recentMessages = [];
             if (totalMessages > 0) {
                 const startIndex = Math.max(0, totalMessages - 5);
-                recentMessages = await this._blockchainService.getMessagesBatch(startIndex, totalMessages-1);
+                recentMessages = await this._blockchainService.getMessagesBatch(startIndex, totalMessages - 1);
             }
 
             // Update store with new contract data
@@ -128,6 +128,32 @@ class PriceService {
 
             // Update price in the store
             tradingStore.updatePrice(currentPrice);
+
+            // Check if liquidity pool is valid and fetch pool data
+            if (liquidityPool !== '0x0000000000000000000000000000000000000000') {
+                const [reserve0, reserve1] = await this._blockchainService.executeContractCall(
+                    'getReserves',
+                    [],
+                    { useContract: 'v2pool' }
+                );
+
+                // Store pool data in the trading store
+                tradingStore.updatePoolData({
+                    liquidityPool,
+                    reserve0,
+                    reserve1,
+                });
+
+                const isToken0 = await this._blockchainService.isToken0(liquidityPool, address);
+                const price = isToken0 ? 1 / await this._blockchainService.getToken0PriceInToken1(liquidityPool) : await this._blockchainService.getToken0PriceInToken1(liquidityPool);
+                console.log('Price:', price);
+                // Update price in the store
+                tradingStore.updatePrice(price * 1000000);
+
+                console.log('Pool data updated:', { liquidityPool, reserve0, reserve1 });
+            } else {
+                console.warn('Liquidity pool address is zero, skipping pool data fetch.');
+            }
 
             // Update balances in the store
             tradingStore.updateBalances({

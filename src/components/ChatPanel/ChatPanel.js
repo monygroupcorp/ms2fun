@@ -65,7 +65,6 @@ class ChatPanel extends Component {
             const contractData = tradingStore.selectContractData();
             this.totalMessages = contractData.totalMessages || 0;
             
-            // Check if recentMessages exists and has data
             if (contractData.recentMessages && Array.isArray(contractData.recentMessages) && contractData.recentMessages.length >= 5) {
                 // Split the comma-separated strings into arrays
                 const senders = contractData.recentMessages[0].split(',');
@@ -86,7 +85,8 @@ class ChatPanel extends Component {
                 this.setState({
                     messages,
                     totalMessages: contractData.totalMessages,
-                    dataReady: true
+                    dataReady: true,
+                    hasMore: this.state.messages.length < this.totalMessages
                 });
 
                 // Setup load more button after state update
@@ -98,11 +98,12 @@ class ChatPanel extends Component {
                 this.setState({
                     messages: [],
                     totalMessages: 0,
-                    dataReady: true
+                    dataReady: true,
+                    hasMore: false
                 });
             }
         } else {
-            console.log('ChatPanel: Waiting for contract data update');
+            //console.log('ChatPanel: Waiting for contract data update');
         }
     }
 
@@ -129,7 +130,6 @@ class ChatPanel extends Component {
     }
 
     async loadMoreMessages() {
-        
         const nextPage = this.state.currentPage + 1;
         const startIndex = nextPage * this.MESSAGES_PER_PAGE;
         const endIndex = startIndex + this.MESSAGES_PER_PAGE;
@@ -138,12 +138,9 @@ class ChatPanel extends Component {
         
         try {
             await tradingStore.loadMessageBatch(startIndex, endIndex);
-            
-            // Get updated contract data after loading new batch
             const contractData = tradingStore.selectContractData();
             
             if (contractData.recentMessages) {
-                
                 // Split the comma-separated strings into arrays
                 const senders = contractData.recentMessages[0].split(',');
                 const timestamps = contractData.recentMessages[1].split(',').map(Number);
@@ -166,9 +163,7 @@ class ChatPanel extends Component {
 
                 // Combine existing messages with new ones
                 const allMessages = [...this.state.messages, ...newMessages];
-
-                // Check if we got fewer messages than requested
-                const hasMore = endIndex < contractData.totalMessages;
+                const hasMore = allMessages.length < this.totalMessages;
                 
                 this.setState({
                     messages: allMessages,
@@ -190,7 +185,6 @@ class ChatPanel extends Component {
     }
 
     render() {
-        
         if (!this.state.dataReady) {
             return `
                 <div class="chat-panel">
@@ -204,13 +198,16 @@ class ChatPanel extends Component {
             `;
         }
 
+        const contractData = tradingStore.selectContractData();
+        const isChatClosed = contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+
         return `
             <div class="chat-panel">
                 <div class="chat-header">
                     <h2>EXEC INSIDER BULLETIN</h2>
                 </div>
                 <div class="chat-messages" id="chatMessages" style="height: 400px; overflow-y: auto; scroll-behavior: smooth;">
-                    ${this.state.totalMessages > this.state.messages.length ? `
+                    ${this.state.hasMore ? `
                         <div class="load-more">
                             <button class="load-more-btn" ${this.state.isLoading ? 'disabled' : ''}>
                                 ${this.state.isLoading ? 'Loading...' : 'Load More Messages'}
@@ -230,6 +227,7 @@ class ChatPanel extends Component {
                             </div>
                         </div>
                     `).join('')}
+                    ${isChatClosed ? '<div class="chat-closed-notice">The chat is closed. No more messages are allowed.</div>' : ''}
                 </div>
                 <div class="chat-status">
                     <span>MESSAGES LOADED FROM CHAIN</span>

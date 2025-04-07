@@ -19,6 +19,8 @@ class BlockchainService {
             maxDelay: 5000   // 5 seconds
         };
 
+        this.swapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
+
         // Subscribe to network changes
         if (window.ethereum) {
             window.ethereum.on('chainChanged', () => this.handleNetworkChange());
@@ -75,8 +77,6 @@ class BlockchainService {
     async initializeProvider() {
         try {
             if (window.ethereum) {
-                console.log('NETWORK DEBUG: Starting provider initialization');
-                console.log('NETWORK DEBUG: Initial ethereum chainId:', await window.ethereum.request({ method: 'eth_chainId' }));
                 
                 const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
                 this.provider = web3Provider;
@@ -85,12 +85,7 @@ class BlockchainService {
                 const network = await this.provider.getNetwork();
                 const targetNetwork = parseInt(this.networkConfig?.network || '1');
                 
-                console.log('NETWORK DEBUG: Current network:', network.chainId);
-                console.log('NETWORK DEBUG: Target network:', targetNetwork);
-                console.log('NETWORK DEBUG: Network config:', this.networkConfig);
-
                 if (network.chainId !== targetNetwork) {
-                    console.log('NETWORK DEBUG: Network mismatch detected, requesting switch...');
                     // Emit event before attempting switch
                     eventBus.emit('network:switching', {
                         from: network.chainId,
@@ -105,7 +100,6 @@ class BlockchainService {
                             params: [{ chainId: `0x${targetNetwork.toString(16)}` }],
                         });
                         
-                        console.log('NETWORK DEBUG: Network switch completed');
                         // Refresh provider after switch
                         this.provider = new ethers.providers.Web3Provider(window.ethereum);
                         this.signer = this.provider.getSigner();
@@ -119,7 +113,6 @@ class BlockchainService {
 
                     } catch (switchError) {
                         this.isInternalNetworkChange = false;
-                        console.log('NETWORK DEBUG: Switch error:', switchError);
                         
                         // Emit failure event
                         eventBus.emit('network:switched', {
@@ -130,7 +123,6 @@ class BlockchainService {
                         });
 
                         if (switchError.code === 4902) {
-                            console.log('NETWORK DEBUG: Network not found, attempting to add...');
                             await window.ethereum.request({
                                 method: 'wallet_addEthereumChain',
                                 params: [{
@@ -153,30 +145,21 @@ class BlockchainService {
                     }
                     this.isInternalNetworkChange = false;
                 } else {
-                    console.log('NETWORK DEBUG: Already on correct network');
                 }
             } else {
-                console.log('NETWORK DEBUG: No injected provider, using fallback');
                 const rpcUrl = this.networkConfig?.rpcUrl || 'https://ethereum.publicnode.com';
                 this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);
             }
             
-            // Final test of provider connection
-            const finalNetwork = await this.provider.getNetwork();
-            console.log('NETWORK DEBUG: Final network state:', finalNetwork.chainId);
             
         } catch (error) {
             this.isInternalNetworkChange = false;
-            console.error('NETWORK DEBUG: Provider initialization failed:', error);
             throw this.wrapError(error, 'Provider initialization failed');
         }
     }
 
     async initializeContract(contractAddress) {
         try {
-            console.log('INITIALIZING CONTRACT', contractAddress);
-            console.log('PROVIDER', this.provider);
-            console.log('NETWORK CONFIG', this.networkConfig);
             // Load contract ABI
             const abiResponse = await this.retryOperation(
                 () => fetch('/EXEC404/abi.json'),
@@ -203,13 +186,103 @@ class BlockchainService {
             );
             const mirrorABI = await mirrorAbiResponse.json();
 
-            tradingStore.setContracts(contractAddress, mirrorAddress);
+            const routerAddress = this.swapRouter;
+            const routerABI = [
+                {
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "amountOutMin",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "address[]",
+                            "name": "path",
+                            "type": "address[]"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "to",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "deadline",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "swapExactETHForTokensSupportingFeeOnTransferTokens",
+                    "outputs": [],
+                    "stateMutability": "payable",
+                    "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "amountIn",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "amountOutMin",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "address[]",
+                            "name": "path",
+                            "type": "address[]"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "to",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint256",
+                            "name": "deadline",
+                            "type": "uint256"
+                        }
+                    ],
+                    "name": "swapExactTokensForETHSupportingFeeOnTransferTokens",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                }
+            ]
+
+            this.swapRouter = new ethers.Contract(
+                routerAddress,
+                routerABI,
+                this.provider
+            );
+
+            tradingStore.setContracts(contractAddress, mirrorAddress, routerAddress);
 
             this.mirrorContract = new ethers.Contract(
                 mirrorAddress,
                 mirrorABI,
                 this.provider
             );
+
+            // Fetch the liquidity pool address
+            const liquidityPoolAddress = await this.getLiquidityPool();
+            if (liquidityPoolAddress !== '0x0000000000000000000000000000000000000000') {
+                const poolABI = [
+                    "function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)",
+                    "function token0() external view returns (address)",
+                    "function token1() external view returns (address)"
+                ];
+
+                this.v2PoolContract = new ethers.Contract(
+                    liquidityPoolAddress,
+                    poolABI,
+                    this.provider
+                );
+            } else {
+                console.warn('Liquidity pool address is zero, skipping pool contract initialization.');
+            }
+
         } catch (error) {
             throw this.wrapError(error, 'Contract initialization failed');
         }
@@ -231,13 +304,9 @@ class BlockchainService {
             if (tier === null) {
                 const currentTier = await this.getCurrentTier();
                 tier = currentTier;
-                console.log('CURRENT TIER', currentTier+1);
-                console.log('TIER', tier);
             }
-            console.log('GETTING MERKLE PROOF FOR TIER', tier+1);
             // Find the proof for this address in the specified tier
             const proof = this.merkleHandler.getProof(tier+1, address);
-            console.log('PROOF', proof);
             // If proof is null or proof.valid is false, the address is not whitelisted for this tier
             if (!proof || !proof.valid) {
                 console.log(`Address ${address} not whitelisted for tier ${tier}`);
@@ -251,10 +320,188 @@ class BlockchainService {
         }
     }
 
+    /**
+     * Enhanced executeContractCall with contract selection
+     */
+    async executeContractCall(method, args = [], options = {}) {
+        const operation = async () => {
+            try {
+                if (!this.contract) {
+                    throw new Error('Contract not initialized');
+                }
+
+                // Select contract instance
+                let contractInstance = options.useContract === 'mirror' ? 
+                    this.mirrorContract : 
+                    this.contract;
+
+                if (options.useContract === 'router') {
+                    contractInstance = this.swapRouter;
+                }
+
+                if (options.useContract === 'v2pool') {
+                    contractInstance = this.v2PoolContract;
+                }
+
+                // Add signer if needed
+                if (options.requiresSigner) {
+                    if (!this.signer) {
+                        throw new Error('No wallet connected');
+                    }
+                    contractInstance = contractInstance.connect(this.signer);
+                }
+
+                // Check if method exists on contract
+                if (typeof contractInstance[method] !== 'function') {
+                    throw new Error(`Method ${method} not found on contract`);
+                }
+
+                // Execute the contract call
+                const result = await contractInstance[method](...(args || []), options.txOptions || {});
+
+                // If this is a transaction, wait for confirmation
+                if (result.wait) {
+                    const receipt = await result.wait();
+                    eventBus.emit('transaction:confirmed', { 
+                        hash: receipt.transactionHash,
+                        method,
+                        args 
+                    });
+                    return receipt;
+                }
+
+                return result;
+            } catch (error) {
+                throw this.handleContractError(error, method);
+            }
+        };
+
+        return this.retryOperation(
+            operation,
+            `Contract call ${method} failed`
+        );
+    }
+
+    // Helper method to implement exponential backoff retry logic
+    async retryOperation(operation, errorMessage, customConfig = {}) {
+        const config = { ...this.retryConfig, ...customConfig };
+        let lastError;
+        
+        for (let attempt = 1; attempt <= 1; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error;
+                
+                // Don't retry if it's a user rejection or invalid input
+                if (this.isNonRetryableError(error)) {
+                    throw this.wrapError(error, errorMessage);
+                }
+                
+                // Don't wait on the last attempt
+                if (attempt < config.maxAttempts) {
+                    const delay = Math.min(
+                        config.baseDelay * Math.pow(2, attempt - 1),
+                        config.maxDelay
+                    );
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        throw this.wrapError(lastError, `${errorMessage}`);// after ${config.maxAttempts} attempts`);
+    }
+
+    // Error handling methods
+    handleContractError(error, method) {
+        // Extract the revert reason if it exists
+        let message = error.message;
+        
+        // Handle common contract errors
+        if (error.code === 'INSUFFICIENT_FUNDS') {
+            return new Error('Insufficient funds to complete transaction');
+        }
+        if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
+            // Try to extract the revert reason from the error
+            const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
+            message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : 'Transaction would fail - check your inputs';
+            return new Error(message);
+        }
+        if (error.code === 4001) {
+            return new Error('Transaction rejected by user');
+        }
+
+        // Extract revert reason from other error types
+        if (error.message.includes('execution reverted')) {
+            const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
+            message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : error.message;
+        }
+        
+        // Log unexpected errors
+        console.error(`Contract error in ${method}:`, error);
+        return new Error(message);
+    }
+
+    isNonRetryableError(error) {
+        // Check for various user rejection scenarios
+        if (
+            error.code === 4001 || // Standard MetaMask user rejection
+            error.message?.includes('User denied transaction signature') ||
+            error.message?.includes('user rejected') ||
+            error.code === 'ACTION_REJECTED' || // Common wallet rejection code
+            error.code === 'INSUFFICIENT_FUNDS' ||
+            error.code === 'INVALID_ARGUMENT'
+        ) {
+            return true;
+        }
+        return false;
+    }
+
+    wrapError(error, context) {
+        const wrappedError = new Error(`${context}: ${error.message}`);
+        wrappedError.originalError = error;
+        wrappedError.code = error.code;
+        return wrappedError;
+    }
+
+    // Network and account change handlers
+    async handleNetworkChange() {
+        try {
+            if (this.isInternalNetworkChange) {
+                return;
+            }
+            await this.initializeProvider();
+            eventBus.emit('network:changed');
+        } catch (error) {
+            eventBus.emit('blockchain:error', error);
+        }
+    }
+
+    async handleAccountChange() {
+        try {
+            if (window.ethereum) {
+                const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+                this.signer = web3Provider.getSigner();
+                eventBus.emit('account:changed');
+            }
+        } catch (error) {
+            eventBus.emit('blockchain:error', error);
+        }
+    }
+
+    // Getters for connection state
+    getConnectionState() {
+        return this.connectionState;
+    }
+
+    isConnected() {
+        return this.connectionState === 'connected';
+    }
+
     async getCurrentTier() {
         try {
             const tier = await this.executeContractCall('getCurrentTier');
-            console.log('CURRENT TIER', tier.toString());
+
             return parseInt(tier.toString());
         } catch (error) {
             throw this.wrapError(error, 'Failed to get current tier');
@@ -324,7 +571,6 @@ class BlockchainService {
                 [address],
                 { useContract: 'mirror' }
             );
-            console.log('NFT BALANCE', balance.toString());
             return parseInt(balance.toString());
         } catch (error) {
             throw this.wrapError(error, 'Failed to get NFT balance');
@@ -429,177 +675,7 @@ class BlockchainService {
         }
     }
 
-    /**
-     * Enhanced executeContractCall with contract selection
-     */
-    async executeContractCall(method, args = [], options = {}) {
-        const operation = async () => {
-            try {
-                if (!this.contract) {
-                    throw new Error('Contract not initialized');
-                }
-
-                // Select contract instance
-                let contractInstance = options.useContract === 'mirror' ? 
-                    this.mirrorContract : 
-                    this.contract;
-
-                // Add signer if needed
-                if (options.requiresSigner) {
-                    if (!this.signer) {
-                        throw new Error('No wallet connected');
-                    }
-                    contractInstance = contractInstance.connect(this.signer);
-                }
-
-                // Check if method exists on contract
-                if (typeof contractInstance[method] !== 'function') {
-                    throw new Error(`Method ${method} not found on contract`);
-                }
-
-                // Execute the contract call
-                const result = await contractInstance[method](...(args || []), options.txOptions || {});
-
-                // If this is a transaction, wait for confirmation
-                if (result.wait) {
-                    const receipt = await result.wait();
-                    eventBus.emit('transaction:confirmed', { 
-                        hash: receipt.transactionHash,
-                        method,
-                        args 
-                    });
-                    return receipt;
-                }
-
-                return result;
-            } catch (error) {
-                throw this.handleContractError(error, method);
-            }
-        };
-
-        return this.retryOperation(
-            operation,
-            `Contract call ${method} failed`
-        );
-    }
-
-    // Helper method to implement exponential backoff retry logic
-    async retryOperation(operation, errorMessage, customConfig = {}) {
-        const config = { ...this.retryConfig, ...customConfig };
-        let lastError;
-        
-        //for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
-            try {
-                return await operation();
-            } catch (error) {
-                lastError = error;
-                
-                // Don't retry if it's a user rejection or invalid input
-                if (this.isNonRetryableError(error)) {
-                    throw this.wrapError(error, errorMessage);
-                }
-                
-                // Don't wait on the last attempt
-                if (attempt < config.maxAttempts) {
-                    const delay = Math.min(
-                        config.baseDelay * Math.pow(2, attempt - 1),
-                        config.maxDelay
-                    );
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        // }
-        
-        throw this.wrapError(lastError, `${errorMessage}`);// after ${config.maxAttempts} attempts`);
-    }
-
-    // Error handling methods
-    handleContractError(error, method) {
-        // Extract the revert reason if it exists
-        let message = error.message;
-        
-        // Handle common contract errors
-        if (error.code === 'INSUFFICIENT_FUNDS') {
-            return new Error('Insufficient funds to complete transaction');
-        }
-        if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
-            // Try to extract the revert reason from the error
-            const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
-            message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : 'Transaction would fail - check your inputs';
-            return new Error(message);
-        }
-        if (error.code === 4001) {
-            return new Error('Transaction rejected by user');
-        }
-
-        // Extract revert reason from other error types
-        if (error.message.includes('execution reverted')) {
-            const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
-            message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : error.message;
-        }
-        
-        // Log unexpected errors
-        console.error(`Contract error in ${method}:`, error);
-        return new Error(message);
-    }
-
-    isNonRetryableError(error) {
-        // Check for various user rejection scenarios
-        if (
-            error.code === 4001 || // Standard MetaMask user rejection
-            error.message?.includes('User denied transaction signature') ||
-            error.message?.includes('user rejected') ||
-            error.code === 'ACTION_REJECTED' || // Common wallet rejection code
-            error.code === 'INSUFFICIENT_FUNDS' ||
-            error.code === 'INVALID_ARGUMENT'
-        ) {
-            return true;
-        }
-        return false;
-    }
-
-    wrapError(error, context) {
-        const wrappedError = new Error(`${context}: ${error.message}`);
-        wrappedError.originalError = error;
-        wrappedError.code = error.code;
-        return wrappedError;
-    }
-
-    // Network and account change handlers
-    async handleNetworkChange() {
-        try {
-            if (this.isInternalNetworkChange) {
-                console.log('NETWORK DEBUG: Ignoring internal network change');
-                return;
-            }
-            console.log('NETWORK DEBUG: External network change detected');
-            await this.initializeProvider();
-            eventBus.emit('network:changed');
-        } catch (error) {
-            eventBus.emit('blockchain:error', error);
-        }
-    }
-
-    async handleAccountChange() {
-        try {
-            if (window.ethereum) {
-                const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
-                this.signer = web3Provider.getSigner();
-                eventBus.emit('account:changed');
-            }
-        } catch (error) {
-            eventBus.emit('blockchain:error', error);
-        }
-    }
-
-    // Getters for connection state
-    getConnectionState() {
-        return this.connectionState;
-    }
-
-    isConnected() {
-        return this.connectionState === 'connected';
-    }
+    
 
 
     async getTokenPrice() {
@@ -835,96 +911,6 @@ class BlockchainService {
             throw error;
         }
     }
-
-    async swapExactEthForTokenSupportingFeeOnTransfer(address, params, ethValue) {
-        try {
-            // Emit pending event
-            eventBus.emit('transaction:pending', { type: 'swap' });
-
-            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
-            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
-            const path = [WETH, TOKEN];
-            
-            // Get the connected address for the 'to' parameter
-            const to = await this.selectConnectedAddress();
-            
-            // Set deadline to 20 minutes from now
-            const deadline = Math.floor(Date.now() / 1000) + 1200;
-
-            const receipt = await this.executeContractCall(
-                'swapExactETHForTokensSupportingFeeOnTransferTokens',
-                [
-                    params.amount,  // amountOutMin
-                    path,
-                    to,
-                    deadline
-                ],
-                { requiresSigner: true, txOptions: { value: ethValue } }
-            );
-
-            // Emit success event
-            eventBus.emit('transaction:success', {
-                type: 'swap',
-                receipt,
-                amount: params.amount
-            });
-
-            return receipt;
-        } catch (error) {
-            eventBus.emit('transaction:error', {
-                type: 'swap',
-                error: this.wrapError(error, 'Failed to swap ETH for tokens')
-            });
-            throw error;
-        }
-    }
-
-    async swapExactTokenForEthSupportingFeeOnTransfer(params) {
-        try {
-            // Emit pending event
-            eventBus.emit('transaction:pending', { type: 'swap' });
-
-            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
-            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
-            const path = [TOKEN, WETH];
-            
-            // Get the connected address for the 'to' parameter
-            const to = await this.selectConnectedAddress();
-            
-            // Set deadline to 20 minutes from now
-            const deadline = Math.floor(Date.now() / 1000) + 1200;
-
-            // Calculate minimum amount out (0.5% slippage)
-            const amountOutMin = BigInt(params.amount) * BigInt(995) / BigInt(1000);
-
-            const receipt = await this.executeContractCall(
-                'swapExactTokensForETHSupportingFeeOnTransferTokens',
-                [
-                    params.amount,  // amountIn
-                    amountOutMin,   // amountOutMin
-                    path,
-                    to,
-                    deadline
-                ],
-                { requiresSigner: true }
-            );
-
-            // Emit success event
-            eventBus.emit('transaction:success', {
-                type: 'swap',
-                receipt,
-                amount: params.amount
-            });
-
-            return receipt;
-        } catch (error) {
-            eventBus.emit('transaction:error', {
-                type: 'swap',
-                error: this.wrapError(error, 'Failed to swap tokens for ETH')
-            });
-            throw error;
-        }
-    }
    
     /**
      * Convert ETH amount to Wei
@@ -950,6 +936,174 @@ class BlockchainService {
 
     formatExec(weiAmount) {
         return parseFloat(ethers.utils.formatUnits(weiAmount, 18));
+    }
+
+    /**
+     * Fetches the reserves of token0 and token1 from the Uniswap V2 pair contract
+     * and calculates the price of token0 in terms of token1.
+     * @returns {Promise<number>} The price of token0 in terms of token1.
+     */
+    async getToken0PriceInToken1(pairAddress) {
+        try {
+            const pairContract = new this.ethers.Contract(
+                pairAddress,
+                [
+                    "function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)"
+                ],
+                this.provider,
+                { useContract: 'v2pool' }
+            );
+
+            const [reserve0, reserve1] = await pairContract.getReserves();
+            const price = reserve1 / reserve0;
+
+            return price;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get token0 price in terms of token1');
+        }
+    }
+
+    /**
+     * Checks if a given token address is token0 in the Uniswap V2 pair.
+     * @param {string} pairAddress - The address of the Uniswap V2 pair contract.
+     * @param {string} tokenAddress - The known contract address of the token to check.
+     * @returns {Promise<boolean>} True if the token is token0, false otherwise.
+     */
+    async isToken0(pairAddress, tokenAddress) {
+        try {
+            const pairContract = new this.ethers.Contract(
+                pairAddress,
+                [
+                    "function token0() external view returns (address)",
+                    "function token1() external view returns (address)"
+                ],
+                this.provider,
+                { useContract: 'v2pool' }
+            );
+
+            const token0Address = await pairContract.token0();
+            return token0Address.toLowerCase() === tokenAddress.toLowerCase();
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to check if token is token0');
+        }
+    }
+
+    async getApproval(address, target = null) {
+        try {
+            if (target === null) {
+                target = this.swapRouter;
+            }
+            const response = await this.executeContractCall('allowance', [address, target]);
+            // Convert BigNumber response to wei-less integer
+            const formattedResponse = this.formatEther(response);
+            console.log('APPROVAL', formattedResponse);
+            return formattedResponse;
+
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get approval');
+        }
+    }
+
+    async setApproval(target = null, amount) {
+        try {
+            if (target === null) {
+                target = this.swapRouter;
+            }
+            const response = await this.executeContractCall('approve', [target, amount]);
+            return response;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to set approval');
+        }
+    }
+
+    async swapExactEthForTokenSupportingFeeOnTransfer(address, params, ethValue) {
+        try {
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'swap' });
+
+            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const path = [WETH, TOKEN];
+            
+            // Get the connected address for the 'to' parameter
+            const to = address;
+            
+            // Set deadline to 20 minutes from now
+            const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+            const receipt = await this.executeContractCall(
+                'swapExactETHForTokensSupportingFeeOnTransferTokens',
+                [
+                    params.amount,  // amountOutMin
+                    path,
+                    to,
+                    deadline
+                ],
+                { useContract: 'router', requiresSigner: true, txOptions: { value: ethValue } }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'swap',
+                receipt,
+                amount: params.amount
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'swap',
+                error: this.wrapError(error, 'Failed to swap ETH for tokens')
+            });
+            throw error;
+        }
+    }
+
+    async swapExactTokenForEthSupportingFeeOnTransfer(address, params) {
+        try {
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'swap' });
+
+            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const path = [TOKEN, WETH];
+            
+            // Get the connected address for the 'to' parameter
+            const to = address;
+            
+            // Set deadline to 20 minutes from now
+            const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+            // Calculate minimum amount out (0.5% slippage)
+            const amountOutMin = BigInt(params.amount) * BigInt(995) / BigInt(1000);
+
+            const receipt = await this.executeContractCall(
+                'swapExactTokensForETHSupportingFeeOnTransferTokens',
+                [
+                    params.amount,  // amountIn
+                    amountOutMin,   // amountOutMin
+                    path,
+                    to,
+                    deadline
+                ],
+                { useContract: 'router', requiresSigner: true }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'swap',
+                receipt,
+                amount: params.amount
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'swap',
+                error: this.wrapError(error, 'Failed to swap tokens for ETH')
+            });
+            throw error;
+        }
     }
 }
 

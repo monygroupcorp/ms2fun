@@ -67,6 +67,11 @@ const initialState = {
         recentMessages: null,
         freeSupply: 0,
         freeMint: 0
+    },
+    poolData: {
+        liquidityPool: null,
+        reserve0: 0,
+        reserve1: 0
     }
 };
 
@@ -80,7 +85,8 @@ const validators = {
     'message': (value) => typeof value === 'object' && value !== null,
     'options': (value) => typeof value === 'object' && value !== null,
     'status': (value) => typeof value === 'object' && value !== null,
-    'contractData': (value) => typeof value === 'object' && value !== null
+    'contractData': (value) => typeof value === 'object' && value !== null,
+    'poolData': (value) => typeof value === 'object' && value !== null
 };
 
 class TradingStore extends Store {
@@ -263,13 +269,11 @@ class TradingStore extends Store {
             // Merge with existing messages if any
             const currentMessages = this.state.contractData.recentMessages || [];
             const updatedMessages = [...currentMessages];
-            
+
             // Update the arrays with new messages
-            updatedMessages[0] = currentMessages[0] ? currentMessages[0] + ',' + messages[0] : messages[0];
-            updatedMessages[1] = currentMessages[1] ? currentMessages[1] + ',' + messages[1] : messages[1];
-            updatedMessages[2] = currentMessages[2] ? currentMessages[2] + ',' + messages[2] : messages[2];
-            updatedMessages[3] = currentMessages[3] ? currentMessages[3] + ',' + messages[3] : messages[3];
-            updatedMessages[4] = currentMessages[4] ? currentMessages[4] + ',' + messages[4] : messages[4];
+            for (let i = 0; i < messages.length; i++) {
+                updatedMessages[i] = currentMessages[i] ? currentMessages[i] + ',' + messages[i] : messages[i];
+            }
 
             this.updateContractData({
                 ...this.state.contractData,
@@ -370,6 +374,19 @@ class TradingStore extends Store {
                 userNFTs: nftData
             }
         });
+    }
+
+    updatePoolData(data) {
+        this.setState({
+            poolData: {
+                ...this.state.poolData,
+                ...data
+            }
+        });
+    }
+
+    getPoolData() {
+        return this.state.poolData;
     }
 }
 

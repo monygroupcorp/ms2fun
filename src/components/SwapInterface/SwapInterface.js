@@ -6,8 +6,9 @@ import { eventBus } from '../../core/EventBus.js';
 import PriceDisplay  from '../PriceDisplay/PriceDisplay.js';
 
 export default class SwapInterface extends Component {
-    constructor(blockchainService) {
+    constructor(blockchainService , address = null) {
         super();
+        console.log('🔵 SwapInterface constructed');
         this.blockchainService = blockchainService;
         this.store = tradingStore;
         this.state = {
@@ -17,13 +18,17 @@ export default class SwapInterface extends Component {
             activeInput: null,
             freeMint: false,
             freeSupply: 0,
-            calculatingAmount: false
+            calculatingAmount: false,
+            isPhase2: false,
+            dataReady: false
         };
+        this.address = address;
         
         // Initialize child components
         this.transactionOptions = new TransactionOptions();
         this.messagePopup = new MessagePopup('status-message');
         this.priceDisplay = new PriceDisplay();
+        console.log('🔵 SwapInterface created PriceDisplay instance');
         this.messagePopup.initialize();
         
         // Debounce timer
@@ -95,26 +100,47 @@ export default class SwapInterface extends Component {
         }
 
         try {
-            if (inputType === 'eth') {
-                // Calculate how much EXEC user will receive for their ETH
-                const execAmount = await this.blockchainService.getExecForEth(amount);
-
-                // Check if user is eligible for free mint
-                const { freeSupply, freeMint } = this.store.selectFreeSituation();
-                console.log('calculateSwapAmount freeMint', freeMint);
-                // If free supply is available and user hasn't claimed their free mint
-                const freeMintBonus = (freeSupply > 0 && !freeMint) ? 1000000 : 0;
+            if (this.isLiquidityDeployed()) {
+                // Phase 2: Use Uniswap-style calculations
+                const price = this.store.selectPrice().current;
+                console.log('calculateSwapAmount price', price);
                 
-                // Round down to ensure we don't exceed maxCost
-                return Math.floor(execAmount + freeMintBonus).toString();
+                if (inputType === 'eth') {
+                    // Calculate EXEC amount based on ETH input
+                    const ethAmount = parseFloat(amount);
+                    const execAmount = ethAmount / price * 1000000; // Convert to millions of EXEC
+                    console.log('calculateSwapAmount execAmount', execAmount);
+                    return execAmount.toFixed(6);
+                } else {
+                    // Calculate ETH amount based on EXEC input
+                    const execAmount = parseFloat(amount);
+                    const ethAmount = (execAmount / 1000000) * price; // Convert from millions of EXEC
+                    console.log('calculateSwapAmount ethAmount', ethAmount);
+                    return ethAmount.toFixed(6);
+                }
             } else {
-                // Calculate how much ETH user will receive for their EXEC
-                const ethAmount = await this.blockchainService.getEthForExec(amount);
-                // Reduce the minRefund slightly (0.1% less) to account for any calculation differences
-                // This ensures we stay above the actual minRefund requirement
+                // Phase 1: Use bonding curve logic
+                if (inputType === 'eth') {
+                    // Calculate how much EXEC user will receive for their ETH
+                    const execAmount = await this.blockchainService.getExecForEth(amount);
 
-                //update lets do this tailoring amount at the contract call in handle sawp
-                return ethAmount.toString();//(parseFloat(ethAmount) * 0.999).toFixed(18); // Use more decimals for precision
+                    // Check if user is eligible for free mint
+                    const { freeSupply, freeMint } = this.store.selectFreeSituation();
+                    console.log('calculateSwapAmount freeMint', freeMint);
+                    // If free supply is available and user hasn't claimed their free mint
+                    const freeMintBonus = (freeSupply > 0 && !freeMint) ? 1000000 : 0;
+                    
+                    // Round down to ensure we don't exceed maxCost
+                    return Math.floor(execAmount + freeMintBonus).toString();
+                } else {
+                    // Calculate how much ETH user will receive for their EXEC
+                    const ethAmount = await this.blockchainService.getEthForExec(amount);
+                    // Reduce the minRefund slightly (0.1% less) to account for any calculation differences
+                    // This ensures we stay above the actual minRefund requirement
+
+                    // Update lets do this tailoring amount at the contract call in handle swap
+                    return ethAmount.toString(); // Use more decimals for precision
+                }
             }
         } catch (error) {
             console.error('Error calculating swap amount:', error);
@@ -124,13 +150,51 @@ export default class SwapInterface extends Component {
 
     onMount() {
         this.bindEvents();
-        
+        eventBus.on('contractData:updated', this.handleContractDataUpdate.bind(this));
+
+        // Check if we already have data
+        const contractData = this.store.selectContractData();
+        if (contractData) {
+            this.setState({ 
+                isPhase2: this.isLiquidityDeployed(),
+                dataReady: true
+            });
+
+            this.render();
+            
+            const priceContainer = this.element.querySelector('.price-display-container');
+            if (priceContainer) {
+                this.priceDisplay.mount(priceContainer);
+            }
+        }
+
         // Mount transaction options
         const optionsContainer = this.element.querySelector('.transaction-options-container');
         if (optionsContainer) {
             this.transactionOptions.mount(optionsContainer);
         }
-        this.priceDisplay.mount(this.element.querySelector('.price-display-container'));
+
+        // Mount PriceDisplay immediately
+        const priceContainer = this.element.querySelector('.price-display-container');
+        console.log('🔍 SwapInterface.onMount - Price container:', priceContainer);
+        
+        if (priceContainer) {
+            console.log('📊 SwapInterface.onMount - Attempting initial PriceDisplay mount');
+            const contractData = this.store.selectContractData();
+            if (contractData) {
+                this.setState({ 
+                    isPhase2: this.isLiquidityDeployed(),
+                    dataReady: true
+                });
+                this.priceDisplay.mount(priceContainer);
+                console.log('PriceDisplay mounted on initial load');
+            } else {
+                console.log('No contract data available on initial load');
+            }
+        } else {
+            console.warn('⚠️ SwapInterface.onMount - No price container found in template');
+            console.log('Template HTML:', this.element.innerHTML);
+        }
 
         // Subscribe to transaction events
         eventBus.on('transaction:pending', this.handleTransactionEvents);
@@ -141,7 +205,6 @@ export default class SwapInterface extends Component {
         
         // Subscribe to transaction options updates
         eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate);
-        
     }
 
     onUnmount() {
@@ -376,46 +439,29 @@ export default class SwapInterface extends Component {
         this.bindEvents();
     }
 
+    isLiquidityDeployed() {
+        const contractData = this.store.selectContractData();
+        const result = contractData.liquidityPool && 
+                      contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        console.log('isLiquidityDeployed check:', {
+            liquidityPool: contractData.liquidityPool,
+            result: result
+        });
+        return result;
+    }
+
     async handleSwap() {
         try {
-            // First check if liquidity pool is deployed
-            const liquidityPool = await this.blockchainService.getLiquidityPool();
-            const isLiquidityDeployed = liquidityPool && 
-                                      liquidityPool !== '0x0000000000000000000000000000000000000000';
-
-            // Remove any commas from execAmount and convert to string
+            const isLiquidityDeployed = this.isLiquidityDeployed();
+            console.log('isLiquidityDeployed', isLiquidityDeployed);
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
-
-            // Get merkle proof with proper error handling
-            let proof;
-            try {
-                const currentTier = await this.blockchainService.getCurrentTier();
-                proof = await this.blockchainService.getMerkleProof(
-                    await this.store.selectConnectedAddress(),
-                    currentTier
-                );
-                
-                if (!proof) {
-                    this.messagePopup.error(
-                        `You are not whitelisted for Tier ${currentTier + 1}. Please wait for your tier to be activated.`,
-                        'Not Whitelisted'
-                    );
-                    return;
-                }
-            } catch (error) {
-                this.messagePopup.error(
-                    'Failed to verify whitelist status. Please try again later.',
-                    'Whitelist Check Failed'
-                );
-                return;
-            }
 
             if (isLiquidityDeployed) {
                 // Use Uniswap-style swaps
                 const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
                 const execAmount = this.blockchainService.parseExec(cleanExecAmount);
 
-                const address = await this.store.selectConnectedAddress();
+                const address = await this.address;
 
                 if (this.state.direction === 'buy') {
                     await this.blockchainService.swapExactEthForTokenSupportingFeeOnTransfer(address, {
@@ -424,9 +470,32 @@ export default class SwapInterface extends Component {
                 } else {
                     await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
                         amount: execAmount,
-                    }, ethValue);
+                    });
                 }
             } else {
+                // Get merkle proof with proper error handling
+                let proof;
+                try {
+                    const currentTier = await this.blockchainService.getCurrentTier();
+                    proof = await this.blockchainService.getMerkleProof(
+                        this.address,
+                        currentTier
+                    );
+                    
+                    if (!proof) {
+                        this.messagePopup.error(
+                            `You are not whitelisted for Tier ${currentTier + 1}. Please wait for your tier to be activated.`,
+                            'Not Whitelisted'
+                        );
+                        return;
+                    }
+                } catch (error) {
+                    this.messagePopup.error(
+                        'Failed to verify whitelist status. Please try again later.',
+                        'Whitelist Check Failed'
+                    );
+                    return;
+                }
                 // Use original bonding curve logic
                 let adjustedExecAmount = cleanExecAmount;
                 if (this.state.direction === 'buy') {
@@ -532,14 +601,31 @@ export default class SwapInterface extends Component {
         }
     }
 
+    handleContractDataUpdate() {
+        this.setState({ 
+            isPhase2: this.isLiquidityDeployed(),
+            dataReady: true
+        });
+
+        const priceContainer = this.element.querySelector('.price-display-container');
+        if (priceContainer && this.priceDisplay) {
+            this.priceDisplay.mount(priceContainer);
+        }
+    }
+
     render() {
-        const { direction, ethAmount, execAmount, calculatingAmount } = this.state;
+        console.log('🎨 SwapInterface.render - Starting render');
+        const { direction, ethAmount, execAmount, calculatingAmount, isPhase2, dataReady } = this.state;
+
+        if (!dataReady) {
+            return `<div>Loading...</div>`; // Render a loading state until data is ready
+        }
 
         console.log('Render - Current State:', {
             direction,
             freeMint: this.state.freeMint,
             freeSupply: this.state.freeSupply,
-            condition: `direction === 'sell' && this.freeMint = ${direction === 'sell' && this.freeMint}`
+            isPhase2: this.state.isPhase2
         });
         
         const balances = this.store.selectBalances();
@@ -552,13 +638,13 @@ export default class SwapInterface extends Component {
         ? `Available: ${(parseInt(balances.exec) - 1000000).toLocaleString()}`
         : `Balance: ${formattedExecBalance}`;
         
-        return `
+        const result = `
             <div class="price-display-container"></div>
-            ${direction === 'sell' && this.freeMint ? 
+            ${direction === 'sell' && this.freeMint && !isPhase2 ? 
                 `<div class="free-mint-notice">
                     You have 1,000,000 $EXEC you received for free that cannot be sold here.
                 </div>` 
-                : direction === 'buy' && this.freeSupply > 0 && !this.freeMint ?
+                : direction === 'buy' && this.freeSupply > 0 && !this.freeMint && !isPhase2 ?
                 `<div class="free-mint-notice free-mint-bonus">
                     1,000,000 $EXEC will be added to your purchase. Thank you.
                 </div>`
@@ -607,5 +693,7 @@ export default class SwapInterface extends Component {
                 ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
             </button>
         `;
+        console.log('🎨 SwapInterface.render - Completed render');
+        return result;
     }
 }

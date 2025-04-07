@@ -27,7 +27,6 @@ async function initializeApp() {
                 return;
             } else {
                 console.log('Valid switch configuration found - continuing initialization');
-                console.log(switchData);
             }
         } catch (error) {
             // Fetch failed, exit initialization

@@ -17,85 +17,108 @@ export default class PriceDisplay extends Component {
         this.state = {
             price: 0,
             lastUpdated: null,
-            loading: false,
+            loading: true,
             error: null
         };
         
-        // Bind methods
         this.handlePriceUpdate = this.handlePriceUpdate.bind(this);
         this.handleStatusUpdate = this.handleStatusUpdate.bind(this);
     }
 
     onMount() {
+        // Get initial price state
+        const priceData = tradingStore.selectPrice();
+        
+        this.setState({
+            price: priceData?.current || 0,
+            lastUpdated: priceData?.lastUpdated,
+            loading: !priceData?.current,
+            error: null
+        });
+
         // Subscribe to trading store changes
         this.unsubscribeStore = tradingStore.subscribe(() => {
             const priceData = tradingStore.selectPrice();
-            
             this.setState({
-                price: priceData.current,
-                lastUpdated: priceData.lastUpdated,
+                price: priceData?.current || 0,
+                lastUpdated: priceData?.lastUpdated,
                 loading: tradingStore.state.loading,
                 error: tradingStore.state.error
             });
         });
 
-        // Subscribe to events
-        eventBus.on('price:updated', this.handlePriceUpdate);
+        eventBus.on(EVENTS.UPDATE.PRICE, this.handlePriceUpdate);
         eventBus.on(EVENTS.UPDATE.STATUS, this.handleStatusUpdate);
     }
 
     onUnmount() {
-        // Cleanup store subscription
         if (this.unsubscribeStore) {
             this.unsubscribeStore();
         }
-
-        // Cleanup event subscriptions
-        eventBus.off('price:updated', this.handlePriceUpdate);
+        eventBus.off(EVENTS.UPDATE.PRICE, this.handlePriceUpdate);
         eventBus.off(EVENTS.UPDATE.STATUS, this.handleStatusUpdate);
     }
 
+    setState(newState) {
+        super.setState(newState);
+    }
+
     handlePriceUpdate({ price }) {
-        this.update();  // This will trigger a re-render
-        // The actual price data will come from tradingStore during render
+        this.setState({
+            price: price || 0,
+            loading: false
+        });
     }
 
     handleStatusUpdate({ loading, error }) {
-        this.update();  // This will trigger a re-render
-        // The status data will come from tradingStore during render
+        this.setState({ loading, error });
     }
 
     template() {
         const { price, lastUpdated, loading, error } = this.state;
         
-        if (loading) return `<div>Loading...</div>`;
-        if (error) return `<div>Error: ${error}</div>`;
+        if (loading) return `
+            <div class="price-display loading">
+                <div class="price-header">
+                    <h3>Cult Exec </h3>
+                    <h3>Bonding Curve Presale</h3>
+                </div>
+                <div class="price-content">
+                    <div class="loading-indicator">Loading...</div>
+                </div>
+            </div>`;
+            
+        if (error) return `
+            <div class="price-display error">
+                <div class="price-header">
+                    <h3>Cult Exec </h3>
+                    <h3>Bonding Curve Presale</h3>
+                </div>
+                <div class="price-content">
+                    <div class="error-message">Error: ${error}</div>
+                </div>
+            </div>`;
         
         return `
-            <div class="price-display ${loading ? 'loading' : ''} ${error ? 'error' : ''}">
+            <div class="price-display">
                 <div class="price-header">
                     <h3>Cult Exec </h3>
                     <h3>Bonding Curve Presale</h3>
                 </div>
                 
                 <div class="price-content">
-                    ${loading ? `
-                        <div class="loading-indicator">Loading...</div>
-                    ` : error ? `
-                        <div class="error-message">${error}</div>
-                    ` : `
-                        <div class="price-value">
-                            <span class="amount">${Number(price).toFixed(4)}</span>
-                            <span class="currency">ETH / Cult Exec</span>
-                        </div>
-                    `}
+                    <div class="price-value">
+                        <span class="amount">${Number(price).toFixed(8)}</span>
+                        <span class="currency">ETH / Cult Exec</span>
+                    </div>
                 </div>
             </div>
         `;
     }
 
     render() {
-        return this.template();
+        const result = this.template();
+        return result;
     }
 
     // Add component styles

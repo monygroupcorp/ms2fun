@@ -74,7 +74,7 @@ class MerkleHandler {
                 sortPairs: true
             });
 
-            console.log(`Merkle tree created for day ${tier}: ${tree.getHexRoot()}`);
+            // console.log(`Merkle tree created for day ${tier}: ${tree.getHexRoot()}`);
 
             // Store tree for later use
             this.trees.set(tier, {

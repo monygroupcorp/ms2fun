@@ -26,29 +26,24 @@ export class BondingCurve extends Component {
             
             // Check liquidity pool status first
             const liquidityPool = tradingStore.selectContractData().liquidityPool;
-            console.log('BondingCurve - Initial Liquidity Pool Address:', liquidityPool);
             this.setState({ liquidityPool });
 
             // Subscribe to contract data updates
             eventBus.on('contractData:updated', () => {
                 const contractData = tradingStore.selectContractData();
-                console.log('BondingCurve - Contract Data Updated, New Liquidity Pool:', contractData.liquidityPool);
                 
                 if (contractData.liquidityPool !== this.state.liquidityPool) {
                     this.setState({ liquidityPool: contractData.liquidityPool });
                     
                     if (this.isLiquidityDeployed()) {
-                        console.log('BondingCurve - Switching to DEXTools Chart');
                         this.renderDexToolsChart();
                     }
                 }
             });
 
             if (this.isLiquidityDeployed()) {
-                console.log('BondingCurve - Rendering DEXTools Chart');
                 this.renderDexToolsChart();
             } else {
-                console.log('BondingCurve - Drawing Bonding Curve');
                 this.drawCurve();
                 this.setupEventListeners();
             }
@@ -61,23 +56,21 @@ export class BondingCurve extends Component {
     isLiquidityDeployed() {
         const result = this.state.liquidityPool && 
                       this.state.liquidityPool !== '0x0000000000000000000000000000000000000000';
-        console.log('isLiquidityDeployed check:', {
-            liquidityPool: this.state.liquidityPool,
-            result: result
-        });
         return result;
     }
 
     renderDexToolsChart() {
-        console.log('renderDexToolsChart - Starting render');
         const container = this.element.querySelector('.bonding-curve');
         if (!container) {
-            console.log('renderDexToolsChart - Container not found');
             return;
         }
 
         // Clear any existing content
         container.innerHTML = '';
+
+        // Construct the DEXTools URL dynamically
+        const networkName = this.getNetworkName(this.state.chainId);
+        const chartUrl = `https://www.dextools.io/widget-chart/en/${networkName}/pe-light/${this.state.liquidityPool}?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false`;
 
         // Use exact DEXTools iframe format from share button
         container.innerHTML = `
@@ -86,12 +79,10 @@ export class BondingCurve extends Component {
                 title="$EXEC DEXTools Trading Chart"
                 width="100%"
                 height="100%"
-                src="https://www.dextools.io/widget-chart/en/ether/pe-light/0xd158011926d19dDC00F83144D5CF1C2499995c40?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false"
+                src="${chartUrl}"
                 style="border: none;"
             ></iframe>
         `;
-        
-        console.log('DEXTools iframe added');
     }
 
     getNetworkName(chainId) {

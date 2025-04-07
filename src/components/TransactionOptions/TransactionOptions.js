@@ -15,7 +15,8 @@ export class TransactionOptions extends Component {
             isValid: true,
             nftBalance: 0,
             swapDirection: this.store.selectDirection() ? 'buy' : 'sell',
-            lastValidationState: true
+            lastValidationState: true,
+            isPhase2: false // New state to track phase 2
         };
 
         // Bind handlers
@@ -30,6 +31,7 @@ export class TransactionOptions extends Component {
     onMount() {
         this.unsubscribeStore = this.store.subscribe(() => this.handleStoreUpdate());
         this.addEventListeners();
+        this.checkPhase2Status(); // Check phase 2 status on mount
     }
 
     onUnmount() {
@@ -202,10 +204,27 @@ export class TransactionOptions extends Component {
         this.addEventListeners();    // Add fresh listeners
     }
 
+    checkPhase2Status() {
+        const contractData = this.store.selectContractData();
+        const isPhase2 = contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        this.setState({ isPhase2 });
+    }
+
     template() {
-        const { nftMintingEnabled, message, isValid } = this.state;
+        const { nftMintingEnabled, message, isValid, isPhase2 } = this.state;
         const swapDirection = this.store.selectDirection() ? 'buy' : 'sell';
-        console.log('swap direction', swapDirection);
+
+        if (isPhase2) {
+            return `
+                <div class="transaction-options phase2">
+                    <div class="option-group">
+                        <p>Phase 2 Options Coming Soon!</p>
+                        <!-- Add new options for phase 2 here -->
+                    </div>
+                </div>
+            `;
+        }
+
         return `
             <div class="transaction-options">
                 <div class="option-group ${swapDirection === 'sell' ? 'hidden' : ''}">
