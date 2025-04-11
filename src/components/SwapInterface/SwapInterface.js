@@ -163,92 +163,114 @@ export default class SwapInterface extends Component {
     }
 
     onMount() {
-        console.log(`[${this.instanceId}] SwapInterface.onMount`);
-        
-        // First unbind any existing events to prevent duplicates
-        this.unbindEvents();
-        
-        // Then bind DOM events
+        console.log(`[${this.instanceId}] SwapInterface onMount called`);
         this.bindEvents();
         
-        // Clear any existing event listeners first
-        this.eventListeners.forEach(unsubscribe => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
-        });
-        this.eventListeners = [];
+        // Create a more structured approach to event registration
+        // Each entry is [eventName, handler, priority]
+        // This helps debug subscription issues and ensure proper cleanup
+        const eventSubscriptions = [
+            ['contractData:updated', this.handleContractDataUpdate.bind(this), 'high'],
+            ['transaction:pending', this.handleTransactionEvents, 'normal'],
+            ['transaction:confirmed', this.handleTransactionEvents, 'normal'],
+            ['transaction:success', this.handleTransactionEvents, 'normal'],
+            ['transaction:error', this.handleTransactionEvents, 'normal'],
+            ['balances:updated', this.handleBalanceUpdate, 'high'],
+            ['transactionOptions:update', this.handleTransactionOptionsUpdate, 'low']
+        ];
         
-        // Store the unsubscribe function for contract data updates
-        this.eventListeners.push(
-            eventBus.on('contractData:updated', this.handleContractDataUpdate.bind(this))
-        );
+        // Register all events and store unsubscribe functions
+        this.eventListeners = eventSubscriptions.map(([event, handler, priority]) => {
+            console.log(`[${this.instanceId}] Subscribing to ${event} with priority ${priority}`);
+            return eventBus.on(event, handler);
+        });
 
-        // Check if we already have data
+        // Check if we already have data and force a render
         const contractData = this.store.selectContractData();
         if (contractData) {
             this.setState({ 
                 isPhase2: this.isLiquidityDeployed(),
                 dataReady: true
             });
-        }
 
-        // Mount transaction options
-        const optionsContainer = this.element.querySelector('.transaction-options-container');
-        if (optionsContainer) {
-            if (this.transactionOptions) {
-                this.transactionOptions.mount(optionsContainer);
-            }
+            // Force render regardless of whether element's content has changed
+            this.render();
+            this.element.innerHTML = this.render();
+            
+            // Mount child components
+            this.mountChildComponents();
+        } else {
+            // If no data yet, render a loading state
+            this.element.innerHTML = '<div>Loading...</div>';
         }
-
-        // Mount PriceDisplay if not already mounted
+    }
+    
+    // Add method to explicitly mount child components
+    mountChildComponents() {
+        // Mount price display
         const priceContainer = this.element.querySelector('.price-display-container');
-        if (priceContainer && !this.priceDisplay.element) {
-            console.log('📊 SwapInterface.onMount - Mounting PriceDisplay');
+        if (priceContainer && (!this.priceDisplay.element || !priceContainer.contains(this.priceDisplay.element))) {
+            console.log(`[${this.instanceId}] Mounting PriceDisplay component`);
             this.priceDisplay.mount(priceContainer);
         }
-
-        // Subscribe to transaction events - store handlers to properly unsubscribe later
-        console.log(`[${this.instanceId}] Subscribing to transaction events`);
-        this.eventListeners.push(
-            eventBus.on('transaction:pending', this.handleTransactionEvents),
-            eventBus.on('transaction:confirmed', this.handleTransactionEvents),
-            eventBus.on('transaction:success', this.handleTransactionEvents),
-            eventBus.on('transaction:error', this.handleTransactionEvents),
-            eventBus.on('balances:updated', this.handleBalanceUpdate),
-            eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate)
-        );
+        
+        // Mount transaction options
+        const optionsContainer = this.element.querySelector('.transaction-options-container');
+        if (optionsContainer && this.transactionOptions && 
+            (!this.transactionOptions.element || !optionsContainer.contains(this.transactionOptions.element))) {
+            console.log(`[${this.instanceId}] Mounting TransactionOptions component`);
+            this.transactionOptions.mount(optionsContainer);
+        }
     }
 
     onUnmount() {
-        console.log(`[${this.instanceId}] Unmounting SwapInterface`);
+        console.log(`[${this.instanceId}] Unmounting SwapInterface - starting cleanup process`);
         
+        // Unmount child components before handling our own cleanup
         if (this.transactionOptions) {
+            console.log(`[${this.instanceId}] Unmounting TransactionOptions`);
             this.transactionOptions.unmount();
         }
         
         if (this.priceDisplay) {
+            console.log(`[${this.instanceId}] Unmounting PriceDisplay`);
             this.priceDisplay.unmount();
         }
         
         // Clear any pending timers
         if (this.calculateTimer) {
+            console.log(`[${this.instanceId}] Clearing calculation timer`);
             clearTimeout(this.calculateTimer);
             this.calculateTimer = null;
         }
 
-        // Unsubscribe from all event listeners by calling each unsubscribe function
-        this.eventListeners.forEach(unsubscribe => {
-            if (typeof unsubscribe === 'function') {
-                unsubscribe();
-            }
-        });
+        // Unsubscribe from all event listeners in reverse order they were added
+        // This helps prevent race conditions where a later handler depends on earlier ones
+        if (this.eventListeners && this.eventListeners.length > 0) {
+            console.log(`[${this.instanceId}] Unsubscribing from ${this.eventListeners.length} event listeners`);
+            
+            // Create a copy of the array in reverse order
+            [...this.eventListeners].reverse().forEach((unsubscribe, index) => {
+                if (typeof unsubscribe === 'function') {
+                    try {
+                        unsubscribe();
+                        console.log(`[${this.instanceId}] Successfully unsubscribed event listener ${this.eventListeners.length - index}`);
+                    } catch (err) {
+                        console.error(`[${this.instanceId}] Error unsubscribing event listener:`, err);
+                    }
+                } else {
+                    console.warn(`[${this.instanceId}] Invalid unsubscribe function at index ${index}`);
+                }
+            });
+        }
         
         // Clear the event listeners array
         this.eventListeners = [];
         
         // Also properly unbind DOM events
         this.unbindEvents();
+        
+        console.log(`[${this.instanceId}] SwapInterface unmounted successfully`);
     }
 
     handleTransactionEvents(event) {
@@ -565,4 +587,329 @@ export default class SwapInterface extends Component {
                     }, ethValue);
                 } else {
                     // Check router allowance before selling
-                    console.log(`
+                    console.log(`Checking approval for ${address} to spend ${execAmount} tokens`);
+                    
+                    // Get the router address (could be a string or an object with address)
+                    const routerAddress = this.blockchainService.swapRouter?.address || this.blockchainService.swapRouter;
+                    console.log(`Router address for approval check: ${routerAddress}`);
+                    
+                    const routerAllowance = await this.blockchainService.getApproval(address, routerAddress);
+                    console.log(`Current allowance: ${routerAllowance}, Required: ${execAmount}`);
+                    
+                    if (BigInt(routerAllowance) < BigInt(execAmount)) {
+                        // Show approve modal
+                        if (!this.approveModal) {
+                            this.approveModal = new ApproveModal(cleanExecAmount, this.blockchainService, address);
+                            this.approveModal.mount(document.body);
+                            
+                            // Listen for approval completion
+                            eventBus.once('approve:complete', async () => {
+                                // Retry the sell after approval
+                                await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
+                                    amount: execAmount,
+                                });
+                            });
+                        } else {
+                            // Update the address if modal already exists
+                            this.approveModal.userAddress = address;
+                        }
+                        this.approveModal.show();
+                        return;
+                    }
+
+                    await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
+                        amount: execAmount,
+                    });
+                }
+            } else {
+                // Get merkle proof with proper error handling
+                let proof;
+                try {
+                    const currentTier = await this.blockchainService.getCurrentTier();
+                    proof = await this.blockchainService.getMerkleProof(
+                        this.address,
+                        currentTier
+                    );
+                    
+                    if (!proof) {
+                        this.messagePopup.error(
+                            `You are not whitelisted for Tier ${currentTier + 1}. Please wait for your tier to be activated.`,
+                            'Not Whitelisted'
+                        );
+                        return;
+                    }
+                } catch (error) {
+                    this.messagePopup.error(
+                        'Failed to verify whitelist status. Please try again later.',
+                        'Whitelist Check Failed'
+                    );
+                    return;
+                }
+                // Use original bonding curve logic
+                let adjustedExecAmount = cleanExecAmount;
+                if (this.state.direction === 'buy') {
+                    const { freeSupply, freeMint } = this.store.selectFreeSituation();
+                    if (freeSupply > 0 && !freeMint) {
+                        const numAmount = parseInt(cleanExecAmount);
+                        adjustedExecAmount = Math.max(0, numAmount - 1000000).toString();
+                    }
+                }
+
+                const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
+                const execAmount = this.blockchainService.parseExec(adjustedExecAmount);
+
+                if (this.state.direction === 'buy') {
+                    await this.blockchainService.buyBonding({
+                        amount: execAmount,
+                        maxCost: ethValue,
+                        mintNFT: this.transactionOptionsState.nftMintingEnabled,
+                        proof: proof.proof,
+                        message: this.transactionOptionsState.message
+                    }, ethValue);
+                } else {
+                    const minReturn = BigInt(ethValue) * BigInt(999) / BigInt(1000);
+                    await this.blockchainService.sellBonding({
+                        amount: execAmount,
+                        minReturn: minReturn,
+                        proof: proof.proof,
+                        message: this.transactionOptionsState.message
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Swap failed:', error);
+            
+            // Clean up the error message but preserve the Tx Reverted prefix
+            let errorMessage = error.message;
+            if (errorMessage.includes('Contract call')) {
+                const parts = errorMessage.split(': ');
+                errorMessage = parts[parts.length - 1];
+            }
+            
+            // Add context based on the operation
+            const context = this.state.direction === 'buy' ? 
+                'Buy Failed' : 
+                'Sell Failed';
+            
+            this.messagePopup.error(
+                `${context}: ${errorMessage}`,
+                'Transaction Failed'
+            );
+        }
+    }
+
+    handleQuickFill(e) {
+        e.preventDefault();
+        
+        const amount = e.target.dataset.amount;
+        const percentage = e.target.dataset.percentage;
+        
+        let value;
+        
+        if (amount) {
+            // Direct amount fill
+            value = amount;
+        } else if (percentage) {
+            // Percentage of balance (only used for selling EXEC)
+            const balances = this.store.selectBalances();
+            const execBalance = balances.exec;
+            
+            if (!execBalance || execBalance === '0') {
+                console.warn('No EXEC balance available for quick fill');
+                return;
+            }
+
+            // Convert from full decimal representation to human-readable number first
+            let readableBalance = BigInt(execBalance) / BigInt(1e18);
+            
+            // If user has free mint, subtract 1M from available balance
+            if (this.freeMint) {
+                readableBalance = readableBalance - BigInt(1000000);    
+                // Check if there's any sellable balance after subtracting free mint
+                if (readableBalance <= 0) {
+                    this.messagePopup.info(
+                        'You only have free mint tokens which cannot be sold.',
+                        'Cannot Quick Fill'
+                    );
+                    return;
+                }
+            }
+
+            // Calculate percentage of sellable balance
+            const amount = (readableBalance * BigInt(percentage)) / BigInt(100);
+            value = amount.toString();
+        }
+
+        // Update the top input with the new value
+        this.handleInput('top', value);
+        
+        // Update the input element directly
+        const topInput = this.element.querySelector('.top-input');
+        if (topInput) {
+            topInput.value = value;
+        }
+    }
+
+    handleContractDataUpdate() {
+        // Store the previous phase state before updating
+        const previousPhase = this.state.isPhase2;
+        
+        // Update state with new values
+        this.setState({ 
+            isPhase2: this.isLiquidityDeployed(),
+            dataReady: true
+        });
+        
+        // Only update PriceDisplay if we've changed phases or it's not already mounted
+        const priceContainer = this.element.querySelector('.price-display-container');
+        if (priceContainer && this.priceDisplay) {
+            // We only need to remount if phase changed (which affects how prices are displayed)
+            // or if the price display hasn't been properly mounted yet
+            const shouldRemount = previousPhase !== this.state.isPhase2 || 
+                !this.priceDisplay.element || 
+                !priceContainer.contains(this.priceDisplay.element);
+                
+            if (shouldRemount) {
+                console.log('Remounting PriceDisplay due to phase change or missing element');
+                this.priceDisplay.mount(priceContainer);
+            } else {
+                // Just tell the price display to update its internal state if needed
+                console.log('PriceDisplay already mounted, updating state only');
+                this.priceDisplay.update();
+            }
+        }
+    }
+
+    render() {
+        console.log('🎨 SwapInterface.render - Starting render');
+        const { direction, ethAmount, execAmount, calculatingAmount, isPhase2, dataReady } = this.state;
+
+        if (!dataReady) {
+            return `<div>Loading...</div>`; // Render a loading state until data is ready
+        }
+
+        console.log('Render - Current State:', {
+            direction,
+            freeMint: this.state.freeMint,
+            freeSupply: this.state.freeSupply,
+            isPhase2: this.state.isPhase2
+        });
+        
+        const balances = this.store.selectBalances();
+        
+        // Format balances with appropriate decimals
+        const formattedEthBalance = parseFloat(balances.eth).toFixed(6);
+        const formattedExecBalance = parseInt(balances.exec).toLocaleString();
+        // Calculate available balance for selling
+        const availableExecBalance = direction === 'sell' && this.freeMint
+        ? `Available: ${(parseInt(balances.exec) - 1000000).toLocaleString()}`
+        : `Balance: ${formattedExecBalance}`;
+        
+        const result = `
+            <div class="price-display-container"></div>
+            ${direction === 'sell' && this.freeMint && !isPhase2 ? 
+                `<div class="free-mint-notice">
+                    You have 1,000,000 $EXEC you received for free that cannot be sold here.
+                </div>` 
+                : direction === 'buy' && this.freeSupply > 0 && !this.freeMint && !isPhase2 ?
+                `<div class="free-mint-notice free-mint-bonus">
+                    1,000,000 $EXEC will be added to your purchase. Thank you.
+                </div>`
+                : ''
+            }
+            <div class="quick-fill-buttons">
+                ${direction === 'buy' ? 
+                    `<button data-amount="0.0025">0.0025</button>
+                    <button data-amount="0.01">0.01</button>
+                    <button data-amount="0.05">0.05</button>
+                    <button data-amount="0.1">0.1</button>`
+                :
+                    `<button data-percentage="25">25%</button>
+                    <button data-percentage="50">50%</button>
+                    <button data-percentage="75">75%</button>
+                    <button data-percentage="100">100%</button>`
+                }
+            </div>
+            <div class="swap-inputs">
+                <div class="input-container">
+                    <input type="text" 
+                           class="top-input" 
+                           value="${direction === 'buy' ? ethAmount : execAmount}" 
+                           placeholder="0.0"
+                           pattern="^[0-9]*[.]?[0-9]*$">
+                    <div class="token-info">
+                        <span class="token-symbol">${direction === 'buy' ? 'ETH' : '$EXEC'}</span>
+                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedEthBalance : availableExecBalance}</span>
+                    </div>
+                </div>
+                <button class="direction-switch">↑↓</button>
+                <div class="input-container">
+                    <input type="text" 
+                           class="bottom-input" 
+                           value="${direction === 'buy' ? execAmount : ethAmount}" 
+                           placeholder="0.0"
+                           pattern="^[0-9]*[.]?[0-9]*$">
+                    <div class="token-info">
+                        <span class="token-symbol">${direction === 'buy' ? '$EXEC' : 'ETH'}</span>
+                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedExecBalance : formattedEthBalance}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="transaction-options-container"></div>
+            <button class="swap-button">
+                ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
+            </button>
+        `;
+        console.log('🎨 SwapInterface.render - Completed render');
+        return result;
+    }
+
+    /**
+     * Get the user's wallet address, resolving any promise if needed
+     * @returns {Promise<string>} Resolved address
+     */
+    async getAddress() {
+        try {
+            // If address is not set, try to get it from the store
+            if (!this._address) {
+                const walletState = this.store.selectWallet();
+                if (walletState && walletState.address) {
+                    this._address = walletState.address;
+                }
+            }
+            
+            // Resolve the address if it's a Promise
+            const resolvedAddress = await Promise.resolve(this._address);
+            
+            // Log the resolved address for debugging
+            console.log(`[${this.instanceId}] Resolved address: ${resolvedAddress}`);
+            
+            return resolvedAddress;
+        } catch (error) {
+            console.error(`[${this.instanceId}] Error resolving address:`, error);
+            return null;
+        }
+    }
+    
+    /**
+     * Update the user's wallet address
+     * @param {string} newAddress - The new wallet address
+     */
+    setAddress(newAddress) {
+        this._address = newAddress;
+    }
+    
+    /**
+     * Property to maintain backward compatibility with old code
+     */
+    get address() {
+        return this._address;
+    }
+    
+    /**
+     * Property setter to maintain backward compatibility
+     */
+    set address(newAddress) {
+        this._address = newAddress;
+    }
+}

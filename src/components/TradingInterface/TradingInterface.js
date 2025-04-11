@@ -294,62 +294,70 @@ export class TradingInterface extends Component {
     }
 
     mountChildComponents() {
-        const showCurve = this.shouldShowComponent('curve');
-        const showSwap = this.shouldShowComponent('swap');
-
-        // Initialize components if they don't exist
-        if (!this.bondingCurve) {
-            this.bondingCurve = new BondingCurve();
-        }
-        if (!this.swapInterface) {
-            this.swapInterface = new SwapInterface(this.blockchainService, this.address);
-        }
-
-        // Check if BondingCurve needs to be mounted or unmounted
-        if (showCurve) {
-            const curveContainer = this.element.querySelector('#curve-container');
-            if (curveContainer) {
-                // Only mount if not already mounted to the same container
-                if (!this.bondingCurve.element || this.bondingCurve.element.parentElement !== curveContainer) {
-                    console.log('Mounting BondingCurve to', curveContainer);
-                    this.bondingCurve.mount(curveContainer);
-                } else {
-                    console.log('BondingCurve already mounted, skipping mount');
+        console.log('Mounting child components based on visible views');
+        
+        // Get current layout state
+        const { isMobile, visibleViews } = this.layoutState;
+        
+        // Determine which components should be visible based on the current layout
+        const showCurve = visibleViews.includes('curve');
+        const showSwap = visibleViews.includes('swap');
+        
+        // Get containers
+        const curveContainer = document.querySelector('.trading-view[data-view="curve"]');
+        const swapContainer = document.querySelector('.trading-view[data-view="swap"]');
+        
+        // Only mount/unmount if visibility has changed - prevents unnecessary re-renders
+        
+        // Handle SwapInterface
+        if (showSwap && swapContainer) {
+            // Check if SwapInterface is already mounted to this container
+            const alreadyMounted = this.swapInterface && 
+                this.swapInterface.element && 
+                this.swapInterface.element.parentElement === swapContainer;
+                
+            if (!alreadyMounted) {
+                console.log('Mounting SwapInterface');
+                // Initialize if needed
+                if (!this.swapInterface) {
+                    this.swapInterface = new SwapInterface(this.blockchainService, this.address);
                 }
+                this.swapInterface.mount(swapContainer);
             } else {
-                console.warn('Curve container not found');
-            }
-        } else if (this.bondingCurve && this.bondingCurve.element) {
-            // Only unmount if currently mounted
-            console.log('Unmounting BondingCurve');
-            this.bondingCurve.unmount();
-        }
-
-        // Check if SwapInterface needs to be mounted or unmounted
-        if (showSwap) {
-            const swapContainer = this.element.querySelector('#swap-container');
-            if (swapContainer) {
-                // Only mount if not already mounted to the same container
-                if (!this.swapInterface.element || this.swapInterface.element.parentElement !== swapContainer) {
-                    console.log('Mounting SwapInterface to', swapContainer);
-                    // Ensure address is set before mounting
-                    this.swapInterface.setAddress(this.address);
-                    this.swapInterface.mount(swapContainer);
-                } else {
-                    console.log('SwapInterface already mounted, skipping mount');
-                    // Just update the address if needed
-                    this.swapInterface.setAddress(this.address);
-                }
-            } else {
-                console.warn('Swap container not found');
+                console.log('SwapInterface already mounted to correct container');
             }
         } else if (this.swapInterface && this.swapInterface.element) {
-            // Only unmount if currently mounted
-            console.log('Unmounting SwapInterface');
-            this.swapInterface.unmount();
+            // Only unmount if currently mounted and should not be shown
+            if (!showSwap) {
+                console.log('Unmounting SwapInterface');
+                this.swapInterface.unmount();
+            }
         }
-
-        this.mounted = true;
+        
+        // Handle BondingCurve
+        if (showCurve && curveContainer) {
+            // Check if BondingCurve is already mounted to this container
+            const alreadyMounted = this.bondingCurve && 
+                this.bondingCurve.element && 
+                this.bondingCurve.element.parentElement === curveContainer;
+                
+            if (!alreadyMounted) {
+                console.log('Mounting BondingCurve');
+                // Initialize if needed
+                if (!this.bondingCurve) {
+                    this.bondingCurve = new BondingCurve();
+                }
+                this.bondingCurve.mount(curveContainer);
+            } else {
+                console.log('BondingCurve already mounted to correct container');
+            }
+        } else if (this.bondingCurve && this.bondingCurve.element) {
+            // Only unmount if currently mounted and should not be shown
+            if (!showCurve) {
+                console.log('Unmounting BondingCurve');
+                this.bondingCurve.unmount();
+            }
+        }
     }
 
     unmount() {
@@ -1019,7 +1027,6 @@ export class TradingInterface extends Component {
         const showCurve = this.shouldShowComponent('curve');
         const showSwap = this.shouldShowComponent('swap');
         
-        
         const html = `
             <div class="trading-interface ${isMobile ? 'mobile' : ''}">
                 ${isMobile ? `
@@ -1051,13 +1058,11 @@ export class TradingInterface extends Component {
                             <div class="tier-text">Current Whitelist: Tier ${currentWhitelistTier !== null ? currentWhitelistTier : 'Loading...'}</div>
                         </div>
                     ` : ''}
-                    <div id="curve-container" 
-                         class="view-container ${activeView === 'curve' ? 'active' : ''}"
+                    <div class="trading-view" data-view="curve" 
                          style="display: ${showCurve ? 'block' : 'none'}">
                     </div>
                     
-                    <div id="swap-container" 
-                         class="view-container ${activeView === 'swap' ? 'active' : ''}"
+                    <div class="trading-view" data-view="swap" 
                          style="display: ${showSwap ? 'block' : 'none'}">
                     </div>
                 </div>
@@ -1067,6 +1072,10 @@ export class TradingInterface extends Component {
         if (this.element) {
             this.element.innerHTML = html;
             this.setupTabListeners();
+            console.log('TradingInterface rendered, calling mountChildComponents');
+            
+            // Force mounting of child components after render
+            setTimeout(() => this.mountChildComponents(), 0);
         }
 
         return html;

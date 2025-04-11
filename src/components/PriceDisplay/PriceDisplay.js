@@ -224,25 +224,4 @@ export default class PriceDisplay extends Component {
             }
         `;
     }
-
-    /**
-     * Update the price display without full remounting
-     * This is called by the parent component when contract data is updated
-     */
-    update() {
-        console.log('PriceDisplay.update called');
-        
-        // Get latest price data from the store
-        const priceData = tradingStore.selectPrice();
-        
-        // Only update if the price has actually changed
-        if (priceData?.current !== this.state.price) {
-            this.setState({
-                price: priceData?.current || 0,
-                lastUpdated: priceData?.lastUpdated,
-                loading: !priceData?.current,
-                error: null
-            });
-        }
-    }
 } 

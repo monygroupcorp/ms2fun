@@ -13,8 +13,50 @@ export class Component {
      * @param {Object} initialState 
      */
     setState(newState) {
+        const oldState = {...this.state};
         this.state = { ...this.state, ...newState };
-        this.update();
+        
+        // Only update if we should based on state changes
+        if (this.shouldUpdate(oldState, this.state)) {
+            this.update();
+            this.onStateUpdate(oldState, this.state);
+        }
+    }
+
+    /**
+     * Determines if the component should update based on state changes
+     * Override in child classes for custom comparison logic
+     * @param {Object} oldState - Previous state
+     * @param {Object} newState - New state 
+     * @returns {boolean} - Whether component should update
+     */
+    shouldUpdate(oldState, newState) {
+        // Default shallow comparison of top-level state properties
+        // Check if any properties have changed
+        if (!oldState || !newState) return true;
+        
+        // Check if object references are the same
+        if (oldState === newState) return false;
+        
+        // Do a shallow comparison of properties
+        const oldKeys = Object.keys(oldState);
+        const newKeys = Object.keys(newState);
+        
+        // If they have different number of keys, they changed
+        if (oldKeys.length !== newKeys.length) return true;
+        
+        // Check if any key's value has changed
+        return oldKeys.some(key => oldState[key] !== newState[key]);
+    }
+    
+    /**
+     * Lifecycle hook called after state is updated but before rendering
+     * Override in child classes to handle state updates
+     * @param {Object} oldState 
+     * @param {Object} newState 
+     */
+    onStateUpdate(oldState, newState) {
+        // Default implementation does nothing
     }
 
     /**
@@ -108,12 +150,19 @@ export class Component {
      */
     update() {
         if (!this.element) return;
-        const newContent = this.render();
-        this.element.innerHTML = newContent;
         
-        // Re-attach event listeners after DOM update
-        if (this.setupDOMEventListeners) {
-            this.setupDOMEventListeners();
+        // Get new content
+        const newContent = this.render();
+        
+        // Always update on first render or when content changes
+        // First render is detected by checking if innerHTML is empty
+        if (!this.element.innerHTML || this.element.innerHTML !== newContent) {
+            this.element.innerHTML = newContent;
+            
+            // Re-attach event listeners after DOM update
+            if (this.setupDOMEventListeners) {
+                this.setupDOMEventListeners();
+            }
         }
     }
 

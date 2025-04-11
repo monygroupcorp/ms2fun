@@ -44,10 +44,11 @@ export class TransactionOptions extends Component {
         const nftToggle = this.element.querySelector('#nftToggle');
 
         if (!messageInput || !nftToggle) {
-            console.error('TransactionOptions - Failed to find elements:', {
-                messageInput: !!messageInput,
-                nftToggle: !!nftToggle
-            });
+            //possible phase 2
+            // console.error('TransactionOptions - Failed to find elements:', {
+            //     messageInput: !!messageInput,
+            //     nftToggle: !!nftToggle
+            // });
             return;
         }
 
