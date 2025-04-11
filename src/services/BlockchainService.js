@@ -1003,15 +1003,28 @@ class BlockchainService {
 
     async getApproval(address, target = null) {
         try {
-            if (target === null) {
-                target = this.swapRouter;
+            if (!address) {
+                throw new Error("User address is required for approval check");
             }
-            const response = await this.executeContractCall('allowance', [address, target]);
-            // Convert BigNumber response to wei-less integer
-            const formattedResponse = this.formatEther(response);
-            console.log('APPROVAL', formattedResponse);
-            return formattedResponse;
-
+            
+            let targetAddress;
+            
+            if (target === null) {
+                targetAddress = this.swapRouter.address || this.swapRouter;
+            } else if (typeof target === 'string') {
+                targetAddress = target;
+            } else if (target && typeof target === 'object' && target.address) {
+                // If target is a contract object, use its address
+                targetAddress = target.address;
+            } else {
+                throw new Error("Invalid target for approval check");
+            }
+            
+            console.log(`Checking allowance for ${address} to spend tokens at ${targetAddress}`);
+            
+            const response = await this.executeContractCall('allowance', [address, targetAddress]);
+            // Convert BigNumber response to string
+            return response.toString();
         } catch (error) {
             throw this.wrapError(error, 'Failed to get approval');
         }

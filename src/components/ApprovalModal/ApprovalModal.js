@@ -18,6 +18,17 @@ export class ApproveModal extends Component {
     async handleApprove() {
         try {
             const approveButton = this.element.querySelector('.approve-button');
+            const statusMessage = this.element.querySelector('.status-message') || 
+                document.createElement('div');
+            
+            if (!statusMessage.classList.contains('status-message')) {
+                statusMessage.className = 'status-message';
+                this.element.querySelector('.approve-modal-content').appendChild(statusMessage);
+            }
+            
+            statusMessage.textContent = 'Waiting for wallet confirmation...';
+            statusMessage.className = 'status-message pending';
+            
             approveButton.disabled = true;
             approveButton.textContent = 'Approving...';
 
@@ -39,9 +50,23 @@ export class ApproveModal extends Component {
             // Format token amount with 18 decimals
             const parsedAmount = this.blockchainService.parseExec(this.amount);
             
+            // Get router address
+            const routerAddress = this.blockchainService.swapRouter?.address || this.blockchainService.swapRouter;
+            
             // Call the standard setApproval method
-            console.log(`Approving ${this.amount} EXEC tokens from ${this.userAddress}`);
-            await this.blockchainService.setApproval(this.blockchainService.swapRouter.address, parsedAmount);
+            console.log(`Approving ${this.amount} EXEC tokens from ${this.userAddress} to ${routerAddress}`);
+            
+            statusMessage.textContent = 'Transaction submitted, waiting for confirmation...';
+            
+            // Send the approval transaction
+            await this.blockchainService.setApproval(routerAddress, parsedAmount);
+            
+            // Update status message
+            statusMessage.textContent = 'Approval successful!';
+            statusMessage.className = 'status-message success';
+            
+            // Wait briefly to show success message
+            await new Promise(resolve => setTimeout(resolve, 1500));
             
             // Emit success event
             eventBus.emit('approve:complete');
@@ -57,6 +82,18 @@ export class ApproveModal extends Component {
                 const parts = errorMessage.split(': ');
                 errorMessage = parts[parts.length - 1];
             }
+            
+            // Update status message in the modal
+            const statusMessage = this.element.querySelector('.status-message') || 
+                document.createElement('div');
+            
+            if (!statusMessage.classList.contains('status-message')) {
+                statusMessage.className = 'status-message';
+                this.element.querySelector('.approve-modal-content').appendChild(statusMessage);
+            }
+            
+            statusMessage.textContent = `Error: ${errorMessage}`;
+            statusMessage.className = 'status-message error';
             
             this.messagePopup.error(
                 `Approval Failed: ${errorMessage}`,
@@ -95,7 +132,8 @@ export class ApproveModal extends Component {
     }
 
     render() {
-        const { router } = this.store.selectContracts();
+        // Get router address directly from the blockchain service instead of the store
+        const routerAddress = this.blockchainService.swapRouter?.address || this.blockchainService.swapRouter;
         const formattedAmount = parseInt(this.amount).toLocaleString();
 
         return `
@@ -113,7 +151,7 @@ export class ApproveModal extends Component {
                             </div>
                             <div class="approve-info">
                                 <span class="label">Router Address:</span>
-                                <span class="value">${router}</span>
+                                <span class="value">${routerAddress}</span>
                             </div>
                         </div>
 
@@ -213,6 +251,29 @@ export class ApproveModal extends Component {
 
             .approve-button:hover:not(:disabled) {
                 background-color: #0056b3;
+            }
+            
+            .status-message {
+                margin-top: 12px;
+                padding: 10px;
+                border-radius: 4px;
+                text-align: center;
+                font-size: 14px;
+            }
+            
+            .status-message.pending {
+                background-color: #2c3e50;
+                color: #f1c40f;
+            }
+            
+            .status-message.success {
+                background-color: #27ae60;
+                color: white;
+            }
+            
+            .status-message.error {
+                background-color: #c0392b;
+                color: white;
             }
         `;
     }

@@ -572,7 +572,12 @@ export default class SwapInterface extends Component {
                 } else {
                     // Check router allowance before selling
                     console.log(`Checking approval for ${address} to spend ${execAmount} tokens`);
-                    const routerAllowance = await this.blockchainService.getApproval(address, this.blockchainService.swapRouter.address);
+                    
+                    // Get the router address (could be a string or an object with address)
+                    const routerAddress = this.blockchainService.swapRouter?.address || this.blockchainService.swapRouter;
+                    console.log(`Router address for approval check: ${routerAddress}`);
+                    
+                    const routerAllowance = await this.blockchainService.getApproval(address, routerAddress);
                     console.log(`Current allowance: ${routerAllowance}, Required: ${execAmount}`);
                     
                     if (BigInt(routerAllowance) < BigInt(execAmount)) {
