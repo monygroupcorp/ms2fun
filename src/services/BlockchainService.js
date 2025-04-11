@@ -30,6 +30,10 @@ class BlockchainService {
         // Add merkleHandler initialization
         this.merkleHandler = new MerkleHandler();
         this.isInternalNetworkChange = false;
+        
+        // Add transaction tracking
+        this.transactionCounter = 0;
+        this.activeTransactions = new Map();
     }
 
     // Initialize the service with contract details
@@ -1027,8 +1031,22 @@ class BlockchainService {
 
     async swapExactEthForTokenSupportingFeeOnTransfer(address, params, ethValue) {
         try {
-            // Emit pending event
-            eventBus.emit('transaction:pending', { type: 'swap' });
+            // Create a unique transaction ID for tracking
+            const txId = `tx_${++this.transactionCounter}_${Date.now()}`;
+            
+            // Emit pending event with ID
+            const pendingEvent = { 
+                type: 'swap', 
+                id: txId,
+                pending: true
+            };
+            
+            // Store active transaction
+            this.activeTransactions.set(txId, pendingEvent);
+            
+            // Emit event
+            console.log(`[BlockchainService] Emitting transaction:pending for ${txId}`);
+            eventBus.emit('transaction:pending', pendingEvent);
 
             const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
             const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
@@ -1047,7 +1065,8 @@ class BlockchainService {
             console.log('Buy transaction parameters:', {
                 amountOutMin: amountOutMin.toString(),
                 ethValue: ethValue.toString(),
-                path
+                path,
+                txId
             });
 
             const receipt = await this.executeContractCall(
@@ -1061,27 +1080,57 @@ class BlockchainService {
                 { useContract: 'router', requiresSigner: true, txOptions: { value: ethValue } }
             );
 
-            // Emit success event
-            eventBus.emit('transaction:success', {
+            // Emit success event with same ID
+            const successEvent = {
                 type: 'swap',
+                id: txId,
                 receipt,
                 amount: params.amount
-            });
+            };
+            
+            // Update transaction status
+            this.activeTransactions.set(txId, successEvent);
+            
+            console.log(`[BlockchainService] Emitting transaction:success for ${txId}`);
+            eventBus.emit('transaction:success', successEvent);
+            
+            // Remove from active transactions after a delay
+            setTimeout(() => {
+                this.activeTransactions.delete(txId);
+            }, 1000);
 
             return receipt;
         } catch (error) {
-            eventBus.emit('transaction:error', {
+            const errorEvent = {
                 type: 'swap',
+                id: `error_${++this.transactionCounter}_${Date.now()}`,
                 error: this.wrapError(error, 'Failed to swap ETH for tokens')
-            });
+            };
+            
+            console.log(`[BlockchainService] Emitting transaction:error for error transaction`);
+            eventBus.emit('transaction:error', errorEvent);
             throw error;
         }
     }
 
     async swapExactTokenForEthSupportingFeeOnTransfer(address, params) {
         try {
-            // Emit pending event
-            eventBus.emit('transaction:pending', { type: 'swap' });
+            // Create a unique transaction ID for tracking
+            const txId = `tx_${++this.transactionCounter}_${Date.now()}`;
+            
+            // Emit pending event with ID
+            const pendingEvent = { 
+                type: 'swap', 
+                id: txId,
+                pending: true
+            };
+            
+            // Store active transaction
+            this.activeTransactions.set(txId, pendingEvent);
+            
+            // Emit event
+            console.log(`[BlockchainService] Emitting transaction:pending for ${txId}`);
+            eventBus.emit('transaction:pending', pendingEvent);
 
             const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
             const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
@@ -1099,7 +1148,8 @@ class BlockchainService {
             console.log('Sell transaction parameters:', {
                 amountIn: params.amount.toString(),
                 amountOutMin: amountOutMin.toString(),
-                path
+                path,
+                txId
             });
 
             const receipt = await this.executeContractCall(
@@ -1114,19 +1164,35 @@ class BlockchainService {
                 { useContract: 'router', requiresSigner: true }
             );
 
-            // Emit success event
-            eventBus.emit('transaction:success', {
+            // Emit success event with same ID
+            const successEvent = {
                 type: 'swap',
+                id: txId,
                 receipt,
                 amount: params.amount
-            });
+            };
+            
+            // Update transaction status
+            this.activeTransactions.set(txId, successEvent);
+            
+            console.log(`[BlockchainService] Emitting transaction:success for ${txId}`);
+            eventBus.emit('transaction:success', successEvent);
+            
+            // Remove from active transactions after a delay
+            setTimeout(() => {
+                this.activeTransactions.delete(txId);
+            }, 1000);
 
             return receipt;
         } catch (error) {
-            eventBus.emit('transaction:error', {
+            const errorEvent = {
                 type: 'swap',
+                id: `error_${++this.transactionCounter}_${Date.now()}`,
                 error: this.wrapError(error, 'Failed to swap tokens for ETH')
-            });
+            };
+            
+            console.log(`[BlockchainService] Emitting transaction:error for error transaction`);
+            eventBus.emit('transaction:error', errorEvent);
             throw error;
         }
     }

@@ -238,8 +238,34 @@ export class TradingInterface extends Component {
     }
 
     cleanup() {
+        console.log('Cleaning up TradingInterface event listeners');
+        
+        // Unsubscribe from all event listeners
         if (this.unsubscribeHandlers) {
-            this.unsubscribeHandlers.forEach(unsubscribe => unsubscribe());
+            this.unsubscribeHandlers.forEach(unsubscribe => {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            });
+            this.unsubscribeHandlers = [];
+        }
+        
+        // Explicitly remove event bus listeners
+        eventBus.off('transaction:confirmed', this.handleTransactionEvents);
+        eventBus.off('transaction:pending', this.handleTransactionEvents);
+        eventBus.off('transaction:success', this.handleTransactionEvents);
+        eventBus.off('transaction:error', this.handleTransactionEvents);
+        eventBus.off('account:changed', this.handleAccountChange);
+        eventBus.off('layout:change', this.handleLayoutChange);
+        eventBus.off('price:update', this.handlePriceUpdate);
+        eventBus.off('portfolio:open', this.handlePortfolioOpen);
+        eventBus.off('portfolio:close', this.handlePortfolioClose);
+        
+        // Remove DOM event listeners
+        if (this.element) {
+            this.element.removeEventListener('click', this.handleClick);
+            this.element.removeEventListener('input', this.handleInput);
+            this.element.removeEventListener('change', this.handleChange);
         }
     }
 
@@ -305,66 +331,60 @@ export class TradingInterface extends Component {
     }
 
     unmount() {
-        if (!this.mounted) return;
-
-        // Unmount child components
-        if (this.swapInterface) {
-            this.swapInterface.unmount();
+        try {
+            console.log('Unmounting TradingInterface');
+            
+            // Clean up event listeners
+            this.cleanup();
+            
+            // Unmount child components
+            if (this.bondingCurve) {
+                this.bondingCurve.unmount();
+            }
+            
+            if (this.swapInterface) {
+                console.log('Unmounting SwapInterface from TradingInterface');
+                this.swapInterface.unmount();
+                this.swapInterface = null;
+            }
+            
+            // Unbind any DOM events
+            if (this.element) {
+                const allButtons = this.element.querySelectorAll('button');
+                allButtons.forEach(button => {
+                    button.removeEventListener('click', this.handleButtonClick);
+                });
+                
+                const tabButtons = this.element.querySelectorAll('.trading-tab');
+                tabButtons.forEach(tab => {
+                    tab.removeEventListener('click', this.handleTabClick);
+                });
+                
+                const swapButton = this.element.querySelector('.swap-button');
+                if (swapButton) {
+                    swapButton.removeEventListener('click', this.handleSwapButton);
+                }
+                
+                const portfolioButton = this.element.querySelector('.portfolio-button');
+                if (portfolioButton) {
+                    portfolioButton.removeEventListener('click', this.handlePortfolioClick);
+                }
+            }
+            
+            // Clear the element HTML
+            if (this.element) {
+                this.element.innerHTML = '';
+                // Remove from DOM 
+                if (this.element.parentNode) {
+                    this.element.parentNode.removeChild(this.element);
+                }
+                this.element = null;
+            }
+            
+            console.log('TradingInterface unmounted successfully');
+        } catch (error) {
+            console.error('Error unmounting TradingInterface:', error);
         }
-        if (this.bondingCurve) {
-            this.bondingCurve.unmount();
-        }
-
-        // Remove tab click listeners
-        const tabButtons = this.element.querySelectorAll('.tab-button');
-        tabButtons.forEach(button => {
-            button.removeEventListener('click', this.handleTabClick);
-        });
-
-        // Cleanup event listeners
-        eventBus.off(LAYOUT_EVENTS.VIEW_CHANGE, this.handleViewChange);
-        eventBus.off(LAYOUT_EVENTS.RESIZE, this.handleLayoutChange);
-
-        // Clear all subscriptions and timers
-        if (this.unsubscribeStore) {
-            this.unsubscribeStore();
-            this.unsubscribeStore = null;
-        }
-
-        if (this.eventBusSubscriptions) {
-            this.eventBusSubscriptions.forEach(unsubscribe => unsubscribe());
-            this.eventBusSubscriptions = null;
-        }
-
-        // Clean up DOM event listeners
-        if (this.domCleanupFunctions) {
-            this.domCleanupFunctions.forEach(cleanup => cleanup());
-            this.domCleanupFunctions = null;
-        }
-
-        // Remove click handler
-        if (this.documentClickHandler) {
-            this.element.removeEventListener('click', this.documentClickHandler);
-            this.documentClickHandler = null;
-        }
-
-        // Clear intervals and timeouts
-        if (this.priceUpdateInterval) {
-            clearInterval(this.priceUpdateInterval);
-            this.priceUpdateInterval = null;
-        }
-
-        if (this.messageDebounce) {
-            clearTimeout(this.messageDebounce);
-            this.messageDebounce = null;
-        }
-
-        // Remove portfolio event listeners
-        eventBus.off('portfolio:open', this.handlePortfolioOpen);
-        eventBus.off('portfolio:close', this.handlePortfolioClose);
-
-        // Call parent unmount last
-        super.unmount();
     }
 
     handleStoreUpdate(state) {

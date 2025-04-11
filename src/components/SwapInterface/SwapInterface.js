@@ -49,6 +49,13 @@ export default class SwapInterface extends Component {
         };
 
         this.approveModal = null;
+        
+        // Track event listeners
+        this.eventListeners = [];
+        
+        // Add instance ID to track instances and prevent duplicate events
+        this.instanceId = Math.random().toString(36).substring(2, 9);
+        console.log(`🔵 SwapInterface instance created: ${this.instanceId}`);
     }
 
     // Add new method to handle balance updates
@@ -155,7 +162,11 @@ export default class SwapInterface extends Component {
 
     onMount() {
         this.bindEvents();
-        eventBus.on('contractData:updated', this.handleContractDataUpdate.bind(this));
+        
+        // Store the unsubscribe function
+        this.eventListeners.push(
+            eventBus.on('contractData:updated', this.handleContractDataUpdate.bind(this))
+        );
 
         // Check if we already have data
         const contractData = this.store.selectContractData();
@@ -201,42 +212,69 @@ export default class SwapInterface extends Component {
             console.log('Template HTML:', this.element.innerHTML);
         }
 
-        // Subscribe to transaction events
-        eventBus.on('transaction:pending', this.handleTransactionEvents);
-        eventBus.on('transaction:confirmed', this.handleTransactionEvents);
-        eventBus.on('transaction:success', this.handleTransactionEvents);
-        eventBus.on('transaction:error', this.handleTransactionEvents);
-        eventBus.on('balances:updated', this.handleBalanceUpdate);
-        
-        // Subscribe to transaction options updates
-        eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate);
+        // Subscribe to transaction events - store handlers to properly unsubscribe later
+        console.log(`[${this.instanceId}] Subscribing to transaction events`);
+        this.eventListeners.push(
+            eventBus.on('transaction:pending', this.handleTransactionEvents),
+            eventBus.on('transaction:confirmed', this.handleTransactionEvents),
+            eventBus.on('transaction:success', this.handleTransactionEvents),
+            eventBus.on('transaction:error', this.handleTransactionEvents),
+            eventBus.on('balances:updated', this.handleBalanceUpdate),
+            eventBus.on('transactionOptions:update', this.handleTransactionOptionsUpdate)
+        );
     }
 
     onUnmount() {
+        console.log(`[${this.instanceId}] Unmounting SwapInterface`);
+        
         if (this.transactionOptions) {
             this.transactionOptions.unmount();
         }
-        this.priceDisplay.unmount();
-
-        // Unsubscribe from transaction events
-        eventBus.off('transaction:pending', this.handleTransactionEvents);
-        eventBus.off('transaction:confirmed', this.handleTransactionEvents);
-        eventBus.off('transaction:success', this.handleTransactionEvents);
-        eventBus.off('transaction:error', this.handleTransactionEvents);
-        eventBus.off('balances:updated', this.handleBalanceUpdate);
         
-        // Unsubscribe from transaction options updates
-        eventBus.off('transactionOptions:update', this.handleTransactionOptionsUpdate);
+        if (this.priceDisplay) {
+            this.priceDisplay.unmount();
+        }
+        
+        // Clear any pending timers
+        if (this.calculateTimer) {
+            clearTimeout(this.calculateTimer);
+            this.calculateTimer = null;
+        }
+
+        // Unsubscribe from all event listeners by calling each unsubscribe function
+        this.eventListeners.forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        });
+        
+        // Clear the event listeners array
+        this.eventListeners = [];
+        
+        // Also properly unbind DOM events
+        this.unbindEvents();
     }
 
     handleTransactionEvents(event) {
-        console.log('handleTransactionEvents called with:', {
-            event,
-            eventType: event?.type,
+        console.log(`[${this.instanceId}] handleTransactionEvents called with:`, {
+            type: event?.type,
             hasError: !!event?.error,
             hasHash: !!event?.hash,
-            stack: new Error().stack
+            eventId: event?.id || 'none',
+            handled: event?.handled || false
         });
+        
+        // Skip if this event has already been handled by this instance
+        if (event?.handledBy?.includes(this.instanceId)) {
+            console.log(`[${this.instanceId}] Event already handled by this instance, skipping`);
+            return;
+        }
+        
+        // Mark this event as handled by this instance
+        if (!event.handledBy) {
+            event.handledBy = [];
+        }
+        event.handledBy.push(this.instanceId);
         
         const direction = this.state.direction === 'buy' ? 'Buy' : 'Sell';
 
@@ -247,8 +285,8 @@ export default class SwapInterface extends Component {
         }
 
         // For transaction events - only show if it's not an error
-        if ((event.type === 'buy' || event.type === 'sell') && !event.error) {
-            console.log('Showing transaction submitted message for type:', event.type);
+        if ((event.type === 'buy' || event.type === 'sell' || event.type === 'swap') && !event.error) {
+            console.log(`[${this.instanceId}] Showing transaction pending message for type:`, event.type);
             this.messagePopup.info(
                 `${direction} transaction. Simulating...`,
                 'Transaction Pending'
@@ -264,13 +302,13 @@ export default class SwapInterface extends Component {
         }
 
         // For successful transactions
-        if (event.receipt && (event.type == 'buy' || event.type == 'sell')) {
+        if (event.receipt && (event.type === 'buy' || event.type === 'sell' || event.type === 'swap')) {
             const amount = this.state.direction === 'buy' 
                 ? this.state.execAmount + ' EXEC'
                 : this.state.ethAmount + ' ETH';
                 
             this.messagePopup.success(
-                `Successfully ${direction.toLowerCase() == 'buy' ? 'bought' : 'sold'} ${amount}`,
+                `Successfully ${direction.toLowerCase() === 'buy' ? 'bought' : 'sold'} ${amount}`,
                 'Transaction Complete'
             );
 
@@ -296,7 +334,7 @@ export default class SwapInterface extends Component {
 
         // For error transactions
         if (event.error && !event.handled) {
-            console.log('Handling error in handleTransactionEvents:', event.error);
+            console.log(`[${this.instanceId}] Handling error in handleTransactionEvents:`, event.error);
             
             let errorMessage = event.error?.message || 'Transaction failed';
             

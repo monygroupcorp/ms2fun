@@ -742,15 +742,28 @@ class WalletConnector {
     }
 
     /**
-     * Show the trading interface after successful wallet connection
-     * Based on the original web3Handler.showTradingInterface implementation
+     * Display the trading interface
      * @param {string} connectedAddress - The connected wallet address
      * @param {Object} ethersProvider - The ethers provider
-     * @param {Object} signer - The ethers signer
+     * @param {Object} signer - The signer
      */
     async showTradingInterface(connectedAddress, ethersProvider, signer) {
         try {
             console.log('Showing trading interface for address:', connectedAddress);
+            
+            // If trading interface is already initialized but not properly unmounted,
+            // let's clean it up first to avoid duplicate components and events
+            if (window.tradingInterfaceInstance) {
+                console.log('Cleaning up previous trading interface instance');
+                try {
+                    if (typeof window.tradingInterfaceInstance.unmount === 'function') {
+                        window.tradingInterfaceInstance.unmount();
+                    }
+                    delete window.tradingInterfaceInstance;
+                } catch (cleanupError) {
+                    console.warn('Error cleaning up previous trading interface:', cleanupError);
+                }
+            }
             
             // Check if trading interface is already shown
             if (window.tradingInterfaceInitialized) {
@@ -818,6 +831,9 @@ class WalletConnector {
                 }
             );
             console.log('TradingInterface created successfully');
+            
+            // Store instance for proper cleanup later
+            window.tradingInterfaceInstance = tradingInterface;
 
             // Create ChatPanel and StatusPanel
             console.log('Creating ChatPanel and StatusPanel...');
