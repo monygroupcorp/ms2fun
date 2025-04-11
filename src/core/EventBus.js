@@ -91,6 +91,25 @@ class EventBus {
             }
         });
     }
+
+    /**
+     * Subscribe to an event for one-time use
+     * @param {string} eventName 
+     * @param {Function} callback 
+     * @returns {Function} Unsubscribe function
+     */
+    once(eventName, callback) {
+        // Create a wrapper that will call the callback and then unsubscribe
+        const wrappedCallback = (data) => {
+            // Unsubscribe first to prevent issues if the callback triggers the same event
+            this.off(eventName, wrappedCallback);
+            // Call the original callback
+            callback(data);
+        };
+        
+        // Register the wrapped callback
+        return this.on(eventName, wrappedCallback);
+    }
 }
 
 // Create a single instance for the application

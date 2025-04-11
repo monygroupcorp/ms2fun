@@ -253,9 +253,8 @@ export default class SwapInterface extends Component {
         // Make sure to close and clean up any open approval modal
         if (this.approveModal) {
             try {
-                // Remove any event listeners related to the modal
-                eventBus.off('approve:complete');
-                // Close the modal
+                // Close the modal - this will trigger the approveModal:closed event
+                // which will clean up related event listeners
                 this.approveModal.handleClose();
             } catch (e) {
                 console.warn('Error closing approval modal during unmount:', e);
@@ -626,12 +625,13 @@ export default class SwapInterface extends Component {
                             }
                         };
                         
+                        // Use eventBus.once for one-time event handling
                         eventBus.once('approve:complete', approvalCompleteHandler);
                         
                         // Listen for modal closed event to clean up resources
                         eventBus.once('approveModal:closed', () => {
                             console.log('ApproveModal closed event received, cleaning up');
-                            eventBus.off('approve:complete', approvalCompleteHandler);
+                            // The approval listener will automatically clean itself up
                             this.approveModal = null;
                         });
                         

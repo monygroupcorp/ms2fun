@@ -87,7 +87,7 @@ export class SwapTransactionHandler {
             // Listen for modal closed event to clean up resources
             eventBus.once('approveModal:closed', () => {
                 console.log('ApproveModal closed event received, cleaning up');
-                eventBus.off('approve:complete', this.handleApprovalComplete);
+                // The approval listener will automatically clean itself up
                 this.swap.approveModal = null;
             });
             
