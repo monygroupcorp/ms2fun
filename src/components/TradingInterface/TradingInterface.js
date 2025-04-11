@@ -302,29 +302,51 @@ export class TradingInterface extends Component {
             this.bondingCurve = new BondingCurve();
         }
         if (!this.swapInterface) {
-            this.swapInterface = new SwapInterface(this.blockchainService);
+            this.swapInterface = new SwapInterface(this.blockchainService, this.address);
         }
 
+        // Check if BondingCurve needs to be mounted or unmounted
         if (showCurve) {
             const curveContainer = this.element.querySelector('#curve-container');
             if (curveContainer) {
-                this.bondingCurve.mount(curveContainer);
+                // Only mount if not already mounted to the same container
+                if (!this.bondingCurve.element || this.bondingCurve.element.parentElement !== curveContainer) {
+                    console.log('Mounting BondingCurve to', curveContainer);
+                    this.bondingCurve.mount(curveContainer);
+                } else {
+                    console.log('BondingCurve already mounted, skipping mount');
+                }
             } else {
                 console.warn('Curve container not found');
             }
-        } else {
-            this.bondingCurve?.unmount();
+        } else if (this.bondingCurve && this.bondingCurve.element) {
+            // Only unmount if currently mounted
+            console.log('Unmounting BondingCurve');
+            this.bondingCurve.unmount();
         }
 
+        // Check if SwapInterface needs to be mounted or unmounted
         if (showSwap) {
             const swapContainer = this.element.querySelector('#swap-container');
             if (swapContainer) {
-                this.swapInterface.mount(swapContainer);
+                // Only mount if not already mounted to the same container
+                if (!this.swapInterface.element || this.swapInterface.element.parentElement !== swapContainer) {
+                    console.log('Mounting SwapInterface to', swapContainer);
+                    // Ensure address is set before mounting
+                    this.swapInterface.setAddress(this.address);
+                    this.swapInterface.mount(swapContainer);
+                } else {
+                    console.log('SwapInterface already mounted, skipping mount');
+                    // Just update the address if needed
+                    this.swapInterface.setAddress(this.address);
+                }
             } else {
                 console.warn('Swap container not found');
             }
-        } else {
-            this.swapInterface?.unmount();
+        } else if (this.swapInterface && this.swapInterface.element) {
+            // Only unmount if currently mounted
+            console.log('Unmounting SwapInterface');
+            this.swapInterface.unmount();
         }
 
         this.mounted = true;

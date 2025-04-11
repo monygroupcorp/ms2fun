@@ -1,6 +1,22 @@
 import { eventBus } from '../core/EventBus.js';
 import { tradingStore } from '../store/tradingStore.js';
 
+/**
+ * PriceService - Handles fetching and caching price and contract data
+ * 
+ * Event Flow Architecture:
+ * 1. BlockchainService emits 'contract:updated' on network changes, initialization, etc.
+ * 2. PriceService listens for these events and aggregates data into a single update
+ * 3. PriceService updates the store with all contract data
+ * 4. PriceService emits 'contractData:updated' after store updates (batched)
+ * 5. UI components subscribe to store and/or listen for 'contractData:updated'
+ * 
+ * Key Guidelines:
+ * - Components should avoid remounting on every update
+ * - Prefer calling .update() on child components over remounting
+ * - Events should be batched to reduce UI thrashing
+ * - Components should clean up listeners in onUnmount()
+ */
 class PriceService {
     constructor() {
         this._cache = new Map();
@@ -75,110 +91,100 @@ class PriceService {
 
     async updateContractData() {
         const address = tradingStore.selectConnectedAddress();
+        
+        if (this._updateInProgress) {
+            console.log('Contract data update already in progress, skipping');
+            return;
+        }
+        
+        this._updateInProgress = true;
+        
         try {
-            // Fetch all blockchain data in parallel
-            const [
-                currentPrice,
-                totalBondingSupply,
-                totalMessages,
-                ethBalance,
-                tokenBalance,
-                nftBalance,
-                totalNFTs,
-                freeSupply,
-                freeMint,
-                contractEthBalance,
-                currentTier,
-                liquidityPool,
-            ] = await Promise.all([
-                this._blockchainService.getCurrentPrice(),
-                this._blockchainService.getTotalBondingSupply(),
-                this._blockchainService.getTotalMessages(),
-                this._blockchainService.getEthBalance(address),
-                this._blockchainService.getTokenBalance(address),
-                this._blockchainService.getNFTBalance(address),
-                this._blockchainService.getNFTSupply(),
-                this._blockchainService.getFreeSupply(),
-                this._blockchainService.getFreeMint(address),
-                this._blockchainService.getContractEthBalance(),
-                this._blockchainService.getCurrentTier(),
+            // Phase 1: Get minimal data to determine phase
+            const [liquidityPool, currentTier] = await Promise.all([
                 this._blockchainService.getLiquidityPool(),
+                this._blockchainService.getCurrentTier()
             ]);
 
-            // Fetch recent messages if there are any
-            let recentMessages = [];
-            if (totalMessages > 0) {
-                const startIndex = Math.max(0, totalMessages - 5);
-                recentMessages = await this._blockchainService.getMessagesBatch(startIndex, totalMessages - 1);
-            }
-
-            // Update store with new contract data
-            tradingStore.updateContractData({
-                totalBondingSupply,
-                currentPrice,
-                totalMessages,
-                recentMessages,
-                totalNFTs,
-                freeSupply,
-                freeMint,
-                contractEthBalance,
-                currentTier,
-                liquidityPool,
-            });
-
-            // Update price in the store
-            tradingStore.updatePrice(currentPrice);
-
-            // Check if liquidity pool is valid and fetch pool data
-            if (liquidityPool !== '0x0000000000000000000000000000000000000000') {
+            // Immediately update store with phase-determining data
+            tradingStore.updateContractData({ liquidityPool, currentTier });
+            
+            // Determine phase early
+            const isPhase2 = liquidityPool !== '0x0000000000000000000000000000000000000000';
+            
+            // Phase 2: Load Uniswap pool data first
+            if (isPhase2) {
                 const [reserve0, reserve1] = await this._blockchainService.executeContractCall(
                     'getReserves',
                     [],
                     { useContract: 'v2pool' }
                 );
 
-                // Store pool data in the trading store
-                tradingStore.updatePoolData({
-                    liquidityPool,
-                    reserve0,
-                    reserve1,
-                });
-
+                tradingStore.updatePoolData({ liquidityPool, reserve0, reserve1 });
+                
+                // Get price from pool directly
                 const isToken0 = await this._blockchainService.isToken0(liquidityPool, address);
-                const price = isToken0 ? 1 / await this._blockchainService.getToken0PriceInToken1(liquidityPool) : await this._blockchainService.getToken0PriceInToken1(liquidityPool);
-                console.log('Price:', price);
-                // Update price in the store
+                const price = isToken0 ? 
+                    1 / await this._blockchainService.getToken0PriceInToken1(liquidityPool) : 
+                    await this._blockchainService.getToken0PriceInToken1(liquidityPool);
+                
                 tradingStore.updatePrice(price * 1000000);
-
-                console.log('Pool data updated:', { liquidityPool, reserve0, reserve1 });
-            } else {
-                console.warn('Liquidity pool address is zero, skipping pool data fetch.');
+            }
+            // Phase 1: Load bonding curve data
+            else {
+                const [currentPrice, totalBondingSupply] = await Promise.all([
+                    this._blockchainService.getCurrentPrice(),
+                    this._blockchainService.getTotalBondingSupply()
+                ]);
+                
+                tradingStore.updatePrice(currentPrice);
+                tradingStore.updateContractData({ totalBondingSupply });
             }
 
-            // Update balances in the store
+            // Load common data needed for both phases
+            const [ethBalance, tokenBalance, nftBalance] = await Promise.all([
+                this._blockchainService.getEthBalance(address),
+                this._blockchainService.getTokenBalance(address),
+                this._blockchainService.getNFTBalance(address)
+            ]);
+
             tradingStore.updateBalances({
                 eth: ethBalance,
                 exec: tokenBalance,
                 nfts: nftBalance,
             });
 
-            eventBus.emit('price:updated', { price: currentPrice });
-            eventBus.emit('balances:updated', { eth: ethBalance, exec: tokenBalance, nfts: nftBalance });
-            eventBus.emit('contractData:updated', {
-                totalBondingSupply,
-                totalMessages,
-                recentMessages,
-                totalNFTs,
-                freeSupply,
-                freeMint,
-                contractEthBalance,
-                currentTier,
-                liquidityPool,
-            });
+            // Load secondary phase-specific data in background
+            if (isPhase2) {
+                // Phase 2 secondary data
+                this._loadSecondaryData([
+                    this._blockchainService.getNFTSupply(),
+                    this._blockchainService.getContractEthBalance()
+                ]);
+            } else {
+                // Phase 1 secondary data
+                this._loadSecondaryData([
+                    this._blockchainService.getTotalMessages(),
+                    this._blockchainService.getFreeSupply(),
+                    this._blockchainService.getFreeMint(address)
+                ]);
+            }
 
         } catch (error) {
             console.error('Error updating contract data:', error);
-            throw error;
+        } finally {
+            this._updateInProgress = false;
+        }
+    }
+
+    // Helper to load non-critical path data after initial render
+    async _loadSecondaryData(promises) {
+        try {
+            const results = await Promise.all(promises);
+            // Update store with secondary data
+            tradingStore.updateContractData(results);
+        } catch (error) {
+            console.error('Error loading secondary data:', error);
         }
     }
 
