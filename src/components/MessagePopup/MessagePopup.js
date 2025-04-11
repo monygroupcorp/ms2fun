@@ -124,10 +124,33 @@ class MessagePopup {
         const messageElement = document.createElement('div');
         messageElement.className = `message-popup ${type}`;
         
+        // Handle different message types
+        let messageContent;
+        if (typeof message === 'string') {
+            // If it's a string, use it directly
+            messageContent = message;
+        } else if (message instanceof Error) {
+            // If it's an Error object
+            messageContent = message.message || 'An error occurred';
+        } else if (message instanceof HTMLElement) {
+            // If it's an HTML element
+            messageContent = message.outerHTML;
+        } else if (typeof message === 'object') {
+            // For objects, convert to string representation
+            try {
+                messageContent = JSON.stringify(message, null, 2);
+            } catch (e) {
+                messageContent = 'Error displaying message object';
+            }
+        } else {
+            // Fallback
+            messageContent = String(message);
+        }
+        
         messageElement.innerHTML = `
             <div class="message-content">
                 ${title ? `<div class="message-title">${title}</div>` : ''}
-                <div class="message-text">${message}</div>
+                <div class="message-text">${messageContent}</div>
             </div>
             <button class="close-button">×</button>
         `;

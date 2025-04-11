@@ -66,6 +66,9 @@ class BlockchainService {
             this.connectionState = 'connected';
             eventBus.emit('blockchain:initialized');
             
+            // Emit contract updated event after initialization
+            eventBus.emit('contract:updated');
+            
             return true;
         } catch (error) {
             this.connectionState = 'error';
@@ -472,6 +475,9 @@ class BlockchainService {
             }
             await this.initializeProvider();
             eventBus.emit('network:changed');
+            
+            // Also emit contract updated event for UI components that need to update
+            eventBus.emit('contract:updated');
         } catch (error) {
             eventBus.emit('blockchain:error', error);
         }
@@ -483,6 +489,9 @@ class BlockchainService {
                 const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
                 this.signer = web3Provider.getSigner();
                 eventBus.emit('account:changed');
+                
+                // Also emit contract updated event
+                eventBus.emit('contract:updated');
             }
         } catch (error) {
             eventBus.emit('blockchain:error', error);
@@ -1031,10 +1040,20 @@ class BlockchainService {
             // Set deadline to 20 minutes from now
             const deadline = Math.floor(Date.now() / 1000) + 1200;
 
+            // For 4% tax tokens, we need a much lower amountOutMin
+            // Calculate minimum expected output with 6% buffer (4% tax + 2% slippage)
+            const amountOutMin = BigInt(params.amount) * BigInt(940) / BigInt(1000);
+            
+            console.log('Buy transaction parameters:', {
+                amountOutMin: amountOutMin.toString(),
+                ethValue: ethValue.toString(),
+                path
+            });
+
             const receipt = await this.executeContractCall(
                 'swapExactETHForTokensSupportingFeeOnTransferTokens',
                 [
-                    params.amount,  // amountOutMin
+                    amountOutMin,  // amountOutMin with 6% buffer for tax + slippage
                     path,
                     to,
                     deadline
@@ -1074,14 +1093,20 @@ class BlockchainService {
             // Set deadline to 20 minutes from now
             const deadline = Math.floor(Date.now() / 1000) + 1200;
 
-            // Calculate minimum amount out (0.5% slippage)
-            const amountOutMin = BigInt(params.amount) * BigInt(995) / BigInt(1000);
+            // Calculate minimum amount out accounting for 4% tax + 2% slippage
+            const amountOutMin = BigInt(params.amount) * BigInt(940) / BigInt(1000);
+            
+            console.log('Sell transaction parameters:', {
+                amountIn: params.amount.toString(),
+                amountOutMin: amountOutMin.toString(),
+                path
+            });
 
             const receipt = await this.executeContractCall(
                 'swapExactTokensForETHSupportingFeeOnTransferTokens',
                 [
                     params.amount,  // amountIn
-                    amountOutMin,   // amountOutMin
+                    amountOutMin,   // amountOutMin with tax + slippage buffer
                     path,
                     to,
                     deadline
@@ -1103,6 +1128,26 @@ class BlockchainService {
                 error: this.wrapError(error, 'Failed to swap tokens for ETH')
             });
             throw error;
+        }
+    }
+
+    /**
+     * Get the current block information
+     * @returns {Promise<Object>} Block information
+     */
+    async getCurrentBlockInfo() {
+        try {
+            const blockNumber = await this.provider.getBlockNumber();
+            const block = await this.provider.getBlock(blockNumber);
+            
+            return {
+                number: blockNumber,
+                timestamp: block.timestamp,
+                hash: block.hash,
+                date: new Date(block.timestamp * 1000) // Convert seconds to milliseconds
+            };
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get current block info');
         }
     }
 }

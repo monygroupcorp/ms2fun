@@ -8,7 +8,7 @@
 <link rel="dns-prefetch" href="//api.yourservice.com"> -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CULT EXECS Terminal</title>
+    <title>CULTEXEC</title>
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -34,11 +34,20 @@
     <meta property="twitter:description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
     <meta property="twitter:image" content="//ms2.fun/og-image.png">
 
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="src/components/SwapInterface/SwapInterface.css">
+    <link rel="stylesheet" href="src/components/WalletConnector/WalletConnector.css">
+    <link rel="stylesheet" href="src/components/MessagePopup/MessagePopup.css">
+    <link rel="stylesheet" href="src/core/global.css">
+    
+    <!-- External Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/merkletreejs@latest/merkletree.js"></script>
     <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js" integrity="sha512-KmJieQAYZM+jvcGHQzpnSjqjoWVwMAbziPWQnWfvWkQ91R7XlMUVJZgGuw6gUhJnwOo92Z3sr3vE7dREsSEjRQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- Application Scripts -->
     <script type="module" src="app.js"></script>
+    <script type="module" src="src/index.js"></script>
 </head>
 <body>
     <div class="top-section">
@@ -255,43 +264,8 @@
             </div>
         </footer>
     </div>
-    <script type="module" src="./src/index.js"></script>
-    <!-- Add type="module" to use ES modules -->
-    <!-- <script type="module">
-        import Web3Handler from './web3Handler.js';
-
-        // Initialize Web3Handler when DOM is loaded
-        document.addEventListener('DOMContentLoaded', async () => {
-            const web3Handler = new Web3Handler();
-            const contractInterface = document.getElementById('contractInterface');
-            const contractStatus = document.getElementById('contractStatus');
-            const selectWalletBtn = document.getElementById('selectWallet');
-
-            // Initialize web3 handler
-            const hasContract = await web3Handler.init();
-            
-            if (hasContract) {
-                contractInterface.style.display = 'block';
-                contractStatus.textContent = 'Contract detected. Please connect your wallet.';
-                
-                // Add connect wallet button listener
-                selectWalletBtn.addEventListener('click', async () => {
-                    try {
-                        const account = await web3Handler.connectWallet();
-                        contractStatus.textContent = `Connected: ${account}`;
-                        selectWalletBtn.style.display = 'none';
-                    } catch (error) {
-                        contractStatus.textContent = `Error: ${error.message}`;
-                    }
-                });
-            } else {
-                contractInterface.style.display = 'none';
-            }
-        });
-    </script> -->
-
-
-    <!-- Add this where you want the transaction options to appear -->
+    
+    <!-- Transaction interface containers -->
     <div id="transaction-options-container"></div>
     <div id="walletComponentContainer"></div>
 </body>

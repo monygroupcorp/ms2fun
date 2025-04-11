@@ -111,15 +111,15 @@ export default class SwapInterface extends Component {
                 if (inputType === 'eth') {
                     // Calculate EXEC amount based on ETH input
                     const ethAmount = parseFloat(amount);
-                    // Apply a 0.5% reduction to account for fees and slippage
-                    const execAmount = (ethAmount / price * 1000000) * 0.995;
+                    // Apply a 5% reduction to account for 4% tax + slippage
+                    const execAmount = (ethAmount / price * 1000000) * 0.95;
                     console.log('calculateSwapAmount execAmount', execAmount);
                     return execAmount.toFixed(0); // Use integer amounts for EXEC
                 } else {
                     // Calculate ETH amount based on EXEC input
                     const execAmount = parseFloat(amount);
-                    // Add a 0.5% buffer for fees and slippage
-                    const ethAmount = (execAmount / 1000000) * price * 1.005;
+                    // Add a 5.5% buffer for 4% tax + slippage + price impact
+                    const ethAmount = (execAmount / 1000000) * price * 1.055;
                     console.log('calculateSwapAmount ethAmount', ethAmount);
                     return ethAmount.toFixed(6);
                 }
@@ -457,6 +457,50 @@ export default class SwapInterface extends Component {
 
     async handleSwap() {
         try {
+            // Validate inputs
+            if (this.state.calculatingAmount) {
+                this.messagePopup.info('Please wait for the calculation to complete', 'Loading');
+                return;
+            }
+            
+            const { ethAmount, execAmount, direction } = this.state;
+            
+            if (!ethAmount || !execAmount || parseFloat(ethAmount) <= 0 || parseFloat(execAmount) <= 0) {
+                this.messagePopup.info('Please enter valid amounts', 'Invalid Input');
+                return;
+            }
+            
+            // Check if user has enough balance
+            const balances = this.store.selectBalances();
+            
+            if (direction === 'buy') {
+                const ethBalance = parseFloat(balances.eth);
+                const ethNeeded = parseFloat(ethAmount);
+                
+                if (ethNeeded > ethBalance) {
+                    this.messagePopup.info('Not enough ETH balance', 'Insufficient Balance');
+                    return;
+                }
+            } else {
+                // Format amountIn with 18 decimals for BigNumber
+                const execBalance = this.blockchainService.formatExec(balances.exec);
+                const execNeeded = parseFloat(execAmount.replace(/,/g, ''));
+                
+                if (execNeeded > execBalance) {
+                    this.messagePopup.info('Not enough EXEC balance', 'Insufficient Balance');
+                    return;
+                }
+            }
+
+            // Check if a free mint token is being sold
+            if (direction === 'sell' && parseInt(execAmount.replace(/,/g, '')) <= 1000000 && this.state.freeMint) {
+                this.messagePopup.info(
+                    'Free minted tokens cannot be sold directly. Please trade more tokens or use a different address.', 
+                    'Free Mint Restriction'
+                );
+                return;
+            }
+            
             const isLiquidityDeployed = this.isLiquidityDeployed();
             console.log('isLiquidityDeployed', isLiquidityDeployed);
             const cleanExecAmount = this.state.execAmount.replace(/,/g, '');
@@ -467,8 +511,9 @@ export default class SwapInterface extends Component {
                 const address = await this.address;
 
                 if (this.state.direction === 'buy') {
+                    // For buying, don't specify an expected output amount - this will be calculated in the service
                     await this.blockchainService.swapExactEthForTokenSupportingFeeOnTransfer(address, {
-                        amount: execAmount,
+                        amount: execAmount, // Pass the full amount - it will be adjusted in the service
                     }, ethValue);
                 } else {
                     // Check router allowance before selling

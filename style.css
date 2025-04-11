@@ -360,13 +360,21 @@ button:hover {
 
 /* GIF Display */
 .gif-container {
-    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    margin: 20px auto;
+    max-width: 800px;
 }
 
 .terminal-gif {
-    max-width: 90%;
+    width: 100%;
+    max-width: 100%;
     height: auto;
-    max-height: 280px;
+    border-radius: 5px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
 .mobile-gif {
@@ -516,30 +524,32 @@ button:hover {
 
 /* Wallet Modal Styles */
 .wallet-modal {
-    display: none;
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.3s ease-in-out;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+}
+
+.wallet-modal.active {
+    display: flex;
 }
 
 .wallet-modal-content {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--bg-darker);
-    padding: 30px;
+    background-color: #fff;
     border-radius: 8px;
-    border: 1px solid var(--text-yellow);
-    min-width: 320px;
-    max-width: 400px;
-    width: 90%; /* Better mobile handling */
+    padding: 20px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    z-index: 10001;
 }
 
 .wallet-modal-content h3 {
@@ -550,9 +560,10 @@ button:hover {
 }
 
 .wallet-options {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-top: 20px;
 }
 
 .wallet-option {
@@ -586,39 +597,25 @@ button:hover {
     font-family: 'Courier New', monospace;
 }
 
-.wallet-modal.active {
-    display: block;
-    opacity: 1;
-}
-
 /* Selected Wallet Display */
 .selected-wallet-display {
-    display: none; /* Hidden by default */
+    display: none;
     align-items: center;
     justify-content: center;
-    gap: 12px;
-    padding: 15px;
-    background: var(--bg-dark);
-    border: 1px solid var(--text-yellow);
-    border-radius: 8px;
-    margin: 20px auto;
-    max-width: 300px;
-}
-
-.selected-wallet-display.active {
-    display: flex;
+    margin: 10px 0;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
 }
 
 .selected-wallet-display img {
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    margin-right: 8px;
 }
 
-.selected-wallet-display .wallet-name {
-    color: var(--text-yellow);
-    font-size: 14px;
-    text-transform: uppercase;
+.wallet-name {
+    font-weight: 500;
 }
 
 .continue-prompt {
@@ -941,7 +938,6 @@ button:hover {
     border: 1px solid #333;
     padding: 20px;
     border-radius: 4px;
-    margin-top: 20px;
 }
 
 .chat-header {
@@ -1121,4 +1117,14 @@ button:hover {
 
 .terminal-gif {
     transition: opacity 0.3s ease;
+}
+
+/* Show certain elements only when contractInterface is active */
+.contract-interface-active .gif-container {
+    display: none;
+}
+
+/* Make contract interface invisible initially */
+#contractInterface {
+    display: none;
 }
