@@ -611,13 +611,17 @@ export default class SwapInterface extends Component {
                         
                         // Listen for approval completion
                         const approvalCompleteHandler = async () => {
+                            console.log('[DEBUG-SwapInterface] approvalCompleteHandler triggered');
                             try {
-                                console.log('Approval complete, proceeding with token swap');
+                                console.log('[DEBUG-SwapInterface] Approval complete, proceeding with token swap');
+                                console.log('[DEBUG-SwapInterface] Address:', address);
+                                console.log('[DEBUG-SwapInterface] Amount:', execAmount);
                                 await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
                                     amount: execAmount,
                                 });
+                                console.log('[DEBUG-SwapInterface] Swap transaction completed successfully');
                             } catch (error) {
-                                console.error('Error during post-approval swap:', error);
+                                console.error('[DEBUG-SwapInterface] Error during post-approval swap:', error);
                                 this.messagePopup.error(
                                     `Swap Failed: ${error.message}`,
                                     'Transaction Failed'
@@ -626,11 +630,13 @@ export default class SwapInterface extends Component {
                         };
                         
                         // Use eventBus.once for one-time event handling
+                        console.log('[DEBUG-SwapInterface] Setting up approve:complete event listener');
                         eventBus.once('approve:complete', approvalCompleteHandler);
                         
                         // Listen for modal closed event to clean up resources
+                        console.log('[DEBUG-SwapInterface] Setting up approveModal:closed event listener');
                         eventBus.once('approveModal:closed', () => {
-                            console.log('ApproveModal closed event received, cleaning up');
+                            console.log('[DEBUG-SwapInterface] ApproveModal closed event received, cleaning up');
                             // The approval listener will automatically clean itself up
                             this.approveModal = null;
                         });

@@ -6,6 +6,7 @@ import MessagePopup from '../MessagePopup/MessagePopup.js';
 export class ApproveModal extends Component {
     constructor(amount, blockchainService, userAddress = null) {
         super();
+        console.log('[DEBUG] ApproveModal constructor called with amount:', amount, 'and address:', userAddress);
         this.amount = amount;
         this.blockchainService = blockchainService;
         this.userAddress = userAddress;
@@ -14,17 +15,26 @@ export class ApproveModal extends Component {
         this.handleClose = this.handleClose.bind(this);
         this.store = tradingStore;
         this.isClosing = false; // Flag to prevent double closing
+        this.modalId = Math.random().toString(36).substring(2, 9); // Unique ID for tracking
+        console.log(`[DEBUG] ApproveModal instance created with ID: ${this.modalId}`);
+    }
+
+    onMount() {
+        console.log(`[DEBUG-${this.modalId}] ApproveModal mounted to DOM`);
+        super.onMount();
     }
 
     async handleApprove() {
+        console.log(`[DEBUG-${this.modalId}] Approve button clicked`);
         try {
             // Disable the button immediately to prevent multiple clicks
             const approveButton = this.element.querySelector('.approve-button');
             if (!approveButton) {
-                console.error('Approve button not found in the modal');
+                console.error(`[DEBUG-${this.modalId}] Approve button not found in the modal`);
                 return;
             }
             
+            console.log(`[DEBUG-${this.modalId}] Approve button found, disabling and updating text`);
             const statusMessage = this.element.querySelector('.status-message') || 
                 document.createElement('div');
             
@@ -32,7 +42,10 @@ export class ApproveModal extends Component {
                 statusMessage.className = 'status-message';
                 const modalContent = this.element.querySelector('.approve-modal-content');
                 if (modalContent) {
+                    console.log(`[DEBUG-${this.modalId}] Adding status message to modal content`);
                     modalContent.appendChild(statusMessage);
+                } else {
+                    console.error(`[DEBUG-${this.modalId}] Modal content not found`);
                 }
             }
             
@@ -44,49 +57,65 @@ export class ApproveModal extends Component {
 
             // Get user address if not provided
             if (!this.userAddress) {
+                console.log(`[DEBUG-${this.modalId}] No user address provided, attempting to get from signer`);
                 if (this.blockchainService && this.blockchainService.signer) {
                     try {
                         this.userAddress = await this.blockchainService.signer.getAddress();
-                        console.log(`Retrieved user address for approval: ${this.userAddress}`);
+                        console.log(`[DEBUG-${this.modalId}] Retrieved user address for approval: ${this.userAddress}`);
                     } catch (addressError) {
-                        console.error('Failed to get user address for approval:', addressError);
+                        console.error(`[DEBUG-${this.modalId}] Failed to get user address for approval:`, addressError);
                         throw new Error('Could not get wallet address for approval. Please reconnect your wallet.');
                     }
                 } else {
+                    console.error(`[DEBUG-${this.modalId}] No blockchain service or signer available`);
                     throw new Error('No wallet connected. Please connect your wallet first.');
                 }
+            } else {
+                console.log(`[DEBUG-${this.modalId}] Using provided user address: ${this.userAddress}`);
             }
 
             // Format token amount with 18 decimals
+            console.log(`[DEBUG-${this.modalId}] Parsing amount: ${this.amount}`);
             const parsedAmount = this.blockchainService.parseExec(this.amount);
+            console.log(`[DEBUG-${this.modalId}] Parsed amount: ${parsedAmount}`);
             
             // Get router address
             const routerAddress = this.blockchainService.swapRouter?.address || this.blockchainService.swapRouter;
+            console.log(`[DEBUG-${this.modalId}] Router address for approval: ${routerAddress}`);
             
             // Call the standard setApproval method
-            console.log(`Approving ${this.amount} EXEC tokens from ${this.userAddress} to ${routerAddress}`);
+            console.log(`[DEBUG-${this.modalId}] Approving ${this.amount} EXEC tokens from ${this.userAddress} to ${routerAddress}`);
             
             statusMessage.textContent = 'Transaction submitted, waiting for confirmation...';
             
             // Send the approval transaction
-            const approvalResult = await this.blockchainService.setApproval(routerAddress, parsedAmount);
-            console.log('Approval transaction result:', approvalResult);
+            console.log(`[DEBUG-${this.modalId}] Calling blockchainService.setApproval`);
+            try {
+                const approvalResult = await this.blockchainService.setApproval(routerAddress, parsedAmount);
+                console.log(`[DEBUG-${this.modalId}] Approval transaction result:`, approvalResult);
+            } catch (txError) {
+                console.error(`[DEBUG-${this.modalId}] Transaction error:`, txError);
+                throw txError;
+            }
             
             // Update status message
             statusMessage.textContent = 'Approval successful!';
             statusMessage.className = 'status-message success';
             
             // Wait briefly to show success message
+            console.log(`[DEBUG-${this.modalId}] Approval successful, waiting before emitting event`);
             await new Promise(resolve => setTimeout(resolve, 1500));
             
             // Emit success event
+            console.log(`[DEBUG-${this.modalId}] Emitting approve:complete event`);
             eventBus.emit('approve:complete');
             
             // Close modal
+            console.log(`[DEBUG-${this.modalId}] Calling handleClose after successful approval`);
             this.handleClose();
 
         } catch (error) {
-            console.error('Approval failed:', error);
+            console.error(`[DEBUG-${this.modalId}] Approval failed:`, error);
             
             let errorMessage = error.message;
             if (errorMessage.includes('Contract call')) {
@@ -124,32 +153,40 @@ export class ApproveModal extends Component {
     }
 
     handleClose() {
+        console.log(`[DEBUG-${this.modalId}] handleClose called`);
         // Prevent multiple close operations
-        if (this.isClosing) return;
+        if (this.isClosing) {
+            console.log(`[DEBUG-${this.modalId}] Already closing, skipping`);
+            return;
+        }
         this.isClosing = true;
         
-        console.log('Closing approval modal');
+        console.log(`[DEBUG-${this.modalId}] Closing approval modal`);
         
         try {
             // Remove the modal from the DOM
             if (this.element && this.element.parentNode) {
+                console.log(`[DEBUG-${this.modalId}] Removing modal from DOM`);
                 this.element.parentNode.removeChild(this.element);
             } else {
-                console.warn('Modal element or parent not found during close');
+                console.warn(`[DEBUG-${this.modalId}] Modal element or parent not found during close`);
             }
             
             // Emit a closed event
+            console.log(`[DEBUG-${this.modalId}] Emitting approveModal:closed event`);
             eventBus.emit('approveModal:closed');
             
             // Clean up any resources
+            console.log(`[DEBUG-${this.modalId}] Calling dispose method`);
             this.dispose();
         } catch (error) {
-            console.error('Error closing approval modal:', error);
+            console.error(`[DEBUG-${this.modalId}] Error closing approval modal:`, error);
         }
     }
     
     // Properly dispose of the component
     dispose() {
+        console.log(`[DEBUG-${this.modalId}] Disposing component resources`);
         // Remove any event listeners or references that could cause memory leaks
         // This gets called when the component is being removed from the DOM
         this.isClosing = true;
@@ -157,23 +194,36 @@ export class ApproveModal extends Component {
         // Clear any references
         this.blockchainService = null;
         this.userAddress = null;
+        console.log(`[DEBUG-${this.modalId}] Component disposed`);
     }
 
     show() {
+        console.log(`[DEBUG-${this.modalId}] Show method called`);
         this.isClosing = false;
         this.element.style.display = 'block';
+        console.log(`[DEBUG-${this.modalId}] Modal set to display:block`);
     }
 
     hide() {
+        console.log(`[DEBUG-${this.modalId}] Hide method called`);
         this.element.style.display = 'none';
     }
 
     events() {
+        console.log(`[DEBUG-${this.modalId}] Setting up event handlers`);
         return {
-            'click .approve-button': this.handleApprove,
-            'click .approve-modal-close': this.handleClose,
+            'click .approve-button': (e) => {
+                console.log(`[DEBUG-${this.modalId}] Approve button clicked, calling handleApprove`);
+                this.handleApprove();
+            },
+            'click .approve-modal-close': (e) => {
+                console.log(`[DEBUG-${this.modalId}] Close button clicked, calling handleClose`);
+                this.handleClose();
+            },
             'click .approve-modal-overlay': (e) => {
+                console.log(`[DEBUG-${this.modalId}] Overlay clicked`, e.target, e.currentTarget);
                 if (e.target === e.currentTarget) {
+                    console.log(`[DEBUG-${this.modalId}] Overlay direct click detected, calling handleClose`);
                     this.handleClose();
                 }
             }

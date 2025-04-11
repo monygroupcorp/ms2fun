@@ -77,17 +77,24 @@ class EventBus {
      * @param {any} data 
      */
     emit(eventName, data) {
-        if (!this.listeners.has(eventName)) return;
+        console.log(`[DEBUG-EventBus] Emitting event "${eventName}"`, data);
+        if (!this.listeners.has(eventName)) {
+            console.log(`[DEBUG-EventBus] No listeners found for "${eventName}"`);
+            return;
+        }
 
+        console.log(`[DEBUG-EventBus] Found ${this.listeners.get(eventName).size} listener(s) for "${eventName}"`);
         if (this.debugMode) {
             console.log(`[EventBus] Emitting "${eventName}"`, data);
         }
 
         this.listeners.get(eventName).forEach(callback => {
             try {
+                console.log(`[DEBUG-EventBus] Executing listener callback for "${eventName}"`);
                 callback(data);
+                console.log(`[DEBUG-EventBus] Listener callback completed for "${eventName}"`);
             } catch (error) {
-                console.error(`[EventBus] Error in listener for "${eventName}":`, error);
+                console.error(`[DEBUG-EventBus] Error in listener for "${eventName}":`, error);
             }
         });
     }
@@ -99,16 +106,26 @@ class EventBus {
      * @returns {Function} Unsubscribe function
      */
     once(eventName, callback) {
+        console.log(`[DEBUG-EventBus] Registering once listener for "${eventName}"`);
         // Create a wrapper that will call the callback and then unsubscribe
         const wrappedCallback = (data) => {
+            console.log(`[DEBUG-EventBus] Executing once callback for "${eventName}"`);
             // Unsubscribe first to prevent issues if the callback triggers the same event
             this.off(eventName, wrappedCallback);
+            console.log(`[DEBUG-EventBus] Unsubscribed once callback for "${eventName}"`);
             // Call the original callback
-            callback(data);
+            try {
+                callback(data);
+                console.log(`[DEBUG-EventBus] Once callback completed for "${eventName}"`);
+            } catch (error) {
+                console.error(`[DEBUG-EventBus] Error in once callback for "${eventName}":`, error);
+            }
         };
         
         // Register the wrapped callback
-        return this.on(eventName, wrappedCallback);
+        const unsubscribe = this.on(eventName, wrappedCallback);
+        console.log(`[DEBUG-EventBus] Registered once listener for "${eventName}"`);
+        return unsubscribe;
     }
 }
 
