@@ -13,17 +13,27 @@ export class ApproveModal extends Component {
         this.handleApprove = this.handleApprove.bind(this);
         this.handleClose = this.handleClose.bind(this);
         this.store = tradingStore;
+        this.isClosing = false; // Flag to prevent double closing
     }
 
     async handleApprove() {
         try {
+            // Disable the button immediately to prevent multiple clicks
             const approveButton = this.element.querySelector('.approve-button');
+            if (!approveButton) {
+                console.error('Approve button not found in the modal');
+                return;
+            }
+            
             const statusMessage = this.element.querySelector('.status-message') || 
                 document.createElement('div');
             
             if (!statusMessage.classList.contains('status-message')) {
                 statusMessage.className = 'status-message';
-                this.element.querySelector('.approve-modal-content').appendChild(statusMessage);
+                const modalContent = this.element.querySelector('.approve-modal-content');
+                if (modalContent) {
+                    modalContent.appendChild(statusMessage);
+                }
             }
             
             statusMessage.textContent = 'Waiting for wallet confirmation...';
@@ -34,7 +44,7 @@ export class ApproveModal extends Component {
 
             // Get user address if not provided
             if (!this.userAddress) {
-                if (this.blockchainService.signer) {
+                if (this.blockchainService && this.blockchainService.signer) {
                     try {
                         this.userAddress = await this.blockchainService.signer.getAddress();
                         console.log(`Retrieved user address for approval: ${this.userAddress}`);
@@ -59,7 +69,8 @@ export class ApproveModal extends Component {
             statusMessage.textContent = 'Transaction submitted, waiting for confirmation...';
             
             // Send the approval transaction
-            await this.blockchainService.setApproval(routerAddress, parsedAmount);
+            const approvalResult = await this.blockchainService.setApproval(routerAddress, parsedAmount);
+            console.log('Approval transaction result:', approvalResult);
             
             // Update status message
             statusMessage.textContent = 'Approval successful!';
@@ -89,7 +100,10 @@ export class ApproveModal extends Component {
             
             if (!statusMessage.classList.contains('status-message')) {
                 statusMessage.className = 'status-message';
-                this.element.querySelector('.approve-modal-content').appendChild(statusMessage);
+                const modalContent = this.element.querySelector('.approve-modal-content');
+                if (modalContent) {
+                    modalContent.appendChild(statusMessage);
+                }
             }
             
             statusMessage.textContent = `Error: ${errorMessage}`;
@@ -102,16 +116,51 @@ export class ApproveModal extends Component {
 
             // Re-enable button
             const approveButton = this.element.querySelector('.approve-button');
-            approveButton.disabled = false;
-            approveButton.textContent = 'Approve';
+            if (approveButton) {
+                approveButton.disabled = false;
+                approveButton.textContent = 'Approve';
+            }
         }
     }
 
     handleClose() {
-        this.element.remove();
+        // Prevent multiple close operations
+        if (this.isClosing) return;
+        this.isClosing = true;
+        
+        console.log('Closing approval modal');
+        
+        try {
+            // Remove the modal from the DOM
+            if (this.element && this.element.parentNode) {
+                this.element.parentNode.removeChild(this.element);
+            } else {
+                console.warn('Modal element or parent not found during close');
+            }
+            
+            // Emit a closed event
+            eventBus.emit('approveModal:closed');
+            
+            // Clean up any resources
+            this.dispose();
+        } catch (error) {
+            console.error('Error closing approval modal:', error);
+        }
+    }
+    
+    // Properly dispose of the component
+    dispose() {
+        // Remove any event listeners or references that could cause memory leaks
+        // This gets called when the component is being removed from the DOM
+        this.isClosing = true;
+        
+        // Clear any references
+        this.blockchainService = null;
+        this.userAddress = null;
     }
 
     show() {
+        this.isClosing = false;
         this.element.style.display = 'block';
     }
 

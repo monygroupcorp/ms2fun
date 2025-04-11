@@ -224,53 +224,50 @@ export default class SwapInterface extends Component {
     }
 
     onUnmount() {
-        console.log(`[${this.instanceId}] Unmounting SwapInterface - starting cleanup process`);
+        console.log(`[${this.instanceId}] SwapInterface onUnmount called`);
+        // Unsubscribe from all events
+        this.eventListeners.forEach(unsubscribe => {
+            if (typeof unsubscribe === 'function') {
+                unsubscribe();
+            }
+        });
         
-        // Unmount child components before handling our own cleanup
-        if (this.transactionOptions) {
-            console.log(`[${this.instanceId}] Unmounting TransactionOptions`);
-            this.transactionOptions.unmount();
+        // Clear the list
+        this.eventListeners = [];
+        
+        // Remove child components
+        if (this.transactionOptions && this.transactionOptions.element) {
+            this.transactionOptions.element.remove();
         }
         
+        // Ensure price display is cleaned up
         if (this.priceDisplay) {
-            console.log(`[${this.instanceId}] Unmounting PriceDisplay`);
-            this.priceDisplay.unmount();
+            try {
+                this.priceDisplay.unmount();
+            } catch (e) {
+                console.warn('Error unmounting price display:', e);
+            }
+            this.priceDisplay = null;
+        }
+        
+        // Make sure to close and clean up any open approval modal
+        if (this.approveModal) {
+            try {
+                // Remove any event listeners related to the modal
+                eventBus.off('approve:complete');
+                // Close the modal
+                this.approveModal.handleClose();
+            } catch (e) {
+                console.warn('Error closing approval modal during unmount:', e);
+            }
+            this.approveModal = null;
         }
         
         // Clear any pending timers
         if (this.calculateTimer) {
-            console.log(`[${this.instanceId}] Clearing calculation timer`);
             clearTimeout(this.calculateTimer);
             this.calculateTimer = null;
         }
-
-        // Unsubscribe from all event listeners in reverse order they were added
-        // This helps prevent race conditions where a later handler depends on earlier ones
-        if (this.eventListeners && this.eventListeners.length > 0) {
-            console.log(`[${this.instanceId}] Unsubscribing from ${this.eventListeners.length} event listeners`);
-            
-            // Create a copy of the array in reverse order
-            [...this.eventListeners].reverse().forEach((unsubscribe, index) => {
-                if (typeof unsubscribe === 'function') {
-                    try {
-                        unsubscribe();
-                        console.log(`[${this.instanceId}] Successfully unsubscribed event listener ${this.eventListeners.length - index}`);
-                    } catch (err) {
-                        console.error(`[${this.instanceId}] Error unsubscribing event listener:`, err);
-                    }
-                } else {
-                    console.warn(`[${this.instanceId}] Invalid unsubscribe function at index ${index}`);
-                }
-            });
-        }
-        
-        // Clear the event listeners array
-        this.eventListeners = [];
-        
-        // Also properly unbind DOM events
-        this.unbindEvents();
-        
-        console.log(`[${this.instanceId}] SwapInterface unmounted successfully`);
     }
 
     handleTransactionEvents(event) {
@@ -597,22 +594,48 @@ export default class SwapInterface extends Component {
                     console.log(`Current allowance: ${routerAllowance}, Required: ${execAmount}`);
                     
                     if (BigInt(routerAllowance) < BigInt(execAmount)) {
-                        // Show approve modal
-                        if (!this.approveModal) {
-                            this.approveModal = new ApproveModal(cleanExecAmount, this.blockchainService, address);
-                            this.approveModal.mount(document.body);
-                            
-                            // Listen for approval completion
-                            eventBus.once('approve:complete', async () => {
-                                // Retry the sell after approval
+                        // Clean up any existing approval modal
+                        if (this.approveModal) {
+                            // Try to properly close the existing modal
+                            try {
+                                eventBus.off('approve:complete');
+                                this.approveModal.handleClose();
+                            } catch (e) {
+                                console.warn('Error closing existing approval modal:', e);
+                            }
+                            this.approveModal = null;
+                        }
+                        
+                        // Create and mount a new modal
+                        this.approveModal = new ApproveModal(cleanExecAmount, this.blockchainService, address);
+                        this.approveModal.mount(document.body);
+                        
+                        // Listen for approval completion
+                        const approvalCompleteHandler = async () => {
+                            try {
+                                console.log('Approval complete, proceeding with token swap');
                                 await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
                                     amount: execAmount,
                                 });
-                            });
-                        } else {
-                            // Update the address if modal already exists
-                            this.approveModal.userAddress = address;
-                        }
+                            } catch (error) {
+                                console.error('Error during post-approval swap:', error);
+                                this.messagePopup.error(
+                                    `Swap Failed: ${error.message}`,
+                                    'Transaction Failed'
+                                );
+                            }
+                        };
+                        
+                        eventBus.once('approve:complete', approvalCompleteHandler);
+                        
+                        // Listen for modal closed event to clean up resources
+                        eventBus.once('approveModal:closed', () => {
+                            console.log('ApproveModal closed event received, cleaning up');
+                            eventBus.off('approve:complete', approvalCompleteHandler);
+                            this.approveModal = null;
+                        });
+                        
+                        // Show the modal
                         this.approveModal.show();
                         return;
                     }

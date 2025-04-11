@@ -298,7 +298,47 @@ class BlockchainService {
     // Add merkle handler initialization method
     async initializeMerkleHandler() {
         try {
-            await this.merkleHandler.initializeTrees();
+            // Check if we're in phase 0 or 1 (pre-launch or phase 1)
+            // Phase 0: switch.json doesn't exist
+            // Phase 1: switch.json exists
+            // Phase 2+: switch.json exists but we don't need Merkle trees
+            
+            // Check if we're at least in phase 1
+            let isPhase1OrBeyond = false;
+            try {
+                const switchResponse = await fetch('/EXEC404/switch.json');
+                isPhase1OrBeyond = switchResponse.ok;
+            } catch (error) {
+                // If there's an error fetching, assume we're in phase 0
+                console.log('Error fetching switch.json, assuming phase 0:', error);
+                isPhase1OrBeyond = false;
+            }
+            
+            if (!isPhase1OrBeyond) {
+                // We're in phase 0 (pre-launch), initialize Merkle trees
+                console.log('Phase 0 detected, initializing Merkle trees in BlockchainService');
+                await this.merkleHandler.initializeTrees();
+                console.log('Merkle handler initialized for phase 0 in BlockchainService');
+            } else {
+                // We're in phase 1 or beyond, check if we're in phase 1
+                // For now, assume we're in phase 1 if switch.json exists and phase 2 otherwise
+                // This is a simplification and might need to be adjusted based on actual logic
+                
+                // For demonstration, we'll check if a specific property exists in switch.json
+                // that would indicate we're in phase 1
+                const switchData = await (await fetch('/EXEC404/switch.json')).json();
+                const isPhase1 = switchData.phase === 1 || switchData.requireMerkle === true;
+                
+                if (isPhase1) {
+                    console.log('Phase 1 detected, initializing Merkle trees in BlockchainService');
+                    await this.merkleHandler.initializeTrees();
+                    console.log('Merkle handler initialized for phase 1 in BlockchainService');
+                } else {
+                    console.log('Phase 2 or beyond detected, skipping Merkle tree initialization in BlockchainService');
+                    // Initialize an empty map to avoid potential errors when trying to access trees
+                    this.merkleHandler.trees = new Map();
+                }
+            }
         } catch (error) {
             console.error('Error initializing merkle handler:', error);
             throw this.wrapError(error, 'Merkle handler initialization failed');

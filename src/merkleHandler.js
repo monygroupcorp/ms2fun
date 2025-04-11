@@ -9,11 +9,62 @@ const hashWithEthers = (input) => ethers.utils.solidityKeccak256(["address"], [i
 class MerkleHandler {
     constructor() {
         this.trees = new Map(); // Store trees for different lists
+        this.initialized = false;
+    }
+
+    // Check if Merkle trees are needed based on current phase
+    async shouldLoadMerkleTrees() {
+        try {
+            // Check if we're at least in phase 1
+            let isPhase1OrBeyond = false;
+            try {
+                const switchResponse = await fetch('/EXEC404/switch.json');
+                isPhase1OrBeyond = switchResponse.ok;
+            } catch (error) {
+                // If there's an error fetching, assume we're in phase 0
+                console.log('Error fetching switch.json in MerkleHandler, assuming phase 0:', error);
+                isPhase1OrBeyond = false;
+            }
+            
+            if (!isPhase1OrBeyond) {
+                // We're in phase 0 (pre-launch), Merkle trees are needed
+                return true;
+            } else {
+                // We're in phase 1 or beyond, check if we're in phase 1
+                try {
+                    const switchData = await (await fetch('/EXEC404/switch.json')).json();
+                    const isPhase1 = switchData.phase === 1 || switchData.requireMerkle === true;
+                    return isPhase1;
+                } catch (error) {
+                    console.error('Error parsing switch.json in MerkleHandler:', error);
+                    // Default to true to ensure functionality in case of error
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking if Merkle trees should be loaded:', error);
+            // Default to true to ensure functionality in case of error
+            return true;
+        }
     }
 
     // Initialize trees for all whitelist tiers
     async initializeTrees() {
         try {
+            // Skip if already initialized
+            if (this.initialized) {
+                console.log('Merkle trees already initialized, skipping');
+                return;
+            }
+
+            // Check if we need to load Merkle trees
+            const needMerkleTrees = await this.shouldLoadMerkleTrees();
+            if (!needMerkleTrees) {
+                console.log('Merkle trees not needed for current phase, skipping initialization');
+                this.initialized = true;
+                return;
+            }
+            
             // Define the files in order of days
             const files = {
                 '01': '01_cult_1.json',
@@ -38,6 +89,7 @@ class MerkleHandler {
                 }
             }
             
+            this.initialized = true;
             console.log('Merkle trees initialized for all days');
         } catch (error) {
             console.error('Error initializing merkle trees:', error);
@@ -93,6 +145,12 @@ class MerkleHandler {
     // Get merkle proof for an address in a specific tier
     getProof(tier, address) {
         try {
+            // Check if trees are initialized
+            if (!this.initialized || this.trees.size === 0) {
+                console.log('Merkle trees not initialized or empty, not needed for current phase');
+                return null;
+            }
+
             const paddedTier = tier.toString().padStart(2, '0');  // Convert 2 to '02'
             const treeData = this.trees.get(paddedTier);
             if (!treeData) {
@@ -120,6 +178,12 @@ class MerkleHandler {
     // Get merkle root for a specific tier
     getRoot(tier) {
         try {
+            // Check if trees are initialized
+            if (!this.initialized || this.trees.size === 0) {
+                console.log('Merkle trees not initialized or empty, not needed for current phase');
+                return null;
+            }
+
             const paddedTier = tier.toString().padStart(2, '0');  // Convert 2 to '02'
             const treeData = this.trees.get(paddedTier);
             if (!treeData) {
@@ -135,6 +199,12 @@ class MerkleHandler {
     // Verify if an address is in a specific tier
     verifyAddress(tier, address) {
         try {
+            // Check if trees are initialized
+            if (!this.initialized || this.trees.size === 0) {
+                console.log('Merkle trees not initialized or empty, not needed for current phase');
+                return false;
+            }
+
             const paddedTier = tier.toString().padStart(2, '0');  // Convert 2 to '02'
             const treeData = this.trees.get(paddedTier);
             if (!treeData) {
@@ -156,6 +226,12 @@ class MerkleHandler {
 
     // Find which tier an address belongs to
     findAddressTier(address) {
+        // Check if trees are initialized
+        if (!this.initialized || this.trees.size === 0) {
+            console.log('Merkle trees not initialized or empty, not needed for current phase');
+            return null;
+        }
+
         for (const [tier, treeData] of this.trees.entries()) {
             if (this.verifyAddress(tier, address)) {
                 return tier;
