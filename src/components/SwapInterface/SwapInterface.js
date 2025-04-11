@@ -23,7 +23,9 @@ export default class SwapInterface extends Component {
             isPhase2: false,
             dataReady: false
         };
-        this.address = address;
+        
+        // Store the address - could be a promise or a direct value
+        this._address = address;
         
         // Initialize child components
         this.transactionOptions = new TransactionOptions();
@@ -546,7 +548,21 @@ export default class SwapInterface extends Component {
             if (isLiquidityDeployed) {
                 const ethValue = this.blockchainService.parseEther(this.state.ethAmount);
                 const execAmount = this.blockchainService.parseExec(cleanExecAmount);
-                const address = await this.address;
+                
+                // Make sure we have the address resolved
+                const address = await this.getAddress();
+                
+                // Check if we have a valid address
+                if (!address) {
+                    console.error('No wallet address available for transaction');
+                    this.messagePopup.error(
+                        'No wallet address available. Please reconnect your wallet.',
+                        'Wallet Error'
+                    );
+                    return;
+                }
+                
+                console.log(`Using address for transaction: ${address}`);
 
                 if (this.state.direction === 'buy') {
                     // For buying, don't specify an expected output amount - this will be calculated in the service
@@ -555,11 +571,14 @@ export default class SwapInterface extends Component {
                     }, ethValue);
                 } else {
                     // Check router allowance before selling
-                    const routerAllowance = await this.blockchainService.getApproval(address, this.blockchainService.swapRouter);
+                    console.log(`Checking approval for ${address} to spend ${execAmount} tokens`);
+                    const routerAllowance = await this.blockchainService.getApproval(address, this.blockchainService.swapRouter.address);
+                    console.log(`Current allowance: ${routerAllowance}, Required: ${execAmount}`);
+                    
                     if (BigInt(routerAllowance) < BigInt(execAmount)) {
                         // Show approve modal
                         if (!this.approveModal) {
-                            this.approveModal = new ApproveModal(cleanExecAmount, this.blockchainService);
+                            this.approveModal = new ApproveModal(cleanExecAmount, this.blockchainService, address);
                             this.approveModal.mount(document.body);
                             
                             // Listen for approval completion
@@ -569,6 +588,9 @@ export default class SwapInterface extends Component {
                                     amount: execAmount,
                                 });
                             });
+                        } else {
+                            // Update the address if modal already exists
+                            this.approveModal.userAddress = address;
                         }
                         this.approveModal.show();
                         return;
@@ -801,5 +823,54 @@ export default class SwapInterface extends Component {
         `;
         console.log('🎨 SwapInterface.render - Completed render');
         return result;
+    }
+
+    /**
+     * Get the user's wallet address, resolving any promise if needed
+     * @returns {Promise<string>} Resolved address
+     */
+    async getAddress() {
+        try {
+            // If address is not set, try to get it from the store
+            if (!this._address) {
+                const walletState = this.store.selectWallet();
+                if (walletState && walletState.address) {
+                    this._address = walletState.address;
+                }
+            }
+            
+            // Resolve the address if it's a Promise
+            const resolvedAddress = await Promise.resolve(this._address);
+            
+            // Log the resolved address for debugging
+            console.log(`[${this.instanceId}] Resolved address: ${resolvedAddress}`);
+            
+            return resolvedAddress;
+        } catch (error) {
+            console.error(`[${this.instanceId}] Error resolving address:`, error);
+            return null;
+        }
+    }
+    
+    /**
+     * Update the user's wallet address
+     * @param {string} newAddress - The new wallet address
+     */
+    setAddress(newAddress) {
+        this._address = newAddress;
+    }
+    
+    /**
+     * Property to maintain backward compatibility with old code
+     */
+    get address() {
+        return this._address;
+    }
+    
+    /**
+     * Property setter to maintain backward compatibility
+     */
+    set address(newAddress) {
+        this._address = newAddress;
     }
 }

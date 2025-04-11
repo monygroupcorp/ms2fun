@@ -1019,13 +1019,67 @@ class BlockchainService {
 
     async setApproval(target = null, amount) {
         try {
+            let targetAddress;
+            
             if (target === null) {
-                target = this.swapRouter;
+                targetAddress = this.swapRouter.address;
+            } else if (typeof target === 'string') {
+                targetAddress = target;
+            } else if (target && typeof target === 'object' && target.address) {
+                // If target is a contract object, use its address
+                targetAddress = target.address;
+            } else {
+                throw new Error("Invalid target for approval");
             }
-            const response = await this.executeContractCall('approve', [target, amount]);
+            
+            console.log(`Setting approval for ${targetAddress} to spend ${amount} tokens`);
+            
+            // Create a unique transaction ID for tracking
+            const txId = `tx_approve_${++this.transactionCounter}_${Date.now()}`;
+            
+            // Emit pending event with ID for UI feedback
+            const pendingEvent = { 
+                type: 'approve', 
+                id: txId,
+                pending: true
+            };
+            
+            // Store active transaction
+            this.activeTransactions.set(txId, pendingEvent);
+            
+            // Emit event
+            console.log(`[BlockchainService] Emitting transaction:pending for approve ${txId}`);
+            eventBus.emit('transaction:pending', pendingEvent);
+            
+            // Execute the approve call
+            const response = await this.executeContractCall('approve', [targetAddress, amount], { requiresSigner: true });
+            
+            // Emit success event with same ID
+            const successEvent = {
+                type: 'approve',
+                id: txId,
+                receipt: response,
+                amount: amount
+            };
+            
+            // Update transaction status
+            this.activeTransactions.set(txId, successEvent);
+            
+            console.log(`[BlockchainService] Emitting transaction:success for ${txId}`);
+            eventBus.emit('transaction:success', successEvent);
+            
             return response;
         } catch (error) {
-            throw this.wrapError(error, 'Failed to set approval');
+            const errorEvent = {
+                type: 'approve',
+                id: `error_approve_${++this.transactionCounter}_${Date.now()}`,
+                error: this.wrapError(error, 'Failed to set approval')
+            };
+            
+            console.log(`[BlockchainService] Emitting transaction:error for approval error`);
+            eventBus.emit('transaction:error', errorEvent);
+            
+            throw error;
         }
     }
 

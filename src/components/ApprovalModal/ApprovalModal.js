@@ -4,10 +4,11 @@ import { tradingStore } from '../../store/tradingStore.js';
 import MessagePopup from '../MessagePopup/MessagePopup.js';
 
 export class ApproveModal extends Component {
-    constructor(amount, blockchainService) {
+    constructor(amount, blockchainService, userAddress = null) {
         super();
         this.amount = amount;
         this.blockchainService = blockchainService;
+        this.userAddress = userAddress;
         this.messagePopup = new MessagePopup('approve-status');
         this.handleApprove = this.handleApprove.bind(this);
         this.handleClose = this.handleClose.bind(this);
@@ -20,7 +21,27 @@ export class ApproveModal extends Component {
             approveButton.disabled = true;
             approveButton.textContent = 'Approving...';
 
-            await this.blockchainService.approveRouter(this.amount);
+            // Get user address if not provided
+            if (!this.userAddress) {
+                if (this.blockchainService.signer) {
+                    try {
+                        this.userAddress = await this.blockchainService.signer.getAddress();
+                        console.log(`Retrieved user address for approval: ${this.userAddress}`);
+                    } catch (addressError) {
+                        console.error('Failed to get user address for approval:', addressError);
+                        throw new Error('Could not get wallet address for approval. Please reconnect your wallet.');
+                    }
+                } else {
+                    throw new Error('No wallet connected. Please connect your wallet first.');
+                }
+            }
+
+            // Format token amount with 18 decimals
+            const parsedAmount = this.blockchainService.parseExec(this.amount);
+            
+            // Call the standard setApproval method
+            console.log(`Approving ${this.amount} EXEC tokens from ${this.userAddress}`);
+            await this.blockchainService.setApproval(this.blockchainService.swapRouter.address, parsedAmount);
             
             // Emit success event
             eventBus.emit('approve:complete');
