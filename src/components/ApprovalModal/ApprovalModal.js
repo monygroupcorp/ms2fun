@@ -22,6 +22,19 @@ export class ApproveModal extends Component {
     onMount() {
         console.log(`[DEBUG-${this.modalId}] ApproveModal mounted to DOM`);
         super.onMount();
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        const approveButton = this.element.querySelector('.approve-button');
+        const closeButton = this.element.querySelector('.approve-modal-close');
+        const overlay = this.element.querySelector('.approve-modal-overlay');
+        
+        approveButton?.addEventListener('click', this.handleApprove);
+        closeButton?.addEventListener('click', this.handleClose);
+        overlay?.addEventListener('click', (e) => {
+            if (e.target === overlay) this.handleClose();
+        });
     }
 
     async handleApprove() {
@@ -187,11 +200,17 @@ export class ApproveModal extends Component {
     // Properly dispose of the component
     dispose() {
         console.log(`[DEBUG-${this.modalId}] Disposing component resources`);
-        // Remove any event listeners or references that could cause memory leaks
-        // This gets called when the component is being removed from the DOM
-        this.isClosing = true;
         
-        // Clear any references
+        // Remove event listeners
+        const approveButton = this.element?.querySelector('.approve-button');
+        const closeButton = this.element?.querySelector('.approve-modal-close');
+        const overlay = this.element?.querySelector('.approve-modal-overlay');
+        
+        approveButton?.removeEventListener('click', this.handleApprove);
+        closeButton?.removeEventListener('click', this.handleClose);
+        
+        // Clear references
+        this.isClosing = true;
         this.blockchainService = null;
         this.userAddress = null;
         console.log(`[DEBUG-${this.modalId}] Component disposed`);
