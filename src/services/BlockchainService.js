@@ -12,12 +12,6 @@ class BlockchainService {
         this.connectionState = 'disconnected';
         this.networkConfig = null;
         this.ethers = ethers;
-        // Configure retry settings
-        this.retryConfig = {
-            maxAttempts: 3,
-            baseDelay: 1000, // 1 second
-            maxDelay: 5000   // 5 seconds
-        };
 
         this.swapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
 
@@ -48,10 +42,10 @@ class BlockchainService {
 
             try {
                 // Attempt to load network configuration
-                const response = await this.retryOperation(
-                    () => fetch('/EXEC404/switch.json'),
-                    'Failed to load network configuration'
-                );
+                const response = await fetch('/EXEC404/switch.json');
+                if (!response.ok) {
+                    throw new Error(`Failed to load network configuration: ${response.statusText}`);
+                }
                 this.networkConfig = await response.json();
             } catch (error) {
                 console.warn('Using fallback configuration:', error);
@@ -168,10 +162,8 @@ class BlockchainService {
     async initializeContract(contractAddress) {
         try {
             // Load contract ABI
-            const abiResponse = await this.retryOperation(
-                () => fetch('/EXEC404/abi.json'),
-                'Failed to load contract ABI'
-            );
+            const abiResponse = await fetch('/EXEC404/abi.json');
+            if (!abiResponse.ok) throw new Error('Failed to load contract ABI');
             const contractABI = await abiResponse.json();
 
             // Initialize main contract
@@ -182,15 +174,10 @@ class BlockchainService {
             );
 
             // Initialize mirror contract
-            const mirrorAddress = await this.retryOperation(
-                () => this.contract.mirrorERC721(),
-                'Failed to get mirror contract address'
-            );
+            const mirrorAddress = await this.contract.mirrorERC721();
             
-            const mirrorAbiResponse = await this.retryOperation(
-                () => fetch('/EXEC404/mirrorabi.json'),
-                'Failed to load mirror contract ABI'
-            );
+            const mirrorAbiResponse = await fetch('/EXEC404/mirrorabi.json');
+            if (!mirrorAbiResponse.ok) throw new Error('Failed to load mirror contract ABI');
             const mirrorABI = await mirrorAbiResponse.json();
 
             const routerAddress = this.swapRouter;
@@ -395,92 +382,55 @@ class BlockchainService {
      * Enhanced executeContractCall with contract selection
      */
     async executeContractCall(method, args = [], options = {}) {
-        const operation = async () => {
-            try {
-                if (!this.contract) {
-                    throw new Error('Contract not initialized');
-                }
-
-                // Select contract instance
-                let contractInstance = options.useContract === 'mirror' ? 
-                    this.mirrorContract : 
-                    this.contract;
-
-                if (options.useContract === 'router') {
-                    contractInstance = this.swapRouter;
-                }
-
-                if (options.useContract === 'v2pool') {
-                    contractInstance = this.v2PoolContract;
-                }
-
-                // Add signer if needed
-                if (options.requiresSigner) {
-                    if (!this.signer) {
-                        throw new Error('No wallet connected');
-                    }
-                    contractInstance = contractInstance.connect(this.signer);
-                }
-
-                // Check if method exists on contract
-                if (typeof contractInstance[method] !== 'function') {
-                    throw new Error(`Method ${method} not found on contract`);
-                }
-
-                // Execute the contract call
-                const result = await contractInstance[method](...(args || []), options.txOptions || {});
-
-                // If this is a transaction, wait for confirmation
-                if (result.wait) {
-                    const receipt = await result.wait();
-                    eventBus.emit('transaction:confirmed', { 
-                        hash: receipt.transactionHash,
-                        method,
-                        args 
-                    });
-                    return receipt;
-                }
-
-                return result;
-            } catch (error) {
-                throw this.handleContractError(error, method);
+        try {
+            if (!this.contract) {
+                throw new Error('Contract not initialized');
             }
-        };
 
-        return this.retryOperation(
-            operation,
-            `Contract call ${method} failed`
-        );
-    }
+            // Select contract instance
+            let contractInstance = options.useContract === 'mirror' ? 
+                this.mirrorContract : 
+                this.contract;
 
-    // Helper method to implement exponential backoff retry logic
-    async retryOperation(operation, errorMessage, customConfig = {}) {
-        const config = { ...this.retryConfig, ...customConfig };
-        let lastError;
-        
-        for (let attempt = 1; attempt <= 1; attempt++) {
-            try {
-                return await operation();
-            } catch (error) {
-                lastError = error;
-                
-                // Don't retry if it's a user rejection or invalid input
-                if (this.isNonRetryableError(error)) {
-                    throw this.wrapError(error, errorMessage);
-                }
-                
-                // Don't wait on the last attempt
-                if (attempt < config.maxAttempts) {
-                    const delay = Math.min(
-                        config.baseDelay * Math.pow(2, attempt - 1),
-                        config.maxDelay
-                    );
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
+            if (options.useContract === 'router') {
+                contractInstance = this.swapRouter;
             }
+
+            if (options.useContract === 'v2pool') {
+                contractInstance = this.v2PoolContract;
+            }
+
+            // Add signer if needed
+            if (options.requiresSigner) {
+                if (!this.signer) {
+                    throw new Error('No wallet connected');
+                }
+                contractInstance = contractInstance.connect(this.signer);
+            }
+
+            // Check if method exists on contract
+            if (typeof contractInstance[method] !== 'function') {
+                throw new Error(`Method ${method} not found on contract`);
+            }
+
+            // Execute the contract call
+            const result = await contractInstance[method](...(args || []), options.txOptions || {});
+
+            // If this is a transaction, wait for confirmation
+            if (result.wait) {
+                const receipt = await result.wait();
+                eventBus.emit('transaction:confirmed', { 
+                    hash: receipt.transactionHash,
+                    method,
+                    args 
+                });
+                return receipt;
+            }
+
+            return result;
+        } catch (error) {
+            throw this.handleContractError(error, method);
         }
-        
-        throw this.wrapError(lastError, `${errorMessage}`);// after ${config.maxAttempts} attempts`);
     }
 
     // Error handling methods
@@ -498,7 +448,7 @@ class BlockchainService {
             message = revertMatch ? `Tx Reverted: ${revertMatch[1]}` : 'Transaction would fail - check your inputs';
             return new Error(message);
         }
-        if (error.code === 4001) {
+        if (error.code === 4001 || error.code === 'ACTION_REJECTED') {
             return new Error('Transaction rejected by user');
         }
 
@@ -511,21 +461,6 @@ class BlockchainService {
         // Log unexpected errors
         console.error(`Contract error in ${method}:`, error);
         return new Error(message);
-    }
-
-    isNonRetryableError(error) {
-        // Check for various user rejection scenarios
-        if (
-            error.code === 4001 || // Standard MetaMask user rejection
-            error.message?.includes('User denied transaction signature') ||
-            error.message?.includes('user rejected') ||
-            error.code === 'ACTION_REJECTED' || // Common wallet rejection code
-            error.code === 'INSUFFICIENT_FUNDS' ||
-            error.code === 'INVALID_ARGUMENT'
-        ) {
-            return true;
-        }
-        return false;
     }
 
     wrapError(error, context) {
@@ -1265,6 +1200,90 @@ class BlockchainService {
         }
     }
 
+    async swapExactEthForTokenSupportingFeeOnTransfer(address, params, ethValue) {
+        try {
+            // Create a unique transaction ID for tracking
+            const txId = `tx_${++this.transactionCounter}_${Date.now()}`;
+            
+            // Emit pending event with ID
+            const pendingEvent = { 
+                type: 'swap', 
+                id: txId,
+                pending: true
+            };
+            
+            // Store active transaction
+            this.activeTransactions.set(txId, pendingEvent);
+            
+            // Emit event
+            console.log(`[BlockchainService] Emitting transaction:pending for ${txId}`);
+            eventBus.emit('transaction:pending', pendingEvent);
+
+            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const path = [WETH, TOKEN];
+            
+            // Get the connected address for the 'to' parameter
+            const to = address;
+            
+            // Set deadline to 20 minutes from now
+            const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+            // For 4% tax tokens, we need a much lower amountOutMin
+            // Calculate minimum expected output with 6% buffer (4% tax + 2% slippage)
+            const amountOutMin = BigInt(params.amount) * BigInt(940) / BigInt(1000);
+            
+            console.log('Buy transaction parameters:', {
+                amountOutMin: amountOutMin.toString(),
+                ethValue: ethValue.toString(),
+                path,
+                txId
+            });
+
+            const receipt = await this.executeContractCall(
+                'swapExactETHForTokensSupportingFeeOnTransferTokens',
+                [
+                    amountOutMin,  // amountOutMin with 6% buffer for tax + slippage
+                    path,
+                    to,
+                    deadline
+                ],
+                { useContract: 'router', requiresSigner: true, txOptions: { value: ethValue } }
+            );
+
+            // Emit success event with same ID
+            const successEvent = {
+                type: 'swap',
+                id: txId,
+                receipt,
+                amount: params.amount
+            };
+            
+            // Update transaction status
+            this.activeTransactions.set(txId, successEvent);
+            
+            console.log(`[BlockchainService] Emitting transaction:success for ${txId}`);
+            eventBus.emit('transaction:success', successEvent);
+            
+            // Remove from active transactions after a delay
+            setTimeout(() => {
+                this.activeTransactions.delete(txId);
+            }, 1000);
+
+            return receipt;
+        } catch (error) {
+            const errorEvent = {
+                type: 'swap',
+                id: `error_${++this.transactionCounter}_${Date.now()}`,
+                error: this.wrapError(error, 'Failed to swap ETH for tokens')
+            };
+            
+            console.log(`[BlockchainService] Emitting transaction:error for error transaction`);
+            eventBus.emit('transaction:error', errorEvent);
+            throw error;
+        }
+    }
+    
     /**
      * Get the current block information
      * @returns {Promise<Object>} Block information
