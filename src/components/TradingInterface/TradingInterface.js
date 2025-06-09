@@ -107,6 +107,9 @@ export class TradingInterface extends Component {
 
     async initialize() {
         try {
+            // Check phase 2 status
+            this.checkPhase2Status();
+
             // Fetch initial balances and price concurrently
             const [ethAmount, execAmount, nfts, currentPrice, freeSituation, currentTier] = await Promise.all([
                 this.blockchainService.getEthBalance(this.address),
