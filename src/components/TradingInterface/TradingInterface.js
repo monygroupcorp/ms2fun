@@ -1070,6 +1070,14 @@ export class TradingInterface extends Component {
         `;
 
         if (this.element) {
+            // Unmount children before re-rendering to prevent listener leaks
+            if (this.swapInterface) {
+                this.swapInterface.unmount();
+            }
+            if (this.bondingCurve) {
+                this.bondingCurve.unmount();
+            }
+            
             this.element.innerHTML = html;
             this.setupTabListeners();
             console.log('TradingInterface rendered, calling mountChildComponents');
