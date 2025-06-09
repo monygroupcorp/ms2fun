@@ -616,7 +616,7 @@ export default class SwapInterface extends Component {
                                 console.log('[DEBUG-SwapInterface] Approval complete, proceeding with token swap');
                                 console.log('[DEBUG-SwapInterface] Address:', address);
                                 console.log('[DEBUG-SwapInterface] Amount:', execAmount);
-                                await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
+                                await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransferV2(address, {
                                     amount: execAmount,
                                 });
                                 console.log('[DEBUG-SwapInterface] Swap transaction completed successfully');
@@ -646,7 +646,7 @@ export default class SwapInterface extends Component {
                         return;
                     }
 
-                    await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransfer(address, {
+                    await this.blockchainService.swapExactTokenForEthSupportingFeeOnTransferV2(address, {
                         amount: execAmount,
                     });
                 }

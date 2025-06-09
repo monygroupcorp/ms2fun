@@ -255,6 +255,30 @@ class BlockchainService {
                     "outputs": [],
                     "stateMutability": "nonpayable",
                     "type": "function"
+                },
+                {
+                    "inputs": [
+                        {
+                            "internalType": "uint256",
+                            "name": "amountIn",
+                            "type": "uint256"
+                        },
+                        {
+                            "internalType": "address[]",
+                            "name": "path",
+                            "type": "address[]"
+                        }
+                    ],
+                    "name": "getAmountsOut",
+                    "outputs": [
+                        {
+                            "internalType": "uint256[]",
+                            "name": "amounts",
+                            "type": "uint256[]"
+                        }
+                    ],
+                    "stateMutability": "view",
+                    "type": "function"
                 }
             ]
 
@@ -1135,92 +1159,21 @@ class BlockchainService {
             throw error;
         }
     }
+    //now used within swapExactTokenForEthSupportingFeeOnTransferV2
+    // async getAmountsOut(amountIn, path) {
+    //     try {
+    //         const amounts = await this.executeContractCall(
+    //             'getAmountsOut',
+    //             [amountIn, path],
+    //             { useContract: 'router' }
+    //         );
+    //         return amounts;
+    //     } catch (error) {
+    //         throw this.wrapError(error, 'Failed to get amounts out');
+    //     }
+    // }
 
-    async swapExactEthForTokenSupportingFeeOnTransfer(address, params, ethValue) {
-        try {
-            // Create a unique transaction ID for tracking
-            const txId = `tx_${++this.transactionCounter}_${Date.now()}`;
-            
-            // Emit pending event with ID
-            const pendingEvent = { 
-                type: 'swap', 
-                id: txId,
-                pending: true
-            };
-            
-            // Store active transaction
-            this.activeTransactions.set(txId, pendingEvent);
-            
-            // Emit event
-            console.log(`[BlockchainService] Emitting transaction:pending for ${txId}`);
-            eventBus.emit('transaction:pending', pendingEvent);
-
-            const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
-            const TOKEN = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
-            const path = [WETH, TOKEN];
-            
-            // Get the connected address for the 'to' parameter
-            const to = address;
-            
-            // Set deadline to 20 minutes from now
-            const deadline = Math.floor(Date.now() / 1000) + 1200;
-
-            // For 4% tax tokens, we need a much lower amountOutMin
-            // Calculate minimum expected output with 6% buffer (4% tax + 2% slippage)
-            const amountOutMin = BigInt(params.amount) * BigInt(940) / BigInt(1000);
-            
-            console.log('Buy transaction parameters:', {
-                amountOutMin: amountOutMin.toString(),
-                ethValue: ethValue.toString(),
-                path,
-                txId
-            });
-
-            const receipt = await this.executeContractCall(
-                'swapExactETHForTokensSupportingFeeOnTransferTokens',
-                [
-                    amountOutMin,  // amountOutMin with 6% buffer for tax + slippage
-                    path,
-                    to,
-                    deadline
-                ],
-                { useContract: 'router', requiresSigner: true, txOptions: { value: ethValue } }
-            );
-
-            // Emit success event with same ID
-            const successEvent = {
-                type: 'swap',
-                id: txId,
-                receipt,
-                amount: params.amount
-            };
-            
-            // Update transaction status
-            this.activeTransactions.set(txId, successEvent);
-            
-            console.log(`[BlockchainService] Emitting transaction:success for ${txId}`);
-            eventBus.emit('transaction:success', successEvent);
-            
-            // Remove from active transactions after a delay
-            setTimeout(() => {
-                this.activeTransactions.delete(txId);
-            }, 1000);
-
-            return receipt;
-        } catch (error) {
-            const errorEvent = {
-                type: 'swap',
-                id: `error_${++this.transactionCounter}_${Date.now()}`,
-                error: this.wrapError(error, 'Failed to swap ETH for tokens')
-            };
-            
-            console.log(`[BlockchainService] Emitting transaction:error for error transaction`);
-            eventBus.emit('transaction:error', errorEvent);
-            throw error;
-        }
-    }
-
-    async swapExactTokenForEthSupportingFeeOnTransfer(address, params) {
+    async swapExactTokenForEthSupportingFeeOnTransferV2(address, params) {
         try {
             // Create a unique transaction ID for tracking
             const txId = `tx_${++this.transactionCounter}_${Date.now()}`;
@@ -1250,7 +1203,15 @@ class BlockchainService {
             const deadline = Math.floor(Date.now() / 1000) + 1200;
 
             // Calculate minimum amount out accounting for 4% tax + 2% slippage
-            const amountOutMin = BigInt(params.amount) * BigInt(940) / BigInt(1000);
+            const amounts = await this.executeContractCall(
+                'getAmountsOut',
+                [params.amount, path],
+                { useContract: 'router' }
+            );
+            const expectedAmountOut = amounts[1];
+
+            // Apply 6% buffer for tax + slippage
+            const amountOutMin = BigInt(expectedAmountOut) * BigInt(940) / BigInt(1000);
             
             console.log('Sell transaction parameters:', {
                 amountIn: params.amount.toString(),
