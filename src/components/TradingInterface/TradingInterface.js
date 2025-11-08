@@ -107,8 +107,13 @@ export class TradingInterface extends Component {
 
     async initialize() {
         try {
-            // Check phase 2 status
+            // Check phase 2 status from current contract data (if available)
             this.checkPhase2Status();
+
+            // Listen for contract data updates to re-check phase 2 status
+            this.unsubscribeContractData = eventBus.on('contractData:updated', () => {
+                this.checkPhase2Status();
+            });
 
             // Fetch initial balances and price concurrently
             const [ethAmount, execAmount, nfts, currentPrice, freeSituation, currentTier] = await Promise.all([
@@ -120,17 +125,22 @@ export class TradingInterface extends Component {
                 this.blockchainService.getCurrentTier()
             ]);
 
+            // Re-check phase 2 status after fetching data (contract data might be loaded by now)
+            this.checkPhase2Status();
+
             const proof = await this.blockchainService.getMerkleProof(this.address, currentTier);
-            if (!proof && !this.state.isPhase2) {
+            
+            // Only show overlay if: NOT Phase 2 AND no proof
+            // If we're in Phase 2, overlay should never show
+            if (!this.state.isPhase2 && !proof) {
                 this.setState({
                     showNotAllowedOverlay: true,
                     currentWhitelistTier: currentTier
                 });
-                return;
+            } else {
+                // If we have a valid proof or phase 2 is active, make sure overlay is hidden
+                this.setState({ showNotAllowedOverlay: false });
             }
-
-            // If we have a valid proof or phase 2 is active, make sure overlay is hidden
-            this.setState({ showNotAllowedOverlay: false });
 
             // Update store with fetched balances
             tradingStore.updateBalances({
@@ -144,9 +154,6 @@ export class TradingInterface extends Component {
 
             // Update store with fetched price
             tradingStore.updatePrice(currentPrice);
-
-            // Check phase 2 status
-            this.checkPhase2Status();
 
             // Set up event listeners
             this.setupEventListeners();
@@ -164,8 +171,22 @@ export class TradingInterface extends Component {
 
     checkPhase2Status() {
         const contractData = tradingStore.selectContractData();
-        const isPhase2 = contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
-        this.setState({ isPhase2 });
+        const isPhase2 = contractData && contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        
+        // If we're entering Phase 2, hide the overlay immediately
+        if (isPhase2 && this.state.showNotAllowedOverlay) {
+            this.setState({ 
+                isPhase2,
+                showNotAllowedOverlay: false 
+            });
+        } else {
+            this.setState({ isPhase2 });
+        }
+        
+        // Update view visibility to reflect overlay state changes
+        if (this.mounted) {
+            this.updateViewVisibility();
+        }
     }
 
     setupEventListeners() {
@@ -224,6 +245,12 @@ export class TradingInterface extends Component {
 
     cleanup() {
         console.log('Cleaning up TradingInterface event listeners');
+        
+        // Unsubscribe from contract data updates
+        if (this.unsubscribeContractData) {
+            this.unsubscribeContractData();
+            this.unsubscribeContractData = null;
+        }
         
         // Unsubscribe from all event listeners
         if (this.unsubscribeHandlers) {

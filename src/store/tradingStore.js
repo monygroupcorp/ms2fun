@@ -266,13 +266,28 @@ class TradingStore extends Store {
             this.setLoading(true);
             const messages = await this.blockchainService.getMessagesBatch(startIndex, endIndex);
             
-            // Merge with existing messages if any
+            // Get current messages
             const currentMessages = this.state.contractData.recentMessages || [];
-            const updatedMessages = [...currentMessages];
-
-            // Update the arrays with new messages
-            for (let i = 0; i < messages.length; i++) {
-                updatedMessages[i] = currentMessages[i] ? currentMessages[i] + ',' + messages[i] : messages[i];
+            
+            // If we have existing messages, we need to merge them properly
+            // The blockchain returns arrays of comma-separated strings for each field
+            // We need to append the new batch to the existing one
+            const updatedMessages = [];
+            
+            if (currentMessages.length >= 5 && currentMessages[0] && currentMessages[0] !== '') {
+                // We have existing messages, merge them
+                for (let i = 0; i < 5; i++) {
+                    if (i < messages.length && messages[i]) {
+                        // Append new messages to existing ones with comma separator
+                        updatedMessages[i] = currentMessages[i] + ',' + messages[i];
+                    } else {
+                        // Keep existing if no new data for this field
+                        updatedMessages[i] = currentMessages[i] || '';
+                    }
+                }
+            } else {
+                // No existing messages, use the new batch directly
+                updatedMessages = messages;
             }
 
             this.updateContractData({
