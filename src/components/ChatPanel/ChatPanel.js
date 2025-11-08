@@ -256,6 +256,11 @@ class ChatPanel extends Component {
                         hasMore 
                     });
                     
+                    // Preserve scroll position before update
+                    const messagesContainer = this.element?.querySelector('.chat-messages');
+                    const scrollTop = messagesContainer?.scrollTop || 0;
+                    const scrollHeight = messagesContainer?.scrollHeight || 0;
+                    
                     this.setState({
                         messages: allMessages,
                         currentPage: nextPage,
@@ -263,8 +268,15 @@ class ChatPanel extends Component {
                         isLoading: false
                     });
 
-                    // Setup load more button after new messages are loaded
+                    // Restore scroll position and setup load more button after render
                     requestAnimationFrame(() => {
+                        if (messagesContainer) {
+                            // Calculate new scroll position to maintain relative position
+                            const newScrollHeight = messagesContainer.scrollHeight;
+                            const scrollDifference = newScrollHeight - scrollHeight;
+                            // Maintain scroll position relative to top, accounting for new content
+                            messagesContainer.scrollTop = scrollTop + scrollDifference;
+                        }
                         this.setupLoadMoreButton();
                     });
                 } catch (error) {
@@ -375,6 +387,29 @@ class ChatPanel extends Component {
             default:
                 return this.render();
         }
+    }
+
+    /**
+     * Override shouldUpdate to prevent unnecessary re-renders
+     * Only update if messages actually changed or other important state changed
+     */
+    shouldUpdate(oldState, newState) {
+        if (!oldState || !newState) return true;
+        if (oldState === newState) return false;
+        
+        // Always update if messages array reference changed (new messages loaded)
+        if (oldState.messages !== newState.messages) return true;
+        
+        // Update if loading state changed (affects UI)
+        if (oldState.isLoading !== newState.isLoading) return true;
+        if (oldState.hasMore !== newState.hasMore) return true;
+        if (oldState.dataReady !== newState.dataReady) return true;
+        
+        // Update if total messages changed
+        if (oldState.totalMessages !== newState.totalMessages) return true;
+        
+        // Don't update for other state changes that don't affect render
+        return false;
     }
 }
 

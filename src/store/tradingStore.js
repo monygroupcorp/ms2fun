@@ -217,7 +217,8 @@ class TradingStore extends Store {
     }
 
     setWalletAddress(address) {
-        this.setState({
+        // Use setStateSync for wallet address since components need immediate access
+        this.setStateSync({
             wallet: {
                 ...this.state.wallet,
                 address,
@@ -253,12 +254,20 @@ class TradingStore extends Store {
 
     updateContractData(data) {
         console.log('Updating contract data:', data.liquidityPool);
-        this.setState({
-            contractData: {
-                ...data,
-                lastUpdated: Date.now()
-            }
+        // Use setStateSync for contract data since components need immediate access
+        // This is critical data that affects UI state (phase 2 detection, etc.)
+        const updatedContractData = {
+            ...this.state.contractData,
+            ...data,
+            lastUpdated: Date.now()
+        };
+        this.setStateSync({
+            contractData: updatedContractData
         });
+        // Verify the update was applied
+        if (this.state.contractData.liquidityPool !== data.liquidityPool) {
+            console.warn('[Store] Contract data update may not have been applied correctly. Expected liquidityPool:', data.liquidityPool, 'Got:', this.state.contractData.liquidityPool);
+        }
     }
 
     async loadMessageBatch(startIndex, endIndex) {
@@ -380,6 +389,17 @@ class TradingStore extends Store {
             freeMint,
             address
         }
+    }
+
+    /**
+     * Selector for Phase 2 status (liquidity pool deployed)
+     * Phase 2 is active when liquidityPool is set and not the zero address
+     * @returns {boolean} - True if Phase 2 is active
+     */
+    selectIsPhase2() {
+        const contractData = this.selectContractData();
+        return contractData && contractData.liquidityPool && 
+               contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
     }
 
     updateUserNFTs(nftData) {

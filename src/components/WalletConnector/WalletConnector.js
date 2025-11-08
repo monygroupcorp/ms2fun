@@ -38,6 +38,9 @@ class WalletConnector {
         this.walletModalId = 'walletModal-' + Math.random().toString(36).substr(2, 9);
         this.messagePopup = new MessagePopup();
         
+        // Store unsubscribe functions for event listeners
+        this.eventUnsubscribers = [];
+        
         // Status messages for UI
         this.statusMessages = {
             INITIALIZING: 'INITIALIZING SYSTEM...',
@@ -52,8 +55,9 @@ class WalletConnector {
             VERIFIED: 'VERIFICATION COMPLETE'
         };
         
-        // Add a global error handler to catch wallet errors
-        window.addEventListener('unhandledrejection', this.handleUnhandledRejection.bind(this));
+        // Bind and store the unhandled rejection handler for cleanup
+        this.boundUnhandledRejectionHandler = this.handleUnhandledRejection.bind(this);
+        window.addEventListener('unhandledrejection', this.boundUnhandledRejectionHandler);
         
         // Initialize UI and event listeners
         this.initializeUI();
@@ -254,26 +258,26 @@ class WalletConnector {
             console.log('Added click handler to selectWallet');
         }
         
-        // Subscribe to wallet events
-        eventBus.on('wallet:detected', () => {
+        // Subscribe to wallet events and store unsubscribe functions
+        this.eventUnsubscribers.push(eventBus.on('wallet:detected', () => {
             this.updateStatus(this.statusMessages.WALLET_DETECTED);
-        });
+        }));
         
-        eventBus.on('wallet:notdetected', () => {
+        this.eventUnsubscribers.push(eventBus.on('wallet:notdetected', () => {
             this.updateStatus('No Web3 wallet detected. Please install a wallet.');
             this.messagePopup.warning('No Web3 wallet detected. Please install a wallet like MetaMask.', 'Wallet Required');
-        });
+        }));
         
-        eventBus.on('wallet:connecting', () => {
+        this.eventUnsubscribers.push(eventBus.on('wallet:connecting', () => {
             this.updateStatus(this.statusMessages.CONNECTING);
             // Show the continue in wallet prompt
             const continuePrompt = document.getElementById('continuePrompt');
             if (continuePrompt) {
                 continuePrompt.style.display = 'block';
             }
-        });
+        }));
         
-        eventBus.on('wallet:connected', (data) => {
+        this.eventUnsubscribers.push(eventBus.on('wallet:connected', (data) => {
             // Hide the continue prompt
             const continuePrompt = document.getElementById('continuePrompt');
             if (continuePrompt) {
@@ -294,9 +298,9 @@ class WalletConnector {
             
             // Show trading interface - call method from the original implementation
             this.showTradingInterface(data.address, data.ethersProvider, data.signer);
-        });
+        }));
         
-        eventBus.on('wallet:error', (error) => {
+        this.eventUnsubscribers.push(eventBus.on('wallet:error', (error) => {
             // Hide the continue prompt
             const continuePrompt = document.getElementById('continuePrompt');
             if (continuePrompt) {
@@ -304,9 +308,9 @@ class WalletConnector {
             }
             
             this.updateStatus(this.statusMessages.ERROR + error.message, true);
-        });
+        }));
         
-        eventBus.on('wallet:disconnected', () => {
+        this.eventUnsubscribers.push(eventBus.on('wallet:disconnected', () => {
             this.updateStatus('Wallet disconnected');
             this.resetWalletDisplay();
             this.messagePopup.info('Your wallet has been disconnected', 'Disconnected');
@@ -319,17 +323,17 @@ class WalletConnector {
             if (gifContainer) {
                 gifContainer.style.display = 'flex';
             }
-        });
+        }));
         
-        eventBus.on('wallet:changed', (data) => {
+        this.eventUnsubscribers.push(eventBus.on('wallet:changed', (data) => {
             this.updateStatus(`Account changed: ${data.address.slice(0, 6)}...${data.address.slice(-4)}`);
             this.updateWalletDisplay(data.address, walletService.selectedWallet);
             this.messagePopup.info(`Account changed to ${data.address.slice(0, 6)}...${data.address.slice(-4)}`, 'Account Changed');
-        });
+        }));
         
-        eventBus.on('network:changed', () => {
+        this.eventUnsubscribers.push(eventBus.on('network:changed', () => {
             this.messagePopup.info('Network changed', 'Network Update');
-        });
+        }));
         
         // Handle existing modal button clicks
         const existingModal = document.getElementById('walletModal');
@@ -765,6 +769,19 @@ class WalletConnector {
                 }
             }
             
+            // Clean up error boundary if it exists
+            if (window.tradingInterfaceErrorBoundary) {
+                console.log('Cleaning up previous error boundary instance');
+                try {
+                    if (typeof window.tradingInterfaceErrorBoundary.unmount === 'function') {
+                        window.tradingInterfaceErrorBoundary.unmount();
+                    }
+                    delete window.tradingInterfaceErrorBoundary;
+                } catch (cleanupError) {
+                    console.warn('Error cleaning up previous error boundary:', cleanupError);
+                }
+            }
+            
             // Check if trading interface is already shown
             if (window.tradingInterfaceInitialized) {
                 console.log('Trading interface already initialized, skipping');
@@ -777,6 +794,7 @@ class WalletConnector {
             const ChatPanel = await import('../../components/ChatPanel/ChatPanel.js').then(m => m.default);
             const StatusPanel = await import('../../components/StatusPanel/StatusPanel.js').then(m => m.default);
             const BlockchainService = await import('../../services/BlockchainService.js').then(m => m.default);
+            const { ErrorBoundary } = await import('../../components/ErrorBoundary/ErrorBoundary.js');
             console.log('Components imported successfully');
             
             // Remove the original status message element
@@ -840,13 +858,26 @@ class WalletConnector {
             const chatPanel = new ChatPanel();
             const statusPanel = new StatusPanel();
 
-            // Mount the interface
-            console.log('Mounting TradingInterface to DOM...');
-            tradingInterface.mount(bondingInterface);
+            // Wrap TradingInterface with ErrorBoundary for error resilience
+            console.log('Wrapping TradingInterface with ErrorBoundary...');
+            const errorBoundary = new ErrorBoundary();
+            errorBoundary.mount(bondingInterface);
+            errorBoundary.wrap(tradingInterface, bondingInterface);
+            
+            // Store error boundary for cleanup
+            window.tradingInterfaceErrorBoundary = errorBoundary;
 
-            // Show the container
+            // Mount the interface (ErrorBoundary will handle mounting)
+            console.log('TradingInterface wrapped and ready');
+
+            // Show the container - ensure it's visible
             bondingInterface.style.display = 'block';
+            bondingInterface.style.opacity = '1';
+            bondingInterface.style.visibility = 'visible';
             bondingInterface.classList.add('active');
+            
+            console.log('TradingInterface mounted, container display:', bondingInterface.style.display);
+            console.log('TradingInterface container opacity:', bondingInterface.style.opacity);
             
             // Hide GIF container
             const gifContainer = document.querySelector('.gif-container');
@@ -989,6 +1020,41 @@ class WalletConnector {
         } catch (error) {
             console.error('Error updating interface panels:', error);
         }
+    }
+    
+    /**
+     * Cleanup method to remove event listeners and reset state
+     */
+    cleanup() {
+        console.log('[WalletConnector] Starting cleanup...');
+        
+        // Unsubscribe from all event bus listeners
+        if (this.eventUnsubscribers) {
+            this.eventUnsubscribers.forEach(unsubscribe => {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            });
+            this.eventUnsubscribers = [];
+        }
+        
+        // Remove unhandled rejection handler
+        if (this.boundUnhandledRejectionHandler) {
+            window.removeEventListener('unhandledrejection', this.boundUnhandledRejectionHandler);
+            this.boundUnhandledRejectionHandler = null;
+        }
+        
+        // Hide and remove modal if it exists
+        const modal = document.getElementById(this.walletModalId);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        
+        // Reset state
+        this.container = null;
+        this.messagePopup = null;
+        
+        console.log('[WalletConnector] Cleanup complete');
     }
 }
 

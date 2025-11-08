@@ -19,6 +19,14 @@
     gap: 10px;
 }
 
+.direction-switch-slot {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: -5px 0;
+    z-index: 1;
+}
+
 .input-group {
     background: #f8f9fa;
     border-radius: 12px;

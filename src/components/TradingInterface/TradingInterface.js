@@ -4,10 +4,10 @@ import { eventBus } from '../../core/EventBus.js';
 import priceService from '../../services/PriceService.js';
 import { layoutService, LAYOUT_EVENTS } from '../../services/LayoutService.js';
 import SwapInterface from '../SwapInterface/SwapInterface.js';
-
 import BondingCurve from '../BondingCurve/BondingCurve.js';
-
 import PortfolioModal from '../PortfolioModal/PortfolioModal.js';
+import TabNavigation from './TabNavigation.js';
+import TradingViewContainer from './TradingViewContainer.js';
 
 // Add event name constants at the top of the file
 const EVENTS = {
@@ -58,12 +58,29 @@ export class TradingInterface extends Component {
             isMobile: layoutService.getState().isMobile
         };
         
-        // Initialize services
-        priceService.initialize(blockchainService);
+        // Initialize services - pass address directly to avoid timing issues with store
+        priceService.initialize(blockchainService, walletAddress || address);
 
         // Initialize child components
         this.bondingCurve = new BondingCurve();
         this.swapInterface = new SwapInterface(blockchainService, address);
+        
+        // Initialize sub-components
+        this.tabNavigation = new TabNavigation({
+            isMobile: this.state.isMobile,
+            activeView: this.state.activeView,
+            onTabClick: this.handleTabClick.bind(this),
+            onPortfolioClick: this.handlePortfolioClick.bind(this)
+        });
+        
+        this.tradingViewContainer = new TradingViewContainer({
+            isMobile: this.state.isMobile,
+            activeView: this.state.activeView,
+            showOverlay: this.state.showNotAllowedOverlay,
+            isPhase2: this.state.isPhase2,
+            currentTier: this.state.currentWhitelistTier,
+            onOverlayClose: this.hideOverlay.bind(this)
+        });
         
         // Single source of truth for layout state
         this.layoutState = {
@@ -107,12 +124,11 @@ export class TradingInterface extends Component {
 
     async initialize() {
         try {
-            // Check phase 2 status from current contract data (if available)
-            this.checkPhase2Status();
-
             // Listen for contract data updates to re-check phase 2 status
             this.unsubscribeContractData = eventBus.on('contractData:updated', () => {
                 this.checkPhase2Status();
+                // Re-evaluate overlay visibility when contract data updates
+                this.evaluateOverlayVisibility();
             });
 
             // Fetch initial balances and price concurrently
@@ -125,22 +141,33 @@ export class TradingInterface extends Component {
                 this.blockchainService.getCurrentTier()
             ]);
 
-            // Re-check phase 2 status after fetching data (contract data might be loaded by now)
+            // Wait a bit for contract data to load (PriceService loads it asynchronously)
+            // Check if contract data is available, if not wait a moment
+            let contractData = tradingStore.selectContractData();
+            if (!contractData || !contractData.liquidityPool) {
+                // Wait for contract data to be loaded (max 2 seconds)
+                await new Promise((resolve) => {
+                    const checkInterval = setInterval(() => {
+                        contractData = tradingStore.selectContractData();
+                        if (contractData && contractData.liquidityPool !== undefined) {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                    setTimeout(() => {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }, 2000);
+                });
+            }
+
+            // Re-check phase 2 status after waiting for contract data
             this.checkPhase2Status();
 
             const proof = await this.blockchainService.getMerkleProof(this.address, currentTier);
             
-            // Only show overlay if: NOT Phase 2 AND no proof
-            // If we're in Phase 2, overlay should never show
-            if (!this.state.isPhase2 && !proof) {
-                this.setState({
-                    showNotAllowedOverlay: true,
-                    currentWhitelistTier: currentTier
-                });
-            } else {
-                // If we have a valid proof or phase 2 is active, make sure overlay is hidden
-                this.setState({ showNotAllowedOverlay: false });
-            }
+            // Evaluate overlay visibility with all data available
+            this.evaluateOverlayVisibility(currentTier, proof);
 
             // Update store with fetched balances
             tradingStore.updateBalances({
@@ -170,8 +197,8 @@ export class TradingInterface extends Component {
     }
 
     checkPhase2Status() {
-        const contractData = tradingStore.selectContractData();
-        const isPhase2 = contractData && contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        // Use the store's selector for single source of truth
+        const isPhase2 = tradingStore.selectIsPhase2();
         
         // If we're entering Phase 2, hide the overlay immediately
         if (isPhase2 && this.state.showNotAllowedOverlay) {
@@ -179,13 +206,75 @@ export class TradingInterface extends Component {
                 isPhase2,
                 showNotAllowedOverlay: false 
             });
-        } else {
+        } else if (this.state.isPhase2 !== isPhase2) {
+            // Only update if phase changed
             this.setState({ isPhase2 });
         }
         
         // Update view visibility to reflect overlay state changes
         if (this.mounted) {
             this.updateViewVisibility();
+        }
+    }
+
+    /**
+     * Evaluate whether the whitelist overlay should be shown
+     * Only shows overlay if: NOT Phase 2 AND no proof AND contract data is loaded
+     */
+    evaluateOverlayVisibility(currentTier = null, proof = null) {
+        // Get current Phase 2 status from store
+        const isPhase2 = tradingStore.selectIsPhase2();
+        const contractData = tradingStore.selectContractData();
+        
+        // Don't show overlay if:
+        // 1. We're in Phase 2, OR
+        // 2. Contract data isn't loaded yet (to avoid false positives), OR
+        // 3. We have a valid proof
+        if (isPhase2) {
+            // Phase 2 is active, definitely hide overlay
+            if (this.state.showNotAllowedOverlay) {
+                this.setState({ 
+                    showNotAllowedOverlay: false 
+                });
+            }
+            return;
+        }
+
+        // If contract data isn't loaded yet, don't make a decision
+        // Wait for contract data to load before showing overlay
+        if (!contractData || contractData.liquidityPool === undefined) {
+            // Keep overlay hidden until we know for sure
+            if (this.state.showNotAllowedOverlay) {
+                this.setState({ showNotAllowedOverlay: false });
+            }
+            return;
+        }
+
+        // Contract data is loaded and we're not in Phase 2
+        // Check if we have a proof
+        if (proof === null && currentTier !== null) {
+            // Proof wasn't provided, fetch it
+            this.blockchainService.getMerkleProof(this.address, currentTier).then(proofResult => {
+                this.evaluateOverlayVisibility(currentTier, proofResult);
+            }).catch(() => {
+                // If proof fetch fails, assume no proof
+                this.evaluateOverlayVisibility(currentTier, null);
+            });
+            return;
+        }
+
+        // Now we have all the data: not Phase 2, contract data loaded, proof status known
+        if (!proof) {
+            // No proof and not Phase 2, show overlay
+            this.setState({
+                showNotAllowedOverlay: true,
+                currentWhitelistTier: currentTier
+            });
+        } else {
+            // Have proof, hide overlay
+            this.setState({ 
+                showNotAllowedOverlay: false 
+            });
         }
     }
 
@@ -296,26 +385,41 @@ export class TradingInterface extends Component {
         const { isMobile } = this.state;
         const html = `
             <div class="trading-interface ${isMobile ? 'mobile' : ''}">
-                <div class="tab-navigation">
-                    ${isMobile ? `
-                        <button class="tab-button" data-view="curve">Bonding Curve</button>
-                        <button class="tab-button" data-view="swap">Swap</button>
-                    ` : ''}
-                    <button class="portfolio-button">Portfolio</button>
-                </div>
-                <div class="trading-container">
-                    <div class="trading-view" data-view="curve"></div>
-                    <div class="trading-view" data-view="swap"></div>
-                </div>
+                <div class="tab-navigation-container"></div>
+                <div class="trading-view-container-wrapper"></div>
             </div>
         `;
         this.element.innerHTML = html;
 
-        // Mount children persistently
-        const curveContainer = this.element.querySelector('.trading-view[data-view="curve"]');
+        // Mount sub-components
+        const tabNavContainer = this.element.querySelector('.tab-navigation-container');
+        if (tabNavContainer && this.tabNavigation) {
+            this.tabNavigation.mount(tabNavContainer);
+        }
+
+        const tradingViewWrapper = this.element.querySelector('.trading-view-container-wrapper');
+        if (tradingViewWrapper && this.tradingViewContainer) {
+            this.tradingViewContainer.mount(tradingViewWrapper);
+            
+            // Wait for TradingViewContainer to render, then mount child views
+            // Use requestAnimationFrame for better timing
+            requestAnimationFrame(() => {
+                const curveContainer = this.tradingViewContainer.element?.querySelector('.trading-view[data-view="curve"]');
+                if (curveContainer) {
         this.bondingCurve.mount(curveContainer);
-        const swapContainer = this.element.querySelector('.trading-view[data-view="swap"]');
+                }
+                
+                const swapContainer = this.tradingViewContainer.element?.querySelector('.trading-view[data-view="swap"]');
+                if (swapContainer) {
         this.swapInterface.mount(swapContainer);
+                }
+                
+                // Update visibility after mounting children
+                if (this.tradingViewContainer.updateVisibility) {
+                    this.tradingViewContainer.updateVisibility();
+                }
+            });
+        }
 
         this.mounted = true;
 
@@ -328,11 +432,7 @@ export class TradingInterface extends Component {
         eventBus.on('portfolio:open', this.handlePortfolioOpen);
         eventBus.on('portfolio:close', this.handlePortfolioClose);
 
-        // Setup tab click listeners
-        this.setupTabListeners();
-        
-        // Setup portfolio button
-        this.setupPortfolioButton();
+        // Sub-components handle their own event listeners
 
         // Set initial view visibility
         this.updateViewVisibility();
@@ -342,7 +442,25 @@ export class TradingInterface extends Component {
     }
 
     update() {
-        // State changes only affect visibility, not structure.
+        // Update sub-components with new props
+        if (this.tabNavigation) {
+            this.tabNavigation.updateProps({
+                isMobile: this.state.isMobile,
+                activeView: this.state.activeView
+            });
+        }
+        
+        if (this.tradingViewContainer) {
+            this.tradingViewContainer.updateProps({
+                isMobile: this.state.isMobile,
+                activeView: this.state.activeView,
+                showOverlay: this.state.showNotAllowedOverlay,
+                isPhase2: this.state.isPhase2,
+                currentTier: this.state.currentWhitelistTier
+            });
+        }
+        
+        // Update view visibility
         this.updateViewVisibility();
     }
 
@@ -363,6 +481,27 @@ export class TradingInterface extends Component {
                 this.swapInterface.unmount();
                 this.swapInterface = null;
             }
+            
+            // Unmount sub-components
+            if (this.tabNavigation) {
+                try {
+                    this.tabNavigation.unmount();
+                } catch (e) {
+                    console.warn('Error unmounting tab navigation:', e);
+                }
+                this.tabNavigation = null;
+            }
+            
+            if (this.tradingViewContainer) {
+                try {
+                    this.tradingViewContainer.unmount();
+                } catch (e) {
+                    console.warn('Error unmounting trading view container:', e);
+                }
+                this.tradingViewContainer = null;
+            }
+            
+            // Overlay is handled by TradingViewContainer, no separate unmount needed
             
             // Unbind any DOM events
             if (this.element) {
@@ -753,9 +892,11 @@ export class TradingInterface extends Component {
     }
 
     handleTabClick(event) {
-        const view = event.target.dataset.view;
+        // Handle both direct event objects and wrapped event objects
+        const target = event?.target || event;
+        const view = target?.dataset?.view;
 
-        if (view === this.state.activeView) {
+        if (!view || view === this.state.activeView) {
             return;
         }
 
@@ -783,14 +924,6 @@ export class TradingInterface extends Component {
                 activeTab: view,
                 visibleViews: this.layoutState.visibleViews
             });
-        });
-    }
-
-    setupTabListeners() {
-        const tabButtons = this.element.querySelectorAll('.tab-button');
-        tabButtons.forEach(button => {
-            button.removeEventListener('click', this.handleTabClick);
-            button.addEventListener('click', this.handleTabClick);
         });
     }
 
@@ -989,64 +1122,13 @@ export class TradingInterface extends Component {
     }
 
     updateViewVisibility() {
-        const { isMobile, activeView, showNotAllowedOverlay, currentWhitelistTier, isPhase2 } = this.state;
+        const { isMobile } = this.state;
         
         const wasMobile = this.element.classList.contains('mobile');
         this.element.classList.toggle('mobile', isMobile);
 
-        // Update tab navigation structure if mobile state changes
-        if (isMobile !== wasMobile) {
-            const tabNav = this.element.querySelector('.tab-navigation');
-            const portfolioButtonHTML = `<button class="portfolio-button">Portfolio</button>`;
-            if (isMobile) {
-                tabNav.innerHTML = `
-                    <button class="tab-button" data-view="curve">Bonding Curve</button>
-                    <button class="tab-button" data-view="swap">Swap</button>
-                    ${portfolioButtonHTML}
-                `;
-            } else {
-                tabNav.innerHTML = portfolioButtonHTML;
-            }
-            this.setupTabListeners();
-            this.setupPortfolioButton();
-        }
-
-        // Update active class on tabs
-        if (isMobile) {
-            const tabButtons = this.element.querySelectorAll('.tab-button');
-            tabButtons.forEach(button => {
-                button.classList.toggle('active', button.dataset.view === activeView);
-            });
-        }
-        
-        // Cache visibility results
-        const showCurve = this.shouldShowComponent('curve');
-        const showSwap = this.shouldShowComponent('swap');
-        
-        // Toggle view visibility
-        this.element.querySelector('.trading-view[data-view="curve"]').style.display = showCurve ? 'block' : 'none';
-        this.element.querySelector('.trading-view[data-view="swap"]').style.display = showSwap ? 'block' : 'none';
-
-        // Handle the "Not Allowed" overlay
-        const container = this.element.querySelector('.trading-container');
-        let overlay = container.querySelector('.not-allowed-overlay');
-
-        if (!isPhase2 && showNotAllowedOverlay) {
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.className = 'not-allowed-overlay';
-                overlay.addEventListener('click', () => this.hideOverlay());
-                container.insertBefore(overlay, container.firstChild);
-            }
-            overlay.innerHTML = `
-                <img src="/public/stop.png" alt="Not Allowed" />
-                <div class="overlay-text">NOT ALLOWED</div>
-                <div class="tier-text">Current Whitelist: Tier ${currentWhitelistTier !== null ? currentWhitelistTier : 'Loading...'}</div>
-            `;
-            overlay.style.display = 'flex';
-        } else if (overlay) {
-            overlay.remove();
-        }
+        // Sub-components handle their own visibility updates via updateProps
+        // This method is kept for any additional visibility logic if needed
     }
 
     static get styles() {
@@ -1141,12 +1223,7 @@ export class TradingInterface extends Component {
         `;
     }
 
-    setupPortfolioButton() {
-        const portfolioButton = this.element.querySelector('.portfolio-button');
-        if (portfolioButton) {
-            portfolioButton.addEventListener('click', this.handlePortfolioClick.bind(this));
-        }
-    }
+    // Portfolio button is now handled by TabNavigation component
 
     hideOverlay() {
         this.setState({ showNotAllowedOverlay: false });

@@ -5,21 +5,6 @@
 // Add performance markers for monitoring
 performance.mark('startApp');
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize original UI animations and elements
-    initializeAnimations();
-    
-    // Initialize random price updates for UI
-    initializePriceUpdates();
-    
-    // Set up input handlers for the whitelist checker
-    initializeWhitelistChecker();
-    
-    // Mark UI loaded
-    performance.mark('uiLoaded');
-    performance.measure('uiLoadTime', 'startApp', 'uiLoaded');
-});
-
 /**
  * Initialize UI animations
  */
@@ -248,3 +233,24 @@ function initializeWhitelistChecker() {
     // Button click handler
     button.addEventListener('click', checkWhitelistStatus);
 }
+
+// Export functions globally so they can be called from route handlers
+window.initializeAnimations = initializeAnimations;
+window.initializePriceUpdates = initializePriceUpdates;
+window.initializeWhitelistChecker = initializeWhitelistChecker;
+
+// Only auto-initialize if we're on a page that needs it (not using router)
+// The router will call these functions when needed
+document.addEventListener('DOMContentLoaded', () => {
+    // Check if we're using the router (router will handle initialization)
+    // If router is not available, initialize directly (backward compatibility)
+    if (!window.router) {
+        initializeAnimations();
+        initializePriceUpdates();
+        initializeWhitelistChecker();
+        
+        // Mark UI loaded
+        performance.mark('uiLoaded');
+        performance.measure('uiLoadTime', 'startApp', 'uiLoaded');
+    }
+});

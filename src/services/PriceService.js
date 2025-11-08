@@ -24,15 +24,17 @@ class PriceService {
     }
 
     // Initialize with blockchain service
-    initialize(blockchainService) {
+    initialize(blockchainService, address = null) {
         if (!blockchainService) {
             throw new Error('BlockchainService is required');
         }
         this._blockchainService = blockchainService;
         
         // Fetch initial contract data immediately without debouncing
-        console.log('PriceService: Fetching initial data immediately');
-        this.updateContractData().catch(error => {
+        // Use provided address or try to get from store
+        const addressToUse = address || tradingStore.selectConnectedAddress();
+        console.log('PriceService: Fetching initial data immediately', addressToUse ? `for address: ${addressToUse}` : '(no address yet)');
+        this.updateContractData(addressToUse).catch(error => {
             console.error('Failed to fetch initial contract data:', error);
         });
         
@@ -82,8 +84,55 @@ class PriceService {
         }
     }
 
-    async updateContractData() {
-        const address = tradingStore.selectConnectedAddress();
+    async updateContractData(address = null) {
+        // Use provided address or get from store
+        const addressToUse = address || tradingStore.selectConnectedAddress();
+        
+        // If no address is connected, skip address-specific calls
+        if (!addressToUse) {
+            console.warn('[PriceService] No address connected, skipping address-specific data fetch');
+            try {
+                // Fetch only non-address-specific data
+                const [
+                    currentPrice,
+                    totalBondingSupply,
+                    totalMessages,
+                    totalNFTs,
+                    freeSupply,
+                    contractEthBalance,
+                    currentTier,
+                    liquidityPool,
+                ] = await Promise.all([
+                    this._blockchainService.getCurrentPrice(),
+                    this._blockchainService.getTotalBondingSupply(),
+                    this._blockchainService.getTotalMessages(),
+                    this._blockchainService.getNFTSupply(),
+                    this._blockchainService.getFreeSupply(),
+                    this._blockchainService.getContractEthBalance(),
+                    this._blockchainService.getCurrentTier(),
+                    this._blockchainService.getLiquidityPool(),
+                ]);
+                
+                // Update store with available data (without address-specific fields)
+                tradingStore.updateContractData({
+                    totalBondingSupply,
+                    currentPrice,
+                    totalMessages,
+                    totalNFTs,
+                    freeSupply,
+                    contractEthBalance,
+                    currentTier,
+                    liquidityPool,
+                    lastUpdated: Date.now()
+                });
+                
+                return;
+            } catch (error) {
+                console.error('[PriceService] Error updating contract data (no address):', error);
+                throw error;
+            }
+        }
+        
         try {
             // Fetch all blockchain data in parallel
             const [
@@ -103,12 +152,12 @@ class PriceService {
                 this._blockchainService.getCurrentPrice(),
                 this._blockchainService.getTotalBondingSupply(),
                 this._blockchainService.getTotalMessages(),
-                this._blockchainService.getEthBalance(address),
-                this._blockchainService.getTokenBalance(address),
-                this._blockchainService.getNFTBalance(address),
+                this._blockchainService.getEthBalance(addressToUse),
+                this._blockchainService.getTokenBalance(addressToUse),
+                this._blockchainService.getNFTBalance(addressToUse),
                 this._blockchainService.getNFTSupply(),
                 this._blockchainService.getFreeSupply(),
-                this._blockchainService.getFreeMint(address),
+                this._blockchainService.getFreeMint(addressToUse),
                 this._blockchainService.getContractEthBalance(),
                 this._blockchainService.getCurrentTier(),
                 this._blockchainService.getLiquidityPool(),
@@ -258,7 +307,7 @@ class PriceService {
     }
 
     // Add a debounce wrapper for updateContractData
-    debouncedUpdateContractData() {
+    debouncedUpdateContractData(address = null) {
         // Clear any existing timeout
         if (this._updateDebounceTimeout) {
             clearTimeout(this._updateDebounceTimeout);
@@ -266,7 +315,9 @@ class PriceService {
         
         // Set a new timeout
         this._updateDebounceTimeout = setTimeout(() => {
-            this.updateContractData()
+            // Use provided address or get from store
+            const addressToUse = address || tradingStore.selectConnectedAddress();
+            this.updateContractData(addressToUse)
                 .catch(error => {
                     console.error('Failed to update contract data:', error);
                 });

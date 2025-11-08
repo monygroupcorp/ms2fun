@@ -22,24 +22,40 @@ export class BondingCurve extends Component {
             // Fetch network ID from switch.json
             const response = await fetch('/EXEC404/switch.json');
             const config = await response.json();
-            this.setState({ chainId: config.network });
+            this.state.chainId = config.network;
             
             // Check liquidity pool status first
-            const liquidityPool = tradingStore.selectContractData().liquidityPool;
-            this.setState({ liquidityPool });
+            const contractData = tradingStore.selectContractData();
+            const liquidityPool = contractData?.liquidityPool;
+            this.state.liquidityPool = liquidityPool;
 
             // Subscribe to contract data updates
-            eventBus.on('contractData:updated', () => {
-                const contractData = tradingStore.selectContractData();
-                
-                if (contractData.liquidityPool !== this.state.liquidityPool) {
-                    this.setState({ liquidityPool: contractData.liquidityPool });
+            const unsubscribe = eventBus.on('contractData:updated', () => {
+                try {
+                    const contractData = tradingStore.selectContractData();
+                    const newLiquidityPool = contractData?.liquidityPool;
                     
-                    if (this.isLiquidityDeployed()) {
-                        this.renderDexToolsChart();
+                    if (newLiquidityPool !== this.state.liquidityPool) {
+                        this.state.liquidityPool = newLiquidityPool;
+                        
+                        if (this.isLiquidityDeployed()) {
+                            this.renderDexToolsChart();
+                        } else {
+                            // If we went back to Phase 1, draw curve
+                            this.drawCurve();
+                        }
                     }
+                } catch (error) {
+                    console.error('Error in BondingCurve contractData:updated handler:', error);
+                    // Don't let chart errors break the component
                 }
             });
+            
+            // Store unsubscribe for cleanup
+            if (!this._unsubscribeHandlers) {
+                this._unsubscribeHandlers = [];
+            }
+            this._unsubscribeHandlers.push(unsubscribe);
 
             if (this.isLiquidityDeployed()) {
                 this.renderDexToolsChart();
@@ -50,6 +66,17 @@ export class BondingCurve extends Component {
             
         } catch (error) {
             console.error('Error initializing bonding curve:', error);
+            // Show fallback UI instead of breaking
+            if (this.element) {
+                const container = this.element.querySelector('.bonding-curve');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888;">
+                            <div>Chart unavailable</div>
+                        </div>
+                    `;
+                }
+            }
         }
     }
 
@@ -60,6 +87,7 @@ export class BondingCurve extends Component {
     }
 
     renderDexToolsChart() {
+        try {
         const container = this.element.querySelector('.bonding-curve');
         if (!container) {
             return;
@@ -73,6 +101,7 @@ export class BondingCurve extends Component {
         const chartUrl = `https://www.dextools.io/widget-chart/en/${networkName}/pe-light/${this.state.liquidityPool}?theme=dark&chartType=2&chartResolution=30&drawingToolbars=false`;
 
         // Use exact DEXTools iframe format from share button
+            // Note: This will fail on localhost due to X-Frame-Options, but that's expected
         container.innerHTML = `
             <iframe 
                 id="dextools-widget"
@@ -81,8 +110,35 @@ export class BondingCurve extends Component {
                 height="100%"
                 src="${chartUrl}"
                 style="border: none;"
+                    onerror="console.warn('DEXTools chart failed to load (expected on localhost)')"
             ></iframe>
         `;
+            
+            // Add error handler for iframe load failures (expected on localhost)
+            const iframe = container.querySelector('#dextools-widget');
+            if (iframe) {
+                iframe.onerror = () => {
+                    console.warn('DEXTools chart iframe failed to load (expected on localhost due to X-Frame-Options)');
+                    // Show a fallback message instead of breaking
+                    container.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888;">
+                            <div>Chart will be available in production</div>
+                        </div>
+                    `;
+                };
+            }
+        } catch (error) {
+            console.error('Error rendering DEXTools chart:', error);
+            // Don't let chart errors break the component
+            const container = this.element.querySelector('.bonding-curve');
+            if (container) {
+                container.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888;">
+                        <div>Chart unavailable (expected on localhost)</div>
+                    </div>
+                `;
+            }
+        }
     }
 
     getNetworkName(chainId) {
@@ -306,6 +362,17 @@ export class BondingCurve extends Component {
         if (this.unsubscribeEvents) {
             this.unsubscribeEvents.forEach(unsubscribe => unsubscribe());
         }
+        
+        // Clean up event bus subscriptions from initialize
+        if (this._unsubscribeHandlers) {
+            this._unsubscribeHandlers.forEach(unsubscribe => {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            });
+            this._unsubscribeHandlers = [];
+        }
+        
         super.unmount();
     }
 

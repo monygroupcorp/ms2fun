@@ -5,6 +5,8 @@ import MessagePopup from '../MessagePopup/MessagePopup.js';
 import { eventBus } from '../../core/EventBus.js';
 import PriceDisplay  from '../PriceDisplay/PriceDisplay.js';
 import { ApproveModal } from '../ApprovalModal/ApprovalModal.js';
+import SwapInputs from './SwapInputs.js';
+import SwapButton from './SwapButton.js';
 
 export default class SwapInterface extends Component {
     constructor(blockchainService , address = null) {
@@ -34,6 +36,23 @@ export default class SwapInterface extends Component {
         console.log('🔵 SwapInterface created PriceDisplay instance');
         this.messagePopup.initialize();
         
+        // Initialize sub-components
+        this.swapInputs = new SwapInputs({
+            direction: this.state.direction,
+            ethAmount: this.state.ethAmount,
+            execAmount: this.state.execAmount,
+            calculatingAmount: this.state.calculatingAmount,
+            freeMint: this.state.freeMint,
+            isPhase2: this.state.isPhase2,
+            onInput: this.handleInput.bind(this)
+        });
+        
+        this.swapButton = new SwapButton({
+            direction: this.state.direction,
+            disabled: false,
+            onClick: this.handleSwap.bind(this)
+        });
+        
         // Debounce timer
         this.calculateTimer = null;
         
@@ -62,47 +81,45 @@ export default class SwapInterface extends Component {
 
     // Add new method to handle balance updates
     handleBalanceUpdate() {
-        // Update only the balance displays without full re-render
-        const balances = this.store.selectBalances();
-        const formattedEthBalance = parseFloat(balances.eth).toFixed(6);
-        const formattedExecBalance = parseInt(balances.exec).toLocaleString();
-
         const { freeSupply, freeMint } = this.store.selectFreeSituation();
         console.log('handleBalanceUpdate freeMint', freeMint);
-        this.freeMint = freeMint;
-        this.freeSupply = freeSupply;
-
-        // Update all balance displays
-        const balanceDisplays = this.element.querySelectorAll('.token-balance');
-        balanceDisplays.forEach(display => {
-            const isEthBalance = display.previousElementSibling.textContent.includes('ETH');
-            display.textContent = `Balance: ${isEthBalance ? formattedEthBalance : formattedExecBalance}`;
-        });
+        
+        // Update state directly without triggering re-render
+        // Only update if values actually changed
+        if (this.state.freeMint !== freeMint || this.state.freeSupply !== freeSupply) {
+            this.state.freeMint = freeMint;
+            this.state.freeSupply = freeSupply;
+            
+            // Update swap inputs component with new balance info directly
+            if (this.swapInputs) {
+                this.swapInputs.updateProps({
+                    freeMint: freeMint
+                });
+            }
+        }
     }
 
     updateElements() {
-        const { activeInput, calculatingAmount, direction } = this.state;
-        
-        // Update inactive input
-        if (activeInput === 'top') {
-            const bottomInput = this.element.querySelector('.bottom-input');
-            if (bottomInput && !bottomInput.matches(':focus')) {
-                bottomInput.value = calculatingAmount ? 'Loading...' : 
-                    (direction === 'buy' ? this.state.execAmount : this.state.ethAmount);
+        // Update child components with new props
+        // Use requestAnimationFrame to batch updates and prevent multiple renders
+        requestAnimationFrame(() => {
+            if (this.swapInputs) {
+                this.swapInputs.updateProps({
+                    direction: this.state.direction,
+                    ethAmount: this.state.ethAmount,
+                    execAmount: this.state.execAmount,
+                    calculatingAmount: this.state.calculatingAmount,
+                    freeMint: this.state.freeMint,
+                    isPhase2: this.state.isPhase2
+                });
             }
-        } else if (activeInput === 'bottom') {
-            const topInput = this.element.querySelector('.top-input');
-            if (topInput && !topInput.matches(':focus')) {
-                topInput.value = calculatingAmount ? 'Loading...' : 
-                    (direction === 'buy' ? this.state.ethAmount : this.state.execAmount);
+            
+            if (this.swapButton) {
+                this.swapButton.updateProps({
+                    direction: this.state.direction
+                });
             }
-        }
-
-        // Update action button
-        const actionButton = this.element.querySelector('.swap-button');
-        if (actionButton) {
-            actionButton.textContent = this.state.direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC';
-        }
+        });
     }
 
     async calculateSwapAmount(amount, inputType) {
@@ -185,24 +202,23 @@ export default class SwapInterface extends Component {
             return eventBus.on(event, handler);
         });
 
-        // Check if we already have data and force a render
+        // Check if we already have data
         const contractData = this.store.selectContractData();
         if (contractData) {
             this.setState({ 
                 isPhase2: this.isLiquidityDeployed(),
                 dataReady: true
             });
-
-            // Force render regardless of whether element's content has changed
-            this.render();
-            this.element.innerHTML = this.render();
-            
-            // Mount child components
-            this.mountChildComponents();
-        } else {
-            // If no data yet, render a loading state
-            this.element.innerHTML = '<div>Loading...</div>';
         }
+        
+        // Always render the full interface (it will show loading state if dataReady is false)
+        // Use the Component's update method to trigger proper render cycle
+        this.update();
+            
+        // Mount child components after render
+        requestAnimationFrame(() => {
+            this.mountChildComponents();
+        });
     }
     
     // Add method to explicitly mount child components
@@ -220,6 +236,56 @@ export default class SwapInterface extends Component {
             (!this.transactionOptions.element || !optionsContainer.contains(this.transactionOptions.element))) {
             console.log(`[${this.instanceId}] Mounting TransactionOptions component`);
             this.transactionOptions.mount(optionsContainer);
+        }
+        
+        // Mount swap inputs
+        const inputsContainer = this.element.querySelector('.swap-inputs-container');
+        if (inputsContainer && this.swapInputs) {
+            this.swapInputs.mount(inputsContainer);
+        }
+        
+        // Mount quick fill buttons
+        const quickFillContainer = this.element.querySelector('.quick-fill-buttons-container');
+        if (quickFillContainer) {
+            // Create a wrapper for just the quick fill buttons
+            quickFillContainer.innerHTML = '<div class="quick-fill-buttons"></div>';
+            const quickFillButtons = quickFillContainer.querySelector('.quick-fill-buttons');
+            if (quickFillButtons) {
+                // Render quick fill buttons directly
+                const { direction } = this.state;
+                quickFillButtons.innerHTML = direction === 'buy' ? 
+                    `<button data-amount="0.0025">0.0025</button>
+                    <button data-amount="0.01">0.01</button>
+                    <button data-amount="0.05">0.05</button>
+                    <button data-amount="0.1">0.1</button>`
+                :
+                    `<button data-percentage="25">25%</button>
+                    <button data-percentage="50">50%</button>
+                    <button data-percentage="75">75%</button>
+                    <button data-percentage="100">100%</button>`;
+                
+                // Attach event listeners
+                quickFillButtons.addEventListener('click', (e) => {
+                    if (e.target.dataset.amount || e.target.dataset.percentage) {
+                        this.handleQuickFill(e);
+                    }
+                });
+            }
+        }
+        
+        // Mount direction switch in the slot within swap-inputs
+        const directionSwitchSlot = this.element.querySelector('.direction-switch-slot');
+        if (directionSwitchSlot) {
+            directionSwitchSlot.innerHTML = '<button class="direction-switch">↑↓</button>';
+            directionSwitchSlot.querySelector('.direction-switch').addEventListener('click', (e) => {
+                this.handleDirectionSwitch(e);
+            });
+        }
+        
+        // Mount swap button
+        const buttonContainer = this.element.querySelector('.swap-button-container');
+        if (buttonContainer && this.swapButton) {
+            this.swapButton.mount(buttonContainer);
         }
     }
 
@@ -248,6 +314,27 @@ export default class SwapInterface extends Component {
                 console.warn('Error unmounting price display:', e);
             }
             this.priceDisplay = null;
+        }
+        
+        // Unmount sub-components
+        if (this.swapInputs) {
+            try {
+                this.swapInputs.unmount();
+            } catch (e) {
+                console.warn('Error unmounting swap inputs:', e);
+            }
+            this.swapInputs = null;
+        }
+        
+        // Quick fill and direction switch are handled inline, no unmount needed
+        
+        if (this.swapButton) {
+            try {
+                this.swapButton.unmount();
+            } catch (e) {
+                console.warn('Error unmounting swap button:', e);
+            }
+            this.swapButton = null;
         }
         
         // Make sure to close and clean up any open approval modal
@@ -327,23 +414,21 @@ export default class SwapInterface extends Component {
             );
 
             // Clear inputs after successful transaction
-            this.setState({
-                ethAmount: '',
-                execAmount: '',
-                calculatingAmount: false
-            });
+            this.state.ethAmount = '';
+            this.state.execAmount = '';
+            this.state.calculatingAmount = false;
+            
+            // Update child components directly
+            if (this.swapInputs) {
+                this.swapInputs.updateProps({
+                    ethAmount: '',
+                    execAmount: '',
+                    calculatingAmount: false
+                });
+            }
 
             // Re-mount child components after state update
-            const optionsContainer = this.element.querySelector('.transaction-options-container');
-            const priceContainer = this.element.querySelector('.price-display-container');
-            
-            if (optionsContainer) {
-                this.transactionOptions.mount(optionsContainer);
-            }
-            
-            if (priceContainer) {
-                this.priceDisplay.mount(priceContainer);
-            }
+            this.mountChildComponents();
         }
 
         // For error transactions
@@ -383,8 +468,11 @@ export default class SwapInterface extends Component {
             clearTimeout(this.calculateTimer);
         }
 
-        // Update state immediately to show we're calculating
+        // Update state directly without triggering re-render
+        // We'll update the child components directly instead
         this.state.activeInput = inputType;
+        this.state.calculatingAmount = true;
+        
         if (this.state.direction === 'buy') {
             if (inputType === 'top') {
                 this.state.ethAmount = value;
@@ -398,8 +486,18 @@ export default class SwapInterface extends Component {
                 this.state.ethAmount = value;
             }
         }
-        this.state.calculatingAmount = true;
-        this.updateElements();
+        
+        // Update child components directly without triggering parent re-render
+        if (this.swapInputs) {
+            this.swapInputs.updateProps({
+                direction: this.state.direction,
+                ethAmount: this.state.ethAmount,
+                execAmount: this.state.execAmount,
+                calculatingAmount: this.state.calculatingAmount,
+                freeMint: this.state.freeMint,
+                isPhase2: this.state.isPhase2
+            });
+        }
 
         // Set debounced calculation
         this.calculateTimer = setTimeout(async () => {
@@ -410,28 +508,74 @@ export default class SwapInterface extends Component {
                 // Update the opposite input after calculation
                 if (isEthInput) {
                     this.state.execAmount = calculatedAmount;
+                    this.state.calculatingAmount = false;
+                    
+                    // Update child component directly
+                    if (this.swapInputs) {
+                        this.swapInputs.updateProps({
+                            execAmount: calculatedAmount,
+                            calculatingAmount: false
+                        });
+                    }
                 } else {
                     this.state.ethAmount = calculatedAmount;
+                    this.state.calculatingAmount = false;
+                    
+                    // Update child component directly
+                    if (this.swapInputs) {
+                        this.swapInputs.updateProps({
+                            ethAmount: calculatedAmount,
+                            calculatingAmount: false
+                        });
+                    }
                 }
-                this.state.calculatingAmount = false;
-                this.updateElements();
             } catch (error) {
                 console.error('Error calculating swap amount:', error);
                 this.state.calculatingAmount = false;
-                this.updateElements();
+                
+                // Update child component directly
+                if (this.swapInputs) {
+                    this.swapInputs.updateProps({
+                        calculatingAmount: false
+                    });
+                }
             }
         }, 750);
     }
 
     events() {
-        return {
-            'input .top-input': (e) => this.handleInput('top', e.target.value),
-            'input .bottom-input': (e) => this.handleInput('bottom', e.target.value),
-            'click .direction-switch': (e) => this.handleDirectionSwitch(e),
-            'click .swap-button': (e) => this.handleSwap(),
-            'click [data-amount]': (e) => this.handleQuickFill(e),
-            'click [data-percentage]': (e) => this.handleQuickFill(e)
-        };
+        // Events are now handled by child components
+        return {};
+    }
+
+    /**
+     * Override shouldUpdate to prevent re-renders on input changes
+     * Input changes are handled by child components directly
+     */
+    shouldUpdate(oldState, newState) {
+        if (!oldState || !newState) return true;
+        if (oldState === newState) return false;
+        
+        // Don't update if only input values changed (ethAmount, execAmount, activeInput, calculatingAmount)
+        // These are handled by child components directly
+        const inputOnlyChanges = 
+            oldState.ethAmount !== newState.ethAmount ||
+            oldState.execAmount !== newState.execAmount ||
+            oldState.activeInput !== newState.activeInput ||
+            oldState.calculatingAmount !== newState.calculatingAmount;
+        
+        // If only input values changed, don't re-render (child components handle it)
+        if (inputOnlyChanges && 
+            oldState.direction === newState.direction &&
+            oldState.freeMint === newState.freeMint &&
+            oldState.freeSupply === newState.freeSupply &&
+            oldState.isPhase2 === newState.isPhase2 &&
+            oldState.dataReady === newState.dataReady) {
+            return false;
+        }
+        
+        // Update for other state changes (direction, phase, dataReady, etc.)
+        return true;
     }
 
     handleDirectionSwitch(e) {
@@ -448,7 +592,6 @@ export default class SwapInterface extends Component {
 
         const newDirection = this.state.direction === 'buy' ? 'sell' : 'buy';
         
-
         console.log('Direction Switch - Current State:', {
             direction: this.state.direction,
             newDirection,
@@ -456,50 +599,30 @@ export default class SwapInterface extends Component {
             freeSupply: this.state.freeSupply
         });
 
-        // Store current values but DON'T swap them
-        // Just change the direction
-        this.state = {
-            ...this.state,
+        // Use setState instead of directly modifying state
+        // This will trigger update() which handles re-rendering properly
+        this.setState({
             direction: newDirection,
             calculatingAmount: false,
             activeInput: null
-        };
+        });
 
         this.store.setDirection(newDirection === 'buy');
 
-        console.log('Direction Switch - Updated State:', {
-            direction: this.state.direction,
-            freeMint: this.state.freeMint,
-            freeSupply: this.state.freeSupply
+        // Update child components with new direction
+        // Don't replace innerHTML - let Component.update() handle it
+        requestAnimationFrame(() => {
+            this.mountChildComponents();
         });
-
-        // Unbind events before updating content
-        this.unbindEvents();
-        
-        // Force full re-render
-        const newContent = this.render();
-        this.element.innerHTML = newContent;
-        
-        // Re-mount both transaction options and price display
-        const optionsContainer = this.element.querySelector('.transaction-options-container');
-        const priceContainer = this.element.querySelector('.price-display-container');
-        
-        if (optionsContainer) {
-            this.transactionOptions.mount(optionsContainer);
-        }
-        
-        if (priceContainer) {
-            this.priceDisplay.mount(priceContainer);
-        }
-        
-        // Rebind events
-        this.bindEvents();
     }
 
     isLiquidityDeployed() {
         const contractData = this.store.selectContractData();
-        const result = contractData.liquidityPool && 
-                      contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        // Handle case where contractData might be null/undefined or liquidityPool not set yet
+        if (!contractData || !contractData.liquidityPool) {
+            return false;
+        }
+        const result = contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
         console.log('isLiquidityDeployed check:', {
             liquidityPool: contractData.liquidityPool,
             result: result
@@ -526,20 +649,35 @@ export default class SwapInterface extends Component {
             const balances = this.store.selectBalances();
             
             if (direction === 'buy') {
-                const ethBalance = parseFloat(balances.eth);
+                // Convert ETH balance from wei to ETH if needed
+                // balances.eth might be in wei (string) or already in ETH (number)
+                let ethBalance;
+                if (typeof balances.eth === 'string' && balances.eth.length > 10) {
+                    // Likely in wei, convert to ETH
+                    ethBalance = this.blockchainService.formatEther(balances.eth);
+                } else {
+                    // Already in ETH format
+                    ethBalance = parseFloat(balances.eth || 0);
+                }
+                
                 const ethNeeded = parseFloat(ethAmount);
                 
-                if (ethNeeded > ethBalance) {
-                    this.messagePopup.info('Not enough ETH balance', 'Insufficient Balance');
+                if (isNaN(ethNeeded) || isNaN(ethBalance) || ethNeeded > ethBalance) {
+                    this.messagePopup.info(`Not enough ETH balance. You have ${ethBalance.toFixed(6)} ETH, need ${ethNeeded} ETH`, 'Insufficient Balance');
                     return;
                 }
             } else {
-                // Format amountIn with 18 decimals for BigNumber
-                const execBalance = this.blockchainService.formatExec(balances.exec);
-                const execNeeded = parseFloat(execAmount.replace(/,/g, ''));
+                // Selling EXEC - need to check EXEC balance
+                // balances.exec is stored as an integer (base units, not wei)
+                // Compare directly after removing commas
+                const execAmountClean = execAmount.replace(/,/g, '');
+                const execBalance = BigInt(balances.exec || 0);
+                const execNeeded = BigInt(parseInt(execAmountClean) || 0);
                 
                 if (execNeeded > execBalance) {
-                    this.messagePopup.info('Not enough EXEC balance', 'Insufficient Balance');
+                    const execBalanceFormatted = parseInt(balances.exec || 0).toLocaleString();
+                    const execNeededFormatted = parseInt(execAmountClean).toLocaleString();
+                    this.messagePopup.info(`Not enough EXEC balance. You have ${execBalanceFormatted} EXEC, need ${execNeededFormatted} EXEC`, 'Insufficient Balance');
                     return;
                 }
             }
@@ -752,7 +890,7 @@ export default class SwapInterface extends Component {
             let readableBalance = BigInt(execBalance) / BigInt(1e18);
             
             // If user has free mint, subtract 1M from available balance
-            if (this.freeMint) {
+            if (this.state.freeMint) {
                 readableBalance = readableBalance - BigInt(1000000);    
                 // Check if there's any sellable balance after subtracting free mint
                 if (readableBalance <= 0) {
@@ -771,40 +909,89 @@ export default class SwapInterface extends Component {
 
         // Update the top input with the new value
         this.handleInput('top', value);
-        
-        // Update the input element directly
-        const topInput = this.element.querySelector('.top-input');
-        if (topInput) {
-            topInput.value = value;
-        }
     }
 
     handleContractDataUpdate() {
-        // Store the previous phase state before updating
-        const previousPhase = this.state.isPhase2;
-        
-        // Update state with new values
-        this.setState({ 
-            isPhase2: this.isLiquidityDeployed(),
-            dataReady: true
-        });
-        
-        // Only update PriceDisplay if we've changed phases or it's not already mounted
-        const priceContainer = this.element.querySelector('.price-display-container');
-        if (priceContainer && this.priceDisplay) {
-            // We only need to remount if phase changed (which affects how prices are displayed)
-            // or if the price display hasn't been properly mounted yet
-            const shouldRemount = previousPhase !== this.state.isPhase2 || 
-                !this.priceDisplay.element || 
-                !priceContainer.contains(this.priceDisplay.element);
+        try {
+            // Store the previous phase state before updating
+            const previousPhase = this.state.isPhase2;
+            const wasDataReady = this.state.dataReady;
+            
+            // Get fresh contract data from store
+            const contractData = this.store.selectContractData();
+            const isPhase2 = this.isLiquidityDeployed();
+            
+            // Update state directly first
+            this.state.isPhase2 = isPhase2;
+            this.state.dataReady = true;
+            
+            // If data just became ready, we need to mount all child components
+            if (!wasDataReady && this.state.dataReady) {
+                console.log('Data just became ready, mounting all child components');
+                // Use setState to trigger initial render, but only once
+                this.setState({ dataReady: true, isPhase2 });
+                requestAnimationFrame(() => {
+                    this.mountChildComponents();
+                });
+                return;
+            }
+            
+            // If phase changed, we need to update child components but NOT full re-render
+            // The UI structure doesn't actually change much between phases
+            if (previousPhase !== this.state.isPhase2) {
+                console.log(`Phase changed from ${previousPhase ? 'Phase 2' : 'Phase 1'} to ${this.state.isPhase2 ? 'Phase 2' : 'Phase 1'}`);
                 
-            if (shouldRemount) {
-                console.log('Remounting PriceDisplay due to phase change or missing element');
-                this.priceDisplay.mount(priceContainer);
-            } else {
-                // Just tell the price display to update its internal state if needed
-                console.log('PriceDisplay already mounted, updating state only');
-                this.priceDisplay.update();
+                // Update child components with new phase info
+                if (this.swapInputs) {
+                    this.swapInputs.updateProps({
+                        isPhase2: this.state.isPhase2
+                    });
+                }
+                
+                // Only update PriceDisplay if it's not already mounted
+                const priceContainer = this.element.querySelector('.price-display-container');
+                if (priceContainer && this.priceDisplay) {
+                    const shouldRemount = !this.priceDisplay.element || 
+                        !priceContainer.contains(this.priceDisplay.element);
+                        
+                    if (shouldRemount) {
+                        console.log('Remounting PriceDisplay due to phase change');
+                        this.priceDisplay.mount(priceContainer);
+                    } else {
+                        // Just update the price display
+                        this.priceDisplay.update();
+                    }
+                }
+                
+                // Don't trigger full re-render - child components handle phase changes
+                return;
+            }
+            
+            // Only update PriceDisplay if it's not already mounted
+            const priceContainer = this.element.querySelector('.price-display-container');
+            if (priceContainer && this.priceDisplay) {
+                // We only need to remount if the price display hasn't been properly mounted yet
+                const shouldRemount = !this.priceDisplay.element || 
+                    !priceContainer.contains(this.priceDisplay.element);
+                    
+                if (shouldRemount) {
+                    console.log('Remounting PriceDisplay due to missing element');
+                    this.priceDisplay.mount(priceContainer);
+                } else {
+                    // Just tell the price display to update its internal state if needed
+                    this.priceDisplay.update();
+                }
+            }
+        } catch (error) {
+            console.error('Error in handleContractDataUpdate:', error);
+            // Don't let errors break the component - ensure it still renders
+            if (!this.state.dataReady) {
+                this.state.dataReady = true;
+                this.state.isPhase2 = this.isLiquidityDeployed();
+                // Only trigger render if we haven't rendered yet
+                if (!this.element || !this.element.innerHTML) {
+                    this.update();
+                }
             }
         }
     }
@@ -813,8 +1000,18 @@ export default class SwapInterface extends Component {
         console.log('🎨 SwapInterface.render - Starting render');
         const { direction, ethAmount, execAmount, calculatingAmount, isPhase2, dataReady } = this.state;
 
+        // Always render the full structure so child components have containers to mount into
+        // Show loading state within the structure if data isn't ready
         if (!dataReady) {
-            return `<div>Loading...</div>`; // Render a loading state until data is ready
+            return `
+                <div class="price-display-container"></div>
+                <div class="quick-fill-buttons-container"></div>
+                <div class="swap-inputs-container">
+                    <div style="padding: 20px; text-align: center;">Loading swap interface...</div>
+                </div>
+                <div class="transaction-options-container"></div>
+                <div class="swap-button-container"></div>
+            `;
         }
 
         console.log('Render - Current State:', {
@@ -830,64 +1027,26 @@ export default class SwapInterface extends Component {
         const formattedEthBalance = parseFloat(balances.eth).toFixed(6);
         const formattedExecBalance = parseInt(balances.exec).toLocaleString();
         // Calculate available balance for selling
-        const availableExecBalance = direction === 'sell' && this.freeMint
+        const availableExecBalance = direction === 'sell' && this.state.freeMint
         ? `Available: ${(parseInt(balances.exec) - 1000000).toLocaleString()}`
         : `Balance: ${formattedExecBalance}`;
         
         const result = `
             <div class="price-display-container"></div>
-            ${direction === 'sell' && this.freeMint && !isPhase2 ? 
+            ${direction === 'sell' && this.state.freeMint && !isPhase2 ? 
                 `<div class="free-mint-notice">
                     You have 1,000,000 $EXEC you received for free that cannot be sold here.
                 </div>` 
-                : direction === 'buy' && this.freeSupply > 0 && !this.freeMint && !isPhase2 ?
+                : direction === 'buy' && this.state.freeSupply > 0 && !this.state.freeMint && !isPhase2 ?
                 `<div class="free-mint-notice free-mint-bonus">
                     1,000,000 $EXEC will be added to your purchase. Thank you.
                 </div>`
                 : ''
             }
-            <div class="quick-fill-buttons">
-                ${direction === 'buy' ? 
-                    `<button data-amount="0.0025">0.0025</button>
-                    <button data-amount="0.01">0.01</button>
-                    <button data-amount="0.05">0.05</button>
-                    <button data-amount="0.1">0.1</button>`
-                :
-                    `<button data-percentage="25">25%</button>
-                    <button data-percentage="50">50%</button>
-                    <button data-percentage="75">75%</button>
-                    <button data-percentage="100">100%</button>`
-                }
-            </div>
-            <div class="swap-inputs">
-                <div class="input-container">
-                    <input type="text" 
-                           class="top-input" 
-                           value="${direction === 'buy' ? ethAmount : execAmount}" 
-                           placeholder="0.0"
-                           pattern="^[0-9]*[.]?[0-9]*$">
-                    <div class="token-info">
-                        <span class="token-symbol">${direction === 'buy' ? 'ETH' : '$EXEC'}</span>
-                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedEthBalance : availableExecBalance}</span>
-                    </div>
-                </div>
-                <button class="direction-switch">↑↓</button>
-                <div class="input-container">
-                    <input type="text" 
-                           class="bottom-input" 
-                           value="${direction === 'buy' ? execAmount : ethAmount}" 
-                           placeholder="0.0"
-                           pattern="^[0-9]*[.]?[0-9]*$">
-                    <div class="token-info">
-                        <span class="token-symbol">${direction === 'buy' ? '$EXEC' : 'ETH'}</span>
-                        <span class="token-balance">Balance: ${direction === 'buy' ? formattedExecBalance : formattedEthBalance}</span>
-                    </div>
-                </div>
-            </div>
+            <div class="quick-fill-buttons-container"></div>
+            <div class="swap-inputs-container"></div>
             <div class="transaction-options-container"></div>
-            <button class="swap-button">
-                ${direction === 'buy' ? 'Buy $EXEC' : 'Sell $EXEC'}
-            </button>
+            <div class="swap-button-container"></div>
         `;
         console.log('🎨 SwapInterface.render - Completed render');
         return result;

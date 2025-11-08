@@ -33,7 +33,16 @@ export default class PortfolioModal extends Component {
             this.isLoading = true;
             this.updateLoadingState();
 
-            const address = await this.tradingStore.selectConnectedAddress();
+            const address = this.tradingStore.selectConnectedAddress();
+            
+            // Validate address before proceeding
+            if (!address) {
+                console.warn('[PortfolioModal] No address connected, cannot load NFT data');
+                this.isLoading = false;
+                this.updateLoadingState();
+                return [];
+            }
+            
             const existingData = this.tradingStore.selectUserNFTs();
             
             // Get total NFT count from trading store

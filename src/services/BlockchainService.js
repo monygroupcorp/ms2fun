@@ -2,6 +2,7 @@ import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethe
 import { eventBus } from '../core/EventBus.js';
 import { tradingStore } from '../store/tradingStore.js';
 import MerkleHandler from '../merkleHandler.js';
+import { contractCache } from './ContractCache.js';
 
 class BlockchainService {
     constructor() {
@@ -512,9 +513,19 @@ class BlockchainService {
 
     async getCurrentTier() {
         try {
-            const tier = await this.executeContractCall('getCurrentTier');
+            // Check cache first
+            const cached = contractCache.get('getCurrentTier', []);
+            if (cached !== null) {
+                return cached;
+            }
 
-            return parseInt(tier.toString());
+            const tier = await this.executeContractCall('getCurrentTier');
+            const result = parseInt(tier.toString());
+            
+            // Cache the result
+            contractCache.set('getCurrentTier', [], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get current tier');
         }
@@ -531,8 +542,19 @@ class BlockchainService {
 
     async getLiquidityPool() {
         try {
+            // Check cache first
+            const cached = contractCache.get('getLiquidityPool', []);
+            if (cached !== null) {
+                return cached;
+            }
+
             const liquidityPool = await this.executeContractCall('liquidityPair');
-            return liquidityPool.toString();
+            const result = liquidityPool.toString();
+            
+            // Cache the result
+            contractCache.set('getLiquidityPool', [], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get liquidity pool address');
         }
@@ -540,9 +562,20 @@ class BlockchainService {
 
     async getTotalBondingSupply() {
         try {
+            // Check cache first
+            const cached = contractCache.get('getTotalBondingSupply', []);
+            if (cached !== null) {
+                return cached;
+            }
+
             const supply = await this.executeContractCall('totalBondingSupply');
             // Convert from BigNumber to number and format
-            return parseFloat(this.ethers.utils.formatUnits(supply, 0));
+            const result = parseFloat(this.ethers.utils.formatUnits(supply, 0));
+            
+            // Cache the result
+            contractCache.set('getTotalBondingSupply', [], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get total bonding supply');
         }
@@ -550,8 +583,19 @@ class BlockchainService {
 
     async getTotalMessages() {
         try {
+            // Check cache first
+            const cached = contractCache.get('getTotalMessages', []);
+            if (cached !== null) {
+                return cached;
+            }
+
             const messages = await this.executeContractCall('totalMessages');
-            return parseFloat(this.ethers.utils.formatUnits(messages, 0));;
+            const result = parseFloat(this.ethers.utils.formatUnits(messages, 0));
+            
+            // Cache the result
+            contractCache.set('getTotalMessages', [], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get total messages');
         }
@@ -568,7 +612,23 @@ class BlockchainService {
      * @returns {Promise<string>} Balance in wei
      */
     async getTokenBalance(address) {
-        return this.executeContractCall('balanceOf', [address]);
+        // Validate address before proceeding
+        if (!address || typeof address !== 'string') {
+            throw new Error('Invalid address provided to getTokenBalance');
+        }
+
+        // Check cache first
+        const cached = contractCache.get('getTokenBalance', [address]);
+        if (cached !== null) {
+            return cached;
+        }
+
+        const result = await this.executeContractCall('balanceOf', [address]);
+        
+        // Cache the result
+        contractCache.set('getTokenBalance', [address], result);
+        
+        return result;
     }
 
     /**
@@ -578,12 +638,28 @@ class BlockchainService {
      */
     async getNFTBalance(address) {
         try {
+            // Validate address before proceeding
+            if (!address || typeof address !== 'string') {
+                throw new Error('Invalid address provided to getNFTBalance');
+            }
+
+            // Check cache first
+            const cached = contractCache.get('getNFTBalance', [address]);
+            if (cached !== null) {
+                return cached;
+            }
+
             const balance = await this.executeContractCall(
                 'balanceOf',
                 [address],
                 { useContract: 'mirror' }
             );
-            return parseInt(balance.toString());
+            const result = parseInt(balance.toString());
+            
+            // Cache the result
+            contractCache.set('getNFTBalance', [address], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get NFT balance');
         }
@@ -604,8 +680,24 @@ class BlockchainService {
      */
     async getEthBalance(address) {
         try {
+            // Validate address before proceeding
+            if (!address || typeof address !== 'string') {
+                throw new Error('Invalid address provided to getEthBalance');
+            }
+
+            // Check cache first
+            const cached = contractCache.get('getEthBalance', [address]);
+            if (cached !== null) {
+                return cached;
+            }
+
             const balance = await this.provider.getBalance(address);
-            return balance.toString();
+            const result = balance.toString();
+            
+            // Cache the result
+            contractCache.set('getEthBalance', [address], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get ETH balance');
         }
@@ -718,7 +810,18 @@ class BlockchainService {
 
     async getCurrentPrice() {
         try {
-            return await this.getTokenPrice();
+            // Check cache first
+            const cached = contractCache.get('getCurrentPrice', []);
+            if (cached !== null) {
+                return cached;
+            }
+
+            const result = await this.getTokenPrice();
+            
+            // Cache the result
+            contractCache.set('getCurrentPrice', [], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get current price');
         }
@@ -756,8 +859,19 @@ class BlockchainService {
 
     async getFreeSupply() {
         try {
+            // Check cache first
+            const cached = contractCache.get('getFreeSupply', []);
+            if (cached !== null) {
+                return cached;
+            }
+
             const freeExec = await this.executeContractCall('freeSupply');
-            return this.formatExec(freeExec);
+            const result = this.formatExec(freeExec);
+            
+            // Cache the result
+            contractCache.set('getFreeSupply', [], result);
+            
+            return result;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get free supply');
         }
@@ -765,8 +879,23 @@ class BlockchainService {
 
     async getFreeMint(address) {
         try {
+            // Validate address before proceeding
+            if (!address || typeof address !== 'string') {
+                throw new Error('Invalid address provided to getFreeMint');
+            }
+
+            // Check cache first
+            const cached = contractCache.get('getFreeMint', [address]);
+            if (cached !== null) {
+                return cached;
+            }
+
             const freeMint = await this.executeContractCall('freeMint', [address]);
             console.log('FREE MINT', freeMint);
+            
+            // Cache the result
+            contractCache.set('getFreeMint', [address], freeMint);
+            
             return freeMint;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get free mint');
@@ -807,9 +936,19 @@ class BlockchainService {
     
     async getContractEthBalance() {
         try {
+            // Check cache first
+            const cached = contractCache.get('getContractEthBalance', []);
+            if (cached !== null) {
+                return cached;
+            }
+
             const balance = await this.provider.getBalance(this.contract.address);
             const formattedBalance = this.formatEther(balance);
             console.log('CONTRACT ETH BALANCE', formattedBalance);
+            
+            // Cache the result
+            contractCache.set('getContractEthBalance', [], formattedBalance);
+            
             return formattedBalance;
         } catch (error) {
             throw this.wrapError(error, 'Failed to get contract ETH balance');
@@ -818,6 +957,11 @@ class BlockchainService {
 
     async getUserNFTs(address) {
         try {
+            // Validate address before proceeding
+            if (!address || typeof address !== 'string') {
+                throw new Error('Invalid address provided to getUserNFTs');
+            }
+
             const nftIds = await this.executeContractCall('getOwnerTokens', [address]);
             return nftIds;
         } catch (error) {
@@ -851,8 +995,18 @@ class BlockchainService {
 
     async getUserNFTsWithMetadata(address, limit = 5) {
         try {
+            // Validate address before proceeding
+            if (!address || typeof address !== 'string') {
+                throw new Error('Invalid address provided to getUserNFTsWithMetadata');
+            }
+
             // Get all NFT IDs for the user
             const nftIds = await this.getUserNFTs(address);
+            
+            // If no NFTs, return empty array
+            if (!nftIds || nftIds.length === 0) {
+                return [];
+            }
             
             // Take only the first 'limit' number of NFTs
             const selectedIds = nftIds.slice(0, limit);
