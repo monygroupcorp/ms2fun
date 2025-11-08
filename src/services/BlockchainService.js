@@ -16,12 +16,6 @@ class BlockchainService {
 
         this.swapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
 
-        // Subscribe to network changes
-        if (window.ethereum) {
-            window.ethereum.on('chainChanged', () => this.handleNetworkChange());
-            window.ethereum.on('accountsChanged', () => this.handleAccountChange());
-        }
-
         // Add merkleHandler initialization
         this.merkleHandler = new MerkleHandler();
         this.isInternalNetworkChange = false;
@@ -29,10 +23,29 @@ class BlockchainService {
         // Add transaction tracking
         this.transactionCounter = 0;
         this.activeTransactions = new Map();
+        
+        // Network change state machine
+        this.networkChangeState = 'idle'; // 'idle' | 'switching' | 'switched' | 'error'
+        this.networkChangeTimeout = null;
+        this.networkChangeTimeoutDuration = 30000; // 30 seconds
+        this.pendingNetworkChange = null;
+        this.previousNetworkId = null;
+        
+        // Track initialization state to prevent race conditions
+        this.isInitializing = false;
+        
+        // Store handlers for later setup (after initialization)
+        // Don't set up listeners yet - wait until after initialization
+        // This prevents race conditions when network switches during init
+        this.chainChangedHandler = () => this.handleNetworkChange();
+        this.accountsChangedHandler = () => this.handleAccountChange();
     }
 
     // Initialize the service with contract details
     async initialize() {
+        // Mark as initializing to prevent race conditions
+        this.isInitializing = true;
+        
         try {
             // Define fallback config
             const fallbackConfig = {
@@ -63,29 +76,64 @@ class BlockchainService {
             this.initializeMerkleHandler();
 
             this.connectionState = 'connected';
+            
+            // NOW set up network change listeners after initialization is complete
+            // This prevents race conditions from chainChanged events during init
+            this.setupNetworkListeners();
+            
             eventBus.emit('blockchain:initialized');
             
             // Emit contract updated event after initialization
             eventBus.emit('contract:updated');
             
+            // Mark initialization as complete
+            this.isInitializing = false;
+            
             return true;
         } catch (error) {
             this.connectionState = 'error';
+            this.isInitializing = false;
             eventBus.emit('blockchain:error', error);
             throw this.wrapError(error, 'Blockchain initialization failed');
+        }
+    }
+    
+    /**
+     * Set up network change listeners (called after initialization)
+     * @private
+     */
+    setupNetworkListeners() {
+        if (window.ethereum && this.chainChangedHandler && this.accountsChangedHandler) {
+            // Remove any existing listeners first
+            try {
+                window.ethereum.removeListener('chainChanged', this.chainChangedHandler);
+                window.ethereum.removeListener('accountsChanged', this.accountsChangedHandler);
+            } catch (error) {
+                // Ignore errors when removing non-existent listeners
+            }
+            
+            // Set up listeners
+            window.ethereum.on('chainChanged', this.chainChangedHandler);
+            window.ethereum.on('accountsChanged', this.accountsChangedHandler);
+            
+            console.log('BlockchainService: Network change listeners set up');
         }
     }
 
     async initializeProvider() {
         try {
             if (window.ethereum) {
+                // Wait for network to stabilize before creating provider
+                // This prevents "underlying network changed" errors during initialization
+                const targetNetwork = parseInt(this.networkConfig?.network || '1');
+                await this.waitForCorrectNetwork(targetNetwork);
                 
-                const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+                const web3Provider = new ethers.providers.Web3Provider(window.ethereum, 'any');
                 this.provider = web3Provider;
                 this.signer = web3Provider.getSigner();
 
+                // Verify network one more time after creating provider
                 const network = await this.provider.getNetwork();
-                const targetNetwork = parseInt(this.networkConfig?.network || '1');
                 
                 if (network.chainId !== targetNetwork) {
                     // Emit event before attempting switch
@@ -474,17 +522,255 @@ class BlockchainService {
     // Network and account change handlers
     async handleNetworkChange() {
         try {
+            // Ignore network changes during initialization to prevent race conditions
+            if (this.isInitializing) {
+                console.log('BlockchainService: Ignoring network change during initialization');
+                return;
+            }
+            
             if (this.isInternalNetworkChange) {
                 return;
             }
+            
+            // Get current network directly from window.ethereum to avoid provider issues
+            let currentNetworkId = null;
+            try {
+                // Use eth_chainId directly to avoid "underlying network changed" errors
+                const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                currentNetworkId = parseInt(chainIdHex, 16);
+            } catch (error) {
+                console.warn('Could not get current network from window.ethereum:', error);
+                // Fallback to provider if direct call fails
+                try {
+                    if (this.provider) {
+                        const network = await this.provider.getNetwork();
+                        currentNetworkId = network.chainId;
+                    }
+                } catch (providerError) {
+                    console.warn('Could not get current network from provider:', providerError);
+                }
+            }
+            
+            // Set previous network for fallback
+            this.previousNetworkId = currentNetworkId;
+            
+            // Check if user switched to wrong network - if so, we need to switch back
+            const targetNetwork = parseInt(this.networkConfig?.network || '1');
+            if (currentNetworkId && currentNetworkId !== targetNetwork) {
+                console.log(`User switched to network ${currentNetworkId}, but we need ${targetNetwork}. Switching back...`);
+            }
+            
+            // Transition to switching state
+            this.networkChangeState = 'switching';
+            this.pendingNetworkChange = {
+                from: currentNetworkId,
+                to: null,
+                startTime: Date.now()
+            };
+            
+            // Emit switching event
+            eventBus.emit('network:switching', {
+                from: currentNetworkId,
+                to: null,
+                automatic: true
+            });
+            
+            // Set timeout for network switch
+            this.networkChangeTimeout = setTimeout(() => {
+                if (this.networkChangeState === 'switching') {
+                    this.handleNetworkChangeTimeout();
+                }
+            }, this.networkChangeTimeoutDuration);
+            
+            // Initialize provider (this will handle the actual network switch)
             await this.initializeProvider();
-            eventBus.emit('network:changed');
+            
+            // Get new network after switch (using direct call to avoid provider issues)
+            let newNetworkId = null;
+            try {
+                // Use eth_chainId directly to avoid "underlying network changed" errors
+                const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                newNetworkId = parseInt(chainIdHex, 16);
+            } catch (error) {
+                console.warn('Could not get new network from window.ethereum:', error);
+                // Fallback to provider if direct call fails
+                try {
+                    if (this.provider) {
+                        const network = await this.provider.getNetwork();
+                        newNetworkId = network.chainId;
+                    }
+                } catch (providerError) {
+                    console.warn('Could not get new network from provider:', providerError);
+                }
+            }
+            
+            // Calculate duration before clearing pendingNetworkChange
+            const duration = this.pendingNetworkChange ? 
+                Date.now() - this.pendingNetworkChange.startTime : 0;
+            
+            // Clear timeout
+            if (this.networkChangeTimeout) {
+                clearTimeout(this.networkChangeTimeout);
+                this.networkChangeTimeout = null;
+            }
+            
+            // Transition to switched state
+            this.networkChangeState = 'switched';
+            const pendingChange = this.pendingNetworkChange;
+            this.pendingNetworkChange = null;
+            
+            // Emit switched event
+            eventBus.emit('network:switched', {
+                from: currentNetworkId,
+                to: newNetworkId,
+                success: true,
+                duration: duration
+            });
+            
+            // Emit legacy event for backward compatibility (mark as automatic)
+            eventBus.emit('network:changed', { automatic: true });
             
             // Also emit contract updated event for UI components that need to update
             eventBus.emit('contract:updated');
+            
+            // Reset state after a short delay
+            setTimeout(() => {
+                if (this.networkChangeState === 'switched') {
+                    this.networkChangeState = 'idle';
+                }
+            }, 1000);
+            
         } catch (error) {
+            // Clear timeout
+            if (this.networkChangeTimeout) {
+                clearTimeout(this.networkChangeTimeout);
+                this.networkChangeTimeout = null;
+            }
+            
+            // Transition to error state
+            this.networkChangeState = 'error';
+            
+            // Emit error event
+            eventBus.emit('network:switch:error', {
+                from: this.previousNetworkId,
+                to: null,
+                error: error.message || 'Network switch failed',
+                originalError: error
+            });
+            
+            // Emit legacy error event for backward compatibility
             eventBus.emit('blockchain:error', error);
+            
+            // Reset state after error handling
+            setTimeout(() => {
+                if (this.networkChangeState === 'error') {
+                    this.networkChangeState = 'idle';
+                    this.pendingNetworkChange = null;
+                }
+            }, 2000);
         }
+    }
+    
+    /**
+     * Handle network change timeout
+     * @private
+     */
+    handleNetworkChangeTimeout() {
+        console.warn('Network change timed out after', this.networkChangeTimeoutDuration, 'ms');
+        
+        // Transition to error state
+        this.networkChangeState = 'error';
+        
+        // Emit timeout event
+        eventBus.emit('network:switch:timeout', {
+            from: this.previousNetworkId,
+            to: null,
+            timeout: this.networkChangeTimeoutDuration
+        });
+        
+        // Clear timeout
+        if (this.networkChangeTimeout) {
+            clearTimeout(this.networkChangeTimeout);
+            this.networkChangeTimeout = null;
+        }
+        
+        // Reset state after timeout handling
+        setTimeout(() => {
+            if (this.networkChangeState === 'error') {
+                this.networkChangeState = 'idle';
+                this.pendingNetworkChange = null;
+            }
+        }, 2000);
+    }
+    
+    /**
+     * Cancel pending network change
+     * @returns {boolean} Whether cancellation was successful
+     */
+    cancelNetworkChange() {
+        if (this.networkChangeState === 'switching') {
+            // Clear timeout
+            if (this.networkChangeTimeout) {
+                clearTimeout(this.networkChangeTimeout);
+                this.networkChangeTimeout = null;
+            }
+            
+            // Reset state
+            this.networkChangeState = 'idle';
+            this.pendingNetworkChange = null;
+            
+            // Emit cancellation event
+            eventBus.emit('network:switch:cancelled', {
+                from: this.previousNetworkId
+            });
+            
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Get current network change state
+     * @returns {string} Current state ('idle' | 'switching' | 'switched' | 'error')
+     */
+    getNetworkChangeState() {
+        return this.networkChangeState;
+    }
+    
+    /**
+     * Wait for network to be on the correct network before proceeding
+     * @param {number} targetNetworkId - The target network ID
+     * @param {number} timeout - Maximum time to wait in milliseconds (default: 5000)
+     * @returns {Promise<void>}
+     * @private
+     */
+    async waitForCorrectNetwork(targetNetworkId, timeout = 5000) {
+        const startTime = Date.now();
+        const pollInterval = 100; // Check every 100ms
+        
+        while (Date.now() - startTime < timeout) {
+            try {
+                // Get chainId directly from window.ethereum to avoid provider issues
+                const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                const chainId = parseInt(chainIdHex, 16);
+                
+                if (chainId === targetNetworkId) {
+                    // Network is correct, wait a bit for it to stabilize
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    return;
+                }
+            } catch (error) {
+                // Provider might not be ready yet, continue polling
+                // Don't log to avoid spam
+            }
+            
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+        
+        // If we get here, network didn't match within timeout
+        // This is OK - we'll handle it in the main initialization flow
+        console.warn(`Network check timeout: Expected ${targetNetworkId}, will verify in initializeProvider`);
     }
 
     async handleAccountChange() {

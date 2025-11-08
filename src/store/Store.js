@@ -14,6 +14,10 @@ class Store {
         // Transaction support
         this._transactionStack = [];
         this._transactionState = null;
+        
+        // Selector cache management
+        this._selectorCache = new Map();
+        this._selectorInvalidationPaths = new Map(); // Track which selectors depend on which paths
     }
 
     // Enable/disable debug logging
@@ -90,6 +94,9 @@ class Store {
         // Update state atomically
         this.state = newState;
         this.log('State updated:', updates);
+
+        // Invalidate selector cache for affected paths
+        this._invalidateSelectorCache(updates);
 
         // Notify subscribers
         this.notifySubscribers();
@@ -246,6 +253,92 @@ class Store {
      */
     setStateSync(updates) {
         this.setState(updates, { immediate: true });
+    }
+
+    /**
+     * Register a selector for cache invalidation
+     * @param {Function} selector - Selector function
+     * @param {Array<string>} paths - State paths this selector depends on (e.g., ['contractData.freeSupply'])
+     */
+    registerSelector(selector, paths = []) {
+        if (!this._selectorCache.has(selector)) {
+            this._selectorCache.set(selector, { paths, reset: selector.reset || (() => {}) });
+        }
+        this._selectorInvalidationPaths.set(selector, paths);
+    }
+
+    /**
+     * Invalidate selector cache for affected state paths
+     * @private
+     */
+    _invalidateSelectorCache(updates) {
+        const updatedPaths = this._getUpdatedPaths(updates);
+        
+        // Reset all selectors that depend on updated paths
+        for (const [selector, info] of this._selectorCache.entries()) {
+            const selectorPaths = this._selectorInvalidationPaths.get(selector) || info.paths || [];
+            
+            // Check if any selector path matches updated paths
+            const shouldInvalidate = selectorPaths.some(selectorPath => {
+                return updatedPaths.some(updatedPath => {
+                    // Check if paths match (exact or parent/child)
+                    return updatedPath === selectorPath || 
+                           updatedPath.startsWith(selectorPath + '.') ||
+                           selectorPath.startsWith(updatedPath + '.');
+                });
+            });
+            
+            if (shouldInvalidate && info.reset) {
+                info.reset();
+            }
+        }
+    }
+
+    /**
+     * Get all state paths that were updated
+     * @private
+     */
+    _getUpdatedPaths(updates, prefix = '') {
+        const paths = [];
+        for (const key in updates) {
+            const fullPath = prefix ? `${prefix}.${key}` : key;
+            const value = updates[key];
+            
+            if (value && typeof value === 'object' && !Array.isArray(value) && value.constructor === Object) {
+                // Recursively get paths for nested objects
+                paths.push(...this._getUpdatedPaths(value, fullPath));
+            } else {
+                paths.push(fullPath);
+            }
+        }
+        return paths;
+    }
+
+    /**
+     * Clear all selector caches
+     */
+    clearSelectorCache() {
+        for (const [selector, info] of this._selectorCache.entries()) {
+            if (info.reset) {
+                info.reset();
+            }
+        }
+    }
+
+    /**
+     * Reset store to initial state and clear caches
+     */
+    reset(initialState = {}) {
+        this.state = initialState;
+        this.clearSelectorCache();
+        this._batchedUpdates = {};
+        this._updateQueue = [];
+        if (this._updateTimer) {
+            clearTimeout(this._updateTimer);
+            this._updateTimer = null;
+        }
+        this._transactionStack = [];
+        this.notifySubscribers();
     }
 
     // Private method for debug logging

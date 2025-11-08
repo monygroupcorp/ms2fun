@@ -1,5 +1,6 @@
 import { eventBus } from './EventBus.js';
 import { DOMUpdater } from '../utils/DOMUpdater.js';
+import { getUpdateScheduler } from '../utils/UpdateScheduler.js';
 
 export class Component {
     constructor(rootElement) {
@@ -220,6 +221,35 @@ export class Component {
             }
         } catch (error) {
             this._handleError(error, { phase: 'update' });
+        }
+    }
+
+    /**
+     * Schedule a component update with optional priority
+     * 
+     * This method allows components to opt-in to requestAnimationFrame batching
+     * for better performance when multiple components update simultaneously.
+     * 
+     * @param {Object} options - Update options
+     * @param {boolean} options.immediate - If true, update immediately (bypass batching).
+     *                                      Use for critical updates (user input, errors).
+     *                                      Default: false (batched)
+     * 
+     * @example
+     *   // Batched update (default) - good for price updates, balance updates
+     *   this.scheduleUpdate();
+     *   
+     *   // Immediate update - good for user input, error displays
+     *   this.scheduleUpdate({ immediate: true });
+     */
+    scheduleUpdate(options = {}) {
+        if (options.immediate) {
+            // Critical update - execute immediately
+            this.update();
+        } else {
+            // Non-critical update - queue for batching
+            const scheduler = getUpdateScheduler();
+            scheduler.queue(this);
         }
     }
 

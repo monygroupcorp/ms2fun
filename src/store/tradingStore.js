@@ -1,4 +1,5 @@
 import Store from './Store.js';
+import { createSelector } from '../utils/selectors.js';
 
 // Define action types as constants
 export const TRADING_ACTIONS = {
@@ -381,25 +382,57 @@ class TradingStore extends Store {
         return this.state.contractData;
     }
 
+    /**
+     * Selector for free mint situation
+     * Memoized to prevent unnecessary recalculations
+     */
     selectFreeSituation() {
-        const { freeSupply, freeMint } = this.state.contractData;
-        const address = this.selectConnectedAddress();
-        return {
-            freeSupply,
-            freeMint,
-            address
+        // Use memoized selector if available, otherwise create it
+        if (!this._selectFreeSituation) {
+            this._selectFreeSituation = createSelector(
+                [
+                    () => this.state.contractData.freeSupply || 0,
+                    () => this.state.contractData.freeMint || 0,
+                    () => this.selectConnectedAddress()
+                ],
+                (freeSupply, freeMint, address) => ({
+                    freeSupply,
+                    freeMint,
+                    address
+                }),
+                {
+                    name: 'selectFreeSituation',
+                    store: this,
+                    paths: ['contractData.freeSupply', 'contractData.freeMint']
+                }
+            );
         }
+        return this._selectFreeSituation();
     }
 
     /**
      * Selector for Phase 2 status (liquidity pool deployed)
      * Phase 2 is active when liquidityPool is set and not the zero address
+     * Memoized to prevent unnecessary recalculations
      * @returns {boolean} - True if Phase 2 is active
      */
     selectIsPhase2() {
-        const contractData = this.selectContractData();
-        return contractData && contractData.liquidityPool && 
-               contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+        // Use memoized selector if available, otherwise create it
+        if (!this._selectIsPhase2) {
+            this._selectIsPhase2 = createSelector(
+                [() => this.state.contractData.liquidityPool],
+                (liquidityPool) => {
+                    return liquidityPool && 
+                           liquidityPool !== '0x0000000000000000000000000000000000000000';
+                },
+                {
+                    name: 'selectIsPhase2',
+                    store: this,
+                    paths: ['contractData.liquidityPool']
+                }
+            );
+        }
+        return this._selectIsPhase2();
     }
 
     updateUserNFTs(nftData) {

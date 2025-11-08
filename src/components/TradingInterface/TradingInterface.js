@@ -55,7 +55,9 @@ export class TradingInterface extends Component {
             activeView: 'swap',
             showNotAllowedOverlay: false,
             currentWhitelistTier: null,
-            isMobile: layoutService.getState().isMobile
+            isMobile: layoutService.getState().isMobile,
+            networkSwitching: false, // Track network switching state
+            networkSwitchError: null // Track network switch errors
         };
         
         // Initialize services - pass address directly to avoid timing issues with store
@@ -300,8 +302,160 @@ export class TradingInterface extends Component {
                     this.updateBalances(),
                     this.updatePrice()
                 ]);
+            }),
+            
+            // Network switching events
+            eventBus.on('network:switching', (data) => {
+                this.handleNetworkSwitching(data);
+            }),
+            
+            eventBus.on('network:switched', (data) => {
+                this.handleNetworkSwitched(data);
+            }),
+            
+            eventBus.on('network:switch:error', (data) => {
+                this.handleNetworkSwitchError(data);
+            }),
+            
+            eventBus.on('network:switch:timeout', (data) => {
+                this.handleNetworkSwitchTimeout(data);
             })
         ];
+    }
+    
+    /**
+     * Handle network switching event - show loading UI
+     * @param {Object} data - Network switching data
+     */
+    handleNetworkSwitching(data) {
+        this.setState({
+            networkSwitching: true,
+            networkSwitchError: null
+        });
+        this.showNetworkSwitchOverlay();
+    }
+    
+    /**
+     * Handle network switched event - hide loading UI
+     * @param {Object} data - Network switched data
+     */
+    handleNetworkSwitched(data) {
+        this.setState({
+            networkSwitching: false,
+            networkSwitchError: null
+        });
+        this.hideNetworkSwitchOverlay();
+        
+        // Update balances and price after network switch
+        Promise.all([
+            this.updateBalances(),
+            this.updatePrice()
+        ]).catch(error => {
+            console.error('Error updating after network switch:', error);
+        });
+    }
+    
+    /**
+     * Handle network switch error - show error message
+     * @param {Object} data - Network switch error data
+     */
+    handleNetworkSwitchError(data) {
+        this.setState({
+            networkSwitching: false,
+            networkSwitchError: data.error || 'Network switch failed'
+        });
+        this.hideNetworkSwitchOverlay();
+        this.showNetworkSwitchError(data);
+    }
+    
+    /**
+     * Handle network switch timeout - show timeout message
+     * @param {Object} data - Network switch timeout data
+     */
+    handleNetworkSwitchTimeout(data) {
+        this.setState({
+            networkSwitching: false,
+            networkSwitchError: 'Network switch timed out. Please try again.'
+        });
+        this.hideNetworkSwitchOverlay();
+        this.showNetworkSwitchError({
+            error: 'Network switch timed out. Please try again.',
+            timeout: data.timeout
+        });
+    }
+    
+    /**
+     * Show network switch overlay with loading indicator
+     */
+    showNetworkSwitchOverlay() {
+        if (!this.element) return;
+        
+        // Remove existing overlay if any
+        let overlay = this.element.querySelector('.network-switch-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+        
+        // Create overlay
+        overlay = document.createElement('div');
+        overlay.className = 'network-switch-overlay';
+        overlay.innerHTML = `
+            <div class="network-switch-content">
+                <div class="network-switch-spinner"></div>
+                <div class="network-switch-message">Switching network...</div>
+                <button class="network-switch-cancel">Cancel</button>
+            </div>
+        `;
+        
+        // Add cancel handler
+        const cancelButton = overlay.querySelector('.network-switch-cancel');
+        if (cancelButton) {
+            cancelButton.addEventListener('click', () => {
+                if (this.blockchainService) {
+                    this.blockchainService.cancelNetworkChange();
+                }
+            });
+        }
+        
+        // Disable interactions on trading interface
+        this.element.style.pointerEvents = 'none';
+        this.element.style.opacity = '0.6';
+        
+        // Add overlay to element
+        this.element.appendChild(overlay);
+    }
+    
+    /**
+     * Hide network switch overlay
+     */
+    hideNetworkSwitchOverlay() {
+        if (!this.element) return;
+        
+        const overlay = this.element.querySelector('.network-switch-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+        
+        // Re-enable interactions
+        this.element.style.pointerEvents = '';
+        this.element.style.opacity = '';
+    }
+    
+    /**
+     * Show network switch error message
+     * @param {Object} errorData - Error data
+     */
+    showNetworkSwitchError(errorData) {
+        // Use MessagePopup if available globally
+        if (window.messagePopup) {
+            window.messagePopup.error(
+                errorData.error || 'Network switch failed. Please try again.',
+                'Network Switch Error'
+            );
+        } else {
+            // Fallback to console
+            console.error('Network switch error:', errorData);
+        }
     }
 
     async updatePrice() {
@@ -1219,6 +1373,72 @@ export class TradingInterface extends Component {
                 margin-top: 10px;
                 text-align: center;
                 font-family: monospace;
+            }
+
+            .network-switch-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.85);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                z-index: 2000;
+                backdrop-filter: blur(4px);
+            }
+
+            .network-switch-content {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+                padding: 30px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+
+            .network-switch-spinner {
+                width: 50px;
+                height: 50px;
+                border: 4px solid rgba(255, 255, 255, 0.3);
+                border-top-color: #fdb523;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+
+            .network-switch-message {
+                color: white;
+                font-size: 18px;
+                font-weight: 500;
+                text-align: center;
+            }
+
+            .network-switch-cancel {
+                padding: 10px 20px;
+                background: rgba(255, 255, 255, 0.2);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                border-radius: 6px;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s ease;
+            }
+
+            .network-switch-cancel:hover {
+                background: rgba(255, 255, 255, 0.3);
+                border-color: rgba(255, 255, 255, 0.5);
+            }
+
+            .network-switch-cancel:active {
+                transform: scale(0.95);
             }
         `;
     }

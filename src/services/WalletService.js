@@ -437,6 +437,15 @@ class WalletService {
         } catch (error) {
             const formattedError = this.formatError(error, 'Network switch failed');
             
+            // Emit error event for consistency with BlockchainService
+            eventBus.emit('network:switch:error', {
+                from: null,
+                to: networkId,
+                error: formattedError.message,
+                originalError: error
+            });
+            
+            // Also emit switched event with success: false for backward compatibility
             eventBus.emit('network:switched', {
                 to: networkId,
                 success: false,
@@ -484,8 +493,8 @@ class WalletService {
             this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
             this.signer = this.ethersProvider.getSigner();
             
-            // Emit events
-            eventBus.emit('network:changed');
+            // Don't emit network:changed here - BlockchainService handles it
+            // This prevents duplicate messages when both services detect the change
         }
     }
     

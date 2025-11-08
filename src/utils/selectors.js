@@ -29,23 +29,48 @@ function shallowEqual(a, b) {
 }
 
 /**
+ * Get value from state using a path string (e.g., 'contractData.freeSupply')
+ * @private
+ */
+function getStateValue(state, path) {
+    const keys = path.split('.');
+    let value = state;
+    for (const key of keys) {
+        if (value == null) return undefined;
+        value = value[key];
+    }
+    return value;
+}
+
+/**
  * Create a memoized selector
  * 
  * The selector will only recalculate when dependencies change.
  * Dependencies are compared using shallow equality.
  * 
- * @param {Array<Function>} dependencies - Array of selector functions that provide dependencies
+ * @param {Array<Function|string>} dependencies - Array of selector functions or state paths (strings)
  * @param {Function} computeFn - Function that computes the result from dependencies
  * @param {Object} options - Options for the selector
  * @param {boolean} options.debug - Enable performance logging
  * @param {string} options.name - Name for debugging
+ * @param {Store} options.store - Store instance for state path dependencies
+ * @param {Array<string>} options.paths - State paths this selector depends on (for cache invalidation)
  * @returns {Function} - Memoized selector function
  * 
  * @example
+ * // Using selector functions
  * const selectPrice = createSelector(
  *   [() => store.selectPrice()],
  *   (price) => price.current * 1.1, // 10% markup
  *   { name: 'selectPriceWithMarkup' }
+ * );
+ * 
+ * @example
+ * // Using state paths (requires store option)
+ * const selectFreeSituation = createSelector(
+ *   ['contractData.freeSupply', 'contractData.freeMint'],
+ *   (freeSupply, freeMint) => (freeSupply || 0) > 0 && (freeMint || 0) > 0,
+ *   { name: 'selectFreeSituation', store: tradingStore, paths: ['contractData.freeSupply', 'contractData.freeMint'] }
  * );
  * 
  * @example
@@ -57,18 +82,47 @@ function shallowEqual(a, b) {
  * );
  */
 export function createSelector(dependencies, computeFn, options = {}) {
-    const { debug = false, name = 'selector' } = options;
+    const { debug = false, name = 'selector', store = null, paths = [] } = options;
     
     let lastDependencies = null;
     let lastResult = null;
     let callCount = 0;
     let computeCount = 0;
 
-    const selector = (...args) => {
+    // Determine if dependencies are functions or paths
+    const hasPathDependencies = dependencies.some(dep => typeof dep === 'string');
+    const hasFunctionDependencies = dependencies.some(dep => typeof dep === 'function');
+    
+    // If using state paths, we need the store
+    if (hasPathDependencies && !store) {
+        throw new Error(`createSelector: Store instance required when using state path dependencies`);
+    }
+
+    const selector = (state = null) => {
         callCount++;
 
         // Get current dependency values
-        const currentDependencies = dependencies.map(dep => dep(...args));
+        const currentDependencies = dependencies.map(dep => {
+            if (typeof dep === 'string') {
+                // State path dependency - get from store or provided state
+                const sourceState = state || (store ? store.getState() : null);
+                if (!sourceState) {
+                    throw new Error(`createSelector: Cannot resolve state path '${dep}' - no state provided`);
+                }
+                return getStateValue(sourceState, dep);
+            } else if (typeof dep === 'function') {
+                // Function dependency - call it
+                // Functions may or may not take state as parameter
+                try {
+                    return dep(state || (store ? store.getState() : null));
+                } catch (e) {
+                    // If function doesn't accept parameters, call without
+                    return dep();
+                }
+            } else {
+                throw new Error(`createSelector: Invalid dependency type - must be function or string path`);
+            }
+        });
 
         // Check if dependencies changed
         const dependenciesChanged = lastDependencies === null || 
@@ -78,7 +132,7 @@ export function createSelector(dependencies, computeFn, options = {}) {
             const startTime = debug ? performance.now() : 0;
             
             // Recompute result
-            lastResult = computeFn(...currentDependencies, ...args);
+            lastResult = computeFn(...currentDependencies, state);
             lastDependencies = currentDependencies;
             computeCount++;
 
@@ -118,6 +172,11 @@ export function createSelector(dependencies, computeFn, options = {}) {
         callCount = 0;
         computeCount = 0;
     };
+
+    // Register selector with store for cache invalidation (after selector is created)
+    if (store && paths.length > 0) {
+        store.registerSelector(selector, paths);
+    }
 
     return selector;
 }

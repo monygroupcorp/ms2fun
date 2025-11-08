@@ -237,6 +237,15 @@ class WalletConnector {
      * Set up event listeners for wallet events
      */
     setupEventListeners() {
+        // Clean up existing listeners first to prevent duplicates
+        if (this.eventUnsubscribers && this.eventUnsubscribers.length > 0) {
+            this.eventUnsubscribers.forEach(unsubscribe => {
+                if (typeof unsubscribe === 'function') {
+                    unsubscribe();
+                }
+            });
+            this.eventUnsubscribers = [];
+        }
         console.log('Setting up wallet event listeners');
         
         // Find connect/select wallet buttons
@@ -331,8 +340,14 @@ class WalletConnector {
             this.messagePopup.info(`Account changed to ${data.address.slice(0, 6)}...${data.address.slice(-4)}`, 'Account Changed');
         }));
         
-        this.eventUnsubscribers.push(eventBus.on('network:changed', () => {
-            this.messagePopup.info('Network changed', 'Network Update');
+        // Only show network change message if it's a manual change (not automatic switch)
+        // This prevents duplicate messages when the system automatically switches networks
+        this.eventUnsubscribers.push(eventBus.on('network:changed', (data) => {
+            // Only show message if it's not an automatic switch
+            // Automatic switches are handled by the network switching overlay
+            if (!data || !data.automatic) {
+                this.messagePopup.info('Network changed', 'Network Update');
+            }
         }));
         
         // Handle existing modal button clicks
@@ -755,6 +770,10 @@ class WalletConnector {
         try {
             console.log('Showing trading interface for address:', connectedAddress);
             
+            // Make provider and signer reassignable in case network switch is needed
+            let currentProvider = ethersProvider;
+            let currentSigner = signer;
+            
             // If trading interface is already initialized but not properly unmounted,
             // let's clean it up first to avoid duplicate components and events
             if (window.tradingInterfaceInstance) {
@@ -812,29 +831,169 @@ class WalletConnector {
             // Clear the container
             bondingInterface.innerHTML = '';
 
+            // Get contract data from switch.json FIRST to know target network
+            console.log('Loading contract data from switch.json...');
+            const switchResponse = await fetch('/EXEC404/switch.json');
+            const contractData = await switchResponse.json();
+            console.log('Contract data loaded:', contractData);
+            
+            // Get current network ID directly from window.ethereum to avoid provider issues
+            // This prevents "underlying network changed" errors
+            let currentNetworkId;
+            try {
+                const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                currentNetworkId = parseInt(chainIdHex, 16);
+            } catch (error) {
+                console.warn('Failed to get chainId from window.ethereum, using provider fallback:', error);
+                // Fallback to provider if direct call fails
+                const currentNetwork = await currentProvider.getNetwork();
+                currentNetworkId = currentNetwork.chainId;
+            }
+            
+            const targetNetworkId = parseInt(contractData.network || '1');
+            console.log('Current network ID:', currentNetworkId);
+            console.log('Target network ID:', targetNetworkId);
+            
+            // Check and switch network BEFORE initializing BlockchainService
+            if (currentNetworkId !== targetNetworkId) {
+                console.log('Network mismatch detected. Switching network before initialization...');
+                try {
+                    // Emit switching event
+                    eventBus.emit('network:switching', {
+                        from: currentNetworkId,
+                        to: targetNetworkId,
+                        automatic: false
+                    });
+                    
+                    // Switch network using wallet service
+                    const hexChainId = `0x${targetNetworkId.toString(16)}`;
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: hexChainId }],
+                    });
+                    
+                    // Wait for network to actually switch (poll until correct)
+                    await this.waitForNetworkSwitch(targetNetworkId, 10000);
+                    
+                    // Refresh provider after switch
+                    const newProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+                    const newSigner = newProvider.getSigner();
+                    currentProvider = newProvider;
+                    currentSigner = newSigner;
+                    
+                    // Verify network one more time before proceeding (using direct call)
+                    const verifyChainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                    const verifyChainId = parseInt(verifyChainIdHex, 16);
+                    if (verifyChainId !== targetNetworkId) {
+                        throw new Error(`Network switch verification failed. Expected ${targetNetworkId}, got ${verifyChainId}`);
+                    }
+                    
+                    // Emit switched event
+                    eventBus.emit('network:switched', {
+                        from: currentNetworkId,
+                        to: targetNetworkId,
+                        success: true
+                    });
+                    
+                    console.log('Network switched successfully before initialization');
+                } catch (switchError) {
+                    console.error('Network switch failed:', switchError);
+                    
+                    // Handle network not added error
+                    if (switchError.code === 4902) {
+                        // Try to add network
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: `0x${targetNetworkId.toString(16)}`,
+                                    rpcUrls: [contractData.rpcUrl || 'https://ethereum.publicnode.com'],
+                                    chainName: contractData.chainName || 'Ethereum Mainnet',
+                                    nativeCurrency: {
+                                        name: contractData.nativeCurrency?.name || 'ETH',
+                                        symbol: contractData.nativeCurrency?.symbol || 'ETH',
+                                        decimals: contractData.nativeCurrency?.decimals || 18
+                                    }
+                                }]
+                            });
+                            
+                            // Wait for network to actually switch after adding
+                            await this.waitForNetworkSwitch(targetNetworkId, 10000);
+                            
+                            // Refresh provider
+                            const newProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+                            const newSigner = newProvider.getSigner();
+                            currentProvider = newProvider;
+                            currentSigner = newSigner;
+                            
+                            // Verify network one more time before proceeding (using direct call)
+                            const verifyChainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                            const verifyChainId = parseInt(verifyChainIdHex, 16);
+                            if (verifyChainId !== targetNetworkId) {
+                                throw new Error(`Network switch verification failed. Expected ${targetNetworkId}, got ${verifyChainId}`);
+                            }
+                            
+                            eventBus.emit('network:switched', {
+                                from: currentNetworkId,
+                                to: targetNetworkId,
+                                success: true
+                            });
+                            
+                            console.log('Network added and switched successfully');
+                        } catch (addError) {
+                            console.error('Failed to add network:', addError);
+                            eventBus.emit('network:switch:error', {
+                                from: currentNetworkId,
+                                to: targetNetworkId,
+                                error: addError.message,
+                                originalError: addError
+                            });
+                            throw new Error(`Failed to switch to required network. Please switch to network ${targetNetworkId} manually.`);
+                        }
+                    } else {
+                        // Emit error event
+                        eventBus.emit('network:switch:error', {
+                            from: currentNetworkId,
+                            to: targetNetworkId,
+                            error: switchError.message,
+                            originalError: switchError
+                        });
+                        throw new Error(`Failed to switch network: ${switchError.message}`);
+                    }
+                }
+            }
+
+            // Wait a bit more to ensure network is fully stable before creating BlockchainService
+            // This prevents any lingering network change events from interfering
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            // Verify network one final time before creating BlockchainService (using direct call)
+            const finalChainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+            const finalChainId = parseInt(finalChainIdHex, 16);
+            if (finalChainId !== targetNetworkId) {
+                throw new Error(`Network verification failed before initialization. Expected ${targetNetworkId}, got ${finalChainId}`);
+            }
+            
             // Use existing BlockchainService instance if available or create new one
+            // Now that network is correct and stable, it's safe to initialize
             let blockchainService;
             if (window.blockchainServiceInstance) {
                 console.log('Using existing BlockchainService instance');
                 blockchainService = window.blockchainServiceInstance;
+                // Re-initialize if network changed
+                if (currentNetworkId !== targetNetworkId) {
+                    console.log('Re-initializing BlockchainService after network switch...');
+                    await blockchainService.initialize();
+                }
             } else {
-                console.log('Initializing new BlockchainService...');
+                console.log('Creating new BlockchainService instance (network is stable)...');
                 blockchainService = new BlockchainService();
+                console.log('Initializing BlockchainService...');
                 await blockchainService.initialize();
                 // Store for future use
                 window.blockchainServiceInstance = blockchainService;
                 console.log('BlockchainService initialized successfully');
             }
-            
-            // Get network ID and contract data
-            const networkId = await ethersProvider.getNetwork().then(network => network.chainId);
-            console.log('Connected to network ID:', networkId);
-            
-            // Get contract data from switch.json
-            console.log('Loading contract data from switch.json...');
-            const switchResponse = await fetch('/EXEC404/switch.json');
-            const contractData = await switchResponse.json();
-            console.log('Contract data loaded:', contractData);
 
             // Create and mount trading interface using BlockchainService
             console.log('Creating TradingInterface...');
@@ -899,6 +1058,43 @@ class WalletConnector {
             this.messagePopup.error('Failed to load trading interface: ' + error.message, 'Interface Error');
             throw error;
         }
+    }
+
+    /**
+     * Wait for network to actually switch to target network
+     * @param {number} targetNetworkId - The target network ID to wait for
+     * @param {number} timeout - Maximum time to wait in milliseconds (default: 10000)
+     * @returns {Promise<void>}
+     */
+    async waitForNetworkSwitch(targetNetworkId, timeout = 10000) {
+        const startTime = Date.now();
+        const pollInterval = 100; // Check every 100ms
+        
+        while (Date.now() - startTime < timeout) {
+            try {
+                // Get chainId directly from window.ethereum to avoid provider issues
+                const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' });
+                const chainId = parseInt(chainIdHex, 16);
+                
+                if (chainId === targetNetworkId) {
+                    // Network has switched, wait a bit more for it to stabilize
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    console.log(`Network successfully switched to ${targetNetworkId}`);
+                    return;
+                }
+            } catch (error) {
+                // Provider might not be ready yet, continue polling
+                // Don't log every error to avoid spam
+                if (Date.now() - startTime > 1000) {
+                    console.log('Waiting for network switch...');
+                }
+            }
+            
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+        
+        throw new Error(`Network switch timeout: Network did not switch to ${targetNetworkId} within ${timeout}ms`);
     }
 
     /**
