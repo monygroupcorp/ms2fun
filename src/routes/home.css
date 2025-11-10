@@ -146,9 +146,18 @@ body {
     margin: 0;
 }
 
-.cta-button.launch-own-button {
-    display: inline-block;
+.header-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
     margin-top: 30px;
+    flex-wrap: wrap;
+}
+
+.cta-button.launch-own-button,
+.cta-button.about-button {
+    display: inline-block;
     padding: var(--spacing-sm) var(--spacing-xl);
     background: var(--color-accent);
     color: #ffffff;
@@ -162,13 +171,15 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
-.cta-button.launch-own-button:hover {
+.cta-button.launch-own-button:hover,
+.cta-button.about-button:hover {
     background: var(--color-accent-hover);
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
 }
 
-.cta-button.launch-own-button:active {
+.cta-button.launch-own-button:active,
+.cta-button.about-button:active {
     transform: translateY(0);
 }
 
@@ -405,6 +416,25 @@ body {
     z-index: 2;
 }
 
+.mock-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: #ff69b4;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    z-index: 2;
+    box-shadow: 0 2px 4px rgba(255, 105, 180, 0.3);
+}
+
+.project-card.featured .mock-badge {
+    top: 48px;
+}
+
 .card-top-bar {
     display: flex;
     justify-content: space-between;
@@ -412,6 +442,54 @@ body {
     margin-bottom: 12px;
     padding-bottom: 12px;
     border-bottom: var(--border-width) solid var(--color-border);
+    position: relative;
+    min-height: 60px;
+}
+
+.card-top-bar.has-background-image {
+    border-bottom: none;
+    padding: 16px;
+    margin: -16px -16px 12px -16px;
+    border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+    overflow: hidden;
+}
+
+.card-top-bar.has-background-image::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.6));
+    z-index: 0;
+    transition: opacity 0.2s ease;
+}
+
+.project-card:hover .card-top-bar.has-background-image::before {
+    opacity: 0;
+}
+
+.card-top-bar.has-background-image .card-top-left,
+.card-top-bar.has-background-image .card-top-right {
+    position: relative;
+    z-index: 1;
+}
+
+.card-top-bar.has-background-image .audit-badge-top {
+    background: rgba(16, 185, 129, 0.9);
+    backdrop-filter: blur(4px);
+}
+
+.card-top-bar.has-background-image .card-link-icon {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(4px);
+    color: white;
+}
+
+.card-top-bar.has-background-image .card-link-icon:hover {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
 }
 
 .card-top-left {
@@ -534,6 +612,14 @@ body {
 .meta-icon {
     font-size: 1rem;
     flex-shrink: 0;
+}
+
+.meta-icon-image {
+    width: 1rem;
+    height: 1rem;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: inline-block;
 }
 
 .meta-link {

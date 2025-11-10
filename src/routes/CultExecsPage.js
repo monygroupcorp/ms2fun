@@ -376,9 +376,8 @@ async function initializeCultExecs() {
         // Initialize UI components
         initializeUIComponents(contractInterface);
         
-        // Show contract interface only after successful connection
-        // Store handler reference for cleanup
-        eventHandlers.walletConnected = (data) => {
+        // Function to show contract interface (used for both already-connected and newly-connected wallets)
+        const showContractInterface = () => {
             if (gifContainer) {
                 gifContainer.style.display = 'none';
             }
@@ -396,6 +395,103 @@ async function initializeCultExecs() {
                 presaleTab.classList.add('active');
             }
             document.body.classList.add('contract-interface-active');
+        };
+        
+        // Check for existing wallet connection (similar to HomePage logic)
+        // Use setTimeout to ensure wallet service is fully initialized
+        setTimeout(async () => {
+            try {
+                // First check if wallet service reports as connected
+                if (walletService.isConnected()) {
+                    // Wallet is already connected, ensure ethersProvider and signer are set
+                    // They should be set, but check to be safe (especially when navigating from home page)
+                    if (!walletService.ethersProvider && walletService.provider) {
+                        const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                        walletService.ethersProvider = new ethers.providers.Web3Provider(walletService.provider, 'any');
+                        walletService.signer = walletService.ethersProvider.getSigner();
+                    }
+                    
+                    // Emit the connected event so WalletConnector can initialize TradingInterface
+                    // This is needed when navigating from home page where wallet was already connected
+                    eventBus.emit('wallet:connected', {
+                        address: walletService.connectedAddress,
+                        walletType: walletService.selectedWallet,
+                        provider: walletService.provider,
+                        ethersProvider: walletService.ethersProvider,
+                        signer: walletService.signer
+                    });
+                    showContractInterface();
+                    return;
+                }
+                
+                // If not connected via service, check for existing accounts in window.ethereum
+                // This handles the case where wallet is connected in browser but service hasn't detected it yet
+                if (typeof window.ethereum !== 'undefined') {
+                    try {
+                        // Check for existing accounts without requesting new connection
+                        const existingAccounts = await window.ethereum.request({
+                            method: 'eth_accounts'
+                        });
+                        
+                        if (existingAccounts && existingAccounts.length > 0) {
+                            // Accounts exist, set up connection state without showing popup
+                            // Detect which wallet is being used
+                            let walletType = 'metamask'; // default
+                            if (window.ethereum.isRabby) {
+                                walletType = 'rabby';
+                            } else if (window.ethereum.isRainbow) {
+                                walletType = 'rainbow';
+                            } else if (window.phantom && window.phantom.ethereum) {
+                                walletType = 'phantom';
+                            }
+                            
+                            // Only select wallet if not already selected (to avoid cleanup)
+                            if (!walletService.selectedWallet || walletService.selectedWallet !== walletType) {
+                                await walletService.selectWallet(walletType);
+                            }
+                            
+                            // Manually set up connection state using existing accounts
+                            // This avoids showing a popup since we already have accounts
+                            const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                            
+                            // Use the provider from walletService (set by selectWallet or already exists)
+                            const provider = walletService.provider || window.ethereum;
+                            
+                            // Only update if not already set (preserve existing connection state)
+                            if (!walletService.connectedAddress) {
+                                walletService.connectedAddress = existingAccounts[0];
+                                walletService.connected = true;
+                                walletService.ethersProvider = new ethers.providers.Web3Provider(provider, 'any');
+                                walletService.signer = walletService.ethersProvider.getSigner();
+                                
+                                // Emit connected event to trigger UI updates
+                                eventBus.emit('wallet:connected', {
+                                    address: existingAccounts[0],
+                                    walletType: walletType,
+                                    provider: provider,
+                                    ethersProvider: walletService.ethersProvider,
+                                    signer: walletService.signer
+                                });
+                            }
+                            
+                            // Show interface after connection
+                            showContractInterface();
+                        }
+                    } catch (error) {
+                        console.warn('Error checking for existing accounts:', error);
+                        // If check fails, just show wallet selection UI (default behavior)
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking wallet connection:', error);
+                // On error, show wallet selection UI (default behavior)
+            }
+        }, 100);
+        
+        // Also listen for wallet connection events (for when wallet connects after page load)
+        // Store handler reference for cleanup
+        eventHandlers.walletConnected = (data) => {
+            showContractInterface();
         };
         eventBus.on('wallet:connected', eventHandlers.walletConnected);
         

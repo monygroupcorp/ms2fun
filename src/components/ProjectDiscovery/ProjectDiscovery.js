@@ -4,6 +4,7 @@ import { ProjectFilters } from './ProjectFilters.js';
 import { ProjectCard } from './ProjectCard.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { FACTORY_METADATA } from '../../utils/factoryMetadata.js';
+import { loadMockData } from '../../services/mock/mockData.js';
 
 /**
  * ProjectDiscovery component
@@ -51,6 +52,27 @@ export class ProjectDiscovery extends Component {
         }
     }
 
+    /**
+     * Create hardcoded CULT EXEC project object
+     * This is a featured project that appears at the top of the project list
+     * @returns {Object} CULT EXEC project object
+     */
+    createHardcodedCultExecProject() {
+        return {
+            name: 'CULT EXECUTIVES',
+            address: '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2', // Real CULT EXEC address
+            contractType: 'ERC404',
+            description: 'The flagship ERC404 project. Bonding curve trading with automatic NFT minting.',
+            stats: {
+                volume: 'High',
+                holders: 'Growing',
+                totalSupply: 'Dynamic'
+            },
+            isFeatured: true,
+            isHardcoded: true // Flag to distinguish from mock data
+        };
+    }
+
     async loadData() {
         try {
             this.setState({ loading: true, error: null });
@@ -63,6 +85,9 @@ export class ProjectDiscovery extends Component {
                 await this.projectRegistry.indexFromMaster();
             }
 
+            // Filter out CULT EXEC/CULT EXECUTIVES from mock data to prevent duplication
+            const filteredProjects = allProjects.filter(p => p.name !== 'CULT EXEC' && p.name !== 'CULT EXECUTIVES');
+
             // Load factories for filter dropdown
             const factoryAddresses = await this.masterService.getAuthorizedFactories();
             const factories = [];
@@ -71,20 +96,13 @@ export class ProjectDiscovery extends Component {
                 factories.push({ address, type });
             }
 
-            // Find featured projects (CULT EXEC prominently)
-            const featuredProjects = allProjects.filter(p => 
-                p.name === 'CULT EXEC' || p.name.toLowerCase().includes('featured')
+            // Find featured projects (excluding CULT EXEC since it's hardcoded)
+            const featuredProjects = filteredProjects.filter(p => 
+                p.name.toLowerCase().includes('featured')
             );
 
-            // Sort featured: CULT EXEC first
-            featuredProjects.sort((a, b) => {
-                if (a.name === 'CULT EXEC') return -1;
-                if (b.name === 'CULT EXEC') return 1;
-                return 0;
-            });
-
             this.setState({
-                projects: allProjects,
+                projects: filteredProjects, // Store filtered projects (no CULT EXEC from mock data)
                 featuredProjects,
                 factories,
                 loading: false
@@ -129,9 +147,14 @@ export class ProjectDiscovery extends Component {
                 <div class="discovery-header">
                     <h1>MS2.FUN Launchpad</h1>
                     <p class="subtitle">Discover and interact with Web3 projects</p>
-                    <a href="/factories" class="cta-button launch-own-button" data-ref="launch-button">
-                        🚀 Launch Your Own Project
-                    </a>
+                    <div class="header-buttons">
+                        <a href="/factories" class="cta-button launch-own-button" data-ref="launch-button">
+                            🚀 Launch Your Own Project
+                        </a>
+                        <a href="/about" class="cta-button about-button" data-ref="about-button">
+                            📖 About
+                        </a>
+                    </div>
                 </div>
 
                 <div class="discovery-controls" data-ref="controls-container">
@@ -314,12 +337,45 @@ export class ProjectDiscovery extends Component {
     }
 
     /**
+     * Check if a project is a mock/demonstration project
+     * @param {Object} project - Project data
+     * @returns {boolean} True if project is a mock
+     */
+    isMockProject(project) {
+        if (!serviceFactory.isUsingMock()) {
+            return false;
+        }
+        
+        const address = project.address || '';
+        
+        // Check common mock patterns
+        if (address.startsWith('0xMOCK') || 
+            address.includes('mock') ||
+            address.startsWith('0xFACTORY')) {
+            return true;
+        }
+        
+        // Check if address exists in mock data instances
+        try {
+            const mockData = loadMockData();
+            if (mockData && mockData.instances && mockData.instances[address]) {
+                return true;
+            }
+        } catch (error) {
+            // If we can't load mock data, assume it's not a mock contract
+        }
+        
+        return false;
+    }
+
+    /**
      * Render HTML for a single project card
      * @param {Object} project - Project data
      * @returns {string} - HTML string for the card
      */
     renderProjectCardHTML(project) {
-        const isFeatured = project.name === 'CULT EXEC';
+        const isFeatured = project.name === 'CULT EXECUTIVES' || project.name === 'CULT EXEC';
+        const isMock = this.isMockProject(project);
         const contractType = project.contractType || 'Unknown';
         const volume = project.stats?.volume || '0 ETH';
         const holders = project.stats?.holders || 0;
@@ -340,9 +396,13 @@ export class ProjectDiscovery extends Component {
         // Generate etherscan URL if address exists but no URL provided
         const etherscanLink = etherscanUrl || (address ? `https://etherscan.io/address/${address}` : null);
 
+        // CULT EXEC card image path
+        const cardImage = isFeatured ? 'public/execs/695.jpeg' : null;
+        const cardTopBarStyle = cardImage ? `style="background-image: url('${cardImage}'); background-size: cover; background-position: center; background-repeat: no-repeat;"` : '';
+
         return `
             <div class="project-card ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
-                <div class="card-top-bar">
+                <div class="card-top-bar ${isFeatured ? 'has-background-image' : ''}" ${cardTopBarStyle}>
                     <div class="card-top-left">
                         ${audited ? '<div class="audit-badge-top">✓ Audited</div>' : ''}
                     </div>
@@ -391,6 +451,7 @@ export class ProjectDiscovery extends Component {
                 </div>
                 
                 ${isFeatured ? '<div class="featured-badge">⭐ FEATURED</div>' : ''}
+                ${isMock ? '<div class="mock-badge">For Demonstration Only</div>' : ''}
                 
                 <div class="card-header">
                     <h3 class="card-title">${name}</h3>
@@ -399,7 +460,16 @@ export class ProjectDiscovery extends Component {
                 
                 <p class="card-description">${description}</p>
                 
-                ${allegiance ? `
+                ${isFeatured ? `
+                    <div class="card-meta">
+                        <div class="meta-item allegiance">
+                            <img src="public/remilia.gif" alt="Remilia" class="meta-icon-image" />
+                            <span class="meta-text">
+                                Ultra-Aligned Dual Nature NFT
+                            </span>
+                        </div>
+                    </div>
+                ` : allegiance ? `
                     <div class="card-meta">
                         <div class="meta-item allegiance">
                             <span class="meta-icon">${allegiance.icon}</span>
@@ -427,7 +497,7 @@ export class ProjectDiscovery extends Component {
                     ` : ''}
                 </div>
                 <button class="view-project-button" data-project-address="${address}">
-                    ${isFeatured ? 'View CULT EXEC →' : 'View Project →'}
+                    ${isFeatured ? 'View CULT EXECUTIVES →' : 'View Project →'}
                 </button>
             </div>
         `;
@@ -512,13 +582,20 @@ export class ProjectDiscovery extends Component {
             if (!projectAddress) return;
 
             // Find the project data
-            const project = this.state.projects.find(p => p.address === projectAddress) ||
+            // Check hardcoded CULT EXEC first, then regular projects, then featured
+            let project = null;
+            const cultExecProject = this.createHardcodedCultExecProject();
+            if (cultExecProject.address === projectAddress) {
+                project = cultExecProject;
+            } else {
+                project = this.state.projects.find(p => p.address === projectAddress) ||
                           this.state.featuredProjects.find(p => p.address === projectAddress);
+            }
             
             if (!project) return;
 
-            // CULT EXEC has special route
-            if (project.name === 'CULT EXEC') {
+            // CULT EXECUTIVES has special route
+            if (project.name === 'CULT EXECUTIVES' || project.name === 'CULT EXEC') {
                 if (window.router) {
                     window.router.navigate('/cultexecs');
                 } else {
@@ -633,6 +710,7 @@ export class ProjectDiscovery extends Component {
         const retryButton = this.getRef('retry-button', '.retry-button');
         const clearAllButton = this.getRef('clear-all-button', '.clear-filters-button');
         const launchButton = this.getRef('launch-button', '.launch-own-button');
+        const aboutButton = this.getRef('about-button', '.about-button');
 
         if (retryButton) {
             retryButton.addEventListener('click', () => {
@@ -661,6 +739,17 @@ export class ProjectDiscovery extends Component {
                     window.router.navigate('/factories');
                 } else {
                     window.location.href = '/factories';
+                }
+            });
+        }
+
+        if (aboutButton) {
+            aboutButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.router) {
+                    window.router.navigate('/about');
+                } else {
+                    window.location.href = '/about';
                 }
             });
         }
@@ -745,8 +834,13 @@ export class ProjectDiscovery extends Component {
             // Apply sorting
             const sorted = await this.projectRegistry.sortBy(this.state.filters.sortBy, filtered);
 
+            // Prepend hardcoded CULT EXEC project to the top of the list
+            // This ensures it always appears first, regardless of filters or sorting
+            const cultExecProject = this.createHardcodedCultExecProject();
+            const finalProjects = [cultExecProject, ...sorted];
+
             // Update state (this will trigger onStateUpdate which handles the DOM update)
-            this.setState({ filteredProjects: sorted });
+            this.setState({ filteredProjects: finalProjects });
 
             // Restore focus state after state update completes
             // Use setTimeout to ensure state update has processed

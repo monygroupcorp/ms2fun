@@ -2,6 +2,7 @@ import { Component } from '../../core/Component.js';
 import { FACTORY_METADATA } from '../../utils/factoryMetadata.js';
 import { generateProjectURL } from '../../utils/navigation.js';
 import serviceFactory from '../../services/ServiceFactory.js';
+import { loadMockData } from '../../services/mock/mockData.js';
 
 /**
  * ProjectCard component
@@ -17,8 +18,40 @@ export class ProjectCard extends Component {
         };
     }
 
+    /**
+     * Check if this project is a mock/demonstration project
+     * @returns {boolean} True if project is a mock
+     */
+    isMockProject() {
+        if (!serviceFactory.isUsingMock()) {
+            return false;
+        }
+        
+        const address = this.project.address || '';
+        
+        // Check common mock patterns
+        if (address.startsWith('0xMOCK') || 
+            address.includes('mock') ||
+            address.startsWith('0xFACTORY')) {
+            return true;
+        }
+        
+        // Check if address exists in mock data instances
+        try {
+            const mockData = loadMockData();
+            if (mockData && mockData.instances && mockData.instances[address]) {
+                return true;
+            }
+        } catch (error) {
+            // If we can't load mock data, assume it's not a mock contract
+        }
+        
+        return false;
+    }
+
     render() {
-        const isFeatured = this.project.name === 'CULT EXEC';
+        const isFeatured = this.project.name === 'CULT EXECUTIVES' || this.project.name === 'CULT EXEC';
+        const isMock = this.isMockProject();
         const contractType = this.project.contractType || 'Unknown';
         const volume = this.project.stats?.volume || '0 ETH';
         const holders = this.project.stats?.holders || 0;
@@ -37,9 +70,13 @@ export class ProjectCard extends Component {
         // Generate etherscan URL if address exists but no URL provided
         const etherscanLink = etherscanUrl || (address ? `https://etherscan.io/address/${address}` : null);
 
+        // CULT EXEC card image path
+        const cardImage = isFeatured ? 'public/execs/695.jpeg' : null;
+        const cardTopBarStyle = cardImage ? `style="background-image: url('${cardImage}'); background-size: cover; background-position: center; background-repeat: no-repeat;"` : '';
+
         return `
             <div class="project-card ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
-                <div class="card-top-bar">
+                <div class="card-top-bar ${isFeatured ? 'has-background-image' : ''}" ${cardTopBarStyle}>
                     <div class="card-top-left">
                         ${audited ? '<div class="audit-badge-top">✓ Audited</div>' : ''}
                     </div>
@@ -88,6 +125,7 @@ export class ProjectCard extends Component {
                 </div>
                 
                 ${isFeatured ? '<div class="featured-badge">⭐ FEATURED</div>' : ''}
+                ${isMock ? '<div class="mock-badge">For Demonstration Only</div>' : ''}
                 
                 <div class="card-header">
                     <h3 class="card-title">${this.escapeHtml(this.project.name)}</h3>
@@ -96,7 +134,16 @@ export class ProjectCard extends Component {
                 
                 <p class="card-description">${this.escapeHtml(this.project.description || 'No description available')}</p>
                 
-                ${allegiance ? `
+                ${isFeatured ? `
+                    <div class="card-meta">
+                        <div class="meta-item allegiance">
+                            <img src="public/remilia.gif" alt="Remilia" class="meta-icon-image" />
+                            <span class="meta-text">
+                                Ultra-Aligned Dual Nature NFT
+                            </span>
+                        </div>
+                    </div>
+                ` : allegiance ? `
                     <div class="card-meta">
                         <div class="meta-item allegiance">
                             <span class="meta-icon">${allegiance.icon}</span>
@@ -124,7 +171,7 @@ export class ProjectCard extends Component {
                     ` : ''}
                 </div>
                 <button class="view-project-button" data-ref="view-button">
-                    ${isFeatured ? 'View CULT EXEC →' : 'View Project →'}
+                    ${isFeatured ? 'View CULT EXECUTIVES →' : 'View Project →'}
                 </button>
             </div>
         `;
@@ -165,8 +212,8 @@ export class ProjectCard extends Component {
 
     async handleViewProject() {
         if (this.onNavigate) {
-            // CULT EXEC has special route
-            if (this.project.name === 'CULT EXEC') {
+            // CULT EXECUTIVES has special route
+            if (this.project.name === 'CULT EXECUTIVES' || this.project.name === 'CULT EXEC') {
                 this.onNavigate('/cultexecs');
                 return;
             }
