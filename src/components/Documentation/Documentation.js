@@ -249,7 +249,6 @@ export class Documentation extends Component {
                             <a href="#how-it-works" class="doc-nav-link ${this.state.activeSection === 'how-it-works' ? 'active' : ''}">How it Works</a>
                             <a href="#contract-types" class="doc-nav-link ${this.state.activeSection === 'contract-types' ? 'active' : ''}">Contract Types</a>
                             <a href="#feature-matrix" class="doc-nav-link ${this.state.activeSection === 'feature-matrix' ? 'active' : ''}">Feature Matrix</a>
-                            <a href="#decentralization" class="doc-nav-link ${this.state.activeSection === 'decentralization' ? 'active' : ''}">Decentralization</a>
                             <a href="#factory-requirements" class="doc-nav-link ${this.state.activeSection === 'factory-requirements' ? 'active' : ''}">Factory Requirements</a>
                             <a href="#community" class="doc-nav-link ${this.state.activeSection === 'community' ? 'active' : ''}">Community</a>
                             <a href="#faq" class="doc-nav-link ${this.state.activeSection === 'faq' ? 'active' : ''}">FAQ</a>
@@ -272,23 +271,23 @@ export class Documentation extends Component {
                         <section id="what-is" class="doc-section">
                             <h2>What is ms2.fun?</h2>
                             <p>
-                                ms2.fun is a launchpad, but not your average launchpad! 
-                                It's fully decentralized (as decentralized as we can make it, anyway). 
-                                The frontend lives on GitHub (soon IPFS - even more decentralized!), 
-                                and it connects to a public master contract that keeps track of all 
-                                the factories.
+                                ms2.fun is an artist enclave made possible by Ethereum smart contracts. 
+                                It's a launchpad that connects to a public master contract that keeps 
+                                track of authorized factories.
                             </p>
                             <p>
-                                Here's the thing: anyone can submit a factory, and anyone can 
-                                create collections using those factories. It's permissionless 
-                                creation in a curated ecosystem. Think of it like an open art gallery 
-                                where the community decides what gets featured, but the cult executives 
-                                make sure the quality stays high.
+                                Anyone can submit a factory for approval, and anyone can create projects 
+                                using those factories. The cult executives curate factories to ensure 
+                                quality and protect users, while keeping the ecosystem open for creators.
                             </p>
                             <p>
-                                Built for the stationthisbot community and especially for 
-                                our cult executives. This is your platform, your ecosystem, your 
-                                launchpad.
+                                We're working toward greater decentralization, but we're not there yet. 
+                                The goal is to build a platform where artists and creators can launch 
+                                their projects with confidence, supported by quality tools and community 
+                                curation.
+                            </p>
+                            <p>
+                                Built for the stationthisbot community and especially for our cult executives.
                             </p>
                         </section>
 
@@ -332,9 +331,9 @@ export class Documentation extends Component {
                             </p>
                             
                             <p>
-                                All of this happens on-chain, transparently, and with minimal 
-                                centralization. The cult executives control the master contract 
-                                to ensure quality, but everything else is open and permissionless.
+                                All of this happens on-chain, transparently. The cult executives control 
+                                the master contract to ensure quality, while keeping the ecosystem open 
+                                for creators.
                             </p>
                         </section>
 
@@ -394,7 +393,6 @@ export class Documentation extends Component {
                                         <ul>
                                             <li><strong>Multiple Editions:</strong> Multiple NFT types in one contract</li>
                                             <li><strong>Per-Edition Pricing:</strong> Each edition can have its own price</li>
-                                            <li><strong>Creator Royalties:</strong> Built-in royalty support for creators</li>
                                             <li><strong>Open Mint:</strong> Public minting functionality</li>
                                             <li><strong>Batch Operations:</strong> Mint or transfer multiple NFTs at once</li>
                                             <li><strong>Metadata URI Support:</strong> IPFS metadata for each edition</li>
@@ -481,80 +479,11 @@ export class Documentation extends Component {
                                     <span class="feature-badge erc1155">ERC1155</span>
                                 </div>
                                 
-                                <div class="feature-item">
-                                    <h3>Creator Royalties</h3>
-                                    <p>
-                                        Automatic royalty payments to creators on secondary sales. Built into 
-                                        the contract.
-                                    </p>
-                                    <span class="feature-badge erc1155">ERC1155</span>
-                                </div>
                             </div>
                             
                             <p class="feature-matrix-note">
                                 <strong>Future Features:</strong> The feature matrix is extensible. As new features 
                                 are developed, they can be added to the system and supported by factories.
-                            </p>
-                        </section>
-
-                        <section id="decentralization" class="doc-section">
-                            <h2>Decentralization</h2>
-                            <p>We're decentralized. Really decentralized.</p>
-                            
-                            <div class="decentralization-checklist">
-                                <div class="check-item">
-                                    <span class="check-icon">✓</span>
-                                    <div>
-                                        <strong>Frontend:</strong> Statically hosted (GitHub now, IPFS soon)
-                                    </div>
-                                </div>
-                                <div class="check-item">
-                                    <span class="check-icon">✓</span>
-                                    <div>
-                                        <strong>Master Contract:</strong> Public, on-chain, transparent
-                                    </div>
-                                </div>
-                                <div class="check-item">
-                                    <span class="check-icon">✓</span>
-                                    <div>
-                                        <strong>Factories:</strong> Anyone can submit (with approval)
-                                    </div>
-                                </div>
-                                <div class="check-item">
-                                    <span class="check-icon">✓</span>
-                                    <div>
-                                        <strong>Projects:</strong> Anyone can create
-                                    </div>
-                                </div>
-                                <div class="check-item">
-                                    <span class="check-icon">✓</span>
-                                    <div>
-                                        <strong>Fees:</strong> Application fee for factory approval, plus gas costs. Individual factories may charge their own fees.
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <p>
-                                The only thing that's not fully decentralized? The master contract 
-                                control. But that's by design. The cult executives curate factories 
-                                to protect you from:
-                            </p>
-                            
-                            <ul class="protection-list">
-                                <li>Pump and dump schemes</li>
-                                <li>Scam projects</li>
-                                <li>Low-quality spam</li>
-                            </ul>
-                            
-                            <p>
-                                Think of it like a quality filter. The ecosystem is open, but we 
-                                make sure the tools you're using are legit and the creators are 
-                                serious about their projects.
-                            </p>
-                            
-                            <p class="highlight-box">
-                                It's the best of both worlds: permissionless creation with quality 
-                                curation.
                             </p>
                         </section>
 
@@ -674,6 +603,13 @@ export class Documentation extends Component {
                             <div class="factory-application-process">
                                 <h3>Application Process</h3>
                                 <ol>
+                                    <li>
+                                        <strong>Consult Before Deployment:</strong> We strongly recommend 
+                                        consulting with us before deploying your factory contract. This ensures 
+                                        your contract meets all requirements and can help avoid issues during 
+                                        the approval process. Early consultation leads to the smoothest possible 
+                                        launch.
+                                    </li>
                                     <li>
                                         <strong>Deploy Your Factory:</strong> Deploy your factory contract 
                                         to the Ethereum mainnet (or testnet for testing).
@@ -814,17 +750,6 @@ export class Documentation extends Component {
                     a factory (though they need to meet requirements and get approval from cult 
                     executives). Once a factory is authorized, anyone can use it to create project 
                     instances. It's permissionless creation within a curated ecosystem.</p>
-                `
-            },
-            {
-                id: 'is-it-decentralized',
-                question: 'Is it really decentralized?',
-                answer: `
-                    <p>As decentralized as possible! The frontend is statically hosted 
-                    (GitHub now, IPFS soon), the master contract is public, factories can be 
-                    submitted by anyone, and collections can be created by anyone. The only 
-                    centralized aspect is the master contract control (by cult executives) to 
-                    ensure quality and protect users.</p>
                 `
             },
             {
