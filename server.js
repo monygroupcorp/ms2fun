@@ -27,6 +27,12 @@ app.use((req, res, next) => {
         res.set('Content-Type', 'application/javascript');
         // Force fresh response
         res.set('ETag', Date.now().toString());
+    } else if (req.path.endsWith('.woff2')) {
+        res.set('Content-Type', 'font/woff2');
+        res.set('Access-Control-Allow-Origin', '*');
+    } else if (req.path.endsWith('.woff')) {
+        res.set('Content-Type', 'font/woff');
+        res.set('Access-Control-Allow-Origin', '*');
     }
     next();
 });
@@ -37,6 +43,12 @@ app.use(express.static(path.join(__dirname), {
         //console.log('Serving static file:', filePath);
         if (filePath.endsWith('.js')) {
             res.set('Content-Type', 'application/javascript');
+        } else if (filePath.endsWith('.woff2')) {
+            res.set('Content-Type', 'font/woff2');
+            res.set('Access-Control-Allow-Origin', '*');
+        } else if (filePath.endsWith('.woff')) {
+            res.set('Content-Type', 'font/woff');
+            res.set('Access-Control-Allow-Origin', '*');
         }
     },
     // Disable etag to prevent 304s

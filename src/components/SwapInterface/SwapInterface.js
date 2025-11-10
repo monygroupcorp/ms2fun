@@ -22,30 +22,23 @@ export default class SwapInterface extends Component {
             freeMint: false,
             freeSupply: 0,
             calculatingAmount: false,
-            isPhase2: false,
+            isPhase2: null, // null means phase is not yet determined
             dataReady: false
         };
         
         // Store the address - could be a promise or a direct value
         this._address = address;
         
-        // Initialize child components
+        // Initialize child components that don't depend on phase
         this.transactionOptions = new TransactionOptions();
         this.messagePopup = new MessagePopup('status-message');
         this.priceDisplay = new PriceDisplay();
         console.log('🔵 SwapInterface created PriceDisplay instance');
         this.messagePopup.initialize();
         
-        // Initialize sub-components
-        this.swapInputs = new SwapInputs({
-            direction: this.state.direction,
-            ethAmount: this.state.ethAmount,
-            execAmount: this.state.execAmount,
-            calculatingAmount: this.state.calculatingAmount,
-            freeMint: this.state.freeMint,
-            isPhase2: this.state.isPhase2,
-            onInput: this.handleInput.bind(this)
-        });
+        // Don't initialize SwapInputs here - wait until phase is known
+        // This prevents rendering with wrong phase configuration
+        this.swapInputs = null;
         
         this.swapButton = new SwapButton({
             direction: this.state.direction,
@@ -202,23 +195,51 @@ export default class SwapInterface extends Component {
             return eventBus.on(event, handler);
         });
 
-        // Check if we already have data
+        // Check if we already have data and can determine phase immediately
         const contractData = this.store.selectContractData();
-        if (contractData) {
+        if (contractData && contractData.liquidityPool !== undefined) {
+            const isPhase2 = this.isLiquidityDeployed();
             this.setState({ 
-                isPhase2: this.isLiquidityDeployed(),
+                isPhase2: isPhase2,
                 dataReady: true
             });
+            // Initialize child components now that phase is known
+            this.initializeChildComponents();
         }
         
-        // Always render the full interface (it will show loading state if dataReady is false)
+        // Always render the full interface (it will show loading state if phase is not known)
         // Use the Component's update method to trigger proper render cycle
         this.update();
             
-        // Mount child components after render
+        // Mount child components after render (only if they're initialized)
         requestAnimationFrame(() => {
             this.mountChildComponents();
         });
+    }
+    
+    /**
+     * Initialize child components that depend on phase
+     * This is called once phase is determined (either in onMount or handleContractDataUpdate)
+     */
+    initializeChildComponents() {
+        // Only initialize if phase is known and SwapInputs hasn't been created yet
+        if (this.state.isPhase2 === null) {
+            console.log(`[${this.instanceId}] Phase not yet determined, skipping SwapInputs initialization`);
+            return;
+        }
+        
+        if (!this.swapInputs) {
+            console.log(`[${this.instanceId}] Initializing SwapInputs with phase ${this.state.isPhase2 ? '2' : '1'}`);
+            this.swapInputs = new SwapInputs({
+                direction: this.state.direction,
+                ethAmount: this.state.ethAmount,
+                execAmount: this.state.execAmount,
+                calculatingAmount: this.state.calculatingAmount,
+                freeMint: this.state.freeMint,
+                isPhase2: this.state.isPhase2,
+                onInput: this.handleInput.bind(this)
+            });
+        }
     }
     
     // Add method to explicitly mount child components
@@ -916,6 +937,7 @@ export default class SwapInterface extends Component {
             // Store the previous phase state before updating
             const previousPhase = this.state.isPhase2;
             const wasDataReady = this.state.dataReady;
+            const phaseWasUnknown = previousPhase === null;
             
             // Get fresh contract data from store
             const contractData = this.store.selectContractData();
@@ -925,9 +947,21 @@ export default class SwapInterface extends Component {
             this.state.isPhase2 = isPhase2;
             this.state.dataReady = true;
             
+            // If phase was unknown and is now determined, initialize child components
+            if (phaseWasUnknown && this.state.isPhase2 !== null) {
+                console.log(`[${this.instanceId}] Phase determined: ${isPhase2 ? 'Phase 2' : 'Phase 1'}, initializing child components`);
+                this.initializeChildComponents();
+                // Trigger re-render now that phase is known
+                this.setState({ dataReady: true, isPhase2 });
+                requestAnimationFrame(() => {
+                    this.mountChildComponents();
+                });
+                return;
+            }
+            
             // If data just became ready, we need to mount all child components
             if (!wasDataReady && this.state.dataReady) {
-                console.log('Data just became ready, mounting all child components');
+                console.log(`[${this.instanceId}] Data just became ready, mounting all child components`);
                 // Use setState to trigger initial render, but only once
                 this.setState({ dataReady: true, isPhase2 });
                 requestAnimationFrame(() => {
@@ -1000,9 +1034,9 @@ export default class SwapInterface extends Component {
         console.log('🎨 SwapInterface.render - Starting render');
         const { direction, ethAmount, execAmount, calculatingAmount, isPhase2, dataReady } = this.state;
 
-        // Always render the full structure so child components have containers to mount into
-        // Show loading state within the structure if data isn't ready
-        if (!dataReady) {
+        // Wait for both dataReady AND phase to be determined before showing full UI
+        // This prevents flash of incorrect phase UI
+        if (!dataReady || isPhase2 === null) {
             return `
                 <div class="price-display-container"></div>
                 <div class="quick-fill-buttons-container"></div>

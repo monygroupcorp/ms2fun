@@ -16,7 +16,7 @@ export class TransactionOptions extends Component {
             nftBalance: 0,
             swapDirection: this.store.selectDirection() ? 'buy' : 'sell',
             lastValidationState: true,
-            isPhase2: false // New state to track phase 2
+            isPhase2: null // null means phase is not yet determined
         };
 
         // Bind handlers
@@ -30,12 +30,19 @@ export class TransactionOptions extends Component {
 
     onMount() {
         this.unsubscribeStore = this.store.subscribe(() => this.handleStoreUpdate());
+        
+        // Subscribe to contract data updates to detect phase changes
+        this.contractDataUnsubscribe = eventBus.on('contractData:updated', () => {
+            this.checkPhase2Status();
+        });
+        
         this.addEventListeners();
         this.checkPhase2Status(); // Check phase 2 status on mount
     }
 
     onUnmount() {
         if (this.unsubscribeStore) this.unsubscribeStore();
+        if (this.contractDataUnsubscribe) this.contractDataUnsubscribe();
         this.removeEventListeners();
     }
 
@@ -207,23 +214,32 @@ export class TransactionOptions extends Component {
 
     checkPhase2Status() {
         const contractData = this.store.selectContractData();
-        const isPhase2 = contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
-        this.setState({ isPhase2 });
+        // Only set phase if contract data is available and liquidityPool is defined
+        if (contractData && contractData.liquidityPool !== undefined) {
+            const isPhase2 = contractData.liquidityPool && contractData.liquidityPool !== '0x0000000000000000000000000000000000000000';
+            // Only update if phase actually changed
+            if (this.state.isPhase2 !== isPhase2) {
+                this.state.isPhase2 = isPhase2;
+                // Phase change requires full re-render since template structure changes
+                this.update();
+            }
+        }
+        // If contract data not available yet, keep isPhase2 as null
     }
 
     template() {
         const { nftMintingEnabled, message, isValid, isPhase2 } = this.state;
         const swapDirection = this.store.selectDirection() ? 'buy' : 'sell';
 
+        // Wait for phase to be determined before rendering
+        if (isPhase2 === null) {
+            // Phase not yet determined, return empty to avoid showing wrong UI
+            return '';
+        }
+
         if (isPhase2) {
-            return `
-                <div class="transaction-options phase2">
-                    <div class="option-group">
-                        <p>Phase 2 Options Coming Soon!</p>
-                        <!-- Add new options for phase 2 here -->
-                    </div>
-                </div>
-            `;
+            // Phase 2: Return empty/minimal UI (no transaction options needed)
+            return '';
         }
 
         return `

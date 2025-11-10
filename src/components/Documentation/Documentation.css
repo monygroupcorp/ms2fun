@@ -1,0 +1,498 @@
+/* Documentation Page Styles */
+
+.documentation {
+    min-height: 100vh;
+    background: #ffffff;
+    color: #1a1a1a;
+    padding: 2rem 0;
+    font-family: var(--font-primary);
+}
+
+.doc-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 3rem;
+    padding: 0 2rem;
+}
+
+/* Sidebar Navigation */
+.doc-sidebar {
+    position: sticky;
+    top: 2rem;
+    height: fit-content;
+    max-height: calc(100vh - 4rem);
+    overflow-y: auto;
+}
+
+.doc-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+}
+
+.doc-nav-link {
+    color: #495057;
+    text-decoration: none;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.doc-nav-link:hover {
+    background: #e9ecef;
+    color: #212529;
+}
+
+.doc-nav-link.active {
+    background: #212529;
+    color: #ffffff;
+    border-left: 3px solid #212529;
+}
+
+/* Main Content */
+.doc-content {
+    max-width: 800px;
+}
+
+.doc-section {
+    margin-bottom: 4rem;
+    scroll-margin-top: 2rem;
+}
+
+.doc-section h2 {
+    font-size: 2.25rem;
+    margin-bottom: 1.5rem;
+    color: #212529;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.doc-section h3 {
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: #212529;
+    font-weight: 600;
+}
+
+.doc-section p {
+    font-size: 1rem;
+    line-height: 1.7;
+    margin-bottom: 1.25rem;
+    color: #495057;
+}
+
+.doc-section ul {
+    margin: 1.5rem 0;
+    padding-left: 2rem;
+}
+
+.doc-section li {
+    font-size: 1rem;
+    line-height: 1.7;
+    margin-bottom: 0.75rem;
+    color: #495057;
+}
+
+/* Hero Section */
+.hero-section {
+    text-align: center;
+    padding: 3rem 0;
+    margin-bottom: 4rem;
+}
+
+.hero-title {
+    font-size: 3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    color: #212529;
+}
+
+.hero-subtitle {
+    font-size: 1.2rem;
+    color: #6c757d;
+    margin-bottom: 2rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+    font-weight: 400;
+}
+
+.hero-cta {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.cta-button {
+    display: inline-block;
+    padding: 0.875rem 1.75rem;
+    background: #212529;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.cta-button:hover {
+    background: #343a40;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(33, 37, 41, 0.15);
+}
+
+.cta-button.secondary {
+    background: #ffffff;
+    color: #212529;
+    border: 2px solid #dee2e6;
+}
+
+.cta-button.secondary:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* How It Works Steps */
+.how-it-works-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.step {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 2rem;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.step:hover {
+    transform: translateY(-2px);
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #dee2e6;
+}
+
+.step h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+}
+
+.step p {
+    margin-bottom: 0;
+    font-size: 1rem;
+}
+
+.flow-description {
+    background: #f8f9fa;
+    border-left: 4px solid #212529;
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin: 2rem 0;
+}
+
+/* Decentralization Checklist */
+.decentralization-checklist {
+    margin: 2rem 0;
+}
+
+.check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
+    border: 1px solid #e9ecef;
+}
+
+.check-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    color: #28a745;
+    font-weight: 600;
+}
+
+.protection-list {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 1.5rem 1.5rem 1.5rem 2.5rem;
+    border-radius: 6px;
+    margin: 1.5rem 0;
+}
+
+.highlight-box {
+    background: #e7f3ff;
+    border: 2px solid #0d6efd;
+    padding: 1.5rem;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    text-align: center;
+    margin: 2rem 0;
+    font-weight: 500;
+    color: #0a58ca;
+}
+
+/* Factory Requirements Grid */
+.requirements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.requirement-item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 2rem;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+}
+
+.requirement-item:hover {
+    transform: translateY(-2px);
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #dee2e6;
+}
+
+.requirement-item h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1.3rem;
+}
+
+.requirement-item p {
+    margin-bottom: 0;
+    font-size: 1rem;
+}
+
+.requirement-note {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin: 2rem 0;
+    font-weight: 500;
+    color: #856404;
+}
+
+/* Community Section */
+.community-intro {
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
+}
+
+.community-values {
+    background: #f8f9fa;
+    border-left: 4px solid #212529;
+    padding: 1.5rem 1.5rem 1.5rem 2.5rem;
+    border-radius: 6px;
+    margin: 1.5rem 0;
+}
+
+.community-cta {
+    text-align: center;
+    font-size: 1.2rem;
+    margin-top: 2rem;
+    padding: 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    color: #212529;
+}
+
+/* Footer CTA */
+.doc-footer-cta {
+    text-align: center;
+    margin-top: 4rem;
+    padding: 3rem 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+}
+
+.doc-footer-cta p {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: #212529;
+}
+
+/* FAQ Section */
+.faq-section {
+    margin-top: 2rem;
+}
+
+.faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.faq-item {
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.faq-item:hover {
+    background: #f8f9fa;
+    border-color: #dee2e6;
+}
+
+.faq-question {
+    width: 100%;
+    padding: 1.5rem;
+    background: transparent;
+    border: none;
+    color: #212529;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s ease;
+}
+
+.faq-question:hover {
+    background: #f8f9fa;
+}
+
+.faq-question-text {
+    flex: 1;
+}
+
+.faq-icon {
+    font-size: 1.5rem;
+    font-weight: 300;
+    color: #212529;
+    flex-shrink: 0;
+    transition: transform 0.3s ease;
+}
+
+.faq-item.expanded .faq-icon {
+    transform: rotate(180deg);
+}
+
+.faq-answer-wrapper {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+}
+
+.faq-item.expanded .faq-answer-wrapper {
+    max-height: 1000px;
+}
+
+.faq-answer {
+    padding: 0 1.5rem 1.5rem 1.5rem;
+    color: #495057;
+    line-height: 1.7;
+}
+
+.faq-answer p {
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+.faq-answer p:last-child {
+    margin-bottom: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 968px) {
+    .doc-container {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .doc-sidebar {
+        position: relative;
+        top: 0;
+        max-height: none;
+    }
+    
+    .doc-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        overflow-x: auto;
+    }
+    
+    .doc-nav-link {
+        white-space: nowrap;
+    }
+    
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.1rem;
+    }
+    
+    .how-it-works-steps {
+        grid-template-columns: 1fr;
+    }
+    
+    .requirements-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .hero-cta {
+        flex-direction: column;
+    }
+    
+    .cta-button {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .documentation {
+        padding: 1rem 0;
+    }
+    
+    .doc-container {
+        padding: 0 1rem;
+    }
+    
+    .doc-section {
+        margin-bottom: 3rem;
+    }
+    
+    .doc-section h2 {
+        font-size: 2rem;
+    }
+    
+    .hero-title {
+        font-size: 2rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1rem;
+    }
+}
+

@@ -4,6 +4,8 @@ import MessagePopup from './components/MessagePopup/MessagePopup.js';
 import Router from './core/Router.js';
 import { renderHomePage } from './routes/HomePage.js';
 import { renderCultExecsPage } from './routes/CultExecsPage.js';
+import serviceFactory from './services/ServiceFactory.js';
+import { testMockSystem } from './services/mock/test-mock-system.js';
 
 // Add performance markers for monitoring
 performance.mark('startApp');
@@ -42,9 +44,58 @@ async function initializeApp() {
         const router = new Router();
         window.router = router; // Make router globally available
         
+        // Expose mock system test globally for console testing
+        if (serviceFactory.isUsingMock()) {
+            window.testMockSystem = testMockSystem;
+            window.serviceFactory = serviceFactory;
+            console.log('💡 Mock system loaded! Run testMockSystem() in the console to test.');
+        }
+        
         // Register routes
         router.on('/', renderHomePage);
         router.on('/cultexecs', renderCultExecsPage);
+        router.on('/about', async () => {
+            const { renderDocumentation } = await import('./routes/Documentation.js');
+            return renderDocumentation();
+        });
+        router.on('/docs', async () => {
+            const { renderDocumentation } = await import('./routes/Documentation.js');
+            return renderDocumentation();
+        });
+        
+        // Register dynamic routes (order matters - more specific first)
+        // Triple-level route for ERC1155 pieces with chain ID (most specific)
+        router.on('/:chainId/:factoryTitle/:instanceName/:pieceTitle', async (params) => {
+            const { renderPieceDetail } = await import('./routes/PieceDetail.js');
+            return renderPieceDetail(params);
+        });
+        
+        // Double-level route for projects with chain ID (less specific)
+        router.on('/:chainId/:factoryTitle/:instanceName', async (params) => {
+            const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
+            return renderProjectDetail(params);
+        });
+        
+        // Address-based route for backward compatibility
+        router.on('/project/:id', async (params) => {
+            const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
+            return renderProjectDetail(params);
+        });
+        
+        router.on('/factory/:id', async (params) => {
+            const { renderFactoryDetail } = await import('./routes/FactoryDetail.js');
+            return renderFactoryDetail(params);
+        });
+        
+        router.on('/create', async () => {
+            const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
+            return renderProjectCreation();
+        });
+        
+        router.on('/factories', async () => {
+            const { renderFactoryExploration } = await import('./routes/FactoryExploration.js');
+            return renderFactoryExploration();
+        });
         
         // Register 404 handler
         router.notFound((path) => {

@@ -56,6 +56,96 @@ class Router {
     }
     
     /**
+     * Match a path against a route pattern
+     * @param {string} pattern - Route pattern (e.g., '/project/:id')
+     * @param {string} path - Actual path to match
+     * @returns {object|null} Matched params or null if no match
+     * @private
+     */
+    _matchRoute(pattern, path) {
+        // Exact match for static routes
+        if (pattern === path) {
+            return {};
+        }
+        
+        // Split into parts, filtering empty strings
+        const patternParts = pattern.split('/').filter(p => p);
+        const pathParts = path.split('/').filter(p => p);
+        
+        // Must have same number of parts
+        if (patternParts.length !== pathParts.length) {
+            return null;
+        }
+        
+        const params = {};
+        for (let i = 0; i < patternParts.length; i++) {
+            const patternPart = patternParts[i];
+            const pathPart = pathParts[i];
+            
+            // Check if this is a parameter (starts with :)
+            if (patternPart.startsWith(':')) {
+                const paramName = patternPart.slice(1);
+                // Decode URL component
+                try {
+                    params[paramName] = decodeURIComponent(pathPart);
+                } catch (e) {
+                    // If decoding fails, use raw value
+                    params[paramName] = pathPart;
+                }
+            } else if (patternPart !== pathPart) {
+                // Static part doesn't match
+                return null;
+            }
+        }
+        
+        return params;
+    }
+    
+    /**
+     * Find matching route handler
+     * @param {string} path - Route path
+     * @returns {object|null} { handler, params } or null
+     * @private
+     */
+    _findRoute(path) {
+        // First check for exact static route match (static routes take precedence)
+        if (this.routes.has(path)) {
+            return {
+                handler: this.routes.get(path),
+                params: {}
+            };
+        }
+        
+        // Collect all dynamic routes and sort by specificity (more params = more specific)
+        const dynamicRoutes = [];
+        for (const [pattern, handler] of this.routes.entries()) {
+            // Skip if it's an exact match (already checked above)
+            if (pattern === path) {
+                continue;
+            }
+            
+            // Check if pattern contains dynamic parameters
+            if (pattern.includes(':')) {
+                const paramCount = (pattern.match(/:/g) || []).length;
+                dynamicRoutes.push({ pattern, handler, paramCount });
+            }
+        }
+        
+        // Sort by param count (descending) to match more specific routes first
+        dynamicRoutes.sort((a, b) => b.paramCount - a.paramCount);
+        
+        // Try each route in order of specificity
+        for (const { pattern, handler } of dynamicRoutes) {
+            const params = this._matchRoute(pattern, path);
+            if (params !== null) {
+                return { handler, params };
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
      * Handle route change
      * @param {string} path - Route path
      */
@@ -66,13 +156,13 @@ class Router {
         }
         
         // Find matching route
-        const handler = this.routes.get(path);
+        const match = this._findRoute(path);
         
-        if (handler) {
+        if (match) {
             this.currentRoute = path;
-            // Call handler and store the result (which may include cleanup function)
+            // Call handler with params and store the result (which may include cleanup function)
             // Handle both sync and async handlers
-            const result = await Promise.resolve(handler());
+            const result = await Promise.resolve(match.handler(match.params));
             this.currentHandler = result || null;
         } else if (this.notFoundHandler) {
             this.currentRoute = null;
@@ -96,6 +186,54 @@ class Router {
      */
     getCurrentRoute() {
         return this.currentRoute || window.location.pathname;
+    }
+    
+    /**
+     * Encode a title for use in URL (slug)
+     * @param {string} title - Title to encode
+     * @returns {string} URL-safe slug
+     */
+    _encodeTitle(title) {
+        if (!title) return '';
+        return title
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with hyphens
+            .replace(/^-+|-+$/g, '');      // Remove leading/trailing hyphens
+    }
+    
+    /**
+     * Decode a URL slug back to title (approximate)
+     * @param {string} slug - URL slug
+     * @returns {string} Decoded title
+     */
+    _decodeTitle(slug) {
+        if (!slug) return '';
+        return slug
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+    
+    /**
+     * Generate URL from chain ID, factory title, instance name, and optional piece title
+     * @param {string|number} chainId - Chain ID (e.g., 1 for Ethereum mainnet)
+     * @param {string} factoryTitle - Factory title
+     * @param {string} instanceName - Instance name
+     * @param {string} [pieceTitle] - Optional piece title (for ERC1155)
+     * @returns {string} URL path
+     */
+    generateURL(chainId, factoryTitle, instanceName, pieceTitle = null) {
+        const chainIdStr = String(chainId || '1'); // Default to 1 (Ethereum mainnet)
+        const factorySlug = this._encodeTitle(factoryTitle);
+        const instanceSlug = this._encodeTitle(instanceName);
+        
+        if (pieceTitle) {
+            const pieceSlug = this._encodeTitle(pieceTitle);
+            return `/${chainIdStr}/${factorySlug}/${instanceSlug}/${pieceSlug}`;
+        }
+        
+        return `/${chainIdStr}/${factorySlug}/${instanceSlug}`;
     }
 }
 

@@ -1,4 +1,8 @@
 import stylesheetLoader from '../utils/stylesheetLoader.js';
+import { ProjectDiscovery } from '../components/ProjectDiscovery/ProjectDiscovery.js';
+import { WalletSplash } from '../components/WalletSplash/WalletSplash.js';
+import walletService from '../services/WalletService.js';
+import { eventBus } from '../core/EventBus.js';
 
 /**
  * Home page route handler
@@ -16,6 +20,8 @@ export function renderHomePage() {
     
     // Load home page specific stylesheet
     stylesheetLoader.load('src/routes/home.css', 'home-styles');
+    // Load wallet splash stylesheet
+    stylesheetLoader.load('src/components/WalletSplash/WalletSplash.css', 'wallet-splash-styles');
     
     // Unload CULT EXEC styles if they were loaded
     stylesheetLoader.unload('cultexecs-styles');
@@ -25,53 +31,91 @@ export function renderHomePage() {
     appContainer.innerHTML = '';
     appBottomContainer.innerHTML = '';
     
-    // Create home page content
-    appContainer.innerHTML = `
-        <div class="home-page">
-            <div class="home-hero">
-                <h1 class="home-title">MS2.FUN LAUNCHPAD</h1>
-                <p class="home-subtitle">Discover and interact with Web3 projects</p>
-            </div>
-            
-            <div class="home-content">
-                <div class="home-section">
-                    <h2>Featured Projects</h2>
-                    <div class="project-grid">
-                        <div class="project-card">
-                            <h3>CULT EXEC</h3>
-                            <p>ERC404 Bonding Curve Project</p>
-                            <a href="/cultexecs" class="project-link">View Project →</a>
-                        </div>
-                        <!-- More project cards will be added here -->
-                    </div>
-                </div>
-                
-                <div class="home-section">
-                    <h2>About</h2>
-                    <p>Welcome to the MS2.FUN launchpad. Browse projects, interact with contracts, and discover the future of Web3.</p>
-                </div>
-            </div>
-        </div>
-    `;
+    // Create container for wallet splash (overlay)
+    const splashContainer = document.createElement('div');
+    splashContainer.id = 'wallet-splash-container';
+    document.body.appendChild(splashContainer);
     
-    // Add click handlers for navigation
-    const projectLinks = appContainer.querySelectorAll('.project-link');
-    projectLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const href = link.getAttribute('href');
-            if (window.router) {
-                window.router.navigate(href);
-            } else {
-                window.location.href = href;
+    // Create container for ProjectDiscovery
+    const discoveryContainer = document.createElement('div');
+    discoveryContainer.id = 'project-discovery-container';
+    appContainer.appendChild(discoveryContainer);
+    
+    // Mount ProjectDiscovery component (will be hidden until wallet connects)
+    const projectDiscovery = new ProjectDiscovery();
+    projectDiscovery.mount(discoveryContainer);
+    
+    // Function to show discovery and hide splash
+    const showDiscovery = () => {
+        discoveryContainer.style.display = 'block';
+        if (splashContainer) {
+            splashContainer.style.display = 'none';
+        }
+    };
+    
+    // Function to hide discovery and show splash
+    const hideDiscovery = () => {
+        discoveryContainer.style.display = 'none';
+        if (splashContainer) {
+            splashContainer.style.display = 'flex';
+        }
+    };
+    
+    // Mount WalletSplash component
+    const walletSplash = new WalletSplash(() => {
+        // Callback when wallet connects - show discovery
+        showDiscovery();
+    });
+    walletSplash.mount(splashContainer);
+    
+    // Check if wallet is already connected (after a short delay to ensure wallet service is initialized)
+    setTimeout(async () => {
+        try {
+            if (!walletService.isInitialized) {
+                await walletService.initialize();
             }
-        });
+            
+            if (walletService.isConnected()) {
+                // Wallet already connected, show discovery immediately
+                showDiscovery();
+            } else {
+                // Wallet not connected, hide discovery
+                hideDiscovery();
+            }
+        } catch (error) {
+            console.error('Error checking wallet connection:', error);
+            hideDiscovery();
+        }
+    }, 100);
+    
+    // Listen for wallet disconnection
+    const unsubscribeDisconnected = eventBus.on('wallet:disconnected', () => {
+        hideDiscovery();
     });
     
     // Return cleanup function
     return {
         cleanup: () => {
-            // Unload stylesheet (optional - you may want to keep it loaded)
+            // Unsubscribe from events
+            if (unsubscribeDisconnected) {
+                unsubscribeDisconnected();
+            }
+            
+            // Unmount components
+            if (walletSplash && typeof walletSplash.unmount === 'function') {
+                walletSplash.unmount();
+            }
+            if (projectDiscovery && typeof projectDiscovery.unmount === 'function') {
+                projectDiscovery.unmount();
+            }
+            
+            // Remove splash container from body
+            if (splashContainer && splashContainer.parentNode) {
+                splashContainer.parentNode.removeChild(splashContainer);
+            }
+            
+            // Unload stylesheets
+            stylesheetLoader.unload('wallet-splash-styles');
             // stylesheetLoader.unload('home-styles');
         }
     };
