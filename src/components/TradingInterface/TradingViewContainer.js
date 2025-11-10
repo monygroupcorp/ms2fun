@@ -70,7 +70,7 @@ export class TradingViewContainer extends Component {
                 this.element.insertBefore(overlay, this.element.firstChild);
             }
             overlay.innerHTML = `
-                <img src="/public/stop.png" alt="Not Allowed" />
+                <img src="/public/execs/stop.png" alt="Not Allowed" />
                 <div class="overlay-text">NOT ALLOWED</div>
                 <div class="tier-text">Current Whitelist: Tier ${currentTier !== null ? currentTier : 'Loading...'}</div>
             `;

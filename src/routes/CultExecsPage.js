@@ -186,8 +186,8 @@ export async function renderCultExecsPage() {
 
                 <!-- GIF Display -->
                 <div class="gif-container">
-                    <img src="public/cultexec.gif" alt="Terminal Animation" class="terminal-gif desktop-gif">
-                    <img src="public/0109_2.gif" alt="Terminal Animation Mobile" class="terminal-gif mobile-gif">
+                    <img src="public/execs/cultexec.gif" alt="Terminal Animation" class="terminal-gif desktop-gif">
+                    <img src="public/execs/0109_2.gif" alt="Terminal Animation Mobile" class="terminal-gif mobile-gif">
                 </div>
             </div>
         </div>

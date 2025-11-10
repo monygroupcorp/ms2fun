@@ -57,7 +57,7 @@ export class OverlayManager extends Component {
 
         return `
             <div class="not-allowed-overlay">
-                <img src="/public/stop.png" alt="Not Allowed" />
+                <img src="/public/execs/stop.png" alt="Not Allowed" />
                 <div class="overlay-text">NOT ALLOWED</div>
                 <div class="tier-text">Current Whitelist: Tier ${currentTier !== null ? currentTier : 'Loading...'}</div>
             </div>
