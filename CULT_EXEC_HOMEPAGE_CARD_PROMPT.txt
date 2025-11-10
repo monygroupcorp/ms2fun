@@ -1,0 +1,268 @@
+================================================================================
+AGENT PROMPT: Add CULT EXEC Project Card to Home Page
+================================================================================
+
+CONTEXT:
+
+You are adding a hardcoded CULT EXEC project card to the top of the home page 
+project discovery. This card should be prominently displayed and navigate to 
+the `/cultexecs` route when clicked.
+
+CURRENT STATE:
+
+✅ ProjectDiscovery component displays project cards from mock data
+✅ ProjectCard component handles navigation
+✅ CULT EXEC already appears in project discovery (from mock data)
+⚠️ Need a hardcoded, featured CULT EXEC card at the top of the list
+
+YOUR MISSION:
+
+Add a hardcoded CULT EXEC project card that:
+1. Appears at the top of the project list on the home page
+2. Is visually distinct/featured
+3. Navigates to `/cultexecs` when clicked
+4. Uses the existing ProjectCard component for consistency
+5. Is separate from the mock data projects
+
+================================================================================
+TASKS
+================================================================================
+
+TASK 1: UNDERSTAND CURRENT STRUCTURE
+-------------------------------------
+
+Files to examine:
+- src/components/ProjectDiscovery/ProjectDiscovery.js
+- src/components/ProjectDiscovery/ProjectCard.js
+- src/routes/HomePage.js
+
+Current behavior:
+- ProjectDiscovery fetches projects from ProjectRegistry
+- Projects are displayed in a grid
+- CULT EXEC may already appear in the list (from mock data)
+- ProjectCard handles click navigation
+
+TASK 2: ADD HARDCODED CULT EXEC CARD
+-------------------------------------
+
+Modify ProjectDiscovery component to:
+1. Create a hardcoded CULT EXEC project object
+2. Render it as the first card in the project grid
+3. Ensure it's visually distinct (featured styling)
+4. Make it navigate to `/cultexecs` when clicked
+
+Implementation approach:
+
+Option A: Add to ProjectDiscovery component
+- Create hardcoded CULT EXEC project object
+- Prepend to projects array before rendering
+- Use existing ProjectCard component
+- Ensure navigation goes to `/cultexecs`
+
+Option B: Add in HomePage before ProjectDiscovery
+- Create separate featured section
+- Render CULT EXEC card separately
+- Then render ProjectDiscovery below
+
+RECOMMENDATION: Option A (integrate into ProjectDiscovery)
+
+TASK 3: ENSURE VISUAL DISTINCTION
+----------------------------------
+
+The CULT EXEC card should be visually distinct:
+- Use existing "featured" styling if available
+- Or add new "cult-exec-featured" class
+- Should stand out but not clash with design system
+
+Check ProjectCard.js for:
+- Featured badge/styling
+- How featured projects are displayed
+- Any existing CULT EXEC special handling
+
+TASK 4: HANDLE NAVIGATION
+---------------------------
+
+Ensure clicking the card navigates to `/cultexecs`:
+- ProjectCard already has logic for CULT EXEC navigation
+- Check: `if (this.project.name === 'CULT EXEC') { this.onNavigate('/cultexecs'); }`
+- Ensure hardcoded project object has `name: 'CULT EXEC'`
+
+TASK 5: PREVENT DUPLICATION
+----------------------------
+
+If CULT EXEC already appears in mock data:
+- Filter it out from the regular project list
+- Or ensure the hardcoded one appears first and is distinct
+- Avoid showing CULT EXEC twice
+
+================================================================================
+IMPLEMENTATION DETAILS
+================================================================================
+
+CULT EXEC PROJECT OBJECT:
+
+Create a hardcoded project object with:
+```javascript
+const cultExecProject = {
+    name: 'CULT EXEC',
+    address: '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2', // Real CULT EXEC address
+    contractType: 'ERC404',
+    description: 'The flagship ERC404 project. Bonding curve trading with automatic NFT minting.',
+    stats: {
+        volume: 'High',
+        holders: 'Growing',
+        totalSupply: 'Dynamic'
+    },
+    // Add any other fields ProjectCard expects
+    isFeatured: true,
+    isHardcoded: true // Flag to distinguish from mock data
+};
+```
+
+INTEGRATION POINT:
+
+In ProjectDiscovery component, modify the render or update method:
+1. Get projects from registry (existing code)
+2. Filter out CULT EXEC if it exists in mock data
+3. Prepend hardcoded CULT EXEC project to the array
+4. Render all projects (CULT EXEC will be first)
+
+Example:
+```javascript
+// In ProjectDiscovery.js
+async loadProjects() {
+    const projects = await this.projectRegistry.getAllProjects();
+    
+    // Filter out CULT EXEC from mock data if present
+    const filteredProjects = projects.filter(p => p.name !== 'CULT EXEC');
+    
+    // Create hardcoded CULT EXEC project
+    const cultExecProject = {
+        name: 'CULT EXEC',
+        address: '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2',
+        contractType: 'ERC404',
+        description: 'The flagship ERC404 project. Bonding curve trading with automatic NFT minting.',
+        stats: {
+            volume: 'High',
+            holders: 'Growing'
+        },
+        isFeatured: true
+    };
+    
+    // Prepend CULT EXEC to projects
+    this.setState({
+        projects: [cultExecProject, ...filteredProjects]
+    });
+}
+```
+
+STYLING:
+
+If ProjectCard already supports featured styling:
+- The `isFeatured` flag should trigger it
+- Check ProjectCard.js for featured badge/styling
+
+If not, ensure the card looks distinct:
+- Could add a special border or background
+- Could use a different card style
+- Should match the design system
+
+NAVIGATION:
+
+ProjectCard already handles CULT EXEC navigation:
+```javascript
+// In ProjectCard.js (existing code)
+if (this.project.name === 'CULT EXEC') {
+    this.onNavigate('/cultexecs');
+    return;
+}
+```
+
+Ensure the hardcoded project object has `name: 'CULT EXEC'` exactly.
+
+================================================================================
+TESTING REQUIREMENTS
+================================================================================
+
+After implementation, verify:
+
+1. Display:
+   - [ ] CULT EXEC card appears at the top of the project list
+   - [ ] Card is visually distinct/featured
+   - [ ] Card shows correct information (name, description, etc.)
+   - [ ] Card styling matches design system
+
+2. Navigation:
+   - [ ] Clicking card navigates to `/cultexecs`
+   - [ ] Navigation works from home page
+   - [ ] No console errors
+
+3. Duplication:
+   - [ ] CULT EXEC doesn't appear twice in the list
+   - [ ] Only the hardcoded card appears (not from mock data)
+
+4. Responsive:
+   - [ ] Card displays correctly on mobile
+   - [ ] Card displays correctly on desktop
+   - [ ] Grid layout works with featured card
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+✅ CULT EXEC card appears at top of home page project list
+✅ Card is visually distinct/featured
+✅ Clicking card navigates to `/cultexecs`
+✅ No duplication (only one CULT EXEC card)
+✅ Styling is consistent with design system
+✅ Works on mobile and desktop
+
+================================================================================
+REFERENCE FILES
+================================================================================
+
+- src/components/ProjectDiscovery/ProjectDiscovery.js (main component)
+- src/components/ProjectDiscovery/ProjectCard.js (card component)
+- src/routes/HomePage.js (home page route)
+- src/components/ProjectDiscovery/ProjectCard.js (check for featured styling)
+
+================================================================================
+IMPLEMENTATION NOTES
+================================================================================
+
+1. **Keep it Simple:**
+   - Use existing ProjectCard component
+   - Don't create a new component unless necessary
+   - Reuse existing navigation logic
+
+2. **Design Consistency:**
+   - Match existing project card styling
+   - Use featured badge if available
+   - Don't break the grid layout
+
+3. **Code Organization:**
+   - Add hardcoded project in ProjectDiscovery component
+   - Keep it separate from mock data logic
+   - Add comments explaining why it's hardcoded
+
+4. **Future Considerations:**
+   - This is a temporary solution until CULT EXEC is properly integrated
+   - Consider making it configurable later
+   - Document why it's hardcoded
+
+================================================================================
+START IMPLEMENTATION
+================================================================================
+
+1. Examine ProjectDiscovery.js to understand current structure
+2. Check ProjectCard.js for featured styling and navigation
+3. Add hardcoded CULT EXEC project object
+4. Integrate into ProjectDiscovery render logic
+5. Test navigation and display
+6. Verify no duplication
+
+The goal is a clean, featured CULT EXEC card at the top of the home page that 
+navigates to the CULT EXEC trading interface.
+
+Good luck!
+
