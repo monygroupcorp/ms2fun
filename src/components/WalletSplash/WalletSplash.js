@@ -55,51 +55,68 @@ export class WalletSplash extends Component {
 
     async checkWalletConnection() {
         try {
-            // First check if window.ethereum exists and has accounts
-            let isConnected = false;
+            // Initialize wallet service if needed
+            if (!walletService.isInitialized) {
+                await walletService.initialize();
+            }
             
-            if (typeof window.ethereum !== 'undefined') {
+            // Check if wallet service thinks it's connected
+            let isConnected = walletService.isConnected();
+            
+            // If not connected, try to auto-reconnect to the last used wallet
+            // This allows auto-reconnect on refresh without annoying prompts
+            if (!isConnected && typeof window.ethereum !== 'undefined') {
                 try {
-                    // Check if wallet service thinks it's connected
-                    if (!walletService.isInitialized) {
-                        await walletService.initialize();
-                    }
+                    // Get the last used wallet from localStorage
+                    const lastWallet = localStorage.getItem('ms2fun_lastWallet');
                     
-                    isConnected = walletService.isConnected();
-                    
-                    // Also check window.ethereum directly for accounts
-                    if (!isConnected) {
+                    if (lastWallet) {
+                        // Check if that wallet has accounts (without prompting)
+                        let hasAccounts = false;
                         try {
-                            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                            if (accounts && accounts.length > 0) {
-                                // Has accounts but wallet service doesn't know - detect and connect
-                                console.log('Found existing wallet connection, detecting wallet type...');
-                                
-                                // Detect wallet type
-                                const walletType = this.detectWalletType();
-                                
-                                if (walletType) {
-                                    try {
-                                        // Select the wallet first
-                                        await walletService.selectWallet(walletType);
-                                        // Then connect
-                                        await walletService.connect();
-                                        isConnected = walletService.isConnected();
-                                        console.log('Auto-connected to', walletType);
-                                    } catch (connectError) {
-                                        console.log('Could not auto-connect:', connectError);
-                                        // If auto-connect fails, user will need to manually connect
-                                    }
-                                } else {
-                                    console.log('Could not detect wallet type');
+                            // Get the provider for the last wallet
+                            const providerMap = {
+                                rabby: () => window.ethereum?.isRabby ? window.ethereum : null,
+                                rainbow: () => window.ethereum?.isRainbow ? window.ethereum : null,
+                                phantom: () => window.phantom?.ethereum || null,
+                                metamask: () => window.ethereum || null
+                            };
+                            
+                            const getProvider = providerMap[lastWallet];
+                            if (getProvider) {
+                                const provider = getProvider();
+                                if (provider) {
+                                    const accounts = await provider.request({ method: 'eth_accounts' });
+                                    hasAccounts = accounts && accounts.length > 0;
                                 }
                             }
-                        } catch (accountsError) {
-                            console.log('Could not check accounts:', accountsError);
+                        } catch (error) {
+                            // Can't check - that's fine
+                            console.log('Could not check accounts for last wallet:', error);
+                        }
+                        
+                        // Only try to reconnect if the last wallet has accounts
+                        if (hasAccounts) {
+                            try {
+                                // Select the last used wallet (doesn't prompt)
+                                await walletService.selectWallet(lastWallet);
+                                // Try to connect (this will use existing connection if available)
+                                // If it needs approval, it will fail gracefully and user can click button
+                                await walletService.connect();
+                                isConnected = walletService.isConnected();
+                                if (isConnected) {
+                                    console.log('Auto-reconnected to', lastWallet);
+                                }
+                            } catch (connectError) {
+                                // Connection failed (user needs to approve) - that's fine
+                                // Don't log as error, just continue to show wallet selection
+                                console.log('Auto-reconnect not possible, user will need to select wallet');
+                            }
                         }
                     }
-                } catch (error) {
-                    console.log('Error checking wallet:', error);
+                } catch (accountsError) {
+                    // Can't check accounts - that's fine, show wallet selection
+                    console.log('Could not check existing accounts:', accountsError);
                 }
             }
             
@@ -111,6 +128,12 @@ export class WalletSplash extends Component {
             // If already connected, call onConnected callback
             if (isConnected && this.onConnected) {
                 this.onConnected();
+            } else {
+                // If not connected, ensure wallet modal is set up
+                // Use setTimeout to ensure state update has processed
+                this.setTimeout(() => {
+                    this.setupWalletModal();
+                }, 100);
             }
         } catch (error) {
             console.error('Error checking wallet connection:', error);
@@ -118,6 +141,10 @@ export class WalletSplash extends Component {
                 walletConnected: false,
                 checking: false
             });
+            // Ensure wallet modal is set up even on error
+            this.setTimeout(() => {
+                this.setupWalletModal();
+            }, 100);
         }
     }
 
@@ -254,15 +281,34 @@ export class WalletSplash extends Component {
             return;
         }
 
+        // Prevent infinite retry loops
+        if (!this._setupRetryCount) {
+            this._setupRetryCount = 0;
+        }
+        if (this._setupRetryCount > 10) {
+            console.error('Wallet modal setup failed after 10 retries - giving up');
+            return;
+        }
+        this._setupRetryCount++;
+
         // Wait for DOM to be ready
         this.setTimeout(() => {
             const modal = document.getElementById('walletModal');
             const selectButton = document.getElementById('selectWallet');
             
             if (!modal || !selectButton) {
-                console.error('Wallet modal or select button not found');
+                console.error('Wallet modal or select button not found, retry', this._setupRetryCount);
+                // Retry after a short delay if elements aren't ready yet
+                if (this.mounted && this._setupRetryCount <= 10) {
+                    this.setTimeout(() => {
+                        this.setupWalletModal();
+                    }, 200);
+                }
                 return;
             }
+            
+            // Reset retry count on success
+            this._setupRetryCount = 0;
 
             // Create WalletModal instance
             if (!this.walletModal) {
@@ -327,6 +373,9 @@ export class WalletSplash extends Component {
         try {
             // Select the wallet
             await walletService.selectWallet(walletType);
+            
+            // Store the selected wallet in localStorage for future auto-reconnect
+            localStorage.setItem('ms2fun_lastWallet', walletType);
             
             // Connect to the wallet
             await walletService.connect();

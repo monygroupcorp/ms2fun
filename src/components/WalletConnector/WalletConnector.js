@@ -305,8 +305,14 @@ class WalletConnector {
                 document.body.classList.add('contract-interface-active');
             }
             
-            // Show trading interface - call method from the original implementation
-            this.showTradingInterface(data.address, data.ethersProvider, data.signer);
+            // Only show trading interface if on CULT EXEC page (bondingCurveInterface exists)
+            const bondingInterface = document.getElementById('bondingCurveInterface');
+            if (bondingInterface) {
+                // Show trading interface - call method from the original implementation
+                this.showTradingInterface(data.address, data.ethersProvider, data.signer);
+            } else {
+                console.log('Not on CULT EXEC page, skipping trading interface initialization');
+            }
         }));
         
         this.eventUnsubscribers.push(eventBus.on('wallet:error', (error) => {
@@ -621,8 +627,12 @@ class WalletConnector {
                         signer: walletService.signer
                     });
                     
-                    // Show trading interface - call method from the original implementation
-                    this.showTradingInterface(account, walletService.ethersProvider, walletService.signer);
+                    // Only show trading interface if on CULT EXEC page
+                    const bondingInterface = document.getElementById('bondingCurveInterface');
+                    if (bondingInterface) {
+                        // Show trading interface - call method from the original implementation
+                        this.showTradingInterface(account, walletService.ethersProvider, walletService.signer);
+                    }
                     
                     return;
                 } catch (err) {
@@ -770,6 +780,21 @@ class WalletConnector {
         try {
             console.log('Showing trading interface for address:', connectedAddress);
             
+            // Check if we're on the CULT EXEC page
+            const bondingInterface = document.getElementById('bondingCurveInterface');
+            if (!bondingInterface) {
+                // Not on CULT EXEC page, don't try to show trading interface
+                console.log('Not on CULT EXEC page, skipping trading interface initialization');
+                return;
+            }
+
+            // Also check if contractInterface exists
+            const contractInterface = document.getElementById('contractInterface');
+            if (!contractInterface) {
+                console.log('Contract interface not found, skipping trading interface initialization');
+                return;
+            }
+            
             // Make provider and signer reassignable in case network switch is needed
             let currentProvider = ethersProvider;
             let currentSigner = signer;
@@ -822,12 +847,7 @@ class WalletConnector {
                 originalStatus.remove();
             }
 
-            // Get the container
-            const bondingInterface = document.getElementById('bondingCurveInterface');
-            if (!bondingInterface) {
-                throw new Error('Bonding interface container not found');
-            }
-
+            // bondingInterface already checked at top of function, reuse it
             // Clear the container
             bondingInterface.innerHTML = '';
 

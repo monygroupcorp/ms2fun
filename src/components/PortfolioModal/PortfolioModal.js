@@ -905,13 +905,13 @@ export default class PortfolioModal extends Component {
             }
 
             .mint-status {
-                color: #00ff00;
+                color: var(--status-success-color, var(--color-success, #10b981));
                 font-size: 16px;
             }
 
             .mint-button {
-                background-color: #00ff00;
-                color: #000;
+                background-color: var(--button-primary-bg, var(--color-accent, #212529));
+                color: var(--button-primary-color, #fff);
                 border: none;
                 padding: 10px 20px;
                 border-radius: 4px;
@@ -921,7 +921,7 @@ export default class PortfolioModal extends Component {
             }
 
             .mint-button:hover {
-                background-color: #00cc00;
+                background-color: var(--button-primary-hover, var(--color-accent-hover, #343a40));
             }
 
             .no-results {

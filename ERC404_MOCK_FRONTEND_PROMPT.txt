@@ -1,0 +1,419 @@
+================================================================================
+AGENT PROMPT: ERC404 Mock Frontend Implementation
+================================================================================
+
+CONTEXT:
+
+You are implementing the ERC404 frontend interface for mock projects. Currently:
+- ERC1155 projects have a complete, styled interface (EditionGallery, EditionCard, etc.)
+- ERC404 projects show a placeholder message in ContractTypeRouter
+- Navigation from ProjectDiscovery uses deprecated address-based URLs instead of title-based
+- ERC404 project detail pages lack proper styling and functionality
+
+CURRENT STATE:
+
+✅ ERC1155 Support - Complete
+   - EditionGallery component
+   - EditionCard component
+   - EditionMintInterface component
+   - Full styling (erc1155.css)
+   - Works with ProjectService and ERC1155Adapter
+
+⚠️ ERC404 Support - Incomplete
+   - ContractTypeRouter shows placeholder for ERC404
+   - No ERC404-specific interface component
+   - Navigation uses old `/project/:address` format
+   - No styling for ERC404 project pages
+
+✅ Existing TradingInterface - CULT EXEC specific
+   - Uses BlockchainService (CULT EXEC specific)
+   - Uses tradingStore (CULT EXEC specific)
+   - Not reusable for mock ERC404 projects
+
+YOUR MISSION:
+
+1. Fix navigation in ProjectDiscovery to use title-based URLs
+2. Create ERC404TradingInterface component that works with ProjectService
+3. Update ContractTypeRouter to render ERC404 interface
+4. Add styling for ERC404 project detail pages
+5. Ensure ERC404 mock projects work end-to-end
+
+================================================================================
+TASKS
+================================================================================
+
+TASK 1: FIX PROJECTDISCOVERY NAVIGATION
+-----------------------------------------
+
+Fix the navigation in ProjectDiscovery to use title-based URLs instead of
+address-based URLs.
+
+File to modify:
+- src/components/ProjectDiscovery/ProjectDiscovery.js
+
+Current Issue:
+The `attachCardClickHandlers` method uses:
+```javascript
+path = `/project/${project.address}`;
+```
+
+This should use title-based navigation like ProjectCard does.
+
+Solution:
+1. Use the same logic as ProjectCard.handleViewProject()
+2. Generate title-based URLs using generateProjectURL()
+3. Fall back to address-based only if title-based fails
+
+Implementation:
+```javascript
+attachCardClickHandlers(container) {
+    if (!container) return;
+    if (container.dataset.cardHandlersAttached === 'true') {
+        return;
+    }
+    container.dataset.cardHandlersAttached = 'true';
+
+    container.addEventListener('click', async (e) => {
+        const card = e.target.closest('.project-card');
+        if (!card) return;
+
+        const projectAddress = card.getAttribute('data-project-id');
+        if (!projectAddress) return;
+
+        const project = this.state.projects.find(p => p.address === projectAddress) ||
+                      this.state.featuredProjects.find(p => p.address === projectAddress);
+        
+        if (!project) return;
+
+        // CULT EXEC has special route
+        if (project.name === 'CULT EXEC') {
+            if (window.router) {
+                window.router.navigate('/cultexecs');
+            } else {
+                window.location.href = '/cultexecs';
+            }
+            return;
+        }
+
+        // Try to generate title-based URL
+        let path = null;
+        try {
+            const factoryAddress = project.factoryAddress;
+            if (factoryAddress && serviceFactory.isUsingMock()) {
+                const mockManager = serviceFactory.mockManager;
+                if (mockManager) {
+                    const mockData = mockManager.getMockData();
+                    const factory = mockData?.factories?.[factoryAddress];
+                    
+                    if (factory && factory.title && project.name) {
+                        const chainId = 1; // Default to Ethereum mainnet
+                        const { generateProjectURL } = await import('../../utils/navigation.js');
+                        path = generateProjectURL(factory, project, null, chainId);
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to generate title-based URL:', error);
+        }
+
+        // Fallback to address-based URL
+        if (!path) {
+            path = `/project/${project.address}`;
+        }
+
+        if (window.router) {
+            window.router.navigate(path);
+        } else {
+            window.location.href = path;
+        }
+    });
+}
+```
+
+TASK 2: CREATE ERC404TRADINGINTERFACE COMPONENT
+-------------------------------------------------
+
+Create a new ERC404TradingInterface component that works with ProjectService
+and projectStore, similar to how ERC1155 components work.
+
+File to create:
+- src/components/ERC404/ERC404TradingInterface.js
+
+Requirements:
+
+1. Works with ProjectService (not BlockchainService)
+2. Uses projectStore (not tradingStore)
+3. Works with ERC404Adapter
+4. Supports mock contracts
+5. Provides trading interface (buy/sell)
+6. Shows bonding curve
+7. Shows price and balances
+8. Handles wallet connection
+
+Interface:
+```javascript
+import { Component } from '../../core/Component.js';
+import { projectStore } from '../../store/projectStore.js';
+import serviceFactory from '../../services/ServiceFactory.js';
+import SwapInterface from '../SwapInterface/SwapInterface.js';
+import BondingCurve from '../BondingCurve/BondingCurve.js';
+import PriceDisplay from '../PriceDisplay/PriceDisplay.js';
+import BalanceDisplay from '../BalanceDisplay/BalanceDisplay.js';
+import WalletConnector from '../WalletConnector/WalletConnector.js';
+
+export class ERC404TradingInterface extends Component {
+    constructor(projectId, adapter) {
+        super();
+        this.projectId = projectId;
+        this.adapter = adapter;
+        this.state = {
+            loading: true,
+            price: 0,
+            balances: {
+                eth: '0',
+                token: '0',
+                nfts: '0'
+            },
+            isEthToExec: true,
+            ethAmount: '',
+            tokenAmount: '',
+            // ... other state
+        };
+    }
+    
+    async onMount() {
+        await this.loadData();
+        this.setupSubscriptions();
+    }
+    
+    async loadData() {
+        // Load price, balances, etc. from adapter
+        // Update projectStore
+    }
+    
+    render() {
+        // Render trading interface
+        // Similar to TradingInterface but using projectStore
+    }
+    
+    // Trading methods
+    async handleBuy() {
+        // Use adapter.buyBonding()
+    }
+    
+    async handleSell() {
+        // Use adapter.sellBonding()
+    }
+}
+```
+
+Key Differences from TradingInterface:
+- Uses `projectStore` instead of `tradingStore`
+- Uses `adapter` (ERC404Adapter) instead of `blockchainService`
+- Works with `projectId` instead of hardcoded address
+- Supports mock contracts
+
+TASK 3: UPDATE ContractTypeRouter FOR ERC404
+---------------------------------------------
+
+Update ContractTypeRouter to render ERC404TradingInterface for ERC404 projects.
+
+File to modify:
+- src/components/ProjectDetail/ContractTypeRouter.js
+
+Current Code (ERC404 section):
+```javascript
+if (type === 'ERC404') {
+    return `
+        <div class="contract-type-router erc404">
+            <div class="placeholder-message">
+                <h2>Trading Interface</h2>
+                <p>ERC404 trading interface will be available here in Phase 3.</p>
+                <p class="coming-soon">Coming Soon</p>
+            </div>
+        </div>
+    `;
+}
+```
+
+New Code:
+```javascript
+if (type === 'ERC404') {
+    if (!this.state.adapter) {
+        return `
+            <div class="contract-type-router erc404 error">
+                <p>Failed to load contract adapter</p>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="contract-type-router erc404" ref="erc404-container">
+            <!-- ERC404TradingInterface will be mounted here -->
+        </div>
+    `;
+}
+```
+
+And in setupChildComponents:
+```javascript
+if (type === 'ERC404' && this.state.adapter) {
+    const container = this.getRef('erc404-container', '.erc404');
+    if (container) {
+        const { ERC404TradingInterface } = await import('../ERC404/ERC404TradingInterface.js');
+        const tradingComponent = new ERC404TradingInterface(this.projectId, this.state.adapter);
+        const tradingElement = document.createElement('div');
+        container.appendChild(tradingElement);
+        tradingComponent.mount(tradingElement);
+        this.createChild('erc404-trading', tradingComponent);
+    }
+}
+```
+
+TASK 4: CREATE ERC404 STYLES
+-----------------------------
+
+Create CSS styles for ERC404 project detail pages.
+
+File to create:
+- src/components/ERC404/erc404.css
+
+Requirements:
+- Style the trading interface
+- Match the design system (use CSS variables)
+- Responsive design
+- Consistent with ERC1155 styling approach
+
+TASK 5: ADAPT EXISTING COMPONENTS FOR PROJECTSTORE
+---------------------------------------------------
+
+Some components may need adaptation to work with projectStore:
+
+1. SwapInterface - May need to work with adapter instead of blockchainService
+2. BondingCurve - May need to work with adapter
+3. PriceDisplay - Should work with projectStore
+4. BalanceDisplay - Should work with projectStore
+
+Check if these components can be adapted or if we need projectStore versions.
+
+================================================================================
+IMPLEMENTATION DETAILS
+================================================================================
+
+PROJECTSTORE INTEGRATION:
+
+ERC404TradingInterface should:
+1. Get project state from projectStore
+2. Update project state in projectStore
+3. Use projectStore selectors for price, balances, etc.
+
+Example:
+```javascript
+// Get project state
+const projectState = projectStore.selectProjectState(this.projectId);
+
+// Update project state
+projectStore.updatePrice(this.projectId, newPrice);
+projectStore.updateBalances(this.projectId, newBalances);
+
+// Subscribe to changes
+const unsubscribe = projectStore.subscribe(() => {
+    const state = projectStore.selectProjectState(this.projectId);
+    this.setState({
+        price: state.price.current,
+        balances: state.balances
+    });
+});
+```
+
+ADAPTER INTEGRATION:
+
+Use ERC404Adapter methods:
+```javascript
+// Get price
+const price = await this.adapter.getCurrentPrice();
+
+// Get balance
+const balance = await this.adapter.getBalance(userAddress);
+
+// Buy
+const tx = await this.adapter.buyBonding(amount, maxCost, proof, message);
+
+// Sell
+const tx = await this.adapter.sellBonding(amount, minReturn, proof, message);
+```
+
+MOCK CONTRACT SUPPORT:
+
+ERC404Adapter should already support mock contracts. Verify that:
+- Mock contracts are detected
+- Mock data is used for balances, price, etc.
+- Mock transactions work (update mock data)
+
+================================================================================
+TESTING REQUIREMENTS
+================================================================================
+
+After implementation, verify:
+
+1. Navigation:
+   - [ ] Clicking ERC404 project in ProjectDiscovery uses title-based URL
+   - [ ] Falls back to address-based if title-based fails
+   - [ ] CULT EXEC still goes to /cultexecs
+
+2. ERC404 Interface:
+   - [ ] ERC404TradingInterface renders correctly
+   - [ ] Price displays correctly
+   - [ ] Balances display correctly
+   - [ ] Buy/sell buttons work (mock)
+   - [ ] Bonding curve displays
+   - [ ] Swap interface works
+
+3. Styling:
+   - [ ] ERC404 pages are styled
+   - [ ] Consistent with design system
+   - [ ] Responsive design works
+   - [ ] Matches ERC1155 styling quality
+
+4. Integration:
+   - [ ] Works with ProjectService
+   - [ ] Works with projectStore
+   - [ ] Works with ERC404Adapter
+   - [ ] Mock contracts work correctly
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+✅ Navigation uses title-based URLs
+✅ ERC404TradingInterface component created
+✅ ContractTypeRouter renders ERC404 interface
+✅ ERC404 styles created
+✅ ERC404 mock projects work end-to-end
+✅ Styling matches ERC1155 quality
+✅ No console errors
+
+================================================================================
+REFERENCE
+================================================================================
+
+- src/components/ERC1155/EditionGallery.js (reference for component structure)
+- src/components/TradingInterface/TradingInterface.js (reference for trading logic)
+- src/components/ProjectDetail/ContractTypeRouter.js (integration point)
+- src/store/projectStore.js (state management)
+- src/services/contracts/ERC404Adapter.js (adapter interface)
+- src/services/ProjectService.js (service integration)
+
+================================================================================
+START IMPLEMENTATION
+================================================================================
+
+Begin with Task 1 (fix navigation), then create ERC404TradingInterface (Task 2),
+update ContractTypeRouter (Task 3), add styles (Task 4), and test everything.
+
+The goal is ERC404 mock projects that work as well as ERC1155 projects, with
+proper navigation, styling, and functionality.
+
+Good luck! This will complete the ERC404 mock frontend and make the launchpad
+fully functional for both contract types.
+

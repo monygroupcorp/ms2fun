@@ -24,6 +24,27 @@ class ERC404Adapter extends ContractAdapter {
      */
     async initialize() {
         try {
+            // Check if we have a mock provider (no real wallet connection)
+            const isMockProvider = this.provider && this.provider.isMock === true;
+            
+            if (isMockProvider) {
+                // For mock providers, mark as initialized but don't create real contracts
+                // The adapter will work in mock mode
+                this.initialized = true;
+                this.isMock = true;
+                eventBus.emit('contract:adapter:initialized', {
+                    contractAddress: this.contractAddress,
+                    contractType: this.contractType,
+                    isMock: true
+                });
+                return true;
+            }
+            
+            // Validate we have a real provider or signer
+            if (!this.signer && !this.provider) {
+                throw new Error('No provider or signer available for contract initialization');
+            }
+            
             // Load contract ABI
             const abiResponse = await fetch('/EXEC404/abi.json');
             if (!abiResponse.ok) {
@@ -125,6 +146,11 @@ class ERC404Adapter extends ContractAdapter {
             throw new Error('Invalid address provided to getTokenBalance');
         }
 
+        // Handle mock mode
+        if (this.isMock) {
+            return '0';
+        }
+
         return await this.getCachedOrFetch(
             'getTokenBalance',
             [address],
@@ -145,7 +171,8 @@ class ERC404Adapter extends ContractAdapter {
             throw new Error('Invalid address provided to getNFTBalance');
         }
 
-        if (!this.mirrorContract) {
+        // Handle mock mode
+        if (this.isMock || !this.mirrorContract) {
             return 0;
         }
 
@@ -167,6 +194,11 @@ class ERC404Adapter extends ContractAdapter {
     async getEthBalance(address) {
         if (!address || typeof address !== 'string') {
             throw new Error('Invalid address provided to getEthBalance');
+        }
+
+        // Handle mock mode
+        if (this.isMock || !this.provider || this.provider.isMock) {
+            return '0';
         }
 
         return await this.getCachedOrFetch(
@@ -192,6 +224,12 @@ class ERC404Adapter extends ContractAdapter {
      * @returns {Promise<number>} Current price in ETH
      */
     async getCurrentPrice() {
+        // Handle mock mode
+        if (this.isMock) {
+            // Return a mock price (0.1 ETH for 1M tokens)
+            return 0.1;
+        }
+
         return await this.getCachedOrFetch(
             'getCurrentPrice',
             [],

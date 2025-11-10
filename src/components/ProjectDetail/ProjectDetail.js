@@ -1,6 +1,7 @@
 import { Component } from '../../core/Component.js';
 import { ProjectHeader } from './ProjectHeader.js';
 import { ContractTypeRouter } from './ContractTypeRouter.js';
+import { WalletDisplay } from '../WalletDisplay/WalletDisplay.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 
 /**
@@ -35,6 +36,25 @@ export class ProjectDetail extends Component {
                     error: 'Project not found'
                 });
                 return;
+            }
+
+            // Load project into ProjectService so adapter is available
+            try {
+                const projectService = serviceFactory.getProjectService();
+                const contractAddress = project.contractAddress || project.address || this.projectId;
+                const contractType = project.contractType || null;
+                
+                // Only load if not already loaded
+                if (!projectService.isProjectLoaded(this.projectId)) {
+                    await projectService.loadProject(
+                        this.projectId,
+                        contractAddress,
+                        contractType
+                    );
+                }
+            } catch (serviceError) {
+                console.warn('[ProjectDetail] Failed to load project in ProjectService:', serviceError);
+                // Continue anyway - adapter loading will retry
             }
 
             this.setState({
@@ -88,6 +108,12 @@ export class ProjectDetail extends Component {
 
         return `
             <div class="project-detail">
+                <div class="detail-navigation">
+                    <button class="back-button" data-ref="back-button">← Back to Launchpad</button>
+                </div>
+                <div class="wallet-display-container" data-ref="wallet-display-container">
+                    <!-- WalletDisplay will be mounted here -->
+                </div>
                 <div class="detail-header-container" data-ref="header-container">
                     <!-- ProjectHeader will be mounted here -->
                 </div>
@@ -119,6 +145,16 @@ export class ProjectDetail extends Component {
 
     setupChildComponents() {
         if (!this.state.project) return;
+
+        // Mount WalletDisplay
+        const walletContainer = this.getRef('wallet-display-container', '.wallet-display-container');
+        if (walletContainer) {
+            const walletDisplay = new WalletDisplay();
+            const walletElement = document.createElement('div');
+            walletContainer.appendChild(walletElement);
+            walletDisplay.mount(walletElement);
+            this.createChild('wallet-display', walletDisplay);
+        }
 
         // Mount ProjectHeader
         const headerContainer = this.getRef('header-container', '.detail-header-container');

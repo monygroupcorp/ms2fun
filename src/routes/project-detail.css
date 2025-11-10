@@ -32,19 +32,25 @@
     margin: 20px 0;
 }
 
+.detail-navigation {
+    margin-bottom: 20px;
+}
+
 .back-button {
-    background: #667eea;
+    background: var(--color-accent);
     color: white;
     border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
+    padding: 12px 24px;
+    border-radius: var(--border-radius-md);
     cursor: pointer;
-    font-size: 14px;
-    margin-top: 20px;
+    font-size: var(--font-size-body);
+    font-family: var(--font-primary);
+    font-weight: var(--font-weight-medium);
+    transition: background-color 0.2s;
 }
 
 .back-button:hover {
-    background: #5568d3;
+    background: var(--color-accent-hover);
 }
 
 /* Project Header */
@@ -64,6 +70,7 @@
 }
 
 .project-name {
+    font-family: var(--font-primary);
     font-size: 2rem;
     margin: 0;
     color: #333;

@@ -115,9 +115,24 @@ class ERC1155Adapter extends ContractAdapter {
      * @private
      */
     _isMockContract() {
-        return this.contractAddress.startsWith('0xMOCK') || 
-               this.contractAddress.includes('mock') ||
-               this.contractAddress.startsWith('0xFACTORY');
+        // Check common mock patterns
+        if (this.contractAddress.startsWith('0xMOCK') || 
+            this.contractAddress.includes('mock') ||
+            this.contractAddress.startsWith('0xFACTORY')) {
+            return true;
+        }
+        
+        // Check if address exists in mock data instances
+        try {
+            const mockData = loadMockData();
+            if (mockData && mockData.instances && mockData.instances[this.contractAddress]) {
+                return true;
+            }
+        } catch (error) {
+            // If we can't load mock data, assume it's not a mock contract
+        }
+        
+        return false;
     }
 
     /**
@@ -263,15 +278,17 @@ class ERC1155Adapter extends ContractAdapter {
             if (this._isMockContract()) {
                 const mockData = loadMockData();
                 const instance = mockData?.instances?.[this.contractAddress];
-                if (instance && instance.pieces) {
-                    const piece = instance.pieces.find(p => p.editionId === editionId || 
-                        (p.editionId === undefined && instance.pieces.indexOf(p) === editionId));
-                    if (piece) {
+                if (instance && instance.pieces && instance.pieces.length > 0) {
+                    // Use array index directly (0-based) since getEditions() loops from 0 to count-1
+                    if (editionId >= 0 && editionId < instance.pieces.length) {
+                        const piece = instance.pieces[editionId];
                         const priceWei = ethers.utils.parseEther(
                             piece.price?.replace(' ETH', '') || '0'
                         );
+                        // Use the piece's editionId if available, otherwise use index + 1
+                        const displayEditionId = piece.editionId !== undefined ? piece.editionId : (editionId + 1);
                         return {
-                            id: editionId,
+                            id: editionId, // Keep 0-based ID for consistency with getEditions loop
                             price: priceWei.toString(),
                             maxSupply: (piece.supply || 0).toString(),
                             currentSupply: (piece.minted || 0).toString(),
@@ -280,7 +297,7 @@ class ERC1155Adapter extends ContractAdapter {
                             royaltyPercent: '0',
                             uri: null,
                             metadata: {
-                                name: piece.displayTitle || piece.name || `Edition #${editionId}`,
+                                name: piece.displayTitle || piece.name || `Edition #${displayEditionId}`,
                                 description: piece.description || '',
                                 image: piece.image || piece.imageUrl || '/placeholder-edition.png'
                             }

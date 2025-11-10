@@ -13,7 +13,8 @@ export class ContractTypeRouter extends Component {
         this.projectId = projectId;
         this.state = {
             adapter: null,
-            loading: true
+            loading: true,
+            project: null
         };
     }
 
@@ -24,7 +25,10 @@ export class ContractTypeRouter extends Component {
     onStateUpdate(oldState, newState) {
         // When adapter loads, setup child components
         if (!oldState.adapter && newState.adapter && !this.state.loading) {
-            this.setupChildComponents();
+            // Use setTimeout to ensure DOM is ready after render
+            this.setTimeout(() => {
+                this.setupChildComponents();
+            }, 0);
         }
     }
 
@@ -32,29 +36,62 @@ export class ContractTypeRouter extends Component {
         try {
             this.setState({ loading: true });
             const projectService = serviceFactory.getProjectService();
+            const projectRegistry = serviceFactory.getProjectRegistry();
             
             // Try to get adapter - if not found, try to load project first
             let adapter = projectService.getAdapter(this.projectId);
+            let project = await projectRegistry.getProject(this.projectId);
             
             if (!adapter) {
-                // Try to load project from registry
-                const projectRegistry = serviceFactory.getProjectRegistry();
-                const project = await projectRegistry.getProject(this.projectId);
+                // Try to get project from registry (already loaded above)
                 
-                if (project && project.contractAddress) {
-                    // Load the project in ProjectService
-                    await projectService.loadProject(
-                        this.projectId,
-                        project.contractAddress,
-                        project.contractType
-                    );
-                    adapter = projectService.getAdapter(this.projectId);
+                // If not found by projectId, try using projectId as contract address
+                if (!project) {
+                    // projectId might be the contract address, try loading directly
+                    try {
+                        await projectService.loadProject(
+                            this.projectId, // Use as both projectId and contractAddress
+                            this.projectId,
+                            this.contractType || null
+                        );
+                        adapter = projectService.getAdapter(this.projectId);
+                    } catch (loadError) {
+                        console.warn('[ContractTypeRouter] Failed to load project directly:', loadError);
+                    }
+                }
+                
+                // If still no adapter and we have project data, try loading with project data
+                if (!adapter && project) {
+                    const contractAddress = project.contractAddress || project.address || this.projectId;
+                    const contractType = project.contractType || this.contractType;
+                    
+                    try {
+                        await projectService.loadProject(
+                            this.projectId,
+                            contractAddress,
+                            contractType
+                        );
+                        adapter = projectService.getAdapter(this.projectId);
+                    } catch (loadError) {
+                        console.error('[ContractTypeRouter] Failed to load project with registry data:', loadError);
+                    }
                 }
             }
             
-            this.setState({ adapter, loading: false });
+            if (!adapter) {
+                console.error('[ContractTypeRouter] Could not load adapter for projectId:', this.projectId);
+                console.error('[ContractTypeRouter] Contract type:', this.contractType);
+            }
+            
+            this.setState({ adapter, project, loading: false });
         } catch (error) {
             console.error('[ContractTypeRouter] Failed to load adapter:', error);
+            console.error('[ContractTypeRouter] Error details:', {
+                projectId: this.projectId,
+                contractType: this.contractType,
+                error: error.message,
+                stack: error.stack
+            });
             this.setState({ loading: false });
         }
     }
@@ -82,13 +119,17 @@ export class ContractTypeRouter extends Component {
         const type = this.contractType.toUpperCase();
 
         if (type === 'ERC404') {
-            return `
-                <div class="contract-type-router erc404">
-                    <div class="placeholder-message">
-                        <h2>Trading Interface</h2>
-                        <p>ERC404 trading interface will be available here in Phase 3.</p>
-                        <p class="coming-soon">Coming Soon</p>
+            if (!this.state.adapter) {
+                return `
+                    <div class="contract-type-router erc404 error">
+                        <p>Failed to load contract adapter</p>
                     </div>
+                `;
+            }
+
+            return `
+                <div class="contract-type-router erc404" ref="erc404-container">
+                    <!-- ERC404TradingInterface will be mounted here -->
                 </div>
             `;
         } else if (type === 'ERC1155') {
@@ -119,10 +160,29 @@ export class ContractTypeRouter extends Component {
     setupChildComponents() {
         const type = this.contractType?.toUpperCase();
 
-        if (type === 'ERC1155' && this.state.adapter) {
+        if (type === 'ERC404' && this.state.adapter) {
+            const container = this.getRef('erc404-container', '.erc404');
+            if (container) {
+                // Dynamically import ERC404TradingInterface
+                import('../ERC404/ERC404TradingInterface.js').then(({ ERC404TradingInterface }) => {
+                    const tradingComponent = new ERC404TradingInterface(this.projectId, this.state.adapter);
+                    const tradingElement = document.createElement('div');
+                    container.appendChild(tradingElement);
+                    tradingComponent.mount(tradingElement);
+                    this.createChild('erc404-trading', tradingComponent);
+                }).catch(error => {
+                    console.error('[ContractTypeRouter] Failed to load ERC404TradingInterface:', error);
+                    container.innerHTML = `
+                        <div class="error-message">
+                            <p>Failed to load trading interface: ${error.message}</p>
+                        </div>
+                    `;
+                });
+            }
+        } else if (type === 'ERC1155' && this.state.adapter) {
             const container = this.getRef('erc1155-container', '.erc1155');
             if (container) {
-                const galleryComponent = new EditionGallery(this.projectId, this.state.adapter);
+                const galleryComponent = new EditionGallery(this.projectId, this.state.adapter, this.state.project);
                 const galleryElement = document.createElement('div');
                 container.appendChild(galleryElement);
                 galleryComponent.mount(galleryElement);

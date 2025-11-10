@@ -232,8 +232,8 @@ export class SendModal extends Component {
             }
 
             .confirm-send-button {
-                background: #00ff00;
-                color: black;
+                background: var(--button-primary-bg, var(--color-accent, #212529));
+                color: var(--button-primary-color, #fff);
                 border: none;
                 padding: 12px 24px;
                 border-radius: 4px;

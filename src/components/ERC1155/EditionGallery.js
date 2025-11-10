@@ -22,14 +22,31 @@ export class EditionGallery extends Component {
     }
 
     async onMount() {
-        // Load ERC1155 styles
+        // Load ERC1155 styles immediately (don't wait)
+        // Also ensure it's loaded even if route didn't load it
         stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
+        
+        // Double-check the link was created
+        this.setTimeout(() => {
+            const link = document.querySelector('link[data-stylesheet-id="erc1155-styles"]');
+            if (!link) {
+                console.warn('[EditionGallery] ERC1155 CSS link not found, creating manually');
+                const manualLink = document.createElement('link');
+                manualLink.rel = 'stylesheet';
+                manualLink.href = '/src/components/ERC1155/erc1155.css';
+                manualLink.setAttribute('data-stylesheet-id', 'erc1155-styles');
+                document.head.appendChild(manualLink);
+            } else {
+                console.log('[EditionGallery] ERC1155 CSS link found:', link.href);
+            }
+        }, 100);
+        
         await this.loadEditions();
     }
 
     onUnmount() {
-        // Unload styles when component unmounts
-        stylesheetLoader.unload('erc1155-styles');
+        // Don't unload styles on unmount - they might be needed if user navigates back
+        // stylesheetLoader.unload('erc1155-styles');
     }
 
     async loadEditions() {
@@ -40,6 +57,15 @@ export class EditionGallery extends Component {
         } catch (error) {
             console.error('[EditionGallery] Failed to load editions:', error);
             this.setState({ error: error.message || 'Failed to load editions', loading: false });
+        }
+    }
+    
+    onStateUpdate(oldState, newState) {
+        // When editions load, setup child components (only once)
+        if (oldState.editions.length === 0 && newState.editions.length > 0 && !newState.loading) {
+            this.setTimeout(() => {
+                this.setupChildComponents();
+            }, 0);
         }
     }
 
@@ -91,11 +117,22 @@ export class EditionGallery extends Component {
     }
 
     setupChildComponents() {
+        // Only setup if we have editions and haven't already set them up
+        if (!this.state.editions || this.state.editions.length === 0) {
+            return;
+        }
+        
+        // Check if children already exist
+        if (this._children && this._children.size > 0) {
+            // Children already mounted, skip
+            return;
+        }
+        
         // Mount EditionCard components for each edition
         this.state.editions.forEach((edition) => {
             const wrapper = this.getRef(`edition-${edition.id}`, `[data-edition-id="${edition.id}"]`);
-            if (wrapper) {
-                const cardComponent = new EditionCard(edition, this.adapter);
+            if (wrapper && !this._children.has(`edition-card-${edition.id}`)) {
+                const cardComponent = new EditionCard(edition, this.adapter, this.projectId, this.state.project);
                 const cardElement = document.createElement('div');
                 wrapper.appendChild(cardElement);
                 cardComponent.mount(cardElement);

@@ -5,7 +5,7 @@
  */
 
 import { Component } from '../../core/Component.js';
-import serviceFactory from '../../services/ServiceFactory.js';
+import walletService from '../../services/WalletService.js';
 import { eventBus } from '../../core/EventBus.js';
 
 export class EditionMintInterface extends Component {
@@ -100,7 +100,6 @@ export class EditionMintInterface extends Component {
         try {
             this.setState({ loading: true, error: null });
 
-            const walletService = serviceFactory.getWalletService();
             if (!walletService.isConnected()) {
                 throw new Error('Please connect your wallet');
             }

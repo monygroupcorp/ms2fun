@@ -504,7 +504,7 @@ export class ProjectDiscovery extends Component {
 
         // Use event delegation for better performance
         // Single listener handles all cards
-        container.addEventListener('click', (e) => {
+        container.addEventListener('click', async (e) => {
             const card = e.target.closest('.project-card');
             if (!card) return;
 
@@ -517,11 +517,54 @@ export class ProjectDiscovery extends Component {
             
             if (!project) return;
 
-            // Navigate to project
-            let path;
+            // CULT EXEC has special route
             if (project.name === 'CULT EXEC') {
-                path = '/cultexecs';
-            } else {
+                if (window.router) {
+                    window.router.navigate('/cultexecs');
+                } else {
+                    window.location.href = '/cultexecs';
+                }
+                return;
+            }
+
+            // Try to generate title-based URL
+            let path = null;
+            try {
+                const factoryAddress = project.factoryAddress;
+                if (factoryAddress && serviceFactory.isUsingMock()) {
+                    const mockManager = serviceFactory.mockManager;
+                    if (mockManager) {
+                        const mockData = mockManager.getMockData();
+                        const factory = mockData?.factories?.[factoryAddress];
+                        
+                        // Check for factory title (can be title or displayTitle)
+                        const factoryTitle = factory?.title || factory?.displayTitle;
+                        // Check for project name (can be name, displayName, or title)
+                        const projectName = project.name || project.displayName || project.title;
+                        
+                        if (factory && factoryTitle && projectName) {
+                            const chainId = 1; // Default to Ethereum mainnet
+                            const { generateProjectURL } = await import('../../utils/navigation.js');
+                            path = generateProjectURL(factory, project, null, chainId);
+                            
+                            // Only use if path was successfully generated (not fallback)
+                            if (path && path.startsWith('/project/')) {
+                                // Path generation fell back to address-based, try again with explicit fields
+                                const factorySlug = factoryTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                                const instanceSlug = projectName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                                if (factorySlug && instanceSlug) {
+                                    path = `/1/${factorySlug}/${instanceSlug}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to generate title-based URL:', error);
+            }
+
+            // Fallback to address-based URL
+            if (!path) {
                 path = `/project/${project.address}`;
             }
 

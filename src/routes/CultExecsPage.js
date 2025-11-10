@@ -49,6 +49,9 @@ export async function renderCultExecsPage() {
     // Load CULT EXEC specific stylesheet
     stylesheetLoader.load('src/routes/cultexecs.css', 'cultexecs-styles');
     
+    // Add body class for CULT EXEC styling
+    document.body.classList.add('cultexecs-active');
+    
     // Clear existing content
     appTopContainer.innerHTML = '';
     appContainer.innerHTML = '';
@@ -344,6 +347,9 @@ export async function renderCultExecsPage() {
             // Reset component references
             walletConnector = null;
             messagePopup = null;
+            
+            // Remove body class for CULT EXEC styling
+            document.body.classList.remove('cultexecs-active');
             
             console.log('[CultExecsPage] Cleanup complete');
         }

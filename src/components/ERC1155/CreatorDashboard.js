@@ -5,7 +5,7 @@
  */
 
 import { Component } from '../../core/Component.js';
-import serviceFactory from '../../services/ServiceFactory.js';
+import walletService from '../../services/WalletService.js';
 
 export class CreatorDashboard extends Component {
     constructor(projectId, adapter) {
@@ -27,7 +27,6 @@ export class CreatorDashboard extends Component {
         try {
             this.setState({ loading: true });
             const editions = await this.adapter.getEditions();
-            const walletService = serviceFactory.getWalletService();
             const address = walletService.getAddress();
 
             const earnings = {};
@@ -59,7 +58,6 @@ export class CreatorDashboard extends Component {
             `;
         }
 
-        const walletService = serviceFactory.getWalletService();
         const address = walletService.getAddress();
         const creatorEditions = this.state.editions.filter(e => 
             e.creator?.toLowerCase() === address?.toLowerCase()

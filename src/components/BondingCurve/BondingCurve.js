@@ -246,8 +246,11 @@ export class BondingCurve extends Component {
     }
 
     drawBaseCurve(ctx, canvas) {
-        // Set styles
-        ctx.strokeStyle = '#FFD700';
+        // Set styles - use CSS variable that changes based on page context
+        const curveColor = getComputedStyle(document.documentElement)
+            .getPropertyValue('--bonding-curve-color')
+            .trim() || '#764ba2';
+        ctx.strokeStyle = curveColor;
         ctx.lineWidth = 2;
 
         const curve = (x) => {
@@ -316,9 +319,12 @@ export class BondingCurve extends Component {
         const endIndex = Math.floor((currentPosition + segmentSize/2) * points.length);
         
         if (startIndex >= 0 && endIndex < points.length) {
-            // Draw highlighted segment
+            // Draw highlighted segment - use CSS variable that changes based on page context
+            const curveColor = getComputedStyle(document.documentElement)
+                .getPropertyValue('--bonding-curve-color')
+                .trim() || '#764ba2';
             ctx.beginPath();
-            ctx.strokeStyle = '#FFD700';
+            ctx.strokeStyle = curveColor;
             ctx.lineWidth = 4;
             
             ctx.moveTo(points[startIndex].x, points[startIndex].y);

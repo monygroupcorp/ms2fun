@@ -1,8 +1,8 @@
 /* CULT EXEC Specific Styles */
 /* This file contains all styles specific to the CULT EXEC project page */
 
-/* CSS Variables */
-:root {
+/* CSS Variables - scoped to CULT EXEC page only */
+body.cultexecs-active {
   --bg-dark: #111111;
   --bg-darker: #000000;
   --text-primary: #ffffff;
@@ -13,10 +13,108 @@
   --border-color: #333333;
   --header-height: 30px;
   --footer-height: 25px;
+  /* Component-specific colors for CULT EXEC */
+  --price-display-header-color: #FFD700;
+  --price-display-currency-color: #FFD700;
+  --status-success-color: #00FF00;
+  --bonding-curve-color: #FFD700;
+  --button-primary-bg: #00ff00;
+  --button-primary-color: #000;
+  --button-primary-hover: #00cc00;
 }
 
-/* Base Body Styles for CULT EXEC - override home page styles */
-body {
+/* Default values for non-CULT EXEC pages */
+:root {
+  --price-display-header-color: var(--color-text-primary, #333);
+  --price-display-currency-color: var(--color-accent, #764ba2);
+  --status-success-color: var(--color-success, #10b981);
+  --bonding-curve-color: #764ba2;
+  --button-primary-bg: var(--color-accent, #212529);
+  --button-primary-color: #fff;
+  --button-primary-hover: var(--color-accent-hover, #343a40);
+}
+
+/* Global header styles - only apply on CULT EXEC page */
+body.cultexecs-active .top-nav {
+    background-color: var(--bg-dark);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-height);
+}
+
+body.cultexecs-active .top-nav-title {
+    color: var(--text-yellow);
+    font-weight: bold;
+    font-size: 12px;
+}
+
+body.cultexecs-active .top-nav-time {
+    color: var(--text-blue);
+    font-size: 12px;
+}
+
+/* Main content area - only on CULT EXEC */
+body.cultexecs-active .main-content {
+    display: grid;
+    grid-template-columns: 60% 40%;
+    gap: 1px;
+    background-color: var(--border-color);
+}
+
+body.cultexecs-active .panel {
+    background-color: var(--bg-darker);
+    padding: 10px;
+    border: 1px solid var(--border-color);
+}
+
+body.cultexecs-active h2 {
+    color: var(--text-yellow);
+    font-size: 14px;
+    margin: 0 0 10px 0;
+    font-weight: normal;
+}
+
+/* Form styling - only on CULT EXEC */
+body.cultexecs-active input {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 5px;
+    width: calc(100% - 12px);
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+body.cultexecs-active button {
+    background-color: var(--bg-dark);
+    color: var(--text-green);
+    border: 1px solid var(--border-color);
+    padding: 5px 10px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+
+body.cultexecs-active button:hover {
+    background-color: var(--border-color);
+}
+
+/* Stats panel - only on CULT EXEC */
+body.cultexecs-active .stats-content p {
+    margin: 5px 0;
+    color: var(--text-primary);
+}
+
+body.cultexecs-active .status-indicator {
+    color: var(--text-green);
+}
+
+/* Base Body Styles for CULT EXEC - scoped to body.cultexecs-active */
+body.cultexecs-active {
     font-family: 'Courier New', monospace !important;
     margin: 0;
     padding: 0;

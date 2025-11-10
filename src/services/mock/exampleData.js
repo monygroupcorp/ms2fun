@@ -288,21 +288,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
                     editionId: 1,
                     price: '0.1 ETH',
                     supply: 100,
-                    minted: 50
+                    minted: 50,
+                    description: 'A breathtaking view of mountains silhouetted against a vibrant sunset sky. This limited edition print captures the beauty of nature at its finest.',
+                    image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop'
                 },
                 {
                     displayTitle: 'Ocean Waves',
                     editionId: 2,
                     price: '0.15 ETH',
                     supply: 50,
-                    minted: 25
+                    minted: 25,
+                    description: 'Powerful ocean waves crashing against rocky shores. A dramatic piece that brings the energy of the sea into your collection.',
+                    image: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800&h=800&fit=crop'
                 },
                 {
                     displayTitle: 'Forest Path',
                     editionId: 3,
                     price: '0.12 ETH',
                     supply: 75,
-                    minted: 40
+                    minted: 40,
+                    description: 'A serene forest path winding through ancient trees. This peaceful scene invites contemplation and connection with nature.',
+                    image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Desert Dunes',
+                    editionId: 4,
+                    price: '0.18 ETH',
+                    supply: 40,
+                    minted: 22,
+                    description: 'Golden sand dunes stretching to the horizon under a clear blue sky. A minimalist masterpiece of natural beauty.',
+                    image: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'City Skyline',
+                    editionId: 5,
+                    price: '0.14 ETH',
+                    supply: 60,
+                    minted: 35,
+                    description: 'Urban architecture silhouetted against an evening sky. A modern take on cityscapes that celebrates human achievement.',
+                    image: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=800&fit=crop'
                 }
             ]
         },
@@ -319,14 +343,36 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
                     editionId: 1,
                     price: '0.2 ETH',
                     supply: 50,
-                    minted: 30
+                    minted: 30,
+                    description: 'A legendary blade forged in the fires of ancient magic. Wielded by heroes throughout history, this sword grants +50 attack power.',
+                    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop'
                 },
                 {
                     displayTitle: 'Epic Shield',
                     editionId: 2,
                     price: '0.18 ETH',
                     supply: 60,
-                    minted: 35
+                    minted: 35,
+                    description: 'An unbreakable shield blessed by the gods. Provides +40 defense and reflects 25% of incoming damage back to attackers.',
+                    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Magic Staff',
+                    editionId: 3,
+                    price: '0.22 ETH',
+                    supply: 45,
+                    minted: 28,
+                    description: 'A staff imbued with the power of the elements. Increases spell damage by 60% and reduces mana cost by 30%.',
+                    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Dragon Armor',
+                    editionId: 4,
+                    price: '0.25 ETH',
+                    supply: 40,
+                    minted: 25,
+                    description: 'Armor crafted from dragon scales. Provides maximum protection and grants immunity to fire damage.',
+                    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop'
                 }
             ]
         },
@@ -336,7 +382,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             description: 'Rare trading cards with unique attributes. Collect full sets for special rewards.',
             metadataURI: 'ipfs://QmExample11',
             creator: '0xCREATORBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
-            stats: { totalEditions: 20, totalMinted: 1200, volume: '78.5 ETH' }
+            stats: { totalEditions: 20, totalMinted: 1200, volume: '78.5 ETH' },
+            pieces: [
+                {
+                    displayTitle: 'Legendary Hero Card',
+                    editionId: 1,
+                    price: '0.05 ETH',
+                    supply: 200,
+                    minted: 120,
+                    description: 'A powerful hero card featuring a legendary warrior. Collect this rare card to unlock special abilities in the game.',
+                    image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Epic Monster Card',
+                    editionId: 2,
+                    price: '0.08 ETH',
+                    supply: 150,
+                    minted: 95,
+                    description: 'A fearsome monster card with devastating attack power. This epic rarity card is highly sought after by collectors.',
+                    image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Rare Spell Card',
+                    editionId: 3,
+                    price: '0.06 ETH',
+                    supply: 180,
+                    minted: 110,
+                    description: 'A magical spell card that can turn the tide of battle. Use this rare card to cast powerful enchantments.',
+                    image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Common Item Card',
+                    editionId: 4,
+                    price: '0.02 ETH',
+                    supply: 500,
+                    minted: 320,
+                    description: 'A useful item card for everyday gameplay. While common, these cards are essential for building your deck.',
+                    image: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=800&fit=crop'
+                }
+            ]
         },
         {
             name: 'Photography Collection',
@@ -344,7 +428,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             description: 'Curated photography collection from renowned artists. Each photo is a limited edition.',
             metadataURI: 'ipfs://QmExample12',
             creator: '0xCREATORCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
-            stats: { totalEditions: 15, totalMinted: 800, volume: '95.3 ETH' }
+            stats: { totalEditions: 15, totalMinted: 800, volume: '95.3 ETH' },
+            pieces: [
+                {
+                    displayTitle: 'Urban Nightscape',
+                    editionId: 1,
+                    price: '0.12 ETH',
+                    supply: 100,
+                    minted: 65,
+                    description: 'A stunning photograph of city lights at night. This limited edition print captures the energy and beauty of urban life after dark.',
+                    image: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Mountain Sunrise',
+                    editionId: 2,
+                    price: '0.15 ETH',
+                    supply: 80,
+                    minted: 52,
+                    description: 'The first light of dawn breaking over snow-capped peaks. A breathtaking moment captured in this exclusive photography edition.',
+                    image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Ocean Sunset',
+                    editionId: 3,
+                    price: '0.10 ETH',
+                    supply: 120,
+                    minted: 78,
+                    description: 'A peaceful sunset over the ocean horizon. This serene photograph brings the tranquility of the sea into your space.',
+                    image: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'City Lights',
+                    editionId: 4,
+                    price: '0.18 ETH',
+                    supply: 60,
+                    minted: 45,
+                    description: 'The vibrant glow of city lights creating patterns of light and shadow. A modern urban photography masterpiece.',
+                    image: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=800&fit=crop'
+                }
+            ]
         },
         {
             name: '3D Model Assets',
@@ -352,7 +474,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             description: 'High-quality 3D models for games and virtual worlds. Use across multiple platforms.',
             metadataURI: 'ipfs://QmExample13',
             creator: '0xCREATORDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD',
-            stats: { totalEditions: 8, totalMinted: 400, volume: '112.6 ETH' }
+            stats: { totalEditions: 8, totalMinted: 400, volume: '112.6 ETH' },
+            pieces: [
+                {
+                    displayTitle: 'Medieval Sword Model',
+                    editionId: 1,
+                    price: '0.25 ETH',
+                    supply: 50,
+                    minted: 32,
+                    description: 'High-quality 3D model of a medieval sword. Includes textures, normal maps, and optimized for game engines. Compatible with Unity, Unreal, and Blender.',
+                    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Fantasy Castle Model',
+                    editionId: 2,
+                    price: '0.35 ETH',
+                    supply: 40,
+                    minted: 28,
+                    description: 'Detailed fantasy castle 3D model with multiple LOD levels. Perfect for RPG games and virtual worlds. Includes interior and exterior models.',
+                    image: 'https://images.unsplash.com/photo-1515542622106-78bda8ba0e5b?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Sci-Fi Spaceship Model',
+                    editionId: 3,
+                    price: '0.30 ETH',
+                    supply: 45,
+                    minted: 30,
+                    description: 'Futuristic spaceship 3D model with animated parts. Ready to use in space exploration games. Includes engine effects and landing gear animations.',
+                    image: 'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Character Avatar Model',
+                    editionId: 4,
+                    price: '0.20 ETH',
+                    supply: 60,
+                    minted: 42,
+                    description: 'Rigged character avatar model with multiple animation sets. Compatible with major game engines and VR platforms. Includes facial expressions.',
+                    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&h=800&fit=crop'
+                }
+            ]
         },
         {
             name: 'Animation Frames',
@@ -360,7 +520,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             description: 'Rare animation frames from iconic moments. Own a piece of animation history.',
             metadataURI: 'ipfs://QmExample14',
             creator: '0xCREATOREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE',
-            stats: { totalEditions: 12, totalMinted: 600, volume: '64.9 ETH' }
+            stats: { totalEditions: 12, totalMinted: 600, volume: '64.9 ETH' },
+            pieces: [
+                {
+                    displayTitle: 'Classic Frame #001',
+                    editionId: 1,
+                    price: '0.08 ETH',
+                    supply: 100,
+                    minted: 65,
+                    description: 'A historic animation frame from a classic production. Own a piece of animation history with this collectible frame.',
+                    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Classic Frame #002',
+                    editionId: 2,
+                    price: '0.10 ETH',
+                    supply: 80,
+                    minted: 52,
+                    description: 'Another iconic frame from animation history. Each frame tells a story and captures a moment in time.',
+                    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Classic Frame #003',
+                    editionId: 3,
+                    price: '0.09 ETH',
+                    supply: 90,
+                    minted: 58,
+                    description: 'A beautifully preserved animation frame showcasing the artistry of traditional animation techniques.',
+                    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Rare Frame #001',
+                    editionId: 4,
+                    price: '0.15 ETH',
+                    supply: 50,
+                    minted: 38,
+                    description: 'An extremely rare animation frame from a legendary production. This limited edition piece is highly sought after by collectors.',
+                    image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop'
+                }
+            ]
         },
         {
             name: 'Sound Effect Library',
@@ -368,7 +566,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             description: 'Professional sound effects and audio clips. Royalty-free for commercial use.',
             metadataURI: 'ipfs://QmExample15',
             creator: '0xCREATORFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF',
-            stats: { totalEditions: 25, totalMinted: 1500, volume: '143.2 ETH' }
+            stats: { totalEditions: 25, totalMinted: 1500, volume: '143.2 ETH' },
+            pieces: [
+                {
+                    displayTitle: 'Explosion Sound Pack',
+                    editionId: 1,
+                    price: '0.05 ETH',
+                    supply: 200,
+                    minted: 125,
+                    description: 'Professional explosion sound effects in multiple variations. Includes close, distant, and muffled versions. Royalty-free for commercial use.',
+                    image: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Nature Ambience Pack',
+                    editionId: 2,
+                    price: '0.06 ETH',
+                    supply: 180,
+                    minted: 110,
+                    description: 'High-quality nature ambience recordings including forests, oceans, and mountains. Perfect for games, films, and meditation apps.',
+                    image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Sci-Fi Sound Pack',
+                    editionId: 3,
+                    price: '0.07 ETH',
+                    supply: 150,
+                    minted: 95,
+                    description: 'Futuristic sound effects for sci-fi projects. Includes laser blasts, spaceship engines, and alien technology sounds.',
+                    image: 'https://images.unsplash.com/photo-1446776653964-20c1d3a81b06?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Musical Stings Pack',
+                    editionId: 4,
+                    price: '0.04 ETH',
+                    supply: 250,
+                    minted: 160,
+                    description: 'Short musical stings and transitions perfect for video production. Includes victory, suspense, and comedic themes.',
+                    image: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=800&fit=crop'
+                }
+            ]
         },
         {
             name: 'Virtual Fashion Items',
@@ -376,7 +612,45 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             description: 'Exclusive virtual fashion items for avatars. Wear unique designs in the metaverse.',
             metadataURI: 'ipfs://QmExample16',
             creator: '0xCREATOR0000000000000000000000000000000000',
-            stats: { totalEditions: 6, totalMinted: 300, volume: '201.4 ETH' }
+            stats: { totalEditions: 6, totalMinted: 300, volume: '201.4 ETH' },
+            pieces: [
+                {
+                    displayTitle: 'Luxury Jacket',
+                    editionId: 1,
+                    price: '0.30 ETH',
+                    supply: 50,
+                    minted: 35,
+                    description: 'An exclusive luxury jacket for your virtual avatar. Designed by top fashion houses, this jacket makes a statement in any metaverse.',
+                    image: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Designer Sunglasses',
+                    editionId: 2,
+                    price: '0.15 ETH',
+                    supply: 100,
+                    minted: 68,
+                    description: 'Stylish designer sunglasses that add flair to any avatar. Available in multiple color variations and compatible with all major platforms.',
+                    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Exclusive Sneakers',
+                    editionId: 3,
+                    price: '0.25 ETH',
+                    supply: 60,
+                    minted: 42,
+                    description: 'Limited edition virtual sneakers with unique designs. Each pair is individually numbered and comes with a certificate of authenticity.',
+                    image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&h=800&fit=crop'
+                },
+                {
+                    displayTitle: 'Rare Hat Collection',
+                    editionId: 4,
+                    price: '0.20 ETH',
+                    supply: 75,
+                    minted: 52,
+                    description: 'A collection of rare virtual hats from different eras and styles. Mix and match to create your unique look.',
+                    image: 'https://images.unsplash.com/photo-1521369909029-2afed882baee?w=800&h=800&fit=crop'
+                }
+            ]
         }
     ];
 

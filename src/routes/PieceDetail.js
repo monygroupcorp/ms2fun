@@ -1,5 +1,6 @@
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 import serviceFactory from '../services/ServiceFactory.js';
+import { EditionDetail } from '../components/ERC1155/EditionDetail.js';
 
 /**
  * ERC1155 piece detail route handler (triple endpoint with chain ID)
@@ -33,8 +34,9 @@ export async function renderPieceDetail(params) {
         return;
     }
 
-    // Load project detail stylesheet (reuse for now)
-    stylesheetLoader.load('src/routes/project-detail.css', 'piece-detail-styles');
+    // Load ERC1155 stylesheet
+    stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
+    stylesheetLoader.load('src/routes/project-detail.css', 'project-detail-styles');
     
     // Unload other page styles
     stylesheetLoader.unload('cultexecs-styles');
@@ -47,6 +49,7 @@ export async function renderPieceDetail(params) {
 
     // Load project with piece
     const projectRegistry = serviceFactory.getProjectRegistry();
+    const projectService = serviceFactory.getProjectService();
     
     try {
         const projectData = await projectRegistry.getProjectByPath(
@@ -67,63 +70,74 @@ export async function renderPieceDetail(params) {
         }
 
         const { factory, instance, piece } = projectData;
+        const projectId = instance.address || instance.contractAddress;
+        const contractType = instance.contractType || 'ERC1155';
 
-        // Render piece detail page
-        appContainer.innerHTML = `
-            <div class="piece-detail">
-                <div class="piece-header">
-                    <button class="back-button" data-ref="back-button">← Back to ${instance.displayName || instance.name}</button>
-                    <h1>${piece.displayTitle || piece.title}</h1>
-                </div>
-
-                <div class="piece-info">
-                    <div class="info-section">
-                        <h2>Piece Information</h2>
-                        <div class="info-item">
-                            <span class="info-label">Collection:</span>
-                            <span class="info-value">${instance.displayName || instance.name}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Factory:</span>
-                            <span class="info-value">${factory.displayTitle || factory.title}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Edition ID:</span>
-                            <span class="info-value">${piece.editionId || 'N/A'}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Price:</span>
-                            <span class="info-value">${piece.price || '0 ETH'}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Supply:</span>
-                            <span class="info-value">${piece.supply || 0}</span>
-                        </div>
-                        <div class="info-item">
-                            <span class="info-label">Minted:</span>
-                            <span class="info-value">${piece.minted || 0} / ${piece.supply || 0}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Setup event listeners
-        const backButton = appContainer.querySelector('[data-ref="back-button"]');
-        if (backButton) {
-            backButton.addEventListener('click', () => {
-                // Navigate back to instance
-                const instanceURL = window.router 
-                    ? window.router.generateURL(chainId, factory.title, instance.name)
-                    : `/${chainId}/${factory.title}/${instance.name}`;
-                
-                if (window.router) {
-                    window.router.navigate(instanceURL);
-                } else {
-                    window.location.href = instanceURL;
-                }
-            });
+        // Ensure project is loaded in ProjectService
+        if (!projectService.isProjectLoaded(projectId)) {
+            await projectService.loadProject(
+                projectId,
+                projectId,
+                contractType
+            );
         }
+
+        // Get adapter
+        const adapter = projectService.getAdapter(projectId);
+        if (!adapter) {
+            throw new Error('Failed to load contract adapter');
+        }
+
+        // Find edition ID from piece data
+        // The piece should have an editionId, or we need to find it by matching the piece title
+        let editionId = piece.editionId;
+        
+        // If editionId is not directly available, try to find it by matching piece title
+        if (editionId === undefined || editionId === null) {
+            try {
+                const editions = await adapter.getEditions();
+                const matchingEdition = editions.find(e => {
+                    const editionName = e.metadata?.name || `Edition #${e.id}`;
+                    const pieceName = piece.displayTitle || piece.title;
+                    // Compare slugified versions
+                    const editionSlug = editionName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    const pieceSlug = pieceName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                    return editionSlug === pieceSlug;
+                });
+                
+                if (matchingEdition) {
+                    editionId = matchingEdition.id;
+                } else if (editions.length > 0) {
+                    // Fallback to first edition if we can't match
+                    console.warn('[PieceDetail] Could not match piece title to edition, using first edition');
+                    editionId = editions[0].id;
+                }
+            } catch (error) {
+                console.warn('[PieceDetail] Failed to get editions for matching:', error);
+            }
+        }
+
+        if (editionId === undefined || editionId === null) {
+            throw new Error('Could not determine edition ID');
+        }
+
+        // Create container for EditionDetail component
+        const detailContainer = document.createElement('div');
+        detailContainer.className = 'edition-detail-container';
+        appContainer.appendChild(detailContainer);
+
+        // Mount EditionDetail component
+        const editionDetailComponent = new EditionDetail(projectId, editionId, adapter);
+        editionDetailComponent.mount(detailContainer);
+
+        // Return cleanup function
+        return {
+            cleanup: () => {
+                editionDetailComponent.unmount();
+                stylesheetLoader.unload('erc1155-styles');
+                stylesheetLoader.unload('project-detail-styles');
+            }
+        };
 
     } catch (error) {
         console.error('Error loading piece detail:', error);
@@ -135,13 +149,5 @@ export async function renderPieceDetail(params) {
             </div>
         `;
     }
-    
-    // Return cleanup function
-    return {
-        cleanup: () => {
-            // Unload stylesheet
-            stylesheetLoader.unload('piece-detail-styles');
-        }
-    };
 }
 

@@ -141,7 +141,7 @@ export default class PriceDisplay extends Component {
 
             .price-header h3 {
                 margin: 0;
-                color: #FFD700;
+                color: var(--price-display-header-color, var(--color-text-primary, #333));
                 font-size: 16px;
             }
 
@@ -168,7 +168,7 @@ export default class PriceDisplay extends Component {
             }
 
             .currency {
-                color: #FFD700;
+                color: var(--price-display-currency-color, var(--color-accent, #764ba2));
             }
 
             .loading-indicator {

@@ -27,6 +27,8 @@ app.use((req, res, next) => {
         res.set('Content-Type', 'application/javascript');
         // Force fresh response
         res.set('ETag', Date.now().toString());
+    } else if (req.path.endsWith('.css')) {
+        res.set('Content-Type', 'text/css');
     } else if (req.path.endsWith('.woff2')) {
         res.set('Content-Type', 'font/woff2');
         res.set('Access-Control-Allow-Origin', '*');
@@ -38,11 +40,15 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from the root directory
+// This middleware will only serve files that actually exist
+// If a file doesn't exist, it calls next() and the request continues
 app.use(express.static(path.join(__dirname), {
     setHeaders: (res, filePath) => {
         //console.log('Serving static file:', filePath);
         if (filePath.endsWith('.js')) {
             res.set('Content-Type', 'application/javascript');
+        } else if (filePath.endsWith('.css')) {
+            res.set('Content-Type', 'text/css');
         } else if (filePath.endsWith('.woff2')) {
             res.set('Content-Type', 'font/woff2');
             res.set('Access-Control-Allow-Origin', '*');
@@ -54,7 +60,9 @@ app.use(express.static(path.join(__dirname), {
     // Disable etag to prevent 304s
     etag: false,
     // Disable last-modified to prevent 304s
-    lastModified: false
+    lastModified: false,
+    // Only serve files that exist
+    fallthrough: true
 }));
 
 // Add specific route for land.html BEFORE the catch-all

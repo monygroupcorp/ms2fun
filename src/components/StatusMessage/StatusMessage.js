@@ -11,7 +11,10 @@ class StatusMessage {
         
         setTimeout(() => {
             this.statusEl.textContent = message;
-            this.statusEl.style.color = isError ? '#FF4444' : '#00FF00';
+            // Use CSS variable that changes based on page context
+            this.statusEl.style.color = isError 
+                ? '#FF4444' 
+                : 'var(--status-success-color, var(--color-success, #10b981))';
             // Fade in new text
             this.statusEl.style.opacity = '1';
         }, 200);

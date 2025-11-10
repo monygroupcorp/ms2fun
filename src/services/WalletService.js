@@ -355,6 +355,11 @@ class WalletService {
             
             console.log(`Successfully connected to account: ${this.connectedAddress}`);
             
+            // Store the selected wallet in localStorage for future auto-reconnect
+            if (this.selectedWallet) {
+                localStorage.setItem('ms2fun_lastWallet', this.selectedWallet);
+            }
+            
             // Create ethers provider
             this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
             this.signer = this.ethersProvider.getSigner();

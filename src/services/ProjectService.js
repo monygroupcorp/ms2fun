@@ -59,12 +59,39 @@ class ProjectService {
 
         // Get provider and signer from wallet service
         const { provider, signer } = walletService.getProviderAndSigner();
-        if (!provider) {
+        
+        // For mock contracts, we can work without a provider
+        // Check common patterns first
+        let isMockContract = contractAddress.startsWith('0xMOCK') || 
+                             contractAddress.includes('mock') ||
+                             contractAddress.startsWith('0xFACTORY');
+        
+        // Also check if it exists in mock data (for dynamically generated addresses)
+        if (!isMockContract) {
+            try {
+                const saved = localStorage.getItem('mockLaunchpadData');
+                if (saved) {
+                    const mockData = JSON.parse(saved);
+                    if (mockData && mockData.instances && mockData.instances[contractAddress]) {
+                        isMockContract = true;
+                    }
+                }
+            } catch (error) {
+                // If we can't check, assume it's not a mock contract
+            }
+        }
+        
+        if (!provider && !isMockContract) {
             throw new Error('Wallet provider not available');
         }
+        
+        // For mock contracts without provider, use a minimal provider object
+        // The adapter will detect mock contracts and skip real contract calls
+        const finalProvider = provider || (isMockContract ? { isMock: true } : null);
+        const finalSigner = signer || null;
 
         // Create adapter instance
-        const adapter = new AdapterClass(contractAddress, contractType, provider, signer);
+        const adapter = new AdapterClass(contractAddress, contractType, finalProvider, finalSigner);
 
         // Initialize adapter
         await adapter.initialize();

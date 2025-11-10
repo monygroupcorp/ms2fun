@@ -64,7 +64,13 @@ async function initializeApp() {
         });
         
         // Register dynamic routes (order matters - more specific first)
-        // Triple-level route for ERC1155 pieces with chain ID (most specific)
+        // Edition detail route (most specific - must come before /project/:id)
+        router.on('/project/:projectId/edition/:editionId', async (params) => {
+            const { renderEditionDetail } = await import('./routes/EditionDetail.js');
+            return renderEditionDetail(params);
+        });
+        
+        // Triple-level route for ERC1155 pieces with chain ID
         router.on('/:chainId/:factoryTitle/:instanceName/:pieceTitle', async (params) => {
             const { renderPieceDetail } = await import('./routes/PieceDetail.js');
             return renderPieceDetail(params);

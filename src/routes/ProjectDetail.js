@@ -70,8 +70,29 @@ export async function renderProjectDetail(params) {
         return;
     }
     
+    // Get project to determine contract type for CSS loading
+    let contractType = null;
+    try {
+        const project = await projectRegistry.getProject(projectId);
+        if (project) {
+            contractType = project.contractType;
+        }
+    } catch (error) {
+        console.warn('[ProjectDetail route] Could not get project for CSS loading:', error);
+    }
+    
     // Load project detail stylesheet
     stylesheetLoader.load('src/routes/project-detail.css', 'project-detail-styles');
+    
+    // Load WalletDisplay stylesheet
+    stylesheetLoader.load('src/components/WalletDisplay/WalletDisplay.css', 'wallet-display-styles');
+    
+    // Load contract-type-specific CSS
+    if (contractType === 'ERC1155') {
+        stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
+    } else if (contractType === 'ERC404') {
+        // ERC404 styles would be loaded here if needed
+    }
     
     // Unload other page styles
     stylesheetLoader.unload('cultexecs-styles');
