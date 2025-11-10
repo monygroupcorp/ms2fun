@@ -1,116 +1,123 @@
-# CULT EXEC Collection - Trading Terminal & NFT Platform
+# ms2.fun Launchpad
+
+A fully decentralized launchpad for Web3 projects. Built for the community, by the community, especially for our cult executives.
 
 ## Overview
-A Web3-enabled trading terminal and NFT platform for the CULT EXEC Collection. The platform features a bonding curve trading system, real-time message board, and NFT minting capabilities, all presented through a retro terminal interface.
 
-## Core Features
+ms2.fun is a permissionless, multi-project launchpad that enables anyone to create and deploy Web3 projects through a factory system. The platform is designed to be as decentralized as possible while maintaining quality curation through community governance.
 
-### Trading System
-- **Bonding Curve Implementation**
-  - ETH/EXEC token swapping
-  - Real-time price calculations
-  - Automated market making
-- **Transaction Messaging**
-  - On-chain message storage
-  - Real-time message updates
-  - Transaction-linked communications
+## Features
 
-### NFT Integration
-- **Dynamic NFT Minting**
-  - Trade-linked NFT rewards
-  - Automated minting triggers
-  - Balance-based eligibility
-- **Mirror Contract System**
-  - ERC721 standard compliance
-  - Automated token tracking
-  - Balance verification
+- **Multi-Project Support**: Browse, discover, and interact with multiple projects from a single interface
+- **Factory System**: Authorized factories enable project creation with different contract types
+- **Contract Type Support**: Currently supports ERC404 and ERC1155, with extensibility for future types
+- **Decentralized Architecture**: Statically hosted frontend (GitHub, IPFS coming soon), on-chain master contract
+- **Project Discovery**: Search, filter, and browse projects by type, factory, and features
+- **Quality Curation**: Cult executives control master contract to ensure quality and protect users
 
-### User Interface
-- **Terminal-Style Design**
-  - Retro aesthetic
-  - Real-time updates
-  - Responsive layout
-- **Status Monitoring**
-  - Network status display
-  - Transaction tracking
-  - System health indicators
+## Contract Types
 
-## Technical Architecture
+### ERC404
+- Bonding curve pricing mechanism
+- Automatic NFT minting from token balance
+- Merkle tree whitelist support
+- Phase transitions (presale → live)
+- On-chain messaging/chat
+- Liquidity pool integration
 
-### Frontend Components
-- Custom component system
-- Event-driven state management
-- Real-time WebSocket updates
+### ERC1155
+- Multiple editions in one contract
+- Per-edition pricing
+- Creator royalties
+- Open mint functionality
+- Batch operations
+- Metadata URI support (IPFS)
 
-### Blockchain Integration
-- Web3 provider abstraction
-- Multi-wallet support
-- Contract event handling
+## Getting Started
 
-### Data Management
-- Centralized store pattern
-- Real-time price service
-- Message batch loading
+### For Users
+
+1. **Connect Your Wallet**: Use MetaMask, Rabby, Rainbow, or Phantom
+2. **Browse Projects**: Explore available projects on the home page
+3. **Discover Factories**: Check out available factories to create your own project
+4. **Interact**: Trade, mint, and engage with projects
+
+### For Creators
+
+1. **Browse Factories**: Explore available factories that match your needs
+2. **Create Project**: Use a factory to deploy your project instance
+3. **Configure**: Set up your project parameters (name, metadata, pricing, etc.)
+4. **Deploy**: Deploy your project on-chain
+5. **Share**: Your project is automatically indexed and discoverable
+
+### For Factory Developers
+
+1. **Review Requirements**: Check the [About page](/about) for factory requirements
+2. **Submit Application**: Apply for factory approval (application fee required)
+3. **Get Approved**: Cult executives review and approve quality factories
+4. **Deploy**: Your factory becomes available for project creation
+
+## Architecture
+
+- **Frontend**: Vanilla JavaScript, component-based architecture
+- **State Management**: Custom store system with project isolation
+- **Services**: Modular service layer with mock/real service switching
+- **Routing**: Client-side routing with title-based navigation
+- **Contracts**: Master contract → Factory contracts → Instance contracts
 
 ## Development
 
 ### Prerequisites
+
 - Node.js v14+
-- NPM or Yarn
-- Web3 wallet (MetaMask, Rainbow, etc.)
+- npm or yarn
+- Web3 wallet (MetaMask, Rabby, Rainbow, Phantom)
 
 ### Setup
-
-Clone the EXEC404 github at https://github.io/lifehaverdev/EXEC404 
-Create an anvil fork of the mainnet with 
-```bash
-anvil --fork-url $YOUR_RPC_URL --chain-id 8888 
-```
-Deploy the contract using the script and this command (it's a test public key)
-```bash
-forge script script/DeployStaging.s.sol:DeployScript --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
-```
-
-Then run the site. Put the contract address into the switch.json file, rename it to switch.json
 
 ```bash
 npm install
 npm start
 ```
 
-I have metamask loaded with the test seed phrase test test test etc junk for testing
+The application will run on `http://localhost:3000`
 
+### Project Structure
 
-## Current Features
-- **Whitelist Verification System**
-  - 12-day sequential whitelist implementation
-  - Real-time whitelist status checking
-  - User wallet verification
+```
+src/
+├── components/       # UI components
+├── services/         # Service layer (mock/real)
+├── store/           # State management
+├── routes/           # Route handlers
+├── core/            # Core utilities (Router, Component, etc.)
+└── utils/           # Utility functions
+```
 
-## Upcoming Features
-- NFT minting interface
-- Collection management tools
-- StationThisBot integration
+## CULT EXEC
 
-## StationThisBot Integration
-This platform will serve as the launch platform for the StationThisBot collection creator, enabling:
-- Streamlined collection deployment
-- Automated smart contract generation
-- Customizable minting parameters
+CULT EXEC is the flagship project that inspired this launchpad. It's a standalone ERC404 project (not created via factory) that demonstrates the platform's capabilities. Visit `/cultexecs` to see it in action.
 
-## Development Status
-🟢 Active Development
-- Current Focus: Whitelist System Implementation
-- Next Phase: Presale/Minting Interface Development
+## Documentation
 
-## Security
-- Merkle tree verification
-- Signature validation
-- Rate limiting implementation
+- **About Page**: Visit `/about` for comprehensive documentation
+- **Factory Requirements**: See the About page for factory submission requirements
+- **Contract Requirements**: See `CONTRACT_REQUIREMENTS.md` for technical specifications
+
+## Contributing
+
+This is a community-driven project. Contributions are welcome! Please ensure your code follows the existing patterns and architecture.
 
 ## License
+
 VPL
 
-## Contact
-- Owner of miladystation #598
-- Owner of remilio 4681
+## Community
+
+Built for the people at stationthisbot and especially for our cult executives.
+
+---
+
+**Status**: Active Development  
+**Version**: Launchpad v1.0
+

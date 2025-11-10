@@ -421,6 +421,229 @@
     margin-bottom: 0;
 }
 
+/* Contract Types Section */
+.contract-types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.contract-type-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 2rem;
+    border: 2px solid #e9ecef;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.contract-type-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    border-color: #dee2e6;
+}
+
+.contract-type-card.erc404 {
+    border-left: 4px solid #6366f1;
+}
+
+.contract-type-card.erc1155 {
+    border-left: 4px solid #ec4899;
+}
+
+.contract-type-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.contract-type-icon {
+    font-size: 2rem;
+}
+
+.contract-type-header h3 {
+    margin: 0;
+    font-size: 1.75rem;
+    color: #212529;
+}
+
+.contract-type-description {
+    font-size: 1rem;
+    color: #495057;
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+}
+
+.contract-type-features,
+.contract-type-usecases {
+    margin-top: 1.5rem;
+}
+
+.contract-type-features h4,
+.contract-type-usecases h4 {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    color: #212529;
+    font-weight: 600;
+}
+
+.contract-type-features ul,
+.contract-type-usecases ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.contract-type-features li,
+.contract-type-usecases li {
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.contract-types-note {
+    background: #e7f3ff;
+    border-left: 4px solid #0d6efd;
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin: 2rem 0;
+    color: #0a58ca;
+}
+
+/* Feature Matrix Section */
+.feature-matrix-explanation {
+    background: #f8f9fa;
+    border-left: 4px solid #212529;
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin: 2rem 0;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.feature-item {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+    transition: all 0.2s ease;
+    position: relative;
+    padding-bottom: 3rem;
+}
+
+.feature-item:hover {
+    transform: translateY(-2px);
+    background: #f8f9fa;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #dee2e6;
+}
+
+.feature-item h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    font-size: 1.2rem;
+}
+
+.feature-item p {
+    margin-bottom: 0;
+    font-size: 0.95rem;
+    color: #495057;
+}
+
+.feature-badge {
+    position: absolute;
+    bottom: 1rem;
+    right: 1rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.feature-badge.erc404 {
+    background: #e0e7ff;
+    color: #6366f1;
+}
+
+.feature-badge.erc1155 {
+    background: #fce7f3;
+    color: #ec4899;
+}
+
+.feature-badge.both {
+    background: #f0f9ff;
+    color: #0ea5e9;
+}
+
+.feature-matrix-note {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 1.5rem;
+    border-radius: 6px;
+    margin: 2rem 0;
+    color: #856404;
+}
+
+/* Factory Application Process */
+.factory-application-process {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 2rem;
+    margin: 2rem 0;
+    border: 1px solid #e9ecef;
+}
+
+.factory-application-process h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+}
+
+.factory-application-process ol {
+    margin: 0;
+    padding-left: 2rem;
+}
+
+.factory-application-process li {
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.factory-application-process li strong {
+    color: #212529;
+    font-weight: 600;
+}
+
+.factory-application-process ul {
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+    padding-left: 1.5rem;
+}
+
+.requirement-detail {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e9ecef;
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.requirement-detail strong {
+    color: #495057;
+    font-style: normal;
+}
+
 /* Responsive Design */
 @media (max-width: 968px) {
     .doc-container {
@@ -457,6 +680,14 @@
     }
     
     .requirements-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .contract-types-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .features-grid {
         grid-template-columns: 1fr;
     }
     

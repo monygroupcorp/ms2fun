@@ -247,6 +247,8 @@ export class Documentation extends Component {
                             <a href="#hero" class="doc-nav-link ${this.state.activeSection === 'hero' ? 'active' : ''}">Introduction</a>
                             <a href="#what-is" class="doc-nav-link ${this.state.activeSection === 'what-is' ? 'active' : ''}">What is ms2.fun?</a>
                             <a href="#how-it-works" class="doc-nav-link ${this.state.activeSection === 'how-it-works' ? 'active' : ''}">How it Works</a>
+                            <a href="#contract-types" class="doc-nav-link ${this.state.activeSection === 'contract-types' ? 'active' : ''}">Contract Types</a>
+                            <a href="#feature-matrix" class="doc-nav-link ${this.state.activeSection === 'feature-matrix' ? 'active' : ''}">Feature Matrix</a>
                             <a href="#decentralization" class="doc-nav-link ${this.state.activeSection === 'decentralization' ? 'active' : ''}">Decentralization</a>
                             <a href="#factory-requirements" class="doc-nav-link ${this.state.activeSection === 'factory-requirements' ? 'active' : ''}">Factory Requirements</a>
                             <a href="#community" class="doc-nav-link ${this.state.activeSection === 'community' ? 'active' : ''}">Community</a>
@@ -336,6 +338,165 @@ export class Documentation extends Component {
                             </p>
                         </section>
 
+                        <section id="contract-types" class="doc-section">
+                            <h2>Supported Contract Types</h2>
+                            <p>
+                                ms2.fun currently supports two contract types, each with unique capabilities 
+                                and use cases. More contract types will be added as the ecosystem grows.
+                            </p>
+                            
+                            <div class="contract-types-grid">
+                                <div class="contract-type-card erc404">
+                                    <div class="contract-type-header">
+                                        <span class="contract-type-icon">💎</span>
+                                        <h3>ERC404</h3>
+                                    </div>
+                                    <p class="contract-type-description">
+                                        Combines fungible tokens with NFTs. Perfect for token launches with 
+                                        built-in liquidity and NFT minting capabilities.
+                                    </p>
+                                    
+                                    <div class="contract-type-features">
+                                        <h4>Key Features:</h4>
+                                        <ul>
+                                            <li><strong>Bonding Curve:</strong> Dynamic pricing mechanism for token trading</li>
+                                            <li><strong>Automatic NFT Minting:</strong> NFTs mint automatically when you hold tokens</li>
+                                            <li><strong>Merkle Tree Whitelist:</strong> Support for phased launches with whitelisting</li>
+                                            <li><strong>Phase Transitions:</strong> Presale → Live trading phases</li>
+                                            <li><strong>On-Chain Messaging:</strong> Built-in chat feature for community interaction</li>
+                                            <li><strong>Liquidity Pool Integration:</strong> Automatic liquidity pool deployment</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="contract-type-usecases">
+                                        <h4>Best For:</h4>
+                                        <ul>
+                                            <li>Token launches with bonding curve</li>
+                                            <li>Community tokens with NFT rewards</li>
+                                            <li>NFT collections with built-in liquidity</li>
+                                            <li>Gamified token projects</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <div class="contract-type-card erc1155">
+                                    <div class="contract-type-header">
+                                        <span class="contract-type-icon">🎨</span>
+                                        <h3>ERC1155</h3>
+                                    </div>
+                                    <p class="contract-type-description">
+                                        Multi-edition NFT collections where each edition can have its own 
+                                        price and supply. Perfect for artists and creators to monetize their work.
+                                    </p>
+                                    
+                                    <div class="contract-type-features">
+                                        <h4>Key Features:</h4>
+                                        <ul>
+                                            <li><strong>Multiple Editions:</strong> Multiple NFT types in one contract</li>
+                                            <li><strong>Per-Edition Pricing:</strong> Each edition can have its own price</li>
+                                            <li><strong>Creator Royalties:</strong> Built-in royalty support for creators</li>
+                                            <li><strong>Open Mint:</strong> Public minting functionality</li>
+                                            <li><strong>Batch Operations:</strong> Mint or transfer multiple NFTs at once</li>
+                                            <li><strong>Metadata URI Support:</strong> IPFS metadata for each edition</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div class="contract-type-usecases">
+                                        <h4>Best For:</h4>
+                                        <ul>
+                                            <li>Art collections</li>
+                                            <li>Digital collectibles</li>
+                                            <li>Limited edition releases</li>
+                                            <li>Creator monetization</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <p class="contract-types-note">
+                                <strong>Note:</strong> The platform is designed to be extensible. New contract types 
+                                can be added through the factory system as the ecosystem evolves.
+                            </p>
+                        </section>
+
+                        <section id="feature-matrix" class="doc-section">
+                            <h2>Feature Matrix</h2>
+                            <p>
+                                Projects on ms2.fun can support various features. The feature matrix system 
+                                ensures that contracts declare their required features, and the website renders 
+                                the appropriate UI components.
+                            </p>
+                            
+                            <div class="feature-matrix-explanation">
+                                <p>
+                                    When a factory creates a project, it specifies which features that project 
+                                    supports. The website then knows how to display and interact with that project. 
+                                    This ensures compatibility between contracts and the frontend.
+                                </p>
+                            </div>
+                            
+                            <div class="features-grid">
+                                <div class="feature-item">
+                                    <h3>Bonding Curve</h3>
+                                    <p>
+                                        Dynamic pricing mechanism where token price changes based on supply and demand. 
+                                        Common in ERC404 projects.
+                                    </p>
+                                    <span class="feature-badge erc404">ERC404</span>
+                                </div>
+                                
+                                <div class="feature-item">
+                                    <h3>Liquidity Pool</h3>
+                                    <p>
+                                        Secondary market liquidity through automated market makers. Enables trading 
+                                        after initial bonding curve phase.
+                                    </p>
+                                    <span class="feature-badge erc404">ERC404</span>
+                                </div>
+                                
+                                <div class="feature-item">
+                                    <h3>Chat Feature</h3>
+                                    <p>
+                                        On-chain messaging system where users can leave messages linked to their 
+                                        transactions. Builds community engagement.
+                                    </p>
+                                    <span class="feature-badge both">Both</span>
+                                </div>
+                                
+                                <div class="feature-item">
+                                    <h3>Balance Mint Portfolio</h3>
+                                    <p>
+                                        View and manage your token balances, NFT holdings, and minting history 
+                                        in one place.
+                                    </p>
+                                    <span class="feature-badge erc404">ERC404</span>
+                                </div>
+                                
+                                <div class="feature-item">
+                                    <h3>Multi-Edition Support</h3>
+                                    <p>
+                                        Support for multiple NFT editions within a single contract, each with 
+                                        its own pricing and metadata.
+                                    </p>
+                                    <span class="feature-badge erc1155">ERC1155</span>
+                                </div>
+                                
+                                <div class="feature-item">
+                                    <h3>Creator Royalties</h3>
+                                    <p>
+                                        Automatic royalty payments to creators on secondary sales. Built into 
+                                        the contract.
+                                    </p>
+                                    <span class="feature-badge erc1155">ERC1155</span>
+                                </div>
+                            </div>
+                            
+                            <p class="feature-matrix-note">
+                                <strong>Future Features:</strong> The feature matrix is extensible. As new features 
+                                are developed, they can be added to the system and supported by factories.
+                            </p>
+                        </section>
+
                         <section id="decentralization" class="doc-section">
                             <h2>Decentralization</h2>
                             <p>We're decentralized. Really decentralized.</p>
@@ -405,7 +566,8 @@ export class Documentation extends Component {
                             
                             <p>
                                 To keep the ecosystem high-quality and protect users, factories need 
-                                to meet certain requirements:
+                                to meet certain requirements. The cult executives review all factory 
+                                applications to ensure quality and safety.
                             </p>
                             
                             <div class="requirements-grid">
@@ -413,7 +575,12 @@ export class Documentation extends Component {
                                     <h3>Proper Indexing</h3>
                                     <p>
                                         Your factory must properly index all created instances. The master 
-                                        contract needs to know what you've created.
+                                        contract needs to know what you've created, and instances must be 
+                                        discoverable through the launchpad.
+                                    </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Factory must maintain an index of all 
+                                        deployed instances and report them to the master contract.
                                     </p>
                                 </div>
                                 
@@ -421,7 +588,12 @@ export class Documentation extends Component {
                                     <h3>Metadata Handling</h3>
                                     <p>
                                         Metadata matters. Your factory needs to handle metadata correctly 
-                                        so projects can be discovered and displayed properly.
+                                        so projects can be discovered and displayed properly. This includes 
+                                        names, descriptions, images, and feature declarations.
+                                    </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Instances must store metadata (name, 
+                                        display name, metadata URI) and support the feature matrix system.
                                     </p>
                                 </div>
                                 
@@ -429,7 +601,11 @@ export class Documentation extends Component {
                                     <h3>Styling Requirements</h3>
                                     <p>
                                         We want the launchpad to look good. Factories need to meet styling 
-                                        requirements so everything displays nicely.
+                                        requirements so everything displays nicely and consistently.
+                                    </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Projects created by your factory should 
+                                        work seamlessly with the launchpad UI components.
                                     </p>
                                 </div>
                                 
@@ -440,6 +616,10 @@ export class Documentation extends Component {
                                         practices for ownership and control. No rug pulls, no hidden 
                                         admin keys, no centralized control that could hurt users.
                                     </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Ownership should be transparent, 
+                                        preferably multi-sig or DAO-controlled. No single points of failure.
+                                    </p>
                                 </div>
                                 
                                 <div class="requirement-item">
@@ -447,6 +627,10 @@ export class Documentation extends Component {
                                     <p>
                                         The goal is to protect users from pump and dump schemes and bad 
                                         actors. Your factory should be designed with user safety in mind.
+                                    </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Contracts should have safeguards against 
+                                        common attack vectors and should not enable malicious behavior.
                                     </p>
                                 </div>
                                 
@@ -456,19 +640,80 @@ export class Documentation extends Component {
                                         We're curating a gallery of serious creators. Your factory should 
                                         enable high-quality projects, not spam or low-effort clones.
                                     </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Factory should have mechanisms to 
+                                        prevent spam and encourage quality project creation.
+                                    </p>
+                                </div>
+                                
+                                <div class="requirement-item">
+                                    <h3>Name Collision Prevention</h3>
+                                    <p>
+                                        Factory names must be unique to prevent URL conflicts and confusion. 
+                                        The master contract tracks factory names to ensure uniqueness.
+                                    </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Factory names are hashed and checked 
+                                        against existing names before registration.
+                                    </p>
+                                </div>
+                                
+                                <div class="requirement-item">
+                                    <h3>Feature Matrix Support</h3>
+                                    <p>
+                                        Factories must declare which features their projects support. This 
+                                        ensures the website knows how to render and interact with projects.
+                                    </p>
+                                    <p class="requirement-detail">
+                                        <strong>Technical:</strong> Factories must specify features (bonding 
+                                        curve, chat, etc.) when registering with the master contract.
+                                    </p>
                                 </div>
                             </div>
                             
+                            <div class="factory-application-process">
+                                <h3>Application Process</h3>
+                                <ol>
+                                    <li>
+                                        <strong>Deploy Your Factory:</strong> Deploy your factory contract 
+                                        to the Ethereum mainnet (or testnet for testing).
+                                    </li>
+                                    <li>
+                                        <strong>Prepare Application:</strong> Gather all required information:
+                                        <ul>
+                                            <li>Factory contract address</li>
+                                            <li>Contract type (ERC404, ERC1155, etc.)</li>
+                                            <li>Factory title and display title</li>
+                                            <li>Metadata URI</li>
+                                            <li>List of supported features</li>
+                                        </ul>
+                                    </li>
+                                    <li>
+                                        <strong>Submit Application:</strong> Submit your factory application 
+                                        through the master contract, including the application fee (currently 0.1 ETH).
+                                    </li>
+                                    <li>
+                                        <strong>Review Process:</strong> Cult executives review your application 
+                                        for compliance with requirements.
+                                    </li>
+                                    <li>
+                                        <strong>Approval or Rejection:</strong> If approved, your factory is 
+                                        registered and becomes available for project creation. If rejected, 
+                                        you'll receive a reason and may be eligible for a fee refund.
+                                    </li>
+                                </ol>
+                            </div>
+                            
                             <p class="requirement-note">
-                                Bottom line: If you want to submit a factory, you need to make sure 
-                                it meets these requirements AND get approval from the cult executives. 
-                                There's an application fee for factory approval. Individual factories 
-                                may also charge their own fees for project creation.
+                                <strong>Bottom line:</strong> If you want to submit a factory, you need to 
+                                make sure it meets these requirements AND get approval from the cult executives. 
+                                There's an application fee for factory approval (currently 0.1 ETH). Individual 
+                                factories may also charge their own fees for project creation.
                             </p>
                             
                             <p>
                                 If you're building something legit and useful, the approval process 
-                                is straightforward.
+                                is straightforward. The goal is quality, not gatekeeping.
                             </p>
                         </section>
 
