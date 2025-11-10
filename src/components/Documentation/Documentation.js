@@ -259,8 +259,8 @@ export class Documentation extends Component {
                         <section id="hero" class="doc-section hero-section">
                             <h1 class="hero-title">Welcome to ms2.fun</h1>
                             <p class="hero-subtitle">
-                                A fully decentralized launchpad for Web3 projects. Built for the community, 
-                                by the community, especially for our cult executives.
+                                An artist enclave made possible by Ethereum smart contracts. Built for the 
+                                community, especially for our cult executives.
                             </p>
                             <div class="hero-cta">
                                 <a href="/" class="cta-button" data-ref="cta-get-started">Get Started</a>
