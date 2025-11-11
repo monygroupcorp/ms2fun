@@ -1,30 +1,529 @@
-/* Global CSS Styles */
+/* ============================================================================
+   GLOBAL CSS - TEMPLE OF CAPITAL DESIGN SYSTEM
+   ============================================================================
+   This file contains the global design system tokens and base styles.
+   CULT EXEC styles are isolated and protected - they use body.cultexecs-active
+   ============================================================================ */
 
-/* RedHatTextVar Font */
+/* ============================================================================
+   FONTS
+   ============================================================================ */
+
+/* RedHatTextVar Font - Preserved for compatibility */
 @font-face {
     font-family: 'RedHatTextVar';
     src: url('/public/fonts/RedHatTextVarLatinSubsetBasic.woff2') format('woff2');
-    font-weight: 100 900; /* Variable font weight range */
+    font-weight: 100 900;
     font-style: normal;
-    font-display: swap; /* Better loading performance */
+    font-display: swap;
 }
 
-/* Error Messages */
+/* Import Google Fonts for classical typography */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap');
+
+/* ============================================================================
+   DESIGN SYSTEM TOKENS - TEMPLE OF CAPITAL
+   ============================================================================ */
+
+:root {
+    /* ========================================================================
+       LEGACY VARIABLES (Preserved for backward compatibility)
+       ======================================================================== */
+    --primary-color: #1d1d1d;
+    --secondary-color: #424242;
+    --accent-color: #d1b000;
+    --text-color: #f0f0f0;
+    --error-color: #ff6b6b;
+    --success-color: #51cf66;
+    --warning-color: #fcc419;
+    --info-color: #339af0;
+    --max-width: 1200px;
+    --border-radius: 4px;
+    --font-mono: 'Courier New', Courier, monospace;
+    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    /* ========================================================================
+       COLOR SYSTEM - MARBLE & STONE
+       ======================================================================== */
+    
+    /* Marble Whites & Creams */
+    --marble-white: #faf9f7;
+    --marble-cream: #f5f3f0;
+    --marble-ivory: #f0ede8;
+    --marble-vein: #e8e5e0;
+
+    /* Classical Stone */
+    --stone-warm: #d4c5b9;
+    --stone-terracotta: #c9a882;
+    --stone-ochre: #b89d7a;
+    --stone-sand: #e6ddd4;
+    --stone-deep: #8b7a6b;
+    --stone-shadow: #6b5d4f;
+    --stone-charcoal: #4a4038;
+
+    /* Art Deco & Luxury Metals */
+    --gold-primary: #d4af37;
+    --gold-burnished: #b8941f;
+    --gold-light: #e8d5a3;
+    --bronze: #cd7f32;
+    --bronze-dark: #a66d28;
+    --copper: #b87333;
+
+    /* Art Deco Colors */
+    --deco-black: #1a1a1a;
+    --deco-charcoal: #2d2d2d;
+    --deco-navy: #1e3a5f;
+    --deco-emerald: #2d5016;
+    --deco-royal: #4a2c4a;
+
+    /* Professional Neutrals */
+    --neutral-100: #fafafa;
+    --neutral-200: #f5f5f5;
+    --neutral-300: #e8e8e8;
+    --neutral-400: #d4d4d4;
+    --neutral-500: #9e9e9e;
+    --neutral-600: #6b6b6b;
+    --neutral-700: #4a4a4a;
+    --neutral-800: #2d2d2d;
+    --neutral-900: #1a1a1a;
+
+    /* Semantic Colors */
+    --success-50: #e8f5e9;
+    --success-100: #c8e6c9;
+    --success-500: #4caf50;
+    --success-600: #43a047;
+    --success-700: #388e3c;
+
+    --warning-50: #fff8e1;
+    --warning-100: #ffecb3;
+    --warning-500: #ffc107;
+    --warning-600: #ffb300;
+    --warning-700: #ffa000;
+
+    --error-50: #ffebee;
+    --error-100: #ffcdd2;
+    --error-500: #f44336;
+    --error-600: #e53935;
+    --error-700: #d32f2f;
+
+    --info-50: #e3f2fd;
+    --info-100: #bbdefb;
+    --info-500: #2196f3;
+    --info-600: #1e88e5;
+    --info-700: #1976d2;
+
+    /* Text Colors */
+    --text-primary: #2d2d2d;
+    --text-secondary: #4a4a4a;
+    --text-tertiary: #6b6b6b;
+    --text-muted: #9e9e9e;
+    --text-inverse: #faf9f7;
+
+    /* Background Colors */
+    --bg-primary: #faf9f7;
+    --bg-secondary: #f5f3f0;
+    --bg-tertiary: #f0ede8;
+    --bg-elevated: #ffffff;
+    --bg-overlay: rgba(26, 26, 26, 0.6);
+
+    /* Accent Colors */
+    --accent-primary: #d4af37;
+    --accent-primary-hover: #b8941f;
+    --accent-primary-light: #e8d5a3;
+    --accent-secondary: #cd7f32;
+    --accent-secondary-hover: #a66d28;
+    --accent-tertiary: #b87333;
+
+    /* Border Colors */
+    --border-light: var(--marble-vein);
+    --border-base: var(--neutral-300);
+    --border-dark: var(--neutral-400);
+    --border-accent: var(--gold-primary);
+    --border-error: var(--error-500);
+    --border-success: var(--success-500);
+    --border-warning: var(--warning-500);
+
+    /* ========================================================================
+       TYPOGRAPHY SYSTEM
+       ======================================================================== */
+    
+    /* Font Families */
+    --font-heading: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+                    'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+    --font-body: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+                 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+    --font-accent: 'Bebas Neue', 'Oswald', 'Montserrat', sans-serif;
+    --font-mono: 'Courier New', 'Monaco', 'Consolas', monospace;
+
+    /* Type Scale */
+    --font-size-display-1: 4.5rem;
+    --font-size-display-2: 3.75rem;
+    --font-size-display-3: 3rem;
+    --font-size-h1: 2.5rem;
+    --font-size-h2: 2rem;
+    --font-size-h3: 1.75rem;
+    --font-size-h4: 1.5rem;
+    --font-size-h5: 1.25rem;
+    --font-size-h6: 1.125rem;
+    --font-size-body-lg: 1.125rem;
+    --font-size-body: 1rem;
+    --font-size-body-sm: 0.875rem;
+    --font-size-body-xs: 0.75rem;
+    --font-size-caption: 0.875rem;
+    --font-size-label: 0.75rem;
+    --font-size-small: 0.625rem;
+
+    /* Font Weights */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
+    --font-weight-black: 900;
+
+    /* Line Heights */
+    --line-height-tight: 1.2;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+    --line-height-loose: 2;
+
+    /* Letter Spacing */
+    --letter-spacing-tighter: -0.05em;
+    --letter-spacing-tight: -0.025em;
+    --letter-spacing-normal: 0;
+    --letter-spacing-wide: 0.025em;
+    --letter-spacing-wider: 0.05em;
+    --letter-spacing-widest: 0.1em;
+
+    /* ========================================================================
+       SPACING SYSTEM (4px base unit)
+       ======================================================================== */
+    
+    --spacing-0: 0;
+    --spacing-1: 0.25rem;    /* 4px */
+    --spacing-2: 0.5rem;     /* 8px */
+    --spacing-3: 0.75rem;    /* 12px */
+    --spacing-4: 1rem;       /* 16px */
+    --spacing-5: 1.25rem;    /* 20px */
+    --spacing-6: 1.5rem;     /* 24px */
+    --spacing-8: 2rem;       /* 32px */
+    --spacing-10: 2.5rem;    /* 40px */
+    --spacing-12: 3rem;      /* 48px */
+    --spacing-16: 4rem;      /* 64px */
+    --spacing-20: 5rem;      /* 80px */
+    --spacing-24: 6rem;      /* 96px */
+    --spacing-32: 8rem;      /* 128px */
+    --spacing-40: 10rem;     /* 160px */
+    --spacing-48: 12rem;     /* 192px */
+
+    /* Legacy spacing (for compatibility) */
+    --spacing-xs: var(--spacing-2);
+    --spacing-sm: var(--spacing-3);
+    --spacing-md: var(--spacing-4);
+    --spacing-lg: var(--spacing-6);
+    --spacing-xl: var(--spacing-8);
+    --spacing-xxl: var(--spacing-12);
+    --spacing-section: var(--spacing-16);
+
+    /* Section Spacing */
+    --section-spacing-sm: var(--spacing-16);
+    --section-spacing-md: var(--spacing-24);
+    --section-spacing-lg: var(--spacing-32);
+    --section-spacing-xl: var(--spacing-40);
+
+    /* ========================================================================
+       BORDER SYSTEM
+       ======================================================================== */
+    
+    --radius-none: 0;
+    --radius-sm: 0.125rem;
+    --radius-md: 0.25rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+    --radius-2xl: 1rem;
+    --radius-full: 9999px;
+    --radius-deco-sm: 0.25rem;
+    --radius-deco-md: 0.5rem;
+
+    /* Legacy border radius (for compatibility) */
+    --border-radius-sm: var(--radius-md);
+    --border-radius-md: var(--radius-lg);
+    --border-radius-lg: var(--radius-xl);
+
+    --border-width-none: 0;
+    --border-width-thin: 1px;
+    --border-width-base: 2px;
+    --border-width-thick: 3px;
+    --border-width-bold: 4px;
+
+    /* Legacy border width */
+    --border-width: var(--border-width-thin);
+
+    /* ========================================================================
+       ELEVATION & SHADOW SYSTEM (Depth Hierarchy)
+       ======================================================================== 
+       Like carved stone reliefs - each level represents depth from the surface.
+       Elevation 0 = flat on surface, Elevation 5 = maximum depth/projection.
+       ======================================================================== */
+    
+    /* ========================================================================
+       ELEVATION LEVELS (Light Theme)
+       ======================================================================== */
+    
+    /* Elevation 0 - Flat (No shadow, on surface) */
+    --elevation-0: none;
+    --shadow-elevation-0: none;
+    
+    /* Elevation 1 - Subtle (Like marble surface texture) */
+    --elevation-1: 0 1px 2px 0 rgba(26, 26, 26, 0.05),
+                   0 1px 3px 0 rgba(26, 26, 26, 0.08);
+    --shadow-elevation-1: var(--elevation-1);
+    
+    /* Elevation 2 - Base (Like raised stone, cards, buttons) */
+    --elevation-2: 0 2px 4px 0 rgba(26, 26, 26, 0.08),
+                   0 1px 2px 0 rgba(26, 26, 26, 0.1);
+    --shadow-elevation-2: var(--elevation-2);
+    
+    /* Elevation 3 - Medium (Like carved relief, hover states) */
+    --elevation-3: 0 4px 8px -1px rgba(26, 26, 26, 0.1),
+                   0 2px 4px -1px rgba(26, 26, 26, 0.06),
+                   0 1px 2px 0 rgba(26, 26, 26, 0.08);
+    --shadow-elevation-3: var(--elevation-3);
+    
+    /* Elevation 4 - High (Like deep carving, modals, dropdowns) */
+    --elevation-4: 0 10px 20px -2px rgba(26, 26, 26, 0.12),
+                   0 4px 8px -2px rgba(26, 26, 26, 0.08),
+                   0 2px 4px -1px rgba(26, 26, 26, 0.06);
+    --shadow-elevation-4: var(--elevation-4);
+    
+    /* Elevation 5 - Maximum (Like temple columns, major modals) */
+    --elevation-5: 0 20px 40px -4px rgba(26, 26, 26, 0.15),
+                   0 10px 20px -4px rgba(26, 26, 26, 0.1),
+                   0 4px 8px -2px rgba(26, 26, 26, 0.08);
+    --shadow-elevation-5: var(--elevation-5);
+    
+    /* ========================================================================
+       LEGACY SHADOW NAMES (For backward compatibility)
+       ======================================================================== */
+    
+    --shadow-sm: var(--elevation-1);
+    --shadow-md: var(--elevation-2);
+    --shadow-lg: var(--elevation-3);
+    --shadow-xl: var(--elevation-4);
+    --shadow-2xl: var(--elevation-5);
+    
+    /* ========================================================================
+       SPECIAL SHADOWS (Accent & Texture)
+       ======================================================================== */
+    
+    /* Gold Glow - For accent elements, buttons, highlights */
+    --shadow-gold: 0 4px 14px 0 rgba(212, 175, 55, 0.15),
+                   0 0 0 1px rgba(212, 175, 55, 0.1),
+                   0 2px 4px 0 rgba(212, 175, 55, 0.08);
+    
+    /* Marble Texture - Subtle depth with highlight */
+    --shadow-marble: 0 2px 8px rgba(26, 26, 26, 0.08),
+                     0 1px 3px rgba(26, 26, 26, 0.12),
+                     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    
+    /* Column Shadow - Deep, architectural depth */
+    --shadow-column: 0 8px 32px rgba(26, 26, 26, 0.12),
+                     0 2px 8px rgba(26, 26, 26, 0.08),
+                     0 1px 2px rgba(26, 26, 26, 0.06);
+    
+    /* Inner Shadow - Recessed elements */
+    --shadow-inner: inset 0 2px 4px 0 rgba(26, 26, 26, 0.06),
+                    inset 0 1px 2px 0 rgba(26, 26, 26, 0.04);
+    
+    /* ========================================================================
+       ELEVATION TRANSITIONS
+       ======================================================================== */
+    
+    --transition-elevation: box-shadow var(--duration-base) var(--ease-classic),
+                             transform var(--duration-base) var(--ease-classic);
+
+    /* ========================================================================
+       ANIMATION & TRANSITIONS
+       ======================================================================== */
+    
+    --ease-classic: cubic-bezier(0.4, 0.0, 0.2, 1);
+    --ease-in-classic: cubic-bezier(0.4, 0.0, 1, 1);
+    --ease-out-classic: cubic-bezier(0.0, 0.0, 0.2, 1);
+    --ease-deco: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    --ease-in-deco: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+    --ease-out-deco: cubic-bezier(0.215, 0.61, 0.355, 1);
+    --ease-luxury: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+    --duration-instant: 0ms;
+    --duration-fast: 150ms;
+    --duration-base: 250ms;
+    --duration-slow: 350ms;
+    --duration-slower: 500ms;
+    --duration-slowest: 750ms;
+
+    --transition-base: all var(--duration-base) var(--ease-classic);
+    --transition-fast: all var(--duration-fast) var(--ease-classic);
+    --transition-slow: all var(--duration-slow) var(--ease-classic);
+    --transition-color: color var(--duration-base) var(--ease-classic);
+    --transition-bg: background-color var(--duration-base) var(--ease-classic);
+    --transition-transform: transform var(--duration-base) var(--ease-classic);
+    --transition-shadow: box-shadow var(--duration-base) var(--ease-classic);
+    --transition-opacity: opacity var(--duration-base) var(--ease-classic);
+
+    /* ========================================================================
+       LAYOUT SYSTEM
+       ======================================================================== */
+    
+    --container-xs: 20rem;
+    --container-sm: 24rem;
+    --container-md: 28rem;
+    --container-lg: 32rem;
+    --container-xl: 36rem;
+    --container-2xl: 42rem;
+    --container-3xl: 48rem;
+    --container-4xl: 56rem;
+    --container-5xl: 64rem;
+    --container-6xl: 72rem;
+    --container-7xl: 80rem;
+    --container-full: 100%;
+
+    --max-width-content: var(--container-7xl);
+    --max-width-text: var(--container-4xl);
+
+    --breakpoint-xs: 0;
+    --breakpoint-sm: 640px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 1024px;
+    --breakpoint-xl: 1280px;
+    --breakpoint-2xl: 1536px;
+
+    --grid-columns: 12;
+    --grid-gap-sm: var(--spacing-4);
+    --grid-gap-md: var(--spacing-6);
+    --grid-gap-lg: var(--spacing-8);
+
+    /* ========================================================================
+       COMPONENT TOKENS
+       ======================================================================== */
+    
+    --button-height-sm: 2rem;
+    --button-height-md: 2.75rem;
+    --button-height-lg: 3.5rem;
+    --button-padding-x-sm: var(--spacing-4);
+    --button-padding-x-md: var(--spacing-6);
+    --button-padding-x-lg: var(--spacing-8);
+    --button-padding-y-sm: var(--spacing-2);
+    --button-padding-y-md: var(--spacing-3);
+    --button-padding-y-lg: var(--spacing-4);
+
+    --card-padding: var(--spacing-6);
+    --card-padding-lg: var(--spacing-8);
+    --card-border-radius: var(--radius-lg);
+    --card-shadow: var(--shadow-md);
+    --card-shadow-hover: var(--shadow-lg);
+
+    --input-height: 2.75rem;
+    --input-padding-x: var(--spacing-4);
+    --input-padding-y: var(--spacing-3);
+    --input-border-radius: var(--radius-md);
+    --input-border-width: var(--border-width-thin);
+
+    --modal-max-width: var(--container-2xl);
+    --modal-padding: var(--spacing-8);
+    --modal-border-radius: var(--radius-xl);
+    --modal-backdrop: rgba(26, 26, 26, 0.75);
+
+    /* ========================================================================
+       Z-INDEX SCALE
+       ======================================================================== */
+    
+    --z-base: 0;
+    --z-dropdown: 1000;
+    --z-sticky: 1020;
+    --z-fixed: 1030;
+    --z-modal-backdrop: 1040;
+    --z-modal: 1050;
+    --z-popover: 1060;
+    --z-tooltip: 1070;
+    --z-toast: 1080;
+    --z-splash: 10000;
+    --z-theme-toggle: 10001; /* Always on top, above splash screen */
+}
+
+/* ============================================================================
+   BASE STYLES (Launchpad only - CULT EXEC uses body.cultexecs-active)
+   ============================================================================ */
+
+/* Base body styles - only apply when NOT CULT EXEC */
+body:not(.cultexecs-active) {
+    font-family: var(--font-body);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: var(--line-height-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================================
+   GLOBAL FOCUS STATES (Accessibility)
+   ============================================================================ */
+
+/* Remove default focus outline and use custom styles */
+body:not(.cultexecs-active) *:focus {
+    outline: none;
+}
+
+/* Standard focus-visible styles for all interactive elements */
+body:not(.cultexecs-active) button:focus-visible,
+body:not(.cultexecs-active) input:focus-visible,
+body:not(.cultexecs-active) select:focus-visible,
+body:not(.cultexecs-active) textarea:focus-visible,
+body:not(.cultexecs-active) [tabindex]:focus-visible,
+body:not(.cultexecs-active) [role="button"]:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--accent-primary);
+    color: var(--text-inverse);
+    padding: var(--spacing-2) var(--spacing-4);
+    text-decoration: none;
+    z-index: var(--z-theme-toggle);
+    border-radius: 0 0 var(--radius-md) 0;
+}
+
+.skip-link:focus {
+    top: 0;
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   ERROR MESSAGES (Global - works for both themes)
+   ============================================================================ */
+
 .error-message {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    background-color: #e74c3c;
-    color: white;
-    padding: 12px 16px;
-    border-radius: 4px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    top: var(--spacing-5);
+    right: var(--spacing-5);
+    background-color: var(--error-500);
+    color: var(--text-inverse);
+    padding: var(--spacing-3) var(--spacing-4);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
     max-width: 300px;
-    z-index: 1100;
-    font-size: 14px;
-    line-height: 1.4;
-    animation: slide-in 0.3s ease-out;
-    transition: opacity 0.5s ease;
+    z-index: var(--z-toast);
+    font-size: var(--font-size-body-sm);
+    line-height: var(--line-height-normal);
+    animation: slide-in var(--duration-base) var(--ease-out-classic);
+    transition: var(--transition-opacity);
 }
 
 .error-message.fade-out {
@@ -42,165 +541,95 @@
     }
 }
 
-/* Connection Status */
+/* ============================================================================
+   CONNECTION STATUS (Launchpad styling)
+   ============================================================================ */
+
 .connected-message {
-    background-color: #27ae60;
-    color: white;
-    padding: 8px 12px;
-    border-radius: 4px;
+    background-color: var(--success-500);
+    color: var(--text-inverse);
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--radius-md);
     text-align: center;
-    font-size: 14px;
-    margin-top: 10px;
-    margin-bottom: 20px;
+    font-size: var(--font-size-body-sm);
+    margin-top: var(--spacing-2);
+    margin-bottom: var(--spacing-5);
 }
 
-/* Common UI Elements */
+/* ============================================================================
+   WALLET CONNECTOR CONTAINER (Launchpad styling)
+   ============================================================================ */
+
 .wallet-connector-container {
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 15px;
-    margin-bottom: 20px;
-    background-color: #f8f9fa;
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4);
+    margin-bottom: var(--spacing-5);
+    background-color: var(--bg-secondary);
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    .wallet-connector-container {
-        background-color: #2a2a2a;
-        border-color: #444;
-    }
-    
-    .error-message {
-        background-color: #c0392b;
-    }
-}
+/* ============================================================================
+   WALLET MODAL (Launchpad styling - CULT EXEC has its own)
+   ============================================================================ */
 
-/* Global CSS Variables */
-:root {
-    /* Legacy variables (preserved for compatibility) */
-    --primary-color: #1d1d1d;
-    --secondary-color: #424242;
-    --accent-color: #d1b000;
-    --text-color: #f0f0f0;
-    --error-color: #ff6b6b;
-    --success-color: #51cf66;
-    --warning-color: #fcc419;
-    --info-color: #339af0;
-    --max-width: 1200px;
-    --border-radius: 4px;
-    --font-mono: 'Courier New', Courier, monospace;
-    --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    
-    /* Unified Design System - Corporate+ Style */
-    /* Font */
-    --font-primary: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                    Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    
-    /* Colors - Corporate+ Palette */
-    --color-text-primary: #212529;
-    --color-text-secondary: #495057;
-    --color-text-muted: #6c757d;
-    --color-bg-primary: #ffffff;
-    --color-bg-secondary: #f8f9fa;
-    --color-border: #e9ecef;
-    --color-accent: #212529;
-    --color-accent-hover: #343a40;
-    
-    /* Typography */
-    --font-size-h1: 3rem;
-    --font-size-h2: 2.25rem;
-    --font-size-h3: 1.5rem;
-    --font-size-body: 1rem;
-    --font-size-small: 0.9rem;
-    --font-weight-bold: 700;
-    --font-weight-semibold: 600;
-    --font-weight-medium: 500;
-    --font-weight-normal: 400;
-    --line-height-body: 1.7;
-    --line-height-heading: 1.3;
-    
-    /* Spacing */
-    --spacing-xs: 0.5rem;
-    --spacing-sm: 0.75rem;
-    --spacing-md: 1rem;
-    --spacing-lg: 1.5rem;
-    --spacing-xl: 2rem;
-    --spacing-xxl: 3rem;
-    --spacing-section: 4rem;
-    
-    /* Borders */
-    --border-radius-sm: 6px;
-    --border-radius-md: 8px;
-    --border-radius-lg: 12px;
-    --border-width: 1px;
-    --border-color: #e9ecef;
-    
-    /* Shadows */
-    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
-    
-    /* Layout */
-    --max-width-content: 1200px;
-    --max-width-text: 800px;
-}
-
-/* Set RedHatTextVar as default font */
-body {
-    font-family: var(--font-primary);
-}
-
-/* Wallet modal styling */
 .wallet-modal {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: var(--modal-backdrop);
     display: none;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: var(--z-modal);
 }
 
 .wallet-modal-content {
-    background-color: #fff;
-    border-radius: 8px;
-    padding: 20px;
+    background-color: var(--bg-elevated);
+    border-radius: var(--modal-border-radius);
+    padding: var(--spacing-5);
     width: 90%;
-    max-width: 400px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    max-width: var(--container-xl);
+    box-shadow: var(--shadow-2xl);
 }
 
 .wallet-options {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 15px;
-    margin-top: 20px;
+    gap: var(--spacing-4);
+    margin-top: var(--spacing-5);
 }
 
 .wallet-option {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 15px;
-    background-color: #f5f5f5;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    padding: var(--spacing-4);
+    background-color: var(--bg-secondary);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-lg);
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: var(--transition-base);
 }
 
 .wallet-option:hover {
-    background-color: #e9e9e9;
+    background-color: var(--bg-tertiary);
     transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.wallet-option:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    background-color: var(--bg-tertiary);
+    box-shadow: var(--shadow-gold);
 }
 
 .wallet-option picture {
     width: 40px;
     height: 40px;
-    margin-bottom: 10px;
+    margin-bottom: var(--spacing-2);
 }
 
 .wallet-option img {
@@ -210,37 +639,44 @@ body {
 }
 
 .wallet-option span {
-    font-weight: 500;
+    font-weight: var(--font-weight-medium);
     text-align: center;
+    color: var(--text-primary);
 }
 
-/* Status messages */
+/* ============================================================================
+   STATUS MESSAGES (Launchpad styling)
+   ============================================================================ */
+
 .status-message {
-    font-family: var(--font-mono);
+    font-family: var(--font-body);
     text-align: center;
-    margin: 15px 0;
-    padding: 10px;
+    margin: var(--spacing-4) 0;
+    padding: var(--spacing-2);
     background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 4px;
-    color: #333;
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
 }
 
 .status-message.error {
-    background-color: rgba(255, 0, 0, 0.1);
-    color: #d32f2f;
+    background-color: var(--error-50);
+    color: var(--error-700);
 }
 
-/* Continue prompt */
+/* ============================================================================
+   CONTINUE PROMPT (Launchpad styling)
+   ============================================================================ */
+
 .continue-prompt {
-    font-family: var(--font-mono);
+    font-family: var(--font-body);
     text-align: center;
-    font-weight: bold;
-    margin: 15px 0;
-    padding: 10px;
+    font-weight: var(--font-weight-bold);
+    margin: var(--spacing-4) 0;
+    padding: var(--spacing-2);
     background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 4px;
-    color: #2196F3;
-    animation: pulse 1.5s infinite;
+    border-radius: var(--radius-md);
+    color: var(--info-600);
+    animation: pulse var(--duration-slower) infinite;
 }
 
 @keyframes pulse {
@@ -249,27 +685,251 @@ body {
     100% { opacity: 0.7; }
 }
 
-/* Buttons */
+/* ============================================================================
+   BUTTONS (Launchpad styling)
+   ============================================================================ */
+
 .connect-button {
     display: block;
     width: 100%;
-    max-width: 300px;
-    margin: 15px auto;
-    padding: 12px 24px;
-    background-color: #2c3e50;
-    color: white;
+    max-width: var(--container-md);
+    margin: var(--spacing-4) auto;
+    padding: var(--spacing-3) var(--spacing-6);
+    background-color: var(--accent-primary);
+    color: var(--text-inverse);
     border: none;
-    border-radius: 4px;
-    font-weight: bold;
+    border-radius: var(--radius-md);
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-body);
     cursor: pointer;
     text-transform: uppercase;
-    transition: background-color 0.2s;
+    letter-spacing: var(--letter-spacing-wide);
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-md);
 }
 
 .connect-button:hover {
-    background-color: #34495e;
+    background-color: var(--accent-primary-hover);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-1px);
+}
+
+.connect-button:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+}
+
+.connect-button:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
 }
 
 .button-text {
-    font-family: var(--font-mono);
-} 
+    font-family: var(--font-body);
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+/* Text Styles */
+.text-inscription {
+    font-family: var(--font-heading);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--letter-spacing-wide);
+    text-transform: uppercase;
+}
+
+.text-artdeco {
+    font-family: var(--font-accent);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--letter-spacing-widest);
+    text-transform: uppercase;
+}
+
+/* ============================================================================
+   RESPONSIVE TYPOGRAPHY
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    :root {
+        --font-size-display-1: 3rem;
+        --font-size-display-2: 2.5rem;
+        --font-size-display-3: 2rem;
+        --font-size-h1: 2rem;
+        --font-size-h2: 1.75rem;
+        --font-size-h3: 1.5rem;
+    }
+}
+
+/* ============================================================================
+   THEME SYSTEM - LIGHT/DARK MODE (Launchpad Only)
+   ============================================================================ 
+   CULT EXEC styles are completely isolated and unaffected by theme switching.
+   Theme is controlled via data-theme attribute on html element.
+   ============================================================================ */
+
+/* ============================================================================
+   DARK THEME (Launchpad Only - Not CULT EXEC)
+   ============================================================================ */
+
+html[data-theme="dark"]:not(.cultexecs-active),
+html[data-theme="dark"] body:not(.cultexecs-active) {
+    /* ========================================================================
+       TEXT COLORS (Dark Theme)
+       ======================================================================== */
+    
+    --text-primary: #faf9f7;              /* Marble white */
+    --text-secondary: #e8e5e0;            /* Light marble */
+    --text-tertiary: #d4c5b9;            /* Warm stone */
+    --text-muted: #9e9e9e;               /* Neutral gray */
+    --text-inverse: #2d2d2d;             /* Dark for light elements on dark bg */
+
+    /* ========================================================================
+       BACKGROUND COLORS (Dark Theme)
+       ======================================================================== */
+    
+    --bg-primary: #1a1a1a;               /* Deep black (deco-black) */
+    --bg-secondary: #2d2d2d;              /* Charcoal */
+    --bg-tertiary: #4a4038;               /* Stone charcoal */
+    --bg-elevated: #2d2d2d;               /* Elevated dark surface */
+    --bg-overlay: rgba(0, 0, 0, 0.8);     /* Darker overlay */
+
+    /* ========================================================================
+       BORDER COLORS (Dark Theme)
+       ======================================================================== */
+    
+    --border-base: #4a4a4a;               /* Medium gray border */
+    --border-light: #2d2d2d;              /* Subtle border */
+    --border-medium: #6b6b6b;             /* Medium border */
+    --border-dark: #9e9e9e;               /* Visible border */
+
+    /* ========================================================================
+       ELEVATION ADJUSTMENTS (Dark Theme)
+       ======================================================================== */
+    
+    /* Elevation 0 - Flat (No shadow) */
+    --elevation-0: none;
+    --shadow-elevation-0: none;
+    
+    /* Elevation 1 - Subtle (Darker, more visible) */
+    --elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.3),
+                   0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    --shadow-elevation-1: var(--elevation-1);
+    
+    /* Elevation 2 - Base (Darker shadows) */
+    --elevation-2: 0 2px 4px 0 rgba(0, 0, 0, 0.4),
+                   0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-elevation-2: var(--elevation-2);
+    
+    /* Elevation 3 - Medium (Deeper shadows) */
+    --elevation-3: 0 4px 8px -1px rgba(0, 0, 0, 0.4),
+                   0 2px 4px -1px rgba(0, 0, 0, 0.3),
+                   0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-elevation-3: var(--elevation-3);
+    
+    /* Elevation 4 - High (Very deep shadows) */
+    --elevation-4: 0 10px 20px -2px rgba(0, 0, 0, 0.5),
+                   0 4px 8px -2px rgba(0, 0, 0, 0.4),
+                   0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-elevation-4: var(--elevation-4);
+    
+    /* Elevation 5 - Maximum (Deepest shadows) */
+    --elevation-5: 0 20px 40px -4px rgba(0, 0, 0, 0.6),
+                   0 10px 20px -4px rgba(0, 0, 0, 0.5),
+                   0 4px 8px -2px rgba(0, 0, 0, 0.4);
+    --shadow-elevation-5: var(--elevation-5);
+    
+    /* Legacy shadow names (dark theme) */
+    --shadow-sm: var(--elevation-1);
+    --shadow-md: var(--elevation-2);
+    --shadow-lg: var(--elevation-3);
+    --shadow-xl: var(--elevation-4);
+    --shadow-2xl: var(--elevation-5);
+    
+    /* Special shadows (dark theme) */
+    --shadow-gold: 0 4px 14px 0 rgba(212, 175, 55, 0.3),
+                   0 0 0 1px rgba(212, 175, 55, 0.2),
+                   0 2px 4px 0 rgba(212, 175, 55, 0.15);
+    --shadow-marble: 0 2px 8px rgba(0, 0, 0, 0.3),
+                     0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-column: 0 8px 32px rgba(0, 0, 0, 0.4),
+                     0 2px 8px rgba(0, 0, 0, 0.3),
+                     0 1px 2px rgba(0, 0, 0, 0.3);
+
+    /* ========================================================================
+       MODAL BACKDROP (Dark Theme)
+       ======================================================================== */
+    
+    --modal-backdrop: rgba(0, 0, 0, 0.85);
+}
+
+/* ============================================================================
+   SYSTEM PREFERENCE DETECTION (Optional - Launchpad Only)
+   ============================================================================ 
+   Respects user's system preference on first load, but user can override.
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme]):not(.cultexecs-active),
+    html:not([data-theme]) body:not(.cultexecs-active) {
+        /* Only apply if user hasn't manually set a theme */
+        --text-primary: #faf9f7;
+        --text-secondary: #e8e5e0;
+        --text-tertiary: #d4c5b9;
+        --text-muted: #9e9e9e;
+        --text-inverse: #2d2d2d;
+
+        --bg-primary: #1a1a1a;
+        --bg-secondary: #2d2d2d;
+        --bg-tertiary: #4a4038;
+        --bg-elevated: #2d2d2d;
+        --bg-overlay: rgba(0, 0, 0, 0.8);
+
+        --border-base: #4a4a4a;
+        --border-light: #2d2d2d;
+        --border-medium: #6b6b6b;
+        --border-dark: #9e9e9e;
+
+        /* Elevation levels (system preference dark mode) */
+        --elevation-0: none;
+        --shadow-elevation-0: none;
+        --elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.3),
+                       0 1px 3px 0 rgba(0, 0, 0, 0.4);
+        --shadow-elevation-1: var(--elevation-1);
+        --elevation-2: 0 2px 4px 0 rgba(0, 0, 0, 0.4),
+                       0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-elevation-2: var(--elevation-2);
+        --elevation-3: 0 4px 8px -1px rgba(0, 0, 0, 0.4),
+                       0 2px 4px -1px rgba(0, 0, 0, 0.3),
+                       0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-elevation-3: var(--elevation-3);
+        --elevation-4: 0 10px 20px -2px rgba(0, 0, 0, 0.5),
+                       0 4px 8px -2px rgba(0, 0, 0, 0.4),
+                       0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        --shadow-elevation-4: var(--elevation-4);
+        --elevation-5: 0 20px 40px -4px rgba(0, 0, 0, 0.6),
+                       0 10px 20px -4px rgba(0, 0, 0, 0.5),
+                       0 4px 8px -2px rgba(0, 0, 0, 0.4);
+        --shadow-elevation-5: var(--elevation-5);
+        
+        /* Legacy shadow names */
+        --shadow-sm: var(--elevation-1);
+        --shadow-md: var(--elevation-2);
+        --shadow-lg: var(--elevation-3);
+        --shadow-xl: var(--elevation-4);
+        --shadow-2xl: var(--elevation-5);
+        
+        /* Special shadows */
+        --shadow-gold: 0 4px 14px 0 rgba(212, 175, 55, 0.3),
+                       0 0 0 1px rgba(212, 175, 55, 0.2),
+                       0 2px 4px 0 rgba(212, 175, 55, 0.15);
+        --shadow-marble: 0 2px 8px rgba(0, 0, 0, 0.3),
+                         0 1px 3px rgba(0, 0, 0, 0.4);
+        --shadow-column: 0 8px 32px rgba(0, 0, 0, 0.4),
+                         0 2px 8px rgba(0, 0, 0, 0.3),
+                         0 1px 2px rgba(0, 0, 0, 0.3);
+
+        --modal-backdrop: rgba(0, 0, 0, 0.85);
+    }
+}

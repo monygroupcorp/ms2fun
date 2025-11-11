@@ -12,7 +12,6 @@ class ContractService {
         this.contractData = null;
         this.contractAddress = null;
         this.networkConfig = null;
-        this.isCollectionView = window.location.pathname.includes('collection.html');
         this.swapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
         
         // Configure retry settings
@@ -59,38 +58,18 @@ class ContractService {
                 rpcUrl: 'https://ethereum.publicnode.com',
             };
             
-            if (this.isCollectionView) {
-                console.log('Collection view detected');
-                // Get contract address from URL
-                const urlParams = new URLSearchParams(window.location.search);
-                const contractAddress = urlParams.get('contract');
-                
-                if (!contractAddress) {
-                    throw new Error('No contract address provided');
-                }
-                
-                // Validate contract address
-                if (!ethers.utils.isAddress(contractAddress)) {
-                    throw new Error('Invalid contract address');
-                }
-                
-                this.contractAddress = contractAddress;
+            // Load configuration from switch.json
+            try {
+                const response = await this.retryOperation(
+                    () => fetch('/EXEC404/switch.json'),
+                    'Failed to load network configuration'
+                );
+                this.networkConfig = await response.json();
+                this.contractAddress = this.networkConfig.address;
+            } catch (error) {
+                console.warn('Using fallback configuration:', error);
                 this.networkConfig = fallbackConfig;
-                this.networkConfig.address = contractAddress;
-            } else {
-                // Load configuration from switch.json
-                try {
-                    const response = await this.retryOperation(
-                        () => fetch('/EXEC404/switch.json'),
-                        'Failed to load network configuration'
-                    );
-                    this.networkConfig = await response.json();
-                    this.contractAddress = this.networkConfig.address;
-                } catch (error) {
-                    console.warn('Using fallback configuration:', error);
-                    this.networkConfig = fallbackConfig;
-                    this.contractAddress = fallbackConfig.address;
-                }
+                this.contractAddress = fallbackConfig.address;
             }
             
             // Emit event with contract address

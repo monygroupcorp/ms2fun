@@ -289,6 +289,8 @@ export class ProjectDiscovery extends Component {
         // Check and recreate filters component if needed
         const existingFilters = this._children.get('filters');
         let filtersComponent;
+        let filtersContainer = controlsContainer.querySelector('.filters-container');
+        
         if (!isComponentValid(existingFilters)) {
             // Preserve filter state before unmounting
             const preservedFilters = existingFilters?.getFilters?.() || this.state.filters || {
@@ -304,24 +306,75 @@ export class ProjectDiscovery extends Component {
             }
             this._children.delete('filters');
             
+            // Remove existing container if it exists
+            if (filtersContainer) {
+                filtersContainer.remove();
+            }
+            
             // Create new filters component
             filtersComponent = new ProjectFilters((filters) => {
                 this.handleFilterChange(filters);
             });
-            const filtersContainer = document.createElement('div');
+            filtersContainer = document.createElement('div');
             filtersContainer.className = 'filters-container';
+            
+            // Add collapsible toggle button for mobile (always add it, CSS will hide on desktop)
+            const toggleButton = document.createElement('button');
+            toggleButton.className = 'filters-toggle-button';
+            toggleButton.textContent = 'Filters';
+            toggleButton.setAttribute('aria-label', 'Toggle filters');
+            toggleButton.setAttribute('data-ref', 'filters-toggle');
+            filtersContainer.appendChild(toggleButton);
+            
+            // Create a wrapper div for the filters component to prevent it from wiping out the toggle button
+            const filtersWrapper = document.createElement('div');
+            filtersWrapper.className = 'filters-wrapper';
+            filtersContainer.appendChild(filtersWrapper);
+            
             controlsContainer.appendChild(filtersContainer);
-            filtersComponent.mount(filtersContainer);
+            
+            // Mount filters component to the wrapper, not the container
+            filtersComponent.mount(filtersWrapper);
             
             // Restore filter state after mount
             // Use setTimeout to ensure mount is complete
             this.setTimeout(() => {
                 filtersComponent.setInitialState(preservedFilters);
+                
+                // Set up toggle button functionality after filters are mounted
+                // Use a longer delay to ensure DOM is fully rendered
+                this.setTimeout(() => {
+                    this.setupFiltersToggle(filtersContainer, toggleButton);
+                }, 100);
             }, 0);
             
             this.createChild('filters', filtersComponent);
         } else {
             filtersComponent = existingFilters;
+            // Ensure toggle button exists even if component already exists
+            // First, make sure we have the filtersContainer
+            if (!filtersContainer) {
+                filtersContainer = controlsContainer.querySelector('.filters-container');
+            }
+            
+            if (filtersContainer) {
+                let toggleButton = filtersContainer.querySelector('.filters-toggle-button');
+                if (!toggleButton) {
+                    toggleButton = document.createElement('button');
+                    toggleButton.className = 'filters-toggle-button';
+                    toggleButton.textContent = 'Filters';
+                    toggleButton.setAttribute('aria-label', 'Toggle filters');
+                    toggleButton.setAttribute('data-ref', 'filters-toggle');
+                    // Insert at the beginning of the container
+                    filtersContainer.insertBefore(toggleButton, filtersContainer.firstChild);
+                }
+                // Always re-setup the toggle to ensure it works
+                this.setTimeout(() => {
+                    this.setupFiltersToggle(filtersContainer, toggleButton);
+                }, 100);
+            } else {
+                console.warn('Filters container not found when filters component exists');
+            }
         }
         
         // Always update factories in filters component (in case factories list changed)
@@ -334,6 +387,79 @@ export class ProjectDiscovery extends Component {
 
         // Mount regular projects
         this.mountProjectCards('projects', this.state.filteredProjects, 'projects-container');
+    }
+
+    setupFiltersToggle(filtersContainer, toggleButton) {
+        // Wait a bit more to ensure ProjectFilters has rendered
+        this.setTimeout(() => {
+            // Look for .project-filters in the container (it might be in a wrapper)
+            const filtersEl = filtersContainer.querySelector('.project-filters');
+            
+            if (!filtersEl) {
+                console.warn('ProjectFilters element not found, retrying...', filtersContainer);
+                // Retry once more
+                this.setTimeout(() => this.setupFiltersToggle(filtersContainer, toggleButton), 200);
+                return;
+            }
+            
+            if (!toggleButton) {
+                console.warn('Toggle button not found');
+                return;
+            }
+            
+            // Remove existing listeners by cloning
+            const newToggleButton = toggleButton.cloneNode(true);
+            toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+            
+            // Check if mobile (window width <= 768px)
+            const isMobile = window.innerWidth <= 768;
+            
+            if (isMobile) {
+                filtersEl.classList.remove('expanded');
+                newToggleButton.classList.remove('expanded');
+            } else {
+                filtersEl.classList.add('expanded');
+                newToggleButton.classList.add('expanded');
+            }
+            
+            // Ensure toggle button is visible on mobile
+            if (isMobile) {
+                newToggleButton.style.display = 'flex';
+            }
+            
+            const handleToggleClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const isExpanded = filtersEl.classList.contains('expanded');
+                if (isExpanded) {
+                    filtersEl.classList.remove('expanded');
+                    newToggleButton.classList.remove('expanded');
+                } else {
+                    filtersEl.classList.add('expanded');
+                    newToggleButton.classList.add('expanded');
+                }
+            };
+            
+            newToggleButton.addEventListener('click', handleToggleClick);
+            
+            // Handle window resize
+            const handleResize = () => {
+                const isMobileNow = window.innerWidth <= 768;
+                if (!isMobileNow) {
+                    filtersEl.classList.add('expanded');
+                    newToggleButton.classList.add('expanded');
+                    newToggleButton.style.display = 'none';
+                } else {
+                    // On mobile, ensure toggle is visible
+                    newToggleButton.style.display = 'flex';
+                }
+            };
+            
+            window.addEventListener('resize', handleResize);
+            this.registerCleanup(() => {
+                window.removeEventListener('resize', handleResize);
+            });
+        }, 50);
     }
 
     /**

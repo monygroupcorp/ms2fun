@@ -1,0 +1,121 @@
+/* ============================================================================
+   THEME TOGGLE BUTTON STYLES
+   ============================================================================ 
+   Only visible on launchpad pages, never on CULT EXEC.
+   ============================================================================ */
+
+.theme-toggle-wrapper {
+    position: fixed;
+    top: var(--spacing-5);
+    right: var(--spacing-5);
+    z-index: var(--z-theme-toggle); /* Always on top, above splash screen */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* Allow clicks to pass through wrapper */
+}
+
+/* Hide theme toggle on CULT EXEC pages - Multiple selectors for maximum specificity */
+body.cultexecs-active .theme-toggle-wrapper,
+body.cultexecs-active ~ .theme-toggle-wrapper,
+body.cultexecs-active #theme-toggle-wrapper,
+#theme-toggle-wrapper body.cultexecs-active {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    left: -9999px !important;
+}
+
+/* Protect toggle wrapper from being hidden or removed (only on launchpad) */
+body:not(.cultexecs-active) #theme-toggle-wrapper {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.theme-toggle {
+    /* Use standardized button styles */
+    pointer-events: auto; /* Re-enable clicks on button itself */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: var(--spacing-2);
+    background: var(--bg-elevated);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-toggle:hover {
+    background: var(--bg-secondary);
+    border-color: var(--border-dark);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.theme-toggle:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-md);
+}
+
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.theme-toggle svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-primary);
+    transition: var(--transition-transform);
+}
+
+.theme-toggle:hover svg {
+    transform: rotate(15deg);
+}
+
+/* Smooth theme transition */
+html {
+    transition: background-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic);
+}
+
+body:not(.cultexecs-active) {
+    transition: background-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic);
+}
+
+/* Ensure smooth transitions for theme-aware elements */
+*:not(.cultexecs-active *) {
+    transition: background-color var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic);
+}
+
+/* Responsive positioning */
+@media (max-width: 768px) {
+    .theme-toggle-wrapper {
+        top: var(--spacing-4);
+        right: var(--spacing-4);
+    }
+    
+    .theme-toggle {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .theme-toggle svg {
+        width: 18px;
+        height: 18px;
+    }
+}
+

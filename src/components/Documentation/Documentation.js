@@ -23,6 +23,8 @@ export class Documentation extends Component {
         }, 100);
         // Setup smooth scrolling using event delegation
         this.setupSmoothScrolling();
+        // Setup mobile menu toggle
+        this.setupMobileMenu();
     }
 
     update() {
@@ -41,6 +43,8 @@ export class Documentation extends Component {
                 }
                 // Always re-setup smooth scrolling to ensure event handlers are attached
                 this.setupSmoothScrolling();
+                // Re-setup mobile menu to ensure it works after updates
+                this.setupMobileMenu();
             }
         }, 50);
     }
@@ -188,6 +192,109 @@ export class Documentation extends Component {
         }
     }
 
+    setupMobileMenu() {
+        // Use setTimeout to ensure DOM is ready
+        this.setTimeout(() => {
+            // Use querySelector directly with data-ref attribute
+            const menuToggle = this.element?.querySelector('[data-ref="menu-toggle"]');
+            const sidebar = this.element?.querySelector('[data-ref="sidebar"]');
+            const overlay = this.element?.querySelector('[data-ref="sidebar-overlay"]');
+            
+            if (!menuToggle || !sidebar || !overlay) {
+                // Retry after a short delay (but only a few times)
+                if (!this._mobileMenuRetries) {
+                    this._mobileMenuRetries = 0;
+                }
+                if (this._mobileMenuRetries < 3) {
+                    this._mobileMenuRetries++;
+                    this.setTimeout(() => this.setupMobileMenu(), 200);
+                }
+                return;
+            }
+            
+            this._mobileMenuRetries = 0;
+            
+            // Check if already set up by looking for our custom data attribute
+            if (menuToggle.dataset.menuSetup === 'true') {
+                return; // Already set up
+            }
+            
+            // Mark as set up
+            menuToggle.dataset.menuSetup = 'true';
+            
+            // Toggle sidebar function
+            const toggleSidebar = () => {
+                const isActive = sidebar.classList.contains('active');
+                if (isActive) {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                    document.body.style.overflow = ''; // Restore scrolling
+                } else {
+                    sidebar.classList.add('active');
+                    overlay.classList.add('active');
+                    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+                }
+            };
+            
+            // Close sidebar function
+            const closeSidebar = () => {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body.style.overflow = ''; // Restore scrolling
+            };
+            
+            // Menu toggle button click handler
+            const handleToggleClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSidebar();
+            };
+            
+            // Remove any existing listeners by cloning the button
+            const newMenuToggle = menuToggle.cloneNode(true);
+            newMenuToggle.dataset.menuSetup = 'true'; // Preserve the flag
+            menuToggle.parentNode.replaceChild(newMenuToggle, menuToggle);
+            
+            // Add click listener
+            newMenuToggle.addEventListener('click', handleToggleClick);
+            
+            // Overlay click to close
+            const handleOverlayClick = (e) => {
+                if (e.target === overlay) {
+                    closeSidebar();
+                }
+            };
+            overlay.addEventListener('click', handleOverlayClick);
+            
+            // Close sidebar when clicking a nav link (mobile only)
+            const navLinks = sidebar.querySelectorAll('.doc-nav-link');
+            navLinks.forEach(link => {
+                const handleNavClick = () => {
+                    // Only close on mobile (check if sidebar is active/visible)
+                    if (window.innerWidth <= 968 && sidebar.classList.contains('active')) {
+                        closeSidebar();
+                    }
+                };
+                link.addEventListener('click', handleNavClick);
+            });
+            
+            // Close sidebar on window resize if it becomes desktop view
+            const handleResize = () => {
+                if (window.innerWidth > 968) {
+                    closeSidebar();
+                }
+            };
+            
+            window.addEventListener('resize', handleResize);
+            
+            // Register cleanup
+            this.registerCleanup(() => {
+                document.body.style.overflow = ''; // Restore scrolling on unmount
+                window.removeEventListener('resize', handleResize);
+            });
+        }, 100);
+    }
+
     scrollToSection(sectionId) {
         const section = document.getElementById(sectionId);
         if (!section) {
@@ -241,8 +348,10 @@ export class Documentation extends Component {
         
         return `
             <div class="documentation">
+                <button class="doc-menu-toggle" data-ref="menu-toggle" aria-label="Toggle navigation menu">☰</button>
+                <div class="doc-sidebar-overlay" data-ref="sidebar-overlay"></div>
                 <div class="doc-container">
-                    <aside class="doc-sidebar">
+                    <aside class="doc-sidebar" data-ref="sidebar">
                         <nav class="doc-nav">
                             <a href="#hero" class="doc-nav-link ${this.state.activeSection === 'hero' ? 'active' : ''}">Introduction</a>
                             <a href="#what-is" class="doc-nav-link ${this.state.activeSection === 'what-is' ? 'active' : ''}">What is ms2.fun?</a>

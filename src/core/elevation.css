@@ -1,0 +1,210 @@
+/* ============================================================================
+   ELEVATION UTILITY CLASSES - TEMPLE OF CAPITAL
+   ============================================================================
+   Utility classes for applying elevation levels to elements.
+   Use these classes to create depth hierarchy in your UI.
+   ============================================================================ */
+
+/* ============================================================================
+   ELEVATION LEVELS
+   ============================================================================ */
+
+.elevation-0 {
+    box-shadow: var(--elevation-0) !important;
+}
+
+.elevation-1 {
+    box-shadow: var(--elevation-1) !important;
+}
+
+.elevation-2 {
+    box-shadow: var(--elevation-2) !important;
+}
+
+.elevation-3 {
+    box-shadow: var(--elevation-3) !important;
+}
+
+.elevation-4 {
+    box-shadow: var(--elevation-4) !important;
+}
+
+.elevation-5 {
+    box-shadow: var(--elevation-5) !important;
+}
+
+/* ============================================================================
+   ELEVATION ON HOVER (Interactive Elements)
+   ============================================================================ */
+
+.elevation-hover-1:hover {
+    box-shadow: var(--elevation-1) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-hover-2:hover {
+    box-shadow: var(--elevation-2) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-hover-3:hover {
+    box-shadow: var(--elevation-3) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-hover-4:hover {
+    box-shadow: var(--elevation-4) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-hover-5:hover {
+    box-shadow: var(--elevation-5) !important;
+    transition: var(--transition-elevation);
+}
+
+/* ============================================================================
+   ELEVATION ON FOCUS (Accessibility)
+   ============================================================================ */
+
+.elevation-focus-1:focus-visible {
+    box-shadow: var(--elevation-1) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-focus-2:focus-visible {
+    box-shadow: var(--elevation-2) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-focus-3:focus-visible {
+    box-shadow: var(--elevation-3) !important;
+    transition: var(--transition-elevation);
+}
+
+.elevation-focus-4:focus-visible {
+    box-shadow: var(--elevation-4) !important;
+    transition: var(--transition-elevation);
+}
+
+/* ============================================================================
+   ELEVATION TRANSITIONS
+   ============================================================================ */
+
+.elevation-transition {
+    transition: var(--transition-elevation);
+}
+
+/* ============================================================================
+   COMPONENT-SPECIFIC ELEVATION MAPPINGS
+   ============================================================================ */
+
+/* Buttons - Elevation 2 base, 3 on hover */
+.btn {
+    box-shadow: var(--elevation-2);
+    transition: var(--transition-elevation);
+}
+
+.btn:hover:not(:disabled) {
+    box-shadow: var(--elevation-3);
+}
+
+.btn:active:not(:disabled) {
+    box-shadow: var(--elevation-1);
+}
+
+/* Cards - Elevation 2 base, 3 on hover */
+.card {
+    box-shadow: var(--elevation-2);
+    transition: var(--transition-elevation);
+}
+
+.card:hover {
+    box-shadow: var(--elevation-3);
+}
+
+/* Modals - Elevation 5 (maximum depth) */
+.modal {
+    box-shadow: var(--elevation-5);
+}
+
+/* Dropdowns/Popovers - Elevation 4 */
+.dropdown,
+.popover {
+    box-shadow: var(--elevation-4);
+}
+
+/* Tooltips - Elevation 3 */
+.tooltip {
+    box-shadow: var(--elevation-3);
+}
+
+/* Toast notifications - Elevation 4 */
+.toast {
+    box-shadow: var(--elevation-4);
+}
+
+/* Inputs on focus - Elevation 1 (subtle lift) */
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    box-shadow: var(--shadow-gold);
+}
+
+/* ============================================================================
+   ELEVATION UTILITIES FOR SPECIFIC USE CASES
+   ============================================================================ */
+
+/* Floating action buttons */
+.fab {
+    box-shadow: var(--elevation-3);
+    transition: var(--transition-elevation);
+}
+
+.fab:hover {
+    box-shadow: var(--elevation-4);
+}
+
+.fab:active {
+    box-shadow: var(--elevation-2);
+}
+
+/* Navigation bars */
+.navbar,
+.navbar-fixed {
+    box-shadow: var(--elevation-2);
+}
+
+/* Sidebars */
+.sidebar {
+    box-shadow: var(--elevation-3);
+}
+
+/* Dialogs */
+.dialog {
+    box-shadow: var(--elevation-5);
+}
+
+/* Bottom sheets */
+.bottom-sheet {
+    box-shadow: var(--elevation-4);
+}
+
+/* ============================================================================
+   RESPONSIVE ELEVATION (Reduce on mobile for performance)
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    /* Slightly reduce elevation on mobile for better performance */
+    .elevation-4 {
+        box-shadow: var(--elevation-3) !important;
+    }
+    
+    .elevation-5 {
+        box-shadow: var(--elevation-4) !important;
+    }
+    
+    .modal {
+        box-shadow: var(--elevation-4);
+    }
+}
+

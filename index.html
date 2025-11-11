@@ -8,7 +8,7 @@
 <link rel="dns-prefetch" href="//api.yourservice.com"> -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CULTEXEC</title>
+    <title>MS2</title>
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -17,21 +17,21 @@
     <link rel="manifest" href="/site.webmanifest">
     
     <!-- Primary Meta Tags -->
-    <meta name="title" content="CULT EXECS Terminal">
-    <meta name="description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
+    <meta name="title" content="MS2">
+    <meta name="description" content="A fully decentralized launchpad for Web3 projects. Browse, discover, and interact with multiple projects from a single interface.">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="//ms2.fun">
-    <meta property="og:title" content="CULT EXECS Terminal">
-    <meta property="og:description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
+    <meta property="og:title" content="MS2">
+    <meta property="og:description" content="A fully decentralized launchpad for Web3 projects. Browse, discover, and interact with multiple projects from a single interface.">
     <meta property="og:image" content="//ms2.fun/public/execs/og-image.png">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="//ms2.fun">
-    <meta property="twitter:title" content="CULT EXECS Terminal">
-    <meta property="twitter:description" content="CULT EXECS Enterprise Terminal - Check whitelist status">
+    <meta property="twitter:title" content="MS2">
+    <meta property="twitter:description" content="A fully decentralized launchpad for Web3 projects. Browse, discover, and interact with multiple projects from a single interface.">
     <meta property="twitter:image" content="//ms2.fun/public/execs/og-image.png">
 
     <!-- Font Preload -->
@@ -40,7 +40,13 @@
     <!-- Stylesheets -->
     <!-- Base styles (shared) -->
     <link rel="stylesheet" href="/src/core/global.css">
-    <!-- Base stylesheet (contains CSS variables and base styles needed by CULT EXEC) -->
+    <!-- Theme system (light/dark mode) -->
+    <link rel="stylesheet" href="/src/core/theme.css">
+    <!-- Elevation system (depth hierarchy) -->
+    <link rel="stylesheet" href="/src/core/elevation.css">
+    <!-- Component styles (standardized buttons, cards, forms, modals) -->
+    <link rel="stylesheet" href="/src/core/components.css">
+    <!-- Base stylesheet (contains CSS variables and base styles) -->
     <link rel="stylesheet" href="/style.css" id="base-styles">
     <!-- Component styles (loaded as needed) -->
     <link rel="stylesheet" href="/src/components/SwapInterface/SwapInterface.css">
@@ -53,11 +59,13 @@
     <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js" integrity="sha512-KmJieQAYZM+jvcGHQzpnSjqjoWVwMAbziPWQnWfvWkQ91R7XlMUVJZgGuw6gUhJnwOo92Z3sr3vE7dREsSEjRQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     
     <!-- Application Scripts -->
+    <!-- Theme system (must load early) -->
+    <script type="module" src="/src/core/theme.js"></script>
     <script type="module" src="/app.js"></script>
     <script type="module" src="/src/index.js"></script>
 </head>
 <body>
-    <!-- App Container for Router Top Section (for CULT EXEC page) -->
+    <!-- App Container for Router Top Section -->
     <div id="app-top-container"></div>
     
     <!-- App Container for Router -->

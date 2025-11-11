@@ -251,9 +251,9 @@ export class WalletSplash extends Component {
                                     </button>
                                     <button class="wallet-option" data-wallet="metamask">
                                         <picture>
-                                            <source srcset="public/wallets/metamask.avif" type="image/avif">
-                                            <source srcset="public/wallets/metamask.webp" type="image/webp">
-                                            <img src="public/wallets/metamask.png" alt="MetaMask">
+                                            <source srcset="/public/wallets/MetaMask.avif" type="image/avif">
+                                            <source srcset="/public/wallets/MetaMask.webp" type="image/webp">
+                                            <img src="/public/wallets/MetaMask.webp" alt="MetaMask" onerror="this.src='/public/wallets/MetaMask.webp'">
                                         </picture>
                                         <span>MetaMask</span>
                                     </button>
@@ -324,7 +324,7 @@ export class WalletSplash extends Component {
                     rabby: '/public/wallets/rabby.webp',
                     rainbow: '/public/wallets/rainbow.webp',
                     phantom: '/public/wallets/phantom.webp',
-                    metamask: '/public/wallets/metamask.webp'
+                    metamask: '/public/wallets/MetaMask.webp'
                 };
 
                 // Create WalletModal with callback
@@ -366,6 +366,47 @@ export class WalletSplash extends Component {
                     console.error('WalletModal not initialized');
                 }
             });
+            
+            // Set up close button handler
+            const closeButton = modal.querySelector('.wallet-modal-close');
+            if (closeButton) {
+                // Remove any existing listeners by cloning
+                const newCloseButton = closeButton.cloneNode(true);
+                closeButton.parentNode.replaceChild(newCloseButton, closeButton);
+                
+                newCloseButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (this.walletModal) {
+                        this.walletModal.hide();
+                    } else {
+                        // Fallback if walletModal not initialized
+                        const modalEl = document.getElementById('walletModal');
+                        if (modalEl) {
+                            modalEl.classList.remove('active');
+                            modalEl.style.display = 'none';
+                        }
+                    }
+                });
+            }
+            
+            // Set up click outside to close
+            // WalletModal already has this, but we'll ensure it works
+            // Don't clone modal as it breaks WalletModal's reference
+            const handleModalClick = (e) => {
+                if (e.target === modal) {
+                    if (this.walletModal) {
+                        this.walletModal.hide();
+                    } else {
+                        modal.classList.remove('active');
+                        modal.style.display = 'none';
+                    }
+                }
+            };
+            
+            // Remove existing listener if any, then add new one
+            modal.removeEventListener('click', handleModalClick);
+            modal.addEventListener('click', handleModalClick);
         }, 100);
     }
 

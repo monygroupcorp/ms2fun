@@ -153,9 +153,9 @@ export async function renderCultExecsPage() {
                                 </button>
                                 <button class="wallet-option" data-wallet="metamask">
                                     <picture>
-                                        <source srcset="public/wallets/metamask.avif" type="image/avif">
-                                        <source srcset="public/wallets/metamask.webp" type="image/webp">
-                                        <img src="public/wallets/metamask.png" alt="MetaMask">
+                                        <source srcset="/public/wallets/MetaMask.avif" type="image/avif">
+                                        <source srcset="/public/wallets/MetaMask.webp" type="image/webp">
+                                        <img src="/public/wallets/MetaMask.webp" alt="MetaMask" onerror="this.src='/public/wallets/MetaMask.webp'">
                                     </picture>
                                     <span>MetaMask</span>
                                 </button>
