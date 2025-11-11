@@ -1,770 +1,24 @@
-/* CULT EXEC styles moved to cultexecs.css - scoped to body.cultexecs-active */
-/* This file is kept for backward compatibility but styles are now in cultexecs.css */
-
-.market-data {
-    margin-top: 15px;
-    font-size: 12px;
-}
-
-.market-row {
-    display: flex;
-    justify-content: space-between;
-    margin: 2px 0;
-}
-
-.price-up {
-    color: var(--text-green);
-}
-
-.price-down {
-    color: var(--text-red);
-}
-
-/* News ticker */
-.news-ticker {
-    background-color: var(--bg-dark);
-    border-top: 1px solid var(--border-color);
-    padding: 5px;
-    overflow: hidden;
-    height: var(--footer-height);
-}
-
-.ticker-content {
-    display: flex;
-    gap: 30px;
-    animation: ticker 30s linear infinite;
-    white-space: nowrap;
-}
-
-.ticker-item {
-    color: var(--text-yellow);
-    font-size: 12px;
-}
-
-@keyframes ticker {
-    0% { transform: translateX(100%); }
-    100% { transform: translateX(-100%); }
-}
-
-/* Status messages */
-#result {
-    margin-top: 10px;
-    font-family: 'Courier New', monospace;
-}
-
-.instructions {
-    color: var(--text-blue);
-    font-size: 12px;
-    margin: 5px 0;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .main-content {
-        grid-template-columns: 1fr;
-    }
-    
-    .instructions.desktop {
-        display: none;
-    }
-    
-    .instructions.mobile {
-        display: block;
-    }
-}
-
-/* Add to existing CSS */
-.terminal-nav {
-    background-color: var(--bg-dark);
-    height: 25px;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 5px;
-    font-size: 12px;
-    border-bottom: 1px solid var(--border-color);
-    overflow: hidden;
-}
-
-.nav-left, .nav-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.nav-left {
-    flex: 1;
-    min-width: 0;  /* Required for text truncation */
-}
-
-.nav-arrows {
-    color: var(--text-primary);
-}
-
-.nav-title {
-    color: var(--text-primary);
-    font-weight: bold;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 50%;
-}
-
-.nav-mode, .nav-menu {
-    white-space: nowrap;
-}
-
-.yellow {
-    color: var(--text-yellow);
-}
-
-.price-runner {
-    background-color: var(--bg-dark);
-    height: 40px;
-    padding: 0 5px;
-    border-bottom: 1px solid var(--border-color);
-    font-size: 12px;
-    overflow: hidden;
-}
-
-.ticker-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 20px;
-    overflow: hidden;
-    white-space: nowrap;
-}
-
-.ticker-details {
-    display: flex;
-    gap: 8px;
-    height: 20px;
-    color: var(--text-secondary);
-    overflow: hidden;
-    white-space: nowrap;
-}
-
-.detail-item {
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.price-range {
-    flex-shrink: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Adjust spacing for specific elements */
-.ticker-symbol {
-    flex-shrink: 0;
-    margin-right: 4px;
-}
-
-.multiplier {
-    flex-shrink: 0;
-    margin-left: auto;
-}
-
-.up {
-    color: var(--text-green);
-}
-
-.down {
-    color: var(--text-red);
-}
-
-.color-bar {
-    display: flex;
-    height: 25px;
-    font-size: 12px;
-}
-
-.yellow-section {
-    background-color: var(--text-yellow);
-    color: var(--bg-dark);
-    padding: 0 10px;
-    display: flex;
-    align-items: center;
-    width: 200px;
-}
-
-.red-section {
-    background-color: #8b0000;
-    color: var(--text-primary);
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
-}
-
-.tabs {
-    display: flex;
-    background-color: var(--bg-dark);
-    border-bottom: 1px solid var(--border-color);
-    height: 25px;
-    overflow-x: auto;  /* Allow horizontal scroll on very small screens */
-    -webkit-overflow-scrolling: touch;  /* Smooth scrolling on iOS */
-}
-
-.tab {
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-    font-size: 12px;
-    border-right: 1px solid var(--border-color);
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.tab.active {
-    background-color: var(--bg-darker);
-    border-bottom: none;
-}
-
-.tab-mobile {
-    display: none;
-}
-
-.calendar-links {
-    margin-top: 15px;
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-}
-
-.calendar-button {
-    display: inline-block;
-    padding: 8px 16px;
-    border-radius: 4px;
-    text-decoration: none;
-    color: white;
-    font-size: 14px;
-    transition: opacity 0.2s;
-}
-
-.calendar-button:hover {
-    opacity: 0.9;
-}
-
-.calendar-button.google {
-    background-color: #4285f4;
-}
-
-.calendar-button.ical {
-    background-color: #34A853;
-}
-
-/* GIF Display */
-.gif-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    height: auto;
-    margin: 20px auto;
-    max-width: 800px;
-}
-
-.terminal-gif {
-    width: 100%;
-    max-width: 100%;
-    height: auto;
-    border-radius: 5px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.mobile-gif {
-    display: none;
-}
-
-/* Color Bar */
-.color-bar {
-    display: flex;
-    height: 25px;
-    font-size: 12px;
-}
-
-/* Layout containers */
-.top-section {
-    flex-shrink: 0;
-}
-
-.middle-section {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 300px; /* Adjust this value as needed */
-    background-color: var(--bg-darker);
-    padding-bottom: 20px;
-}
-
-.bottom-section {
-    flex-shrink: 0;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .main-content {
-        grid-template-columns: 1fr;
-    }
-    
-    .desktop-gif {
-        display: none;
-    }
-
-    .mobile-gif {
-        display: inline-block;
-    }
-    
-    .tab {
-        padding: 0 8px;
-    }
-
-    .instructions.desktop {
-        display: none;
-    }
-}
-
-/* Contract Interface Styles */
-.contract-status {
-    font-family: 'Courier New', monospace;
-    text-align: center;
-    margin: 20px 0;
-}
-
-.connect-button {
-    background: linear-gradient(90deg, #FFD700, #FFA500);
-    border: none;
-    color: black;
-    padding: 12px 24px;
-    font-family: 'Courier New', monospace;
-    font-weight: bold;
-    font-size: 16px;
-    cursor: pointer;
-    border-radius: 4px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin: 20px auto;
-    display: block;
-}
-
-.connect-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
-}
-
-.connect-button:active {
-    transform: translateY(1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.status-message {
-    background: rgba(0, 0, 0, 0.0);
-    color: #00FF00;
-    padding: 10px;
-    border-radius: 4px;
-    margin: 10px 0;
-    font-size: 14px;
-    transition: opacity 0.2s ease-in-out;
-}
-
-#bondingCurveInterface {
-    background: rgba(0, 0, 0, 0.9);
-    /*border: 1px solid #333;
-    border-radius: 8px;*/
-    padding: 0px;
-    margin-top: 20px;
-    color: #00FF00;
-    opacity: 0;
-}
-
-/* Add to Contract Interface Styles section */
-#contractInterface.full-width {
-    width: 100%;
-    max-width: 90%;
-    margin: 0 auto;
-}
-
-.presale-info h3 {
-    color: var(--text-yellow);
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    text-align: center;
-}
-
-.stat-item {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.stat-label {
-    color: var(--text-primary);
-    font-size: 14px;
-}
-
-.stat-value {
-    color: var(--text-yellow);
-    font-size: 18px;
-    font-weight: bold;
-}
-
-/* Wallet Modal Styles */
-.wallet-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000;
-}
-
-.wallet-modal.active {
-    display: flex;
-}
-
-.wallet-modal-content {
-    background-color: #fff;
-    border-radius: 8px;
-    padding: 20px;
-    width: 100%;
-    max-width: 500px;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    z-index: 10001;
-}
-
-.wallet-modal-content h3 {
-    color: var(--text-yellow);
-    text-align: center;
-    margin-bottom: 20px;
-    font-size: 18px;
-}
-
-.wallet-options {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-    margin-top: 20px;
-}
-
-.wallet-option {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 12px 20px;
-    background: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    width: 100%;
-}
-
-.wallet-option:hover {
-    transform: translateX(5px);
-    border-color: var(--text-yellow);
-    background: rgba(255, 215, 0, 0.1);
-}
-
-.wallet-option img {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-}
-
-.wallet-option span {
-    color: var(--text-primary);
-    font-size: 16px;
-    font-family: 'Courier New', monospace;
-}
-
-/* Selected Wallet Display */
-.selected-wallet-display {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    margin: 10px 0;
-    padding: 10px;
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: 4px;
-}
-
-.selected-wallet-display img {
-    width: 24px;
-    height: 24px;
-    margin-right: 8px;
-}
-
-.wallet-name {
-    font-weight: 500;
-}
-
-.continue-prompt {
-    color: var(--text-green);
-    font-size: 14px;
-    text-align: center;
-    margin-top: 10px;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
-}
-
-/* Mobile Optimizations */
-@media (max-width: 768px) {
-    .wallet-modal-content {
-        padding: 20px;
-        width: 85%;
-        min-width: unset;
-    }
-
-    .wallet-option {
-        padding: 10px 15px;
-    }
-
-    .wallet-option img {
-        width: 28px;
-        height: 28px;
-    }
-
-    .wallet-option span {
-        font-size: 14px;
-    }
-
-    .selected-wallet-display {
-        width: 85%;
-        padding: 12px;
-    }
-}
-
-.trading-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
-    padding: 0px;
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    min-height: calc(100vh - 200px);
-    box-sizing: border-box;
-}
-
-.price-info {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.connection-status {
-    text-align: center;
-    color: var(--text-green);
-    font-size: 14px;
-    font-family: 'Courier New', monospace;
-}
-
-/* Mobile Tabs */
-.mobile-tabs {
-    display: none;
-    width: 100%;
-    padding: 10px;
-    gap: 10px;
-    background: var(--bg-darker);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.tab-button {
-    padding: 8px 16px;
-    background: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.tab-button.active {
-    background: var(--text-yellow);
-    color: black;
-}
-
-
-.curve-display,
-.swap-interface {
-    background: var(--bg-darker);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 20px;
-}
-
-.curve-display {
-    aspect-ratio: 1;
-}
-
-.swap-interface {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.swap-interface h2 {
-    color: var(--text-yellow);
-    text-align: center;
-    font-size: 24px;
-    margin: 0;
-}
-
-.price-display {
-    text-align: center;
-    color: var(--text-yellow);
-    font-size: 20px;
-    font-weight: bold;
-}
-
-#curveChart {
-    width: 100%;
-    height: 100%;
-}
-
-/* Add these back to the trading interface styles */
-.swap-module {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-.quick-fill-buttons {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.quick-fill {
-    flex: 1;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
-    color: #FFD700;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.quick-fill:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
+/* ============================================================================
+   STYLE.CSS - LAUNCHPAD SHARED STYLES
+   ============================================================================
+   This file contains shared styles for the launchpad pages.
+   CULT EXEC styles are in cultexecs.css and are completely isolated.
+   ============================================================================ */
+
+/* ============================================================================
+   NOTE: CULT EXEC STYLES REMOVED
+   ============================================================================
+   All CULT EXEC-specific styles have been moved to src/routes/cultexecs.css
+   and are scoped to body.cultexecs-active. This file now only contains
+   launchpad-appropriate styles.
+   ============================================================================ */
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
 
 .hidden {
-    display: none;
-}
-
-.input-group {
-    position: relative;
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 12px;
-}
-
-.input-group input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    color: #FFD700;
-    font-size: 1.2rem;
-    outline: none;
-}
-
-.currency-label {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #FFD700;
-}
-
-.swap-arrow-button {
-    align-self: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #FFD700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    transition: background 0.2s;
-}
-
-.swap-arrow-button .arrow {
-    display: inline-block;
-    transition: transform 0.3s ease;
-}
-
-.swap-arrow-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.swap-arrow-button:hover .arrow {
-    transform: rotate(180deg);
-}
-/* 
-.swap-arrow-button.flipped .arrow {
-    transform: rotate(180deg);
-} */
-
-/* Ensure the bonding curve interface is visible */
-#bondingCurveInterface {
-    display: none;
-    opacity: 1; /* Change from 0 to 1 */
-    width: 100%;
-    padding: 0px;
-}
-
-#bondingCurveInterface.active {
-    display: block;
-}
-
-.connection-status {
-    text-align: center;
-    color: var(--text-green);
-    font-size: 14px;
-    font-family: 'Courier New', monospace;
-    margin: 10px 0;
-    padding: 8px;
-    border-radius: 4px;
-}
-
-.connected-address {
-    display: block;
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
+    display: none !important;
 }
 
 .desktop-only {
@@ -777,19 +31,377 @@
     }
 }
 
+/* ============================================================================
+   TRADING INTERFACE (Launchpad - ERC404/ERC1155 projects)
+   ============================================================================ */
+
+.trading-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-8);
+    padding: 0;
+    width: 100%;
+    max-width: var(--max-width-content);
+    margin: 0 auto;
+    min-height: calc(100vh - 200px);
+    box-sizing: border-box;
+}
+
+.price-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-5);
+}
+
+.connection-status {
+    text-align: center;
+    color: var(--success-600);
+    font-size: var(--font-size-body-sm);
+    font-family: var(--font-body);
+    margin: var(--spacing-2) 0;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-md);
+    background-color: var(--success-50);
+}
+
+.connected-address {
+    display: block;
+    padding: var(--spacing-2);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+}
+
+/* ============================================================================
+   SWAP INTERFACE (Launchpad styling)
+   ============================================================================ */
+
+.swap-interface {
+    background: var(--bg-elevated);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-5);
+    box-shadow: var(--shadow-md);
+}
+
+.swap-interface h2 {
+    color: var(--accent-primary);
+    text-align: center;
+    font-size: var(--font-size-h3);
+    margin: 0 0 var(--spacing-4) 0;
+    font-family: var(--font-heading);
+    font-weight: var(--font-weight-bold);
+}
+
+.price-display {
+    text-align: center;
+    color: var(--accent-primary);
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    font-family: var(--font-body);
+}
+
+.swap-module {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    width: 100%;
+    max-width: var(--container-xl);
+    margin: 0 auto;
+}
+
+.quick-fill-buttons {
+    display: flex;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-2);
+    flex-wrap: wrap;
+}
+
+.quick-fill {
+    flex: 1;
+    min-width: 60px;
+    padding: var(--spacing-2) var(--spacing-3);
+    background: var(--bg-secondary);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-md);
+    color: var(--accent-primary);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: var(--transition-base);
+    text-align: center;
+}
+
+.quick-fill:hover {
+    background: var(--accent-primary-light);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary-hover);
+}
+
+.quick-fill:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.input-group {
+    position: relative;
+    background: var(--bg-secondary);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-3);
+    transition: var(--transition-base);
+}
+
+.input-group:focus-within {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-gold);
+}
+
+.input-group input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-body-lg);
+    font-family: var(--font-body);
+    outline: none;
+}
+
+.input-group input::placeholder {
+    color: var(--text-muted);
+}
+
+.currency-label {
+    position: absolute;
+    right: var(--spacing-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent-primary);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-body);
+}
+
+.swap-arrow-button {
+    align-self: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    background: var(--bg-secondary);
+    border: var(--border-width-thin) solid var(--border-base);
+    color: var(--accent-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-h4);
+    transition: var(--transition-base);
+}
+
+.swap-arrow-button:hover {
+    background: var(--accent-primary-light);
+    border-color: var(--accent-primary);
+    transform: scale(1.05);
+}
+
+.swap-arrow-button:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.swap-arrow-button .arrow {
+    display: inline-block;
+    transition: var(--transition-transform);
+}
+
+.swap-arrow-button:hover .arrow {
+    transform: rotate(180deg);
+}
+
+/* ============================================================================
+   BONDING CURVE DISPLAY (Launchpad styling)
+   ============================================================================ */
+
+.curve-display {
+    background: var(--bg-elevated);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-5);
+    box-shadow: var(--shadow-md);
+    aspect-ratio: 1;
+}
+
+#curveChart {
+    width: 100%;
+    height: 100%;
+}
+
+/* ============================================================================
+   MOBILE TABS (Launchpad)
+   ============================================================================ */
+
+.mobile-tabs {
+    display: none;
+    width: 100%;
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
+    background: var(--bg-secondary);
+    border-bottom: var(--border-width-thin) solid var(--border-base);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.tab-button {
+    padding: var(--spacing-2) var(--spacing-4);
+    background: var(--bg-elevated);
+    border: var(--border-width-thin) solid var(--border-base);
+    color: var(--text-primary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-medium);
+    transition: var(--transition-base);
+}
+
+.tab-button:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-dark);
+}
+
+.tab-button.active {
+    background: var(--accent-primary);
+    color: var(--text-inverse);
+    border-color: var(--accent-primary);
+}
+
+.tab-button:focus {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   USER HOLDINGS & BALANCE INFO (Launchpad)
+   ============================================================================ */
+
+.user-holdings {
+    margin: var(--spacing-2) 0;
+    padding: var(--spacing-2);
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: var(--border-width-thin) solid var(--border-base);
+}
+
+.balance-info {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-medium);
+}
+
+/* ============================================================================
+   TRANSACTION OPTIONS (Launchpad)
+   ============================================================================ */
+
+.transaction-options {
+    margin: var(--spacing-4) 0;
+}
+
+.option-group {
+    margin: var(--spacing-2) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+}
+
+.option-group label {
+    color: var(--text-primary);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--spacing-1);
+}
+
+#transactionMessage {
+    width: 100%;
+    margin-top: var(--spacing-1);
+    padding: var(--spacing-2);
+    background: var(--bg-elevated);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    resize: vertical;
+    min-height: 60px;
+    transition: var(--transition-base);
+}
+
+#transactionMessage:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-gold);
+}
+
+/* ============================================================================
+   CALENDAR LINKS (Launchpad)
+   ============================================================================ */
+
+.calendar-links {
+    margin-top: var(--spacing-4);
+    display: flex;
+    gap: var(--spacing-2);
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.calendar-button {
+    display: inline-block;
+    padding: var(--spacing-2) var(--spacing-4);
+    border-radius: var(--radius-md);
+    text-decoration: none;
+    color: var(--text-inverse);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-semibold);
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-sm);
+}
+
+.calendar-button:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.calendar-button:focus {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.calendar-button.google {
+    background-color: #4285f4;
+}
+
+.calendar-button.ical {
+    background-color: #34A853;
+    }
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
 
 @media (max-width: 768px) {
     .trading-container {
         grid-template-columns: 1fr;
         padding: 0;
-        gap: 15px;
+        gap: var(--spacing-4);
         min-height: auto;
         width: 100%;
     }
 
     .mobile-tabs {
         display: flex;
-        justify-content: center;
     }
 
     .curve-display,
@@ -800,229 +412,53 @@
         border-left: none;
         border-right: none;
         border-radius: 0;
-        display: none; /* Hide by default on mobile */
+        display: none;
     }
 
     .curve-display.active,
     .swap-interface.active {
-        display: block; /* Only show when active */
+        display: block;
     }
 
     .curve-display {
         aspect-ratio: 4/3;
-        padding: 10px;
+        padding: var(--spacing-2);
     }
 
     .swap-interface {
-        padding: 15px;
+        padding: var(--spacing-4);
     }
 
     .swap-module {
-        gap: 10px; /* Reduce gap on mobile */
+        gap: var(--spacing-2);
     }
 
     .input-group {
-        padding: 8px; /* Slightly smaller padding on mobile */
-    }
-
-    .swap-button {
-        margin-top: 15px;
-        padding: 12px; /* Slightly smaller padding */
-    }
+        padding: var(--spacing-2);
 }
 
-.chat-panel {
-    background: rgba(0, 0, 0, 0.8);
-    border: 1px solid #333;
-    padding: 20px;
-    border-radius: 4px;
+    .quick-fill {
+        min-width: 80px;
+}
 }
 
-.chat-header {
-    border-bottom: 1px solid #333;
-    padding-bottom: 10px;
-    margin-bottom: 15px;
+/* ============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ============================================================================ */
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
 }
 
-.chat-header h2 {
-    color: #FFD700;
-    margin: 0;
-    font-size: 1.2em;
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
 }
-
-.chat-messages {
-    height: 300px;
-    overflow-y: auto;
-    padding: 10px;
-}
-
-.message {
-    margin-bottom: 15px;
-    padding: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-}
-
-.message-address {
-    color: #FFD700;
-    font-size: 0.9em;
-}
-
-.message-time {
-    color: #666;
-    font-size: 0.8em;
-    float: right;
-}
-
-.message-content {
-    color: #fff;
-    margin: 5px 0 0 0;
-}
-
-.chat-status {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #333;
-    display: flex;
-    justify-content: space-between;
-    color: #666;
-    font-size: 0.9em;
-}
-
-.message-count {
-    color: #FFD700;
-}
-
-/* Mobile Responsiveness */
-@media (max-width: 768px) {
-    .chat-messages {
-        height: 200px;
-    }
-    
-    .chat-panel {
-        margin-top: 10px;
-        padding: 10px;
-    }
-}
-
-/* Bottom section toggle */
-.bottom-section-toggle {
-    display: none; /* Hidden by default on desktop */
-    background: var(--bg-dark);
-    border-top: 1px solid var(--border-color);
-    border-bottom: 1px solid var(--border-color);
-    padding: 8px;
-    text-align: center;
-    cursor: pointer;
-    user-select: none;
-    color: var(--text-yellow);
-    font-size: 12px;
-}
-
-.bottom-section-toggle:hover {
-    background: var(--bg-darker);
-}
-
-.toggle-arrow {
-    margin-right: 8px;
-}
-
-/* Mobile styles */
-@media (max-width: 768px) {
-    .bottom-section-toggle {
-        display: block;
-    }
-
-    .main-content {
-        transition: max-height 0.3s ease-in-out;
-        overflow: hidden;
-        max-height: 600px; /* Adjust based on your content */
-    }
-
-    .main-content.collapsed {
-        max-height: 0;
-    }
-}
-
-.user-holdings {
-    margin: 10px 0;
-    padding: 10px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.balance-info {
-    display: flex;
-    justify-content: space-between;
-    color: #ffd700;
-    font-family: monospace;
-}
-
-.transaction-options {
-    margin: 15px 0;
-}
-
-.option-group {
-    margin: 10px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.option-group label {
-    color: #ffd700;
-    font-size: 0.9em;
-}
-
-#transactionMessage {
-    width: 90%;
-    margin-top: 5px;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #ffd700;
-    border-radius: 4px;
-    color: #ffd700;
-    resize: vertical;
-    min-height: 60px;
-}
-
-.hidden {
-    display: none;
-}
-
-.gif-container {
-    position: relative;
-}
-
-.gif-container.loading::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #1a1a1a; /* Or your preferred background color */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    /* 
-    background-image: url('path/to/small-placeholder.png');
-    Add a loading spinner or placeholder image */
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: contain;
-}
-
-.terminal-gif {
-    transition: opacity 0.3s ease;
-}
-
-/* Show certain elements only when contractInterface is active */
-.contract-interface-active .gif-container {
-    display: none;
-}
-
-/* Make contract interface invisible initially */
-#contractInterface {
-    display: none;
 }

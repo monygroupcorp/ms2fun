@@ -65,17 +65,6 @@ app.use(express.static(path.join(__dirname), {
     fallthrough: true
 }));
 
-// Add specific route for land.html BEFORE the catch-all
-app.get('/land', (req, res) => {
-    console.log('Landing page requested');
-    res.sendFile(path.join(__dirname, 'land.html'));
-});
-
-app.get('/collection', (req, res) => {
-    console.log('Collection page requested');
-    res.sendFile(path.join(__dirname, 'collection.html'));
-});
-
 // This should be LAST - the catch-all route
 app.get('*', (req, res) => {
     console.log('Fallback route hit for:', req.url);

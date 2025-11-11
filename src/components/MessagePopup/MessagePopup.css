@@ -1,40 +1,41 @@
 /* MessagePopup Component Styles */
+/* Uses standardized design system tokens */
 
 #message-popup-container {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 10000;
+    top: var(--spacing-5);
+    right: var(--spacing-5);
+    z-index: var(--z-toast);
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    max-width: 350px;
+    gap: var(--spacing-2);
+    max-width: var(--container-sm);
 }
 
 .message-popup {
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 15px 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-4) var(--spacing-5);
+    box-shadow: var(--shadow-lg);
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    animation: slideIn 0.3s ease;
-    border-left: 4px solid #2196F3;
+    animation: slideIn var(--duration-base) var(--ease-out-classic);
+    border-left: var(--border-width-bold) solid var(--info-500);
     overflow: hidden;
     width: 100%;
 }
 
 .message-popup.error {
-    border-left-color: #f44336;
+    border-left-color: var(--error-500);
 }
 
 .message-popup.success {
-    border-left-color: #4CAF50;
+    border-left-color: var(--success-500);
 }
 
 .message-popup.warning {
-    border-left-color: #ff9800;
+    border-left-color: var(--warning-500);
 }
 
 .message-content {
@@ -43,48 +44,69 @@
 }
 
 .message-title {
-    font-weight: bold;
-    margin-bottom: 8px;
-    color: #333;
-    font-size: 16px;
+    font-weight: var(--font-weight-bold);
+    font-family: var(--font-body);
+    margin-bottom: var(--spacing-2);
+    color: var(--text-primary);
+    font-size: var(--font-size-body-lg);
 }
 
 .message-text {
-    font-size: 14px;
-    color: #666;
-    line-height: 1.4;
+    font-size: var(--font-size-body-sm);
+    font-family: var(--font-body);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
 }
 
 .close-button {
     background: none;
     border: none;
-    color: #999;
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 20px;
-    padding: 0;
+    font-size: var(--font-size-h4);
+    font-family: var(--font-body);
+    padding: var(--spacing-1);
     line-height: 1;
-    transition: color 0.2s ease;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-base);
 }
 
 .close-button:hover {
-    color: #666;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+}
+
+.close-button:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
 }
 
 /* Button inside message (for interactive popups) */
 .message-popup button:not(.close-button) {
-    background-color: #f1f1f1;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 6px 12px;
-    font-size: 13px;
+    /* Use standardized button styles */
+    background-color: var(--bg-secondary);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-md);
+    padding: var(--button-padding-y-sm) var(--button-padding-x-sm);
+    font-size: var(--font-size-body-sm);
+    font-family: var(--font-body);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all 0.2s ease;
-    margin-top: 10px;
+    transition: var(--transition-base);
+    margin-top: var(--spacing-2);
+    box-shadow: var(--shadow-sm);
 }
 
 .message-popup button:not(.close-button):hover {
-    background-color: #e7e7e7;
-    border-color: #ccc;
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-dark);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.message-popup button:not(.close-button):focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
 }
 
 @keyframes slideIn {
@@ -109,49 +131,8 @@
     }
 }
 
-/* Dark mode support */
+/* Dark mode support - Using design system variables */
 @media (prefers-color-scheme: dark) {
-    .message-popup {
-        background-color: #1e1e1e;
-        border-left-color: #1976D2;
-    }
-    
-    .message-popup.error {
-        border-left-color: #d32f2f;
-    }
-    
-    .message-popup.success {
-        border-left-color: #388e3c;
-    }
-    
-    .message-popup.warning {
-        border-left-color: #f57c00;
-    }
-    
-    .message-title {
-        color: #eee;
-    }
-    
-    .message-text {
-        color: #bbb;
-    }
-    
-    .close-button {
-        color: #777;
-    }
-    
-    .close-button:hover {
-        color: #aaa;
-    }
-    
-    .message-popup button:not(.close-button) {
-        background-color: #2a2a2a;
-        border-color: #444;
-        color: #eee;
-    }
-    
-    .message-popup button:not(.close-button):hover {
-        background-color: #333;
-        border-color: #555;
-    }
+    /* Design system variables handle dark mode automatically */
+    /* Additional overrides if needed can go here */
 } 

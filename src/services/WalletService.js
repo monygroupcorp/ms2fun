@@ -46,7 +46,7 @@ class WalletService {
             rabby: '/public/wallets/rabby.webp',
             rainbow: '/public/wallets/rainbow.webp',
             phantom: '/public/wallets/phantom.webp',
-            metamask: '/public/wallets/metamask.webp',
+            metamask: '/public/wallets/MetaMask.webp',
         };
         
         // We'll set up event listeners after a wallet is selected, not in constructor

@@ -3,6 +3,7 @@ import { eventBus } from '../../core/EventBus.js';
 import { tradingStore } from '../../store/tradingStore.js';
 import { MintModal } from '../MintModal/MintModal.js';
 import { SendModal } from '../SendModal/SendModal.js';
+import { ReRollModal } from '../ReRollModal/ReRollModal.js';
 
 export default class PortfolioModal extends Component {
     constructor(blockchainService) {
@@ -26,6 +27,7 @@ export default class PortfolioModal extends Component {
         this.filteredNFTs = null;
         this.mintModal = null;
         this.sendModal = null;
+        this.reRollModal = null;
     }
 
     async loadNFTData(limit = this.currentLimit) {
@@ -230,6 +232,7 @@ export default class PortfolioModal extends Component {
         // Setup search listener only once during full content update
         this.setupSearchListener();
         this.setupMintButton();
+        this.setupRerollButton();
     }
 
     async handlePageChange(newPage) {
@@ -495,6 +498,16 @@ export default class PortfolioModal extends Component {
                         </button>
                     </div>
                 ` : ''}
+                <div class="reroll-section">
+                    <div class="reroll-info">
+                        <div class="reroll-status">
+                            Risk-on procedure: Re-roll your Exec NFTs
+                        </div>
+                        <button class="reroll-button">
+                            Re-roll NFTs
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
     }
@@ -528,6 +541,21 @@ export default class PortfolioModal extends Component {
                     });
                 }
                 this.mintModal.show();
+            });
+        }
+    }
+
+    setupRerollButton() {
+        const rerollButton = this.element.querySelector('.reroll-button');
+        if (rerollButton) {
+            rerollButton.addEventListener('click', () => {
+                // Create re-roll modal if it doesn't exist, or show it if it does
+                if (!this.reRollModal) {
+                    this.reRollModal = new ReRollModal(this.blockchainService);
+                    // Mount to the portfolio modal's container
+                    this.reRollModal.mount(this.element.querySelector('.portfolio-modal-content'));
+                }
+                this.reRollModal.show();
             });
         }
     }
@@ -572,6 +600,7 @@ export default class PortfolioModal extends Component {
             // Re-setup all event listeners and update content
             this.setupSearchListener();
             this.setupMintButton();
+            this.setupRerollButton();
             this.updatePortfolioElements(this.tradingStore.selectUserNFTs());
         }
     }
@@ -609,6 +638,21 @@ export default class PortfolioModal extends Component {
                 max-height: 80vh;
                 overflow-y: auto; /* Enable scrolling within modal */
                 margin: 40px 0; /* Add margin to ensure modal doesn't touch screen edges */
+                box-sizing: border-box;
+            }
+            
+            @media (max-width: 768px) {
+                .portfolio-modal-overlay {
+                    padding: 16px;
+                }
+                
+                .portfolio-modal {
+                    width: calc(100% - 32px);
+                    max-width: calc(100% - 32px);
+                    padding: 20px 16px;
+                    margin: 20px 0;
+                    max-height: calc(100vh - 40px);
+                }
             }
 
             .portfolio-modal-close {
@@ -922,6 +966,42 @@ export default class PortfolioModal extends Component {
 
             .mint-button:hover {
                 background-color: var(--button-primary-hover, var(--color-accent-hover, #343a40));
+            }
+
+            .reroll-section {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding-top: 16px;
+                margin-top: 16px;
+                border-top: 1px solid #333;
+            }
+
+            .reroll-info {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            .reroll-status {
+                color: #ffaa00;
+                font-size: 14px;
+            }
+
+            .reroll-button {
+                background-color: #ff3366;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: background-color 0.2s;
+            }
+
+            .reroll-button:hover {
+                background-color: #ff5588;
             }
 
             .no-results {

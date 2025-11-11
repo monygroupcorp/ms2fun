@@ -12,7 +12,11 @@
     justify-content: center;
     z-index: 10000;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 20px;
+    min-height: 100vh;
+    min-height: 100dvh; /* Dynamic viewport height for mobile */
+    box-sizing: border-box;
 }
 
 .wallet-splash-connected {
@@ -27,6 +31,9 @@
     width: 100%;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     text-align: center;
+    margin: auto;
+    box-sizing: border-box;
+    flex-shrink: 0;
 }
 
 .splash-header h1 {
@@ -87,6 +94,9 @@
     align-items: center;
     justify-content: center;
     padding: 20px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
 }
 
 .wallet-modal.active,
@@ -100,7 +110,41 @@
     padding: 30px;
     max-width: 500px;
     width: 100%;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    margin: 0 auto;
+    position: relative;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .wallet-modal {
+        padding: 16px;
+        align-items: flex-start;
+        padding-top: max(20px, env(safe-area-inset-top));
+    }
+    
+    .wallet-modal-content {
+        width: 100%;
+        max-width: 100%;
+        padding: 24px 20px;
+        margin: auto 0;
+        max-height: calc(100vh - 32px);
+        border-radius: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .wallet-modal {
+        padding: 12px;
+    }
+    
+    .wallet-modal-content {
+        padding: 20px 16px;
+        max-height: calc(100vh - 24px);
+    }
 }
 
 .wallet-modal-header {
@@ -236,20 +280,66 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+    .wallet-splash {
+        padding: 16px;
+        align-items: flex-start;
+        padding-top: max(20px, env(safe-area-inset-top));
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    
     .splash-content {
-        padding: 30px 20px;
+        padding: 24px 20px;
+        margin-top: auto;
+        margin-bottom: auto;
+        max-width: 100%;
+        border-radius: 12px;
     }
     
     .splash-header h1 {
         font-size: 1.5rem;
+        line-height: 1.3;
     }
     
     .splash-subtitle {
         font-size: 1rem;
+        line-height: 1.4;
+    }
+    
+    .splash-description {
+        margin: 20px 0;
+        font-size: 0.9rem;
     }
     
     .wallet-options {
         grid-template-columns: 1fr;
+    }
+    
+    .wallet-modal-content {
+        padding: 24px 20px;
+        margin: 16px;
+        max-width: calc(100% - 32px);
+    }
+}
+
+@media (max-width: 480px) {
+    .wallet-splash {
+        padding: 12px;
+    }
+    
+    .splash-content {
+        padding: 20px 16px;
+    }
+    
+    .splash-header h1 {
+        font-size: 1.25rem;
+    }
+    
+    .splash-subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .splash-description {
+        font-size: 0.85rem;
     }
 }
 

@@ -108,10 +108,9 @@ async function initializeApp() {
             const appContainer = document.getElementById('app-container');
             if (appContainer) {
                 appContainer.innerHTML = `
-                    <div class="error-page">
-                        <h1>404 - Page Not Found</h1>
-                        <p>The page "${path}" does not exist.</p>
-                        <a href="/" class="home-link">Go Home</a>
+                    <div class="error-page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
+                        <h1 style="font-size: 4rem; margin-bottom: 2rem;">404</h1>
+                        <img src="/public/execs/0109_2.gif" alt="404" style="max-width: 100%; height: auto;" />
                     </div>
                 `;
             }
@@ -121,6 +120,9 @@ async function initializeApp() {
         await router.start();
         
         console.log('Router initialized successfully');
+        
+        // Mark body as ready to show content (removes loading overlay)
+        document.body.classList.add('app-ready');
         
     } catch (error) {
         console.error('Failed to initialize app:', error);

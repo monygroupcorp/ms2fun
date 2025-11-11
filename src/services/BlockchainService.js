@@ -1363,6 +1363,98 @@ class BlockchainService {
             throw error;
         }
     }
+
+    /**
+     * Get skipNFT status for an address
+     * @param {string} address - The address to check
+     * @returns {Promise<boolean>} True if skipNFT is set, false otherwise
+     */
+    async getSkipNFT(address) {
+        try {
+            const skipNFT = await this.executeContractCall('getSkipNFT', [address]);
+            return skipNFT;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to get skipNFT status');
+        }
+    }
+
+    /**
+     * Set skipNFT status for the connected wallet
+     * @param {boolean} skipNFT - True to skip NFT minting, false to enable it
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setSkipNFT(skipNFT) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'setSkipNFT', skipNFT });
+            
+            // Call setSkipNFT on the contract
+            const receipt = await this.executeContractCall(
+                'setSkipNFT',
+                [skipNFT],
+                { requiresSigner: true }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'setSkipNFT',
+                receipt,
+                skipNFT: skipNFT
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setSkipNFT',
+                error: this.wrapError(error, 'Failed to set skipNFT')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Transfer EXEC tokens to self (for re-rolling NFTs)
+     * @param {string} amount - Amount of tokens to transfer (in wei/raw format)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async transferTokensToSelf(amount) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            const address = await this.signer.getAddress();
+            
+            // Emit pending event
+            eventBus.emit('transaction:pending', { type: 'reroll' });
+            
+            // Transfer tokens to self
+            const receipt = await this.executeContractCall(
+                'transfer',
+                [address, amount],
+                { requiresSigner: true }
+            );
+
+            // Emit success event
+            eventBus.emit('transaction:success', {
+                type: 'reroll',
+                receipt,
+                amount: amount
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'reroll',
+                error: this.wrapError(error, 'Failed to re-roll NFTs')
+            });
+            throw error;
+        }
+    }
    
     /**
      * Convert ETH amount to Wei

@@ -113,6 +113,42 @@ body.cultexecs-active .status-indicator {
     color: var(--text-green);
 }
 
+/* Market Data - only on CULT EXEC */
+body.cultexecs-active .market-data {
+    margin-top: 15px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .market-row {
+    display: flex;
+    justify-content: space-between;
+    margin: 2px 0;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .price-up {
+    color: var(--text-green);
+}
+
+body.cultexecs-active .price-down {
+    color: var(--text-red);
+}
+
+/* Result display - only on CULT EXEC */
+body.cultexecs-active #result {
+    margin-top: 10px;
+    font-family: 'Courier New', monospace !important;
+}
+
+/* Instructions - only on CULT EXEC */
+body.cultexecs-active .instructions {
+    color: var(--text-blue);
+    font-size: 12px;
+    margin: 5px 0;
+    font-family: 'Courier New', monospace !important;
+}
+
 /* Base Body Styles for CULT EXEC - scoped to body.cultexecs-active */
 body.cultexecs-active {
     font-family: 'Courier New', monospace !important;
@@ -500,5 +536,240 @@ body.cultexecs-active {
 /* Make contract interface invisible initially */
 #contractInterface {
     display: none;
+}
+
+/* ============================================================================
+   CHAT PANEL STYLES (CULT EXEC - EXEC INSIDER BULLETIN)
+   ============================================================================ */
+
+body.cultexecs-active .chat-panel {
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid #333;
+    padding: 20px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .chat-header {
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+body.cultexecs-active .chat-header h2 {
+    color: #FFD700;
+    margin: 0;
+    font-size: 1.2em;
+    font-family: 'Courier New', monospace !important;
+    font-weight: bold;
+}
+
+body.cultexecs-active .chat-messages {
+    height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .message {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.cultexecs-active .message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+body.cultexecs-active .message-address {
+    color: #FFD700;
+    font-size: 0.9em;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .message-time {
+    color: #666;
+    font-size: 0.8em;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .message-content {
+    color: #fff;
+    margin: 5px 0 0 0;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .transaction-type {
+    color: #00FF00;
+    font-weight: bold;
+    font-size: 0.85em;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .amount {
+    color: #FFD700;
+    font-size: 0.85em;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .chat-status {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    color: #666;
+    font-size: 0.9em;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .message-count {
+    color: #FFD700;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .load-more {
+    text-align: center;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+body.cultexecs-active .load-more-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid #FFD700;
+    color: #FFD700;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace !important;
+    font-size: 12px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+body.cultexecs-active .load-more-btn:hover:not(:disabled) {
+    background: rgba(255, 215, 0, 0.2);
+    border-color: #FFD700;
+}
+
+body.cultexecs-active .load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+body.cultexecs-active .loading-message {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .chat-closed-notice {
+    text-align: center;
+    color: #ff3b30;
+    padding: 10px;
+    border: 1px solid #ff3b30;
+    border-radius: 4px;
+    margin: 10px 0;
+    font-family: 'Courier New', monospace !important;
+    font-weight: bold;
+}
+
+/* Mobile Responsiveness for Chat Panel */
+@media (max-width: 768px) {
+    body.cultexecs-active .chat-messages {
+        height: 200px;
+    }
+    
+    body.cultexecs-active .chat-panel {
+        margin-top: 10px;
+        padding: 10px;
+    }
+}
+
+/* ============================================================================
+   ADDITIONAL CULT EXEC FONT PROTECTION
+   ============================================================================ */
+
+/* Ensure all text elements in CULT EXEC use monospace font */
+body.cultexecs-active * {
+    font-family: 'Courier New', monospace !important;
+}
+
+/* Override any global font styles that might leak in */
+body.cultexecs-active h1,
+body.cultexecs-active h2,
+body.cultexecs-active h3,
+body.cultexecs-active h4,
+body.cultexecs-active h5,
+body.cultexecs-active h6,
+body.cultexecs-active p,
+body.cultexecs-active span,
+body.cultexecs-active div,
+body.cultexecs-active button,
+body.cultexecs-active input,
+body.cultexecs-active label {
+    font-family: 'Courier New', monospace !important;
+}
+
+/* Protect wallet modal in CULT EXEC context */
+body.cultexecs-active .wallet-modal-content h3 {
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .wallet-option span {
+    font-family: 'Courier New', monospace !important;
+}
+
+/* Selected Wallet Display - Always dark mode for CULT EXEC */
+body.cultexecs-active .selected-wallet-display {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 10px 0 !important;
+    background-color: rgba(44, 62, 80, 0.1) !important; /* Original dark background */
+    padding: 10px !important;
+    border-radius: 5px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    font-family: 'Courier New', monospace !important;
+    /* Override any theme-based colors */
+    color: #ffffff !important;
+    border: 1px solid #333333 !important;
+}
+
+body.cultexecs-active .selected-wallet-display img {
+    width: 24px !important;
+    height: 24px !important;
+    margin-right: 10px !important;
+}
+
+body.cultexecs-active .wallet-name {
+    font-weight: 500 !important;
+    font-family: 'Courier New', monospace !important;
+    /* Always white text for CULT EXEC - override any theme colors */
+    color: #ffffff !important;
+}
+
+body.cultexecs-active .continue-prompt {
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .button-text {
+    font-family: 'Courier New', monospace !important;
 }
 
