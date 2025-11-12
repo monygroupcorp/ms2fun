@@ -187,8 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         initializeApp();
         
-        // Initialize performance monitoring (runs automatically in background)
-        initializePerformanceMonitoring();
+        // Performance monitoring is disabled by default to avoid overhead
+        // Enable with: ?performance=true in URL or run enablePerformanceMonitoring() in console
+        // initializePerformanceMonitoring();
     }, 100);
 });
 

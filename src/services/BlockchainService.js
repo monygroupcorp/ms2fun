@@ -1,7 +1,6 @@
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import { eventBus } from '../core/EventBus.js';
 import { tradingStore } from '../store/tradingStore.js';
-import MerkleHandler from '../merkleHandler.js';
 import { contractCache } from './ContractCache.js';
 
 class BlockchainService {
@@ -16,8 +15,6 @@ class BlockchainService {
 
         this.swapRouter = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D';
 
-        // Add merkleHandler initialization
-        this.merkleHandler = new MerkleHandler();
         this.isInternalNetworkChange = false;
         
         // Add transaction tracking
@@ -71,9 +68,6 @@ class BlockchainService {
 
             // Load contract ABI and initialize contract with address from config
             await this.initializeContract(this.networkConfig.address);
-
-            // Initialize merkle handler
-            this.initializeMerkleHandler();
 
             this.connectionState = 'connected';
             
@@ -355,76 +349,11 @@ class BlockchainService {
         }
     }
 
-    // Add merkle handler initialization method
-    async initializeMerkleHandler() {
-        try {
-            // Check if we're in phase 0 or 1 (pre-launch or phase 1)
-            // Phase 0: switch.json doesn't exist
-            // Phase 1: switch.json exists
-            // Phase 2+: switch.json exists but we don't need Merkle trees
-            
-            // Check if we're at least in phase 1
-            let isPhase1OrBeyond = false;
-            try {
-                const switchResponse = await fetch('/EXEC404/switch.json');
-                isPhase1OrBeyond = switchResponse.ok;
-            } catch (error) {
-                // If there's an error fetching, assume we're in phase 0
-                console.log('Error fetching switch.json, assuming phase 0:', error);
-                isPhase1OrBeyond = false;
-            }
-            
-            if (!isPhase1OrBeyond) {
-                // We're in phase 0 (pre-launch), initialize Merkle trees
-                console.log('Phase 0 detected, initializing Merkle trees in BlockchainService');
-                await this.merkleHandler.initializeTrees();
-                console.log('Merkle handler initialized for phase 0 in BlockchainService');
-            } else {
-                // We're in phase 1 or beyond, check if we're in phase 1
-                // For now, assume we're in phase 1 if switch.json exists and phase 2 otherwise
-                // This is a simplification and might need to be adjusted based on actual logic
-                
-                // For demonstration, we'll check if a specific property exists in switch.json
-                // that would indicate we're in phase 1
-                const switchData = await (await fetch('/EXEC404/switch.json')).json();
-                const isPhase1 = switchData.phase === 1 || switchData.requireMerkle === true;
-                
-                if (isPhase1) {
-                    console.log('Phase 1 detected, initializing Merkle trees in BlockchainService');
-                    await this.merkleHandler.initializeTrees();
-                    console.log('Merkle handler initialized for phase 1 in BlockchainService');
-                } else {
-                    console.log('Phase 2 or beyond detected, skipping Merkle tree initialization in BlockchainService');
-                    // Initialize an empty map to avoid potential errors when trying to access trees
-                    this.merkleHandler.trees = new Map();
-                }
-            }
-        } catch (error) {
-            console.error('Error initializing merkle handler:', error);
-            throw this.wrapError(error, 'Merkle handler initialization failed');
-        }
-    }
-
+    // Merkle proof functionality removed - whitelisting no longer uses Merkle trees
     async getMerkleProof(address, tier = null) {
-        try {
-            // If no tier specified, get current tier from contract and add 1
-            if (tier === null) {
-                const currentTier = await this.getCurrentTier();
-                tier = currentTier;
-            }
-            // Find the proof for this address in the specified tier
-            const proof = this.merkleHandler.getProof(tier+1, address);
-            // If proof is null or proof.valid is false, the address is not whitelisted for this tier
-            if (!proof || !proof.valid) {
-                console.log(`Address ${address} not whitelisted for tier ${tier}`);
-                return null;
-            }
-
-            return proof;
-        } catch (error) {
-            console.error('Error getting merkle proof:', error);
-            return null;
-        }
+        // Return null - merkle proofs no longer supported
+        // Users can use alternative whitelisting methods (e.g., passwords)
+        return null;
     }
 
     /**

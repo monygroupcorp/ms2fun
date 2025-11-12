@@ -56,6 +56,8 @@ body.marble-bg::before {
     contain: layout style paint !important;
     /* CRITICAL: Prevent transform from causing layout expansion */
     will-change: transform;
+    /* CRITICAL: GPU acceleration hints */
+    backface-visibility: hidden;
     /* CRITICAL: Ensure overflow is clipped */
     overflow: hidden !important;
     /* CRITICAL: Ensure it's behind content but doesn't affect layout */
@@ -84,7 +86,8 @@ body.cultexecs-active .marble-bg::before {
     opacity: 1;
     /* Use normal blend mode - PNG already has effects applied */
     mix-blend-mode: normal;
-    background-image: url('/public/marbsoft.png');
+    /* Use pre-blurred image if data-blur attribute is set, otherwise use base image */
+    background-image: var(--marble-image-url, url('/public/marbsoft.png'));
     background-repeat: no-repeat;
     /* Use cover to ensure full coverage, then transform will distort it */
     /* Since all stretch values are >= 100%, transform will only scale up (creating distortion) */
@@ -94,7 +97,8 @@ body.cultexecs-active .marble-bg::before {
     /* Use transform-origin and ensure it stays within bounds */
     transform-origin: center center;
     /* Apply distortion transform - values >= 100% ensure full coverage */
-    transform: scale(
+    /* Use translate3d to force GPU layer creation for better performance */
+    transform: translate3d(0, 0, 0) scale(
         calc(var(--marble-stretch-x, 100) / 100),
         calc(var(--marble-stretch-y, 100) / 100)
     );
@@ -106,25 +110,49 @@ body.cultexecs-active .marble-bg::before {
     contain: layout style paint;
     /* CRITICAL: Ensure overflow is hidden to prevent extending beyond container */
     overflow: hidden;
+    /* GPU acceleration hints */
+    backface-visibility: hidden;
+    will-change: transform;
     /* Smooth transition for hover - marble moves with card */
     transition: transform var(--duration-base) var(--ease-classic);
-    /* Apply soft blur when stretched beyond threshold (set via --marble-blur) */
-    filter: blur(var(--marble-blur, 0px));
+    /* NO CSS BLUR - using pre-blurred images instead for better performance */
+    filter: none;
 }
 
-/* Apply wobble filter when enabled - combine with blur */
+/* Apply wobble filter when enabled - use pre-blurred image if needed */
 .marble-wobble.marble-bg::before {
-    filter: blur(var(--marble-blur, 0px)) url('#marbleWobble');
+    /* Use pre-blurred image if blur is needed, otherwise just wobble */
+    background-image: var(--marble-image-url, url('/public/marbsoft.png'));
+    filter: url('#marbleWobble'); /* Only SVG wobble, no CSS blur */
 }
 
-/* Invert marble texture in dark mode to darken instead of lighten - combine with blur */
+/* Invert marble texture in dark mode to darken instead of lighten - use pre-inverted image */
+/* This eliminates the expensive invert() filter recalculation on every scroll frame */
 html[data-theme='dark'] .marble-bg::before {
-    filter: blur(var(--marble-blur, 0px)) invert(1);
+    /* Use pre-blurred dark image if blur is needed, otherwise use base dark image */
+    background-image: var(--marble-image-url, url('/public/marbsoft-dark.png'));
+    filter: none; /* No CSS blur - using pre-blurred images */
 }
 
-/* If wobble is also enabled in dark mode, combine all filters */
+/* Fallback: If dark image doesn't exist, use original image with invert filter */
+/* This fallback is automatically removed by JavaScript once marbsoft-dark.png is created */
+html[data-theme='dark'].marble-dark-fallback .marble-bg::before {
+    background-image: var(--marble-image-url, url('/public/marbsoft.png'));
+    /* Fallback to CSS blur + invert if pre-blurred variant doesn't exist */
+    filter: var(--marble-blur-fallback, none) invert(1);
+}
+
+/* If wobble is also enabled in dark mode, combine with pre-blurred image */
 html[data-theme='dark'] .marble-wobble.marble-bg::before {
-    filter: blur(var(--marble-blur, 0px)) invert(1) url('#marbleWobble');
+    background-image: var(--marble-image-url, url('/public/marbsoft-dark.png'));
+    filter: url('#marbleWobble'); /* Only SVG wobble, no CSS blur */
+}
+
+/* Fallback for wobble with dark image */
+html[data-theme='dark'].marble-dark-fallback .marble-wobble.marble-bg::before {
+    background-image: var(--marble-image-url, url('/public/marbsoft.png'));
+    /* Fallback to CSS blur + invert + wobble if pre-blurred variant doesn't exist */
+    filter: var(--marble-blur-fallback, none) invert(1) url('#marbleWobble');
 }
 
 /* Ensure content sits above marble layer */
@@ -158,12 +186,23 @@ html[data-theme='dark'] .marble-wobble.marble-bg::before {
 .factory-card.marble-bg:hover::before {
     /* Maintain the exact same distortion scale - no recalculation */
     /* The parent's translateY will move both card and marble together naturally */
-    transform: scale(
+    /* Use translate3d to maintain GPU acceleration */
+    transform: translate3d(0, 0, 0) scale(
         calc(var(--marble-stretch-x, 100) / 100),
         calc(var(--marble-stretch-y, 100) / 100)
     );
     /* Same transform-origin to keep distortion centered */
     transform-origin: center center;
+}
+
+/* ============================================================================
+   SCROLL-AWARE FILTER OPTIMIZATION
+   ============================================================================ */
+
+/* Disable filters during scroll to eliminate expensive recalculations */
+/* Filters are re-enabled when scrolling stops via JavaScript */
+.marble-bg.scrolling::before {
+    filter: none !important;
 }
 
 /* ============================================================================
