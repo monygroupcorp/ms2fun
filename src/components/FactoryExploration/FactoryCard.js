@@ -28,7 +28,7 @@ export class FactoryCard extends Component {
         const audited = factory.audited || false;
 
         return `
-            <div class="factory-card" style="--factory-color: ${color}">
+            <div class="factory-card marble-bg marble-stretch-sheer" style="--factory-color: ${color}">
                 <!-- Top Section: Icon, Title, Badge -->
                 <div class="factory-card-top">
                     <div class="factory-header">

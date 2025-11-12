@@ -23,8 +23,11 @@ export class Documentation extends Component {
         }, 100);
         // Setup smooth scrolling using event delegation
         this.setupSmoothScrolling();
-        // Setup mobile menu toggle
-        this.setupMobileMenu();
+        // Setup mobile menu toggle - delay slightly to ensure layout is complete
+        // This is especially important on direct load/refresh
+        this.setTimeout(() => {
+            this.setupMobileMenu();
+        }, 50);
     }
 
     update() {
@@ -222,18 +225,158 @@ export class Documentation extends Component {
             // Mark as set up
             menuToggle.dataset.menuSetup = 'true';
             
+            // CRITICAL: CSS now uses left: -280px when hidden and left: 0 when active
+            // This prevents the browser from calculating a right edge that causes horizontal overflow
+            // The sidebar is completely off-screen when hidden (left: -280px), so it doesn't affect document width
+            // When active, it slides into view (left: 0) but stays within viewport bounds
+            
+            // Function to position overlay below navbar and exclude hamburger/sidebar areas
+            const positionOverlayBelowNavbar = () => {
+                const navbar = document.getElementById('app-top-container');
+                if (!navbar || !overlay) {
+                    if (overlay) {
+                        overlay.style.top = '0px';
+                        overlay.style.left = '0px';
+                        overlay.style.right = '0px';
+                        overlay.style.clipPath = 'none';
+                    }
+                    return;
+                }
+                
+                // Force a reflow to ensure accurate measurements
+                void navbar.offsetHeight;
+                
+                // Get navbar height - try multiple methods for accuracy
+                let navbarHeight = navbar.offsetHeight;
+                if (!navbarHeight || navbarHeight === 0) {
+                    const rect = navbar.getBoundingClientRect();
+                    navbarHeight = rect.height;
+                }
+                // Fallback if still 0
+                if (!navbarHeight || navbarHeight === 0) {
+                    navbarHeight = navbar.scrollHeight;
+                }
+                
+                // Position overlay to start below navbar
+                overlay.style.top = `${navbarHeight}px`;
+                
+                // CRITICAL: Ensure overlay never exceeds viewport width
+                // Set max-width to current viewport width
+                overlay.style.maxWidth = `${window.innerWidth}px`;
+                overlay.style.width = 'auto';
+                
+                // Get hamburger button - try to find it in the DOM
+                // Since newMenuToggle might not be in scope yet, query for it
+                let hamburgerButton = document.querySelector('.doc-menu-toggle[data-ref="menu-toggle"]');
+                if (!hamburgerButton) {
+                    // Fallback: try to find any hamburger button
+                    hamburgerButton = document.querySelector('.doc-menu-toggle');
+                }
+                if (!hamburgerButton) {
+                    // No hamburger button found, just position overlay below navbar
+                    overlay.style.left = '0px';
+                    overlay.style.right = '0px';
+                    overlay.style.clipPath = 'none';
+                    return;
+                }
+                
+                // Get hamburger button position and size (relative to viewport)
+                const hamburgerRect = hamburgerButton.getBoundingClientRect();
+                const hamburgerTop = hamburgerRect.top;
+                const hamburgerLeft = hamburgerRect.left;
+                const hamburgerWidth = hamburgerRect.width;
+                const hamburgerHeight = hamburgerRect.height;
+                // Add padding around hamburger for exclusion area
+                const hamburgerPadding = 15;
+                
+                // Calculate hamburger exclusion area
+                // Clip-path coordinates are relative to the element (overlay), not viewport
+                // Overlay starts at navbarHeight from top, so we need to adjust coordinates
+                const hamburgerExcludeTop = Math.max(0, hamburgerTop - navbarHeight);
+                const hamburgerExcludeLeft = hamburgerLeft;
+                const hamburgerExcludeRight = hamburgerLeft + hamburgerWidth + hamburgerPadding;
+                const hamburgerExcludeBottom = hamburgerTop + hamburgerHeight + hamburgerPadding - navbarHeight;
+                
+                // If hamburger is above overlay (in navbar area), don't exclude it (it's already above)
+                const hamburgerIsAboveOverlay = hamburgerTop + hamburgerHeight < navbarHeight;
+                
+                const sidebarWidth = 280; // Sidebar width
+                const isSidebarActive = sidebar.classList.contains('active');
+                
+                if (isSidebarActive) {
+                    // Sidebar is open: exclude left side where sidebar is (280px)
+                    const availableWidth = window.innerWidth - sidebarWidth;
+                    overlay.style.left = `${sidebarWidth}px`;
+                    overlay.style.right = '0px';
+                    // Ensure overlay doesn't exceed viewport
+                    if (availableWidth < 0) {
+                        overlay.style.left = '0px';
+                        overlay.style.maxWidth = `${window.innerWidth}px`;
+                    } else {
+                        overlay.style.maxWidth = `${availableWidth}px`;
+                    }
+                    // When sidebar is open, it covers the hamburger, so we just need to exclude sidebar
+                    // No clip-path needed - the left positioning already excludes the sidebar
+                    overlay.style.clipPath = 'none';
+                } else {
+                    // Sidebar is closed: overlay covers full width but exclude hamburger area
+                    overlay.style.left = '0px';
+                    overlay.style.right = '0px';
+                    // Ensure overlay never exceeds viewport width - use calc to account for any edge cases
+                    overlay.style.maxWidth = `${window.innerWidth}px`;
+                    overlay.style.width = 'auto'; // Let it be determined by left/right
+                    
+                    // Only exclude hamburger if it's within the overlay area (below navbar)
+                    if (!hamburgerIsAboveOverlay && hamburgerExcludeBottom > 0) {
+                        // Exclude hamburger area in top-left corner
+                        // Create a polygon that goes around the hamburger
+                        overlay.style.clipPath = `polygon(
+                            0% 0%,
+                            ${hamburgerExcludeLeft}px 0%,
+                            ${hamburgerExcludeLeft}px ${hamburgerExcludeBottom}px,
+                            ${hamburgerExcludeRight}px ${hamburgerExcludeBottom}px,
+                            ${hamburgerExcludeRight}px 0%,
+                            100% 0%,
+                            100% 100%,
+                            0% 100%
+                        )`;
+                    } else {
+                        // Hamburger is in navbar area (above overlay), no need to exclude
+                        overlay.style.clipPath = 'none';
+                    }
+                }
+            };
+            
             // Toggle sidebar function
             const toggleSidebar = () => {
                 const isActive = sidebar.classList.contains('active');
+                // Get hamburger button (query for it to ensure we have the current element)
+                const hamburgerBtn = document.querySelector('.doc-menu-toggle[data-ref="menu-toggle"]') || 
+                                    document.querySelector('.doc-menu-toggle');
+                
                 if (isActive) {
                     sidebar.classList.remove('active');
                     overlay.classList.remove('active');
                     document.body.style.overflow = ''; // Restore scrolling
+                    // Restore hamburger z-index when sidebar closes
+                    if (hamburgerBtn) {
+                        hamburgerBtn.style.zIndex = '1002';
+                    }
                 } else {
                     sidebar.classList.add('active');
                     overlay.classList.add('active');
                     document.body.style.overflow = 'hidden'; // Prevent background scrolling
+                    // Lower hamburger z-index when sidebar opens so it's behind sidebar
+                    if (hamburgerBtn) {
+                        hamburgerBtn.style.zIndex = '998';
+                    }
                 }
+                
+                // Reposition overlay after state change to account for sidebar position
+                // Use requestAnimationFrame to ensure DOM has updated
+                requestAnimationFrame(() => {
+                    positionOverlayBelowNavbar();
+                });
             };
             
             // Close sidebar function
@@ -241,12 +384,19 @@ export class Documentation extends Component {
                 sidebar.classList.remove('active');
                 overlay.classList.remove('active');
                 document.body.style.overflow = ''; // Restore scrolling
+                // Restore hamburger z-index when sidebar closes
+                const hamburgerBtn = document.querySelector('.doc-menu-toggle[data-ref="menu-toggle"]') || 
+                                    document.querySelector('.doc-menu-toggle');
+                if (hamburgerBtn) {
+                    hamburgerBtn.style.zIndex = '1002';
+                }
             };
             
             // Menu toggle button click handler
             const handleToggleClick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                e.stopImmediatePropagation(); // Prevent other handlers from firing
                 toggleSidebar();
             };
             
@@ -255,16 +405,104 @@ export class Documentation extends Component {
             newMenuToggle.dataset.menuSetup = 'true'; // Preserve the flag
             menuToggle.parentNode.replaceChild(newMenuToggle, menuToggle);
             
+            // Position overlay initially - use multiple strategies to ensure it happens after layout
+            // Strategy 1: Immediate (for navigation)
+            positionOverlayBelowNavbar();
+            
+            // Strategy 2: After next frame (for initial load)
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    positionOverlayBelowNavbar();
+                });
+            });
+            
+            // Strategy 3: After window load (for direct load/refresh)
+            if (document.readyState === 'loading') {
+                window.addEventListener('load', () => {
+                    setTimeout(() => {
+                        positionOverlayBelowNavbar();
+                    }, 100);
+                }, { once: true });
+            } else {
+                // Already loaded, but wait a bit for layout to settle
+                setTimeout(() => {
+                    positionOverlayBelowNavbar();
+                }, 100);
+            }
+            
+            // Strategy 4: On resize (navbar height might change)
+            let resizeTimeout;
+            const handleResizeForPositioning = () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    positionOverlayBelowNavbar();
+                }, 150);
+            };
+            window.addEventListener('resize', handleResizeForPositioning);
+            
             // Add click listener
             newMenuToggle.addEventListener('click', handleToggleClick);
             
-            // Overlay click to close
-            const handleOverlayClick = (e) => {
-                if (e.target === overlay) {
+            // Overlay click to close - use event delegation on document body
+            // Since overlay has pointer-events: none, we need to detect clicks on the overlay area
+            const handleDocumentClick = (e) => {
+                // Only handle if sidebar is active
+                if (!sidebar.classList.contains('active')) return;
+                
+                // Don't close if clicking on sidebar itself
+                if (sidebar.contains(e.target)) return;
+                
+                // Don't close if clicking on hamburger button
+                if (newMenuToggle.contains(e.target)) return;
+                
+                // Don't close if clicking on navbar
+                const navbar = document.getElementById('app-top-container');
+                if (navbar && navbar.contains(e.target)) return;
+                
+                // Get click/touch position - handle both mouse and touch events
+                let clickY = 0;
+                if (e.clientY !== undefined) {
+                    // Mouse event
+                    clickY = e.clientY;
+                } else if (e.changedTouches && e.changedTouches.length > 0) {
+                    // Touch event (touchend)
+                    clickY = e.changedTouches[0].clientY;
+                } else if (e.touches && e.touches.length > 0) {
+                    // Touch event (touchstart/move)
+                    clickY = e.touches[0].clientY;
+                }
+                
+                // Check if click is within overlay area (below navbar, not on interactive elements)
+                const navbarHeight = navbar ? (navbar.offsetHeight || navbar.getBoundingClientRect().height) : 0;
+                
+                // If click is below navbar and not on any interactive element, close sidebar
+                if (clickY >= navbarHeight) {
+                    // Check if click is on an interactive element (button, link, etc.)
+                    const interactiveElement = e.target.closest('button, a, [role="button"], input, select, textarea');
+                    
+                    // Don't close if clicking on any interactive element (buttons, links, etc.)
+                    // These should work normally
+                    if (interactiveElement) {
+                        // Check if it's a nav link (which should close sidebar)
+                        if (interactiveElement.classList.contains('doc-nav-link')) {
+                            // Nav links should close sidebar, but let their own handler do it
+                            return;
+                        }
+                        // Other interactive elements should work normally, don't close
+                        return;
+                    }
+                    
+                    // Click is on overlay area (not on any interactive element), close sidebar
+                    e.preventDefault();
+                    e.stopPropagation();
                     closeSidebar();
                 }
             };
-            overlay.addEventListener('click', handleOverlayClick);
+            
+            // Use both click and touchend for mobile compatibility
+            // Use capture phase to catch events before they reach other handlers
+            document.addEventListener('click', handleDocumentClick, true);
+            document.addEventListener('touchend', handleDocumentClick, true);
             
             // Close sidebar when clicking a nav link (mobile only)
             const navLinks = sidebar.querySelectorAll('.doc-nav-link');
@@ -279,9 +517,16 @@ export class Documentation extends Component {
             });
             
             // Close sidebar on window resize if it becomes desktop view
+            // Also reposition overlay if navbar height changes
             const handleResize = () => {
                 if (window.innerWidth > 968) {
                     closeSidebar();
+                } else {
+                    // Reposition overlay on resize (navbar height might change)
+                    // Use requestAnimationFrame to ensure layout has settled
+                    requestAnimationFrame(() => {
+                        positionOverlayBelowNavbar();
+                    });
                 }
             };
             
@@ -291,6 +536,12 @@ export class Documentation extends Component {
             this.registerCleanup(() => {
                 document.body.style.overflow = ''; // Restore scrolling on unmount
                 window.removeEventListener('resize', handleResize);
+                window.removeEventListener('resize', handleResizeForPositioning);
+                document.removeEventListener('click', handleDocumentClick, true);
+                document.removeEventListener('touchend', handleDocumentClick, true);
+                if (resizeTimeout) {
+                    clearTimeout(resizeTimeout);
+                }
             });
         }, 100);
     }
@@ -347,7 +598,7 @@ export class Documentation extends Component {
         const faqs = this.getFAQs();
         
         return `
-            <div class="documentation">
+            <div class="documentation marble-bg">
                 <button class="doc-menu-toggle" data-ref="menu-toggle" aria-label="Toggle navigation menu">☰</button>
                 <div class="doc-sidebar-overlay" data-ref="sidebar-overlay"></div>
                 <div class="doc-container">
@@ -454,7 +705,7 @@ export class Documentation extends Component {
                             </p>
                             
                             <div class="contract-types-grid">
-                                <div class="contract-type-card erc404">
+                                <div class="contract-type-card erc404 marble-bg">
                                     <div class="contract-type-header">
                                         <span class="contract-type-icon">💎</span>
                                         <h3>ERC404</h3>
@@ -487,7 +738,7 @@ export class Documentation extends Component {
                                     </div>
                                 </div>
                                 
-                                <div class="contract-type-card erc1155">
+                                <div class="contract-type-card erc1155 marble-bg">
                                     <div class="contract-type-header">
                                         <span class="contract-type-icon">🎨</span>
                                         <h3>ERC1155</h3>
@@ -543,7 +794,7 @@ export class Documentation extends Component {
                             </div>
                             
                             <div class="features-grid">
-                                <div class="feature-item">
+                                <div class="feature-item marble-bg">
                                     <h3>Bonding Curve</h3>
                                     <p>
                                         Dynamic pricing mechanism where token price changes based on supply and demand. 
@@ -552,7 +803,7 @@ export class Documentation extends Component {
                                     <span class="feature-badge erc404">ERC404</span>
                                 </div>
                                 
-                                <div class="feature-item">
+                                <div class="feature-item marble-bg">
                                     <h3>Liquidity Pool</h3>
                                     <p>
                                         Secondary market liquidity through automated market makers. Enables trading 
@@ -561,7 +812,7 @@ export class Documentation extends Component {
                                     <span class="feature-badge erc404">ERC404</span>
                                 </div>
                                 
-                                <div class="feature-item">
+                                <div class="feature-item marble-bg">
                                     <h3>Chat Feature</h3>
                                     <p>
                                         On-chain messaging system where users can leave messages linked to their 
@@ -570,7 +821,7 @@ export class Documentation extends Component {
                                     <span class="feature-badge both">Both</span>
                                 </div>
                                 
-                                <div class="feature-item">
+                                <div class="feature-item marble-bg">
                                     <h3>Balance Mint Portfolio</h3>
                                     <p>
                                         View and manage your token balances, NFT holdings, and minting history 
@@ -579,7 +830,7 @@ export class Documentation extends Component {
                                     <span class="feature-badge erc404">ERC404</span>
                                 </div>
                                 
-                                <div class="feature-item">
+                                <div class="feature-item marble-bg">
                                     <h3>Multi-Edition Support</h3>
                                     <p>
                                         Support for multiple NFT editions within a single contract, each with 

@@ -9,7 +9,7 @@
    BUTTONS
    ============================================================================ */
 
-/* Base Button */
+/* Base Button - All buttons get subtle metallic sheen */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -23,17 +23,34 @@
     text-align: center;
     text-decoration: none;
     border: var(--border-width-thin) solid transparent;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm); /* Sharper corners for plaque look */
     cursor: pointer;
     transition: var(--transition-elevation);
-    box-shadow: var(--elevation-2); /* Elevation 2 for buttons */
+    box-shadow: var(--elevation-2);
     white-space: nowrap;
     user-select: none;
+    position: relative;
+    overflow: hidden;
+    /* Subtle metallic sheen on all buttons */
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure .btn-primary overrides base .btn styles */
+.btn.btn-primary {
+    box-shadow: var(--shadow-metallic-raised) !important;
 }
 
 .btn:focus-visible {
     outline: 2px solid var(--accent-primary);
     outline-offset: 2px;
+}
+
+.btn-primary:focus-visible {
+    outline: 2px solid var(--gold-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2);
 }
 
 .btn:disabled {
@@ -63,77 +80,231 @@
 
 /* Button Variants */
 .btn-primary {
-    background-color: var(--accent-primary);
-    color: var(--text-inverse);
-    border-color: var(--accent-primary);
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important; /* Override any background-color */
+    color: var(--gold-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--gold-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3), /* Subtle highlight on top */
+        0 2px 4px rgba(0, 0, 0, 0.5), /* Deep shadow for engraved effect */
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Sharp edge definition */
+    position: relative;
+    overflow: hidden;
+    font-weight: var(--font-weight-bold) !important; /* Bolder text for plaque readability */
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
 }
 
 .btn-primary:hover:not(:disabled) {
-    background-color: var(--accent-primary-hover);
-    border-color: var(--accent-primary-hover);
-    box-shadow: var(--shadow-gold); /* Gold glow on hover */
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
     transform: translateY(-1px);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important; /* Keep dark text on hover */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important; /* Enhanced shadow on hover */
 }
 
 .btn-primary:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: var(--elevation-1); /* Lower elevation when pressed */
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
 }
 
 .btn-secondary {
-    background-color: var(--bg-elevated);
-    color: var(--text-primary);
-    border-color: var(--border-base);
+    background: var(--gradient-bronze-raised) !important;
+    background-color: transparent !important;
+    color: var(--bronze-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--bronze-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
+    box-shadow: var(--shadow-bronze-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-dark);
-    box-shadow: var(--elevation-3); /* Higher elevation on hover */
+    background: linear-gradient(160deg,
+        var(--bronze-metallic-sheen) 0%,
+        var(--bronze-metallic-light) 15%,
+        var(--bronze-metallic-base) 40%,
+        var(--bronze-metallic-gradient-mid) 60%,
+        var(--bronze-metallic-gradient-dark) 85%,
+        var(--bronze-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(205, 127, 50, 0.2) !important;
     transform: translateY(-1px);
+    border-color: var(--bronze-metallic-base) !important;
+    color: var(--bronze-metallic-dark) !important; /* Keep dark text on hover */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
 .btn-secondary:active:not(:disabled) {
     transform: translateY(0);
-    box-shadow: var(--elevation-1); /* Lower elevation when pressed */
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--bronze-metallic-base) 0%,
+        var(--bronze-metallic-gradient-mid) 50%,
+        var(--bronze-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+}
+
+.btn-secondary:focus-visible {
+    outline: 2px solid var(--bronze-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-bronze-raised),
+        0 0 0 4px rgba(205, 127, 50, 0.2) !important;
 }
 
 .btn-outline {
-    background-color: transparent;
-    color: var(--accent-primary);
-    border-color: var(--accent-primary);
+    background: transparent !important;
+    color: var(--gold-metallic-dark) !important; /* Darker for engraved look */
+    border: 1px solid var(--gold-metallic-base) !important;
+    border-radius: var(--radius-sm) !important; /* Sharp corners */
+    box-shadow: var(--shadow-metallic-engraved) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important; /* Enhanced engraved effect */
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
+}
+
+.btn-outline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--gradient-metallic-engraved);
+    opacity: 0.15;
+    z-index: -1;
+    border-radius: inherit;
 }
 
 .btn-outline:hover:not(:disabled) {
-    background-color: var(--accent-primary-light);
-    color: var(--accent-primary-hover);
-    box-shadow: var(--shadow-gold);
+    background: rgba(201, 164, 66, 0.1) !important;
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 8px rgba(212, 175, 55, 0.15) !important;
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important; /* Keep dark text */
     transform: translateY(-1px);
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+.btn-outline:active:not(:disabled) {
+    box-shadow: 
+        inset 0 3px 6px rgba(0, 0, 0, 0.4),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.05),
+        0 1px 2px rgba(0, 0, 0, 0.1) !important;
+    background: rgba(125, 98, 33, 0.15) !important;
+    transform: translateY(0);
 }
 
 .btn-outline:focus-visible {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--gold-metallic-base);
     outline-offset: 2px;
-    background-color: var(--accent-primary-light);
-    box-shadow: var(--shadow-gold);
+    box-shadow: 
+        var(--shadow-metallic-engraved),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
 }
 
 .btn-ghost {
-    background-color: transparent;
-    color: var(--text-primary);
-    border-color: transparent;
-    box-shadow: none;
+    background: transparent !important;
+    color: var(--text-primary) !important;
+    border: 1px solid transparent !important;
+    box-shadow: none !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.05) !important;
+}
+
+.btn-ghost::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--gradient-silver-raised);
+    opacity: 0.08;
+    z-index: -1;
+    border-radius: inherit;
+    transition: opacity var(--duration-base) var(--ease-classic);
 }
 
 .btn-ghost:hover:not(:disabled) {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
+    background: rgba(158, 158, 158, 0.1) !important;
+    box-shadow: 
+        inset 0 1px 2px rgba(255, 255, 255, 0.2),
+        inset 0 -1px 2px rgba(0, 0, 0, 0.1),
+        0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--silver-metallic-base) !important;
+}
+
+.btn-ghost:hover:not(:disabled)::before {
+    opacity: 0.15;
+}
+
+.btn-ghost:active:not(:disabled) {
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.15),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.1) !important;
+    background: rgba(158, 158, 158, 0.15) !important;
 }
 
 .btn-ghost:focus-visible {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--silver-metallic-base);
     outline-offset: 2px;
-    background-color: var(--bg-secondary);
+    background: rgba(158, 158, 158, 0.1) !important;
+    box-shadow: 
+        inset 0 1px 2px rgba(255, 255, 255, 0.2),
+        0 0 0 4px rgba(158, 158, 158, 0.2) !important;
 }
 
 /* Button with Art Deco styling */
@@ -141,6 +312,142 @@
     font-family: var(--font-accent);
     letter-spacing: var(--letter-spacing-widest);
     text-transform: uppercase;
+}
+
+/* ============================================================================
+   GOLD METALLIC BUTTONS
+   ============================================================================ */
+
+/* Base gold metallic button - raised variant (coin-like) */
+.btn-gold,
+.btn-gold--raised {
+    background: var(--gradient-metallic-raised);
+    color: var(--gold-metallic-sheen);
+    border: 1px solid var(--gold-metallic-dark);
+    box-shadow: var(--shadow-metallic-raised);
+    text-shadow: 
+        0 1px 0 var(--gold-metallic-dark),
+        0 2px 2px rgba(0, 0, 0, 0.25);
+    transition: all var(--duration-base) var(--ease-classic);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-gold:hover:not(:disabled),
+.btn-gold--raised:hover:not(:disabled) {
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%);
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2);
+    transform: translateY(-1px);
+    border-color: var(--gold-metallic-base);
+}
+
+.btn-gold:active:not(:disabled),
+.btn-gold--raised:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15);
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%);
+}
+
+.btn-gold:focus-visible,
+.btn-gold--raised:focus-visible {
+    outline: 2px solid var(--gold-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2);
+}
+
+/* Engraved gold button - etched-in effect */
+.btn-gold--engraved {
+    background: transparent;
+    color: var(--gold-metallic-sheen);
+    border: 1px solid var(--gold-metallic-dark);
+    box-shadow: var(--shadow-metallic-engraved);
+    text-shadow: 
+        0 1px 0 var(--gold-metallic-dark),
+        0 2px 4px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all var(--duration-base) var(--ease-classic);
+    position: relative;
+}
+
+.btn-gold--engraved::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--gradient-metallic-engraved);
+    opacity: 0.15;
+    z-index: -1;
+    border-radius: inherit;
+}
+
+.btn-gold--engraved:hover:not(:disabled) {
+    background: rgba(201, 164, 66, 0.1);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 8px rgba(212, 175, 55, 0.15);
+    border-color: var(--gold-metallic-base);
+    text-shadow: 
+        0 1px 0 var(--gold-metallic-dark),
+        0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn-gold--engraved:active:not(:disabled) {
+    box-shadow: 
+        inset 0 3px 6px rgba(0, 0, 0, 0.4),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.05),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    background: rgba(125, 98, 33, 0.15);
+}
+
+.btn-gold--engraved:focus-visible {
+    outline: 2px solid var(--gold-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-engraved),
+        0 0 0 4px rgba(212, 175, 55, 0.2);
+}
+
+/* Optional shimmer effect - disabled by default, enable with .shimmer class */
+.btn-gold.shimmer,
+.btn-gold--raised.shimmer {
+    background-size: 200% 100%;
+    animation: shimmer-metallic 3s ease-in-out infinite;
+}
+
+@keyframes shimmer-metallic {
+    0% {
+        background-position: -200% 0;
+    }
+    50% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 /* ============================================================================
@@ -158,6 +465,8 @@
     flex-direction: column;
     position: relative;
     overflow: hidden;
+    /* Ensure marble texture doesn't make card transparent */
+    background-color: var(--bg-elevated);
 }
 
 .card:hover {
@@ -574,5 +883,26 @@ button.card:focus-visible {
     font-size: var(--font-size-body);
     color: var(--text-secondary);
     margin: 0;
+}
+
+/* ============================================================================
+   MARBLE TEXTURE OPT-IN (Feature Branch)
+   ============================================================================
+   Cards and modals can opt-in to marble texture by adding classes.
+   Example usage in markup:
+   - Cards: class="card marble-bg marble-sm marble-stretch-x marble-pos-b"
+   - Modals: class="modal marble-bg marble-md marble-softlight marble-soft"
+   ============================================================================ */
+
+/* Cards with marble texture */
+.card.marble-bg {
+    /* Position relative is already set in .card base */
+    /* Marble utilities can be composed via classes */
+}
+
+/* Modals with marble texture */
+.modal.marble-bg {
+    /* Position relative is already set in .modal base */
+    /* Marble utilities can be composed via classes */
 }
 

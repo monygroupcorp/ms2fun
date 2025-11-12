@@ -167,40 +167,77 @@ body:not(.cultexecs-active) {
 
 .cta-button.launch-own-button,
 .cta-button.about-button {
-    /* Use standardized button styles */
+    /* Use gold metallic for primary CTAs */
     display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: var(--button-padding-y-md) var(--button-padding-x-lg);
-    background: var(--accent-primary);
-    color: var(--text-inverse);
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important; /* Darker text for engraved look */
     text-decoration: none;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
     font-size: var(--font-size-body);
-    font-weight: var(--font-weight-semibold);
-    font-family: var(--font-body);
+    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
     transition: var(--transition-base);
-    border: none;
+    border: 1px solid var(--gold-metallic-dark) !important;
     cursor: pointer;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
+    position: relative;
+    overflow: hidden;
 }
 
 .cta-button.launch-own-button:hover,
 .cta-button.about-button:hover {
-    background: var(--accent-primary-hover);
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
     transform: translateY(-1px);
-    box-shadow: var(--shadow-gold);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important; /* Keep dark text */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
 .cta-button.launch-own-button:focus-visible,
 .cta-button.about-button:focus-visible {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--gold-metallic-base);
     outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
 }
 
 .cta-button.launch-own-button:active,
 .cta-button.about-button:active {
     transform: translateY(0);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
 }
 
 .discovery-controls {
@@ -746,39 +783,75 @@ body:not(.cultexecs-active) {
 }
 
 .view-project-button {
-    /* Use standardized button styles */
+    /* Use metallic button styles with engraved plaque look */
     width: 100%;
-    background: var(--accent-primary);
-    color: var(--text-inverse);
-    border: none;
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--gold-metallic-dark) !important;
     padding: var(--button-padding-y-md) var(--button-padding-x-md);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
     font-size: var(--font-size-body);
-    font-weight: var(--font-weight-semibold);
-    font-family: var(--font-body);
+    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
     cursor: pointer;
     transition: var(--transition-base);
     margin-top: auto; /* Push to bottom of card */
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
 }
 
 .view-project-button:hover {
-    background: var(--accent-primary-hover);
-    box-shadow: var(--shadow-gold);
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
     transform: translateY(-1px);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important; /* Keep dark text */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important; /* Enhanced shadow on hover */
 }
 
 .view-project-button:active {
     transform: translateY(0);
-    box-shadow: var(--shadow-sm);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
 }
 
 .view-project-button:focus-visible {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--gold-metallic-base);
     outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
 }
 
 /* Loading and Error States */
@@ -797,37 +870,65 @@ body:not(.cultexecs-active) {
 .retry-button,
 .clear-filters-button,
 .clear-all-button {
-    /* Use standardized button styles */
-    background: var(--accent-primary);
-    color: var(--text-inverse);
-    border: none;
+    /* Use bronze metallic for secondary actions */
+    background: var(--gradient-bronze-raised) !important;
+    background-color: transparent !important;
+    color: var(--bronze-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--bronze-metallic-dark) !important;
     padding: var(--button-padding-y-md) var(--button-padding-x-lg);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
     cursor: pointer;
     font-size: var(--font-size-body);
-    font-weight: var(--font-weight-semibold);
-    font-family: var(--font-body);
+    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
     margin-top: var(--spacing-5);
     transition: var(--transition-base);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-bronze-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
 }
 
 .retry-button:hover,
 .clear-filters-button:hover,
 .clear-all-button:hover {
-    background: var(--accent-primary-hover);
-    box-shadow: var(--shadow-gold);
+    background: linear-gradient(160deg,
+        var(--bronze-metallic-sheen) 0%,
+        var(--bronze-metallic-light) 15%,
+        var(--bronze-metallic-base) 40%,
+        var(--bronze-metallic-gradient-mid) 60%,
+        var(--bronze-metallic-gradient-dark) 85%,
+        var(--bronze-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(205, 127, 50, 0.2) !important;
     transform: translateY(-1px);
+    border-color: var(--bronze-metallic-base) !important;
+    color: var(--bronze-metallic-dark) !important; /* Keep dark text */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
 .retry-button:focus-visible,
 .clear-filters-button:focus-visible,
 .clear-all-button:focus-visible {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--bronze-metallic-base);
     outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-bronze-raised),
+        0 0 0 4px rgba(205, 127, 50, 0.2) !important;
 }
 
 /* Responsive */

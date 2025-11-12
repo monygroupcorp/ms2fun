@@ -66,9 +66,10 @@ app.use(express.static(path.join(__dirname), {
 }));
 
 // This should be LAST - the catch-all route
+// Mimic GitHub Pages behavior: serve 404.html for missing routes
 app.get('*', (req, res) => {
-    console.log('Fallback route hit for:', req.url);
-    res.sendFile(path.join(__dirname, 'index.html'));
+    console.log('Fallback route hit for:', req.url, '- serving 404.html (GitHub Pages behavior)');
+    res.sendFile(path.join(__dirname, '404.html'));
 });
 
 app.listen(port, () => {

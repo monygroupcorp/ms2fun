@@ -53,6 +53,14 @@ class Router {
         }
         
         await this.handleRoute(path);
+        
+        // Ensure theme toggle exists after navigation
+        if (window.themeManager && typeof window.themeManager.ensureToggleExists === 'function') {
+            // Small delay to let route handler finish mounting
+            setTimeout(() => {
+                window.themeManager.ensureToggleExists();
+            }, 100);
+        }
     }
     
     /**
@@ -164,6 +172,13 @@ class Router {
             // Handle both sync and async handlers
             const result = await Promise.resolve(match.handler(match.params));
             this.currentHandler = result || null;
+            
+            // Ensure theme toggle exists after route handler completes
+            if (window.themeManager && typeof window.themeManager.ensureToggleExists === 'function') {
+                setTimeout(() => {
+                    window.themeManager.ensureToggleExists();
+                }, 150);
+            }
         } else if (this.notFoundHandler) {
             this.currentRoute = null;
             this.currentHandler = null;

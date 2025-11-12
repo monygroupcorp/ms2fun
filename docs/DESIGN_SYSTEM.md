@@ -55,6 +55,339 @@
 --deco-royal: #4a2c4a;           /* Royal purple */
 ```
 
+### Engraved Plaque Metallic System (Marble Update)
+
+**Status: ✅ IMPLEMENTED** - Comprehensive metallic visual language for all buttons that evokes **engraved gold plaques** — classical, elegant, and performant.
+
+The system creates buttons that look like **engraved metallic plaques** with sharp corners, darker engraved text, and serif typography. All buttons across the site use this system with different metallic finishes (gold, bronze, silver, copper) based on their role and hierarchy.
+
+#### Design Intent
+
+The engraved plaque aesthetic is inspired by:
+- **Classical Architecture**: Engraved plaques found in temples, monuments, and classical buildings
+- **Gilded Ornaments**: Gold and silver plaques with carved inscriptions
+- **Polished Coins**: Metallic surfaces with engraved text
+- **Art Deco Luxury**: Refined metallic finishes with geometric precision
+
+#### Core Design Principles
+
+1. **Sharp Corners**: All metallic buttons use `var(--radius-sm)` (2px) for crisp, plaque-like edges
+2. **Darker Text**: Text uses dark metallic colors (`--*-metallic-dark`) instead of sheen colors to simulate engraved depth
+3. **Serif Typography**: All metallic buttons use `var(--font-engraved)` (Playfair Display, Times New Roman fallback) for classical inscription feel
+4. **Enhanced Shadows**: Multi-layered text shadows create deep engraved effect
+5. **Bold Weight**: Text uses `var(--font-weight-bold)` for plaque readability
+6. **Metallic Gradients**: Sophisticated gradients simulate metal depth and light reflection
+
+#### Metallic Palettes
+
+**Gold Metallic - Primary Actions, CTAs:**
+```css
+/* Base metallic tones - evoking polished coins and gilded engravings */
+--gold-metallic-base: #c9a442;          /* Rich gold base */
+--gold-metallic-light: #f8e7b9;          /* Bright highlight */
+--gold-metallic-dark: #7d6221;           /* Deep shadow (used for text) */
+--gold-metallic-sheen: #fff8dc;          /* Specular highlight */
+
+/* Metallic gradient stops for depth simulation */
+--gold-metallic-gradient-light: #f5e6b8;  /* Top highlight */
+--gold-metallic-gradient-mid: #d4af37;    /* Mid-tone */
+--gold-metallic-gradient-dark: #8b6f2a;   /* Bottom shadow */
+```
+
+**Bronze Metallic - Secondary Actions:**
+```css
+--bronze-metallic-base: #cd7f32;         /* Classic bronze */
+--bronze-metallic-light: #e8b882;        /* Light bronze highlight */
+--bronze-metallic-dark: #8b5a2a;         /* Deep bronze shadow (used for text) */
+--bronze-metallic-sheen: #f5d4a8;         /* Bronze specular */
+--bronze-metallic-gradient-light: #e0a870; /* Top highlight */
+--bronze-metallic-gradient-mid: #cd7f32;   /* Mid-tone */
+--bronze-metallic-gradient-dark: #9d6a2a;  /* Bottom shadow */
+```
+
+**Silver/Neutral Metallic - Tertiary Actions, Subtle Buttons:**
+```css
+--silver-metallic-base: #9e9e9e;         /* Neutral gray base */
+--silver-metallic-light: #e0e0e0;         /* Light silver highlight */
+--silver-metallic-dark: #616161;          /* Deep gray shadow (used for text) */
+--silver-metallic-sheen: #f5f5f5;         /* Silver specular */
+--silver-metallic-gradient-light: #d4d4d4; /* Top highlight */
+--silver-metallic-gradient-mid: #9e9e9e;    /* Mid-tone */
+--silver-metallic-gradient-dark: #757575;   /* Bottom shadow */
+```
+
+**Copper Metallic - Accent Actions:**
+```css
+--copper-metallic-base: #b87333;         /* Classic copper */
+--copper-metallic-light: #d4a574;         /* Light copper highlight */
+--copper-metallic-dark: #8b5a2a;         /* Deep copper shadow (used for text) */
+--copper-metallic-sheen: #e8c9a3;         /* Copper specular */
+--copper-metallic-gradient-light: #c99d6a; /* Top highlight */
+--copper-metallic-gradient-mid: #b87333;   /* Mid-tone */
+--copper-metallic-gradient-dark: #9d6a2a;  /* Bottom shadow */
+```
+
+**Dark Theme Overrides:**
+
+All metallic palettes have dark theme variants that shift cooler and reduce brightness for harmony with dark marble backgrounds:
+
+```css
+/* Gold Metallic (Dark Theme) */
+--gold-metallic-base: #b48b2c;          /* Slightly cooler, less bright */
+--gold-metallic-light: #e0ca88;          /* Softer highlight */
+--gold-metallic-dark: #3a2b12;           /* Deeper shadow */
+--gold-metallic-sheen: #fff8d1;          /* Subtle specular */
+--gold-metallic-gradient-light: #d4b87a;  /* Muted highlight */
+--gold-metallic-gradient-mid: #b48b2c;    /* Cooler mid-tone */
+--gold-metallic-gradient-dark: #5a4218;   /* Deep shadow */
+
+/* Bronze Metallic (Dark Theme) */
+--bronze-metallic-base: #b87333;         /* Warmer bronze */
+--bronze-metallic-light: #d4a574;       /* Softer highlight */
+--bronze-metallic-dark: #5a3a1a;         /* Deeper shadow */
+--bronze-metallic-sheen: #e8c9a3;        /* Subtle specular */
+--bronze-metallic-gradient-light: #c99d6a; /* Muted highlight */
+--bronze-metallic-gradient-mid: #b87333;  /* Mid-tone */
+--bronze-metallic-gradient-dark: #6b4a1a; /* Deep shadow */
+
+/* Silver/Neutral Metallic (Dark Theme) */
+--silver-metallic-base: #b0b0b0;         /* Lighter gray */
+--silver-metallic-light: #e8e8e8;        /* Brighter highlight */
+--silver-metallic-dark: #4a4a4a;         /* Deeper shadow */
+--silver-metallic-sheen: #f5f5f5;         /* Subtle specular */
+--silver-metallic-gradient-light: #d4d4d4; /* Muted highlight */
+--silver-metallic-gradient-mid: #b0b0b0;   /* Mid-tone */
+--silver-metallic-gradient-dark: #6b6b6b;  /* Deep shadow */
+
+/* Copper Metallic (Dark Theme) */
+--copper-metallic-base: #c98a4a;         /* Warmer copper */
+--copper-metallic-light: #e0b882;        /* Softer highlight */
+--copper-metallic-dark: #5a3a1a;         /* Deeper shadow */
+--copper-metallic-sheen: #f0d4a8;         /* Subtle specular */
+--copper-metallic-gradient-light: #d4a870; /* Muted highlight */
+--copper-metallic-gradient-mid: #c98a4a;   /* Mid-tone */
+--copper-metallic-gradient-dark: #7a5a2a; /* Deep shadow */
+```
+
+#### Gradient & Relief Utilities
+
+**Gold Metallic Gradients:**
+```css
+/* Raised metallic gradient - simulates coin-like depth */
+--gradient-metallic-raised: linear-gradient(160deg,
+    var(--gold-metallic-light) 0%,
+    var(--gold-metallic-gradient-light) 15%,
+    var(--gold-metallic-base) 40%,
+    var(--gold-metallic-gradient-mid) 60%,
+    var(--gold-metallic-gradient-dark) 85%,
+    var(--gold-metallic-dark) 100%);
+
+/* Engraved metallic gradient - for inlay effect */
+--gradient-metallic-engraved: linear-gradient(160deg,
+    var(--gold-metallic-dark) 0%,
+    var(--gold-metallic-gradient-dark) 30%,
+    var(--gold-metallic-base) 50%,
+    var(--gold-metallic-gradient-mid) 70%,
+    var(--gold-metallic-light) 100%);
+```
+
+**Bronze Metallic Gradients:**
+```css
+--gradient-bronze-raised: linear-gradient(160deg,
+    var(--bronze-metallic-light) 0%,
+    var(--bronze-metallic-gradient-light) 15%,
+    var(--bronze-metallic-base) 40%,
+    var(--bronze-metallic-gradient-mid) 60%,
+    var(--bronze-metallic-gradient-dark) 85%,
+    var(--bronze-metallic-dark) 100%);
+```
+
+**Silver/Neutral Metallic Gradients:**
+```css
+--gradient-silver-raised: linear-gradient(160deg,
+    var(--silver-metallic-light) 0%,
+    var(--silver-metallic-gradient-light) 15%,
+    var(--silver-metallic-base) 40%,
+    var(--silver-metallic-gradient-mid) 60%,
+    var(--silver-metallic-gradient-dark) 85%,
+    var(--silver-metallic-dark) 100%);
+```
+
+**Copper Metallic Gradients:**
+```css
+--gradient-copper-raised: linear-gradient(160deg,
+    var(--copper-metallic-light) 0%,
+    var(--copper-metallic-gradient-light) 15%,
+    var(--copper-metallic-base) 40%,
+    var(--copper-metallic-gradient-mid) 60%,
+    var(--copper-metallic-gradient-dark) 85%,
+    var(--copper-metallic-dark) 100%);
+```
+
+**Metallic Relief Shadows:**
+```css
+/* Raised metallic shadow - for coin-like depth */
+--shadow-metallic-raised: 
+    inset 0 2px 3px rgba(255, 255, 255, 0.25),  /* Top highlight */
+    inset 0 -2px 3px rgba(0, 0, 0, 0.3),        /* Bottom shadow */
+    0 2px 4px rgba(0, 0, 0, 0.15),               /* Outer depth */
+    0 1px 2px rgba(0, 0, 0, 0.1);                /* Subtle edge */
+
+/* Engraved metallic shadow - for inlay effect */
+--shadow-metallic-engraved:
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),          /* Deep inset */
+    inset 0 -1px 2px rgba(255, 255, 255, 0.1),   /* Subtle highlight */
+    0 1px 2px rgba(0, 0, 0, 0.1);                /* Edge definition */
+
+/* Bronze-specific shadows */
+--shadow-bronze-raised: 
+    inset 0 2px 3px rgba(255, 255, 255, 0.2),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.35),
+    0 2px 4px rgba(0, 0, 0, 0.15),
+    0 1px 2px rgba(0, 0, 0, 0.1);
+
+/* Silver-specific shadows */
+--shadow-silver-raised: 
+    inset 0 2px 3px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.08);
+```
+
+#### Engraved Typography System
+
+**Engraved Font Variable:**
+```css
+/* Engraved/Classical Font - For metallic buttons and plaques */
+--font-engraved: 'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif;
+```
+
+The engraved font system uses classical serif fonts to evoke the look of inscriptions on plaques:
+- **Primary**: Playfair Display (Google Fonts) - elegant, classical serif
+- **Fallbacks**: Times New Roman, Georgia, Bodoni, Didot - web-safe serif alternatives
+- **Purpose**: Creates the appearance of engraved text on metallic surfaces
+
+#### Text Shadow System for Engraved Effect
+
+The engraved text effect uses multi-layered shadows to create depth:
+
+```css
+/* Base engraved text shadow */
+text-shadow: 
+    0 1px 2px rgba(255, 255, 255, 0.3),   /* Subtle highlight on top */
+    0 2px 4px rgba(0, 0, 0, 0.5),         /* Deep shadow for depth */
+    0 0 1px rgba(0, 0, 0, 0.8);           /* Sharp edge definition */
+
+/* Hover state - enhanced shadow */
+text-shadow: 
+    0 1px 2px rgba(255, 255, 255, 0.4),   /* Brighter highlight */
+    0 2px 4px rgba(0, 0, 0, 0.6),         /* Deeper shadow */
+    0 0 1px rgba(0, 0, 0, 0.9);           /* Sharper edge */
+```
+
+#### Button Hierarchy & Metallic Assignment
+
+| Button Type | Metallic Finish | Use Case |
+|------------|----------------|----------|
+| `.btn-primary` | Gold | Primary CTAs, main actions |
+| `.btn-secondary` | Bronze | Secondary actions, alternative choices |
+| `.btn-outline` | Gold (engraved style) | Tertiary actions, subtle CTAs |
+| `.btn-ghost` | Silver (subtle) | Minimal actions, background buttons |
+| `.cta-button` | Gold | Hero CTAs, major call-to-actions |
+| `.cta-button.secondary` | Silver | Secondary CTAs (better contrast with gold) |
+| `.connect-button` | Gold | Wallet connection actions |
+| `.submit-button` | Gold | Form submissions |
+| `.cancel-button` | Bronze | Cancel actions |
+| `.back-button` | Bronze | Navigation back |
+| `.retry-button` | Bronze | Retry/retry actions |
+| `.view-project-button` | Gold | View project actions |
+
+#### Technical Implementation
+
+**Key CSS Properties:**
+- `border-radius: var(--radius-sm)` - Sharp corners (2px) for plaque look
+- `color: var(--*-metallic-dark)` - Dark text for engraved appearance
+- `font-family: var(--font-engraved)` - Serif font for classical feel
+- `font-weight: var(--font-weight-bold)` - Bold weight for readability
+- `background: var(--gradient-*-raised)` - Metallic gradient
+- `box-shadow: var(--shadow-*-raised)` - Relief shadows
+- `text-shadow: [multi-layer]` - Engraved text depth
+
+**Hover States:**
+- Enhanced gradient with brighter highlights
+- Increased shadow depth
+- Subtle transform (`translateY(-1px)`)
+- Enhanced text shadow for deeper engraving effect
+
+**Active States:**
+- Pressed gradient (darker, more compressed)
+- Inset shadows for pressed effect
+- Reduced elevation
+- Maintained dark text color
+
+**Focus States:**
+- Metallic-colored outline (matches button finish)
+- Glow ring using metallic color with opacity
+- Maintains all base metallic properties
+
+#### Performance Considerations
+
+- **Pure CSS**: All effects use CSS gradients and shadows (no images)
+- **Hardware Acceleration**: Transitions use GPU-accelerated properties
+- **Minimal Repaints**: Shadow and gradient changes are optimized
+- **Theme-Aware**: Automatic color adaptation via CSS variables (no JS needed)
+
+**See `STYLE_GUIDE.md` for complete engraved plaque button documentation, usage examples, and best practices.**
+
+**Cross-Reference:** The engraved plaque system is designed to complement the **Marble Background System**. When used together, metallic buttons create a harmonious visual language that evokes classical architecture with gilded ornaments atop marble surfaces. See marble texture utilities in `src/core/marble.css` for background application.
+
+#### Areas for Future Enhancement
+
+The engraved plaque system is designed to be extensible and refinable. Potential areas for improvement:
+
+**Visual Refinements:**
+- **Text Shadow Depth**: Adjust shadow opacity and blur values for deeper or more subtle engraving
+- **Gradient Angles**: Experiment with different gradient angles (currently 160deg) for varied light sources
+- **Corner Sharpness**: Consider even sharper corners (1px or 0px) for more geometric plaque appearance
+- **Border Thickness**: Adjust border width for more or less defined plaque edges
+- **Metallic Sheen**: Enhance or reduce specular highlights for different polish levels
+
+**Typography Enhancements:**
+- **Letter Spacing**: Adjust letter-spacing for more classical inscription feel
+- **Font Weight Variations**: Experiment with different weights for different button sizes
+- **Text Transform**: Consider uppercase for more formal plaque appearance
+- **Font Alternatives**: Test other serif fonts (EB Garamond, Crimson Text, etc.)
+
+**Color Refinements:**
+- **Metallic Palette Tuning**: Fine-tune color values for more realistic metal appearance
+- **Contrast Optimization**: Adjust dark text colors for better readability
+- **Theme Transitions**: Smooth color transitions when switching themes
+- **Metallic Combinations**: Refine color pairings (gold/silver, bronze/copper, etc.)
+
+**Shadow & Depth:**
+- **Shadow Intensity**: Adjust shadow opacity for more or less depth
+- **Shadow Layers**: Add or remove shadow layers for different relief effects
+- **Inset Shadow Balance**: Fine-tune inset highlight vs. shadow ratio
+- **Glow Effects**: Enhance or reduce glow on hover/focus states
+
+**Animation & Interaction:**
+- **Transition Timing**: Adjust transition durations for smoother interactions
+- **Hover Effects**: Refine transform and shadow changes on hover
+- **Active Feedback**: Enhance pressed-state visual feedback
+- **Shimmer Animation**: Optional shimmer effect for premium actions
+
+**Technical Optimizations:**
+- **CSS Variable Organization**: Group related variables for easier maintenance
+- **Performance**: Optimize gradient and shadow calculations
+- **Browser Compatibility**: Ensure consistent rendering across browsers
+- **Accessibility**: Enhance contrast ratios and focus indicators
+
+**Documentation:**
+- **Visual Examples**: Add screenshots or visual references
+- **Code Snippets**: Provide more complete implementation examples
+- **Design Rationale**: Document design decisions and trade-offs
+- **Migration Guide**: Help transition existing buttons to new system
+
 ### Professional Neutrals
 
 ```css
@@ -158,8 +491,9 @@
 ### Font Families
 
 ```css
-/* Primary Font - Classical Serif (for headings, evoking inscriptions) */
---font-heading: 'Playfair Display', 'Bodoni', 'Didot', 'Times New Roman', serif;
+/* Primary Font - RedHatTextVar (Used for headings and body) */
+--font-heading: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+                'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
 
 /* Secondary Font - Modern Sans (for body, professional) */
 --font-body: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
@@ -168,9 +502,18 @@
 /* Accent Font - Art Deco / Geometric (for special elements) */
 --font-accent: 'Bebas Neue', 'Oswald', 'Montserrat', sans-serif;
 
+/* Engraved Font - Classical Serif (for metallic buttons and plaques) */
+--font-engraved: 'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif;
+
 /* Monospace - For code/data (preserved for CULT EXEC compatibility) */
 --font-mono: 'Courier New', 'Monaco', 'Consolas', monospace;
 ```
+
+**Font Usage:**
+- **`--font-heading`** / **`--font-body`**: RedHatTextVar for all standard text and headings
+- **`--font-engraved`**: Playfair Display (with Times New Roman fallback) for all metallic buttons to create classical inscription appearance
+- **`--font-accent`**: Bebas Neue for Art Deco styled elements
+- **`--font-mono`**: Courier New for code and CULT EXEC compatibility
 
 ### Type Scale (Classical Proportions - Golden Ratio ~1.618)
 
@@ -561,6 +904,13 @@ The elevation system creates depth hierarchy, like carved stone reliefs. Each le
 6. **Route Stylesheets**: All route styles updated to use design system
 7. **CULT EXEC Protection**: Complete isolation with frozen styles
 8. **Documentation**: Comprehensive style guide and documentation
+9. **Engraved Plaque Metallic System**: Complete metallic button system with gold, bronze, silver, and copper finishes
+   - Sharp corners (2px) for plaque-like appearance
+   - Darker engraved text with multi-layered shadows
+   - Serif typography (Playfair Display) for classical inscription feel
+   - All buttons across the site use metallic finishes
+   - Theme-aware with dark mode overrides
+   - Comprehensive gradient and shadow systems
 
 ### 📋 File Structure
 

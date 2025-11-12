@@ -1,0 +1,285 @@
+/* ============================================================================
+   MARBLE TEXTURE UTILITIES - RETRO N64 STYLE
+   ============================================================================
+   Lightweight, theme-aware marble background system.
+   Uses /public/marbsoft.png (512×512) with per-component control.
+   ============================================================================ */
+
+/* ============================================================================
+   SVG DISTORTION FILTER (Optional - kept inert unless enabled)
+   ============================================================================ */
+
+.marble-svg-filters {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* ============================================================================
+   BASE MARBLE LAYER UTILITY
+   ============================================================================ */
+
+/* Base layer that any container can opt into */
+.marble-bg {
+    position: relative;
+    isolation: isolate; /* ensure ::before blends only with this element */
+    overflow: hidden; /* Contain the marble texture within the element */
+}
+
+/* Ensure body has proper positioning for marble - override overflow for scrolling */
+body.marble-bg {
+    /* Use min-height: 100vh to ensure full viewport coverage */
+    min-height: 100vh;
+    position: relative;
+    /* CRITICAL: Prevent horizontal scrolling while allowing vertical */
+    overflow-x: hidden !important; /* Prevent horizontal scroll */
+    overflow-y: auto !important; /* Allow vertical scrolling */
+    /* CRITICAL: Ensure body height is determined by content, not forced beyond it */
+    height: auto;
+}
+
+/* Ensure marble ::before on body doesn't extend beyond actual content height */
+body.marble-bg::before {
+    /* CRITICAL: Use fixed positioning to remove from document flow entirely */
+    /* This prevents it from affecting body/document height calculations */
+    position: fixed !important;
+    /* CRITICAL: Cover viewport, not document */
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    /* CRITICAL: Ensure it doesn't affect document height calculations */
+    contain: layout style paint !important;
+    /* CRITICAL: Prevent transform from causing layout expansion */
+    will-change: transform;
+    /* CRITICAL: Ensure overflow is clipped */
+    overflow: hidden !important;
+    /* CRITICAL: Ensure it's behind content but doesn't affect layout */
+    z-index: -1 !important;
+}
+
+/* Disable marble on CULT EXEC page */
+body.cultexecs-active.marble-bg::before,
+body.cultexecs-active .marble-bg::before {
+    display: none !important;
+}
+
+/* Marble layer - visible when class is applied */
+.marble-bg::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    /* PNG is already transparent - use full opacity to show it as-is */
+    opacity: 1;
+    /* Use normal blend mode - PNG already has effects applied */
+    mix-blend-mode: normal;
+    background-image: url('/public/marbsoft.png');
+    background-repeat: no-repeat;
+    /* Use cover to ensure full coverage, then transform will distort it */
+    /* Since all stretch values are >= 100%, transform will only scale up (creating distortion) */
+    background-size: cover;
+    background-position: center;
+    image-rendering: pixelated; /* Retro pixelation - keep sharp by default */
+    /* Use transform-origin and ensure it stays within bounds */
+    transform-origin: center center;
+    /* Apply distortion transform - values >= 100% ensure full coverage */
+    transform: scale(
+        calc(var(--marble-stretch-x, 100) / 100),
+        calc(var(--marble-stretch-y, 100) / 100)
+    );
+    display: block;
+    /* CRITICAL: Ensure it doesn't exceed container bounds */
+    max-width: 100%;
+    max-height: 100%;
+    /* CRITICAL: Use contain to prevent pseudo-element from affecting parent height */
+    contain: layout style paint;
+    /* CRITICAL: Ensure overflow is hidden to prevent extending beyond container */
+    overflow: hidden;
+    /* Smooth transition for hover - marble moves with card */
+    transition: transform var(--duration-base) var(--ease-classic);
+    /* Apply soft blur when stretched beyond threshold (set via --marble-blur) */
+    filter: blur(var(--marble-blur, 0px));
+}
+
+/* Apply wobble filter when enabled - combine with blur */
+.marble-wobble.marble-bg::before {
+    filter: blur(var(--marble-blur, 0px)) url('#marbleWobble');
+}
+
+/* Invert marble texture in dark mode to darken instead of lighten - combine with blur */
+html[data-theme='dark'] .marble-bg::before {
+    filter: blur(var(--marble-blur, 0px)) invert(1);
+}
+
+/* If wobble is also enabled in dark mode, combine all filters */
+html[data-theme='dark'] .marble-wobble.marble-bg::before {
+    filter: blur(var(--marble-blur, 0px)) invert(1) url('#marbleWobble');
+}
+
+/* Ensure content sits above marble layer */
+.marble-bg > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* Cards should have solid background with marble overlay */
+.card.marble-bg,
+.project-card.marble-bg,
+.factory-card.marble-bg {
+    background-color: var(--bg-elevated);
+}
+
+.card.marble-bg::before,
+.project-card.marble-bg::before,
+.factory-card.marble-bg::before {
+    /* Ensure marble covers the entire card */
+    background-size: cover;
+    background-position: center;
+    /* Marble transforms with the card on hover - feels like lifting a tile */
+    transition: transform var(--duration-base) var(--ease-classic);
+}
+
+/* When card hovers, marble transforms with it - maintaining same distortion */
+/* The ::before pseudo-element is a child, so it naturally moves with parent's transform */
+/* We just need to ensure the marble's scale distortion stays consistent */
+.card.marble-bg:hover::before,
+.project-card.marble-bg:hover::before,
+.factory-card.marble-bg:hover::before {
+    /* Maintain the exact same distortion scale - no recalculation */
+    /* The parent's translateY will move both card and marble together naturally */
+    transform: scale(
+        calc(var(--marble-stretch-x, 100) / 100),
+        calc(var(--marble-stretch-y, 100) / 100)
+    );
+    /* Same transform-origin to keep distortion centered */
+    transform-origin: center center;
+}
+
+/* ============================================================================
+   SCALE TIERS (Tile Size)
+   ============================================================================ */
+
+.marble-xs {
+    --marble-scale: 128px;
+}
+
+.marble-sm {
+    --marble-scale: 192px;
+}
+
+.marble-md {
+    --marble-scale: 256px;
+}
+
+.marble-lg {
+    --marble-scale: 384px;
+}
+
+.marble-xl {
+    --marble-scale: 512px; /* default */
+}
+
+.marble-2xl {
+    --marble-scale: 768px;
+}
+
+.marble-3xl {
+    --marble-scale: 1024px;
+}
+
+/* ============================================================================
+   STRETCH PRESETS (Non-uniform Distortion)
+   ============================================================================ */
+
+.marble-stretch-x {
+    --marble-stretch-x: 160;
+    --marble-stretch-y: 80;
+}
+
+.marble-stretch-y {
+    --marble-stretch-x: 80;
+    --marble-stretch-y: 160;
+}
+
+.marble-stretch-sheer {
+    --marble-stretch-x: 180;
+    --marble-stretch-y: 120;
+}
+
+/* ============================================================================
+   POSITION JITTER (Helps avoid visible seams on siblings)
+   ============================================================================ */
+
+.marble-pos-a {
+    --marble-position-x: 0;
+    --marble-position-y: 0;
+}
+
+.marble-pos-b {
+    --marble-position-x: 25%;
+    --marble-position-y: 10%;
+}
+
+.marble-pos-c {
+    --marble-position-x: 50%;
+    --marble-position-y: 35%;
+}
+
+.marble-pos-d {
+    --marble-position-x: 75%;
+    --marble-position-y: 60%;
+}
+
+/* ============================================================================
+   OPACITY & BLEND TWEAKS
+   ============================================================================ */
+
+.marble-soft {
+    --marble-opacity: 0.30;
+}
+
+.marble-strong {
+    --marble-opacity: 0.55;
+}
+
+.marble-multiply {
+    --marble-blend: multiply;
+}
+
+.marble-overlay {
+    --marble-blend: overlay;
+}
+
+.marble-softlight {
+    --marble-blend: soft-light;
+}
+
+/* ============================================================================
+   PIXEL VIBE TOGGLE
+   ============================================================================ */
+
+.marble-pixel::before {
+    image-rendering: pixelated;
+}
+
+/* Smooth rendering alternative */
+.marble-smooth::before {
+    image-rendering: auto;
+}
+
+/* Auto-smooth rendering when blur is applied (reduces clunky pixelated artifacts) */
+.marble-smooth-render.marble-bg::before {
+    image-rendering: auto;
+}
+

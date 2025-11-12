@@ -134,39 +134,134 @@
 }
 
 .cta-button {
+    /* Use metallic button styles with engraved plaque look */
     display: inline-block;
-    padding: 0.875rem 1.75rem;
-    background: var(--accent-primary);
-    color: var(--text-inverse);
+    padding: var(--button-padding-y-md) var(--button-padding-x-lg);
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important; /* Darker text for engraved look */
     text-decoration: none;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 1rem;
-    transition: all 0.2s ease;
-    border: none;
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
+    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
+    font-size: var(--font-size-body);
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
+    transition: var(--transition-base);
+    border: 1px solid var(--gold-metallic-dark) !important;
     cursor: pointer;
     box-sizing: border-box;
     min-width: 0;
     max-width: 100%;
     word-wrap: break-word;
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
+    position: relative;
+    overflow: hidden;
 }
 
 .cta-button:hover {
-    background: var(--accent-primary-hover);
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
     transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important; /* Keep dark text */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important; /* Enhanced shadow on hover */
+}
+
+.cta-button:active {
+    transform: translateY(0);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
 }
 
 .cta-button.secondary {
-    background: var(--bg-elevated);
-    color: var(--text-primary);
-    border: 2px solid var(--border-base);
+    /* Use silver metallic for secondary actions - better contrast with gold */
+    background: var(--gradient-silver-raised) !important;
+    background-color: transparent !important;
+    color: var(--silver-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--silver-metallic-dark) !important;
+    box-shadow: var(--shadow-silver-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
 }
 
 .cta-button.secondary:hover {
-    background: var(--bg-secondary);
-    border-color: var(--border-dark);
-    box-shadow: var(--shadow-md);
+    background: linear-gradient(160deg,
+        var(--silver-metallic-sheen) 0%,
+        var(--silver-metallic-light) 15%,
+        var(--silver-metallic-base) 40%,
+        var(--silver-metallic-gradient-mid) 60%,
+        var(--silver-metallic-gradient-dark) 85%,
+        var(--silver-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.15),
+        0 2px 4px rgba(0, 0, 0, 0.12),
+        0 0 12px rgba(158, 158, 158, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--silver-metallic-base) !important;
+    color: var(--silver-metallic-dark) !important; /* Keep dark text */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
+}
+
+.cta-button.secondary:active {
+    transform: translateY(0);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--silver-metallic-base) 0%,
+        var(--silver-metallic-gradient-mid) 50%,
+        var(--silver-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+}
+
+.cta-button:focus-visible {
+    outline: 2px solid var(--gold-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
+}
+
+.cta-button.secondary:focus-visible {
+    outline: 2px solid var(--silver-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-silver-raised),
+        0 0 0 4px rgba(158, 158, 158, 0.2) !important;
 }
 
 /* How It Works Steps */
@@ -292,13 +387,19 @@
 }
 
 .requirement-note {
-    background: var(--warning-100, rgba(255, 243, 205, 0.5));
+    background: var(--warning-50, rgba(255, 243, 205, 0.5));
     border-left: 4px solid var(--warning-500, #ffc107);
     padding: 1.5rem;
     border-radius: 6px;
     margin: 2rem 0;
     font-weight: 500;
     color: var(--warning-700, #856404);
+}
+
+/* Dark mode adjustments for requirement note */
+html[data-theme='dark'] .requirement-note {
+    background: rgba(255, 193, 7, 0.15);
+    color: var(--warning-100, #ffecb3);
 }
 
 /* Community Section */
@@ -514,12 +615,18 @@
 }
 
 .contract-types-note {
-    background: var(--info-100, rgba(231, 243, 255, 0.5));
+    background: var(--info-50, rgba(231, 243, 255, 0.5));
     border-left: 4px solid var(--info-500, #0d6efd);
     padding: 1.5rem;
     border-radius: 6px;
     margin: 2rem 0;
     color: var(--info-700, #0a58ca);
+}
+
+/* Dark mode adjustments for notes */
+html[data-theme='dark'] .contract-types-note {
+    background: rgba(13, 110, 253, 0.15);
+    color: var(--info-100, #bbdefb);
 }
 
 /* Feature Matrix Section */
@@ -540,32 +647,34 @@
 }
 
 .feature-item {
-    background: #ffffff;
+    background: var(--bg-elevated);
     border-radius: 8px;
     padding: 1.5rem;
-    border: 1px solid #e9ecef;
+    border: 1px solid var(--border-base);
     transition: all 0.2s ease;
     position: relative;
     padding-bottom: 3rem;
+    color: var(--text-primary);
 }
 
 .feature-item:hover {
     transform: translateY(-2px);
-    background: #f8f9fa;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border-color: #dee2e6;
+    background: var(--bg-secondary);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-dark);
 }
 
 .feature-item h3 {
     margin-top: 0;
     margin-bottom: 0.75rem;
     font-size: 1.2rem;
+    color: var(--text-primary);
 }
 
 .feature-item p {
     margin-bottom: 0;
     font-size: 0.95rem;
-    color: #495057;
+    color: var(--text-secondary);
 }
 
 .feature-badge {
@@ -596,12 +705,18 @@
 }
 
 .feature-matrix-note {
-    background: var(--warning-100, rgba(255, 243, 205, 0.5));
+    background: var(--warning-50, rgba(255, 243, 205, 0.5));
     border-left: 4px solid var(--warning-500, #ffc107);
     padding: 1.5rem;
     border-radius: 6px;
     margin: 2rem 0;
     color: var(--warning-700, #856404);
+}
+
+/* Dark mode adjustments for notes */
+html[data-theme='dark'] .feature-matrix-note {
+    background: rgba(255, 193, 7, 0.15);
+    color: var(--warning-100, #ffecb3);
 }
 
 /* Factory Application Process */
@@ -662,7 +777,7 @@
     position: fixed;
     top: 1rem;
     left: 1rem;
-    z-index: 1001;
+    z-index: 1002; /* Above overlay (999), buttons (1000), navbar (1001), but below sidebar (1003) */
     background: var(--accent-primary);
     color: var(--text-inverse);
     border: none;
@@ -672,7 +787,22 @@
     font-size: 1.5rem;
     line-height: 1;
     box-shadow: var(--shadow-md);
-    transition: all 0.2s ease;
+    transition: all 0.2s ease, z-index 0s; /* z-index transition should be instant */
+    pointer-events: auto !important;
+    /* Ensure hamburger is always clickable */
+    touch-action: manipulation; /* Improve touch responsiveness on mobile */
+}
+
+/* When sidebar is active, hamburger should be behind it */
+/* Use :has() selector to detect when sidebar is active */
+.documentation:has(.doc-sidebar.active) .doc-menu-toggle {
+    z-index: 998 !important; /* Behind sidebar (1003) but still above overlay (999) */
+}
+
+/* Fallback for browsers that don't support :has() - use body class or direct sibling */
+body:has(.doc-sidebar.active) .doc-menu-toggle,
+.doc-sidebar.active ~ * .doc-menu-toggle {
+    z-index: 998 !important;
 }
 
 .doc-menu-toggle:hover {
@@ -685,22 +815,78 @@
     transform: translateY(0);
 }
 
-/* Sidebar Overlay (Mobile) */
+/* Ensure navbar stays above overlay and is not darkened */
+#app-top-container {
+    position: relative;
+    z-index: 1001 !important; /* Above overlay (999), below sidebar (1003) */
+    isolation: isolate; /* Create new stacking context */
+    background: var(--bg-primary) !important; /* Ensure navbar has solid opaque background */
+}
+
+/* Ensure all interactive elements in navbar are clickable */
+#app-top-container * {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
+}
+
+/* Sidebar Overlay (Mobile) - Only darkens content area, not navbar */
 .doc-sidebar-overlay {
     display: none;
     position: fixed;
-    top: 0;
+    /* Position overlay to start below navbar - top position set dynamically via JS */
+    top: 0; /* Will be overridden by JavaScript to start below navbar */
     left: 0;
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 999;
+    z-index: 999; /* Below navbar (1001), buttons (1000), hamburger (1002), and sidebar (1003) */
     opacity: 0;
     transition: opacity 0.3s ease;
+    /* CRITICAL: Use pointer-events: none so overlay doesn't block clicks on elements above it */
+    /* We'll handle overlay clicks via event delegation in JavaScript */
+    pointer-events: none;
+    /* clip-path will be set dynamically via JS to exclude hamburger and sidebar */
+    clip-path: none;
+    /* CRITICAL FIX: Use 100% instead of 100vw to avoid scrollbar width issues */
+    max-width: 100%;
+    max-height: 100vh;
+    width: 100%;
+    box-sizing: border-box;
+    /* Ensure overlay doesn't cause document overflow */
+    contain: layout style paint;
 }
 
 .doc-sidebar-overlay.active {
     opacity: 1;
+    display: block;
+    /* When active, we still use pointer-events: none to allow clicks through to elements above */
+    /* JavaScript will handle detecting clicks on the overlay area */
+    pointer-events: none;
+}
+
+/* Ensure buttons throughout the page are clickable above overlay */
+/* Since overlay now has pointer-events: none, buttons will work normally */
+.documentation button:not(.doc-nav-link):not(.doc-menu-toggle),
+.documentation .cta-button,
+.documentation a.button,
+.documentation a[role="button"],
+.documentation .hero-cta .cta-button,
+.documentation .how-it-works-steps button,
+.documentation .requirements-grid button {
+    position: relative !important;
+    z-index: 1000 !important; /* Above overlay (999), below hamburger (1002) and sidebar (1003) */
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Ensure parent containers of buttons also participate in stacking */
+.documentation .hero-cta,
+.documentation .how-it-works-steps,
+.documentation .requirements-grid,
+.documentation .doc-content {
+    position: relative;
+    z-index: 1; /* Create stacking context so children with z-index 1000 can be above overlay */
 }
 
 /* Responsive Design */
@@ -718,35 +904,61 @@
     .doc-sidebar {
         position: fixed;
         top: 0;
-        left: -280px; /* Hidden by default */
+        /* CRITICAL FIX: Use negative left when hidden to prevent browser calculating right edge */
+        /* This prevents the browser from calculating a right edge that causes horizontal overflow */
+        left: -280px; /* Start completely off-screen to the left */
         width: 280px;
+        max-width: 280px; /* Prevent expansion */
+        min-width: 280px; /* Prevent shrinking */
         height: 100vh;
         max-height: 100vh;
-        z-index: 1000;
+        z-index: 1003; /* Highest: Above overlay (999), buttons (1000), navbar (1001), and hamburger (1002) */
         background: var(--bg-primary);
         box-shadow: var(--shadow-lg);
         transition: left 0.3s ease;
         overflow-y: auto;
+        overflow-x: hidden; /* Prevent horizontal scroll in sidebar */
         padding: 1rem;
         box-sizing: border-box;
+        /* Ensure sidebar creates its own stacking context and doesn't affect document width */
+        isolation: isolate;
+        contain: layout style paint;
+        will-change: left;
+        /* CRITICAL: When hidden (left: -280px), sidebar is completely off-screen */
+        /* This prevents it from contributing to document width calculations */
     }
     
     .doc-sidebar.active {
-        left: 0;
+        left: 0 !important; /* Slide into view from the left */
+        z-index: 1003 !important; /* Ensure it stays above everything when active */
+        /* When active, ensure it doesn't exceed viewport */
+        /* CRITICAL: Use 100% instead of 100vw to avoid scrollbar width issues */
+        max-width: min(280px, 100%);
     }
+    
+    /* Position overlay to start below navbar on mobile */
+    /* Top position is set dynamically via JavaScript to start below navbar */
+    /* This ensures navbar is never darkened by the overlay */
     
     .doc-nav {
         flex-direction: column;
         flex-wrap: nowrap;
-        overflow-x: visible;
+        overflow-x: hidden; /* Prevent horizontal overflow */
         overflow-y: auto;
         padding: 1rem;
         height: 100%;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
     
     .doc-nav-link {
         white-space: normal;
         width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
     .doc-sidebar-overlay {

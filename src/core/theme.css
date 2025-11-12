@@ -5,14 +5,59 @@
    ============================================================================ */
 
 .theme-toggle-wrapper {
-    position: fixed;
-    top: var(--spacing-5);
-    right: var(--spacing-5);
-    z-index: var(--z-theme-toggle); /* Always on top, above splash screen */
-    display: flex;
+    position: fixed !important;
+    top: var(--spacing-5) !important;
+    right: var(--spacing-5) !important;
+    z-index: var(--z-theme-toggle) !important; /* Always on top, above splash screen */
+    display: flex !important;
     align-items: center;
     justify-content: center;
     pointer-events: none; /* Allow clicks to pass through wrapper */
+    /* Ensure it stays within viewport bounds and doesn't cause overflow */
+    box-sizing: border-box;
+    max-height: 100vh;
+    /* CRITICAL: Don't use 100vw as it can cause overflow - let mobile media query handle it */
+    width: auto;
+    /* Prevent any positioning issues */
+    left: auto !important;
+    /* Ensure no padding/margin causes overflow */
+    padding: 0;
+    margin: 0;
+    /* CRITICAL: Smooth transitions for show/hide animation */
+    /* Use slower transition for fade out to make it less abrupt */
+    /* Only animate opacity and transform - visibility doesn't animate smoothly */
+    transition: opacity var(--duration-slow) var(--ease-out-classic),
+                transform var(--duration-slow) var(--ease-out-classic);
+    /* Start hidden by default, will be shown by JavaScript if at top */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px) scale(0.9);
+}
+
+/* Visible state - shown at top of page */
+.theme-toggle-wrapper.theme-toggle-visible {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) scale(1) !important;
+    pointer-events: none; /* Wrapper still allows clicks through */
+    /* Smooth fade in - faster for showing */
+    transition: opacity var(--duration-base) var(--ease-out-classic),
+                transform var(--duration-base) var(--ease-out-classic),
+                visibility 0s linear 0s; /* Show visibility immediately */
+}
+
+/* Hidden state - hidden when scrolled down */
+.theme-toggle-wrapper.theme-toggle-hidden {
+    opacity: 0 !important;
+    /* CRITICAL: Delay visibility change to allow opacity fade to complete */
+    /* Set visibility after transition completes using transition-delay */
+    visibility: hidden !important;
+    transform: translateY(-10px) scale(0.9) !important;
+    pointer-events: none;
+    /* Smooth fade out - slower for hiding */
+    transition: opacity var(--duration-slow) var(--ease-out-classic),
+                transform var(--duration-slow) var(--ease-out-classic),
+                visibility 0s linear var(--duration-slow); /* Hide visibility after fade completes */
 }
 
 /* Hide theme toggle on CULT EXEC pages - Multiple selectors for maximum specificity */
@@ -30,6 +75,19 @@ body.cultexecs-active #theme-toggle-wrapper,
 
 /* Protect toggle wrapper from being hidden or removed (only on launchpad) */
 body:not(.cultexecs-active) #theme-toggle-wrapper {
+    display: flex !important;
+    position: fixed !important;
+    top: 2.5rem !important;
+    right: var(--spacing-5) !important;
+    z-index: var(--z-theme-toggle) !important;
+    /* Ensure it's clickable - visibility/opacity controlled by scroll state */
+    pointer-events: none !important; /* Wrapper allows clicks through */
+    /* Don't force visibility here - let scroll-based classes control it */
+}
+
+/* Ensure button inside wrapper is clickable */
+body:not(.cultexecs-active) #theme-toggle-wrapper .theme-toggle {
+    pointer-events: auto !important;
     display: flex !important;
     visibility: visible !important;
     opacity: 1 !important;
@@ -104,8 +162,8 @@ body:not(.cultexecs-active) {
 /* Responsive positioning */
 @media (max-width: 768px) {
     .theme-toggle-wrapper {
-        top: var(--spacing-4);
-        right: var(--spacing-4);
+        top: var(--spacing-4) !important;
+        right: var(--spacing-4) !important;
     }
     
     .theme-toggle {
@@ -116,6 +174,67 @@ body:not(.cultexecs-active) {
     .theme-toggle svg {
         width: 18px;
         height: 18px;
+    }
+}
+
+/* Ensure theme toggle is visible and properly positioned on mobile documentation page */
+@media (max-width: 968px) {
+    .theme-toggle-wrapper {
+        /* Align with hamburger button which is at top: 1rem */
+        top: 1rem !important;
+        /* Ensure it's positioned relative to viewport, not page */
+        position: fixed !important;
+        /* CRITICAL FIX: Simple positioning - right edge 0.75rem from viewport edge */
+        /* Since wrapper is exactly 40px wide, left edge will be at viewportWidth - 0.75rem - 40px */
+        right: 0.75rem !important;
+        /* CRITICAL: Explicitly set wrapper width to button width to prevent any expansion */
+        width: 40px !important;
+        min-width: 40px !important;
+        max-width: 40px !important;
+        box-sizing: border-box !important;
+        /* CRITICAL: Prevent flex from expanding beyond 40px */
+        flex-shrink: 0 !important;
+        flex-grow: 0 !important;
+        flex-basis: 40px !important;
+        /* Prevent any positioning issues - transform controlled by scroll state */
+        left: auto !important;
+        /* Ensure no padding/margin causes overflow */
+        padding: 0 !important;
+        margin: 0 !important;
+        /* CRITICAL: Use contain to prevent any layout expansion */
+        contain: layout style size !important;
+        /* Don't use overflow: hidden as it might hide the button */
+        /* overflow: hidden !important; */
+    }
+    
+    /* Ensure animation states work on mobile too */
+    .theme-toggle-wrapper.theme-toggle-visible {
+        transform: translateY(0) scale(1) !important;
+    }
+    
+    .theme-toggle-wrapper.theme-toggle-hidden {
+        transform: translateY(-10px) scale(0.9) !important;
+    }
+    
+    .theme-toggle {
+        /* Ensure button itself doesn't cause overflow */
+        flex-shrink: 0 !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        max-width: 40px !important;
+        /* Ensure button doesn't extend beyond wrapper */
+        box-sizing: border-box !important;
+        /* CRITICAL: Ensure button right edge doesn't exceed viewport */
+        margin: 0 !important;
+        padding: var(--spacing-2) !important; /* Keep padding for visual spacing */
+        /* Ensure button is exactly 40px including padding */
+        /* padding is 0.5rem = 8px, so content area is 40px - 16px = 24px for icon */
+    }
+    
+    /* Make sure theme toggle is above sidebar when sidebar is open */
+    body:has(.doc-sidebar.active) .theme-toggle-wrapper {
+        z-index: 1004 !important; /* Above sidebar (1003) */
     }
 }
 

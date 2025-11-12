@@ -527,7 +527,7 @@ export class ProjectDiscovery extends Component {
         const cardTopBarStyle = cardImage ? `style="background-image: url('${cardImage}'); background-size: cover; background-position: center; background-repeat: no-repeat;"` : '';
 
         return `
-            <div class="project-card ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
+            <div class="project-card marble-bg marble-stretch-sheer ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
                 <div class="card-top-bar ${isFeatured ? 'has-background-image' : ''}" ${cardTopBarStyle}>
                     <div class="card-top-left">
                         ${audited ? '<div class="audit-badge-top">✓ Audited</div>' : ''}

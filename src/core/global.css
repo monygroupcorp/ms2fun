@@ -69,6 +69,46 @@
     --bronze-dark: #a66d28;
     --copper: #b87333;
 
+    /* ========================================================================
+       METALLIC PALETTES (For metallic button finishes)
+       ======================================================================== */
+    
+    /* Gold Metallic - Primary actions, CTAs */
+    --gold-metallic-base: #c9a442;          /* Rich gold base */
+    --gold-metallic-light: #f8e7b9;          /* Bright highlight */
+    --gold-metallic-dark: #7d6221;           /* Deep shadow */
+    --gold-metallic-sheen: #fff8dc;          /* Specular highlight */
+    --gold-metallic-gradient-light: #f5e6b8;  /* Top highlight */
+    --gold-metallic-gradient-mid: #d4af37;    /* Mid-tone */
+    --gold-metallic-gradient-dark: #8b6f2a;   /* Bottom shadow */
+    
+    /* Bronze Metallic - Secondary actions */
+    --bronze-metallic-base: #cd7f32;         /* Classic bronze */
+    --bronze-metallic-light: #e8b882;        /* Light bronze highlight */
+    --bronze-metallic-dark: #8b5a2a;         /* Deep bronze shadow */
+    --bronze-metallic-sheen: #f5d4a8;         /* Bronze specular */
+    --bronze-metallic-gradient-light: #e0a870; /* Top highlight */
+    --bronze-metallic-gradient-mid: #cd7f32;   /* Mid-tone */
+    --bronze-metallic-gradient-dark: #9d6a2a;  /* Bottom shadow */
+    
+    /* Silver/Neutral Metallic - Tertiary actions, subtle buttons */
+    --silver-metallic-base: #9e9e9e;         /* Neutral gray base */
+    --silver-metallic-light: #e0e0e0;         /* Light silver highlight */
+    --silver-metallic-dark: #616161;          /* Deep gray shadow */
+    --silver-metallic-sheen: #f5f5f5;         /* Silver specular */
+    --silver-metallic-gradient-light: #d4d4d4; /* Top highlight */
+    --silver-metallic-gradient-mid: #9e9e9e;    /* Mid-tone */
+    --silver-metallic-gradient-dark: #757575;   /* Bottom shadow */
+    
+    /* Copper Metallic - Accent actions */
+    --copper-metallic-base: #b87333;         /* Classic copper */
+    --copper-metallic-light: #d4a574;         /* Light copper highlight */
+    --copper-metallic-dark: #8b5a2a;         /* Deep copper shadow */
+    --copper-metallic-sheen: #e8c9a3;         /* Copper specular */
+    --copper-metallic-gradient-light: #c99d6a; /* Top highlight */
+    --copper-metallic-gradient-mid: #b87333;   /* Mid-tone */
+    --copper-metallic-gradient-dark: #9d6a2a;  /* Bottom shadow */
+
     /* Art Deco Colors */
     --deco-black: #1a1a1a;
     --deco-charcoal: #2d2d2d;
@@ -154,6 +194,8 @@
                  'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
     --font-accent: 'Bebas Neue', 'Oswald', 'Montserrat', sans-serif;
     --font-mono: 'Courier New', 'Monaco', 'Consolas', monospace;
+    /* Engraved/Classical Font - For metallic buttons and plaques */
+    --font-engraved: 'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif;
 
     /* Type Scale */
     --font-size-display-1: 4.5rem;
@@ -337,6 +379,80 @@
                     inset 0 1px 2px 0 rgba(26, 26, 26, 0.04);
     
     /* ========================================================================
+       METALLIC GRADIENT & RELIEF UTILITIES
+       ======================================================================== */
+    
+    /* Gold Metallic Gradients */
+    --gradient-metallic-raised: linear-gradient(160deg,
+        var(--gold-metallic-light) 0%,
+        var(--gold-metallic-gradient-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%);
+    
+    --gradient-metallic-engraved: linear-gradient(160deg,
+        var(--gold-metallic-dark) 0%,
+        var(--gold-metallic-gradient-dark) 30%,
+        var(--gold-metallic-base) 50%,
+        var(--gold-metallic-gradient-mid) 70%,
+        var(--gold-metallic-light) 100%);
+    
+    /* Bronze Metallic Gradients */
+    --gradient-bronze-raised: linear-gradient(160deg,
+        var(--bronze-metallic-light) 0%,
+        var(--bronze-metallic-gradient-light) 15%,
+        var(--bronze-metallic-base) 40%,
+        var(--bronze-metallic-gradient-mid) 60%,
+        var(--bronze-metallic-gradient-dark) 85%,
+        var(--bronze-metallic-dark) 100%);
+    
+    /* Silver/Neutral Metallic Gradients */
+    --gradient-silver-raised: linear-gradient(160deg,
+        var(--silver-metallic-light) 0%,
+        var(--silver-metallic-gradient-light) 15%,
+        var(--silver-metallic-base) 40%,
+        var(--silver-metallic-gradient-mid) 60%,
+        var(--silver-metallic-gradient-dark) 85%,
+        var(--silver-metallic-dark) 100%);
+    
+    /* Copper Metallic Gradients */
+    --gradient-copper-raised: linear-gradient(160deg,
+        var(--copper-metallic-light) 0%,
+        var(--copper-metallic-gradient-light) 15%,
+        var(--copper-metallic-base) 40%,
+        var(--copper-metallic-gradient-mid) 60%,
+        var(--copper-metallic-gradient-dark) 85%,
+        var(--copper-metallic-dark) 100%);
+    
+    /* Metallic relief shadows - for raised effect (works with any metallic color) */
+    --shadow-metallic-raised: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    
+    /* Metallic relief shadows - for engraved effect */
+    --shadow-metallic-engraved:
+        inset 0 2px 4px rgba(0, 0, 0, 0.4),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.1),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    
+    /* Bronze-specific shadows */
+    --shadow-bronze-raised: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.2),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.35),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    
+    /* Silver-specific shadows */
+    --shadow-silver-raised: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 2px 4px rgba(0, 0, 0, 0.12),
+        0 1px 2px rgba(0, 0, 0, 0.08);
+    
+    /* ========================================================================
        ELEVATION TRANSITIONS
        ======================================================================== */
     
@@ -463,6 +579,164 @@ body:not(.cultexecs-active) {
     line-height: var(--line-height-normal);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Prevent horizontal scrolling on mobile */
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+    /* Ensure body doesn't exceed viewport */
+    box-sizing: border-box;
+}
+
+/* Ensure html doesn't cause overflow */
+html {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Override marble-bg overflow for horizontal scroll prevention */
+body.marble-bg {
+    overflow-x: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: relative;
+}
+
+/* Ensure html and body never exceed viewport */
+html, body {
+    overflow-x: hidden !important;
+    /* CRITICAL: Also hide scrollbar to prevent visual scrollbar from appearing */
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE/Edge */
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    /* CRITICAL: Ensure no padding/margin causes overflow */
+    margin: 0;
+    padding: 0;
+}
+
+/* Hide scrollbar for webkit browsers */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+/* Ensure html element specifically doesn't exceed viewport */
+html {
+    /* Prevent any scrollbar from causing width calculations */
+    overflow-x: hidden !important;
+    /* Use 100% instead of 100vw to avoid scrollbar width issues */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Body should be 100% of html, not 100vw (to avoid scrollbar width issues) */
+body {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Ensure all containers respect viewport width */
+#app-container,
+#app-top-container,
+#app-bottom-container {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    position: relative;
+    /* CRITICAL: Ensure containers don't cause overflow */
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Ensure documentation page doesn't cause overflow */
+.documentation {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    position: relative;
+}
+
+.documentation .doc-container {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Prevent fixed and absolute positioned elements from causing horizontal scroll */
+[style*="position: fixed"],
+[style*="position: absolute"],
+.position-fixed,
+.position-absolute {
+    /* Use 100% instead of 100vw to avoid scrollbar width issues */
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+/* Specifically target theme toggle wrapper to ensure it stays within viewport */
+.theme-toggle-wrapper {
+    /* CRITICAL: Don't use 100vw as it includes scrollbar width - use percentage or explicit constraint */
+    /* The wrapper should never exceed viewport width minus spacing */
+    box-sizing: border-box;
+    /* Ensure no padding/margin causes overflow */
+    padding: 0;
+    margin: 0;
+}
+
+/* Mobile-specific constraint for theme toggle wrapper */
+@media (max-width: 968px) {
+    .theme-toggle-wrapper {
+        /* On mobile, wrapper is exactly button width (40px) */
+        /* Positioned with right: 0.75rem, so it should never exceed viewport */
+        /* CRITICAL: Explicit width prevents any flex expansion */
+        max-width: 40px !important;
+        width: 40px !important;
+        min-width: 40px !important;
+        /* CRITICAL: Ensure wrapper never causes document to be wider than viewport */
+        /* Use contain to isolate layout calculations */
+        contain: layout style size !important;
+        /* CRITICAL: Ensure right edge calculation doesn't cause overflow */
+        /* If viewport is very narrow (< 40px + 0.75rem), button might overflow */
+        /* But that's an edge case - normal mobile viewports are at least 320px */
+    }
+}
+
+/* Ensure sidebar doesn't cause document width calculations when hidden */
+.doc-sidebar {
+    /* When sidebar is off-screen, ensure it doesn't affect document width */
+    contain: layout style;
+}
+
+@media (max-width: 968px) {
+    .doc-sidebar {
+        /* When using transform to hide, ensure it doesn't affect layout */
+        contain: layout style paint;
+        /* Ensure sidebar doesn't cause document to be wider than viewport */
+        will-change: transform;
+    }
+    
+    .doc-sidebar:not(.active) {
+        /* When hidden, ensure it doesn't contribute to document width */
+        /* Transform already handles visual hiding, but ensure layout containment */
+        visibility: visible; /* Keep visible for transform to work */
+        pointer-events: none; /* But don't allow interaction */
+    }
+}
+
+/* Ensure all block-level elements use border-box */
+*, *::before, *::after {
+    box-sizing: border-box;
 }
 
 /* ============================================================================
@@ -695,33 +969,70 @@ body:not(.cultexecs-active) [role="button"]:focus-visible {
     max-width: var(--container-md);
     margin: var(--spacing-4) auto;
     padding: var(--spacing-3) var(--spacing-6);
-    background-color: var(--accent-primary);
-    color: var(--text-inverse);
-    border: none;
-    border-radius: var(--radius-md);
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--gold-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
     font-weight: var(--font-weight-bold);
     font-size: var(--font-size-body);
+    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
     cursor: pointer;
     text-transform: uppercase;
     letter-spacing: var(--letter-spacing-wide);
     transition: var(--transition-base);
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
+    position: relative;
+    overflow: hidden;
 }
 
 .connect-button:hover {
-    background-color: var(--accent-primary-hover);
-    box-shadow: var(--shadow-lg);
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
     transform: translateY(-1px);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important; /* Keep dark text */
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
 .connect-button:active {
     transform: translateY(0);
-    box-shadow: var(--shadow-md);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
 }
 
 .connect-button:focus {
-    outline: 2px solid var(--accent-primary);
+    outline: 2px solid var(--gold-metallic-base);
     outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
 }
 
 .button-text {
@@ -858,6 +1169,46 @@ html[data-theme="dark"] body:not(.cultexecs-active) {
                      0 1px 2px rgba(0, 0, 0, 0.3);
 
     /* ========================================================================
+       METALLIC PALETTES (Dark Theme - Cooler, adjusted for dark marble)
+       ======================================================================== */
+    
+    /* Gold Metallic (Dark Theme) */
+    --gold-metallic-base: #b48b2c;          /* Slightly cooler, less bright */
+    --gold-metallic-light: #e0ca88;          /* Softer highlight */
+    --gold-metallic-dark: #3a2b12;           /* Deeper shadow */
+    --gold-metallic-sheen: #fff8d1;          /* Subtle specular */
+    --gold-metallic-gradient-light: #d4b87a;  /* Muted highlight */
+    --gold-metallic-gradient-mid: #b48b2c;    /* Cooler mid-tone */
+    --gold-metallic-gradient-dark: #5a4218;   /* Deep shadow */
+    
+    /* Bronze Metallic (Dark Theme) */
+    --bronze-metallic-base: #b87333;         /* Warmer bronze */
+    --bronze-metallic-light: #d4a574;       /* Softer highlight */
+    --bronze-metallic-dark: #5a3a1a;         /* Deeper shadow */
+    --bronze-metallic-sheen: #e8c9a3;        /* Subtle specular */
+    --bronze-metallic-gradient-light: #c99d6a; /* Muted highlight */
+    --bronze-metallic-gradient-mid: #b87333;  /* Mid-tone */
+    --bronze-metallic-gradient-dark: #6b4a1a; /* Deep shadow */
+    
+    /* Silver/Neutral Metallic (Dark Theme) */
+    --silver-metallic-base: #b0b0b0;         /* Lighter gray */
+    --silver-metallic-light: #e8e8e8;        /* Brighter highlight */
+    --silver-metallic-dark: #4a4a4a;         /* Deeper shadow */
+    --silver-metallic-sheen: #f5f5f5;         /* Subtle specular */
+    --silver-metallic-gradient-light: #d4d4d4; /* Muted highlight */
+    --silver-metallic-gradient-mid: #b0b0b0;   /* Mid-tone */
+    --silver-metallic-gradient-dark: #6b6b6b;  /* Deep shadow */
+    
+    /* Copper Metallic (Dark Theme) */
+    --copper-metallic-base: #c98a4a;         /* Warmer copper */
+    --copper-metallic-light: #e0b882;        /* Softer highlight */
+    --copper-metallic-dark: #5a3a1a;         /* Deeper shadow */
+    --copper-metallic-sheen: #f0d4a8;         /* Subtle specular */
+    --copper-metallic-gradient-light: #d4a870; /* Muted highlight */
+    --copper-metallic-gradient-mid: #c98a4a;   /* Mid-tone */
+    --copper-metallic-gradient-dark: #7a5a2a; /* Deep shadow */
+
+    /* ========================================================================
        MODAL BACKDROP (Dark Theme)
        ======================================================================== */
     
@@ -932,4 +1283,42 @@ html[data-theme="dark"] body:not(.cultexecs-active) {
 
         --modal-backdrop: rgba(0, 0, 0, 0.85);
     }
+}
+
+/* ============================================================================
+   MARBLE TEXTURE DEFAULTS (Append - Feature Branch)
+   ============================================================================ */
+
+:root {
+    /* Base switch - set to 1 to enable marble textures globally */
+    --marble-enabled: 1;                   /* 0 = off, 1 = on */
+
+    /* Source */
+    --marble-src: url('/public/marbsoft.png');
+
+    /* Visual tuning */
+    --marble-opacity: 1;                   /* PNG is already semi-transparent, use full opacity */
+    --marble-blend: normal;                /* Use normal - PNG already has effects */
+
+    /* Scale controls (per element override allowed) */
+    --marble-scale: 512px;                 /* base tile size */
+    --marble-stretch-x: 100;               /* non-uniform stretch (percentage) */
+    --marble-stretch-y: 100;
+
+    /* Retro vibe */
+    --marble-pixelate: 1;                  /* 1 = pixelated rendering hint */
+
+    /* Blur (auto-applied when stretched beyond threshold) */
+    --marble-blur: 0px;                    /* Soft blur to smooth artifacts when over-stretched */
+
+    /* Distortion (optional SVG filter hook) */
+    --marble-wobble-enabled: 0;            /* 1 = apply filter */
+    --marble-wobble-id: url('#marbleWobble');
+}
+
+/* Dark theme adjustments - marble works with both themes since PNG is transparent */
+html[data-theme='dark'] {
+    /* No changes needed - transparent PNG works with both themes */
+    --marble-opacity: 1;
+    --marble-blend: normal;
 }

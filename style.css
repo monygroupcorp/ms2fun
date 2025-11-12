@@ -462,3 +462,39 @@
         transition-duration: 0.01ms !important;
 }
 }
+
+/* ============================================================================
+   DEMO — MARBLE TEXTURE SYSTEM (REMOVE BEFORE MERGE)
+   ============================================================================
+   This section demonstrates the marble texture utilities.
+   To enable marble textures, set --marble-enabled: 1 in global.css or here.
+   ============================================================================ */
+
+/* Enable marble textures for demo (comment out to disable) */
+/* :root {
+    --marble-enabled: 1;
+} */
+
+/* Demo: Body/background using marble */
+/* body.marble-bg {
+    --marble-scale: 512px;
+} */
+/* Example: <body class="marble-bg marble-xl marble-soft marble-overlay marble-pos-a"> */
+
+/* Demo: Cards using marble */
+/* .card.marble-bg {
+    --marble-scale: 192px;
+} */
+/* Example: <div class="card marble-bg marble-sm marble-stretch-x marble-multiply marble-pos-b"> */
+
+/* Demo: Modals using marble */
+/* .modal.marble-bg {
+    --marble-scale: 256px;
+} */
+/* Example: <div class="modal marble-bg marble-md marble-soft marble-overlay marble-pos-d"> */
+
+/* Demo: Headings or containers using marble */
+/* .hero.marble-bg {
+    --marble-scale: 768px;
+} */
+/* Example: <section class="hero marble-bg marble-2xl marble-stretch-y marble-softlight marble-pos-c"> */

@@ -149,12 +149,27 @@ index.html
 ### Font Families
 
 ```css
-/* Primary Font - RedHatTextVar (Used for everything) */
---font-heading: 'RedHatTextVar', sans-serif;
---font-body: 'RedHatTextVar', sans-serif;
---font-accent: 'Bebas Neue', 'Oswald', sans-serif;  /* Art Deco accent */
---font-mono: 'Courier New', 'Monaco', monospace;
+/* Primary Font - RedHatTextVar (Used for headings and body) */
+--font-heading: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+                'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+--font-body: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
+             'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+
+/* Accent Font - Art Deco / Geometric */
+--font-accent: 'Bebas Neue', 'Oswald', 'Montserrat', sans-serif;
+
+/* Engraved Font - Classical Serif (for metallic buttons and plaques) */
+--font-engraved: 'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif;
+
+/* Monospace - For code/data */
+--font-mono: 'Courier New', 'Monaco', 'Consolas', monospace;
 ```
+
+**Font Usage:**
+- **`--font-heading`** / **`--font-body`**: RedHatTextVar for all standard text and headings
+- **`--font-engraved`**: Playfair Display (with Times New Roman fallback) for all metallic buttons - creates classical inscription appearance
+- **`--font-accent`**: Bebas Neue for Art Deco styled elements
+- **`--font-mono`**: Courier New for code and CULT EXEC compatibility
 
 ### Type Scale
 
@@ -339,6 +354,454 @@ The elevation system creates depth hierarchy, like carved stone reliefs. Each le
 - **Active**: Elevation 1
 - **Focus**: Gold outline (2px solid, 2px offset)
 - **Disabled**: 60% opacity, no pointer events
+
+#### Engraved Plaque Metallic Buttons (Marble Update)
+
+**Status: ✅ IMPLEMENTED** - Comprehensive metallic visual language for all buttons that evokes **engraved gold plaques** — classical, elegant, and performant.
+
+All buttons across the site now use the engraved plaque aesthetic with sharp corners, darker engraved text, serif typography, and sophisticated metallic finishes. The system provides different metallic finishes (gold, bronze, silver, copper) based on button hierarchy and role.
+
+##### Design Philosophy
+
+The engraved plaque system creates buttons that look like **engraved metallic plaques** found in classical architecture:
+- **Sharp, crisp edges** (2px border-radius) like cut metal
+- **Darker text** that appears carved into the surface
+- **Serif typography** (Playfair Display) evoking classical inscriptions
+- **Multi-layered shadows** creating deep engraved depth
+- **Metallic gradients** simulating polished metal surfaces
+
+##### Core Visual Characteristics
+
+**1. Sharp Corners**
+- All metallic buttons use `var(--radius-sm)` (2px) for crisp, plaque-like edges
+- Creates geometric precision reminiscent of cut metal plaques
+- No rounded corners that would soften the engraved effect
+
+**2. Darker Engraved Text**
+- Text uses dark metallic colors (`--*-metallic-dark`) instead of light sheen colors
+- Simulates text carved into the metal surface
+- Creates strong contrast and readability
+- Examples:
+  - Gold buttons: `var(--gold-metallic-dark)` (#7d6221)
+  - Bronze buttons: `var(--bronze-metallic-dark)` (#8b5a2a)
+  - Silver buttons: `var(--silver-metallic-dark)` (#616161)
+
+**3. Serif Typography**
+- All metallic buttons use `var(--font-engraved)`
+- Font stack: `'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif`
+- Creates classical inscription appearance
+- Bold weight (`var(--font-weight-bold)`) for plaque readability
+
+**4. Enhanced Text Shadows**
+- Multi-layered shadows create deep engraved effect:
+  ```css
+  text-shadow: 
+      0 1px 2px rgba(255, 255, 255, 0.3),   /* Subtle highlight on top */
+      0 2px 4px rgba(0, 0, 0, 0.5),         /* Deep shadow for depth */
+      0 0 1px rgba(0, 0, 0, 0.8);           /* Sharp edge definition */
+  ```
+- Hover state enhances shadows for deeper engraving effect
+
+**5. Metallic Gradients**
+- Sophisticated gradients simulate metal depth and light reflection
+- 160-degree angle creates natural light source from top-left
+- Multiple gradient stops create smooth metallic transitions
+- Each metallic type has its own gradient system
+
+**6. Relief Shadows**
+- Inset highlights and shadows create 3D depth
+- Outer shadows add elevation
+- Different shadow systems for each metallic type
+
+##### Metallic Finishes & Button Hierarchy
+
+**Gold Metallic** - Primary Actions, CTAs:
+- Used for: `.btn-primary`, `.cta-button`, `.connect-button`, `.submit-button`, `.view-project-button`
+- Gradient: `var(--gradient-metallic-raised)`
+- Shadow: `var(--shadow-metallic-raised)`
+- Text: `var(--gold-metallic-dark)`
+- Best for: Main actions, hero CTAs, important buttons
+
+**Bronze Metallic** - Secondary Actions:
+- Used for: `.btn-secondary`, `.cancel-button`, `.back-button`, `.retry-button`
+- Gradient: `var(--gradient-bronze-raised)`
+- Shadow: `var(--shadow-bronze-raised)`
+- Text: `var(--bronze-metallic-dark)`
+- Best for: Alternative actions, navigation, cancel operations
+
+**Silver Metallic** - Tertiary Actions, Subtle Buttons:
+- Used for: `.btn-ghost`, `.cta-button.secondary`
+- Gradient: `var(--gradient-silver-raised)`
+- Shadow: `var(--shadow-silver-raised)`
+- Text: `var(--silver-metallic-dark)`
+- Best for: Subtle actions, secondary CTAs (when paired with gold for better contrast)
+
+**Copper Metallic** - Accent Actions:
+- Available for: Custom accent buttons
+- Gradient: `var(--gradient-copper-raised)`
+- Shadow: Similar to bronze
+- Text: `var(--copper-metallic-dark)`
+- Best for: Special accent actions, featured elements
+
+##### Button Variants
+
+**Primary Button (Gold):**
+```html
+<button class="btn btn-primary">Primary Action</button>
+```
+
+**Secondary Button (Bronze):**
+```html
+<button class="btn btn-secondary">Secondary Action</button>
+```
+
+**Outline Button (Gold, Engraved Style):**
+```html
+<button class="btn btn-outline">Tertiary Action</button>
+```
+
+**Ghost Button (Silver, Subtle):**
+```html
+<button class="btn btn-ghost">Subtle Action</button>
+```
+
+**CTA Buttons:**
+```html
+<!-- Primary CTA (Gold) -->
+<a href="/" class="cta-button">Get Started</a>
+
+<!-- Secondary CTA (Silver - better contrast with gold) -->
+<a href="/factories" class="cta-button secondary">Explore Factories</a>
+```
+
+##### Button States
+
+**Base State:**
+- Metallic gradient background
+- Dark engraved text with multi-layer shadows
+- Sharp corners (2px)
+- Serif font, bold weight
+- Relief shadows for depth
+
+**Hover State:**
+- Enhanced gradient with brighter highlights
+- Increased shadow depth
+- Subtle transform (`translateY(-1px)`)
+- Enhanced text shadow for deeper engraving
+- Glow effect using metallic color
+
+**Active State:**
+- Pressed gradient (darker, more compressed)
+- Inset shadows for pressed effect
+- Reduced elevation
+- Maintained dark text color
+- Transform returns to `translateY(0)`
+
+**Focus State:**
+- Metallic-colored outline (matches button finish)
+- Glow ring using metallic color with opacity
+- Maintains all base metallic properties
+- Accessible focus indicator
+
+**Disabled State:**
+- Silver metallic finish (neutral)
+- 60% opacity
+- No pointer events
+- Maintains engraved appearance
+
+##### Complete Button State Example
+
+```css
+/* Base State */
+.btn-primary {
+    background: var(--gradient-metallic-raised) !important;
+    color: var(--gold-metallic-dark) !important;
+    border: 1px solid var(--gold-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-engraved) !important;
+    font-weight: var(--font-weight-bold) !important;
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Hover State */
+.btn-primary:hover:not(:disabled) {
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
+    transform: translateY(-1px);
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Active State */
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+}
+
+/* Focus State */
+.btn-primary:focus-visible {
+    outline: 2px solid var(--gold-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
+}
+```
+
+##### Theme Awareness
+
+**Light Theme:**
+- Warm, bright metallic tones
+- Higher contrast for readability
+- Brighter highlights and sheens
+
+**Dark Theme:**
+- Cooler, muted metallic tones
+- Reduced brightness for harmony with dark backgrounds
+- Softer highlights
+- Automatic color adaptation via CSS variables
+
+All metallic palettes have dark theme overrides that:
+- Shift hue slightly cooler
+- Reduce brightness
+- Deepen shadows
+- Maintain contrast ratios
+
+##### Usage Guidelines
+
+**When to Use Each Metallic Finish:**
+
+1. **Gold** - Primary actions, hero CTAs, main buttons
+   - "Connect Wallet", "Get Started", "Submit", "View Project"
+   - Most important actions on the page
+
+2. **Bronze** - Secondary actions, navigation, alternatives
+   - "Cancel", "Back", "Retry", "Clear Filters"
+   - Actions that are important but not primary
+
+3. **Silver** - Tertiary actions, subtle buttons, secondary CTAs
+   - Ghost buttons, secondary CTAs (when paired with gold)
+   - Minimal, background actions
+
+4. **Copper** - Accent actions (available for custom use)
+   - Special featured actions
+   - Custom accent elements
+
+**Best Practices:**
+
+- ✅ Use gold for primary CTAs and main actions
+- ✅ Use bronze for secondary actions and navigation
+- ✅ Use silver for subtle actions or when pairing with gold for better contrast
+- ✅ Maintain consistent metallic hierarchy across the page
+- ✅ Combine with marble backgrounds for maximum visual impact
+- ✅ Ensure sufficient contrast for accessibility
+- ❌ Don't mix too many metallic finishes on the same page
+- ❌ Don't use light text colors (always use dark metallic colors for engraved effect)
+- ❌ Don't use rounded corners (maintain sharp 2px radius)
+
+##### Examples
+
+**Hero Section with CTAs:**
+```html
+<div class="hero-cta">
+    <a href="/" class="cta-button">Get Started</a>
+    <a href="/factories" class="cta-button secondary">Explore Factories</a>
+</div>
+```
+*Result: Gold primary CTA with silver secondary CTA for elegant contrast*
+
+**Form Actions:**
+```html
+<div class="form-actions">
+    <button type="submit" class="btn btn-primary">Submit</button>
+    <button type="button" class="btn btn-secondary">Cancel</button>
+</div>
+```
+*Result: Gold submit button with bronze cancel button*
+
+**Navigation:**
+```html
+<button class="back-button">← Back</button>
+```
+*Result: Bronze metallic back button*
+
+**Card Actions:**
+```html
+<div class="card-footer">
+    <button class="view-project-button">View Project</button>
+</div>
+```
+*Result: Gold metallic view button with engraved plaque styling*
+
+##### Performance
+
+- **Pure CSS**: All effects use CSS gradients and shadows (no images)
+- **Hardware Acceleration**: Transitions use GPU-accelerated properties (`transform`, `opacity`)
+- **Minimal Repaints**: Shadow and gradient changes are optimized
+- **Theme-Aware**: Automatic color adaptation via CSS variables (no JavaScript needed)
+- **Lightweight**: No external font loading required (uses web-safe fallbacks)
+
+##### Accessibility
+
+- **High Contrast**: Dark text on metallic backgrounds meets WCAG AA standards
+- **Focus Indicators**: Clear metallic-colored outlines with glow rings
+- **Keyboard Navigation**: All buttons fully keyboard accessible
+- **Screen Readers**: Semantic HTML and proper ARIA labels
+- **Color Independence**: Text shadows ensure readability even if color perception is limited
+
+##### Troubleshooting
+
+**Buttons don't look engraved:**
+- Verify `font-family: var(--font-engraved)` is applied
+- Check that `color` uses `--*-metallic-dark` (not `--*-metallic-sheen`)
+- Ensure `border-radius: var(--radius-sm)` is set
+- Verify text-shadow is applied with multiple layers
+
+**Text not readable:**
+- Ensure using dark metallic colors (`--*-metallic-dark`)
+- Check text-shadow is creating sufficient contrast
+- Verify font-weight is bold for better readability
+- Test in both light and dark themes
+
+**Metallic effect not visible:**
+- Verify gradient variables are defined in `global.css`
+- Check that `background` uses gradient (not solid color)
+- Ensure `box-shadow` uses metallic shadow variables
+- Verify theme overrides are applied in dark mode
+
+**Buttons look different across pages:**
+- Check that route-specific CSS isn't overriding base styles
+- Verify all buttons use `!important` flags for critical properties
+- Ensure CSS load order is correct (global.css before components.css)
+- Check for conflicting styles in route-specific CSS files
+
+##### Areas for Future Enhancement
+
+The engraved plaque system is designed to be extensible and refinable. Here are potential areas for improvement:
+
+**Visual Refinements:**
+- **Text Shadow Depth**: Current shadows use `rgba(0, 0, 0, 0.5-0.6)` for depth. Could be adjusted:
+  - Deeper engraving: Increase shadow opacity to `0.7-0.8`
+  - Subtler engraving: Decrease to `0.3-0.4`
+  - Experiment with blur radius values (currently `2px 4px`)
+
+- **Gradient Refinement**: Current 160deg angle creates top-left light source. Could:
+  - Adjust angle for different light directions (140deg, 180deg, etc.)
+  - Add more gradient stops for smoother transitions
+  - Experiment with radial gradients for different metallic effects
+
+- **Corner Sharpness**: Currently `var(--radius-sm)` = 2px. Could:
+  - Use `var(--radius-none)` = 0px for perfectly sharp corners
+  - Or `1px` for slightly softer but still sharp edges
+
+- **Border Enhancement**: Current `1px solid`. Could:
+  - Increase to `2px` for more defined plaque edges
+  - Use double borders for classical plaque appearance
+  - Add subtle inner border for depth
+
+**Typography Enhancements:**
+- **Letter Spacing**: Could add `letter-spacing: 0.05em` for more formal inscription feel
+- **Text Transform**: Consider `text-transform: uppercase` for classical plaque appearance
+- **Font Weight**: Current bold (700) could be adjusted per button size
+- **Font Alternatives**: Test other serif fonts:
+  - EB Garamond (more elegant)
+  - Crimson Text (more readable)
+  - Libre Baskerville (more traditional)
+
+**Color & Contrast:**
+- **Text Color Tuning**: Current dark colors could be:
+  - Darkened further for deeper engraving (`#5a3a1a` for gold)
+  - Lightened slightly for better readability on some backgrounds
+  - Adjusted per metallic type for optimal contrast
+
+- **Metallic Palette Refinement**: Colors could be:
+  - More saturated for richer metal appearance
+  - Less saturated for subtlety
+  - Adjusted for better harmony between gold/silver/bronze
+
+**Shadow & Depth System:**
+- **Shadow Layers**: Current 3-layer text shadow could:
+  - Add 4th layer for even deeper engraving
+  - Remove 3rd layer for subtler effect
+  - Adjust blur values independently
+
+- **Box Shadow Balance**: Current inset/outset ratio could:
+  - Increase inset shadows for deeper relief
+  - Decrease for flatter appearance
+  - Adjust highlight vs. shadow intensity
+
+- **Glow Effects**: Hover glow could be:
+  - More intense for premium feel
+  - More subtle for elegance
+  - Color-matched to metallic finish
+
+**Animation & Interaction:**
+- **Transition Timing**: Current `var(--transition-base)` = 250ms could:
+  - Faster (150ms) for snappier feel
+  - Slower (350ms) for more luxurious feel
+
+- **Transform Effects**: Current `translateY(-1px)` could:
+  - Increase to `-2px` for more pronounced lift
+  - Add scale transform for depth
+  - Combine with rotation for dynamic effect
+
+- **Shimmer Animation**: Optional shimmer could:
+  - Be enabled by default for premium buttons
+  - Have adjustable speed and intensity
+  - Use different directions (left-to-right, top-to-bottom)
+
+**Technical Improvements:**
+- **CSS Variable Organization**: Group by:
+  - Metallic type (all gold vars together)
+  - Property type (all gradients, all shadows, etc.)
+  - Usage context (button-specific, general, etc.)
+
+- **Performance Optimization**:
+  - Use `will-change` for hover states
+  - Optimize gradient calculations
+  - Reduce shadow complexity on mobile
+
+- **Browser Testing**: Ensure consistency:
+  - Safari (WebKit shadow rendering)
+  - Firefox (different gradient rendering)
+  - Chrome (baseline)
+  - Edge (Chromium)
+
+**Accessibility Enhancements:**
+- **Contrast Ratios**: Verify all combinations meet WCAG AAA
+- **Focus Indicators**: Enhance with animation
+- **Reduced Motion**: Respect `prefers-reduced-motion`
+- **High Contrast Mode**: Ensure compatibility
+
+**Documentation Improvements:**
+- **Visual Examples**: Screenshots of each metallic finish
+- **Before/After Comparisons**: Show improvements over time
+- **Design Decisions**: Document why specific values were chosen
+- **Testing Checklist**: Comprehensive testing guide
 
 ### Cards
 
@@ -703,12 +1166,26 @@ Use breakpoints and responsive spacing:
 
 ### Button Variants
 
-| Class | Use Case | Elevation |
-|------|----------|-----------|
-| `.btn-primary` | Primary actions, CTAs | 2 → Gold glow on hover |
-| `.btn-secondary` | Secondary actions | 2 → 3 on hover |
-| `.btn-outline` | Tertiary actions | 2 → Gold glow on hover |
-| `.btn-ghost` | Subtle actions | 0 → 2 on hover |
+| Class | Metallic Finish | Use Case | Visual Style |
+|------|----------------|----------|--------------|
+| `.btn-primary` | Gold | Primary actions, CTAs | Engraved plaque with gold metallic finish |
+| `.btn-secondary` | Bronze | Secondary actions | Engraved plaque with bronze metallic finish |
+| `.btn-outline` | Gold (engraved) | Tertiary actions | Engraved style with transparent background |
+| `.btn-ghost` | Silver (subtle) | Subtle actions | Subtle silver metallic with minimal visibility |
+| `.cta-button` | Gold | Hero CTAs, major call-to-actions | Engraved plaque with gold metallic finish |
+| `.cta-button.secondary` | Silver | Secondary CTAs | Engraved plaque with silver metallic finish (better contrast with gold) |
+| `.connect-button` | Gold | Wallet connection | Engraved plaque with gold metallic finish |
+| `.submit-button` | Gold | Form submissions | Engraved plaque with gold metallic finish |
+| `.cancel-button` | Bronze | Cancel actions | Engraved plaque with bronze metallic finish |
+| `.back-button` | Bronze | Navigation back | Engraved plaque with bronze metallic finish |
+| `.view-project-button` | Gold | View project actions | Engraved plaque with gold metallic finish |
+
+**All buttons feature:**
+- Sharp corners (`var(--radius-sm)` = 2px)
+- Dark engraved text (`--*-metallic-dark` colors)
+- Serif typography (`var(--font-engraved)`)
+- Multi-layered text shadows for depth
+- Metallic gradients and relief shadows
 
 ### Card Types
 
