@@ -15,6 +15,7 @@ class ERC404Adapter extends ContractAdapter {
     constructor(contractAddress, contractType, ethersProvider, signer) {
         super(contractAddress, contractType || 'ERC404', ethersProvider, signer);
         this.mirrorContract = null;
+        this.operatorNFTContract = null; // For cultexecs operator NFT
         this.merkleHandler = new MerkleHandler();
         this.ethers = ethers;
     }
@@ -74,6 +75,48 @@ class ERC404Adapter extends ContractAdapter {
                 }
             } catch (error) {
                 console.warn('[ERC404Adapter] Mirror contract not available:', error);
+            }
+
+            // Initialize operator NFT contract for cultexecs
+            const cultexecsAddress = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const isCultExecs = this.contractAddress && 
+                               (this.contractAddress.toLowerCase() === cultexecsAddress.toLowerCase());
+            
+            if (isCultExecs) {
+                try {
+                    const operatorNFTAddress = '0xB24BaB1732D34cAD0A7C7035C3539aEC553bF3a0';
+                    // Standard ERC721 ABI for ownerOf function
+                    const erc721ABI = [
+                        {
+                            "constant": true,
+                            "inputs": [{"name": "_tokenId", "type": "uint256"}],
+                            "name": "ownerOf",
+                            "outputs": [{"name": "", "type": "address"}],
+                            "type": "function"
+                        }
+                    ];
+                    
+                    // For view functions like ownerOf, we only need a provider, not a signer
+                    // Use provider directly, or get it from walletService if available
+                    let provider = this.provider;
+                    if (!provider && typeof window !== 'undefined' && window.ethereum) {
+                        // Fallback: create provider from window.ethereum
+                        provider = new ethers.providers.Web3Provider(window.ethereum);
+                    }
+                    
+                    if (provider) {
+                        this.operatorNFTContract = new ethers.Contract(
+                            operatorNFTAddress,
+                            erc721ABI,
+                            provider
+                        );
+                        console.log('[ERC404Adapter] Initialized operator NFT contract for cultexecs');
+                    } else {
+                        console.warn('[ERC404Adapter] No provider available for operator NFT contract');
+                    }
+                } catch (error) {
+                    console.warn('[ERC404Adapter] Could not initialize operator NFT contract:', error);
+                }
             }
 
             // Initialize merkle handler if needed
@@ -675,6 +718,95 @@ class ERC404Adapter extends ContractAdapter {
         } catch (error) {
             console.error('Error getting messages:', error);
             return [];
+        }
+    }
+
+    /**
+     * Override checkOwnership to handle NFT ownership (for cultexecs edge case)
+     * @param {string} userAddress - User address to check
+     * @returns {Promise<boolean>} True if user is owner
+     */
+    async checkOwnership(userAddress) {
+        if (!userAddress) {
+            return false;
+        }
+
+        try {
+            // First try standard owner() check
+            const isStandardOwner = await super.checkOwnership(userAddress);
+            if (isStandardOwner) {
+                return true;
+            }
+
+            // Special handling for cultexecs - ownership is determined by OPERATOR_NFT token 598
+            const cultexecsAddress = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+            const isCultExecs = this.contractAddress && 
+                               (this.contractAddress.toLowerCase() === cultexecsAddress.toLowerCase());
+
+            if (isCultExecs) {
+                // For cultexecs, check if user owns token ID 598 from OPERATOR_NFT contract
+                // This is the actual ownership check used in the contract: 
+                // require(_erc721OwnerOf(OPERATOR_NFT, 598) == msg.sender, "Not oper");
+                try {
+                    const operatorNFTAddress = '0xB24BaB1732D34cAD0A7C7035C3539aEC553bF3a0';
+                    const operatorTokenId = 598;
+                    
+                    // Get provider - use existing one or create from window.ethereum
+                    let provider = this.provider;
+                    if (!provider && typeof window !== 'undefined' && window.ethereum) {
+                        provider = new ethers.providers.Web3Provider(window.ethereum);
+                    }
+                    
+                    if (!provider) {
+                        console.warn('[ERC404Adapter] No provider available for operator NFT check');
+                        return false;
+                    }
+                    
+                    // Create contract instance with provider (not signer, since ownerOf is a view function)
+                    const erc721ABI = [
+                        {
+                            "constant": true,
+                            "inputs": [{"name": "_tokenId", "type": "uint256"}],
+                            "name": "ownerOf",
+                            "outputs": [{"name": "", "type": "address"}],
+                            "type": "function"
+                        }
+                    ];
+                    
+                    const operatorNFTContract = new ethers.Contract(
+                        operatorNFTAddress,
+                        erc721ABI,
+                        provider
+                    );
+                    
+                    const owner = await operatorNFTContract.ownerOf(operatorTokenId);
+                    if (owner && owner.toLowerCase() === userAddress.toLowerCase()) {
+                        console.log(`[ERC404Adapter] User owns operator NFT token ${operatorTokenId} for cultexecs`);
+                        return true;
+                    } else {
+                        console.log(`[ERC404Adapter] User does not own operator NFT token ${operatorTokenId}. Owner is:`, owner);
+                    }
+                } catch (error) {
+                    console.warn('[ERC404Adapter] Error checking operator NFT ownership for cultexecs:', error);
+                }
+            } else if (this.mirrorContract) {
+                // For other ERC404 contracts, check standard owner tokens
+                for (const tokenId of [0, 1]) {
+                    try {
+                        const owner = await this.mirrorContract.ownerOf(tokenId);
+                        if (owner && owner.toLowerCase() === userAddress.toLowerCase()) {
+                            return true;
+                        }
+                    } catch (error) {
+                        // Token may not exist, continue checking
+                    }
+                }
+            }
+
+            return false;
+        } catch (error) {
+            console.warn('[ERC404Adapter] Error checking ownership:', error);
+            return false;
         }
     }
 }

@@ -329,6 +329,43 @@ export default class MockProjectRegistry {
     }
 
     /**
+     * Set owner for an instance
+     * @param {string} instanceAddress - Instance contract address
+     * @param {string} ownerAddress - Owner address
+     * @returns {Promise<void>}
+     */
+    async setInstanceOwner(instanceAddress, ownerAddress) {
+        if (!instanceAddress || !ownerAddress) {
+            return;
+        }
+
+        const instance = this.data.instances[instanceAddress];
+        if (instance) {
+            instance.owner = ownerAddress;
+            this._save();
+        }
+    }
+
+    /**
+     * Get owner for an instance
+     * @param {string} instanceAddress - Instance contract address
+     * @returns {Promise<string|null>} Owner address or null
+     */
+    async getInstanceOwner(instanceAddress) {
+        if (!instanceAddress) {
+            return null;
+        }
+
+        const instance = this.data.instances[instanceAddress];
+        if (instance && instance.owner) {
+            return instance.owner;
+        }
+
+        // Return default mock owner
+        return this.data.mockOwnerAddress || '0xMOCKOWNER000000000000000000000000000000';
+    }
+
+    /**
      * Save data to localStorage
      * @private
      */

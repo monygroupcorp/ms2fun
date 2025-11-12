@@ -25,7 +25,14 @@
     border: var(--border-width-thin) solid transparent;
     border-radius: var(--radius-sm); /* Sharper corners for plaque look */
     cursor: pointer;
-    transition: var(--transition-elevation);
+    /* Solid, instant appearance - no grow animation */
+    transform: none !important; /* Ensure no initial scale/transform */
+    transition: box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
+    /* Only transition transform on hover/active, not on initial load */
     box-shadow: var(--elevation-2);
     white-space: nowrap;
     user-select: none;
@@ -94,6 +101,9 @@
     overflow: hidden;
     font-weight: var(--font-weight-bold) !important; /* Bolder text for plaque readability */
     font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
+    /* Solid, instant appearance - no grow animation */
+    transform: none !important; /* Ensure no initial scale/transform */
+    opacity: 1 !important; /* Ensure fully visible from start */
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -111,6 +121,13 @@
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
         0 0 12px rgba(212, 175, 55, 0.2) !important;
+    /* Only transition transform on hover, not on initial load */
+    transition: transform var(--duration-base) var(--ease-classic),
+                box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
     transform: translateY(-1px);
     border-color: var(--gold-metallic-base) !important;
     color: var(--gold-metallic-dark) !important; /* Keep dark text on hover */
@@ -146,6 +163,9 @@
         0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
     font-weight: var(--font-weight-bold) !important;
     font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
+    /* Solid, instant appearance - no grow animation */
+    transform: none !important; /* Ensure no initial scale/transform */
+    opacity: 1 !important; /* Ensure fully visible from start */
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -163,6 +183,13 @@
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
         0 0 12px rgba(205, 127, 50, 0.2) !important;
+    /* Only transition transform on hover, not on initial load */
+    transition: transform var(--duration-base) var(--ease-classic),
+                box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
     transform: translateY(-1px);
     border-color: var(--bronze-metallic-base) !important;
     color: var(--bronze-metallic-dark) !important; /* Keep dark text on hover */

@@ -7,6 +7,7 @@
 import { Component } from '../../core/Component.js';
 import { EditionMintInterface } from './EditionMintInterface.js';
 import { WalletDisplay } from '../WalletDisplay/WalletDisplay.js';
+import { AdminButton } from '../AdminButton/AdminButton.js';
 import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 
@@ -89,7 +90,12 @@ export class EditionDetail extends Component {
 
         return `
             <div class="edition-detail marble-bg">
-                <button class="back-button" ref="back-button">← Back to Project</button>
+                <div class="edition-header-actions">
+                    <button class="back-button" ref="back-button">← Back to Project</button>
+                    <div class="admin-button-container" ref="admin-button-container">
+                        <!-- AdminButton will be mounted here -->
+                    </div>
+                </div>
                 
                 <div class="wallet-display-container" ref="wallet-display-container">
                     <!-- WalletDisplay will be mounted here -->
@@ -188,6 +194,9 @@ export class EditionDetail extends Component {
             this.createChild('wallet-display', walletDisplay);
         }
 
+        // Setup admin button
+        this.setupAdminButton();
+
         if (!this.state.edition) return;
 
         const mintContainer = this.getRef('mint-interface', '.edition-mint-section');
@@ -198,6 +207,30 @@ export class EditionDetail extends Component {
             mintInterface.mount(mintElement);
             mintInterface._parent = this; // Set parent reference for refresh
             this.createChild('mint-interface', mintInterface);
+        }
+    }
+
+    async setupAdminButton() {
+        try {
+            // Use the adapter that's already available
+            if (!this.adapter) {
+                return;
+            }
+
+            const contractAddress = this.adapter.contractAddress;
+            const contractType = this.adapter.contractType;
+
+            // Create and mount AdminButton
+            const container = this.getRef('admin-button-container', '.admin-button-container');
+            if (container) {
+                const adminButton = new AdminButton(contractAddress, contractType, this.adapter);
+                const buttonElement = document.createElement('div');
+                container.appendChild(buttonElement);
+                adminButton.mount(buttonElement);
+                this.createChild('admin-button', adminButton);
+            }
+        } catch (error) {
+            console.warn('[EditionDetail] Error setting up admin button:', error);
         }
     }
 

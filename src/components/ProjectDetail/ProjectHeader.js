@@ -1,4 +1,6 @@
 import { Component } from '../../core/Component.js';
+import { AdminButton } from '../AdminButton/AdminButton.js';
+import serviceFactory from '../../services/ServiceFactory.js';
 
 /**
  * ProjectHeader component
@@ -8,6 +10,7 @@ export class ProjectHeader extends Component {
     constructor(project) {
         super();
         this.project = project;
+        this.adminButton = null;
     }
 
     render() {
@@ -27,8 +30,13 @@ export class ProjectHeader extends Component {
         return `
             <div class="project-header marble-bg">
                 <div class="header-top">
-                    <h1 class="project-name">${this.escapeHtml(this.project.name)}</h1>
-                    <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>
+                    <div class="header-title-group">
+                        <h1 class="project-name">${this.escapeHtml(this.project.name)}</h1>
+                        <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>
+                    </div>
+                    <div class="header-actions" data-ref="admin-button-container">
+                        <!-- AdminButton will be mounted here -->
+                    </div>
                 </div>
                 
                 <p class="project-description">${this.escapeHtml(this.project.description || 'No description available')}</p>
@@ -84,7 +92,46 @@ export class ProjectHeader extends Component {
 
     mount(element) {
         super.mount(element);
+        this.setupAdminButton();
         this.setupDOMEventListeners();
+    }
+
+    async setupAdminButton() {
+        try {
+            // Get adapter from ProjectService
+            const projectService = serviceFactory.getProjectService();
+            const projectId = this.project.address || this.project.contractAddress;
+            const adapter = projectService.getAdapter(projectId);
+
+            if (!adapter) {
+                // Try to load project if not loaded
+                try {
+                    await projectService.loadProject(
+                        projectId,
+                        this.project.address || this.project.contractAddress,
+                        this.project.contractType
+                    );
+                } catch (error) {
+                    console.warn('[ProjectHeader] Could not load project for admin button:', error);
+                }
+            }
+
+            const finalAdapter = projectService.getAdapter(projectId);
+            const contractAddress = this.project.address || this.project.contractAddress;
+            const contractType = this.project.contractType;
+
+            // Create and mount AdminButton
+            const container = this.getRef('admin-button-container', '.header-actions');
+            if (container) {
+                this.adminButton = new AdminButton(contractAddress, contractType, finalAdapter);
+                const buttonElement = document.createElement('div');
+                container.appendChild(buttonElement);
+                this.adminButton.mount(buttonElement);
+                this.createChild('admin-button', this.adminButton);
+            }
+        } catch (error) {
+            console.warn('[ProjectHeader] Error setting up admin button:', error);
+        }
     }
 
     setupDOMEventListeners() {

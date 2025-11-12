@@ -69,6 +69,7 @@ export class TabNavigation extends Component {
                     <button class="tab-button ${activeView === 'curve' ? 'active' : ''}" data-view="curve">Bonding Curve</button>
                     <button class="tab-button ${activeView === 'swap' ? 'active' : ''}" data-view="swap">Swap</button>
                 ` : ''}
+                <div class="admin-button-container-cultexecs"></div>
                 <button class="portfolio-button">Portfolio</button>
             </div>
         `;

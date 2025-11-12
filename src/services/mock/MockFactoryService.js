@@ -52,6 +52,12 @@ export default class MockFactoryService {
         const instanceName = parameters.name || name;
         const nameSlug = this._slugify(instanceName);
 
+        // Determine owner (use provided owner, creator, or default mock owner)
+        const owner = parameters.owner || 
+                     parameters.creator || 
+                     this.data.mockOwnerAddress || 
+                     '0xMOCKOWNER000000000000000000000000000000';
+
         // Create instance entry
         const instance = {
             id: `project-${Date.now()}`,
@@ -65,6 +71,7 @@ export default class MockFactoryService {
             description: parameters.description || '',
             metadataURI: parameters.metadataURI || '',
             creator: parameters.creator || '0xCREATOR0000000000000000000000000000000000',
+            owner: owner,  // Set owner for admin functionality
             createdAt: Date.now(),
             parameters: { ...parameters },
             stats: {

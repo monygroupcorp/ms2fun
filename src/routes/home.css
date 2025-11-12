@@ -180,7 +180,15 @@ body:not(.cultexecs-active) {
     font-size: var(--font-size-body);
     font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
     font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
-    transition: var(--transition-base);
+    /* Solid, instant appearance - no grow animation */
+    transform: none !important; /* Ensure no initial scale/transform */
+    opacity: 1 !important; /* Ensure fully visible from start */
+    transition: box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
+    /* Only transition transform on hover, not on initial load */
     border: 1px solid var(--gold-metallic-dark) !important;
     cursor: pointer;
     box-shadow: var(--shadow-metallic-raised) !important;
@@ -208,6 +216,13 @@ body:not(.cultexecs-active) {
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
         0 0 12px rgba(212, 175, 55, 0.2) !important;
+    /* Only transition transform on hover, not on initial load */
+    transition: transform var(--duration-base) var(--ease-classic),
+                box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
     transform: translateY(-1px);
     border-color: var(--gold-metallic-base) !important;
     color: var(--gold-metallic-dark) !important; /* Keep dark text */
@@ -821,7 +836,15 @@ body:not(.cultexecs-active) {
     font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
     font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
     cursor: pointer;
-    transition: var(--transition-base);
+    /* Solid, instant appearance - no grow animation */
+    transform: none !important; /* Ensure no initial scale/transform */
+    opacity: 1 !important; /* Ensure fully visible from start */
+    transition: box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
+    /* Only transition transform on hover, not on initial load */
     margin-top: var(--spacing-4); /* Space above button */
     flex-shrink: 0; /* Never shrink - always visible */
     box-shadow: var(--shadow-metallic-raised) !important;
@@ -851,6 +874,13 @@ body:not(.cultexecs-active) {
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
         0 0 12px rgba(212, 175, 55, 0.2) !important;
+    /* Only transition transform on hover, not on initial load */
+    transition: transform var(--duration-base) var(--ease-classic),
+                box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
     transform: translateY(-1px);
     border-color: var(--gold-metallic-base) !important;
     color: var(--gold-metallic-dark) !important; /* Keep dark text */

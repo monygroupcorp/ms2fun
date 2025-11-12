@@ -32,7 +32,9 @@ export function initializeMockData() {
             byFactory: {},
             byCreator: {},
             all: []
-        }
+        },
+        mockOwnerAddress: '0xMOCKOWNER000000000000000000000000000000',
+        adminStates: {} // Store admin state per instance
     };
 }
 

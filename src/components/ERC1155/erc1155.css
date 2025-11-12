@@ -697,6 +697,20 @@
     padding: 20px;
 }
 
+.edition-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-4);
+    margin-bottom: var(--spacing-6);
+    flex-wrap: wrap;
+}
+
+.admin-button-container {
+    display: flex;
+    align-items: center;
+}
+
 .edition-detail.loading,
 .edition-detail.error {
     text-align: center;

@@ -99,6 +99,58 @@ body.cultexecs-active button {
     font-size: 14px;
 }
 
+/* Admin Button Container for CULT EXEC - Next to Portfolio Button */
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 10px;
+}
+
+/* Admin Button Styling for CULT EXEC Terminal - Matches Portfolio Button */
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs .admin-button {
+    padding: 8px 16px !important;
+    border-radius: 4px !important;
+    color: white !important;
+    background-color: #000000 !important;
+    border: 1px solid #fdb523 !important;
+    cursor: pointer !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 14px !important;
+    font-weight: normal !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    transition: all 0.2s !important;
+}
+
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs .admin-button:hover:not(:disabled) {
+    background-color: #e0e0e0 !important;
+    color: #000000 !important;
+    border-color: #fdb523 !important;
+    transform: none !important;
+}
+
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs .admin-button:active:not(:disabled) {
+    background-color: #c0c0c0 !important;
+    color: #000000 !important;
+}
+
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs .admin-button.loading {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs .admin-button-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+body.cultexecs-active .tab-navigation .admin-button-container-cultexecs .admin-button-text {
+    font-size: 14px;
+}
+
 body.cultexecs-active button:hover {
     background-color: var(--border-color);
 }
@@ -770,6 +822,42 @@ body.cultexecs-active .continue-prompt {
 }
 
 body.cultexecs-active .button-text {
+    font-family: 'Courier New', monospace !important;
+}
+
+/* ============================================================================
+   SWAP INPUTS OVERRIDE - Restore original cultexecs styling
+   ============================================================================ */
+
+/* Override swap inputs to use black background and lime green text */
+body.cultexecs-active .input-container {
+    background-color: #000000 !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+body.cultexecs-active .input-container input,
+body.cultexecs-active .input-container .top-input,
+body.cultexecs-active .input-container .bottom-input {
+    background-color: transparent !important;
+    color: #00ff00 !important; /* Lime green */
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .input-container input::placeholder {
+    color: rgba(0, 255, 0, 0.5) !important; /* Semi-transparent lime green for placeholder */
+}
+
+body.cultexecs-active .token-symbol {
+    color: #00ff00 !important; /* Lime green */
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .token-balance {
+    color: #00ff00 !important; /* Lime green */
+    font-family: 'Courier New', monospace !important;
+}
+
+body.cultexecs-active .token-info {
     font-family: 'Courier New', monospace !important;
 }
 

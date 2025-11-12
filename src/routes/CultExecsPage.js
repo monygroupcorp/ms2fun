@@ -7,6 +7,8 @@ import walletService from '../services/WalletService.js';
 import WalletConnector from '../components/WalletConnector/WalletConnector.js';
 import MessagePopup from '../components/MessagePopup/MessagePopup.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
+import { AdminButton } from '../components/AdminButton/AdminButton.js';
+import serviceFactory from '../services/ServiceFactory.js';
 
 let messagePopup = null;
 let walletConnector = null;
@@ -348,6 +350,14 @@ export async function renderCultExecsPage() {
             walletConnector = null;
             messagePopup = null;
             
+            // Cleanup admin button
+            if (adminButtonInstance) {
+                if (typeof adminButtonInstance.unmount === 'function') {
+                    adminButtonInstance.unmount();
+                }
+                adminButtonInstance = null;
+            }
+            
             // Remove body class for CULT EXEC styling
             document.body.classList.remove('cultexecs-active');
             
@@ -492,8 +502,18 @@ async function initializeCultExecs() {
         // Store handler reference for cleanup
         eventHandlers.walletConnected = (data) => {
             showContractInterface();
+            // Refresh admin button when wallet connects (with delay to ensure TradingInterface is mounted)
+            setTimeout(() => {
+                refreshAdminButton();
+            }, 500);
         };
         eventBus.on('wallet:connected', eventHandlers.walletConnected);
+        
+        // Initialize admin button after a delay to ensure TradingInterface is mounted
+        // Use a longer delay to ensure TradingInterface is fully mounted
+        setTimeout(() => {
+            initializeAdminButton();
+        }, 3000);
         
         // Initialize app.js functionality (animations, price updates, whitelist checker)
         // These are defined in app.js and should be available globally
@@ -623,6 +643,108 @@ function initializeUIComponents(container) {
     
     // Set up tab navigation
     setupTabNavigation();
+}
+
+/**
+ * Initialize admin button for cultexecs
+ */
+let adminButtonInstance = null;
+
+async function initializeAdminButton() {
+    try {
+        console.log('[CultExecsPage] initializeAdminButton called');
+        
+        // Look for admin button container in tab navigation (where portfolio button is)
+        const container = document.querySelector('.tab-navigation .admin-button-container-cultexecs');
+        if (!container) {
+            console.warn('[CultExecsPage] Admin button container not found in tab navigation');
+            return;
+        }
+
+        // Clean up existing instance if it exists (to allow re-initialization)
+        if (adminButtonInstance) {
+            console.log('[CultExecsPage] Cleaning up existing admin button instance');
+            if (typeof adminButtonInstance.unmount === 'function') {
+                adminButtonInstance.unmount();
+            }
+            adminButtonInstance = null;
+        }
+
+        // Clear container content if it exists
+        container.innerHTML = '';
+
+        console.log('[CultExecsPage] Found admin button container');
+
+        // Get cultexecs contract address from switch.json
+        let contractAddress;
+        try {
+            const configResponse = await fetch('/EXEC404/switch.json');
+            if (!configResponse.ok) {
+                throw new Error('Failed to load CULT EXEC config');
+            }
+            const config = await configResponse.json();
+            contractAddress = config.address;
+            console.log('[CultExecsPage] Loaded cultexecs address:', contractAddress);
+        } catch (error) {
+            console.error('[CultExecsPage] Failed to load cultexecs config:', error);
+            return;
+        }
+
+        // Get or create adapter for cultexecs
+        const projectService = serviceFactory.getProjectService();
+        let adapter;
+        
+        try {
+            // Try to load cultexecs as a project (this creates an ERC404Adapter)
+            console.log('[CultExecsPage] Loading cultexecs project...');
+            const instance = await projectService.loadCultExec();
+            adapter = instance.adapter;
+            console.log('[CultExecsPage] Got adapter:', {
+                hasAdapter: !!adapter,
+                contractAddress: adapter?.contractAddress,
+                hasOperatorNFT: !!adapter?.operatorNFTContract
+            });
+            
+            // Ensure adapter is initialized
+            if (adapter && !adapter.initialized) {
+                console.log('[CultExecsPage] Initializing adapter...');
+                await adapter.initialize();
+                console.log('[CultExecsPage] Adapter initialized:', {
+                    hasOperatorNFT: !!adapter.operatorNFTContract
+                });
+            }
+        } catch (error) {
+            console.error('[CultExecsPage] Could not load cultexecs adapter:', error);
+            return;
+        }
+
+        // Create and mount admin button
+        console.log('[CultExecsPage] Creating AdminButton component...');
+        adminButtonInstance = new AdminButton(contractAddress, 'ERC404', adapter);
+        const buttonElement = document.createElement('div');
+        container.appendChild(buttonElement);
+        adminButtonInstance.mount(buttonElement);
+        console.log('[CultExecsPage] AdminButton mounted');
+    } catch (error) {
+        console.error('[CultExecsPage] Error initializing admin button:', error);
+    }
+}
+
+/**
+ * Refresh admin button (call when wallet connects/disconnects)
+ */
+async function refreshAdminButton() {
+    if (adminButtonInstance && typeof adminButtonInstance.refresh === 'function') {
+        await adminButtonInstance.refresh();
+    } else {
+        // Re-initialize if needed
+        const container = document.querySelector('.tab-navigation .admin-button-container-cultexecs');
+        if (container) {
+            container.innerHTML = '';
+            adminButtonInstance = null;
+            await initializeAdminButton();
+        }
+    }
 }
 
 /**

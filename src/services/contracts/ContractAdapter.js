@@ -299,6 +299,109 @@ class ContractAdapter {
 
         return value;
     }
+
+    /**
+     * Get contract owner
+     * @returns {Promise<string|null>} Owner address or null
+     */
+    async getOwner() {
+        try {
+            if (this.isMock) {
+                // For mock contracts, use OwnershipService
+                const ownershipService = (await import('../OwnershipService.js')).default;
+                return await ownershipService.getOwner(this.contractAddress, this.contractType);
+            }
+
+            if (!this.contract) {
+                return null;
+            }
+
+            // Try to call owner() function
+            if (typeof this.contract.owner === 'function') {
+                const owner = await this.contract.owner();
+                return owner;
+            }
+
+            return null;
+        } catch (error) {
+            console.warn('[ContractAdapter] Error getting owner:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Check if user is owner
+     * @param {string} userAddress - User address to check
+     * @returns {Promise<boolean>} True if user is owner
+     */
+    async checkOwnership(userAddress) {
+        if (!userAddress) {
+            return false;
+        }
+
+        try {
+            if (this.isMock) {
+                // For mock contracts, use OwnershipService
+                const ownershipService = (await import('../OwnershipService.js')).default;
+                return await ownershipService.checkOwnership(
+                    this.contractAddress,
+                    userAddress,
+                    this.contractType
+                );
+            }
+
+            const owner = await this.getOwner();
+            if (!owner) {
+                return false;
+            }
+
+            return owner.toLowerCase() === userAddress.toLowerCase();
+        } catch (error) {
+            console.warn('[ContractAdapter] Error checking ownership:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get admin functions from contract ABI
+     * @returns {Promise<Array>} Array of admin function definitions
+     */
+    async getAdminFunctions() {
+        try {
+            const adminFunctionDiscovery = (await import('../AdminFunctionDiscovery.js')).default;
+            
+            // For mock contracts, return mock admin functions directly
+            if (this.isMock) {
+                return adminFunctionDiscovery.getMockAdminFunctions(
+                    this.contractAddress,
+                    this.contractType
+                );
+            }
+            
+            // Try to get ABI from adapter
+            const abi = await adminFunctionDiscovery.getABIFromAdapter(this);
+            if (!abi) {
+                return [];
+            }
+
+            return await adminFunctionDiscovery.discoverAdminFunctions(
+                this.contractAddress,
+                this.contractType,
+                abi
+            );
+        } catch (error) {
+            console.warn('[ContractAdapter] Error getting admin functions:', error);
+            // Return mock functions as fallback for mock contracts
+            if (this.isMock) {
+                const adminFunctionDiscovery = (await import('../AdminFunctionDiscovery.js')).default;
+                return adminFunctionDiscovery.getMockAdminFunctions(
+                    this.contractAddress,
+                    this.contractType
+                );
+            }
+            return [];
+        }
+    }
 }
 
 export default ContractAdapter;

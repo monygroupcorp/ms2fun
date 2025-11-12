@@ -186,5 +186,148 @@ document.addEventListener('DOMContentLoaded', () => {
     // Delay initialization slightly to avoid conflicts with wallet injections
     setTimeout(() => {
         initializeApp();
+        
+        // Initialize performance monitoring (runs automatically in background)
+        initializePerformanceMonitoring();
     }, 100);
 });
+
+/**
+ * Performance monitoring state
+ */
+let performanceMonitoringState = {
+    isEnabled: false,
+    services: {
+        scrollMonitor: null,
+        tracker: null,
+        reporter: null
+    },
+    updateInterval: null
+};
+
+/**
+ * Initialize performance monitoring system
+ * Can be toggled on/off via query parameter or localStorage
+ */
+async function initializePerformanceMonitoring() {
+    // Check if performance monitoring should be enabled
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryParamEnabled = urlParams.get('performance') === 'true';
+    const localStorageEnabled = localStorage.getItem('ms2fun-performance-monitoring') === 'true';
+    
+    // Enable if query param is set, or if it was previously enabled in localStorage
+    const shouldEnable = queryParamEnabled || localStorageEnabled;
+
+    if (!shouldEnable) {
+        // Still expose the toggle function for manual control
+        exposePerformanceToggle();
+        return;
+    }
+
+    try {
+        // Dynamically import to avoid blocking initial load
+        const [
+            { scrollPerformanceMonitor },
+            { performanceTracker },
+            { performanceReporter }
+        ] = await Promise.all([
+            import('./services/ScrollPerformanceMonitor.js'),
+            import('./services/PerformanceTracker.js'),
+            import('./utils/PerformanceReporter.js')
+        ]);
+
+        // Store references
+        performanceMonitoringState.services.scrollMonitor = scrollPerformanceMonitor;
+        performanceMonitoringState.services.tracker = performanceTracker;
+        performanceMonitoringState.services.reporter = performanceReporter;
+
+        // Start all services
+        scrollPerformanceMonitor.start();
+        performanceTracker.start();
+        performanceReporter.start();
+
+        // Update tracker with scroll metrics periodically
+        performanceMonitoringState.updateInterval = setInterval(() => {
+            const scrollMetrics = scrollPerformanceMonitor.getMetrics();
+            performanceTracker.updateScrollMetrics(scrollMetrics);
+        }, 5000); // Update every 5 seconds
+
+        performanceMonitoringState.isEnabled = true;
+
+        // Expose toggle function
+        exposePerformanceToggle();
+
+        console.log('✅ Performance monitoring enabled - reports will appear in console automatically');
+        console.log('💡 To disable: Run togglePerformanceMonitoring(false) in console or add ?performance=false to URL');
+    } catch (error) {
+        // Performance monitoring is non-critical, so we don't throw
+        console.warn('Performance monitoring not available:', error.message);
+    }
+}
+
+/**
+ * Expose performance monitoring toggle function globally
+ */
+function exposePerformanceToggle() {
+    window.togglePerformanceMonitoring = async (enabled = null) => {
+        // If no argument, toggle current state
+        if (enabled === null) {
+            enabled = !performanceMonitoringState.isEnabled;
+        }
+
+        if (enabled && !performanceMonitoringState.isEnabled) {
+            // Enable performance monitoring
+            await initializePerformanceMonitoring();
+            localStorage.setItem('ms2fun-performance-monitoring', 'true');
+            console.log('✅ Performance monitoring enabled');
+        } else if (!enabled && performanceMonitoringState.isEnabled) {
+            // Disable performance monitoring
+            stopPerformanceMonitoring();
+            localStorage.setItem('ms2fun-performance-monitoring', 'false');
+            console.log('⏸️ Performance monitoring disabled');
+        } else {
+            console.log(`Performance monitoring is already ${enabled ? 'enabled' : 'disabled'}`);
+        }
+    };
+
+    // Also expose a simple on/off function
+    window.enablePerformanceMonitoring = () => window.togglePerformanceMonitoring(true);
+    window.disablePerformanceMonitoring = () => window.togglePerformanceMonitoring(false);
+
+    // Log help message
+    if (!performanceMonitoringState.isEnabled) {
+        console.log('💡 Performance monitoring is disabled. To enable:');
+        console.log('   - Run: enablePerformanceMonitoring()');
+        console.log('   - Or add ?performance=true to URL');
+    }
+}
+
+/**
+ * Stop all performance monitoring services
+ */
+function stopPerformanceMonitoring() {
+    if (!performanceMonitoringState.isEnabled) {
+        return;
+    }
+
+    const { scrollMonitor, tracker, reporter } = performanceMonitoringState.services;
+
+    if (scrollMonitor) {
+        scrollMonitor.stop();
+    }
+
+    if (tracker) {
+        tracker.stop();
+    }
+
+    if (reporter) {
+        reporter.stop();
+    }
+
+    if (performanceMonitoringState.updateInterval) {
+        clearInterval(performanceMonitoringState.updateInterval);
+        performanceMonitoringState.updateInterval = null;
+    }
+
+    performanceMonitoringState.isEnabled = false;
+}

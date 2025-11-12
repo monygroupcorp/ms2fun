@@ -7,6 +7,7 @@
 import { generateMockAddress, saveMockData } from './mockData.js';
 
 const TARGET_INSTANCES_PER_FACTORY = 8;
+const USER_ADDRESS = '0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6'; // Your address for testing
 
 /**
  * Seed example data into the mock system
@@ -16,6 +17,9 @@ const TARGET_INSTANCES_PER_FACTORY = 8;
  * @returns {Promise<void>}
  */
 export async function seedExampleData(mockData, masterService, factoryService) {
+    // Set user address as default mock owner for testing
+    mockData.mockOwnerAddress = USER_ADDRESS;
+    
     // Generate factory addresses
     const erc404FactoryAddress = '0xFACTORY4040000000000000000000000000000000';
     const erc1155FactoryAddress = '0xFACTORY1155000000000000000000000000000000';
@@ -171,7 +175,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'DAC',
             description: 'A community-driven ERC404 project featuring digital art pieces with fractional ownership.',
             metadataURI: 'ipfs://QmExample1',
-            creator: '0xCREATOR1111111111111111111111111111111111',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 1000000, holders: 150, volume: '50.5 ETH' }
         },
         {
@@ -179,7 +184,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'MEME',
             description: 'The ultimate meme token with bonding curve mechanics. Join the meme revolution!',
             metadataURI: 'ipfs://QmExample2',
-            creator: '0xCREATOR2222222222222222222222222222222222',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 5000000, holders: 320, volume: '125.8 ETH' }
         },
         {
@@ -187,7 +193,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'FNFT',
             description: 'Fractionalize any NFT into tradeable tokens. Own a piece of the art you love.',
             metadataURI: 'ipfs://QmExample5',
-            creator: '0xCREATOR5555555555555555555555555555555555',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 2000000, holders: 280, volume: '89.3 ETH' }
         },
         {
@@ -195,7 +202,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'DAT',
             description: 'Combine DeFi yield farming with digital art ownership. Earn while you collect.',
             metadataURI: 'ipfs://QmExample6',
-            creator: '0xCREATOR6666666666666666666666666666666666',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 3000000, holders: 450, volume: '156.7 ETH' }
         },
         {
@@ -203,7 +211,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'GAS',
             description: 'Algorithmically generated art pieces with unique properties. Each token is one-of-a-kind.',
             metadataURI: 'ipfs://QmExample7',
-            creator: '0xCREATOR7777777777777777777777777777777777',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 10000, holders: 890, volume: '234.1 ETH' }
         },
         {
@@ -211,7 +220,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'MRT',
             description: 'Own a share of music royalties through ERC404 tokens. Support artists directly.',
             metadataURI: 'ipfs://QmExample8',
-            creator: '0xCREATOR8888888888888888888888888888888888',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 500000, holders: 120, volume: '67.4 ETH' }
         },
         {
@@ -219,7 +229,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'VRE',
             description: 'Own virtual land parcels in the metaverse. Build, trade, and monetize your space.',
             metadataURI: 'ipfs://QmExample9',
-            creator: '0xCREATOR9999999999999999999999999999999999',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 100000, holders: 340, volume: '189.2 ETH' }
         },
         {
@@ -227,7 +238,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
             symbol: 'AIA',
             description: 'AI-generated art pieces with unique styles. Each piece is created by advanced neural networks.',
             metadataURI: 'ipfs://QmExample10',
-            creator: '0xCREATORAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalSupply: 50000, holders: 560, volume: '312.8 ETH' }
         }
     ];
@@ -252,7 +264,8 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
                     name: uniqueName,  // Explicitly set name
                     description: template.description,
                     metadataURI: template.metadataURI,
-                    creator: template.creator
+                    creator: template.creator,
+                    owner: template.owner || template.creator  // Set owner for admin access
                 }
             );
 
@@ -280,7 +293,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'LEP',
             description: 'Exclusive limited edition art prints. Each edition is unique and collectible.',
             metadataURI: 'ipfs://QmExample3',
-            creator: '0xCREATOR3333333333333333333333333333333333',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 10, totalMinted: 500, volume: '25.2 ETH' },
             pieces: [
                 {
@@ -335,7 +349,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'GAME',
             description: 'Rare gaming collectibles and in-game items. Trade, collect, and play!',
             metadataURI: 'ipfs://QmExample4',
-            creator: '0xCREATOR4444444444444444444444444444444444',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 5, totalMinted: 250, volume: '42.7 ETH' },
             pieces: [
                 {
@@ -381,7 +396,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'TCS',
             description: 'Rare trading cards with unique attributes. Collect full sets for special rewards.',
             metadataURI: 'ipfs://QmExample11',
-            creator: '0xCREATORBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 20, totalMinted: 1200, volume: '78.5 ETH' },
             pieces: [
                 {
@@ -427,7 +443,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'PHOTO',
             description: 'Curated photography collection from renowned artists. Each photo is a limited edition.',
             metadataURI: 'ipfs://QmExample12',
-            creator: '0xCREATORCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 15, totalMinted: 800, volume: '95.3 ETH' },
             pieces: [
                 {
@@ -473,7 +490,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: '3DMA',
             description: 'High-quality 3D models for games and virtual worlds. Use across multiple platforms.',
             metadataURI: 'ipfs://QmExample13',
-            creator: '0xCREATORDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 8, totalMinted: 400, volume: '112.6 ETH' },
             pieces: [
                 {
@@ -519,7 +537,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'ANIM',
             description: 'Rare animation frames from iconic moments. Own a piece of animation history.',
             metadataURI: 'ipfs://QmExample14',
-            creator: '0xCREATOREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 12, totalMinted: 600, volume: '64.9 ETH' },
             pieces: [
                 {
@@ -565,7 +584,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'SOUND',
             description: 'Professional sound effects and audio clips. Royalty-free for commercial use.',
             metadataURI: 'ipfs://QmExample15',
-            creator: '0xCREATORFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 25, totalMinted: 1500, volume: '143.2 ETH' },
             pieces: [
                 {
@@ -611,7 +631,8 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
             symbol: 'VFASH',
             description: 'Exclusive virtual fashion items for avatars. Wear unique designs in the metaverse.',
             metadataURI: 'ipfs://QmExample16',
-            creator: '0xCREATOR0000000000000000000000000000000000',
+            creator: USER_ADDRESS,
+            owner: USER_ADDRESS,
             stats: { totalEditions: 6, totalMinted: 300, volume: '201.4 ETH' },
             pieces: [
                 {
@@ -674,6 +695,7 @@ async function createERC1155Instances(mockData, factoryService, factoryAddress, 
                     description: template.description,
                     metadataURI: template.metadataURI,
                     creator: template.creator,
+                    owner: template.owner || template.creator,  // Set owner for admin access
                     pieces: template.pieces || []  // Include pieces for ERC1155
                 }
             );
