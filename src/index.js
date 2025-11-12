@@ -148,10 +148,35 @@ async function initializeServices() {
             console.log('Wallet service already initialized');
         }
         
+        // Read-only mode is now lazy-loaded only when user clicks "Continue" on splash screen
+        // No auto-initialization here
+        
         return true;
     } catch (error) {
         console.error('Service initialization error:', error);
         throw error;
+    }
+}
+
+/**
+ * Initialize read-only mode for wallet-free blockchain access
+ * Called on-demand when user clicks "Continue" button on splash screen
+ * @returns {Promise<boolean>} True if initialized successfully
+ */
+export async function initializeReadOnlyMode() {
+    try {
+        // Dynamically import ReadOnlyService
+        const { default: readOnlyService } = await import('./services/ReadOnlyService.js');
+        
+        // Initialize read-only service
+        await readOnlyService.initialize();
+        
+        console.log('Read-only mode initialized');
+        return true;
+    } catch (error) {
+        // Read-only mode is optional, so we don't throw
+        console.warn('Read-only mode not available:', error.message);
+        return false;
     }
 }
 
