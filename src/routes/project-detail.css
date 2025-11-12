@@ -49,11 +49,11 @@
 }
 
 .back-button {
-    /* Use bronze metallic for back navigation */
-    background: var(--gradient-bronze-raised) !important;
+    /* Use silver metallic for back navigation */
+    background: var(--gradient-silver-raised) !important;
     background-color: transparent !important;
-    color: var(--bronze-metallic-dark) !important; /* Darker text for engraved look */
-    border: 1px solid var(--bronze-metallic-dark) !important;
+    color: var(--silver-metallic-dark) !important; /* Darker text for engraved look */
+    border: 1px solid var(--silver-metallic-dark) !important;
     padding: var(--button-padding-y-md) var(--button-padding-x-lg);
     border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
     cursor: pointer;
@@ -61,7 +61,7 @@
     font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
     font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
     transition: var(--transition-base);
-    box-shadow: var(--shadow-bronze-raised) !important;
+    box-shadow: var(--shadow-silver-raised) !important;
     text-shadow: 
         0 1px 2px rgba(255, 255, 255, 0.3),
         0 2px 4px rgba(0, 0, 0, 0.5),
@@ -75,22 +75,22 @@
 
 .back-button:hover {
     background: linear-gradient(160deg,
-        var(--bronze-metallic-sheen) 0%,
-        var(--bronze-metallic-light) 15%,
-        var(--bronze-metallic-base) 40%,
-        var(--bronze-metallic-gradient-mid) 60%,
-        var(--bronze-metallic-gradient-dark) 85%,
-        var(--bronze-metallic-dark) 100%) !important;
+        var(--silver-metallic-sheen) 0%,
+        var(--silver-metallic-light) 15%,
+        var(--silver-metallic-base) 40%,
+        var(--silver-metallic-gradient-mid) 60%,
+        var(--silver-metallic-gradient-dark) 85%,
+        var(--silver-metallic-dark) 100%) !important;
     background-color: transparent !important;
     box-shadow: 
         inset 0 2px 3px rgba(255, 255, 255, 0.25),
         inset 0 -2px 3px rgba(0, 0, 0, 0.3),
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
-        0 0 12px rgba(205, 127, 50, 0.2) !important;
+        0 0 12px rgba(158, 158, 158, 0.2) !important;
     transform: translateY(-1px);
-    border-color: var(--bronze-metallic-base) !important;
-    color: var(--bronze-metallic-dark) !important; /* Keep dark text */
+    border-color: var(--silver-metallic-base) !important;
+    color: var(--silver-metallic-dark) !important; /* Keep dark text */
     text-shadow: 
         0 1px 2px rgba(255, 255, 255, 0.4),
         0 2px 4px rgba(0, 0, 0, 0.6),
@@ -104,18 +104,18 @@
         inset 0 -1px 2px rgba(255, 255, 255, 0.15),
         0 1px 2px rgba(0, 0, 0, 0.15) !important;
     background: linear-gradient(160deg,
-        var(--bronze-metallic-base) 0%,
-        var(--bronze-metallic-gradient-mid) 50%,
-        var(--bronze-metallic-dark) 100%) !important;
+        var(--silver-metallic-base) 0%,
+        var(--silver-metallic-gradient-mid) 50%,
+        var(--silver-metallic-dark) 100%) !important;
     background-color: transparent !important;
 }
 
 .back-button:focus-visible {
-    outline: 2px solid var(--bronze-metallic-base);
+    outline: 2px solid var(--silver-metallic-base);
     outline-offset: 2px;
     box-shadow: 
-        var(--shadow-bronze-raised),
-        0 0 0 4px rgba(205, 127, 50, 0.2) !important;
+        var(--shadow-silver-raised),
+        0 0 0 4px rgba(158, 158, 158, 0.2) !important;
 }
 
 /* ============================================================================
@@ -260,20 +260,42 @@
 }
 
 .copy-button {
-    /* Use standardized button styles */
-    background: var(--bg-secondary);
-    border: var(--border-width-thin) solid var(--border-base);
-    padding: var(--spacing-1) var(--spacing-2);
-    border-radius: var(--radius-sm);
+    /* Use metallic button styles for consistency */
+    background: var(--gradient-bronze-raised) !important;
+    background-color: transparent !important;
+    color: var(--bronze-metallic-dark) !important;
+    border: 1px solid var(--bronze-metallic-dark) !important;
+    padding: var(--spacing-1) var(--spacing-3) !important;
+    border-radius: var(--radius-sm) !important;
     cursor: pointer;
-    font-size: var(--font-size-body-sm);
-    font-family: var(--font-body);
-    transition: var(--transition-base);
+    font-size: var(--font-size-body-sm) !important;
+    font-family: var(--font-engraved) !important;
+    font-weight: var(--font-weight-bold) !important;
+    transition: var(--transition-base) !important;
+    box-shadow: var(--shadow-bronze-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
 }
 
 .copy-button:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--border-dark);
+    background: linear-gradient(160deg,
+        var(--bronze-metallic-sheen) 0%,
+        var(--bronze-metallic-light) 15%,
+        var(--bronze-metallic-base) 40%,
+        var(--bronze-metallic-gradient-mid) 60%,
+        var(--bronze-metallic-gradient-dark) 85%,
+        var(--bronze-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(205, 127, 50, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--bronze-metallic-base) !important;
 }
 
 .copy-button:focus-visible {

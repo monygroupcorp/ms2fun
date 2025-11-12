@@ -392,7 +392,7 @@ export class ERC404TradingInterface extends Component {
     render() {
         if (this.state.loading) {
             return `
-                <div class="erc404-trading-interface loading">
+                <div class="erc404-trading-interface loading marble-bg">
                     <div class="loading-spinner"></div>
                     <p>Loading trading interface...</p>
                 </div>
@@ -401,7 +401,7 @@ export class ERC404TradingInterface extends Component {
         
         if (this.state.error) {
             return `
-                <div class="erc404-trading-interface error">
+                <div class="erc404-trading-interface error marble-bg">
                     <p class="error-message">${this.escapeHtml(this.state.error)}</p>
                     <button class="retry-button" ref="retry-button">Retry</button>
                 </div>
@@ -409,27 +409,27 @@ export class ERC404TradingInterface extends Component {
         }
         
         return `
-            <div class="erc404-trading-interface">
-                <div class="trading-header">
+            <div class="erc404-trading-interface marble-bg">
+                <div class="trading-header marble-bg">
                     <h2>Trading Interface</h2>
                 </div>
                 
                 <div class="trading-content">
                     <div class="trading-left">
-                        <div class="price-section" ref="price-section">
+                        <div class="price-section marble-bg" ref="price-section">
                             <!-- PriceDisplay will be mounted here -->
                         </div>
-                        <div class="balance-section" ref="balance-section">
+                        <div class="balance-section marble-bg" ref="balance-section">
                             <!-- BalanceDisplay will be mounted here -->
                         </div>
                     </div>
                     
                     <div class="trading-center-right">
-                        <div class="swap-section" ref="swap-section">
+                        <div class="swap-section marble-bg" ref="swap-section">
                             <!-- SwapInterface will be mounted here -->
                     </div>
                     
-                        <div class="curve-section" ref="curve-section">
+                        <div class="curve-section marble-bg" ref="curve-section">
                             <!-- BondingCurve will be mounted here -->
                         </div>
                     </div>
@@ -482,7 +482,7 @@ export class ERC404TradingInterface extends Component {
         const price = projectState?.price?.current || 0;
         
         container.innerHTML = `
-            <div class="price-display-simple">
+            <div class="price-display-simple marble-bg">
                 <h3>Current Price</h3>
                 <div class="price-value">${price.toFixed(6)} ETH per 1M tokens</div>
             </div>
@@ -494,7 +494,7 @@ export class ERC404TradingInterface extends Component {
         const balances = projectState?.balances || { eth: '0', exec: '0', nfts: '0' };
         
         container.innerHTML = `
-            <div class="balance-display-simple">
+            <div class="balance-display-simple marble-bg">
                 <h3>Your Balances</h3>
                 <div class="balance-item">
                     <span class="label">ETH:</span>
@@ -549,7 +549,7 @@ export class ERC404TradingInterface extends Component {
             }
         
         container.innerHTML = `
-            <div class="swap-interface-simple">
+            <div class="swap-interface-simple marble-bg">
                     <h3 class="swap-title">${isEthToExec ? 'Buy' : 'Sell'} Tokens</h3>
                     <div class="quick-fill-buttons-container">
                         <div class="quick-fill-buttons"></div>
@@ -985,7 +985,7 @@ export class ERC404TradingInterface extends Component {
         const price = projectState?.price?.current || 0;
         
         container.innerHTML = `
-            <div class="bonding-curve-simple">
+            <div class="bonding-curve-simple marble-bg">
                 <h3>Bonding Curve</h3>
                 <div class="curve-chart-container">
                     <canvas id="erc404-bonding-curve-canvas" width="400" height="300"></canvas>

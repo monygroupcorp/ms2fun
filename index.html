@@ -37,6 +37,49 @@
     <!-- Font Preload -->
     <link rel="preload" href="/public/fonts/RedHatTextVarLatinSubsetBasic.woff2" as="font" type="font/woff2" crossorigin>
     
+    <!-- Critical CSS - Prevent FOUC (Flash of Unstyled Content) -->
+    <style>
+        /* Hide body until CSS loads */
+        body {
+            visibility: hidden;
+            opacity: 0;
+        }
+        
+        /* Show body once CSS is loaded */
+        body.css-loaded {
+            visibility: visible;
+            opacity: 1;
+            transition: opacity 0.2s ease-in;
+        }
+        
+        /* Ensure critical base styles are applied immediately */
+        html {
+            box-sizing: border-box;
+        }
+        
+        *, *::before, *::after {
+            box-sizing: inherit;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Playfair Display', 'Times New Roman', 'Georgia', serif;
+            background: #faf9f7;
+            color: #2d2d2d;
+        }
+        
+        html[data-theme='dark'] body {
+            background: #1a1a1a;
+            color: #faf9f7;
+        }
+    </style>
+    
+    <!-- Preload critical stylesheets -->
+    <link rel="preload" href="/src/core/global.css" as="style">
+    <link rel="preload" href="/src/core/theme.css" as="style">
+    <link rel="preload" href="/src/core/marble.css" as="style">
+    
     <!-- Stylesheets -->
     <!-- Base styles (shared) -->
     <link rel="stylesheet" href="/src/core/global.css">
@@ -61,6 +104,106 @@
     <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js" integrity="sha512-KmJieQAYZM+jvcGHQzpnSjqjoWVwMAbziPWQnWfvWkQ91R7XlMUVJZgGuw6gUhJnwOo92Z3sr3vE7dREsSEjRQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     
     <!-- Application Scripts -->
+    <!-- Prevent FOUC - Show body once CSS is loaded -->
+    <script>
+        (function() {
+            var stylesheetsLoaded = 0;
+            var totalStylesheets = 0;
+            var bodyShown = false;
+            
+            function showBody() {
+                if (!bodyShown) {
+                    bodyShown = true;
+                    document.body.classList.add('css-loaded');
+                }
+            }
+            
+            function checkStylesheetLoad(link) {
+                if (link.sheet) {
+                    // Stylesheet is already loaded
+                    stylesheetsLoaded++;
+                    if (stylesheetsLoaded >= totalStylesheets) {
+                        setTimeout(showBody, 50);
+                    }
+                } else if (link.addEventListener) {
+                    // Wait for load event
+                    link.addEventListener('load', function() {
+                        stylesheetsLoaded++;
+                        if (stylesheetsLoaded >= totalStylesheets) {
+                            setTimeout(showBody, 50);
+                        }
+                    });
+                    link.addEventListener('error', function() {
+                        // Count errors as loaded to prevent infinite wait
+                        stylesheetsLoaded++;
+                        if (stylesheetsLoaded >= totalStylesheets) {
+                            setTimeout(showBody, 50);
+                        }
+                    });
+                } else {
+                    // Fallback: count as loaded
+                    stylesheetsLoaded++;
+                }
+            }
+            
+            function initFOUC() {
+                var stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+                totalStylesheets = stylesheets.length;
+                
+                if (totalStylesheets === 0) {
+                    // No stylesheets, show immediately
+                    showBody();
+                    return;
+                }
+                
+                // Check each stylesheet
+                stylesheets.forEach(checkStylesheetLoad);
+                
+                // Fallback: show after DOM is ready and a short delay
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        setTimeout(function() {
+                            if (!bodyShown) {
+                                showBody();
+                            }
+                        }, 200);
+                    });
+                } else {
+                    setTimeout(function() {
+                        if (!bodyShown) {
+                            showBody();
+                        }
+                    }, 200);
+                }
+                
+                // Also listen for page complete
+                document.addEventListener('readystatechange', function() {
+                    if (document.readyState === 'complete') {
+                        setTimeout(function() {
+                            if (!bodyShown) {
+                                showBody();
+                            }
+                        }, 100);
+                    }
+                });
+                
+                // Final fallback: always show after 1 second max
+                setTimeout(function() {
+                    if (!bodyShown) {
+                        showBody();
+                    }
+                }, 1000);
+            }
+            
+            // Start checking when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initFOUC);
+            } else {
+                initFOUC();
+            }
+        })();
+    </script>
+    
     <!-- Theme system (must load early) -->
     <script type="module" src="/src/core/theme.js"></script>
     <!-- Marble texture configuration (assigns unique distortions) -->

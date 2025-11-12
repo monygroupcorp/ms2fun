@@ -26,7 +26,7 @@ export class Documentation extends Component {
         // Setup mobile menu toggle - delay slightly to ensure layout is complete
         // This is especially important on direct load/refresh
         this.setTimeout(() => {
-            this.setupMobileMenu();
+        this.setupMobileMenu();
         }, 50);
     }
 
@@ -617,122 +617,121 @@ export class Documentation extends Component {
                     
                     <main class="doc-content">
                         <section id="hero" class="doc-section hero-section">
-                            <h1 class="hero-title">Welcome to ms2.fun</h1>
+                            <h1 class="hero-title">MS2.FUN</h1>
                             <p class="hero-subtitle">
-                                An artist enclave made possible by Ethereum smart contracts. Built for the 
-                                community, especially for our cult executives.
+                                An artist enclave established through Ethereum smart contracts. 
+                                Constructed for the community, dedicated to our cult executives.
                             </p>
                             <div class="hero-cta">
-                                <a href="/" class="cta-button" data-ref="cta-get-started">Get Started</a>
-                                <a href="/factories" class="cta-button secondary" data-ref="cta-factories">Explore Factories</a>
+                                <a href="/" class="cta-button" data-ref="cta-get-started">Begin</a>
+                                <a href="/factories" class="cta-button secondary" data-ref="cta-factories">Examine Factories</a>
                             </div>
                         </section>
 
                         <section id="what-is" class="doc-section">
-                            <h2>What is ms2.fun?</h2>
+                            <h2>What is MS2.FUN?</h2>
                             <p>
-                                ms2.fun is an artist enclave made possible by Ethereum smart contracts. 
-                                It's a launchpad that connects to a public master contract that keeps 
-                                track of authorized factories.
+                                MS2.FUN is an artist enclave established through Ethereum smart contracts. 
+                                A launchpad connected to a public master contract that maintains 
+                                the registry of authorized factories.
                             </p>
                             <p>
-                                Anyone can submit a factory for approval, and anyone can create projects 
-                                using those factories. The cult executives curate factories to ensure 
-                                quality and protect users, while keeping the ecosystem open for creators.
+                                Any individual may submit a factory for approval, and any individual may 
+                                create projects using those factories. The cult executives curate factories 
+                                to ensure quality and protect users, while maintaining the ecosystem open 
+                                for creators.
                             </p>
                             <p>
-                                We're working toward greater decentralization, but we're not there yet. 
-                                The goal is to build a platform where artists and creators can launch 
-                                their projects with confidence, supported by quality tools and community 
-                                curation.
+                                We progress toward greater decentralization. The objective is to construct 
+                                a platform where artists and creators may launch their projects with 
+                                confidence, supported by quality tools and community curation.
                             </p>
                             <p>
-                                Built for the stationthisbot community and especially for our cult executives.
+                                Constructed for the stationthisbot community and dedicated to our cult executives.
                             </p>
                         </section>
 
                         <section id="how-it-works" class="doc-section">
-                            <h2>How it Works</h2>
-                            <p>It's simpler than it sounds.</p>
+                            <h2>How It Works</h2>
+                            <p>The architecture is straightforward.</p>
                             
                             <div class="how-it-works-steps">
                                 <div class="step">
                                     <h3>Master Contract</h3>
                                     <p>
-                                        The master contract is the brain of the operation. It keeps track 
-                                        of all authorized factories. Think of it like a directory of 
-                                        approved tools.
+                                        The master contract serves as the foundation of the operation. 
+                                        It maintains the registry of all authorized factories. 
+                                        A directory of approved tools.
                                     </p>
                                 </div>
                                 
                                 <div class="step">
                                     <h3>Factories</h3>
                                     <p>
-                                        Factories are like templates. Each factory can create multiple 
-                                        project instances. Want to launch an ERC404 token? There's a 
-                                        factory for that. Want to create an ERC1155 collection? There's 
-                                        a factory for that too.
+                                        Factories function as templates. Each factory may create multiple 
+                                        project instances. To launch an ERC404 token, there exists a 
+                                        factory. To create an ERC1155 collection, there exists a factory.
                                     </p>
                                 </div>
                                 
                                 <div class="step">
                                     <h3>Instances</h3>
                                     <p>
-                                        When you use a factory to create a project, you're creating an 
-                                        "instance". Each instance is its own contract, its own project, 
-                                        its own thing.
+                                        When one employs a factory to create a project, one creates an 
+                                        instance. Each instance is its own contract, its own project, 
+                                        its own entity.
                                     </p>
                                 </div>
                             </div>
                             
                             <p class="flow-description">
-                                <strong>The flow:</strong> Browse factories → Pick one → Create your project → 
-                                Deploy it → Share it with the world.
+                                <strong>The Process:</strong> Examine factories → Select one → Create your project → 
+                                Deploy it → Present it to the world.
                             </p>
                             
                             <p>
-                                All of this happens on-chain, transparently. The cult executives control 
-                                the master contract to ensure quality, while keeping the ecosystem open 
-                                for creators.
+                                All of this occurs on-chain, transparently. The cult executives control 
+                                the master contract to ensure quality, while maintaining the ecosystem 
+                                open for creators.
                             </p>
                         </section>
 
                         <section id="contract-types" class="doc-section">
                             <h2>Supported Contract Types</h2>
                             <p>
-                                ms2.fun currently supports two contract types, each with unique capabilities 
-                                and use cases. More contract types will be added as the ecosystem grows.
+                                MS2.FUN currently supports two contract types, each with distinct capabilities 
+                                and use cases. Additional contract types shall be added as the ecosystem expands.
                             </p>
                             
                             <div class="contract-types-grid">
                                 <div class="contract-type-card erc404 marble-bg">
                                     <div class="contract-type-header">
-                                        <span class="contract-type-icon">💎</span>
+                                        <span class="contract-type-icon"></span>
                                         <h3>ERC404</h3>
                                     </div>
                                     <p class="contract-type-description">
-                                        Combines fungible tokens with NFTs. Perfect for token launches with 
-                                        built-in liquidity and NFT minting capabilities.
+                                        Unifies fungible tokens with NFTs. Designed for token launches with 
+                                        integrated liquidity and NFT minting capabilities.
                                     </p>
                                     
                                     <div class="contract-type-features">
                                         <h4>Key Features:</h4>
                                         <ul>
                                             <li><strong>Bonding Curve:</strong> Dynamic pricing mechanism for token trading</li>
-                                            <li><strong>Automatic NFT Minting:</strong> NFTs mint automatically when you hold tokens</li>
+                                            <li><strong>Automatic NFT Minting:</strong> NFTs mint automatically upon token holding</li>
                                             <li><strong>Merkle Tree Whitelist:</strong> Support for phased launches with whitelisting</li>
-                                            <li><strong>Phase Transitions:</strong> Presale → Live trading phases</li>
-                                            <li><strong>On-Chain Messaging:</strong> Built-in chat feature for community interaction</li>
+                                            <li><strong>Phase Transitions:</strong> Presale to live trading phases</li>
+                                            <li><strong>On-Chain Messaging:</strong> Integrated chat feature for community interaction</li>
                                             <li><strong>Liquidity Pool Integration:</strong> Automatic liquidity pool deployment</li>
                                         </ul>
                                     </div>
                                     
                                     <div class="contract-type-usecases">
-                                        <h4>Best For:</h4>
+                                        <h4>Intended For:</h4>
                                         <ul>
                                             <li>Token launches with bonding curve</li>
                                             <li>Community tokens with NFT rewards</li>
-                                            <li>NFT collections with built-in liquidity</li>
+                                            <li>NFT collections with integrated liquidity</li>
                                             <li>Gamified token projects</li>
                                         </ul>
                                     </div>
@@ -740,27 +739,27 @@ export class Documentation extends Component {
                                 
                                 <div class="contract-type-card erc1155 marble-bg">
                                     <div class="contract-type-header">
-                                        <span class="contract-type-icon">🎨</span>
+                                        <span class="contract-type-icon"></span>
                                         <h3>ERC1155</h3>
                                     </div>
                                     <p class="contract-type-description">
-                                        Multi-edition NFT collections where each edition can have its own 
-                                        price and supply. Perfect for artists and creators to monetize their work.
+                                        Multi-edition NFT collections where each edition may possess its own 
+                                        price and supply. Designed for artists and creators to monetize their work.
                                     </p>
                                     
                                     <div class="contract-type-features">
                                         <h4>Key Features:</h4>
                                         <ul>
-                                            <li><strong>Multiple Editions:</strong> Multiple NFT types in one contract</li>
-                                            <li><strong>Per-Edition Pricing:</strong> Each edition can have its own price</li>
+                                            <li><strong>Multiple Editions:</strong> Multiple NFT types within one contract</li>
+                                            <li><strong>Per-Edition Pricing:</strong> Each edition may possess its own price</li>
                                             <li><strong>Open Mint:</strong> Public minting functionality</li>
-                                            <li><strong>Batch Operations:</strong> Mint or transfer multiple NFTs at once</li>
+                                            <li><strong>Batch Operations:</strong> Mint or transfer multiple NFTs simultaneously</li>
                                             <li><strong>Metadata URI Support:</strong> IPFS metadata for each edition</li>
                                         </ul>
                                     </div>
                                     
                                     <div class="contract-type-usecases">
-                                        <h4>Best For:</h4>
+                                        <h4>Intended For:</h4>
                                         <ul>
                                             <li>Art collections</li>
                                             <li>Digital collectibles</li>
@@ -773,14 +772,14 @@ export class Documentation extends Component {
                             
                             <p class="contract-types-note">
                                 <strong>Note:</strong> The platform is designed to be extensible. New contract types 
-                                can be added through the factory system as the ecosystem evolves.
+                                may be added through the factory system as the ecosystem evolves.
                             </p>
                         </section>
 
                         <section id="feature-matrix" class="doc-section">
                             <h2>Feature Matrix</h2>
                             <p>
-                                Projects on ms2.fun can support various features. The feature matrix system 
+                                Projects on MS2.FUN may support various features. The feature matrix system 
                                 ensures that contracts declare their required features, and the website renders 
                                 the appropriate UI components.
                             </p>
@@ -788,7 +787,7 @@ export class Documentation extends Component {
                             <div class="feature-matrix-explanation">
                                 <p>
                                     When a factory creates a project, it specifies which features that project 
-                                    supports. The website then knows how to display and interact with that project. 
+                                    supports. The website then determines how to display and interact with that project. 
                                     This ensures compatibility between contracts and the frontend.
                                 </p>
                             </div>
@@ -815,8 +814,8 @@ export class Documentation extends Component {
                                 <div class="feature-item marble-bg">
                                     <h3>Chat Feature</h3>
                                     <p>
-                                        On-chain messaging system where users can leave messages linked to their 
-                                        transactions. Builds community engagement.
+                                        On-chain messaging system where users may leave messages linked to their 
+                                        transactions. Facilitates community engagement.
                                     </p>
                                     <span class="feature-badge both">Both</span>
                                 </div>
@@ -824,8 +823,8 @@ export class Documentation extends Component {
                                 <div class="feature-item marble-bg">
                                     <h3>Balance Mint Portfolio</h3>
                                     <p>
-                                        View and manage your token balances, NFT holdings, and minting history 
-                                        in one place.
+                                        View and manage token balances, NFT holdings, and minting history 
+                                        in one location.
                                     </p>
                                     <span class="feature-badge erc404">ERC404</span>
                                 </div>
@@ -843,19 +842,19 @@ export class Documentation extends Component {
                             
                             <p class="feature-matrix-note">
                                 <strong>Future Features:</strong> The feature matrix is extensible. As new features 
-                                are developed, they can be added to the system and supported by factories.
+                                are developed, they may be added to the system and supported by factories.
                             </p>
                         </section>
 
                         <section id="factory-requirements" class="doc-section">
                             <h2>Factory Requirements</h2>
                             <p>
-                                Want to submit a factory? Here's what you need to know.
+                                To submit a factory, one must understand the following requirements.
                             </p>
                             
                             <p>
-                                To keep the ecosystem high-quality and protect users, factories need 
-                                to meet certain requirements. The cult executives review all factory 
+                                To maintain ecosystem quality and protect users, factories must 
+                                meet certain requirements. The cult executives review all factory 
                                 applications to ensure quality and safety.
                             </p>
                             
@@ -889,24 +888,24 @@ export class Documentation extends Component {
                                 <div class="requirement-item">
                                     <h3>Styling Requirements</h3>
                                     <p>
-                                        We want the launchpad to look good. Factories need to meet styling 
-                                        requirements so everything displays nicely and consistently.
+                                        The launchpad requires visual consistency. Factories must meet styling 
+                                        requirements so all elements display properly and consistently.
                                     </p>
                                     <p class="requirement-detail">
-                                        <strong>Technical:</strong> Projects created by your factory should 
-                                        work seamlessly with the launchpad UI components.
+                                        <strong>Technical:</strong> Projects created by one's factory must 
+                                        function seamlessly with the launchpad UI components.
                                     </p>
                                 </div>
                                 
                                 <div class="requirement-item">
                                     <h3>Ownership Cleanliness</h3>
                                     <p>
-                                        This is about decentralization. Factories should follow best 
+                                        This concerns decentralization. Factories must follow best 
                                         practices for ownership and control. No rug pulls, no hidden 
-                                        admin keys, no centralized control that could hurt users.
+                                        admin keys, no centralized control that could harm users.
                                     </p>
                                     <p class="requirement-detail">
-                                        <strong>Technical:</strong> Ownership should be transparent, 
+                                        <strong>Technical:</strong> Ownership must be transparent, 
                                         preferably multi-sig or DAO-controlled. No single points of failure.
                                     </p>
                                 </div>
@@ -914,23 +913,23 @@ export class Documentation extends Component {
                                 <div class="requirement-item">
                                     <h3>User Protection</h3>
                                     <p>
-                                        The goal is to protect users from pump and dump schemes and bad 
-                                        actors. Your factory should be designed with user safety in mind.
+                                        The objective is to protect users from pump and dump schemes and bad 
+                                        actors. One's factory must be designed with user safety in mind.
                                     </p>
                                     <p class="requirement-detail">
-                                        <strong>Technical:</strong> Contracts should have safeguards against 
-                                        common attack vectors and should not enable malicious behavior.
+                                        <strong>Technical:</strong> Contracts must have safeguards against 
+                                        common attack vectors and must not enable malicious behavior.
                                     </p>
                                 </div>
                                 
                                 <div class="requirement-item">
                                     <h3>Quality Curation</h3>
                                     <p>
-                                        We're curating a gallery of serious creators. Your factory should 
+                                        We curate a gallery of serious creators. One's factory must 
                                         enable high-quality projects, not spam or low-effort clones.
                                     </p>
                                     <p class="requirement-detail">
-                                        <strong>Technical:</strong> Factory should have mechanisms to 
+                                        <strong>Technical:</strong> Factory must have mechanisms to 
                                         prevent spam and encourage quality project creation.
                                     </p>
                                 </div>
@@ -965,13 +964,13 @@ export class Documentation extends Component {
                                 <ol>
                                     <li>
                                         <strong>Consult Before Deployment:</strong> We strongly recommend 
-                                        consulting with us before deploying your factory contract. This ensures 
-                                        your contract meets all requirements and can help avoid issues during 
+                                        consulting with us before deploying one's factory contract. This ensures 
+                                        one's contract meets all requirements and may help avoid issues during 
                                         the approval process. Early consultation leads to the smoothest possible 
                                         launch.
                                     </li>
                                     <li>
-                                        <strong>Deploy Your Factory:</strong> Deploy your factory contract 
+                                        <strong>Deploy Your Factory:</strong> Deploy one's factory contract 
                                         to the Ethereum mainnet (or testnet for testing).
                                     </li>
                                     <li>
@@ -985,42 +984,42 @@ export class Documentation extends Component {
                                         </ul>
                                     </li>
                                     <li>
-                                        <strong>Submit Application:</strong> Submit your factory application 
+                                        <strong>Submit Application:</strong> Submit one's factory application 
                                         through the master contract, including the application fee (currently 0.1 ETH).
                                     </li>
                                     <li>
-                                        <strong>Review Process:</strong> Cult executives review your application 
+                                        <strong>Review Process:</strong> Cult executives review one's application 
                                         for compliance with requirements.
                                     </li>
                                     <li>
-                                        <strong>Approval or Rejection:</strong> If approved, your factory is 
+                                        <strong>Approval or Rejection:</strong> If approved, one's factory is 
                                         registered and becomes available for project creation. If rejected, 
-                                        you'll receive a reason and may be eligible for a fee refund.
+                                        one receives a reason and may be eligible for a fee refund.
                                     </li>
                                 </ol>
                             </div>
                             
                             <p class="requirement-note">
-                                <strong>Bottom line:</strong> If you want to submit a factory, you need to 
-                                make sure it meets these requirements AND get approval from the cult executives. 
-                                There's an application fee for factory approval (currently 0.1 ETH). Individual 
+                                <strong>Summary:</strong> To submit a factory, one must ensure it meets these 
+                                requirements AND obtain approval from the cult executives. 
+                                There exists an application fee for factory approval (currently 0.1 ETH). Individual 
                                 factories may also charge their own fees for project creation.
                             </p>
                             
                             <p>
-                                If you're building something legit and useful, the approval process 
-                                is straightforward. The goal is quality, not gatekeeping.
+                                If one builds something legitimate and useful, the approval process 
+                                is straightforward. The objective is quality, not gatekeeping.
                             </p>
                         </section>
 
                         <section id="community" class="doc-section">
                             <h2>Community</h2>
                             <p class="community-intro">
-                                <strong>Built for the community</strong>
+                                <strong>Constructed for the community</strong>
                             </p>
                             
                             <p>
-                                ms2.fun was built for the people at stationthisbot and 
+                                MS2.FUN was constructed for the people at stationthisbot and 
                                 especially for our cult executives.
                             </p>
                             
@@ -1030,27 +1029,27 @@ export class Documentation extends Component {
                             
                             <ul class="community-values">
                                 <li>Quality matters</li>
-                                <li>Decentralization is the goal</li>
+                                <li>Decentralization is the objective</li>
                                 <li>Serious creators are welcome</li>
                                 <li>Users are protected</li>
-                                <li>The community decides what thrives</li>
+                                <li>The community determines what thrives</li>
                             </ul>
                             
                             <p>
                                 The cult executives control the master contract, which means they 
-                                curate what factories get approved. This isn't about gatekeeping 
-                                for the sake of it - it's about maintaining quality and protecting 
+                                curate what factories receive approval. This is not about gatekeeping 
+                                for its own sake—it is about maintaining quality and protecting 
                                 the community from bad actors.
                             </p>
                             
                             <p>
-                                Want to be part of it? Create a project. Want to contribute a 
-                                factory? Make sure it meets the requirements and reach out. Want 
-                                to just browse and discover cool projects? You're in the right place.
+                                To participate, create a project. To contribute a 
+                                factory, ensure it meets the requirements and reach out. To 
+                                browse and discover projects, one is in the correct place.
                             </p>
                             
                             <p class="community-cta">
-                                <strong>This is your launchpad. Make it awesome.</strong>
+                                <strong>This is your launchpad. Make it meaningful.</strong>
                             </p>
                         </section>
 
@@ -1061,10 +1060,10 @@ export class Documentation extends Component {
                         </section>
 
                         <div class="doc-footer-cta">
-                            <p>Ready to get started?</p>
+                            <p>Ready to begin?</p>
                             <div class="hero-cta">
-                                <a href="/" class="cta-button" data-ref="footer-cta-home">Back to Home</a>
-                                <a href="/factories" class="cta-button secondary" data-ref="footer-cta-factories">Explore Factories</a>
+                                <a href="/" class="cta-button" data-ref="footer-cta-home">Return to Home</a>
+                                <a href="/factories" class="cta-button secondary" data-ref="footer-cta-factories">Examine Factories</a>
                             </div>
                         </div>
                     </main>

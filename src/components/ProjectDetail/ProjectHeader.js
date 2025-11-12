@@ -25,7 +25,7 @@ export class ProjectHeader extends Component {
         const createdAt = this.project.createdAt ? new Date(this.project.createdAt).toLocaleDateString() : 'Unknown';
 
         return `
-            <div class="project-header">
+            <div class="project-header marble-bg">
                 <div class="header-top">
                     <h1 class="project-name">${this.escapeHtml(this.project.name)}</h1>
                     <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>

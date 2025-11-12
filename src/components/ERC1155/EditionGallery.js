@@ -72,7 +72,7 @@ export class EditionGallery extends Component {
     render() {
         if (this.state.loading) {
             return `
-                <div class="edition-gallery loading">
+                <div class="edition-gallery loading marble-bg">
                     <div class="loading-spinner"></div>
                     <p>Loading editions...</p>
                 </div>
@@ -81,7 +81,7 @@ export class EditionGallery extends Component {
 
         if (this.state.error) {
             return `
-                <div class="edition-gallery error">
+                <div class="edition-gallery error marble-bg">
                     <p class="error-message">Error: ${this.escapeHtml(this.state.error)}</p>
                     <button class="retry-button" ref="retry-button">Retry</button>
                 </div>
@@ -90,7 +90,7 @@ export class EditionGallery extends Component {
 
         if (this.state.editions.length === 0) {
             return `
-                <div class="edition-gallery empty">
+                <div class="edition-gallery empty marble-bg">
                     <div class="empty-state">
                         <h3>No editions available yet</h3>
                         <p>Check back later for new editions.</p>
@@ -100,7 +100,7 @@ export class EditionGallery extends Component {
         }
 
         return `
-            <div class="edition-gallery">
+            <div class="edition-gallery marble-bg">
                 <div class="gallery-header">
                     <h2>Editions</h2>
                     <p class="edition-count">${this.state.editions.length} edition${this.state.editions.length !== 1 ? 's' : ''}</p>

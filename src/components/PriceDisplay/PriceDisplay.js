@@ -78,7 +78,7 @@ export default class PriceDisplay extends Component {
         const { price, lastUpdated, loading, error } = this.state;
         
         if (loading) return `
-            <div class="price-display loading">
+            <div class="price-display loading marble-bg">
                 <div class="price-header">
                     <h3>Cult Exec </h3>
                     <h3>Bonding Curve Presale</h3>
@@ -89,7 +89,7 @@ export default class PriceDisplay extends Component {
             </div>`;
             
         if (error) return `
-            <div class="price-display error">
+            <div class="price-display error marble-bg">
                 <div class="price-header">
                     <h3>Cult Exec </h3>
                     <h3>Bonding Curve Presale</h3>
@@ -100,7 +100,7 @@ export default class PriceDisplay extends Component {
             </div>`;
         
         return `
-            <div class="price-display">
+            <div class="price-display marble-bg">
                 <div class="price-header">
                     <h3>Cult Exec </h3>
                     <h3>Bonding Curve Presale</h3>

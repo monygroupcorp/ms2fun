@@ -906,3 +906,64 @@ button.card:focus-visible {
     /* Marble utilities can be composed via classes */
 }
 
+/* ============================================================================
+   ENGRAVED SVG ICONS
+   ============================================================================
+   Styling for SVG icons used throughout the application
+   ============================================================================ */
+
+/* Base icon styling - all SVG icons inherit these */
+.icon-copy,
+.icon-etherscan,
+.icon-github,
+.icon-website,
+.icon-twitter,
+.icon-creator,
+.icon-audited {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    color: currentColor;
+    stroke: currentColor;
+    fill: none;
+    flex-shrink: 0;
+}
+
+/* Icons in card links */
+.card-link-icon svg,
+.factory-link svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+/* Icons in buttons */
+.copy-address-button svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+/* Icons in badges */
+.audit-badge-top svg {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+/* Ensure icons inherit color from parent */
+.icon-copy svg,
+.icon-etherscan svg,
+.icon-github svg,
+.icon-website svg,
+.icon-twitter svg,
+.icon-creator svg,
+.icon-audited svg {
+    color: inherit;
+    stroke: currentColor;
+    fill: none;
+}
+

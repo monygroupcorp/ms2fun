@@ -58,7 +58,7 @@ export class EditionDetail extends Component {
     render() {
         if (this.state.loading) {
             return `
-                <div class="edition-detail loading">
+                <div class="edition-detail loading marble-bg">
                     <div class="loading-spinner"></div>
                     <p>Loading edition...</p>
                 </div>
@@ -67,7 +67,7 @@ export class EditionDetail extends Component {
 
         if (this.state.error || !this.state.edition) {
             return `
-                <div class="edition-detail error">
+                <div class="edition-detail error marble-bg">
                     <h2>Error</h2>
                     <p>${this.escapeHtml(this.state.error || 'Edition not found')}</p>
                     <button class="back-button" ref="back-button">← Back to Project</button>
@@ -88,7 +88,7 @@ export class EditionDetail extends Component {
         const isSoldOut = edition.maxSupply !== '0' && currentSupply >= maxSupply;
 
         return `
-            <div class="edition-detail">
+            <div class="edition-detail marble-bg">
                 <button class="back-button" ref="back-button">← Back to Project</button>
                 
                 <div class="wallet-display-container" ref="wallet-display-container">
@@ -113,22 +113,22 @@ export class EditionDetail extends Component {
                         ` : ''}
                         
                         <div class="edition-stats-grid">
-                            <div class="stat-card">
+                            <div class="stat-card marble-bg">
                                 <span class="stat-label">Price</span>
                                 <span class="stat-value price">${price} ETH</span>
                             </div>
-                            <div class="stat-card">
+                            <div class="stat-card marble-bg">
                                 <span class="stat-label">Supply</span>
                                 <span class="stat-value">${supply}</span>
                             </div>
                             ${this.state.userBalance !== '0' ? `
-                                <div class="stat-card">
+                                <div class="stat-card marble-bg">
                                     <span class="stat-label">You Own</span>
                                     <span class="stat-value">${this.state.userBalance}</span>
                                 </div>
                             ` : ''}
                             ${edition.creator ? `
-                                <div class="stat-card">
+                                <div class="stat-card marble-bg">
                                     <span class="stat-label">Creator</span>
                                     <span class="stat-value address">${this.formatAddress(edition.creator)}</span>
                                 </div>

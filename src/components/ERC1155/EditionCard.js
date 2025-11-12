@@ -111,7 +111,7 @@ export class EditionCard extends Component {
                          currentSupply >= maxSupply;
 
         return `
-            <div class="edition-card" data-edition-id="${this.edition.id}">
+            <div class="edition-card marble-bg" data-edition-id="${this.edition.id}">
                 <a href="${this.state.editionUrl}" class="edition-link" ref="edition-link" data-edition-id="${this.edition.id}">
                     <div class="edition-image">
                         <img src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(name)}" loading="lazy" />

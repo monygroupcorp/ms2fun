@@ -5,6 +5,7 @@ import { ProjectCard } from './ProjectCard.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { FACTORY_METADATA } from '../../utils/factoryMetadata.js';
 import { loadMockData } from '../../services/mock/mockData.js';
+import { renderIcon } from '../../core/icons.js';
 
 /**
  * ProjectDiscovery component
@@ -146,13 +147,13 @@ export class ProjectDiscovery extends Component {
             <div class="project-discovery">
                 <div class="discovery-header">
                     <h1>MS2.FUN Launchpad</h1>
-                    <p class="subtitle">Discover and interact with Web3 projects</p>
+                    <p class="subtitle">A curated platform for Web3 project discovery and interaction</p>
                     <div class="header-buttons">
                         <a href="/factories" class="cta-button launch-own-button" data-ref="launch-button">
-                            🚀 Launch Your Own Project
+                            Establish Your Project
                         </a>
                         <a href="/about" class="cta-button about-button" data-ref="about-button">
-                            📖 About
+                            Documentation
                         </a>
                     </div>
                 </div>
@@ -163,7 +164,7 @@ export class ProjectDiscovery extends Component {
 
                 ${this.state.featuredProjects.length > 0 ? `
                     <div class="featured-section">
-                        <h2 class="section-title">⭐ Featured Projects</h2>
+                        <h2 class="section-title">Featured Projects</h2>
                         <div class="featured-grid" data-ref="featured-container">
                             <!-- Featured project cards will be mounted here -->
                         </div>
@@ -179,7 +180,7 @@ export class ProjectDiscovery extends Component {
                     </h2>
                     ${this.state.filteredProjects.length === 0 ? `
                         <div class="empty-state">
-                            <p>No projects found matching your criteria.</p>
+                            <p>No projects found matching the specified criteria.</p>
                             <button class="clear-filters-button" data-ref="clear-all-button">Clear Filters</button>
                         </div>
                     ` : `
@@ -530,7 +531,7 @@ export class ProjectDiscovery extends Component {
             <div class="project-card marble-bg marble-stretch-sheer ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
                 <div class="card-top-bar ${isFeatured ? 'has-background-image' : ''}" ${cardTopBarStyle}>
                     <div class="card-top-left">
-                        ${audited ? '<div class="audit-badge-top">✓ Audited</div>' : ''}
+                        ${audited ? `<div class="audit-badge-top">${renderIcon('audited', 'icon-audited')} Audited</div>` : ''}
                     </div>
                     <div class="card-top-right">
                         ${etherscanLink ? `
@@ -540,7 +541,7 @@ export class ProjectDiscovery extends Component {
                                class="card-link-icon"
                                title="View on Etherscan"
                                onclick="event.stopPropagation()">
-                                🔗
+                                ${renderIcon('etherscan', 'icon-etherscan')}
                             </a>
                         ` : ''}
                         ${githubUrl ? `
@@ -550,7 +551,7 @@ export class ProjectDiscovery extends Component {
                                class="card-link-icon"
                                title="View on GitHub"
                                onclick="event.stopPropagation()">
-                                💻
+                                ${renderIcon('github', 'icon-github')}
                             </a>
                         ` : ''}
                         ${twitterUrl ? `
@@ -560,7 +561,7 @@ export class ProjectDiscovery extends Component {
                                class="card-link-icon"
                                title="View on Twitter"
                                onclick="event.stopPropagation()">
-                                🐦
+                                ${renderIcon('twitter', 'icon-twitter')}
                             </a>
                         ` : ''}
                         ${creatorTwitter ? `
@@ -570,13 +571,13 @@ export class ProjectDiscovery extends Component {
                                class="card-link-icon"
                                title="Creator Twitter"
                                onclick="event.stopPropagation()">
-                                👤
+                                ${renderIcon('creator', 'icon-creator')}
                             </a>
                         ` : ''}
                     </div>
                 </div>
                 
-                ${isFeatured ? '<div class="featured-badge">⭐ FEATURED</div>' : ''}
+                ${isFeatured ? '<div class="featured-badge">FEATURED</div>' : ''}
                 ${isMock ? '<div class="mock-badge">For Demonstration Only</div>' : ''}
                 
                 <div class="card-header">
@@ -584,6 +585,7 @@ export class ProjectDiscovery extends Component {
                     <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>
                 </div>
                 
+                <div class="card-scrollable-content">
                 <p class="card-description">${description}</p>
                 
                 ${isFeatured ? `
@@ -622,6 +624,8 @@ export class ProjectDiscovery extends Component {
                         </div>
                     ` : ''}
                 </div>
+                </div>
+                
                 <button class="view-project-button" data-project-address="${address}">
                     ${isFeatured ? 'View CULT EXECUTIVES →' : 'View Project →'}
                 </button>

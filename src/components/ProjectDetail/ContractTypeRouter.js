@@ -99,7 +99,7 @@ export class ContractTypeRouter extends Component {
     render() {
         if (this.state.loading) {
             return `
-                <div class="contract-type-router loading">
+                <div class="contract-type-router loading marble-bg">
                     <div class="loading-spinner"></div>
                     <p>Loading interface...</p>
                 </div>
@@ -108,7 +108,7 @@ export class ContractTypeRouter extends Component {
 
         if (!this.contractType) {
             return `
-                <div class="contract-type-router">
+                <div class="contract-type-router marble-bg">
                     <div class="placeholder-message">
                         <p>Contract type not specified</p>
                     </div>
@@ -121,34 +121,34 @@ export class ContractTypeRouter extends Component {
         if (type === 'ERC404') {
             if (!this.state.adapter) {
                 return `
-                    <div class="contract-type-router erc404 error">
+                    <div class="contract-type-router erc404 error marble-bg">
                         <p>Failed to load contract adapter</p>
                     </div>
                 `;
             }
 
             return `
-                <div class="contract-type-router erc404" ref="erc404-container">
+                <div class="contract-type-router erc404 marble-bg" ref="erc404-container">
                     <!-- ERC404TradingInterface will be mounted here -->
                 </div>
             `;
         } else if (type === 'ERC1155') {
             if (!this.state.adapter) {
             return `
-                    <div class="contract-type-router erc1155 error">
+                    <div class="contract-type-router erc1155 error marble-bg">
                         <p>Failed to load contract adapter</p>
                     </div>
                 `;
             }
 
             return `
-                <div class="contract-type-router erc1155" ref="erc1155-container">
+                <div class="contract-type-router erc1155 marble-bg" ref="erc1155-container">
                     <!-- EditionGallery will be mounted here -->
                 </div>
             `;
         } else {
             return `
-                <div class="contract-type-router unknown">
+                <div class="contract-type-router unknown marble-bg">
                     <div class="placeholder-message">
                         <p>Unknown contract type: ${this.escapeHtml(this.contractType)}</p>
                     </div>

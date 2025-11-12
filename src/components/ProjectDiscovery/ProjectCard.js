@@ -3,6 +3,7 @@ import { FACTORY_METADATA } from '../../utils/factoryMetadata.js';
 import { generateProjectURL } from '../../utils/navigation.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { loadMockData } from '../../services/mock/mockData.js';
+import { renderIcon } from '../../core/icons.js';
 
 /**
  * ProjectCard component
@@ -78,7 +79,7 @@ export class ProjectCard extends Component {
             <div class="project-card marble-bg marble-stretch-sheer ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
                 <div class="card-top-bar ${isFeatured ? 'has-background-image' : ''}" ${cardTopBarStyle}>
                     <div class="card-top-left">
-                        ${audited ? '<div class="audit-badge-top">✓ Audited</div>' : ''}
+                        ${audited ? `<div class="audit-badge-top">${renderIcon('audited', 'icon-audited')} Audited</div>` : ''}
                     </div>
                     <div class="card-top-right">
                         ${etherscanLink ? `
@@ -87,8 +88,9 @@ export class ProjectCard extends Component {
                                rel="noopener noreferrer"
                                class="card-link-icon"
                                title="View on Etherscan"
+                               aria-label="View on Etherscan"
                                onclick="event.stopPropagation()">
-                                🔗
+                                ${renderIcon('etherscan', 'icon-etherscan')}
                             </a>
                         ` : ''}
                         ${githubUrl ? `
@@ -97,8 +99,9 @@ export class ProjectCard extends Component {
                                rel="noopener noreferrer"
                                class="card-link-icon"
                                title="View on GitHub"
+                               aria-label="View on GitHub"
                                onclick="event.stopPropagation()">
-                                💻
+                                ${renderIcon('github', 'icon-github')}
                             </a>
                         ` : ''}
                         ${twitterUrl ? `
@@ -107,8 +110,9 @@ export class ProjectCard extends Component {
                                rel="noopener noreferrer"
                                class="card-link-icon"
                                title="View on Twitter"
+                               aria-label="View on Twitter"
                                onclick="event.stopPropagation()">
-                                🐦
+                                ${renderIcon('twitter', 'icon-twitter')}
                             </a>
                         ` : ''}
                         ${creatorTwitter ? `
@@ -117,14 +121,15 @@ export class ProjectCard extends Component {
                                rel="noopener noreferrer"
                                class="card-link-icon"
                                title="Creator Twitter"
+                               aria-label="Creator Twitter"
                                onclick="event.stopPropagation()">
-                                👤
+                                ${renderIcon('creator', 'icon-creator')}
                             </a>
                         ` : ''}
                     </div>
                 </div>
                 
-                ${isFeatured ? '<div class="featured-badge">⭐ FEATURED</div>' : ''}
+                ${isFeatured ? '<div class="featured-badge">FEATURED</div>' : ''}
                 ${isMock ? '<div class="mock-badge">For Demonstration Only</div>' : ''}
                 
                 <div class="card-header">
@@ -132,6 +137,7 @@ export class ProjectCard extends Component {
                     <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>
                 </div>
                 
+                <div class="card-scrollable-content">
                 <p class="card-description">${this.escapeHtml(this.project.description || 'No description available')}</p>
                 
                 ${isFeatured ? `
@@ -170,6 +176,8 @@ export class ProjectCard extends Component {
                         </div>
                     ` : ''}
                 </div>
+                </div>
+                
                 <button class="view-project-button" data-ref="view-button">
                     ${isFeatured ? 'View CULT EXECUTIVES →' : 'View Project →'}
                 </button>

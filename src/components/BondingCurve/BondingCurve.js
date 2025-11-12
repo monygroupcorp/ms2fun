@@ -384,7 +384,7 @@ export class BondingCurve extends Component {
 
     render() {
         return `
-            <div class="bonding-curve">
+            <div class="bonding-curve marble-bg">
                 ${this.isLiquidityDeployed() ? '' : '<canvas id="curveChart"></canvas>'}
             </div>
         `;

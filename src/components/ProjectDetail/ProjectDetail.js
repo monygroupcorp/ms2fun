@@ -107,7 +107,7 @@ export class ProjectDetail extends Component {
         }
 
         return `
-            <div class="project-detail">
+            <div class="project-detail marble-bg">
                 <div class="detail-navigation">
                     <button class="back-button" data-ref="back-button">← Back to Launchpad</button>
                 </div>

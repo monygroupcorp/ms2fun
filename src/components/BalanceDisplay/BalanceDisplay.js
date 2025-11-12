@@ -19,7 +19,7 @@ export default class BalanceDisplay extends Component {
         const status = this.store.selectStatus();
         
         return `
-            <div class="balance-display ${status.loading ? 'loading' : ''} ${status.error ? 'error' : ''}">
+            <div class="balance-display marble-bg ${status.loading ? 'loading' : ''} ${status.error ? 'error' : ''}">
                 <div class="balance-header">
                     <h3>Your Balances</h3>
                     ${balances.lastUpdated ? `

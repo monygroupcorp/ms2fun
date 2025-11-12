@@ -4,6 +4,8 @@ import { Component } from '../../core/Component.js';
  * FactoryCard component
  * Displays a single factory card with information and CTA
  */
+import { renderIcon } from '../../core/icons.js';
+
 export class FactoryCard extends Component {
     constructor(factory) {
         super();
@@ -17,7 +19,7 @@ export class FactoryCard extends Component {
         const description = this.escapeHtml(factory.description);
         const type = this.escapeHtml(factory.type);
         const instanceCount = factory.instanceCount || 0;
-        const icon = factory.icon || '📦';
+        const icon = factory.icon || '✦';
         const color = factory.color || '#6b7280';
         
         // Get factory links (if available in factory data)
@@ -97,8 +99,8 @@ export class FactoryCard extends Component {
                     <div class="factory-address">
                         <span class="address-label">Factory Address:</span>
                         <code class="address-value" data-ref="factory-address">${address}</code>
-                        <button class="copy-address-button" data-ref="copy-button" title="Copy address">
-                            📋
+                        <button class="copy-address-button" data-ref="copy-button" title="Copy address" aria-label="Copy address">
+                            ${renderIcon('copy', 'icon-copy')}
                         </button>
                     </div>
                     
@@ -108,8 +110,9 @@ export class FactoryCard extends Component {
                            rel="noopener noreferrer"
                            class="factory-link available"
                            title="View on Etherscan"
+                           aria-label="View on Etherscan"
                            onclick="event.stopPropagation()">
-                            🔗
+                            ${renderIcon('etherscan', 'icon-etherscan')}
                         </a>
                         ${githubUrl ? `
                             <a href="${this.escapeHtml(githubUrl)}" 
@@ -117,11 +120,12 @@ export class FactoryCard extends Component {
                                rel="noopener noreferrer"
                                class="factory-link available"
                                title="View on GitHub"
+                               aria-label="View on GitHub"
                                onclick="event.stopPropagation()">
-                                💻
+                                ${renderIcon('github', 'icon-github')}
                             </a>
                         ` : `
-                            <span class="factory-link" title="GitHub not available">💻</span>
+                            <span class="factory-link" title="GitHub not available">${renderIcon('github', 'icon-github')}</span>
                         `}
                         ${websiteUrl ? `
                             <a href="${this.escapeHtml(websiteUrl)}" 
@@ -129,11 +133,12 @@ export class FactoryCard extends Component {
                                rel="noopener noreferrer"
                                class="factory-link available"
                                title="Visit Website"
+                               aria-label="Visit Website"
                                onclick="event.stopPropagation()">
-                                🌐
+                                ${renderIcon('website', 'icon-website')}
                             </a>
                         ` : `
-                            <span class="factory-link" title="Website not available">🌐</span>
+                            <span class="factory-link" title="Website not available">${renderIcon('website', 'icon-website')}</span>
                         `}
                         ${twitterUrl ? `
                             <a href="${this.escapeHtml(twitterUrl)}" 
@@ -141,18 +146,19 @@ export class FactoryCard extends Component {
                                rel="noopener noreferrer"
                                class="factory-link available"
                                title="View on Twitter"
+                               aria-label="View on Twitter"
                                onclick="event.stopPropagation()">
-                                🐦
+                                ${renderIcon('twitter', 'icon-twitter')}
                             </a>
                         ` : `
-                            <span class="factory-link" title="Twitter not available">🐦</span>
+                            <span class="factory-link" title="Twitter not available">${renderIcon('twitter', 'icon-twitter')}</span>
                         `}
                     </div>
                     
                     <a href="/create?factory=${encodeURIComponent(factory.address)}" 
                        class="create-project-button" 
                        data-ref="create-button">
-                        Create ${type} Project →
+                        Establish ${type} Project
                     </a>
                 </div>
             </div>
@@ -187,10 +193,10 @@ export class FactoryCard extends Component {
                 const address = this.factory.address;
                 navigator.clipboard.writeText(address).then(() => {
                     // Show feedback
-                    const originalText = copyButton.textContent;
-                    copyButton.textContent = '✓';
+                    const originalHTML = copyButton.innerHTML;
+                    copyButton.innerHTML = renderIcon('copy', 'icon-copy');
                     this.setTimeout(() => {
-                        copyButton.textContent = originalText;
+                        copyButton.innerHTML = originalHTML;
                     }, 2000);
                 }).catch(err => {
                     console.error('Failed to copy address:', err);

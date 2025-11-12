@@ -187,11 +187,10 @@
        TYPOGRAPHY SYSTEM
        ======================================================================== */
     
-    /* Font Families */
-    --font-heading: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                    'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
-    --font-body: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+    /* Font Families - Engraved in Stone Aesthetic */
+    /* Main font: Classical serif that looks engraved in stone */
+    --font-heading: 'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif;
+    --font-body: 'Playfair Display', 'Times New Roman', 'Georgia', 'Bodoni', 'Didot', serif;
     --font-accent: 'Bebas Neue', 'Oswald', 'Montserrat', sans-serif;
     --font-mono: 'Courier New', 'Monaco', 'Consolas', monospace;
     /* Engraved/Classical Font - For metallic buttons and plaques */
@@ -237,6 +236,38 @@
     --letter-spacing-wide: 0.025em;
     --letter-spacing-wider: 0.05em;
     --letter-spacing-widest: 0.1em;
+    
+    /* Engraved Text Effects - Carved into marble appearance */
+    --text-shadow-engraved-light: 
+        1px 1px 0 rgba(255, 255, 255, 0.8),
+        -1px -1px 0 rgba(0, 0, 0, 0.2),
+        0 1px 2px rgba(0, 0, 0, 0.1);
+    --text-shadow-engraved-medium: 
+        1px 1px 0 rgba(255, 255, 255, 0.9),
+        -1px -1px 0 rgba(0, 0, 0, 0.3),
+        0 2px 3px rgba(0, 0, 0, 0.15),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    --text-shadow-engraved-deep: 
+        2px 2px 0 rgba(255, 255, 255, 0.9),
+        -2px -2px 0 rgba(0, 0, 0, 0.4),
+        0 3px 4px rgba(0, 0, 0, 0.2),
+        inset 0 1px 2px rgba(255, 255, 255, 0.4);
+    
+    /* Dark mode engraved effects (inverted) */
+    --text-shadow-engraved-dark-light: 
+        1px 1px 0 rgba(0, 0, 0, 0.8),
+        -1px -1px 0 rgba(255, 255, 255, 0.2),
+        0 1px 2px rgba(255, 255, 255, 0.1);
+    --text-shadow-engraved-dark-medium: 
+        1px 1px 0 rgba(0, 0, 0, 0.9),
+        -1px -1px 0 rgba(255, 255, 255, 0.3),
+        0 2px 3px rgba(255, 255, 255, 0.15),
+        inset 0 1px 1px rgba(0, 0, 0, 0.3);
+    --text-shadow-engraved-dark-deep: 
+        2px 2px 0 rgba(0, 0, 0, 0.9),
+        -2px -2px 0 rgba(255, 255, 255, 0.4),
+        0 3px 4px rgba(255, 255, 255, 0.2),
+        inset 0 1px 2px rgba(0, 0, 0, 0.4);
 
     /* ========================================================================
        SPACING SYSTEM (4px base unit)
@@ -585,6 +616,28 @@ body:not(.cultexecs-active) {
     max-width: 100%;
     /* Ensure body doesn't exceed viewport */
     box-sizing: border-box;
+}
+
+/* All headings automatically capitalized (engraved aesthetic) */
+body:not(.cultexecs-active) h1,
+body:not(.cultexecs-active) h2,
+body:not(.cultexecs-active) h3,
+body:not(.cultexecs-active) h4,
+body:not(.cultexecs-active) h5,
+body:not(.cultexecs-active) h6,
+body:not(.cultexecs-active) .h1,
+body:not(.cultexecs-active) .h2,
+body:not(.cultexecs-active) .h3,
+body:not(.cultexecs-active) .h4,
+body:not(.cultexecs-active) .h5,
+body:not(.cultexecs-active) .h6,
+body:not(.cultexecs-active) .section-title,
+body:not(.cultexecs-active) .card-title,
+body:not(.cultexecs-active) .factory-title,
+body:not(.cultexecs-active) .factory-name,
+body:not(.cultexecs-active) .hero-title {
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
 }
 
 /* Ensure html doesn't cause overflow */
@@ -1056,6 +1109,53 @@ body:not(.cultexecs-active) [role="button"]:focus-visible {
     font-weight: var(--font-weight-bold);
     letter-spacing: var(--letter-spacing-widest);
     text-transform: uppercase;
+}
+
+/* ============================================================================
+   ENGRAVED TEXT UTILITIES - Marble Carving Aesthetic
+   ============================================================================ */
+
+/* Engraved text utility classes */
+.engraved-light {
+    text-shadow: var(--text-shadow-engraved-light);
+}
+
+.engraved-medium {
+    text-shadow: var(--text-shadow-engraved-medium);
+}
+
+.engraved-deep {
+    text-shadow: var(--text-shadow-engraved-deep);
+}
+
+/* Dark mode engraved text */
+html[data-theme='dark'] .engraved-light {
+    text-shadow: var(--text-shadow-engraved-dark-light);
+}
+
+html[data-theme='dark'] .engraved-medium {
+    text-shadow: var(--text-shadow-engraved-dark-medium);
+}
+
+html[data-theme='dark'] .engraved-deep {
+    text-shadow: var(--text-shadow-engraved-dark-deep);
+}
+
+/* Apply engraved effect to headings by default */
+body:not(.cultexecs-active) h1,
+body:not(.cultexecs-active) h2,
+body:not(.cultexecs-active) h3,
+body:not(.cultexecs-active) .section-title,
+body:not(.cultexecs-active) .text-inscription {
+    text-shadow: var(--text-shadow-engraved-medium);
+}
+
+html[data-theme='dark'] body:not(.cultexecs-active) h1,
+html[data-theme='dark'] body:not(.cultexecs-active) h2,
+html[data-theme='dark'] body:not(.cultexecs-active) h3,
+html[data-theme='dark'] body:not(.cultexecs-active) .section-title,
+html[data-theme='dark'] body:not(.cultexecs-active) .text-inscription {
+    text-shadow: var(--text-shadow-engraved-dark-medium);
 }
 
 /* ============================================================================

@@ -173,7 +173,7 @@ export class WalletSplash extends Component {
         if (this.state.checking) {
             return `
                 <div class="wallet-splash">
-                    <div class="splash-content">
+                    <div class="splash-content marble-bg">
                         <div class="splash-spinner"></div>
                         <h2>Checking wallet connection...</h2>
                     </div>
@@ -189,7 +189,7 @@ export class WalletSplash extends Component {
         // Wallet not connected, show splash screen
         return `
             <div class="wallet-splash">
-                <div class="splash-content">
+                <div class="splash-content marble-bg">
                     <div class="splash-header">
                         <h1>Connect Your Wallet</h1>
                         <p class="splash-subtitle">Connect your wallet to access the MS2.FUN launchpad</p>

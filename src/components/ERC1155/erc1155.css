@@ -1,14 +1,13 @@
 /* ERC1155 Component Styles */
 
-/* Use RedHat font from global styles */
+/* Use engraved serif font from global styles */
 .edition-gallery,
 .edition-card,
 .edition-mint-interface,
 .creator-dashboard,
 .create-edition-modal,
 .contract-type-router.erc1155 {
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: var(--font-body);
 }
 
 /* Edition Gallery */
@@ -44,18 +43,42 @@
 }
 
 .edition-gallery .retry-button {
-    background: #764ba2;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
+    background: var(--gradient-bronze-raised) !important;
+    background-color: transparent !important;
+    color: var(--bronze-metallic-dark) !important;
+    border: 1px solid var(--bronze-metallic-dark) !important;
+    padding: var(--button-padding-y-md) var(--button-padding-x-lg) !important;
+    border-radius: var(--radius-sm) !important;
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--font-size-body) !important;
+    font-family: var(--font-engraved) !important;
+    font-weight: var(--font-weight-bold) !important;
     margin-top: 20px;
+    box-shadow: var(--shadow-bronze-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    transition: var(--transition-base) !important;
 }
 
 .edition-gallery .retry-button:hover {
-    background: #5a3a7a;
+    background: linear-gradient(160deg,
+        var(--bronze-metallic-sheen) 0%,
+        var(--bronze-metallic-light) 15%,
+        var(--bronze-metallic-base) 40%,
+        var(--bronze-metallic-gradient-mid) 60%,
+        var(--bronze-metallic-gradient-dark) 85%,
+        var(--bronze-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(205, 127, 50, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--bronze-metallic-base) !important;
 }
 
 .edition-gallery .empty-state {
@@ -79,9 +102,8 @@
 .gallery-header h2 {
     margin: 0;
     font-size: 1.8rem;
-    color: #333;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: var(--text-primary);
+    font-family: var(--font-heading);
 }
 
 .gallery-header .edition-count {
@@ -250,8 +272,7 @@
     border: 1px solid #ddd !important;
     border-radius: 4px !important;
     font-size: 1rem !important;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+    font-family: var(--font-body) !important;
 }
 
 .quantity-selector input:disabled {
@@ -282,22 +303,49 @@
 .edition-mint-interface .mint-button,
 .edition-detail .mint-button {
     width: 100% !important;
-    padding: 12px 24px !important;
-    background: #764ba2 !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 4px !important;
-    font-size: 1rem !important;
-    font-weight: 600 !important;
+    padding: var(--button-padding-y-md) var(--button-padding-x-lg) !important;
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important;
+    border: 1px solid var(--gold-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important;
+    font-size: var(--font-size-body) !important;
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
     cursor: pointer !important;
-    transition: background 0.2s !important;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+    transition: var(--transition-base) !important;
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    position: relative;
+    overflow: hidden;
 }
 
 .edition-mint-interface .mint-button:hover:not(:disabled),
 .edition-detail .mint-button:hover:not(:disabled) {
-    background: #5a3a7a !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
 .edition-mint-interface .mint-button:disabled,
@@ -521,37 +569,65 @@
 
 .cancel-button,
 .create-button {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    font-size: 1rem;
-    font-weight: 500;
+    padding: var(--button-padding-y-md) var(--button-padding-x-lg) !important;
+    border-radius: var(--radius-sm) !important;
+    font-size: var(--font-size-body) !important;
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: var(--transition-base) !important;
 }
 
 .cancel-button {
-    background: #f5f5f5;
-    color: #333;
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-base) !important;
 }
 
 .cancel-button:hover {
-    background: #e0e0e0;
+    background: var(--bg-tertiary) !important;
+    border-color: var(--border-dark) !important;
 }
 
 .create-button {
-    background: #764ba2;
-    color: white;
+    background: var(--gradient-bronze-raised) !important;
+    background-color: transparent !important;
+    color: var(--bronze-metallic-dark) !important;
+    border: 1px solid var(--bronze-metallic-dark) !important;
+    box-shadow: var(--shadow-bronze-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
 }
 
 .create-button:hover:not(:disabled) {
-    background: #5a3a7a;
+    background: linear-gradient(160deg,
+        var(--bronze-metallic-sheen) 0%,
+        var(--bronze-metallic-light) 15%,
+        var(--bronze-metallic-base) 40%,
+        var(--bronze-metallic-gradient-mid) 60%,
+        var(--bronze-metallic-gradient-dark) 85%,
+        var(--bronze-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(205, 127, 50, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--bronze-metallic-base) !important;
 }
 
 .create-button:disabled {
-    background: #ccc;
+    background: var(--bg-secondary) !important;
+    color: var(--text-muted) !important;
+    border-color: var(--border-base) !important;
     cursor: not-allowed;
     opacity: 0.6;
+    box-shadow: none !important;
+    text-shadow: none !important;
 }
 
 /* Contract Type Router */
@@ -638,21 +714,52 @@
 }
 
 .edition-detail .back-button {
-    background: #f5f5f5 !important;
-    border: 1px solid #ddd !important;
-    border-radius: 6px !important;
-    padding: 10px 20px !important;
-    font-size: 14px !important;
+    background: var(--gradient-silver-raised) !important;
+    background-color: transparent !important;
+    color: var(--silver-metallic-dark) !important;
+    border: 1px solid var(--silver-metallic-dark) !important;
+    padding: var(--button-padding-y-md) var(--button-padding-x-lg) !important;
+    border-radius: var(--radius-sm) !important;
     cursor: pointer !important;
     margin-bottom: 30px !important;
-    transition: background 0.2s !important;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
-    color: #333 !important;
+    font-size: var(--font-size-body) !important;
+    font-family: var(--font-engraved) !important;
+    font-weight: var(--font-weight-bold) !important;
+    transition: var(--transition-base) !important;
+    box-shadow: var(--shadow-silver-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    position: relative;
+    overflow: hidden;
 }
 
 .edition-detail .back-button:hover {
-    background: #e8e8e8 !important;
+    background: linear-gradient(160deg,
+        var(--silver-metallic-sheen) 0%,
+        var(--silver-metallic-light) 15%,
+        var(--silver-metallic-base) 40%,
+        var(--silver-metallic-gradient-mid) 60%,
+        var(--silver-metallic-gradient-dark) 85%,
+        var(--silver-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.25),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(158, 158, 158, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--silver-metallic-base) !important;
+    color: var(--silver-metallic-dark) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
 .edition-detail-content {
@@ -699,8 +806,7 @@
     font-weight: bold;
     text-transform: uppercase;
     z-index: 10;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: var(--font-body);
 }
 
 .edition-info-section {
@@ -712,17 +818,16 @@
 .edition-title {
     font-size: 2.5rem;
     margin: 0;
-    color: #333;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: var(--text-primary);
+    font-family: var(--font-heading);
+    font-weight: var(--font-weight-bold);
 }
 
 .edition-description-full {
     font-size: 1.1rem;
     line-height: 1.8;
-    color: #666;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: var(--text-secondary);
+    font-family: var(--font-body);
 }
 
 .edition-stats-grid {
@@ -742,19 +847,17 @@
 
 .stat-card .stat-label {
     font-size: 14px;
-    color: #666;
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: var(--font-body);
 }
 
 .stat-card .stat-value {
     font-size: 1.5rem;
     font-weight: bold;
-    color: #333;
-    font-family: 'RedHatTextVar', -apple-system, BlinkMacSystemFont, 'Segoe UI', 
-                 Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    color: var(--text-primary);
+    font-family: var(--font-body);
 }
 
 .stat-card .stat-value.price {

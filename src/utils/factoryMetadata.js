@@ -23,13 +23,13 @@ export const FACTORY_METADATA = {
             'NFT collections with built-in liquidity',
             'Gamified token projects'
         ],
-        icon: '💎',
+        icon: '',
         color: '#6366f1',
         allegiance: {
             type: 'liquidity_pool',
             description: 'Pools resources to shared liquidity pool',
             benefactor: 'Shared ERC404 Liquidity Pool',
-            icon: '💧'
+            icon: ''
         }
     },
     ERC1155: {
@@ -49,13 +49,13 @@ export const FACTORY_METADATA = {
             'Limited edition releases',
             'Creator monetization'
         ],
-        icon: '🎨',
+        icon: '',
         color: '#ec4899',
         allegiance: {
             type: 'nft_collection',
             description: 'Pools resources to creator NFT collection',
             benefactor: 'Creator NFT Treasury',
-            icon: '🖼️'
+            icon: ''
         }
     }
 };
@@ -73,7 +73,7 @@ export function enrichFactoryData(factory, instanceCount, exampleProjects = []) 
         description: `Create ${factory.type} contracts with customizable parameters.`,
         features: [],
         useCases: [],
-        icon: '📦',
+        icon: '',
         color: '#6b7280'
     };
     
