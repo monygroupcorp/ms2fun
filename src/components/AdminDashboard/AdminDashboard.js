@@ -22,7 +22,12 @@ export class AdminDashboard extends Component {
             functionParams: {},
             executing: false,
             executionResult: null,
-            error: null
+            error: null,
+            // For cultexecs special UIs
+            currentConfig: null, // For configure function
+            availableFees: null, // For collectV3Fees function
+            loadingFees: false,
+            loadingConfig: false
         };
     }
 
@@ -158,11 +163,53 @@ export class AdminDashboard extends Component {
         `;
     }
 
+
+    /**
+     * Load current configuration values for configure function
+     */
+    async loadCurrentConfig() {
+        if (!this.adapter || !this.adapter.contract) {
+            return;
+        }
+
+        try {
+            this.setState({ loadingConfig: true });
+            
+            // Get current values from contract
+            const [uri, unrevealedUri, revealed] = await Promise.all([
+                this.adapter.contract.uri().catch(() => ''),
+                this.adapter.contract.unrevealedUri().catch(() => ''),
+                this.adapter.contract.revealed().catch(() => false)
+            ]);
+
+            this.setState({
+                currentConfig: {
+                    uri: uri || '',
+                    unrevealedUri: unrevealedUri || '',
+                    revealed: revealed || false
+                },
+                loadingConfig: false,
+                // Pre-fill form with current values
+                functionParams: {
+                    '_uri': uri || '',
+                    '_unrevealedUri': unrevealedUri || '',
+                    '_revealed': revealed ? 'true' : 'false'
+                }
+            });
+        } catch (error) {
+            console.error('[AdminDashboard] Error loading current config:', error);
+            this.setState({ loadingConfig: false });
+        }
+    }
+
     _renderFunctionForm() {
         const fn = this.state.selectedFunction;
         const params = fn.inputs || [];
         const executing = this.state.executing;
         const result = this.state.executionResult;
+        const isConfigure = fn.name === 'configure';
+        const currentConfig = this.state.currentConfig;
+        const loadingConfig = this.state.loadingConfig;
 
         return `
             <div class="admin-dashboard">
@@ -171,23 +218,69 @@ export class AdminDashboard extends Component {
                     <h2>${this.escapeHtml(fn.name)}</h2>
                     <p class="admin-dashboard-subtitle">${this.escapeHtml(fn.description || '')}</p>
                 </div>
+                ${isConfigure && currentConfig ? `
+                    <div class="current-config-display">
+                        <h3>Current Configuration</h3>
+                        <div class="config-values">
+                            <div class="config-item">
+                                <label>Current URI:</label>
+                                <div class="config-value">${this.escapeHtml(currentConfig.uri || '(empty)')}</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Current Unrevealed URI:</label>
+                                <div class="config-value">${this.escapeHtml(currentConfig.unrevealedUri || '(empty)')}</div>
+                            </div>
+                            <div class="config-item">
+                                <label>Currently Revealed:</label>
+                                <div class="config-value">${currentConfig.revealed ? 'Yes' : 'No'}</div>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+                ${isConfigure && loadingConfig ? `
+                    <div class="loading-config">
+                        <p>Loading current configuration...</p>
+                    </div>
+                ` : ''}
                 <form class="admin-function-form" data-ref="function-form">
-                    ${params.map((param, index) => `
+                    ${params.map((param, index) => {
+                        const paramName = param.name || `param${index}`;
+                        const currentValue = isConfigure && currentConfig ? 
+                            (paramName === '_uri' ? currentConfig.uri :
+                             paramName === '_unrevealedUri' ? currentConfig.unrevealedUri :
+                             paramName === '_revealed' ? (currentConfig.revealed ? 'true' : 'false') : '') : '';
+                        
+                        return `
                         <div class="form-field">
                             <label for="param-${index}">
                                 ${this.escapeHtml(param.name || `Parameter ${index + 1}`)}
                                 <span class="param-type">(${this.escapeHtml(param.type)})</span>
+                                ${isConfigure && currentValue ? `<span class="current-value-hint">Current: ${this.escapeHtml(currentValue.length > 50 ? currentValue.substring(0, 50) + '...' : currentValue)}</span>` : ''}
                             </label>
-                            <input 
-                                type="text" 
-                                id="param-${index}" 
-                                name="${this.escapeHtml(param.name || `param${index}`)}"
-                                data-param-type="${this.escapeHtml(param.type)}"
-                                placeholder="Enter ${this.escapeHtml(param.name || 'value')}"
-                                ${executing ? 'disabled' : ''}
-                            />
+                            ${param.type === 'bool' ? `
+                                <select 
+                                    id="param-${index}" 
+                                    name="${this.escapeHtml(paramName)}"
+                                    data-param-type="${this.escapeHtml(param.type)}"
+                                    ${executing ? 'disabled' : ''}
+                                >
+                                    <option value="true" ${currentValue === 'true' ? 'selected' : ''}>True</option>
+                                    <option value="false" ${currentValue === 'false' ? 'selected' : ''}>False</option>
+                                </select>
+                            ` : `
+                                <input 
+                                    type="text" 
+                                    id="param-${index}" 
+                                    name="${this.escapeHtml(paramName)}"
+                                    data-param-type="${this.escapeHtml(param.type)}"
+                                    placeholder="Enter ${this.escapeHtml(param.name || 'value')}"
+                                    value="${this.escapeHtml(currentValue || '')}"
+                                    ${executing ? 'disabled' : ''}
+                                />
+                            `}
                         </div>
-                    `).join('')}
+                    `;
+                    }).join('')}
                     ${fn.payable ? `
                         <div class="form-field">
                             <label for="eth-value">ETH Value (for payable functions)</label>
@@ -266,13 +359,170 @@ export class AdminDashboard extends Component {
         }
     }
 
-    selectFunction(fn) {
+    async selectFunction(fn) {
         this.setState({
             selectedFunction: fn,
             functionParams: {},
             executionResult: null,
-            error: null
+            error: null,
+            currentConfig: null,
+            availableFees: null
         });
+
+        // Load current values for cultexecs configure function
+        if (fn.name === 'configure' && this.adapter && this.adapter.contract) {
+            await this.loadCurrentConfig();
+        }
+    }
+
+    /**
+     * Load current configuration values for configure function
+     */
+    async loadCurrentConfig() {
+        if (!this.adapter || !this.adapter.contract) {
+            return;
+        }
+
+        try {
+            this.setState({ loadingConfig: true });
+            
+            // Get current values from contract
+            const [uri, unrevealedUri, revealed] = await Promise.all([
+                this.adapter.contract.uri(),
+                this.adapter.contract.unrevealedUri(),
+                this.adapter.contract.revealed()
+            ]);
+
+            this.setState({
+                currentConfig: {
+                    uri: uri || '',
+                    unrevealedUri: unrevealedUri || '',
+                    revealed: revealed || false
+                },
+                loadingConfig: false,
+                // Pre-fill form with current values
+                functionParams: {
+                    '_uri': uri || '',
+                    '_unrevealedUri': unrevealedUri || '',
+                    '_revealed': revealed ? 'true' : 'false'
+                }
+            });
+        } catch (error) {
+            console.error('[AdminDashboard] Error loading current config:', error);
+            this.setState({ loadingConfig: false });
+        }
+    }
+
+    /**
+     * Load available fees from V3 position for collectV3Fees function
+     */
+    async loadAvailableFees() {
+        if (!this.adapter || !this.adapter.contract) {
+            return;
+        }
+
+        try {
+            this.setState({ loadingFees: true });
+            
+            // Get position manager address and position ID
+            const positionManagerAddress = await this.adapter.contract.positionManager();
+            const positionId = await this.adapter.contract.cultV3Position();
+            
+            if (!positionManagerAddress || !positionId) {
+                this.setState({
+                    availableFees: { amount0: '0', amount1: '0' },
+                    loadingFees: false
+                });
+                return;
+            }
+
+            // Get provider
+            let provider = this.adapter.provider;
+            if (!provider && typeof window !== 'undefined' && window.ethereum) {
+                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+            }
+
+            if (!provider) {
+                this.setState({ loadingFees: false });
+                return;
+            }
+
+            // INonfungiblePositionManager ABI for collect function
+            const positionManagerABI = [
+                {
+                    "inputs": [
+                        {
+                            "components": [
+                                {"name": "tokenId", "type": "uint256"},
+                                {"name": "recipient", "type": "address"},
+                                {"name": "amount0Max", "type": "uint128"},
+                                {"name": "amount1Max", "type": "uint128"}
+                            ],
+                            "name": "params",
+                            "type": "tuple"
+                        }
+                    ],
+                    "name": "collect",
+                    "outputs": [
+                        {"name": "amount0", "type": "uint256"},
+                        {"name": "amount1", "type": "uint256"}
+                    ],
+                    "stateMutability": "payable",
+                    "type": "function"
+                }
+            ];
+
+            const positionManager = new ethers.Contract(
+                positionManagerAddress,
+                positionManagerABI,
+                provider
+            );
+
+            // Call collect with max values to check available fees
+            // We use a read-only call by checking what would be returned
+            // Note: collect is payable, but we can estimate or use a static call
+            try {
+                // Try to get fees using a static call or by checking the position directly
+                // For now, we'll set max values and let the user know to check
+                const maxUint128 = '340282366920938463463374607431768211455'; // 2^128 - 1
+                
+                // We can't directly read fees without calling collect, so we'll show max values
+                // and let the contract handle it
+                this.setState({
+                    availableFees: {
+                        amount0: maxUint128, // Suggest max
+                        amount1: maxUint128, // Suggest max
+                        note: 'Enter maximum amounts to collect. The contract will collect available fees up to these limits.'
+                    },
+                    loadingFees: false,
+                    functionParams: {
+                        'amount0Max': maxUint128,
+                        'amount1Max': maxUint128
+                    }
+                });
+            } catch (error) {
+                console.warn('[AdminDashboard] Could not check fees directly:', error);
+                this.setState({
+                    availableFees: {
+                        amount0: '0',
+                        amount1: '0',
+                        note: 'Unable to check available fees. Enter maximum amounts to collect (use max uint128: 340282366920938463463374607431768211455).'
+                    },
+                    loadingFees: false
+                });
+            }
+        } catch (error) {
+            console.error('[AdminDashboard] Error loading available fees:', error);
+            this.setState({
+                availableFees: {
+                    amount0: '0',
+                    amount1: '0',
+                    note: 'Error checking fees. Enter maximum amounts to collect.'
+                },
+                loadingFees: false
+            });
+        }
     }
 
     async executeFunction() {

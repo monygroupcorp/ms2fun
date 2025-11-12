@@ -31,8 +31,8 @@ export class ProjectHeader extends Component {
             <div class="project-header marble-bg">
                 <div class="header-top">
                     <div class="header-title-group">
-                        <h1 class="project-name">${this.escapeHtml(this.project.name)}</h1>
-                        <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>
+                    <h1 class="project-name">${this.escapeHtml(this.project.name)}</h1>
+                    <span class="contract-type-badge ${contractType.toLowerCase()}">${contractType}</span>
                     </div>
                     <div class="header-actions" data-ref="admin-button-container">
                         <!-- AdminButton will be mounted here -->

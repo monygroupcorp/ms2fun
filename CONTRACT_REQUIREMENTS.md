@@ -25,7 +25,8 @@
 13. [Instance Lifecycle Requirements](#instance-lifecycle-requirements)
 14. [Social & External Links Requirements](#social--external-links-requirements)
 15. [Search & Indexing Requirements](#search--indexing-requirements)
-16. [Future Requirements](#future-requirements)
+16. [Admin Dashboard Requirements](#admin-dashboard-requirements)
+17. [Future Requirements](#future-requirements)
 
 ---
 
@@ -1898,6 +1899,197 @@ enum InstanceStatus {
 
 ---
 
+## Admin Dashboard Requirements
+
+### 32. Admin Function Discovery & Execution
+
+**Requirement:** Instance contracts must support admin function discovery and execution through the frontend admin dashboard.
+
+**Purpose:**
+- Enable project owners to manage their contracts through a user-friendly interface
+- Provide consistent admin functionality across different factory types
+- Support dynamic discovery of admin functions from contract ABIs
+- Allow owners to execute admin functions without using Etherscan
+
+**Lessons Learned from Implementation:**
+
+1. **Function Discovery:**
+   - Admin functions are discovered via pattern matching on function names
+   - Common patterns: `set*`, `withdraw*`, `lock*`, `unlock*`, `pause*`, `unpause*`, `update*`, `configure*`, `collect*`
+   - Functions must be non-view/non-pure (state-changing)
+   - ABI must be accessible for discovery
+
+2. **Ownership Detection:**
+   - Standard: `owner()` function that returns `address`
+   - Edge cases: NFT ownership (e.g., cultexecs uses OPERATOR_NFT token 598)
+   - Contracts should support at least one ownership detection method
+   - Ownership checks should be efficient (cached when possible)
+
+3. **Function Categories:**
+   - **Settings:** `set*`, `update*`, `configure*` - Configuration changes
+   - **Withdrawals:** `withdraw*`, `collect*` - Fund management
+   - **Metadata:** `setMetadata*`, `updateMetadata*`, `lockMetadata*`, `unlockMetadata*` - Metadata management
+   - **Access Control:** `pause*`, `unpause*`, `addAdmin*`, `removeAdmin*` - Contract state control
+   - **Ownership:** `transferOwnership*`, `renounceOwnership*` - Ownership management
+
+4. **User Experience Requirements:**
+   - Current values should be readable for configuration functions (e.g., `configure` should expose `uri()`, `unrevealedUri()`, `revealed()`)
+   - Forms should pre-fill with current values when possible
+   - Boolean parameters should use dropdowns, not text inputs
+   - Payable functions need ETH value input
+   - Clear error messages for failed executions
+
+**Specification:**
+
+```solidity
+// Standard ownership function (recommended)
+function owner() external view returns (address);
+
+// Example: Configuration function with readable current values
+function configure(
+    string memory _uri,
+    string memory _unrevealedUri,
+    bool _revealed
+) external onlyOwner;
+
+// Readable current values (for UX)
+function uri() external view returns (string memory);
+function unrevealedUri() external view returns (string memory);
+function revealed() external view returns (bool);
+
+// Example: Withdrawal function
+function withdraw() external onlyOwner;
+
+// Example: Metadata management
+function setMetadata(string memory _metadataURI) external onlyOwner;
+function lockMetadata() external onlyOwner;
+function unlockMetadata() external onlyOwner;
+
+// Example: Access control
+function pause() external onlyOwner;
+function unpause() external onlyOwner;
+```
+
+**Contract Requirements:**
+
+1. **ABI Accessibility:**
+   - Contract ABI must be available (via verification or static file)
+   - Functions must have clear, descriptive names
+   - Function parameters should have meaningful names (not just `param1`, `param2`)
+
+2. **Function Naming Conventions:**
+   - Use standard prefixes: `set*`, `update*`, `configure*`, `withdraw*`, `collect*`, `lock*`, `unlock*`, `pause*`, `unpause*`
+   - Avoid generic names like `adminFunction()` or `doSomething()`
+   - Use descriptive names: `setStyle()`, `withdrawFunds()`, `lockMetadata()`
+
+3. **Readable State Functions:**
+   - For configuration functions, provide view functions to read current values
+   - Example: If you have `configure(uri, unrevealedUri, revealed)`, also provide:
+     - `uri() view returns (string)`
+     - `unrevealedUri() view returns (string)`
+     - `revealed() view returns (bool)`
+
+4. **Ownership Detection:**
+   - **Standard (Recommended):** Implement `owner() external view returns (address)`
+   - **Alternative:** Document NFT ownership pattern if used (e.g., "Ownership determined by OPERATOR_NFT token 598")
+   - Ownership checks should be gas-efficient
+
+5. **Function Documentation:**
+   - Use NatSpec comments (`/// @notice`, `/// @dev`, `/// @param`)
+   - Document which functions are admin-only
+   - Document parameter types and expected values
+
+6. **Error Handling:**
+   - Use descriptive error messages (e.g., `"Not oper"` → `"Caller is not the operator"`)
+   - Revert with clear reasons for failures
+
+**Mock System Requirements:**
+
+1. **Mock Admin Functions:**
+   - Mock contracts should simulate common admin functions:
+     - `setStyle(string)`
+     - `setMetadata(string)`
+     - `updateMetadata(string)`
+     - `lockMetadata()`
+     - `unlockMetadata()`
+     - `withdraw()`
+     - `pause()`
+     - `unpause()`
+
+2. **Mock Ownership:**
+   - Mock instances should have an `owner` field
+   - Default owner: `0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6` (for testing)
+   - Ownership should be checkable via `owner()` function simulation
+
+3. **Mock Admin State:**
+   - Store admin state per instance:
+     - `metadataLocked: bool`
+     - `style: string`
+     - `metadata: string`
+     - `paused: bool`
+     - `balance: string` (for withdrawal testing)
+
+**Frontend Requirements:**
+
+1. **Admin Button Visibility:**
+   - Only visible to contract owners
+   - Should appear on project detail pages and edition pages (ERC1155)
+   - Should be styled consistently with the design system
+
+2. **Function Discovery:**
+   - Load ABI from contract or static file
+   - Pattern match function names against admin patterns
+   - Group functions by category
+   - Display functions in organized list
+
+3. **Function Execution:**
+   - Parse parameters based on ABI types
+   - Convert string inputs to proper types (uint256, bool, address, etc.)
+   - Handle payable functions with ETH value
+   - Show transaction status and results
+   - Handle errors gracefully
+
+4. **Special Function UIs:**
+   - Configuration functions: Show current values before editing
+   - Withdrawal functions: Show available balance
+   - Boolean parameters: Use dropdowns (True/False)
+   - String parameters: Use text inputs with current value hints
+
+**Priority:** P0 (Critical)
+
+**Status:** Implemented in frontend, requirements documented for contract development
+
+---
+
+### 33. Admin Function Parameter Types & Validation
+
+**Requirement:** Admin functions must use standard Solidity types that can be easily parsed and validated by the frontend.
+
+**Purpose:**
+- Ensure frontend can properly convert user input to contract parameters
+- Prevent execution errors due to type mismatches
+- Provide clear validation feedback to users
+
+**Supported Types:**
+- `uint256`, `uint128`, `uint64`, `uint32`, `uint8` - Integer types
+- `int256`, `int128`, etc. - Signed integers
+- `bool` - Boolean values
+- `address` - Ethereum addresses
+- `string` - String values
+- `bytes` - Byte arrays
+- Arrays of above types
+
+**Validation Requirements:**
+- Integer inputs must be valid numbers
+- Address inputs must be valid Ethereum addresses (checksummed)
+- Boolean inputs should use dropdowns, not free text
+- String inputs should have length limits where appropriate
+- Array inputs should support comma-separated or multi-line input
+
+**Priority:** P1 (High)
+
+---
+
 ## Update Log
 
 **2024 - Initial Requirements:**
@@ -1929,23 +2121,41 @@ enum InstanceStatus {
   - **Factory Revenue Sharing (#29):** Revenue distribution to factories and platform
   - **Multi-Chain Support (#30):** Cross-chain instance tracking
   - **Configurable Fee Distribution (#31):** Creator vs EXEC fee splits with governance and attack resistance
+
+**2024 - Admin Dashboard Implementation:**
+- Added 2 new requirements:
+  - **Admin Function Discovery & Execution (#32):** Complete admin dashboard system with function discovery, ownership detection, and execution
+  - **Admin Function Parameter Types & Validation (#33):** Standard parameter types and validation requirements
+- Key learnings documented:
+  - Function discovery via pattern matching (set*, withdraw*, configure*, etc.)
+  - Ownership detection methods (standard owner() vs NFT ownership edge cases)
+  - Function categorization (settings, withdrawals, metadata, access control, ownership)
+  - UX requirements (current value display, pre-filled forms, boolean dropdowns)
+  - Contract requirements (ABI accessibility, naming conventions, readable state functions)
+  - Mock system requirements (simulated admin functions, ownership, state management)
 - Updated existing requirements:
   - **Statistics (#13):** Clarified per-factory metrics (volume, mint completion, purchases)
   - **Verification (#19):** Made mandatory for contract acceptance
   - **Instance Creation (#20):** Changed from limits to fees (spam prevention via economics)
 
 **Priority Breakdown:**
-- **P0 (Critical - 9):** Factory application system, instance metadata URI, instance statistics, creation timestamp, contract verification (mandatory), instance creation fees, factory revenue sharing, multi-chain support, configurable fee distribution
-- **P1 (High - 9):** Expandable features, factory metadata, creator info, featured projects, audit status, instance status, social links, additional features, custom CSS/JS
+- **P0 (Critical - 10):** Factory application system, instance metadata URI, instance statistics, creation timestamp, contract verification (mandatory), instance creation fees, factory revenue sharing, multi-chain support, configurable fee distribution, admin function discovery & execution
+- **P1 (High - 10):** Expandable features, factory metadata, creator info, featured projects, audit status, instance status, social links, additional features, custom CSS/JS, admin function parameter types & validation
 - **P2 (Medium - 8):** Factory stats, categories/tags, feature dependencies, versioning, permissions, search index
 
 **Next Steps:**
+- ✅ Admin dashboard implemented in frontend
+- ✅ Admin function discovery system working
+- ✅ Mock admin functions implemented
+- ✅ Ownership detection system in place
 - Implement feature matrix in mock system
 - Add feature checking to components
 - Implement statistics tracking
 - Add metadata structures to mock data
 - Update mock services with new requirements
 - Refine contract interface based on frontend needs
+- **Contract Development:** Implement admin functions following requirements #32 and #33
+- **Testing:** Test admin dashboard with real contracts (cultexecs is working example)
 - Prioritize P0 requirements for MVP
 
 ---

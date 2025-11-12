@@ -91,7 +91,7 @@ export class EditionDetail extends Component {
         return `
             <div class="edition-detail marble-bg">
                 <div class="edition-header-actions">
-                    <button class="back-button" ref="back-button">← Back to Project</button>
+                <button class="back-button" ref="back-button">← Back to Project</button>
                     <div class="admin-button-container" ref="admin-button-container">
                         <!-- AdminButton will be mounted here -->
                     </div>

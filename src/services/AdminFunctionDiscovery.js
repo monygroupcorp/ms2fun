@@ -17,6 +17,7 @@ class AdminFunctionDiscovery {
             /^unpause/i,       // unpause, unpauseMinting, etc.
             /^update/i,        // updateMetadata, updateStyle, etc.
             /^configure/i,     // configure, configureMetadata, etc.
+            /^collect/i,       // collectV3Fees, collect, etc.
             /^transferOwnership/i,
             /^renounceOwnership/i,
             /^addAdmin/i,
@@ -27,7 +28,7 @@ class AdminFunctionDiscovery {
         // Function categories for grouping
         this.categories = {
             settings: ['set', 'update', 'configure'],
-            withdrawals: ['withdraw'],
+            withdrawals: ['withdraw', 'collect'],
             metadata: ['setMetadata', 'updateMetadata', 'lockMetadata', 'unlockMetadata'],
             access: ['pause', 'unpause', 'addAdmin', 'removeAdmin'],
             ownership: ['transferOwnership', 'renounceOwnership']
@@ -106,6 +107,11 @@ class AdminFunctionDiscovery {
     _enrichFunctionDefinition(functionDef, contractAddress, contractType) {
         const category = this._categorizeFunction(functionDef.name);
         const description = this._generateDescription(functionDef);
+        
+        // Mark cultexecs functions
+        const cultexecsAddress = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2';
+        const isCultExecs = contractAddress && 
+                           (contractAddress.toLowerCase() === cultexecsAddress.toLowerCase());
 
         return {
             name: functionDef.name,
@@ -115,7 +121,8 @@ class AdminFunctionDiscovery {
             category: category,
             description: description,
             contractAddress: contractAddress,
-            contractType: contractType
+            contractType: contractType,
+            isCultExecs: isCultExecs
         };
     }
 
@@ -147,12 +154,21 @@ class AdminFunctionDiscovery {
         const name = functionDef.name;
         
         // Generate description based on function name
+        if (name === 'configure') {
+            return 'Update token URI configuration (URI, unrevealed URI, and reveal status)';
+        }
+        if (name === 'collectV3Fees') {
+            return 'Collect fees from the Uniswap V3 liquidity position';
+        }
         if (name.startsWith('set')) {
             const param = name.substring(3);
             return `Set ${this._formatParameterName(param)}`;
         }
         if (name.startsWith('withdraw')) {
             return 'Withdraw funds from contract';
+        }
+        if (name.startsWith('collect')) {
+            return 'Collect fees or rewards from contract';
         }
         if (name.startsWith('lock')) {
             const param = name.substring(4);

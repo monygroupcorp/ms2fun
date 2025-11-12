@@ -248,22 +248,26 @@
     font-size: 0.75rem;
 }
 
-.form-field input {
+.form-field input,
+.form-field select {
     padding: 0.75rem;
     border: 1px solid var(--border-color, #e5e7eb);
     border-radius: 6px;
     font-size: 0.875rem;
     font-family: monospace;
     transition: all 0.2s;
+    background: var(--bg-primary, #ffffff);
 }
 
-.form-field input:focus {
+.form-field input:focus,
+.form-field select:focus {
     outline: none;
     border-color: var(--accent-color, #3b82f6);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.form-field input:disabled {
+.form-field input:disabled,
+.form-field select:disabled {
     background: var(--bg-secondary, #f3f4f6);
     cursor: not-allowed;
 }
@@ -345,6 +349,67 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin: 0 auto 1rem;
+}
+
+/* Current Configuration Display (for configure function) */
+
+.current-config-display {
+    background: var(--bg-secondary, #f9fafb);
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.current-config-display h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary, #111827);
+}
+
+.config-values {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.config-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.config-item label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary, #6b7280);
+}
+
+.config-value {
+    font-size: 0.875rem;
+    color: var(--text-primary, #111827);
+    background: var(--bg-primary, #ffffff);
+    padding: 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    word-break: break-all;
+    font-family: var(--font-mono, 'Courier New', monospace);
+}
+
+.loading-config {
+    text-align: center;
+    padding: 1rem;
+    color: var(--text-secondary, #6b7280);
+}
+
+.current-value-hint {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted, #9ca3af);
+    font-style: italic;
+    margin-top: 0.25rem;
+    font-weight: normal;
 }
 
 @keyframes spin {
