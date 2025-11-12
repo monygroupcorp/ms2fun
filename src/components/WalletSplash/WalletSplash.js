@@ -14,7 +14,9 @@ export class WalletSplash extends Component {
         this.walletModal = null;
         this.state = {
             walletConnected: false,
-            checking: true
+            checking: true,
+            walletAvailable: false, // Whether window.ethereum exists
+            loadingLightNode: false // Whether light node is being loaded
         };
     }
 
@@ -55,6 +57,9 @@ export class WalletSplash extends Component {
 
     async checkWalletConnection() {
         try {
+            // Check if web3 wallet is available (window.ethereum exists)
+            const walletAvailable = typeof window.ethereum !== 'undefined';
+            
             // Initialize wallet service if needed
             if (!walletService.isInitialized) {
                 await walletService.initialize();
@@ -122,7 +127,8 @@ export class WalletSplash extends Component {
             
             this.setState({
                 walletConnected: isConnected,
-                checking: false
+                checking: false,
+                walletAvailable: walletAvailable
             });
 
             // If already connected, call onConnected callback
@@ -137,9 +143,12 @@ export class WalletSplash extends Component {
             }
         } catch (error) {
             console.error('Error checking wallet connection:', error);
+            // Check wallet availability even on error
+            const walletAvailable = typeof window.ethereum !== 'undefined';
             this.setState({
                 walletConnected: false,
-                checking: false
+                checking: false,
+                walletAvailable: walletAvailable
             });
             // Ensure wallet modal is set up even on error
             this.setTimeout(() => {
@@ -187,6 +196,9 @@ export class WalletSplash extends Component {
         }
 
         // Wallet not connected, show splash screen
+        const walletAvailable = this.state.walletAvailable;
+        const loadingLightNode = this.state.loadingLightNode;
+        
         return `
             <div class="wallet-splash">
                 <div class="splash-content marble-bg">
@@ -197,12 +209,14 @@ export class WalletSplash extends Component {
                     
                     <div class="splash-description">
                         <p>This application requires a connected wallet to access on-chain data and interact with projects.</p>
-                        <p>Please connect your wallet to continue.</p>
+                        ${walletAvailable 
+                            ? '<p>You can connect your wallet or continue using your wallet\'s RPC for read-only access.</p>' 
+                            : '<p>No wallet detected. You can continue with read-only mode using a light node.</p>'}
                     </div>
                     
                     <div class="wallet-connector-container" data-ref="wallet-connector">
                         <div class="contract-status">
-                            <div id="contractStatus" class="status-message">INITIALIZING SYSTEM...</div>
+                            <div id="contractStatus" class="status-message">${loadingLightNode ? 'DOWNLOADING LIGHT NODE...' : 'INITIALIZING SYSTEM...'}</div>
                             
                             <div id="selectedWalletDisplay" class="selected-wallet-display" style="display: none;">
                                 <img id="selectedWalletIcon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E" alt="Selected Wallet">
@@ -212,9 +226,19 @@ export class WalletSplash extends Component {
                                 CONTINUE IN YOUR WALLET
                             </div>
                             
-                            <button id="selectWallet" class="connect-button">
+                            <button id="selectWallet" class="connect-button" ${!walletAvailable ? 'disabled' : ''} style="${!walletAvailable ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
                                 <span class="button-text">SELECT WALLET</span>
                             </button>
+                            
+                            <button id="continueButton" class="connect-button" style="margin-top: 1rem; ${loadingLightNode ? 'opacity: 0.7; cursor: wait;' : ''}">
+                                <span class="button-text">${loadingLightNode ? 'LOADING...' : 'CONTINUE'}</span>
+                            </button>
+                            
+                            ${!walletAvailable ? `
+                                <p class="light-node-explainer" style="margin-top: 1rem; font-size: 0.875rem; color: rgba(255, 255, 255, 0.7); text-align: center; max-width: 400px; margin-left: auto; margin-right: auto;">
+                                    This will download and run a light node to enable read-only blockchain access without a wallet.
+                                </p>
+                            ` : ''}
                         </div>
 
                         <!-- Wallet Selection Modal (same as CultExecsPage) -->
@@ -345,6 +369,12 @@ export class WalletSplash extends Component {
             newButton.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                
+                // Don't do anything if wallet is not available
+                if (!this.state.walletAvailable) {
+                    return;
+                }
+                
                 console.log('SELECT WALLET button clicked');
                 
                 if (this.walletModal) {
@@ -366,6 +396,32 @@ export class WalletSplash extends Component {
                     console.error('WalletModal not initialized');
                 }
             });
+            
+            // Set up continue button click handler
+            const continueButton = document.getElementById('continueButton');
+            if (continueButton) {
+                const newContinueButton = continueButton.cloneNode(true);
+                continueButton.parentNode.replaceChild(newContinueButton, continueButton);
+                
+                newContinueButton.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    // If wallet is available (detected), just continue
+                    // The site can use window.ethereum for RPC reads even if not connected
+                    if (this.state.walletAvailable) {
+                        if (this.onConnected) {
+                            this.onConnected();
+                        }
+                        return;
+                    }
+                    
+                    // If no wallet available, load light node
+                    if (!this.state.walletAvailable) {
+                        await this.handleContinueWithoutWallet();
+                    }
+                });
+            }
             
             // Set up close button handler
             const closeButton = modal.querySelector('.wallet-modal-close');
@@ -430,6 +486,49 @@ export class WalletSplash extends Component {
         } catch (error) {
             console.error('Error connecting wallet:', error);
             // Show error - could use MessagePopup here
+        }
+    }
+    
+    /**
+     * Handle continue button click when no wallet is available
+     * Lazy-loads the light node and initializes read-only mode
+     */
+    async handleContinueWithoutWallet() {
+        if (this.state.loadingLightNode) {
+            return; // Already loading
+        }
+        
+        this.setState({ loadingLightNode: true });
+        
+        try {
+            console.log('[WalletSplash] Loading light node for read-only mode...');
+            
+            // Dynamically import and initialize read-only mode
+            const { initializeReadOnlyMode } = await import('../../index.js');
+            const success = await initializeReadOnlyMode();
+            
+            if (success) {
+                console.log('[WalletSplash] Light node loaded successfully');
+                // Continue to app (read-only mode)
+                if (this.onConnected) {
+                    this.onConnected();
+                }
+            } else {
+                console.error('[WalletSplash] Failed to load light node');
+                // Show error message
+                const statusEl = document.getElementById('contractStatus');
+                if (statusEl) {
+                    statusEl.textContent = 'FAILED TO LOAD LIGHT NODE. PLEASE TRY AGAIN.';
+                }
+                this.setState({ loadingLightNode: false });
+            }
+        } catch (error) {
+            console.error('[WalletSplash] Error loading light node:', error);
+            const statusEl = document.getElementById('contractStatus');
+            if (statusEl) {
+                statusEl.textContent = 'ERROR: ' + error.message;
+            }
+            this.setState({ loadingLightNode: false });
         }
     }
 
