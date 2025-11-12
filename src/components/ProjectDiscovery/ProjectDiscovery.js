@@ -397,35 +397,51 @@ export class ProjectDiscovery extends Component {
             const filtersEl = filtersContainer.querySelector('.project-filters');
             
             if (!filtersEl) {
-                console.warn('ProjectFilters element not found, retrying...', filtersContainer);
-                // Retry once more
-                this.setTimeout(() => this.setupFiltersToggle(filtersContainer, toggleButton), 200);
+                // Only retry once, then give up silently
+                const retryCount = this._filtersToggleRetryCount || 0;
+                if (retryCount < 1) {
+                    this._filtersToggleRetryCount = retryCount + 1;
+                    this.setTimeout(() => this.setupFiltersToggle(filtersContainer, toggleButton), 200);
+                }
                 return;
             }
             
-            if (!toggleButton) {
-                console.warn('Toggle button not found');
+            // Reset retry count on success
+            this._filtersToggleRetryCount = 0;
+            
+            // Find toggle button in container if not provided or if it's been removed
+            let actualToggleButton = toggleButton;
+            if (!actualToggleButton || !actualToggleButton.parentNode) {
+                actualToggleButton = filtersContainer.querySelector('.filters-toggle-button');
+            }
+            
+            if (!actualToggleButton) {
+                // Silently return - toggle button might not be needed
                 return;
             }
             
-            // Remove existing listeners by cloning
-            const newToggleButton = toggleButton.cloneNode(true);
-            toggleButton.parentNode.replaceChild(newToggleButton, toggleButton);
+            // Only replace if button has a parent (is in DOM)
+            if (actualToggleButton.parentNode) {
+                // Remove existing listeners by cloning
+                const newToggleButton = actualToggleButton.cloneNode(true);
+                actualToggleButton.parentNode.replaceChild(newToggleButton, actualToggleButton);
+                actualToggleButton = newToggleButton;
+            }
             
             // Check if mobile (window width <= 768px)
             const isMobile = window.innerWidth <= 768;
             
             if (isMobile) {
                 filtersEl.classList.remove('expanded');
-                newToggleButton.classList.remove('expanded');
+                actualToggleButton.classList.remove('expanded');
             } else {
                 filtersEl.classList.add('expanded');
-                newToggleButton.classList.add('expanded');
+                actualToggleButton.classList.add('expanded');
             }
             
             // Ensure toggle button is visible on mobile
             if (isMobile) {
-                newToggleButton.style.display = 'flex';
+                actualToggleButton.style.display = 'flex';
             }
             
             const handleToggleClick = (e) => {
@@ -434,14 +450,14 @@ export class ProjectDiscovery extends Component {
                 const isExpanded = filtersEl.classList.contains('expanded');
                 if (isExpanded) {
                     filtersEl.classList.remove('expanded');
-                    newToggleButton.classList.remove('expanded');
+                    actualToggleButton.classList.remove('expanded');
                 } else {
                     filtersEl.classList.add('expanded');
-                    newToggleButton.classList.add('expanded');
+                    actualToggleButton.classList.add('expanded');
                 }
             };
             
-            newToggleButton.addEventListener('click', handleToggleClick);
+            actualToggleButton.addEventListener('click', handleToggleClick);
             
             // Handle window resize
             const handleResize = () => {

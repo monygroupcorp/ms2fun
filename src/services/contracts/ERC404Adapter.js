@@ -9,14 +9,12 @@ import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethe
 import ContractAdapter from './ContractAdapter.js';
 import { eventBus } from '../../core/EventBus.js';
 import { contractCache } from '../ContractCache.js';
-import MerkleHandler from '../../merkleHandler.js';
 
 class ERC404Adapter extends ContractAdapter {
     constructor(contractAddress, contractType, ethersProvider, signer) {
         super(contractAddress, contractType || 'ERC404', ethersProvider, signer);
         this.mirrorContract = null;
         this.operatorNFTContract = null; // For cultexecs operator NFT
-        this.merkleHandler = new MerkleHandler();
         this.ethers = ethers;
     }
 
@@ -120,8 +118,6 @@ class ERC404Adapter extends ContractAdapter {
             }
 
             // Initialize merkle handler if needed
-            await this.initializeMerkleHandler();
-
             this.initialized = true;
             eventBus.emit('contract:adapter:initialized', {
                 contractAddress: this.contractAddress,
@@ -134,41 +130,6 @@ class ERC404Adapter extends ContractAdapter {
         }
     }
 
-    /**
-     * Initialize merkle handler for whitelist support
-     * @private
-     */
-    async initializeMerkleHandler() {
-        try {
-            // Check if we're in phase 0 or 1 (pre-launch or phase 1)
-            let isPhase1OrBeyond = false;
-            try {
-                const switchResponse = await fetch('/EXEC404/switch.json');
-                isPhase1OrBeyond = switchResponse.ok;
-            } catch (error) {
-                isPhase1OrBeyond = false;
-            }
-
-            if (!isPhase1OrBeyond) {
-                // Phase 0 (pre-launch), initialize Merkle trees
-                await this.merkleHandler.initializeTrees();
-            } else {
-                // Check if phase 1
-                const switchData = await (await fetch('/EXEC404/switch.json')).json();
-                const isPhase1 = switchData.phase === 1 || switchData.requireMerkle === true;
-
-                if (isPhase1) {
-                    await this.merkleHandler.initializeTrees();
-                } else {
-                    // Phase 2+, no merkle trees needed
-                    this.merkleHandler.trees = new Map();
-                }
-            }
-        } catch (error) {
-            console.warn('[ERC404Adapter] Error initializing merkle handler:', error);
-            this.merkleHandler.trees = new Map();
-        }
-    }
 
     /**
      * Get user token balance
@@ -343,30 +304,12 @@ class ERC404Adapter extends ContractAdapter {
      * Get merkle proof for an address
      * @param {string} address - User address
      * @param {number|null} tier - Tier number (null to use current tier)
-     * @returns {Promise<Array|null>} Merkle proof or null if not whitelisted
+     * @returns {Promise<Array|null>} Always returns null - merkle proofs no longer supported
      */
     async getMerkleProof(address, tier = null) {
-        try {
-            // If no tier specified, get current tier from contract and add 1
-            if (tier === null) {
-                const currentTier = await this.getCurrentTier();
-                tier = currentTier;
-            }
-            
-            // Find the proof for this address in the specified tier
-            const proof = this.merkleHandler.getProof(tier + 1, address);
-            
-            // If proof is null or proof.valid is false, the address is not whitelisted
-            if (!proof || !proof.valid) {
-                console.log(`Address ${address} not whitelisted for tier ${tier}`);
-                return null;
-            }
-
-            return proof;
-        } catch (error) {
-            console.error('Error getting merkle proof:', error);
-            return null;
-        }
+        // Merkle proof functionality removed - whitelisting no longer uses Merkle trees
+        // Users can use alternative whitelisting methods (e.g., passwords)
+        return null;
     }
 
     /**

@@ -49,11 +49,15 @@ class PerformanceReporter {
         const { scrollPerformanceMonitor } = await import('../services/ScrollPerformanceMonitor.js');
         const { performanceAnalyzer } = await import('../services/PerformanceAnalyzer.js');
         const { performanceRecommendations } = await import('./PerformanceRecommendations.js');
+        const { performanceTracker } = await import('../services/PerformanceTracker.js');
 
         // Run analysis
         const analysisResults = await performanceAnalyzer.analyze();
         const scrollMetrics = scrollPerformanceMonitor.getMetrics();
         const scrollIssues = scrollPerformanceMonitor.getIssues();
+        const trackerMetrics = performanceTracker.getMetrics();
+        const resourceSummary = performanceTracker.getResourceSummary();
+        const longTaskSummary = performanceTracker.getLongTaskSummary();
 
         // Add scroll issues to analysis results
         analysisResults.scrollIssues = scrollIssues;
@@ -65,13 +69,13 @@ class PerformanceReporter {
         );
 
         // Log report
-        this.logReport(scrollMetrics, recommendations, analysisResults);
+        this.logReport(scrollMetrics, recommendations, analysisResults, trackerMetrics, resourceSummary, longTaskSummary);
     }
 
     /**
      * Log formatted report to console
      */
-    logReport(scrollMetrics, recommendations, analysisResults) {
+    logReport(scrollMetrics, recommendations, analysisResults, trackerMetrics = null, resourceSummary = null, longTaskSummary = null) {
         console.log('%c═══════════════════════════════════════════════════════════', 'color: #4a90e2; font-weight: bold; font-size: 14px;');
         console.log('%c🚀 PERFORMANCE REPORT', 'color: #4a90e2; font-weight: bold; font-size: 16px;');
         console.log('%c═══════════════════════════════════════════════════════════', 'color: #4a90e2; font-weight: bold; font-size: 14px;');
@@ -91,6 +95,94 @@ class PerformanceReporter {
             }
             if (scrollMetrics.longTasks > 0) {
                 console.log(`%c  Long Tasks: ${scrollMetrics.longTasks} detected`, 'color: #e74c3c;');
+            }
+            console.log('');
+        }
+
+        // Long Tasks Breakdown
+        if (longTaskSummary && longTaskSummary.count > 0) {
+            console.log('%c⏱️  LONG TASKS BREAKDOWN', 'color: #34495e; font-weight: bold; font-size: 14px;');
+            console.log(`%c  Total: ${longTaskSummary.count} long tasks (${longTaskSummary.totalDuration.toFixed(2)}ms total)`, 'color: #e74c3c;');
+            console.log(`%c  Average Duration: ${longTaskSummary.averageDuration.toFixed(2)}ms`, 'color: #e74c3c;');
+            
+            // Show breakdown by source
+            const sources = Object.keys(longTaskSummary.bySource);
+            if (sources.length > 0) {
+                console.log(`%c  By Source:`, 'color: #7f8c8d;');
+                sources.forEach(source => {
+                    const sourceData = longTaskSummary.bySource[source];
+                    console.log(`    - ${source}: ${sourceData.count} tasks, ${sourceData.totalDuration.toFixed(2)}ms total`);
+                });
+            }
+            
+            // Show top 3 longest tasks with detailed info
+            if (longTaskSummary.tasks.length > 0) {
+                const topTasks = [...longTaskSummary.tasks]
+                    .sort((a, b) => b.duration - a.duration)
+                    .slice(0, 3);
+                console.log(`%c  Longest Tasks:`, 'color: #7f8c8d;');
+                topTasks.forEach((task, idx) => {
+                    console.log(`    ${idx + 1}. ${task.duration.toFixed(2)}ms - ${task.source || task.name}`);
+                    // Show attribution details if available
+                    if (task.attribution && task.attribution.length > 0) {
+                        task.attribution.forEach((attr, attrIdx) => {
+                            if (attr.containerSrc) {
+                                const filename = attr.containerSrc.split('/').pop().split('?')[0];
+                                console.log(`       └─ Script: ${filename}`);
+                                console.log(`       └─ Full URL: ${attr.containerSrc}`);
+                            }
+                            if (attr.containerName) {
+                                console.log(`       └─ Container: ${attr.containerName}`);
+                            }
+                            if (attr.containerType) {
+                                console.log(`       └─ Type: ${attr.containerType}`);
+                            }
+                            if (attr.name) {
+                                console.log(`       └─ Name: ${attr.name}`);
+                            }
+                            if (attr.entryType) {
+                                console.log(`       └─ Entry Type: ${attr.entryType}`);
+                            }
+                        });
+                    }
+                });
+            }
+            console.log('');
+            console.log('%c💡 Tip: Check console warnings (⚠️) for detailed long task information', 'color: #3498db; font-style: italic;');
+            console.log('%c💡 Tip: Run performanceTracker.getMetrics().longTasks in console for full details', 'color: #3498db; font-style: italic;');
+            console.log('');
+        }
+
+        // Resource Loading Analysis
+        if (resourceSummary && resourceSummary.total > 0) {
+            console.log('%c📦 RESOURCE LOADING', 'color: #34495e; font-weight: bold; font-size: 14px;');
+            console.log(`%c  Total Resources: ${resourceSummary.total}`, 'color: #34495e;');
+            console.log(`%c  Total Size: ${(resourceSummary.totalSize / 1024).toFixed(2)} KB`, 'color: #34495e;');
+            console.log(`%c  Total Load Time: ${resourceSummary.totalDuration.toFixed(2)}ms`, 'color: #34495e;');
+            
+            if (resourceSummary.blockers > 0) {
+                console.log(`%c  Render-Blocking Resources: ${resourceSummary.blockers}`, 'color: #e74c3c; font-weight: bold;');
+            }
+            
+            // Show resources by type
+            const types = Object.keys(resourceSummary.byType);
+            if (types.length > 0) {
+                console.log(`%c  By Type:`, 'color: #7f8c8d;');
+                types.forEach(type => {
+                    const typeData = resourceSummary.byType[type];
+                    const avgDuration = typeData.totalDuration / typeData.count;
+                    console.log(`    - ${type}: ${typeData.count} files, ${(typeData.totalSize / 1024).toFixed(2)} KB, ${avgDuration.toFixed(2)}ms avg`);
+                });
+            }
+            
+            // Show slowest resources
+            if (resourceSummary.slowest.length > 0) {
+                console.log(`%c  Slowest Resources:`, 'color: #7f8c8d;');
+                resourceSummary.slowest.slice(0, 5).forEach((resource, idx) => {
+                    const fileName = resource.name.split('/').pop() || resource.name;
+                    const sizeKB = (resource.size / 1024).toFixed(2);
+                    console.log(`    ${idx + 1}. ${resource.duration.toFixed(2)}ms - ${fileName} (${sizeKB} KB, ${resource.type})`);
+                });
             }
             console.log('');
         }
@@ -157,6 +249,26 @@ class PerformanceReporter {
         console.log('CSS Issues:', analysisResults.cssIssues);
         console.log('Rendering Issues:', analysisResults.renderingIssues);
         console.log('Resource Issues:', analysisResults.resourceIssues);
+        
+        if (trackerMetrics) {
+            console.log('Performance Tracker Metrics:', trackerMetrics);
+        }
+        
+        if (resourceSummary) {
+            console.log('Resource Summary:', resourceSummary);
+            console.log('All Resources:', trackerMetrics?.resourceTiming || []);
+        }
+        
+        if (longTaskSummary) {
+            console.log('Long Task Summary:', longTaskSummary);
+            console.log('All Long Tasks (with full details):', trackerMetrics?.longTasks || []);
+            console.log('%c💡 To inspect a specific long task:', 'color: #3498db; font-weight: bold;');
+            console.log('   const tasks = performanceTracker.getMetrics().longTasks;');
+            console.log('   console.log(tasks[0]); // Inspect first long task');
+            console.log('   console.log(tasks[0].fullEntry); // See full entry details');
+            console.log('   console.log(tasks[0].attribution); // See attribution (source) info');
+        }
+        
         console.log('All Recommendations:', recommendations);
         console.groupEnd();
 
