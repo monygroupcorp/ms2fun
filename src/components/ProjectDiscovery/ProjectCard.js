@@ -71,13 +71,15 @@ export class ProjectCard extends Component {
         // Generate etherscan URL if address exists but no URL provided
         const etherscanLink = etherscanUrl || (address ? `https://etherscan.io/address/${address}` : null);
 
-        // CULT EXEC card image path
-        const cardImage = isFeatured ? 'public/execs/695.jpeg' : null;
-        const cardTopBarStyle = cardImage ? `style="background-image: url('${cardImage}'); background-size: cover; background-position: center; background-repeat: no-repeat;"` : '';
+        // Get card image - use project imageURI if available, otherwise use CULT EXEC hardcoded image
+        const projectImage = this.project.imageURI || this.project.image || null;
+        const cardImage = isFeatured ? 'public/execs/695.jpeg' : projectImage;
+        const cardTopBarStyle = cardImage ? `style="background-image: url('${this.escapeHtml(cardImage)}'); background-size: cover; background-position: center; background-repeat: no-repeat;"` : '';
+        const hasImage = !!cardImage;
 
         return `
             <div class="project-card marble-bg marble-stretch-sheer ${isFeatured ? 'featured' : ''}" data-project-id="${address}">
-                <div class="card-top-bar ${isFeatured ? 'has-background-image' : ''}" ${cardTopBarStyle}>
+                <div class="card-top-bar ${hasImage ? 'has-background-image' : ''}" ${cardTopBarStyle}>
                     <div class="card-top-left">
                         ${audited ? `<div class="audit-badge-top">${renderIcon('audited', 'icon-audited')} Audited</div>` : ''}
                     </div>

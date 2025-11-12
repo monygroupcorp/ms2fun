@@ -36,6 +36,20 @@ export class FactoryExploration extends Component {
                 const type = await this.masterService.getFactoryType(address);
                 const instances = await this.masterService.getInstancesByFactory(address);
                 
+                // Get factory title from mock data (if available)
+                let factoryTitle = null;
+                let factoryDisplayTitle = null;
+                if (serviceFactory.isUsingMock()) {
+                    const mockData = serviceFactory.getMockData();
+                    if (mockData) {
+                        const factoryData = mockData?.factories?.[address];
+                        if (factoryData) {
+                            factoryTitle = factoryData.title;
+                            factoryDisplayTitle = factoryData.displayTitle;
+                        }
+                    }
+                }
+                
                 // Get example projects (if available)
                 const exampleProjects = [];
                 if (instances.length > 0) {
@@ -52,7 +66,12 @@ export class FactoryExploration extends Component {
                     }
                 }
 
-                const factory = { address, type };
+                const factory = { 
+                    address, 
+                    type,
+                    title: factoryTitle,
+                    displayTitle: factoryDisplayTitle
+                };
                 const enriched = enrichFactoryData(factory, instances.length, exampleProjects);
                 enrichedFactories.push(enriched);
             }

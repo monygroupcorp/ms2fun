@@ -4,8 +4,14 @@ import serviceFactory from '../services/ServiceFactory.js';
 /**
  * Project creation page route handler
  * Handles creating new project instances
+ * Supports both:
+ * - Old format: /create?factory=0x... (address-based)
+ * - New format: /:chainId/:factoryTitle/create (title-based with chain ID)
+ * @param {object} [params] - Route parameters (for new format)
+ * @param {string|number} [params.chainId] - Chain ID for new format
+ * @param {string} [params.factoryTitle] - Factory title slug for new format
  */
-export async function renderProjectCreation() {
+export async function renderProjectCreation(params = null) {
     const appContainer = document.getElementById('app-container');
     const appTopContainer = document.getElementById('app-top-container');
     const appBottomContainer = document.getElementById('app-bottom-container');
@@ -15,9 +21,25 @@ export async function renderProjectCreation() {
         return;
     }
 
-    // Get factory from URL params
-    const urlParams = new URLSearchParams(window.location.search);
-    const factoryParam = urlParams.get('factory');
+    // Determine factory from route params or URL query string
+    let factoryParam = null;
+    let chainId = 1; // Default to Ethereum mainnet
+    
+    if (params && params.factoryTitle) {
+        // New format: /:chainId/:factoryTitle/create
+        chainId = params.chainId || 1;
+        const projectRegistry = serviceFactory.getProjectRegistry();
+        const factory = await projectRegistry.getFactoryByTitle(params.factoryTitle);
+        if (factory) {
+            factoryParam = factory.address;
+        } else {
+            console.error(`Factory not found for title: ${params.factoryTitle}`);
+        }
+    } else {
+        // Old format: /create?factory=0x...
+        const urlParams = new URLSearchParams(window.location.search);
+        factoryParam = urlParams.get('factory');
+    }
 
     // Load stylesheet
     stylesheetLoader.load('src/routes/project-creation.css', 'project-creation-styles');
@@ -146,6 +168,77 @@ export async function renderProjectCreation() {
                                 />
                                 <small class="form-hint">Leave empty to auto-generate</small>
                             </div>
+
+                            <div class="form-group">
+                                <label for="image-uri">Image URL (optional):</label>
+                                <input 
+                                    type="url" 
+                                    id="image-uri" 
+                                    class="form-input" 
+                                    data-ref="image-uri"
+                                    placeholder="https://... or example.com/image.jpg"
+                                />
+                                <small class="form-hint">Project image or logo (https:// will be added if missing)</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="website-uri">Website (optional):</label>
+                                <input 
+                                    type="url" 
+                                    id="website-uri" 
+                                    class="form-input" 
+                                    data-ref="website-uri"
+                                    placeholder="https://... or example.com"
+                                />
+                                <small class="form-hint">https:// will be added if missing</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="twitter-uri">Twitter/X (optional):</label>
+                                <input 
+                                    type="text" 
+                                    id="twitter-uri" 
+                                    class="form-input" 
+                                    data-ref="twitter-uri"
+                                    placeholder="@username, username, or https://twitter.com/..."
+                                />
+                                <small class="form-hint">Will be converted to https://twitter.com/username</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="github-uri">GitHub (optional):</label>
+                                <input 
+                                    type="url" 
+                                    id="github-uri" 
+                                    class="form-input" 
+                                    data-ref="github-uri"
+                                    placeholder="https://github.com/... or github.com/user/repo"
+                                />
+                                <small class="form-hint">https:// will be added if missing</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="category">Category (optional):</label>
+                                <input 
+                                    type="text" 
+                                    id="category" 
+                                    class="form-input" 
+                                    data-ref="category"
+                                    placeholder="e.g., Art, Gaming, DeFi"
+                                />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="tags">Tags (optional):</label>
+                                <input 
+                                    type="text" 
+                                    id="tags" 
+                                    class="form-input" 
+                                    data-ref="tags"
+                                    placeholder="tag1, tag2, tag3"
+                                />
+                                <small class="form-hint">Comma-separated tags</small>
+                            </div>
                         </div>
 
                         <div class="form-actions">
@@ -235,6 +328,9 @@ function setupEventListeners(container, initialFactory) {
             // For now, just store the selected factory
         });
     }
+
+    // Add real-time URL normalization and validation
+    setupURLValidation(container, statusContainer);
 }
 
 /**
@@ -247,12 +343,58 @@ async function handleFormSubmit(form, statusContainer) {
     const projectSymbol = form.querySelector('[data-ref="project-symbol"]');
     const projectDescription = form.querySelector('[data-ref="project-description"]');
     const metadataURI = form.querySelector('[data-ref="metadata-uri"]');
+    const imageURI = form.querySelector('[data-ref="image-uri"]');
+    const websiteURI = form.querySelector('[data-ref="website-uri"]');
+    const twitterURI = form.querySelector('[data-ref="twitter-uri"]');
+    const githubURI = form.querySelector('[data-ref="github-uri"]');
+    const category = form.querySelector('[data-ref="category"]');
+    const tags = form.querySelector('[data-ref="tags"]');
 
     const factoryAddress = factorySelect.value;
     const name = projectName.value.trim();
     const symbol = projectSymbol.value.trim().toUpperCase();
     const description = projectDescription.value.trim();
     const metadata = metadataURI.value.trim();
+    
+    // Parse optional metadata fields
+    let image = imageURI.value.trim();
+    let website = websiteURI.value.trim();
+    let twitter = twitterURI.value.trim();
+    let github = githubURI.value.trim();
+    const categoryValue = category.value.trim();
+    const tagsValue = tags.value.trim();
+    
+    // Normalize URLs (auto-fix, don't block)
+    if (image) {
+        image = normalizeURL(image);
+    }
+    
+    if (website) {
+        website = normalizeURL(website);
+    }
+    
+    if (github) {
+        github = normalizeURL(github);
+    }
+    
+    // Normalize Twitter URI
+    if (twitter) {
+        twitter = normalizeTwitterURL(twitter);
+    }
+    
+    // Validate image URL in background (non-blocking)
+    if (image) {
+        validateImageURL(image).then(isValid => {
+            if (!isValid) {
+                showStatus(statusContainer, 'warning', '⚠️ Image URL may not be valid or accessible. The project was still created successfully.');
+            }
+        }).catch(() => {
+            // Silently fail - validation is optional
+        });
+    }
+    
+    // Parse tags
+    const tagsArray = tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(t => t) : [];
 
     // Validate
     if (!name || !symbol) {
@@ -274,7 +416,7 @@ async function handleFormSubmit(form, statusContainer) {
         const factoryService = serviceFactory.getFactoryService();
         const projectRegistry = serviceFactory.getProjectRegistry();
 
-        // Create instance
+        // Create instance with all metadata
         const instanceAddress = await factoryService.createInstance(
             factoryAddress,
             name,
@@ -282,6 +424,12 @@ async function handleFormSubmit(form, statusContainer) {
             {
                 description: description || undefined,
                 metadataURI: metadata || undefined,
+                imageURI: image || undefined,
+                websiteURI: website || undefined,
+                twitterURI: twitter || undefined,
+                githubURI: github || undefined,
+                category: categoryValue || undefined,
+                tags: tagsArray.length > 0 ? tagsArray : undefined,
                 creator: '0xCREATOR0000000000000000000000000000000000' // Mock creator
             }
         );
@@ -310,6 +458,168 @@ async function handleFormSubmit(form, statusContainer) {
 }
 
 /**
+ * Setup real-time URL validation and normalization
+ * @param {HTMLElement} container - Form container
+ * @param {HTMLElement} statusContainer - Status message container
+ */
+function setupURLValidation(container, statusContainer) {
+    const imageInput = container.querySelector('[data-ref="image-uri"]');
+    const websiteInput = container.querySelector('[data-ref="website-uri"]');
+    const twitterInput = container.querySelector('[data-ref="twitter-uri"]');
+    const githubInput = container.querySelector('[data-ref="github-uri"]');
+
+    // Image URL validation on blur
+    if (imageInput) {
+        let validationTimeout = null;
+        imageInput.addEventListener('blur', async () => {
+            const value = imageInput.value.trim();
+            if (!value) return;
+
+            // Clear any existing timeout
+            if (validationTimeout) {
+                clearTimeout(validationTimeout);
+            }
+
+            // Normalize the URL
+            const normalized = normalizeURL(value);
+            if (normalized !== value) {
+                imageInput.value = normalized;
+            }
+
+            // Validate image (with debounce)
+            validationTimeout = setTimeout(async () => {
+                const isValid = await validateImageURL(normalized);
+                if (!isValid) {
+                    showStatus(statusContainer, 'warning', '⚠️ Image URL may not be valid or accessible. You can still submit the form.');
+                } else {
+                    // Clear warning if validation passes
+                    if (statusContainer && statusContainer.classList.contains('warning')) {
+                        statusContainer.style.display = 'none';
+                    }
+                }
+            }, 500);
+        });
+    }
+
+    // Website URL normalization on blur
+    if (websiteInput) {
+        websiteInput.addEventListener('blur', () => {
+            const value = websiteInput.value.trim();
+            if (value && !value.match(/^https?:\/\//i)) {
+                websiteInput.value = normalizeURL(value);
+            }
+        });
+    }
+
+    // Twitter URL normalization on blur
+    if (twitterInput) {
+        twitterInput.addEventListener('blur', () => {
+            const value = twitterInput.value.trim();
+            if (value) {
+                twitterInput.value = normalizeTwitterURL(value);
+            }
+        });
+    }
+
+    // GitHub URL normalization on blur
+    if (githubInput) {
+        githubInput.addEventListener('blur', () => {
+            const value = githubInput.value.trim();
+            if (value && !value.match(/^https?:\/\//i)) {
+                githubInput.value = normalizeURL(value);
+            }
+        });
+    }
+}
+
+/**
+ * Normalize URL - add https:// if missing
+ * @param {string} url - URL to normalize
+ * @returns {string} Normalized URL
+ */
+function normalizeURL(url) {
+    if (!url) return '';
+    
+    url = url.trim();
+    
+    // If it already has a protocol, return as-is
+    if (url.match(/^https?:\/\//i)) {
+        return url;
+    }
+    
+    // If it starts with //, add https:
+    if (url.startsWith('//')) {
+        return `https:${url}`;
+    }
+    
+    // Otherwise, add https://
+    return `https://${url}`;
+}
+
+/**
+ * Normalize Twitter URL
+ * @param {string} twitter - Twitter handle or URL
+ * @returns {string} Normalized Twitter URL
+ */
+function normalizeTwitterURL(twitter) {
+    if (!twitter) return '';
+    
+    twitter = twitter.trim();
+    
+    // If it's already a full URL, normalize it
+    if (twitter.match(/^https?:\/\//i)) {
+        // Normalize twitter.com or x.com to twitter.com
+        twitter = twitter.replace(/^https?:\/\/(www\.)?(x\.com|twitter\.com)/i, 'https://twitter.com');
+        return twitter;
+    }
+    
+    // If it starts with @, remove it
+    if (twitter.startsWith('@')) {
+        twitter = twitter.substring(1);
+    }
+    
+    // Remove any leading/trailing slashes
+    twitter = twitter.replace(/^\/+|\/+$/g, '');
+    
+    // Build Twitter URL
+    return `https://twitter.com/${twitter}`;
+}
+
+/**
+ * Validate image URL by attempting to load it
+ * @param {string} imageURL - Image URL to validate
+ * @returns {Promise<boolean>} True if image loads successfully
+ */
+async function validateImageURL(imageURL) {
+    if (!imageURL) return false;
+    
+    try {
+        const img = new Image();
+        
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                resolve(false);
+            }, 5000); // 5 second timeout
+            
+            img.onload = () => {
+                clearTimeout(timeout);
+                resolve(true);
+            };
+            
+            img.onerror = () => {
+                clearTimeout(timeout);
+                resolve(false);
+            };
+            
+            img.src = imageURL;
+        });
+    } catch (error) {
+        console.warn('Error validating image URL:', error);
+        return false;
+    }
+}
+
+/**
  * Show status message
  */
 function showStatus(container, type, message) {
@@ -317,9 +627,10 @@ function showStatus(container, type, message) {
 
     container.style.display = 'block';
     container.className = `creation-status ${type}`;
+    const icon = type === 'error' ? '❌' : type === 'success' ? '✓' : type === 'warning' ? '⚠️' : 'ℹ️';
     container.innerHTML = `
         <div class="status-message">
-            ${type === 'error' ? '❌' : type === 'success' ? '✓' : 'ℹ️'}
+            ${icon}
             <span>${message}</span>
         </div>
     `;

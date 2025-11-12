@@ -76,6 +76,12 @@ async function initializeApp() {
             return renderPieceDetail(params);
         });
         
+        // Create route with chain ID and factory title (new format)
+        router.on('/:chainId/:factoryTitle/create', async (params) => {
+            const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
+            return renderProjectCreation(params);
+        });
+        
         // Double-level route for projects with chain ID (less specific)
         router.on('/:chainId/:factoryTitle/:instanceName', async (params) => {
             const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
@@ -93,6 +99,7 @@ async function initializeApp() {
             return renderFactoryDetail(params);
         });
         
+        // Old create route for backward compatibility
         router.on('/create', async () => {
             const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
             return renderProjectCreation();

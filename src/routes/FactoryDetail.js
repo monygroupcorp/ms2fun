@@ -66,6 +66,9 @@ export async function renderFactoryDetail(params) {
             }
         }
 
+        // Get create URL
+        const createURL = await getCreateURL(factoryId);
+
         // Render factory detail page
         appContainer.innerHTML = `
             <div class="factory-detail">
@@ -103,7 +106,7 @@ export async function renderFactoryDetail(params) {
                     </div>
 
                     <div class="actions-section">
-                        <a href="/create?factory=${encodeURIComponent(factoryId)}" class="create-instance-button" data-ref="create-button">
+                        <a href="${createURL}" class="create-instance-button" data-ref="create-button">
                             Create New Instance
                         </a>
                     </div>
@@ -114,7 +117,7 @@ export async function renderFactoryDetail(params) {
                     ${instances.length === 0 ? `
                         <div class="empty-state">
                             <p>No instances created yet.</p>
-                            <a href="/create?factory=${encodeURIComponent(factoryId)}" class="create-instance-link">
+                            <a href="${createURL}" class="create-instance-link">
                                 Create the first instance →
                             </a>
                         </div>
@@ -170,6 +173,39 @@ export async function renderFactoryDetail(params) {
             stylesheetLoader.unload('factory-detail-styles');
         }
     };
+}
+
+/**
+ * Get create URL for factory (new format: /chainId/factoryTitle/create)
+ * Falls back to old format if factory title not available
+ * @param {string} factoryAddress - Factory address
+ * @returns {Promise<string>} Create URL
+ */
+async function getCreateURL(factoryAddress) {
+    try {
+        const projectRegistry = serviceFactory.getProjectRegistry();
+        // Try to get factory from mock data
+        if (serviceFactory.isUsingMock()) {
+            const mockManager = serviceFactory.mockManager;
+            if (mockManager) {
+                const mockData = mockManager.getMockData();
+                const factory = mockData?.factories?.[factoryAddress];
+                if (factory) {
+                    const factoryTitle = factory.title || factory.displayTitle;
+                    if (factoryTitle) {
+                        const chainId = 1; // Default to Ethereum mainnet
+                        const titleSlug = factoryTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                        return `/${chainId}/${titleSlug}/create`;
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('[FactoryDetail] Could not get factory title, using fallback URL:', error);
+    }
+    
+    // Fallback to old format
+    return `/create?factory=${encodeURIComponent(factoryAddress)}`;
 }
 
 /**

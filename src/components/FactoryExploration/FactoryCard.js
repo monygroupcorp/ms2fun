@@ -155,7 +155,7 @@ export class FactoryCard extends Component {
                         `}
                     </div>
                     
-                    <a href="/create?factory=${encodeURIComponent(factory.address)}" 
+                    <a href="${this._getCreateURL(factory)}" 
                        class="create-project-button" 
                        data-ref="create-button">
                         Establish ${type} Project
@@ -179,11 +179,11 @@ export class FactoryCard extends Component {
         if (createButton) {
             createButton.addEventListener('click', (e) => {
                 e.preventDefault();
-                const factoryAddress = this.factory.address;
+                const url = this._getCreateURL(this.factory);
                 if (window.router) {
-                    window.router.navigate(`/create?factory=${encodeURIComponent(factoryAddress)}`);
+                    window.router.navigate(url);
                 } else {
-                    window.location.href = `/create?factory=${encodeURIComponent(factoryAddress)}`;
+                    window.location.href = url;
                 }
             });
         }
@@ -203,6 +203,26 @@ export class FactoryCard extends Component {
                 });
             });
         }
+    }
+
+    /**
+     * Get create URL for factory (new format: /chainId/factoryTitle/create)
+     * Falls back to old format if factory title not available
+     * @returns {string} Create URL
+     * @private
+     */
+    _getCreateURL(factory) {
+        // Try to get factory title from factory data
+        const factoryTitle = factory.title || factory.displayTitle;
+        if (factoryTitle) {
+            // Use new format: /chainId/factoryTitle/create
+            const chainId = 1; // Default to Ethereum mainnet
+            const titleSlug = factoryTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            return `/${chainId}/${titleSlug}/create`;
+        }
+        
+        // Fallback to old format
+        return `/create?factory=${encodeURIComponent(factory.address)}`;
     }
 
     escapeHtml(text) {

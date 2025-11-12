@@ -617,12 +617,17 @@ class ERC1155Adapter extends ContractAdapter {
                         instance.pieces = [];
                     }
                     const editionId = instance.pieces.length;
+                    
+                    // Generate title slug for URL navigation (CONTRACT_REQUIREMENTS.md #6)
+                    const titleSlug = this._slugify(metadata.name || `edition-${editionId}`);
+                    
                     instance.pieces.push({
                         editionId,
-                        displayTitle: metadata.name,
-                        name: metadata.name,
-                        description: metadata.description,
-                        image: metadata.image,
+                        title: titleSlug,  // URL-safe title (slug) for navigation
+                        displayTitle: metadata.name,  // Display title
+                        name: metadata.name,  // Keep for backward compatibility
+                        description: metadata.description || '',
+                        image: metadata.image || '',
                         price: ethers.utils.formatEther(price) + ' ETH',
                         supply: parseInt(maxSupply) || 0,
                         minted: 0
@@ -665,6 +670,21 @@ class ERC1155Adapter extends ContractAdapter {
         } catch (error) {
             throw this.handleContractError(error, 'createEdition');
         }
+    }
+
+    /**
+     * Convert text to URL-safe slug
+     * @param {string} text - Text to slugify
+     * @returns {string} URL-safe slug
+     * @private
+     */
+    _slugify(text) {
+        if (!text) return '';
+        return text
+            .toLowerCase()
+            .trim()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
     }
 }
 

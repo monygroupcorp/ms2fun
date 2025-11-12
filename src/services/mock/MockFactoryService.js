@@ -30,6 +30,18 @@ export default class MockFactoryService {
      * @param {string} [parameters.description] - Project description
      * @param {string} [parameters.metadataURI] - Metadata URI
      * @param {string} [parameters.creator] - Creator address
+     * @param {string} [parameters.imageURI] - Project image/logo URI
+     * @param {string} [parameters.creatorName] - Creator display name
+     * @param {boolean} [parameters.creatorVerified] - Creator verification status
+     * @param {string} [parameters.websiteURI] - Project website
+     * @param {string} [parameters.twitterURI] - Twitter/X link
+     * @param {string} [parameters.githubURI] - GitHub link
+     * @param {string[]} [parameters.tags] - Project tags
+     * @param {string} [parameters.category] - Project category
+     * @param {boolean} [parameters.featured] - Featured project flag
+     * @param {string} [parameters.status] - Instance status (Active, Paused, Archived, Suspended)
+     * @param {boolean} [parameters.verified] - Contract verification status
+     * @param {object} [parameters.audit] - Audit information
      * @param {Array} [parameters.pieces] - ERC1155 pieces array (for ERC1155 instances)
      * @returns {Promise<string>} Instance contract address
      * @throws {Error} If factory not found or invalid parameters
@@ -58,7 +70,7 @@ export default class MockFactoryService {
                      this.data.mockOwnerAddress || 
                      '0xMOCKOWNER000000000000000000000000000000';
 
-        // Create instance entry
+        // Create instance entry with all required fields from CONTRACT_REQUIREMENTS.md
         const instance = {
             id: `project-${Date.now()}`,
             address: instanceAddress,
@@ -70,9 +82,26 @@ export default class MockFactoryService {
             symbol: symbol,
             description: parameters.description || '',
             metadataURI: parameters.metadataURI || '',
+            imageURI: parameters.imageURI || '',  // Project image/logo
             creator: parameters.creator || '0xCREATOR0000000000000000000000000000000000',
+            creatorName: parameters.creatorName || '',  // Creator display name
+            creatorVerified: parameters.creatorVerified || false,  // Creator verification status
             owner: owner,  // Set owner for admin functionality
             createdAt: Date.now(),
+            status: parameters.status || 'Active',  // Instance status (Active, Paused, Archived, Suspended)
+            featured: parameters.featured || false,  // Featured project flag
+            tags: parameters.tags || [],  // Project tags
+            category: parameters.category || '',  // Project category
+            websiteURI: parameters.websiteURI || '',  // Project website
+            twitterURI: parameters.twitterURI || '',  // Twitter/X link
+            githubURI: parameters.githubURI || '',  // GitHub link
+            verified: parameters.verified !== undefined ? parameters.verified : true,  // Contract verification (default true for mock)
+            audit: parameters.audit || {  // Audit information
+                audited: false,
+                auditReportURI: '',
+                auditor: null,
+                auditDate: null
+            },
             parameters: { ...parameters },
             stats: {
                 totalSupply: 0,
@@ -101,6 +130,18 @@ export default class MockFactoryService {
         if (!factory.instances.includes(instanceAddress)) {
             factory.instances.push(instanceAddress);
         }
+
+        // Initialize admin state for the new instance (for admin dashboard)
+        if (!this.data.adminStates) {
+            this.data.adminStates = {};
+        }
+        this.data.adminStates[instanceAddress] = {
+            metadataLocked: false,
+            style: null,
+            metadata: null,
+            paused: false,
+            balance: '0'
+        };
 
         // Register with master
         await this.masterService.registerInstance(

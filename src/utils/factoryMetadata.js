@@ -80,6 +80,9 @@ export function enrichFactoryData(factory, instanceCount, exampleProjects = []) 
     return {
         ...factory,
         ...metadata,
+        // Preserve title and displayTitle from factory (for URL generation)
+        title: factory.title,
+        displayTitle: factory.displayTitle,
         instanceCount,
         examples: exampleProjects.slice(0, 3) // Show up to 3 examples
     };

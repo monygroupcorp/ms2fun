@@ -124,7 +124,7 @@ class Router {
             };
         }
         
-        // Collect all dynamic routes and sort by specificity (more params = more specific)
+        // Collect all dynamic routes and sort by specificity
         const dynamicRoutes = [];
         for (const [pattern, handler] of this.routes.entries()) {
             // Skip if it's an exact match (already checked above)
@@ -135,12 +135,20 @@ class Router {
             // Check if pattern contains dynamic parameters
             if (pattern.includes(':')) {
                 const paramCount = (pattern.match(/:/g) || []).length;
-                dynamicRoutes.push({ pattern, handler, paramCount });
+                // Count literal (non-param) parts for better specificity
+                const literalCount = pattern.split('/').filter(p => p && !p.startsWith(':')).length;
+                dynamicRoutes.push({ pattern, handler, paramCount, literalCount });
             }
         }
         
-        // Sort by param count (descending) to match more specific routes first
-        dynamicRoutes.sort((a, b) => b.paramCount - a.paramCount);
+        // Sort by literal count first (more literals = more specific), then by param count
+        // This ensures routes with literal parts (like /create) are matched before fully dynamic routes
+        dynamicRoutes.sort((a, b) => {
+            if (b.literalCount !== a.literalCount) {
+                return b.literalCount - a.literalCount;
+            }
+            return b.paramCount - a.paramCount;
+        });
         
         // Try each route in order of specificity
         for (const { pattern, handler } of dynamicRoutes) {
