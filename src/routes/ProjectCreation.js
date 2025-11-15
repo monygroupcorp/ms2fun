@@ -97,16 +97,22 @@ export async function renderProjectCreation(params = null) {
         appContainer.innerHTML = `
             <div class="project-creation">
                 <div class="creation-header">
-                    <h1>Create New Project</h1>
+                    <div class="creation-header-content">
+                        <h1>Create New Project</h1>
+                        <p class="creation-subtitle">Launch your project on-chain with our factory system. Fill in the details below to create a new project instance.</p>
+                    </div>
                     <button class="back-button" data-ref="back-button">← Back</button>
                 </div>
 
-                <div class="creation-form-container">
+                <div class="creation-form-container card">
                     <form class="creation-form" data-ref="creation-form">
                         <div class="form-section">
-                            <h2>Factory Selection</h2>
+                            <div class="form-section-header">
+                                <h2>Factory Selection</h2>
+                                <p class="form-section-description">Choose the factory contract that will deploy your project. Each factory type has different capabilities and features.</p>
+                            </div>
                             <div class="form-group">
-                                <label for="factory-select">Factory:</label>
+                                <label for="factory-select" class="form-label required">Factory Contract</label>
                                 <select id="factory-select" class="form-select" data-ref="factory-select" required>
                                     ${factories.map(factory => `
                                         <option value="${factory.address}" ${factory.address === selectedFactory ? 'selected' : ''}>
@@ -114,122 +120,144 @@ export async function renderProjectCreation(params = null) {
                                         </option>
                                     `).join('')}
                                 </select>
+                                <small class="form-help">The factory contract determines the type and capabilities of your project instance.</small>
                             </div>
                         </div>
 
                         <div class="form-section">
-                            <h2>Project Details</h2>
+                            <div class="form-section-header">
+                                <h2>Project Details</h2>
+                                <p class="form-section-description">Essential information about your project. Required fields are marked with an asterisk (*).</p>
+                            </div>
+                            
                             <div class="form-group">
-                                <label for="project-name">Project Name <span class="required">*</span>:</label>
+                                <label for="project-name" class="form-label required">Project Name</label>
                                 <input 
                                     type="text" 
                                     id="project-name" 
                                     class="form-input" 
                                     data-ref="project-name"
-                                    placeholder="Enter project name"
+                                    placeholder="e.g., My Awesome Project"
                                     required
                                 />
+                                <small class="form-help">Choose a clear, memorable name for your project. This will be displayed publicly.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="project-symbol">Symbol <span class="required">*</span>:</label>
+                                <label for="project-symbol" class="form-label required">Token Symbol</label>
                                 <input 
                                     type="text" 
                                     id="project-symbol" 
                                     class="form-input" 
                                     data-ref="project-symbol"
-                                    placeholder="e.g., CULT"
+                                    placeholder="e.g., MAP"
                                     pattern="[A-Z0-9]{3,10}"
                                     title="3-10 uppercase letters or numbers"
                                     required
                                 />
-                                <small class="form-hint">3-10 uppercase letters or numbers</small>
+                                <small class="form-help">A short identifier for your project token (3-10 uppercase letters or numbers). This is typically used in trading pairs and token displays.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="project-description">Description:</label>
+                                <label for="project-description" class="form-label">Description</label>
                                 <textarea 
                                     id="project-description" 
                                     class="form-textarea" 
                                     data-ref="project-description"
-                                    placeholder="Enter project description (optional)"
-                                    rows="4"
+                                    placeholder="Describe your project, its goals, and what makes it unique..."
+                                    rows="5"
                                 ></textarea>
+                                <small class="form-help">Provide a detailed description of your project. This helps users understand what your project is about and why they should be interested.</small>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-section-header">
+                                <h2>Metadata & Links</h2>
+                                <p class="form-section-description">Add metadata URIs and links to help users discover and learn more about your project. All fields are optional.</p>
                             </div>
 
                             <div class="form-group">
-                                <label for="metadata-uri">Metadata URI (optional):</label>
+                                <label for="metadata-uri" class="form-label">Metadata URI</label>
                                 <input 
                                     type="text" 
                                     id="metadata-uri" 
                                     class="form-input" 
                                     data-ref="metadata-uri"
-                                    placeholder="https://..."
+                                    placeholder="https://ipfs.io/ipfs/..."
                                 />
-                                <small class="form-hint">Leave empty to auto-generate</small>
+                                <small class="form-help">A URI pointing to your project's metadata JSON. If left empty, metadata will be auto-generated from the fields below.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="image-uri">Image URL (optional):</label>
+                                <label for="image-uri" class="form-label">Project Image</label>
                                 <input 
                                     type="url" 
                                     id="image-uri" 
                                     class="form-input" 
                                     data-ref="image-uri"
-                                    placeholder="https://... or example.com/image.jpg"
+                                    placeholder="https://example.com/image.jpg or example.com/logo.png"
                                 />
-                                <small class="form-hint">Project image or logo (https:// will be added if missing)</small>
+                                <small class="form-help">URL to your project's logo or main image. The protocol (https://) will be added automatically if missing. Recommended: 512x512px or larger.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="website-uri">Website (optional):</label>
+                                <label for="website-uri" class="form-label">Website</label>
                                 <input 
                                     type="url" 
                                     id="website-uri" 
                                     class="form-input" 
                                     data-ref="website-uri"
-                                    placeholder="https://... or example.com"
+                                    placeholder="https://myproject.com or myproject.com"
                                 />
-                                <small class="form-hint">https:// will be added if missing</small>
+                                <small class="form-help">Your project's official website. The protocol (https://) will be added automatically if missing.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="twitter-uri">Twitter/X (optional):</label>
+                                <label for="twitter-uri" class="form-label">Twitter/X</label>
                                 <input 
                                     type="text" 
                                     id="twitter-uri" 
                                     class="form-input" 
                                     data-ref="twitter-uri"
-                                    placeholder="@username, username, or https://twitter.com/..."
+                                    placeholder="@username, username, or https://twitter.com/username"
                                 />
-                                <small class="form-hint">Will be converted to https://twitter.com/username</small>
+                                <small class="form-help">Your project's Twitter/X handle. You can enter just the username (with or without @), or the full URL. It will be normalized automatically.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="github-uri">GitHub (optional):</label>
+                                <label for="github-uri" class="form-label">GitHub Repository</label>
                                 <input 
                                     type="url" 
                                     id="github-uri" 
                                     class="form-input" 
                                     data-ref="github-uri"
-                                    placeholder="https://github.com/... or github.com/user/repo"
+                                    placeholder="https://github.com/user/repo or github.com/user/repo"
                                 />
-                                <small class="form-hint">https:// will be added if missing</small>
+                                <small class="form-help">Link to your project's GitHub repository. The protocol (https://) will be added automatically if missing.</small>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <div class="form-section-header">
+                                <h2>Categories & Tags</h2>
+                                <p class="form-section-description">Help users discover your project by adding categories and tags. These improve searchability and organization.</p>
                             </div>
 
                             <div class="form-group">
-                                <label for="category">Category (optional):</label>
+                                <label for="category" class="form-label">Category</label>
                                 <input 
                                     type="text" 
                                     id="category" 
                                     class="form-input" 
                                     data-ref="category"
-                                    placeholder="e.g., Art, Gaming, DeFi"
+                                    placeholder="e.g., Art, Gaming, DeFi, NFT, DAO"
                                 />
+                                <small class="form-help">A single category that best describes your project (e.g., Art, Gaming, DeFi). This helps users filter and discover projects.</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="tags">Tags (optional):</label>
+                                <label for="tags" class="form-label">Tags</label>
                                 <input 
                                     type="text" 
                                     id="tags" 
@@ -237,15 +265,15 @@ export async function renderProjectCreation(params = null) {
                                     data-ref="tags"
                                     placeholder="tag1, tag2, tag3"
                                 />
-                                <small class="form-hint">Comma-separated tags</small>
+                                <small class="form-help">Comma-separated tags that describe your project. Use specific, relevant tags to improve discoverability (e.g., "nft, art, generative, ethereum").</small>
                             </div>
                         </div>
 
                         <div class="form-actions">
-                            <button type="submit" class="submit-button" data-ref="submit-button">
+                            <button type="submit" class="btn btn-primary submit-button" data-ref="submit-button">
                                 Create Project
                             </button>
-                            <button type="button" class="cancel-button" data-ref="cancel-button">
+                            <button type="button" class="btn cancel-button" data-ref="cancel-button">
                                 Cancel
                             </button>
                         </div>

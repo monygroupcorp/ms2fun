@@ -4,6 +4,8 @@ import { tradingStore } from '../../store/tradingStore.js';
 import { MintModal } from '../MintModal/MintModal.js';
 import { SendModal } from '../SendModal/SendModal.js';
 import { ReRollModal } from '../ReRollModal/ReRollModal.js';
+import { fetchJsonWithIpfsSupport } from '../../services/IpfsService.js';
+import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
 
 export default class PortfolioModal extends Component {
     constructor(blockchainService) {
@@ -157,7 +159,7 @@ export default class PortfolioModal extends Component {
                     return `
                         <div class="nft-card">
                             <div class="nft-image-container">
-                                <img src="${nft.imageUrl}" alt="${nft.processedMetadata.name}" class="nft-image">
+                                ${renderIpfsImage(nft.imageUrl || '', nft.processedMetadata?.name || 'NFT', 'nft-image')}
                             </div>
                             <div class="nft-info">
                                 <h3>${nft.processedMetadata.name}</h3>
@@ -200,6 +202,11 @@ export default class PortfolioModal extends Component {
         // Re-setup event listeners
         this.setupNFTEventListeners();
         this.setupPaginationEventListeners();
+        
+        // Enhance IPFS images with gateway rotation
+        if (this.element) {
+            enhanceAllIpfsImages(this.element);
+        }
     }
 
     updatePortfolioContent(nfts) {
@@ -269,18 +276,20 @@ export default class PortfolioModal extends Component {
     async fetchMetadataContent(nfts) {
         const fetchPromises = nfts.map(async (nft) => {
             try {
-                const response = await fetch(nft.metadata);
-                if (!response.ok) throw new Error('Network response was not ok');
-                const jsonData = await response.json();
+                // Use IPFS-aware fetch helper
+                const jsonData = await fetchJsonWithIpfsSupport(nft.metadata);
                 nft.processedMetadata = jsonData;
                 
-                // Process the image URL
+                // Process the image URL - preserve IPFS URIs as-is
                 if (jsonData.image) {
-                    nft.imageUrl = jsonData.image.startsWith('http') 
-                        ? jsonData.image 
-                        : jsonData.image.startsWith('/') 
-                            ? jsonData.image 
-                            : `/${jsonData.image}`;
+                    // If it's already a full URL (HTTP or IPFS), use it directly
+                    if (jsonData.image.startsWith('http') || jsonData.image.startsWith('ipfs://')) {
+                        nft.imageUrl = jsonData.image;
+                    } else if (jsonData.image.startsWith('/')) {
+                        nft.imageUrl = jsonData.image;
+                    } else {
+                        nft.imageUrl = `/${jsonData.image}`;
+                    }
                 }
             } catch (error) {
                 console.error(`Error fetching metadata for NFT:`, error);

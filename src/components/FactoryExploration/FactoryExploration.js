@@ -134,6 +134,13 @@ export class FactoryExploration extends Component {
                 <div class="factories-grid" data-ref="factories-container">
                     <!-- Factory cards will be mounted here -->
                 </div>
+
+                <div class="factory-actions">
+                    <button class="apply-factory-button" data-ref="apply-factory-button">
+                        <span class="button-icon">➕</span>
+                        <span class="button-text">Apply for Factory</span>
+                    </button>
+                </div>
             </div>
         `;
     }
@@ -191,6 +198,7 @@ export class FactoryExploration extends Component {
     setupDOMEventListeners() {
         const retryButton = this.getRef('retry-button', '.retry-button');
         const backButton = this.getRef('back-button', '.back-button');
+        const applyButton = this.getRef('apply-factory-button', '.apply-factory-button');
 
         if (retryButton) {
             retryButton.addEventListener('click', () => {
@@ -204,6 +212,16 @@ export class FactoryExploration extends Component {
                     window.router.navigate('/');
                 } else {
                     window.location.href = '/';
+                }
+            });
+        }
+
+        if (applyButton) {
+            applyButton.addEventListener('click', () => {
+                if (window.router) {
+                    window.router.navigate('/factories/apply');
+                } else {
+                    window.location.href = '/factories/apply';
                 }
             });
         }

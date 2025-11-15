@@ -9,6 +9,7 @@ import { USE_MOCK_SERVICES } from '../config.js';
 import MockServiceManager from './mock/MockServiceManager.js';
 import ProjectService from './ProjectService.js';
 import BlockchainService from './BlockchainService.js';
+import createExecVotingService from './ExecVotingService.js';
 
 // Placeholder classes for real services (to be implemented in Phase 6)
 class MasterService {
@@ -40,6 +41,7 @@ class ServiceFactory {
         this.mockManager = null;
         this.projectService = null;
         this.blockchainService = null;
+        this.execVotingService = null;
 
         if (this.useMock) {
             this.mockManager = new MockServiceManager(true, true);
@@ -83,25 +85,6 @@ class ServiceFactory {
     }
 
     /**
-     * Check if using mock services
-     * @returns {boolean} True if using mock services
-     */
-    isUsingMock() {
-        return this.useMock;
-    }
-
-    /**
-     * Get mock data structure (only available when using mock services)
-     * @returns {object|null} Mock data or null if not using mock services
-     */
-    getMockData() {
-        if (this.useMock && this.mockManager) {
-            return this.mockManager.getMockData();
-        }
-        return null;
-    }
-
-    /**
      * Get ProjectService instance (singleton)
      * @returns {ProjectService} ProjectService instance
      */
@@ -138,6 +121,38 @@ class ServiceFactory {
             // Factory-created projects use ProjectService
             return this.getProjectService();
         }
+    }
+
+    /**
+     * Get EXEC voting service instance
+     * @returns {MockExecVotingService|RealExecVotingService} Voting service
+     */
+    getExecVotingService() {
+        if (!this.execVotingService) {
+            const mockData = this.useMock ? this.mockManager?.getMockData() : null;
+            this.execVotingService = createExecVotingService(
+                '0xMASTER0000000000000000000000000000000000', // master contract address
+                '0xEXEC4040000000000000000000000000000000000', // EXEC token address
+                mockData
+            );
+        }
+        return this.execVotingService;
+    }
+
+    /**
+     * Check if using mock services
+     * @returns {boolean} True if using mock services
+     */
+    isUsingMock() {
+        return this.useMock;
+    }
+
+    /**
+     * Get mock data (for mock services)
+     * @returns {object|null} Mock data or null
+     */
+    getMockData() {
+        return this.mockManager?.getMockData() || null;
     }
 }
 

@@ -145,22 +145,30 @@ export class ProjectDiscovery extends Component {
 
         return `
             <div class="project-discovery">
-                <div class="discovery-header">
-                    <h1>MS2.FUN Launchpad</h1>
-                    <p class="subtitle">A curated platform for Web3 project discovery and interaction</p>
-                    <div class="header-buttons">
-                        <a href="/factories" class="cta-button launch-own-button" data-ref="launch-button">
-                            Establish Your Project
-                        </a>
-                        <a href="/about" class="cta-button about-button" data-ref="about-button">
-                            Documentation
-                        </a>
+                <div class="hero-plaque-section">
+                    <div class="hero-plaque">
+                        <h1 class="hero-title">MS2.FUN LAUNCHPAD</h1>
+                        <p class="hero-subtitle">A curated platform for Web3 project discovery and interaction</p>
+                        <div class="hero-buttons">
+                            <a href="/factories" class="cta-button launch-own-button" data-ref="launch-button">
+                                Establish Your Project
+                            </a>
+                            <a href="/about" class="cta-button about-button" data-ref="about-button">
+                                Documentation
+                            </a>
+                        </div>
+                    </div>
+                    <div class="scroll-indicator" data-ref="scroll-indicator">
+                        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
                     </div>
                 </div>
 
-                <div class="discovery-controls" data-ref="controls-container">
-                    <!-- ProjectSearch and ProjectFilters will be mounted here -->
-                </div>
+                <div class="discovery-content">
+                    <div class="discovery-controls" data-ref="controls-container">
+                        <!-- ProjectSearch and ProjectFilters will be mounted here -->
+                    </div>
 
                 ${this.state.featuredProjects.length > 0 ? `
                     <div class="featured-section">
@@ -188,6 +196,7 @@ export class ProjectDiscovery extends Component {
                             <!-- Project cards will be mounted here -->
                         </div>
                     `}
+                </div>
                 </div>
                 
                 <footer class="site-footer">
@@ -859,6 +868,7 @@ export class ProjectDiscovery extends Component {
         const clearAllButton = this.getRef('clear-all-button', '.clear-filters-button');
         const launchButton = this.getRef('launch-button', '.launch-own-button');
         const aboutButton = this.getRef('about-button', '.about-button');
+        const scrollIndicator = this.getRef('scroll-indicator', '.scroll-indicator');
 
         if (retryButton) {
             retryButton.addEventListener('click', () => {
@@ -876,6 +886,16 @@ export class ProjectDiscovery extends Component {
                         sortBy: 'date'
                     });
                     filters.notifyChange();
+                }
+            });
+        }
+
+        if (scrollIndicator) {
+            scrollIndicator.addEventListener('click', () => {
+                const discoveryContent = this.element?.querySelector('.discovery-content');
+                if (discoveryContent && this.element) {
+                    // Scroll the project-discovery container to reveal discovery-content
+                    discoveryContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             });
         }

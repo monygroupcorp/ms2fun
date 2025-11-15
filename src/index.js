@@ -109,6 +109,26 @@ async function initializeApp() {
             const { renderFactoryExploration } = await import('./routes/FactoryExploration.js');
             return renderFactoryExploration();
         });
+
+        router.on('/factories/apply', async () => {
+            const { renderFactoryApplicationPage } = await import('./routes/FactoryApplicationPage.js');
+            return renderFactoryApplicationPage();
+        });
+
+        router.on('/factories/application/:address', async (params) => {
+            const { renderFactoryApplicationStatusPage } = await import('./routes/FactoryApplicationStatusPage.js');
+            return renderFactoryApplicationStatusPage(params);
+        });
+
+        router.on('/voting', async () => {
+            const { renderExecVotingDashboard } = await import('./routes/ExecVotingDashboard.js');
+            return renderExecVotingDashboard();
+        });
+
+        router.on('/exec/voting', async () => {
+            const { renderExecVotingDashboard } = await import('./routes/ExecVotingDashboard.js');
+            return renderExecVotingDashboard();
+        });
         
         // Register 404 handler
         router.notFound((path) => {

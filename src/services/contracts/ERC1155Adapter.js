@@ -287,6 +287,44 @@ class ERC1155Adapter extends ContractAdapter {
                         );
                         // Use the piece's editionId if available, otherwise use index + 1
                         const displayEditionId = piece.editionId !== undefined ? piece.editionId : (editionId + 1);
+                        
+                        // Simulate IPFS metadata fetch if metadataURI is provided
+                        let metadata = {
+                            name: piece.displayTitle || piece.name || `Edition #${displayEditionId}`,
+                            description: piece.description || '',
+                            image: piece.image || piece.imageUrl || '/placeholder-edition.png'
+                        };
+                        
+                        // If piece has metadataURI (IPFS), simulate fetching it
+                        const metadataURI = piece.metadataURI || instance.metadataURI;
+                        if (metadataURI && (metadataURI.startsWith('ipfs://') || metadataURI.startsWith('http'))) {
+                            try {
+                                // Import IPFS service for mock metadata fetching
+                                const { fetchJsonWithIpfsSupport } = await import('../../services/IpfsService.js');
+                                const fetchedMetadata = await fetchJsonWithIpfsSupport(metadataURI);
+                                
+                                // Merge fetched metadata with piece data (fetched takes precedence)
+                                metadata = {
+                                    ...metadata,
+                                    ...fetchedMetadata,
+                                    // Ensure name and description from piece are preserved if not in fetched metadata
+                                    name: fetchedMetadata.name || metadata.name,
+                                    description: fetchedMetadata.description || metadata.description,
+                                    // Image from fetched metadata (could be IPFS or HTTP)
+                                    image: fetchedMetadata.image || fetchedMetadata.image_url || metadata.image
+                                };
+                            } catch (error) {
+                                console.warn(`[ERC1155Adapter] Failed to fetch mock metadata from ${metadataURI}:`, error);
+                                // Fall back to piece.image if metadata fetch fails
+                                if (piece.image && piece.image.startsWith('ipfs://')) {
+                                    metadata.image = piece.image;
+                                }
+                            }
+                        } else if (piece.image && piece.image.startsWith('ipfs://')) {
+                            // If piece.image is IPFS but no metadataURI, use it directly
+                            metadata.image = piece.image;
+                        }
+                        
                         return {
                             id: editionId, // Keep 0-based ID for consistency with getEditions loop
                             price: priceWei.toString(),
@@ -295,12 +333,8 @@ class ERC1155Adapter extends ContractAdapter {
                             active: true,
                             creator: instance.creator || null,
                             royaltyPercent: '0',
-                            uri: null,
-                            metadata: {
-                                name: piece.displayTitle || piece.name || `Edition #${displayEditionId}`,
-                                description: piece.description || '',
-                                image: piece.image || piece.imageUrl || '/placeholder-edition.png'
-                            }
+                            uri: metadataURI || null,
+                            metadata: metadata
                         };
                     }
                 }
