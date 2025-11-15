@@ -10,6 +10,7 @@ import { WalletDisplay } from '../WalletDisplay/WalletDisplay.js';
 import { AdminButton } from '../AdminButton/AdminButton.js';
 import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
+import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
 
 export class EditionDetail extends Component {
     constructor(projectId, editionId, adapter) {
@@ -104,7 +105,7 @@ export class EditionDetail extends Component {
                 <div class="edition-detail-content">
                     <div class="edition-image-section">
                         <div class="edition-image-wrapper">
-                            <img src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(name)}" class="edition-main-image" />
+                            ${renderIpfsImage(imageUrl, name, 'edition-main-image')}
                             ${isSoldOut ? '<div class="sold-out-badge large">Sold Out</div>' : ''}
                         </div>
                     </div>
@@ -207,6 +208,11 @@ export class EditionDetail extends Component {
             mintInterface.mount(mintElement);
             mintInterface._parent = this; // Set parent reference for refresh
             this.createChild('mint-interface', mintInterface);
+        }
+        
+        // Enhance IPFS images with gateway rotation
+        if (this.element) {
+            enhanceAllIpfsImages(this.element);
         }
     }
 

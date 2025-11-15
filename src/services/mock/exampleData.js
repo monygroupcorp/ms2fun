@@ -171,76 +171,93 @@ function removeFromProjectIndex(mockData, instanceAddress) {
 async function createERC404Instances(mockData, factoryService, factoryAddress, count) {
     const erc404Templates = [
         {
-            name: 'Digital Art Collective',
-            symbol: 'DAC',
-            description: 'A community-driven ERC404 project featuring digital art pieces with fractional ownership.',
-            metadataURI: 'ipfs://QmExample1',
+            name: 'MiladyStation Collection',
+            symbol: 'MILADY',
+            description: 'A beautiful collection of 1212 unique MiladyStation NFTs. Each token is a work of art with its own personality and style.',
+            // Real IPFS metadata URI for MiladyStation token 45
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/45',
+            // Direct IPFS image URI (metadata will contain the actual image URL)
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/45',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 1000000, holders: 150, volume: '50.5 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'Crypto Memes Token',
-            symbol: 'MEME',
-            description: 'The ultimate meme token with bonding curve mechanics. Join the meme revolution!',
-            metadataURI: 'ipfs://QmExample2',
+            name: 'MiladyStation #100',
+            symbol: 'MILADY',
+            description: 'Another beautiful MiladyStation from the collection. Token #100 showcases unique traits and style.',
+            // Real IPFS metadata URI for MiladyStation token 100
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/100',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/100',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 5000000, holders: 320, volume: '125.8 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'Fractional NFT Protocol',
-            symbol: 'FNFT',
-            description: 'Fractionalize any NFT into tradeable tokens. Own a piece of the art you love.',
-            metadataURI: 'ipfs://QmExample5',
+            name: 'MiladyStation #500',
+            symbol: 'MILADY',
+            description: 'MiladyStation token #500 from the collection. Each MiladyStation is unique and special.',
+            // Real IPFS metadata URI for MiladyStation token 500
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/500',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/500',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 2000000, holders: 280, volume: '89.3 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'DeFi Art Token',
-            symbol: 'DAT',
-            description: 'Combine DeFi yield farming with digital art ownership. Earn while you collect.',
-            metadataURI: 'ipfs://QmExample6',
+            name: 'MiladyStation #750',
+            symbol: 'MILADY',
+            description: 'MiladyStation token #750. Part of the amazing collection of 1212 unique MiladyStations.',
+            // Real IPFS metadata URI for MiladyStation token 750
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/750',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/750',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 3000000, holders: 450, volume: '156.7 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'Generative Art Series',
-            symbol: 'GAS',
-            description: 'Algorithmically generated art pieces with unique properties. Each token is one-of-a-kind.',
-            metadataURI: 'ipfs://QmExample7',
+            name: 'MiladyStation #1000',
+            symbol: 'MILADY',
+            description: 'MiladyStation token #1000. One of the later tokens in this wonderful collection of 1212.',
+            // Real IPFS metadata URI for MiladyStation token 1000
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1000',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1000',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 10000, holders: 890, volume: '234.1 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'Music Royalty Token',
-            symbol: 'MRT',
-            description: 'Own a share of music royalties through ERC404 tokens. Support artists directly.',
-            metadataURI: 'ipfs://QmExample8',
+            name: 'MiladyStation #1212',
+            symbol: 'MILADY',
+            description: 'The final MiladyStation token #1212. The last piece in this amazing collection!',
+            // Real IPFS metadata URI for MiladyStation token 1212 (the last one!)
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1212',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1212',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 500000, holders: 120, volume: '67.4 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'Virtual Real Estate',
-            symbol: 'VRE',
-            description: 'Own virtual land parcels in the metaverse. Build, trade, and monetize your space.',
-            metadataURI: 'ipfs://QmExample9',
+            name: 'MiladyStation #1',
+            symbol: 'MILADY',
+            description: 'The very first MiladyStation token #1. The beginning of this incredible collection!',
+            // Real IPFS metadata URI for MiladyStation token 1 (the first one!)
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 100000, holders: 340, volume: '189.2 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         },
         {
-            name: 'AI Art Collection',
-            symbol: 'AIA',
-            description: 'AI-generated art pieces with unique styles. Each piece is created by advanced neural networks.',
-            metadataURI: 'ipfs://QmExample10',
+            name: 'MiladyStation #250',
+            symbol: 'MILADY',
+            description: 'MiladyStation token #250. A beautiful piece from the middle of the collection.',
+            // Real IPFS metadata URI for MiladyStation token 250
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/250',
+            imageURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/250',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalSupply: 50000, holders: 560, volume: '312.8 ETH' }
+            stats: { totalSupply: 1212, holders: 850, volume: '245.8 ETH' }
         }
     ];
 
@@ -289,78 +306,92 @@ async function createERC404Instances(mockData, factoryService, factoryAddress, c
 async function createERC1155Instances(mockData, factoryService, factoryAddress, count) {
     const erc1155Templates = [
         {
-            name: 'Limited Edition Prints',
-            symbol: 'LEP',
-            description: 'Exclusive limited edition art prints. Each edition is unique and collectible.',
-            metadataURI: 'ipfs://QmExample3',
+            name: 'MiladyStation Collection',
+            symbol: 'MILADY',
+            description: 'A beautiful collection of 1212 unique MiladyStation NFTs. Each token is a work of art with its own personality and style. This ERC1155 collection showcases selected MiladyStations from the full collection.',
+            // Real MiladyStation IPFS metadata URI for token 45
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/45',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
-            stats: { totalEditions: 10, totalMinted: 500, volume: '25.2 ETH' },
+            stats: { totalEditions: 5, totalMinted: 250, volume: '45.8 ETH' },
             pieces: [
                 {
-                    displayTitle: 'Sunset Over Mountains',
+                    displayTitle: 'MiladyStation #45',
                     editionId: 1,
                     price: '0.1 ETH',
-                    supply: 100,
-                    minted: 50,
-                    description: 'A breathtaking view of mountains silhouetted against a vibrant sunset sky. This limited edition print captures the beauty of nature at its finest.',
-                    image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=800&fit=crop'
+                    supply: 50,
+                    minted: 25,
+                    description: 'MiladyStation token #45 from the collection. A beautiful piece with unique traits and style.',
+                    // Real MiladyStation IPFS metadata URI - this will be fetched and contain the image URL
+                    metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/45',
+                    // Fallback image (will be overridden by metadata fetch)
+                    image: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/45'
                 },
                 {
-                    displayTitle: 'Ocean Waves',
+                    displayTitle: 'MiladyStation #200',
                     editionId: 2,
                     price: '0.15 ETH',
                     supply: 50,
-                    minted: 25,
-                    description: 'Powerful ocean waves crashing against rocky shores. A dramatic piece that brings the energy of the sea into your collection.',
-                    image: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800&h=800&fit=crop'
+                    minted: 30,
+                    description: 'MiladyStation token #200. Part of the amazing collection of 1212 unique MiladyStations.',
+                    // Real MiladyStation IPFS metadata URI
+                    metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/200',
+                    image: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/200'
                 },
                 {
-                    displayTitle: 'Forest Path',
+                    displayTitle: 'MiladyStation #500',
                     editionId: 3,
                     price: '0.12 ETH',
-                    supply: 75,
-                    minted: 40,
-                    description: 'A serene forest path winding through ancient trees. This peaceful scene invites contemplation and connection with nature.',
-                    image: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=800&fit=crop'
+                    supply: 50,
+                    minted: 20,
+                    description: 'MiladyStation token #500. A beautiful piece from the middle of the collection.',
+                    // Real MiladyStation IPFS metadata URI
+                    metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/500',
+                    image: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/500'
                 },
                 {
-                    displayTitle: 'Desert Dunes',
+                    displayTitle: 'MiladyStation #1000',
                     editionId: 4,
                     price: '0.18 ETH',
-                    supply: 40,
-                    minted: 22,
-                    description: 'Golden sand dunes stretching to the horizon under a clear blue sky. A minimalist masterpiece of natural beauty.',
-                    image: 'https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=800&h=800&fit=crop'
+                    supply: 50,
+                    minted: 35,
+                    description: 'MiladyStation token #1000. One of the later tokens in this wonderful collection of 1212.',
+                    // Real MiladyStation IPFS metadata URI
+                    metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1000',
+                    image: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1000'
                 },
                 {
-                    displayTitle: 'City Skyline',
+                    displayTitle: 'MiladyStation #1212',
                     editionId: 5,
-                    price: '0.14 ETH',
-                    supply: 60,
-                    minted: 35,
-                    description: 'Urban architecture silhouetted against an evening sky. A modern take on cityscapes that celebrates human achievement.',
-                    image: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=800&fit=crop'
+                    price: '0.2 ETH',
+                    supply: 50,
+                    minted: 40,
+                    description: 'The final MiladyStation token #1212. The last piece in this amazing collection!',
+                    // Real MiladyStation IPFS metadata URI
+                    metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1212',
+                    image: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/1212'
                 }
             ]
         },
         {
-            name: 'Gaming Collectibles',
-            symbol: 'GAME',
-            description: 'Rare gaming collectibles and in-game items. Trade, collect, and play!',
-            metadataURI: 'ipfs://QmExample4',
+            name: 'MiladyStation Gaming Collection',
+            symbol: 'MILADY',
+            description: 'MiladyStation tokens with gaming themes. Each token is a unique character from the collection of 1212.',
+            // Real MiladyStation IPFS metadata URI
+            metadataURI: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/300',
             creator: USER_ADDRESS,
             owner: USER_ADDRESS,
             stats: { totalEditions: 5, totalMinted: 250, volume: '42.7 ETH' },
             pieces: [
                 {
-                    displayTitle: 'Legendary Sword',
+                    displayTitle: 'MiladyStation #300',
                     editionId: 1,
                     price: '0.2 ETH',
                     supply: 50,
                     minted: 30,
-                    description: 'A legendary blade forged in the fires of ancient magic. Wielded by heroes throughout history, this sword grants +50 attack power.',
-                    image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=800&h=800&fit=crop'
+                    description: 'MiladyStation token #300. A legendary character from the collection with unique gaming-inspired traits.',
+                    // Real MiladyStation IPFS metadata URI
+                    image: 'ipfs://QmanYsjnxPVtaFwUQ4uQSRETNWKjDSzeakT3iz13AUr4ZY/300'
                 },
                 {
                     displayTitle: 'Epic Shield',

@@ -1,316 +1,328 @@
-/* Project Creation Page Styles */
+/* ============================================================================
+   PROJECT CREATION PAGE - TEMPLE OF CAPITAL DESIGN SYSTEM
+   ============================================================================
+   Styled form for creating new project instances using factory contracts.
+   Uses design system tokens for consistent, beautiful styling.
+   ============================================================================ */
+
+/* ============================================================================
+   PAGE LAYOUT
+   ============================================================================ */
 
 .project-creation {
-    max-width: 800px;
+    max-width: var(--container-5xl); /* 1024px max width */
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: var(--spacing-8) var(--spacing-4);
 }
+
+/* ============================================================================
+   HEADER SECTION
+   ============================================================================ */
 
 .creation-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 30px;
+    align-items: flex-start;
+    gap: var(--spacing-6);
+    margin-bottom: var(--spacing-8);
+    padding-bottom: var(--spacing-6);
+    border-bottom: var(--border-width-thin) solid var(--border-base);
+}
+
+.creation-header-content {
+    flex: 1;
 }
 
 .creation-header h1 {
-    font-size: 2rem;
-    margin: 0;
-    color: #333;
+    font-family: var(--font-heading);
+    font-size: var(--font-size-display-3); /* 48px */
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-3) 0;
 }
 
+.creation-subtitle {
+    font-size: var(--font-size-body-lg);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    margin: 0;
+    max-width: 60ch;
+}
+
+/* ============================================================================
+   FORM CONTAINER
+   ============================================================================ */
+
 .creation-form-container {
-    background: white;
-    border-radius: 8px;
-    padding: 30px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    /* Uses .card class from components.css */
+    padding: var(--spacing-8);
+    margin-bottom: var(--spacing-6);
 }
 
 .creation-form {
     display: flex;
     flex-direction: column;
-    gap: 25px;
+    gap: var(--spacing-8);
 }
 
+/* ============================================================================
+   FORM SECTIONS
+   ============================================================================ */
+
 .form-section {
-    margin-bottom: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-6);
+    padding-bottom: var(--spacing-6);
+    border-bottom: var(--border-width-thin) solid var(--border-base);
+}
+
+.form-section:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.form-section-header {
+    margin-bottom: var(--spacing-2);
 }
 
 .form-section h2 {
-    font-size: 1.3rem;
-    margin-bottom: 20px;
-    color: #333;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 10px;
+    font-family: var(--font-heading);
+    font-size: var(--font-size-h3); /* 36px */
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-2) 0;
 }
+
+.form-section-description {
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    margin: 0;
+    max-width: 70ch;
+}
+
+/* ============================================================================
+   FORM GROUPS & FIELDS
+   ============================================================================ */
 
 .form-group {
-    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
 }
 
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #333;
+/* Labels use form-label from components.css */
+.form-group label.form-label {
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    font-family: var(--font-body);
 }
 
-.required {
-    color: #ff3b30;
+.form-group label.form-label.required::after {
+    content: ' *';
+    color: var(--error-500);
 }
 
-.form-input,
-.form-select,
-.form-textarea {
+/* Form inputs use form-input from components.css */
+.form-group .form-input,
+.form-group .form-select,
+.form-group .form-textarea {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    font-family: inherit;
+    padding: var(--input-padding-y) var(--input-padding-x);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--text-primary);
+    background-color: var(--bg-elevated);
+    border: var(--input-border-width) solid var(--border-base);
+    border-radius: var(--input-border-radius);
+    transition: var(--transition-base);
     box-sizing: border-box;
 }
 
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
+.form-group .form-input:focus,
+.form-group .form-select:focus,
+.form-group .form-textarea:focus {
     outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-gold);
 }
 
-.form-textarea {
+.form-group .form-input:focus-visible,
+.form-group .form-select:focus-visible,
+.form-group .form-textarea:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-gold);
+}
+
+.form-group .form-input::placeholder,
+.form-group .form-textarea::placeholder {
+    color: var(--text-muted);
+}
+
+.form-group .form-textarea {
     resize: vertical;
-    min-height: 100px;
+    min-height: 120px;
+    font-family: var(--font-body);
+    line-height: var(--line-height-relaxed);
 }
 
-.form-hint {
+/* Help text */
+.form-help {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-muted);
+    line-height: var(--line-height-relaxed);
+    margin-top: var(--spacing-1);
     display: block;
-    margin-top: 5px;
-    font-size: 12px;
-    color: #999;
 }
+
+/* Legacy form-hint support (for backwards compatibility) */
+.form-hint {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-muted);
+    line-height: var(--line-height-relaxed);
+    margin-top: var(--spacing-1);
+    display: block;
+}
+
+/* ============================================================================
+   FORM ACTIONS
+   ============================================================================ */
 
 .form-actions {
     display: flex;
-    gap: 15px;
-    margin-top: 30px;
-    padding-top: 25px;
-    border-top: 1px solid #eee;
+    gap: var(--spacing-4);
+    margin-top: var(--spacing-6);
+    padding-top: var(--spacing-6);
+    border-top: var(--border-width-thin) solid var(--border-base);
+    flex-wrap: wrap;
 }
 
-.submit-button {
-    /* Use gold metallic for primary submit action */
+.form-actions .submit-button,
+.form-actions .cancel-button {
     flex: 1;
-    background: var(--gradient-metallic-raised) !important;
+    min-width: 140px;
+}
+
+/* Buttons already styled via components.css, but ensure they work here */
+.submit-button {
+    /* Uses .btn.btn-primary from components.css */
+}
+
+/* Cancel button - Silver metallic styling */
+.cancel-button {
+    background: var(--gradient-silver-raised) !important;
     background-color: transparent !important;
-    color: var(--gold-metallic-dark) !important; /* Darker text for engraved look */
-    border: 1px solid var(--gold-metallic-dark) !important;
-    padding: var(--button-padding-y-md) var(--button-padding-x-md);
-    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
-    font-size: var(--font-size-body);
-    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
-    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
-    cursor: pointer;
-    transition: var(--transition-base);
-    box-shadow: var(--shadow-metallic-raised) !important;
+    color: var(--silver-metallic-dark) !important;
+    border: 1px solid var(--silver-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: var(--shadow-silver-raised) !important;
     text-shadow: 
         0 1px 2px rgba(255, 255, 255, 0.3),
         0 2px 4px rgba(0, 0, 0, 0.5),
-        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
-    position: relative;
-    overflow: hidden;
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
+    transform: none !important;
+    opacity: 1 !important;
 }
 
-.submit-button:hover:not(:disabled) {
+.cancel-button:hover:not(:disabled) {
     background: linear-gradient(160deg,
-        var(--gold-metallic-sheen) 0%,
-        var(--gold-metallic-light) 15%,
-        var(--gold-metallic-base) 40%,
-        var(--gold-metallic-gradient-mid) 60%,
-        var(--gold-metallic-gradient-dark) 85%,
-        var(--gold-metallic-dark) 100%) !important;
+        var(--silver-metallic-sheen) 0%,
+        var(--silver-metallic-light) 15%,
+        var(--silver-metallic-base) 40%,
+        var(--silver-metallic-gradient-mid) 60%,
+        var(--silver-metallic-gradient-dark) 85%,
+        var(--silver-metallic-dark) 100%) !important;
     background-color: transparent !important;
     box-shadow: 
         inset 0 2px 3px rgba(255, 255, 255, 0.3),
         inset 0 -2px 3px rgba(0, 0, 0, 0.25),
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
-        0 0 12px rgba(212, 175, 55, 0.2) !important;
+        0 0 12px rgba(158, 158, 158, 0.2) !important;
     transform: translateY(-1px);
-    border-color: var(--gold-metallic-base) !important;
-    color: var(--gold-metallic-dark) !important; /* Keep dark text */
+    border-color: var(--silver-metallic-base) !important;
+    color: var(--silver-metallic-dark) !important;
     text-shadow: 
         0 1px 2px rgba(255, 255, 255, 0.4),
         0 2px 4px rgba(0, 0, 0, 0.6),
         0 0 1px rgba(0, 0, 0, 0.9) !important;
 }
 
-.submit-button:active:not(:disabled) {
+.cancel-button:active:not(:disabled) {
     transform: translateY(0);
     box-shadow: 
         inset 0 2px 4px rgba(0, 0, 0, 0.3),
         inset 0 -1px 2px rgba(255, 255, 255, 0.15),
         0 1px 2px rgba(0, 0, 0, 0.15) !important;
     background: linear-gradient(160deg,
-        var(--gold-metallic-base) 0%,
-        var(--gold-metallic-gradient-mid) 50%,
-        var(--gold-metallic-dark) 100%) !important;
+        var(--silver-metallic-base) 0%,
+        var(--silver-metallic-gradient-mid) 50%,
+        var(--silver-metallic-dark) 100%) !important;
     background-color: transparent !important;
 }
 
-.submit-button:disabled {
-    background: var(--gradient-silver-raised) !important;
-    background-color: transparent !important;
-    color: var(--silver-metallic-sheen) !important;
-    border-color: var(--silver-metallic-dark) !important;
-    opacity: 0.6;
-    cursor: not-allowed;
-    box-shadow: var(--shadow-silver-raised) !important;
-}
-
-.cancel-button {
-    /* Use bronze metallic for secondary cancel action */
-    background: var(--gradient-bronze-raised) !important;
-    background-color: transparent !important;
-    color: var(--bronze-metallic-dark) !important; /* Darker text for engraved look */
-    border: 1px solid var(--bronze-metallic-dark) !important;
-    padding: var(--button-padding-y-md) var(--button-padding-x-md);
-    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
-    font-size: var(--font-size-body);
-    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
-    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
-    cursor: pointer;
-    transition: var(--transition-base);
-    box-shadow: var(--shadow-bronze-raised) !important;
-    text-shadow: 
-        0 1px 2px rgba(255, 255, 255, 0.3),
-        0 2px 4px rgba(0, 0, 0, 0.5),
-        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
-    position: relative;
-    overflow: hidden;
-}
-
-.cancel-button:hover {
-    background: linear-gradient(160deg,
-        var(--bronze-metallic-sheen) 0%,
-        var(--bronze-metallic-light) 15%,
-        var(--bronze-metallic-base) 40%,
-        var(--bronze-metallic-gradient-mid) 60%,
-        var(--bronze-metallic-gradient-dark) 85%,
-        var(--bronze-metallic-dark) 100%) !important;
-    background-color: transparent !important;
+.cancel-button:focus-visible {
+    outline: 2px solid var(--silver-metallic-base);
+    outline-offset: 2px;
     box-shadow: 
-        inset 0 2px 3px rgba(255, 255, 255, 0.25),
-        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
-        0 4px 8px rgba(0, 0, 0, 0.2),
-        0 2px 4px rgba(0, 0, 0, 0.15),
-        0 0 12px rgba(205, 127, 50, 0.2) !important;
-    transform: translateY(-1px);
-    border-color: var(--bronze-metallic-base) !important;
-    color: var(--bronze-metallic-dark) !important; /* Keep dark text */
-    text-shadow: 
-        0 1px 2px rgba(255, 255, 255, 0.4),
-        0 2px 4px rgba(0, 0, 0, 0.6),
-        0 0 1px rgba(0, 0, 0, 0.9) !important;
+        var(--shadow-silver-raised),
+        0 0 0 4px rgba(158, 158, 158, 0.2) !important;
 }
 
-.cancel-button:active {
-    transform: translateY(0);
-    box-shadow: 
-        inset 0 2px 4px rgba(0, 0, 0, 0.3),
-        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
-        0 1px 2px rgba(0, 0, 0, 0.15) !important;
-    background: linear-gradient(160deg,
-        var(--bronze-metallic-base) 0%,
-        var(--bronze-metallic-gradient-mid) 50%,
-        var(--bronze-metallic-dark) 100%) !important;
-    background-color: transparent !important;
-}
-
-.creation-status {
-    margin-top: 20px;
-    padding: 15px;
-    border-radius: 5px;
-}
-
-.creation-status.info {
-    background: #e3f2fd;
-    color: #1976d2;
-    border: 1px solid #90caf9;
-}
-
-.creation-status.success {
-    background: #e8f5e9;
-    color: #2e7d32;
-    border: 1px solid #81c784;
-}
-
-.creation-status.error {
-    background: #ffebee;
-    color: #c62828;
-    border: 1px solid #ef5350;
-}
-
-.status-message {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* Loading and Error States */
-.loading-state,
-.error-state {
-    text-align: center;
-    padding: 60px 20px;
-}
-
-.error-message {
-    color: #ff3b30;
-    margin: 20px 0;
-}
+/* ============================================================================
+   BACK BUTTON
+   ============================================================================ */
 
 .back-button {
-    /* Use bronze metallic for back navigation */
-    background: var(--gradient-bronze-raised) !important;
+    /* Silver metallic styling for back navigation */
+    background: var(--gradient-silver-raised) !important;
     background-color: transparent !important;
-    color: var(--bronze-metallic-dark) !important; /* Darker text for engraved look */
-    border: 1px solid var(--bronze-metallic-dark) !important;
+    color: var(--silver-metallic-dark) !important;
+    border: 1px solid var(--silver-metallic-dark) !important;
     padding: var(--button-padding-y-sm) var(--button-padding-x-md);
-    border-radius: var(--radius-sm) !important; /* Sharp corners like engraved plaques */
+    border-radius: var(--radius-sm) !important;
     font-size: var(--font-size-body-sm);
-    font-weight: var(--font-weight-bold) !important; /* Bolder for plaque readability */
-    font-family: var(--font-engraved) !important; /* Serif font for engraved plaque look */
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
     cursor: pointer;
     transition: var(--transition-base);
-    box-shadow: var(--shadow-bronze-raised) !important;
+    box-shadow: var(--shadow-silver-raised) !important;
     text-shadow: 
         0 1px 2px rgba(255, 255, 255, 0.3),
         0 2px 4px rgba(0, 0, 0, 0.5),
-        0 0 1px rgba(0, 0, 0, 0.8) !important; /* Deep shadow for engraved effect */
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
     position: relative;
     overflow: hidden;
-    margin-top: var(--spacing-5);
+    align-self: flex-start;
+    margin-top: var(--spacing-2);
 }
 
 .back-button:hover {
     background: linear-gradient(160deg,
-        var(--bronze-metallic-sheen) 0%,
-        var(--bronze-metallic-light) 15%,
-        var(--bronze-metallic-base) 40%,
-        var(--bronze-metallic-gradient-mid) 60%,
-        var(--bronze-metallic-gradient-dark) 85%,
-        var(--bronze-metallic-dark) 100%) !important;
+        var(--silver-metallic-sheen) 0%,
+        var(--silver-metallic-light) 15%,
+        var(--silver-metallic-base) 40%,
+        var(--silver-metallic-gradient-mid) 60%,
+        var(--silver-metallic-gradient-dark) 85%,
+        var(--silver-metallic-dark) 100%) !important;
     background-color: transparent !important;
     box-shadow: 
-        inset 0 2px 3px rgba(255, 255, 255, 0.25),
-        inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
         0 4px 8px rgba(0, 0, 0, 0.2),
         0 2px 4px rgba(0, 0, 0, 0.15),
-        0 0 12px rgba(205, 127, 50, 0.2) !important;
+        0 0 12px rgba(158, 158, 158, 0.2) !important;
     transform: translateY(-1px);
-    border-color: var(--bronze-metallic-base) !important;
-    color: var(--bronze-metallic-dark) !important; /* Keep dark text */
+    border-color: var(--silver-metallic-base) !important;
+    color: var(--silver-metallic-dark) !important;
     text-shadow: 
         0 1px 2px rgba(255, 255, 255, 0.4),
         0 2px 4px rgba(0, 0, 0, 0.6),
@@ -324,9 +336,170 @@
         inset 0 -1px 2px rgba(255, 255, 255, 0.15),
         0 1px 2px rgba(0, 0, 0, 0.15) !important;
     background: linear-gradient(160deg,
-        var(--bronze-metallic-base) 0%,
-        var(--bronze-metallic-gradient-mid) 50%,
-        var(--bronze-metallic-dark) 100%) !important;
+        var(--silver-metallic-base) 0%,
+        var(--silver-metallic-gradient-mid) 50%,
+        var(--silver-metallic-dark) 100%) !important;
     background-color: transparent !important;
 }
 
+.back-button:focus-visible {
+    outline: 2px solid var(--silver-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-silver-raised),
+        0 0 0 4px rgba(158, 158, 158, 0.2) !important;
+}
+
+/* ============================================================================
+   STATUS MESSAGES
+   ============================================================================ */
+
+.creation-status {
+    margin-top: var(--spacing-6);
+    padding: var(--spacing-4) var(--spacing-6);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-2);
+    border: var(--border-width-thin) solid;
+    animation: slide-in var(--duration-base) var(--ease-out-classic);
+}
+
+@keyframes slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.creation-status.info {
+    background-color: var(--info-50);
+    color: var(--info-700);
+    border-color: var(--info-500);
+}
+
+.creation-status.success {
+    background-color: var(--success-50);
+    color: var(--success-700);
+    border-color: var(--success-500);
+}
+
+.creation-status.error {
+    background-color: var(--error-50);
+    color: var(--error-700);
+    border-color: var(--error-500);
+}
+
+.creation-status.warning {
+    background-color: var(--warning-50);
+    color: var(--warning-700);
+    border-color: var(--warning-500);
+}
+
+.status-message {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-3);
+    font-size: var(--font-size-body);
+    line-height: var(--line-height-relaxed);
+}
+
+.status-message span {
+    flex: 1;
+}
+
+/* ============================================================================
+   LOADING & ERROR STATES
+   ============================================================================ */
+
+.loading-state,
+.error-state {
+    text-align: center;
+    padding: var(--spacing-16) var(--spacing-4);
+}
+
+.loading-state .spinner {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto var(--spacing-4);
+    border: 3px solid var(--border-base);
+    border-top-color: var(--accent-primary);
+    border-radius: var(--radius-full);
+    animation: spin var(--duration-slower) linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-state p {
+    font-size: var(--font-size-body-lg);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.error-state h2 {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-h2);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-4) 0;
+}
+
+.error-message {
+    font-size: var(--font-size-body-lg);
+    color: var(--error-500);
+    margin: var(--spacing-4) 0;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .project-creation {
+        padding: var(--spacing-4) var(--spacing-3);
+    }
+
+    .creation-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-4);
+    }
+
+    .creation-header h1 {
+        font-size: var(--font-size-h2); /* 44px on mobile */
+    }
+
+    .creation-subtitle {
+        font-size: var(--font-size-body);
+    }
+
+    .creation-form-container {
+        padding: var(--spacing-6) var(--spacing-4);
+    }
+
+    .form-section h2 {
+        font-size: var(--font-size-h4); /* 28px on mobile */
+    }
+
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .submit-button,
+    .form-actions .cancel-button {
+        width: 100%;
+    }
+}
+
+/* ============================================================================
+   DARK THEME SUPPORT
+   ============================================================================
+   All colors use CSS variables that automatically adapt to theme.
+   No additional dark theme overrides needed.
+   ============================================================================ */

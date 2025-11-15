@@ -645,6 +645,96 @@
     }
 }
 
+/* ============================================================================
+   FACTORY ACTIONS
+   ============================================================================ */
+
+.factory-actions {
+    margin-top: var(--spacing-12);
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-8) 0;
+}
+
+.apply-factory-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-3);
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important;
+    border: 1px solid var(--gold-metallic-dark) !important;
+    padding: var(--button-padding-y-md) var(--button-padding-x-xl);
+    border-radius: var(--radius-sm) !important;
+    font-size: var(--font-size-body-lg);
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+.apply-factory-button:hover {
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow: 
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
+    transform: translateY(-1px);
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important;
+    text-shadow: 
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
+}
+
+.apply-factory-button:active {
+    transform: translateY(0);
+    box-shadow: 
+        inset 0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15),
+        0 1px 2px rgba(0, 0, 0, 0.15) !important;
+    background: linear-gradient(160deg,
+        var(--gold-metallic-base) 0%,
+        var(--gold-metallic-gradient-mid) 50%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+}
+
+.apply-factory-button:focus-visible {
+    outline: 2px solid var(--gold-metallic-base);
+    outline-offset: 2px;
+    box-shadow: 
+        var(--shadow-metallic-raised),
+        0 0 0 4px rgba(212, 175, 55, 0.2) !important;
+}
+
+.apply-factory-button .button-icon {
+    font-size: var(--font-size-h4);
+    line-height: 1;
+}
+
+.apply-factory-button .button-text {
+    font-size: inherit;
+}
+
 /* Ensure buttons don't overflow on smaller cards */
 @media (max-width: 480px) {
     .factory-card {
@@ -656,5 +746,10 @@
     .create-project-button {
         font-size: var(--font-size-body-sm);
         padding: var(--button-padding-y-sm) var(--button-padding-x-md);
+    }
+
+    .apply-factory-button {
+        font-size: var(--font-size-body);
+        padding: var(--button-padding-y-md) var(--button-padding-x-lg);
     }
 }

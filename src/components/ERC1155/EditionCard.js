@@ -9,6 +9,7 @@ import { EditionMintInterface } from './EditionMintInterface.js';
 import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { generateProjectURL } from '../../utils/navigation.js';
+import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
 
 export class EditionCard extends Component {
     constructor(edition, adapter, projectId, project = null) {
@@ -114,7 +115,7 @@ export class EditionCard extends Component {
             <div class="edition-card marble-bg" data-edition-id="${this.edition.id}">
                 <a href="${this.state.editionUrl}" class="edition-link" ref="edition-link" data-edition-id="${this.edition.id}">
                     <div class="edition-image">
-                        <img src="${this.escapeHtml(imageUrl)}" alt="${this.escapeHtml(name)}" loading="lazy" />
+                        ${renderIpfsImage(imageUrl, name, 'edition-card-image', { loading: 'lazy' })}
                         ${isSoldOut ? '<div class="sold-out-badge">Sold Out</div>' : ''}
                     </div>
                     <div class="edition-info">
@@ -185,6 +186,11 @@ export class EditionCard extends Component {
             mintInterface.mount(mintElement);
             mintInterface._parent = this; // Set parent reference
             this.createChild('mint-interface', mintInterface);
+        }
+        
+        // Enhance IPFS images with gateway rotation
+        if (this.element) {
+            enhanceAllIpfsImages(this.element);
         }
     }
 
