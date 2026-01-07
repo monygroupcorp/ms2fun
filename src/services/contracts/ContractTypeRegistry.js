@@ -155,8 +155,85 @@ class ContractTypeRegistry {
             const hasBalanceOfBatch = functions.includes('balanceOfBatch');
             const hasSafeBatchTransferFrom = functions.includes('safeBatchTransferFrom');
             const hasUri = functions.includes('uri');
-            
+
             return hasBalanceOfBatch && hasSafeBatchTransferFrom && hasUri;
+        });
+
+        // MasterRegistryV1 detection: has getTotalFactories, getVaultInfo, getFeaturedInstances
+        this.registerType('MasterRegistry', null, (abi, functions) => {
+            const hasTotalFactories = functions.includes('getTotalFactories');
+            const hasGetVaultInfo = functions.includes('getVaultInfo');
+            const hasFeaturedInstances = functions.includes('getFeaturedInstances');
+
+            return hasTotalFactories && hasGetVaultInfo && hasFeaturedInstances;
+        });
+
+        // GlobalMessageRegistry detection: has getMessageCount, getRecentMessages
+        this.registerType('GlobalMessageRegistry', null, (abi, functions) => {
+            const hasGetMessageCount = functions.includes('getMessageCount');
+            const hasGetRecentMessages = functions.includes('getRecentMessages');
+            const hasGetInstanceMessages = functions.includes('getInstanceMessages');
+
+            return hasGetMessageCount && hasGetRecentMessages && hasGetInstanceMessages;
+        });
+
+        // ERC404BondingInstance detection: has stake, unstake, buyBonding (extends ERC404)
+        this.registerType('ERC404Bonding', null, (abi, functions) => {
+            const hasBuyBonding = functions.includes('buyBonding');
+            const hasStake = functions.includes('stake');
+            const hasUnstake = functions.includes('unstake');
+            const hasGetStakingInfo = functions.includes('getStakingInfo');
+
+            return hasBuyBonding && hasStake && hasUnstake && hasGetStakingInfo;
+        });
+
+        // UltraAlignmentVault detection: has claimFees, getBenefactorContribution
+        this.registerType('UltraAlignmentVault', null, (abi, functions) => {
+            const hasClaimFees = functions.includes('claimFees');
+            const hasGetBenefactorContribution = functions.includes('getBenefactorContribution');
+            const hasConvertAndAddLiquidity = functions.includes('convertAndAddLiquidity');
+
+            return hasClaimFees && hasGetBenefactorContribution && hasConvertAndAddLiquidity;
+        });
+
+        // FactoryApprovalGovernance detection: has submitApplication, voteWithDeposit, registerFactory
+        this.registerType('FactoryGovernance', null, (abi, functions) => {
+            const hasSubmitApplication = functions.includes('submitApplication');
+            const hasVoteWithDeposit = functions.includes('voteWithDeposit');
+            const hasRegisterFactory = functions.includes('registerFactory');
+
+            return hasSubmitApplication && hasVoteWithDeposit && hasRegisterFactory;
+        });
+
+        // VaultApprovalGovernance detection: has submitApplication, voteWithDeposit, registerVault
+        this.registerType('VaultGovernance', null, (abi, functions) => {
+            const hasSubmitApplication = functions.includes('submitApplication');
+            const hasVoteWithDeposit = functions.includes('voteWithDeposit');
+            const hasRegisterVault = functions.includes('registerVault');
+
+            return hasSubmitApplication && hasVoteWithDeposit && hasRegisterVault;
+        });
+
+        // ERC404Factory detection: has createInstance, getHookForInstance
+        this.registerType('ERC404Factory', null, (abi, functions) => {
+            const hasCreateInstance = functions.includes('createInstance');
+            const hasGetHookForInstance = functions.includes('getHookForInstance');
+
+            // Distinguish from ERC1155Factory by checking for ERC404-specific methods
+            const hasERC404Methods = functions.some(f =>
+                f.includes('Bonding') || f.includes('Hook')
+            );
+
+            return hasCreateInstance && hasGetHookForInstance && hasERC404Methods;
+        });
+
+        // ERC1155Factory detection: has createInstance, addEdition
+        this.registerType('ERC1155Factory', null, (abi, functions) => {
+            const hasCreateInstance = functions.includes('createInstance');
+            const hasAddEdition = functions.includes('addEdition');
+            const hasGetVaultForInstance = functions.includes('getVaultForInstance');
+
+            return hasCreateInstance && hasAddEdition && hasGetVaultForInstance;
         });
 
         // Note: Adapter classes will be set when adapters are imported

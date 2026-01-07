@@ -28,6 +28,16 @@ class ProjectService {
         // Register adapters with registry
         contractTypeRegistry.setAdapterClass('ERC404', ERC404Adapter);
         contractTypeRegistry.setAdapterClass('ERC1155', ERC1155Adapter);
+
+        // New adapters will be registered here when created (Phase 2-3):
+        // contractTypeRegistry.setAdapterClass('MasterRegistry', MasterRegistryAdapter);
+        // contractTypeRegistry.setAdapterClass('GlobalMessageRegistry', GlobalMessageRegistryAdapter);
+        // contractTypeRegistry.setAdapterClass('ERC404Bonding', ERC404BondingInstanceAdapter);
+        // contractTypeRegistry.setAdapterClass('UltraAlignmentVault', UltraAlignmentVaultAdapter);
+        // contractTypeRegistry.setAdapterClass('FactoryGovernance', GovernanceAdapter);
+        // contractTypeRegistry.setAdapterClass('VaultGovernance', GovernanceAdapter);
+        // contractTypeRegistry.setAdapterClass('ERC404Factory', ERC404FactoryAdapter);
+        // contractTypeRegistry.setAdapterClass('ERC1155Factory', ERC1155FactoryAdapter);
     }
 
     /**
