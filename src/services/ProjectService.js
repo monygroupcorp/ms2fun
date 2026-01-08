@@ -11,6 +11,10 @@ import ERC1155Adapter from './contracts/ERC1155Adapter.js';
 import MasterRegistryAdapter from './contracts/MasterRegistryAdapter.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
 import ERC404BondingInstanceAdapter from './contracts/ERC404BondingInstanceAdapter.js';
+import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
+import GovernanceAdapter from './contracts/GovernanceAdapter.js';
+import ERC404FactoryAdapter from './contracts/ERC404FactoryAdapter.js';
+import ERC1155FactoryAdapter from './contracts/ERC1155FactoryAdapter.js';
 import walletService from './WalletService.js';
 import { eventBus } from '../core/EventBus.js';
 import serviceFactory from './ServiceFactory.js';
@@ -37,12 +41,12 @@ class ProjectService {
         contractTypeRegistry.setAdapterClass('GlobalMessageRegistry', GlobalMessageRegistryAdapter);
         contractTypeRegistry.setAdapterClass('ERC404Bonding', ERC404BondingInstanceAdapter);
 
-        // Phase 3 adapters (to be implemented):
-        // contractTypeRegistry.setAdapterClass('UltraAlignmentVault', UltraAlignmentVaultAdapter);
-        // contractTypeRegistry.setAdapterClass('FactoryGovernance', GovernanceAdapter);
-        // contractTypeRegistry.setAdapterClass('VaultGovernance', GovernanceAdapter);
-        // contractTypeRegistry.setAdapterClass('ERC404Factory', ERC404FactoryAdapter);
-        // contractTypeRegistry.setAdapterClass('ERC1155Factory', ERC1155FactoryAdapter);
+        // Phase 3 adapters (complete)
+        contractTypeRegistry.setAdapterClass('UltraAlignmentVault', UltraAlignmentVaultAdapter);
+        contractTypeRegistry.setAdapterClass('FactoryGovernance', GovernanceAdapter);
+        contractTypeRegistry.setAdapterClass('VaultGovernance', GovernanceAdapter);
+        contractTypeRegistry.setAdapterClass('ERC404Factory', ERC404FactoryAdapter);
+        contractTypeRegistry.setAdapterClass('ERC1155Factory', ERC1155FactoryAdapter);
     }
 
     /**
