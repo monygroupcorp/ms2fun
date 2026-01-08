@@ -7,53 +7,17 @@
 
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import ContractAdapter from './ContractAdapter.js';
+import { loadABI } from '../../utils/abiLoader.js';
 import { eventBus } from '../../core/EventBus.js';
 import { contractCache } from '../ContractCache.js';
 import { loadMockData } from '../mock/mockData.js';
 
-// Standard ERC1155 ABI (minimal required functions)
-const ERC1155_STANDARD_ABI = [
-    {
-        "constant": true,
-        "inputs": [
-            { "name": "account", "type": "address" },
-            { "name": "id", "type": "uint256" }
-        ],
-        "name": "balanceOf",
-        "outputs": [{ "name": "", "type": "uint256" }],
-        "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [
-            { "name": "accounts", "type": "address[]" },
-            { "name": "ids", "type": "uint256[]" }
-        ],
-        "name": "balanceOfBatch",
-        "outputs": [{ "name": "", "type": "uint256[]" }],
-        "type": "function"
-    },
-    {
-        "constant": false,
-        "inputs": [
-            { "name": "from", "type": "address" },
-            { "name": "to", "type": "address" },
-            { "name": "id", "type": "uint256" },
-            { "name": "amount", "type": "uint256" },
-            { "name": "data", "type": "bytes" }
-        ],
-        "name": "safeTransferFrom",
-        "outputs": [],
-        "type": "function"
-    },
-    {
-        "constant": true,
-        "inputs": [{ "name": "id", "type": "uint256" }],
-        "name": "uri",
-        "outputs": [{ "name": "", "type": "string" }],
-        "type": "function"
-    }
-];
+// Cache TTL configuration
+const CACHE_TTL = {
+    STATIC: 60 * 60 * 1000,      // 1 hour (edition metadata, instance info)
+    DYNAMIC: 5 * 60 * 1000,       // 5 minutes (pricing, supply)
+    REALTIME: 30 * 1000,          // 30 seconds (mint stats)
+};
 
 class ERC1155Adapter extends ContractAdapter {
     constructor(contractAddress, contractType, ethersProvider, signer) {
@@ -72,24 +36,19 @@ class ERC1155Adapter extends ContractAdapter {
                 this.initialized = true;
                 eventBus.emit('contract:adapter:initialized', {
                     contractAddress: this.contractAddress,
-                    contractType: this.contractType
+                    contractType: this.contractType,
+                    isMock: true
                 });
                 return true;
             }
 
-            // Try to load contract-specific ABI
-            let contractABI = null;
-            try {
-                const abiResponse = await fetch(`/contracts/ERC1155.json`);
-                if (abiResponse.ok) {
-                    contractABI = await abiResponse.json();
-                }
-            } catch (error) {
-                console.warn('[ERC1155Adapter] Could not load custom ABI, using standard ERC1155 ABI');
+            // Validate provider
+            if (!this.signer && !this.provider) {
+                throw new Error('No provider or signer available for contract initialization');
             }
 
-            // Use custom ABI if available, otherwise use standard
-            const abi = contractABI || ERC1155_STANDARD_ABI;
+            // Load ERC1155Instance ABI from centralized location
+            const abi = await loadABI('ERC1155Instance');
 
             // Initialize contract
             this.contract = new ethers.Contract(
@@ -704,6 +663,885 @@ class ERC1155Adapter extends ContractAdapter {
         } catch (error) {
             throw this.handleContractError(error, 'createEdition');
         }
+    }
+
+    // =========================
+    // Additional Minting Methods
+    // =========================
+
+    /**
+     * Mint an edition (alias for mintEdition)
+     * @param {number} editionId - Edition ID
+     * @param {number} amount - Amount to mint
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async mint(editionId, amount) {
+        const editionInfo = await this.getEditionInfo(editionId);
+        const totalCost = BigInt(editionInfo.price) * BigInt(amount);
+        return await this.mintEdition(editionId, amount, totalCost.toString());
+    }
+
+    /**
+     * Mint edition with message
+     * @param {number} editionId - Edition ID
+     * @param {number} amount - Amount to mint
+     * @param {string} message - Message to attach
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async mintWithMessage(editionId, amount, message) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            const editionInfo = await this.getEditionInfo(editionId);
+            const totalCost = BigInt(editionInfo.price) * BigInt(amount);
+
+            if (this._isMockContract()) {
+                // Mock implementation - use regular mint
+                const receipt = await this.mintEdition(editionId, amount, totalCost.toString());
+
+                eventBus.emit('erc1155:mint:message', {
+                    editionId,
+                    amount,
+                    message,
+                    contractAddress: this.contractAddress,
+                    txHash: receipt.transactionHash
+                });
+
+                return receipt;
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'mintWithMessage',
+                contractAddress: this.contractAddress,
+                editionId
+            });
+
+            const receipt = await this.executeContractCall(
+                'mintWithMessage',
+                [editionId, amount, message],
+                {
+                    requiresSigner: true,
+                    txOptions: { value: totalCost.toString() }
+                }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'mintWithMessage',
+                receipt,
+                contractAddress: this.contractAddress,
+                editionId
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('edition', 'mint');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'mintWithMessage',
+                error: this.wrapError(error, 'Mint with message failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Calculate cost to mint edition
+     * @param {number} editionId - Edition ID
+     * @param {number} amount - Amount to mint
+     * @returns {Promise<string>} Total cost in wei
+     */
+    async calculateMintCost(editionId, amount) {
+        return await this.getCachedOrFetch('calculateMintCost', [editionId, amount], async () => {
+            if (this._isMockContract()) {
+                const editionInfo = await this.getEditionInfo(editionId);
+                const totalCost = BigInt(editionInfo.price) * BigInt(amount);
+                return totalCost.toString();
+            }
+
+            // Try contract method first
+            try {
+                const cost = await this.executeContractCall('calculateMintCost', [editionId, amount]);
+                return cost.toString();
+            } catch (error) {
+                // Fallback: calculate from edition price
+                const editionInfo = await this.getEditionInfo(editionId);
+                const totalCost = BigInt(editionInfo.price) * BigInt(amount);
+                return totalCost.toString();
+            }
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get current price for edition
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<string>} Current price in wei
+     */
+    async getCurrentPrice(editionId) {
+        return await this.getCachedOrFetch('getCurrentPrice', [editionId], async () => {
+            if (this._isMockContract()) {
+                const editionInfo = await this.getEditionInfo(editionId);
+                return editionInfo.price;
+            }
+
+            // Try contract method
+            try {
+                const price = await this.executeContractCall('getCurrentPrice', [editionId]);
+                return price.toString();
+            } catch (error) {
+                // Fallback: use getEditionPrice
+                return await this.getEditionPrice(editionId);
+            }
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    // =========================
+    // Additional Edition Query Methods
+    // =========================
+
+    /**
+     * Get all edition IDs
+     * @returns {Promise<Array<number>>} Array of edition IDs
+     */
+    async getAllEditionIds() {
+        return await this.getCachedOrFetch('getAllEditionIds', [], async () => {
+            const count = await this.getEditionCount();
+            const ids = [];
+            for (let i = 0; i < count; i++) {
+                ids.push(i);
+            }
+            return ids;
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get editions in batch
+     * @param {number} startId - Start edition ID
+     * @param {number} endId - End edition ID (exclusive)
+     * @returns {Promise<Array<Object>>} Array of edition info objects
+     */
+    async getEditionsBatch(startId, endId) {
+        const editions = [];
+        for (let i = startId; i < endId; i++) {
+            try {
+                const editionInfo = await this.getEditionInfo(i);
+                editions.push(editionInfo);
+            } catch (error) {
+                console.warn(`Failed to get edition ${i}:`, error);
+                // Continue with other editions
+            }
+        }
+        return editions;
+    }
+
+    /**
+     * Get pricing info for edition
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<Object>} Pricing information
+     */
+    async getPricingInfo(editionId) {
+        return await this.getCachedOrFetch('getPricingInfo', [editionId], async () => {
+            if (this._isMockContract()) {
+                const editionInfo = await this.getEditionInfo(editionId);
+                return {
+                    currentPrice: editionInfo.price,
+                    pricingModel: 0, // Fixed pricing
+                    basePrice: editionInfo.price,
+                    priceIncreaseRate: '0'
+                };
+            }
+
+            try {
+                const info = await this.executeContractCall('getPricingInfo', [editionId]);
+                return {
+                    currentPrice: info.currentPrice?.toString() || info[0]?.toString(),
+                    pricingModel: info.pricingModel?.toString() || info[1]?.toString() || '0',
+                    basePrice: info.basePrice?.toString() || info[2]?.toString(),
+                    priceIncreaseRate: info.priceIncreaseRate?.toString() || info[3]?.toString() || '0'
+                };
+            } catch (error) {
+                // Fallback to basic pricing
+                const editionInfo = await this.getEditionInfo(editionId);
+                return {
+                    currentPrice: editionInfo.price,
+                    pricingModel: 0,
+                    basePrice: editionInfo.price,
+                    priceIncreaseRate: '0'
+                };
+            }
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get mint stats for edition
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<Object>} Mint statistics
+     */
+    async getMintStats(editionId) {
+        return await this.getCachedOrFetch('getMintStats', [editionId], async () => {
+            if (this._isMockContract()) {
+                const editionInfo = await this.getEditionInfo(editionId);
+                return {
+                    totalMinted: editionInfo.currentSupply,
+                    maxSupply: editionInfo.maxSupply,
+                    remainingSupply: BigInt(editionInfo.maxSupply) === BigInt(0)
+                        ? 'unlimited'
+                        : (BigInt(editionInfo.maxSupply) - BigInt(editionInfo.currentSupply)).toString()
+                };
+            }
+
+            try {
+                const stats = await this.executeContractCall('getMintStats', [editionId]);
+                return {
+                    totalMinted: stats.totalMinted?.toString() || stats[0]?.toString(),
+                    maxSupply: stats.maxSupply?.toString() || stats[1]?.toString(),
+                    remainingSupply: stats.remainingSupply?.toString() || stats[2]?.toString()
+                };
+            } catch (error) {
+                // Fallback to edition info
+                const editionInfo = await this.getEditionInfo(editionId);
+                return {
+                    totalMinted: editionInfo.currentSupply,
+                    maxSupply: editionInfo.maxSupply,
+                    remainingSupply: BigInt(editionInfo.maxSupply) === BigInt(0)
+                        ? 'unlimited'
+                        : (BigInt(editionInfo.maxSupply) - BigInt(editionInfo.currentSupply)).toString()
+                };
+            }
+        }, CACHE_TTL.REALTIME);
+    }
+
+    /**
+     * Check if edition exists
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<boolean>} True if edition exists
+     */
+    async editionExists(editionId) {
+        try {
+            if (this._isMockContract()) {
+                const count = await this.getEditionCount();
+                return editionId >= 0 && editionId < count;
+            }
+
+            const exists = await this.executeContractCall('editionExists', [editionId]);
+            return !!exists;
+        } catch (error) {
+            // Fallback: try to get edition info
+            try {
+                await this.getEditionInfo(editionId);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Get piece title for edition
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<string>} Piece title
+     */
+    async getPieceTitle(editionId) {
+        return await this.getCachedOrFetch('getPieceTitle', [editionId], async () => {
+            if (this._isMockContract()) {
+                const editionInfo = await this.getEditionInfo(editionId);
+                return editionInfo.metadata?.name || `Edition #${editionId}`;
+            }
+
+            try {
+                return await this.executeContractCall('getPieceTitle', [editionId]);
+            } catch (error) {
+                // Fallback to metadata
+                const editionInfo = await this.getEditionInfo(editionId);
+                return editionInfo.metadata?.name || `Edition #${editionId}`;
+            }
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get edition (alias for getEditionInfo)
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<Object>} Edition information
+     */
+    async getEdition(editionId) {
+        return await this.getEditionInfo(editionId);
+    }
+
+    // =========================
+    // Instance Query Methods
+    // =========================
+
+    /**
+     * Get instance metadata (alias for getMetadata)
+     * @returns {Promise<Object>} Instance metadata
+     */
+    async getInstanceMetadata() {
+        return await this.getMetadata();
+    }
+
+    /**
+     * Get project name
+     * @returns {Promise<string>} Project name
+     */
+    async getProjectName() {
+        return await this.getCachedOrFetch('getProjectName', [], async () => {
+            if (this._isMockContract()) {
+                const metadata = await this.getMetadata();
+                return metadata.name || 'ERC1155 Collection';
+            }
+
+            try {
+                return await this.executeContractCall('projectName');
+            } catch (error) {
+                // Fallback to metadata
+                const metadata = await this.getMetadata();
+                return metadata.name || 'ERC1155 Collection';
+            }
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get total proceeds collected
+     * @returns {Promise<string>} Total proceeds in wei
+     */
+    async getTotalProceeds() {
+        return await this.getCachedOrFetch('getTotalProceeds', [], async () => {
+            if (this._isMockContract()) {
+                return '0'; // Mock contracts don't track proceeds
+            }
+
+            try {
+                const proceeds = await this.executeContractCall('totalProceeds');
+                return proceeds.toString();
+            } catch (error) {
+                console.warn('[ERC1155Adapter] totalProceeds method not available');
+                return '0';
+            }
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    // =========================
+    // ERC1155 Standard Methods
+    // =========================
+
+    /**
+     * Get balance of account (alias for getBalanceForEdition)
+     * @param {string} account - Account address
+     * @param {number} editionId - Edition ID
+     * @returns {Promise<string>} Balance
+     */
+    async balanceOf(account, editionId) {
+        return await this.getBalanceForEdition(account, editionId);
+    }
+
+    /**
+     * Get balances of multiple accounts and editions
+     * @param {Array<string>} accounts - Array of account addresses
+     * @param {Array<number>} ids - Array of edition IDs
+     * @returns {Promise<Array<string>>} Array of balances
+     */
+    async balanceOfBatch(accounts, ids) {
+        try {
+            if (this._isMockContract()) {
+                // For mock contracts, get balances individually
+                const balances = [];
+                for (let i = 0; i < accounts.length; i++) {
+                    const balance = await this.getBalanceForEdition(accounts[i], ids[i]);
+                    balances.push(balance);
+                }
+                return balances;
+            }
+
+            const balances = await this.executeContractCall('balanceOfBatch', [accounts, ids]);
+            return balances.map(b => b.toString());
+        } catch (error) {
+            throw this.handleContractError(error, 'balanceOfBatch');
+        }
+    }
+
+    /**
+     * Transfer edition from one address to another
+     * @param {string} from - From address
+     * @param {string} to - To address
+     * @param {number} id - Edition ID
+     * @param {number} amount - Amount to transfer
+     * @param {string} data - Additional data (hex string)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async safeTransferFrom(from, to, id, amount, data = '0x') {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                // Mock implementation
+                eventBus.emit('erc1155:transfer', {
+                    from,
+                    to,
+                    id,
+                    amount,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'safeTransferFrom',
+                contractAddress: this.contractAddress,
+                from,
+                to
+            });
+
+            const receipt = await this.executeContractCall(
+                'safeTransferFrom',
+                [from, to, id, amount, data],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'safeTransferFrom',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('balance');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'safeTransferFrom',
+                error: this.wrapError(error, 'Transfer failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Batch transfer multiple editions
+     * @param {string} from - From address
+     * @param {string} to - To address
+     * @param {Array<number>} ids - Array of edition IDs
+     * @param {Array<number>} amounts - Array of amounts
+     * @param {string} data - Additional data (hex string)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async safeBatchTransferFrom(from, to, ids, amounts, data = '0x') {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                // Mock implementation
+                eventBus.emit('erc1155:batch-transfer', {
+                    from,
+                    to,
+                    ids,
+                    amounts,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'safeBatchTransferFrom',
+                contractAddress: this.contractAddress,
+                from,
+                to
+            });
+
+            const receipt = await this.executeContractCall(
+                'safeBatchTransferFrom',
+                [from, to, ids, amounts, data],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'safeBatchTransferFrom',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('balance');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'safeBatchTransferFrom',
+                error: this.wrapError(error, 'Batch transfer failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set approval for all editions
+     * @param {string} operator - Operator address
+     * @param {boolean} approved - Approval status
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setApprovalForAll(operator, approved) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                // Mock implementation
+                eventBus.emit('erc1155:approval', {
+                    operator,
+                    approved,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'setApprovalForAll',
+                contractAddress: this.contractAddress,
+                operator
+            });
+
+            const receipt = await this.executeContractCall(
+                'setApprovalForAll',
+                [operator, approved],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setApprovalForAll',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setApprovalForAll',
+                error: this.wrapError(error, 'Approval failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Check if operator is approved for all editions
+     * @param {string} account - Account address
+     * @param {string} operator - Operator address
+     * @returns {Promise<boolean>} True if approved
+     */
+    async isApprovedForAll(account, operator) {
+        try {
+            if (this._isMockContract()) {
+                return false; // Mock contracts don't track approvals
+            }
+
+            const approved = await this.executeContractCall('isApprovedForAll', [account, operator]);
+            return !!approved;
+        } catch (error) {
+            throw this.handleContractError(error, 'isApprovedForAll');
+        }
+    }
+
+    // =========================
+    // Owner Functions
+    // =========================
+
+    /**
+     * Add edition (alias for createEdition)
+     * @param {Object} params - Edition parameters
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async addEdition(params) {
+        const { metadata, price, maxSupply, royaltyPercent } = params;
+        return await this.createEdition(metadata, price, maxSupply, royaltyPercent);
+    }
+
+    /**
+     * Update edition metadata
+     * @param {number} editionId - Edition ID
+     * @param {string} metadataURI - New metadata URI
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async updateEditionMetadata(editionId, metadataURI) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                // Mock implementation
+                const mockData = loadMockData();
+                const instance = mockData?.instances?.[this.contractAddress];
+                if (instance && instance.pieces && instance.pieces[editionId]) {
+                    instance.pieces[editionId].metadataURI = metadataURI;
+                    const { saveMockData } = await import('../mock/mockData.js');
+                    saveMockData(mockData);
+                }
+
+                eventBus.emit('erc1155:metadata-updated', {
+                    editionId,
+                    metadataURI,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'updateEditionMetadata',
+                contractAddress: this.contractAddress,
+                editionId
+            });
+
+            const receipt = await this.executeContractCall(
+                'updateEditionMetadata',
+                [editionId, metadataURI],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'updateEditionMetadata',
+                receipt,
+                contractAddress: this.contractAddress,
+                editionId
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('edition', 'metadata');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'updateEditionMetadata',
+                error: this.wrapError(error, 'Metadata update failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Withdraw proceeds
+     * @param {string} amount - Amount to withdraw in wei
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async withdraw(amount) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                eventBus.emit('erc1155:withdraw', {
+                    amount,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'withdraw',
+                contractAddress: this.contractAddress,
+                amount
+            });
+
+            const receipt = await this.executeContractCall(
+                'withdraw',
+                [amount],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'withdraw',
+                receipt,
+                contractAddress: this.contractAddress,
+                amount
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'withdraw',
+                error: this.wrapError(error, 'Withdraw failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Claim vault fees
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async claimVaultFees() {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                eventBus.emit('erc1155:claim-fees', {
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'claimVaultFees',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'claimVaultFees',
+                [],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'claimVaultFees',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'claimVaultFees',
+                error: this.wrapError(error, 'Claim vault fees failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set style URI for instance
+     * @param {string} uri - Style URI
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setStyle(uri) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                eventBus.emit('erc1155:style-updated', {
+                    uri,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'setStyle',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setStyle',
+                [uri],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setStyle',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setStyle',
+                error: this.wrapError(error, 'Set style failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set style URI for specific edition
+     * @param {number} editionId - Edition ID
+     * @param {string} uri - Style URI
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setEditionStyle(editionId, uri) {
+        try {
+            if (!this.signer) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                eventBus.emit('erc1155:edition-style-updated', {
+                    editionId,
+                    uri,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'setEditionStyle',
+                contractAddress: this.contractAddress,
+                editionId
+            });
+
+            const receipt = await this.executeContractCall(
+                'setEditionStyle',
+                [editionId, uri],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setEditionStyle',
+                receipt,
+                contractAddress: this.contractAddress,
+                editionId
+            });
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setEditionStyle',
+                error: this.wrapError(error, 'Set edition style failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Get style URI
+     * @param {number|null} editionId - Edition ID (null for instance style)
+     * @returns {Promise<string>} Style URI
+     */
+    async getStyle(editionId = null) {
+        return await this.getCachedOrFetch('getStyle', [editionId], async () => {
+            if (this._isMockContract()) {
+                return ''; // Mock contracts don't have styles
+            }
+
+            try {
+                if (editionId !== null) {
+                    return await this.executeContractCall('getEditionStyle', [editionId]);
+                } else {
+                    return await this.executeContractCall('getStyle');
+                }
+            } catch (error) {
+                return '';
+            }
+        }, CACHE_TTL.STATIC);
     }
 
     /**
