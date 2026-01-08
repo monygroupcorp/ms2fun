@@ -100,9 +100,22 @@ CULT EXEC is the flagship project that inspired this launchpad. It's a standalon
 
 ## Documentation
 
-- **About Page**: Visit `/about` for comprehensive documentation
+### Current Development Focus 🚀
+
+**Frontend Architecture Overhaul** - We're implementing complete coverage of 200+ contract functions with a clean three-pathway user architecture.
+
+**Key Documents:**
+1. **[FRONTEND_COVERAGE_CHECKLIST.md](./FRONTEND_COVERAGE_CHECKLIST.md)** - Contract methods organized by user role
+2. **[FRONTEND_ARCHITECTURE.md](./docs/FRONTEND_ARCHITECTURE.md)** - Complete implementation blueprint
+3. **[FRONTEND_CURRENT_STATE_AUDIT.md](./docs/FRONTEND_CURRENT_STATE_AUDIT.md)** - Current state analysis
+4. **[DESIGN_CHANGES.md](./docs/DESIGN_CHANGES.md)** - Pending UX improvements
+5. **[Local Dev System Design](./docs/plans/2026-01-08-local-development-system-design.md)** - Anvil fork integration
+
+**User Documentation:**
+- **About Page**: Visit `/about` for end-user documentation
 - **Factory Requirements**: See the About page for factory submission requirements
-- **Contract Requirements**: See `CONTRACT_REQUIREMENTS.md` for technical specifications
+
+**Archived Docs:** Legacy documentation has been moved to `docs/archive/`
 
 ## Contributing
 
