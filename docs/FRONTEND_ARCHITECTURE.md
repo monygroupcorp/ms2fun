@@ -12,45 +12,159 @@
 
 ## Table of Contents
 
-1. [Sitemap](#sitemap)
-2. [Global Components](#global-components)
-3. [Page Specifications](#page-specifications)
-4. [Component Library](#component-library)
-5. [Implementation Roadmap](#implementation-roadmap)
+1. [User Pathways](#user-pathways)
+2. [Sitemap](#sitemap)
+3. [Global Components](#global-components)
+4. [Page Specifications](#page-specifications)
+5. [Component Library](#component-library)
+6. [Implementation Roadmap](#implementation-roadmap)
+
+---
+
+## User Pathways
+
+The frontend serves **three distinct user types** with different needs and entry points:
+
+### 1. Regular User Pathway 🎮
+**Who:** Collectors, traders, participants
+**Goals:** Discover projects, mint, trade, participate
+**Entry Points:** Home page, project pages
+**Navigation:** Main UI (clean, focused)
+
+**Journey:**
+```
+Home → Browse Projects → View Project → Mint/Trade
+     → Browse Vaults   → View Vault
+     → View Activity   → Click Message → Go to Project
+```
+
+**Features They Need:**
+- ✅ Browse projects
+- ✅ Mint editions
+- ✅ Buy/sell on bonding curves
+- ✅ See activity feed
+- ✅ Create instances (from existing factories)
+- ✅ Basic portfolio view
+
+**What They DON'T Need in Main UI:**
+- ❌ Factory submission forms
+- ❌ Vault registration
+- ❌ Governance voting (unless they navigate there)
+- ❌ Technical/developer docs
+
+---
+
+### 2. Developer/Partner Pathway 🔧
+**Who:** Developers wanting to add new factories or vaults
+**Goals:** Submit factory for approval, register vault
+**Entry Points:** Documentation → Developer section
+**Navigation:** Documentation-gated (not cluttering main UI)
+
+**Journey:**
+```
+Documentation → Developer Guide → Factory Submission
+                              → Vault Registration
+                              → Governance Process
+```
+
+**Features They Need:**
+- ✅ Factory submission form (`/factories/apply`)
+- ✅ Vault registration guide
+- ✅ Technical documentation
+- ✅ Governance timeline explanation
+- ✅ Contract interfaces/ABIs
+
+**Where These Live:**
+- `/docs` page has "Developer & Partners" section
+- Links to:
+  - `/factories/apply` - Factory submission
+  - `/vaults/register` - Vault registration (NEW)
+  - Governance info
+  - Technical docs
+
+**Key Point:** These advanced features are **accessible but not prominent** in main navigation. Documentation serves as the gateway.
+
+---
+
+### 3. Power User/Investor Pathway 💎
+**Who:** Heavily invested users, EXEC holders, vault benefactors
+**Goals:** Manage positions, vote on governance, claim rewards
+**Entry Points:** Wallet badge dropdown menu
+**Navigation:** Wallet menu → Personal dashboards
+
+**Journey:**
+```
+Wallet Badge Dropdown → Portfolio Dashboard
+                     → Governance Dashboard
+                     → Staking Positions
+                     → Vault Positions
+```
+
+**Features They Need:**
+- ✅ Complete portfolio view (all holdings)
+- ✅ Governance voting dashboard
+- ✅ Staking management
+- ✅ Vault benefactor positions
+- ✅ Claim all rewards
+- ✅ Transaction history
+
+**Where These Live:**
+- Wallet badge dropdown menu (accessible from anywhere)
+- Menu items:
+  - 📊 **Portfolio** → `/portfolio` (all holdings)
+  - 🗳️ **Governance** → `/governance` (voting dashboard)
+  - 🎯 **Staking** → Direct to staking section (or `/staking` page)
+  - 💰 **Vault Positions** → Filter portfolio to vaults
+  - ⚙️ **Settings** → Wallet settings
+
+**Key Point:** Advanced features are **always accessible** but tucked away in wallet menu, not cluttering main UI.
 
 ---
 
 ## Sitemap
 
-### Existing Pages (14)
+### Main Navigation Pages (Prominent)
+**Regular User Pathway** - Always visible, main UI
 ```
-/                                   # Home (Project Discovery) - NEEDS REDESIGN
+/                                   # Home (Project Discovery) - REDESIGNED
 /cultexecs                          # CULT EXECS dedicated page
-/about                              # Documentation
-/docs                               # Documentation (alias)
 /project/:id                        # Project Detail (address-based)
 /:chainId/:factoryTitle/:instanceName            # Project Detail (title-based)
 /:chainId/:factoryTitle/:instanceName/:pieceTitle # Edition Detail
-/:chainId/:factoryTitle/create      # Project Creation
-/factory/:id                        # Factory Detail
-/factories                          # Factory Exploration
-/factories/apply                    # Factory Application
-/factories/application/:address     # Application Status
-/voting                             # EXEC Voting Dashboard
-/exec/voting                        # EXEC Voting Dashboard (alias)
-```
-
-### New Pages Needed (6)
-```
+/:chainId/:factoryTitle/create      # Project Creation (from existing factories)
 /vaults                             # Vault Leaderboard & Explorer
 /vaults/:address                    # Vault Detail Page
 /messages                           # Global Activity Feed (full page)
-/portfolio                          # User Portfolio Dashboard
-/governance/factories               # Factory Governance (expanded voting)
-/governance/vaults                  # Vault Governance
+/about or /docs                     # Documentation
 ```
 
-### Total: 20 Pages
+### Wallet Menu Pages (Power User)
+**Accessible from wallet badge dropdown**
+```
+/portfolio                          # User Portfolio Dashboard ← WALLET MENU
+/governance                         # Governance Dashboard ← WALLET MENU
+/governance/factories               # Factory Governance
+/governance/vaults                  # Vault Governance
+/staking                            # Staking Dashboard (optional dedicated page)
+/voting                             # EXEC Voting (alias for /governance)
+```
+
+### Developer/Partner Pages (Documentation-Gated)
+**Linked from documentation, not prominent in main nav**
+```
+/factories                          # Factory Exploration (still accessible)
+/factories/apply                    # Factory Application ← FROM DOCS
+/factories/application/:address     # Application Status
+/vaults/register                    # Vault Registration ← FROM DOCS (NEW)
+/factory/:id                        # Factory Detail
+```
+
+### Total: 21 Pages
+
+**Information Architecture:**
+- **10 pages** in main navigation (regular users)
+- **6 pages** in wallet menu (power users)
+- **5 pages** gated through documentation (developers)
 
 ---
 
@@ -63,20 +177,82 @@ These components appear on ALL or MOST pages.
 
 **Location:** Bottom-right corner (floating action button)
 
-**Purpose:** Persistent wallet connection without blocking content
+**Purpose:** Persistent wallet connection + power user menu access
 
 **States:**
-- Not connected: Shows "Connect" button
-- Connected: Shows abbreviated address (0x1234...5678)
-- Hover: Shows full address + balance
+- **Not connected:** Shows "Connect" button
+- **Connected:** Shows abbreviated address (0x1234...5678)
+- **Hover:** Shows full address + balance
+- **Clicked (connected):** Opens dropdown menu
 
 **Behavior:**
-- Click → Opens `WalletConnector` modal (existing)
+- Not connected + Click → Opens `WalletConnector` modal (existing)
+- Connected + Click → Opens dropdown menu (NEW)
 - Always accessible, never blocks page content
 - Z-index above all content
 
+**Dropdown Menu Structure:**
+```
+┌─────────────────────────────┐
+│ 0x1234...5678              │ ← Wallet address
+│ Balance: 2.5 ETH           │
+├─────────────────────────────┤
+│ 📊 Portfolio               │ → /portfolio
+│ 🗳️ Governance              │ → /governance
+│ 🎯 Staking                 │ → /staking (or scroll to section)
+│ 💰 Vault Positions         │ → /portfolio?filter=vaults
+├─────────────────────────────┤
+│ ⚙️ Settings                 │
+│ 🔌 Disconnect              │
+└─────────────────────────────┘
+```
+
+**Menu Items:**
+
+1. **Portfolio** (`/portfolio`)
+   - User's complete holdings dashboard
+   - All tokens, NFTs, vault positions, staking
+   - Available to all connected users
+
+2. **Governance** (`/governance`)
+   - Factory & vault voting dashboard
+   - Only shown if user holds EXEC tokens
+   - Or always shown but disabled if no EXEC
+
+3. **Staking** (`/staking` or section link)
+   - View all staking positions across projects
+   - Claim rewards, stake/unstake
+   - Available to all connected users
+
+4. **Vault Positions** (`/portfolio?filter=vaults`)
+   - Quick link to vault section of portfolio
+   - Shows only vault benefactor positions
+   - Available if user is benefactor of any vault
+
+5. **Settings**
+   - Wallet preferences
+   - Notification settings (future)
+   - Display preferences
+
+6. **Disconnect**
+   - Disconnect wallet
+   - Clear connection state
+
+**Conditional Visibility:**
+- **Governance** menu item:
+  - Always shown if user holds EXEC > 0
+  - Hidden or disabled if user holds no EXEC
+  - Check via: `ERC404.balanceOf(user, EXEC_TOKEN_ADDRESS)`
+
+- **Vault Positions** menu item:
+  - Only shown if user is benefactor of at least one vault
+  - Check via: Iterate vaults, call `getBenefactorShares(user)` > 0
+
 **Contract Methods:**
-- Uses `WalletService` (no direct adapter methods)
+- `WalletService.getAddress()` - Current wallet
+- `WalletService.getBalance()` - ETH balance
+- `ERC404.balanceOf(user, EXEC_ADDRESS)` - Check EXEC holdings (for governance visibility)
+- Various vault methods to check benefactor status (for vault menu visibility)
 
 **UI Mockup:**
 ```
@@ -89,6 +265,15 @@ These components appear on ALL or MOST pages.
 │                          │ 🦊 │ │  ← Floating button
 │                          │0x..│ │     (bottom-right)
 │                          └────┘ │
+│                             ↑    │
+│                    ┌──────────┐ │  ← Dropdown menu
+│                    │ Portfolio│ │     (on click)
+│                    │Governance│ │
+│                    │  Staking │ │
+│                    │ Vaults   │ │
+│                    │ Settings │ │
+│                    │Disconnect│ │
+│                    └──────────┘ │
 └─────────────────────────────────┘
 ```
 
@@ -96,10 +281,86 @@ These components appear on ALL or MOST pages.
 - `.floating-wallet-button` - Main button
 - `.floating-wallet-button.connected` - Connected state
 - `.floating-wallet-button.disconnected` - Disconnected state
+- `.wallet-dropdown-menu` - Dropdown menu
+- `.wallet-dropdown-menu-item` - Each menu item
+- `.wallet-dropdown-menu-item.disabled` - Disabled menu item
+
+**Implementation Notes:**
+- Menu closes on click outside
+- Menu closes after navigation
+- Menu items highlighted on hover
+- Smooth animation on open/close
 
 ---
 
 ## Page Specifications
+
+---
+
+## Page 0: Documentation (`/docs` or `/about`) - ENHANCED
+
+### Purpose
+User guide + gateway to developer/partner features
+
+### User Journey
+1. Regular users: Find help, learn how to use protocol
+2. Developers: Navigate to "For Developers" section → find submission links
+
+### Layout Structure
+
+```
+┌─────────────────────────────────────────┐
+│ FloatingWalletButton                    │
+├─────────────────────────────────────────┤
+│   DOCUMENTATION                         │
+│   ┌───────────────────────────────┐    │
+│   │ [User Guide] [For Developers] │    │ ← Tabs
+│   └───────────────────────────────┘    │
+├─────────────────────────────────────────┤
+│   USER GUIDE TAB (Default)              │
+│   • Getting Started                     │
+│   • How to Mint                         │
+│   • How to Trade                        │
+│   • FAQ                                 │
+│                                         │
+├─────────────────────────────────────────┤
+│   FOR DEVELOPERS TAB                    │
+│   ┌─────────────────────────────────┐  │
+│   │ Want to add a new factory?      │  │
+│   │ [Submit Factory Application →]  │  │
+│   └─────────────────────────────────┘  │
+│   ┌─────────────────────────────────┐  │
+│   │ Want to register a vault?       │  │
+│   │ [Register Vault →]              │  │
+│   └─────────────────────────────────┘  │
+│   • Governance Process Overview        │
+│   • Technical Documentation            │
+│   • Contract ABIs                      │
+│   • Integration Guide                  │
+└─────────────────────────────────────────┘
+```
+
+### Components
+
+#### 0.1 Documentation Component (UPDATE EXISTING)
+**File:** `src/components/Documentation/Documentation.js`
+
+**Enhancements:**
+- Add tabbed interface (User Guide / For Developers)
+- Add prominent call-to-action cards in "For Developers" tab:
+  - **"Submit Factory Application"** → `/factories/apply`
+  - **"Register Vault"** → `/vaults/register`
+- Add governance process explanation
+- Add technical docs section
+
+**Purpose:**
+- Regular users get help
+- Developers find submission forms
+- Keep developer features out of main UI
+
+**Contract Methods:** None (informational)
+
+**Key Point:** Documentation serves as the **gateway** to developer features, keeping main UI clean for regular users.
 
 ---
 
@@ -1334,3 +1595,103 @@ Update existing ERC404 project detail page with new adapter methods
 5. ⏭️ Deploy progressively (phase by phase)
 
 **Ready to start building?**
+
+---
+
+## Architecture Summary: Three-Pathway Design
+
+### Clean Information Architecture
+
+The frontend is organized around **three distinct user pathways**, preventing feature clutter while maintaining full accessibility:
+
+#### 1. Main UI (Regular Users) 🎮
+**Always Visible, Prominently Accessible**
+- Home page → Projects, Vaults, Activity
+- Project detail pages
+- Vault explorer
+- Clean, focused navigation
+- ✅ Can create instances from existing factories
+- ❌ Does NOT show factory submission forms
+- ❌ Does NOT show governance unless navigating there
+
+**Philosophy:** "Learn, Do, Play" - everything regular users need, nothing they don't.
+
+---
+
+#### 2. Wallet Menu (Power Users) 💎
+**Accessible Anywhere, Tucked Away**
+- Portfolio dashboard → All holdings
+- Governance dashboard → Vote on proposals
+- Staking management → Manage positions
+- Vault positions → Benefactor claims
+- Conditional visibility (shown if relevant to user)
+
+**Philosophy:** Advanced features available without cluttering main UI. Click wallet → access power tools.
+
+---
+
+#### 3. Documentation Gateway (Developers) 🔧
+**Accessible but Not Prominent**
+- Documentation "For Developers" tab
+- Links to factory submission
+- Links to vault registration
+- Governance process explanation
+- Technical docs, ABIs, integration guides
+
+**Philosophy:** Developers can extend the protocol without adding complexity to the main user experience.
+
+---
+
+### Why This Works
+
+**For Regular Users:**
+- Clean UI focused on core actions
+- No confusing "advanced" options
+- Discover → Mint → Trade flow is obvious
+
+**For Power Users:**
+- Everything they need in wallet menu
+- Portfolio and governance always accessible
+- Contextual visibility (governance only shown to EXEC holders)
+
+**For Developers:**
+- Clear path to submission forms via docs
+- Not cluttering main navigation
+- Technical depth available where appropriate
+
+**Result:** One frontend serves three user types without compromising any experience.
+
+---
+
+## Implementation Notes
+
+### Phase 1 Priority
+1. Create `FloatingWalletButton` with dropdown menu
+2. Update Documentation with "For Developers" tab
+3. Keep main navigation clean (no factory/governance links)
+4. Hide advanced features behind wallet menu
+
+### Testing Each Pathway
+**Regular User Flow:**
+```
+Home → Browse projects → Click project → Mint/Trade
+     → Browse vaults → Click vault → View details
+     → View activity → Click message → Go to project
+```
+
+**Power User Flow:**
+```
+Click Wallet → Portfolio → See all holdings
+            → Governance → Vote on proposals
+            → Staking → Manage positions
+```
+
+**Developer Flow:**
+```
+Documentation → For Developers Tab → Submit Factory
+                                   → Register Vault
+                                   → View Governance Process
+```
+
+All three should be tested to ensure proper separation and accessibility.
+
