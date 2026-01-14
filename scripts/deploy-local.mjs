@@ -875,7 +875,7 @@ const main = async () => {
                         hook: earlyLaunch.hook,
                         state: "early-bonding",
                         bondingProgress: "~10%",
-                        holders: 5,
+                        holders: 4,
                         messages: 5
                     },
                     {
