@@ -784,6 +784,163 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
+        console.log("PHASE 8: ADDITIONAL ERC1155 INSTANCES");
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("");
+
+        // Instance 2: Dynamic Pricing (linear price increase)
+        console.log("STEP 17: Creating ERC1155 'Dynamic-Pricing' instance...");
+
+        const dynamicPricingTx = await erc1155FactoryContract.createInstance(
+            "Dynamic-Pricing",
+            "https://ms2.fun/metadata/dynamic-pricing/",
+            deployer.address,
+            simpleVaultAddress, // Use SimpleVault
+            "",
+            { nonce: nonce++, value: ethers.utils.parseEther("0.01") }
+        );
+        const dynamicReceipt = await dynamicPricingTx.wait();
+        const dynamicEvent = dynamicReceipt.events?.find(e => e.event === "InstanceCreated");
+        const dynamicInstanceAddress = dynamicEvent?.args?.instance;
+
+        console.log(`   ✓ Dynamic-Pricing: ${dynamicInstanceAddress}`);
+
+        const dynamicInstance = new ethers.Contract(
+            dynamicInstanceAddress,
+            erc1155InstanceArtifact.abi,
+            deployer
+        );
+
+        // Edition 1: Base 0.005 ETH, +0.001 per mint
+        // PricingModel: 2 = LINEAR_INCREASE
+        const dynamicEd1Tx = await dynamicInstance.addEdition(
+            "Evolving-Piece-1",
+            ethers.utils.parseEther("0.005"), // basePrice
+            0,                                 // supply (unlimited)
+            "https://ms2.fun/metadata/dynamic-pricing/1.json",
+            2,                                 // pricingModel (LINEAR_INCREASE)
+            ethers.utils.parseEther("0.001"), // priceIncreaseRate
+            { nonce: nonce++ }
+        );
+        await dynamicEd1Tx.wait();
+        console.log(`   ✓ Edition 1: "Evolving-Piece-1" (linear price: 0.005 + 0.001 per mint)`);
+
+        // Edition 2: Base 0.01 ETH, +0.002 per mint
+        const dynamicEd2Tx = await dynamicInstance.addEdition(
+            "Evolving-Piece-2",
+            ethers.utils.parseEther("0.01"),
+            0,
+            "https://ms2.fun/metadata/dynamic-pricing/2.json",
+            2, // LINEAR_INCREASE
+            ethers.utils.parseEther("0.002"),
+            { nonce: nonce++ }
+        );
+        await dynamicEd2Tx.wait();
+        console.log(`   ✓ Edition 2: "Evolving-Piece-2" (linear price: 0.01 + 0.002 per mint)`);
+
+        // Mint some to show price progression
+        for (let i = 0; i < 10; i++) {
+            const buyer = i % 2 === 0 ? TEST_ACCOUNTS.collector : TEST_ACCOUNTS.trader;
+            const signer = provider.getSigner(buyer);
+            const asUser = dynamicInstance.connect(signer);
+
+            // Calculate current price (basePrice + i * priceIncreaseRate)
+            const currentPrice = ethers.utils.parseEther("0.005").add(
+                ethers.utils.parseEther("0.001").mul(i)
+            );
+
+            await asUser.mint(1, 1, "", { value: currentPrice });
+        }
+        console.log(`   ✓ Minted 10x Edition 1 (prices: 0.005 → 0.014 ETH)`);
+
+        for (let i = 0; i < 8; i++) {
+            const buyer = i % 2 === 0 ? TEST_ACCOUNTS.governance : deployer.address;
+            const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
+            const asUser = dynamicInstance.connect(signer);
+
+            const currentPrice = ethers.utils.parseEther("0.01").add(
+                ethers.utils.parseEther("0.002").mul(i)
+            );
+
+            await asUser.mint(2, 1, "", { value: currentPrice });
+        }
+        console.log(`   ✓ Minted 8x Edition 2 (prices: 0.01 → 0.024 ETH)`);
+        console.log("");
+
+        // Instance 3: Mixed Supply (limited + unlimited)
+        console.log("STEP 18: Creating ERC1155 'Mixed-Supply' instance...");
+        const mixedSupplyTx = await erc1155FactoryContract.createInstance(
+            "Mixed-Supply",
+            "https://ms2.fun/metadata/mixed-supply/",
+            deployer.address,
+            simpleVaultAddress,
+            "",
+            { nonce: nonce++, value: ethers.utils.parseEther("0.01") }
+        );
+        const mixedReceipt = await mixedSupplyTx.wait();
+        const mixedEvent = mixedReceipt.events?.find(e => e.event === "InstanceCreated");
+        const mixedInstanceAddress = mixedEvent?.args?.instance;
+
+        console.log(`   ✓ Mixed-Supply: ${mixedInstanceAddress}`);
+
+        const mixedInstance = new ethers.Contract(
+            mixedInstanceAddress,
+            erc1155InstanceArtifact.abi,
+            deployer
+        );
+
+        // Edition 1: Limited (100 max), 0.02 ETH fixed
+        // PricingModel: 1 = LIMITED_FIXED
+        const mixedEd1Tx = await mixedInstance.addEdition(
+            "Rare-Limited",
+            ethers.utils.parseEther("0.02"),
+            100, // max supply
+            "https://ms2.fun/metadata/mixed-supply/1.json",
+            1, // LIMITED_FIXED
+            0,
+            { nonce: nonce++ }
+        );
+        await mixedEd1Tx.wait();
+        console.log(`   ✓ Edition 1: "Rare-Limited" (0.02 ETH, max 100)`);
+
+        // Edition 2: Unlimited, 0.005 ETH fixed
+        // PricingModel: 0 = UNLIMITED
+        const mixedEd2Tx = await mixedInstance.addEdition(
+            "Common-Unlimited",
+            ethers.utils.parseEther("0.005"),
+            0, // unlimited
+            "https://ms2.fun/metadata/mixed-supply/2.json",
+            0, // UNLIMITED
+            0,
+            { nonce: nonce++ }
+        );
+        await mixedEd2Tx.wait();
+        console.log(`   ✓ Edition 2: "Common-Unlimited" (0.005 ETH, unlimited)`);
+
+        // Mint 45 limited editions (approaching sellout)
+        for (let i = 0; i < 45; i++) {
+            const buyers = [TEST_ACCOUNTS.trader, TEST_ACCOUNTS.collector, TEST_ACCOUNTS.governance, deployer.address];
+            const buyer = buyers[i % buyers.length];
+            const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
+            const asUser = mixedInstance.connect(signer);
+
+            await asUser.mint(1, 1, "", { value: ethers.utils.parseEther("0.02") });
+        }
+        console.log(`   ✓ Minted 45x Edition 1 (45% sold out)`);
+
+        // Mint 60 unlimited editions
+        for (let i = 0; i < 60; i++) {
+            const buyers = [TEST_ACCOUNTS.trader, TEST_ACCOUNTS.collector, TEST_ACCOUNTS.governance, deployer.address];
+            const buyer = buyers[i % buyers.length];
+            const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
+            const asUser = mixedInstance.connect(signer);
+
+            await asUser.mint(2, 1, "", { value: ethers.utils.parseEther("0.005") });
+        }
+        console.log(`   ✓ Minted 60x Edition 2`);
+        console.log("");
+
+        console.log("═══════════════════════════════════════════════════════");
         console.log("VERIFICATION & CONFIG");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
@@ -924,6 +1081,55 @@ const main = async () => {
                                 price: "0.02",
                                 maxSupply: 100,
                                 minted: 2
+                            }
+                        ]
+                    },
+                    {
+                        address: dynamicInstanceAddress,
+                        name: "Dynamic-Pricing",
+                        creator: deployer.address,
+                        vault: simpleVaultAddress,
+                        pricingModel: "linear-increase",
+                        editions: [
+                            {
+                                id: 1,
+                                name: "Evolving-Piece-1",
+                                basePrice: "0.005",
+                                priceIncrease: "0.001",
+                                maxSupply: 0,
+                                minted: 10
+                            },
+                            {
+                                id: 2,
+                                name: "Evolving-Piece-2",
+                                basePrice: "0.01",
+                                priceIncrease: "0.002",
+                                maxSupply: 0,
+                                minted: 8
+                            }
+                        ]
+                    },
+                    {
+                        address: mixedInstanceAddress,
+                        name: "Mixed-Supply",
+                        creator: deployer.address,
+                        vault: simpleVaultAddress,
+                        pricingModel: "mixed",
+                        editions: [
+                            {
+                                id: 1,
+                                name: "Rare-Limited",
+                                price: "0.02",
+                                maxSupply: 100,
+                                minted: 45,
+                                percentSold: 45
+                            },
+                            {
+                                id: 2,
+                                name: "Common-Unlimited",
+                                price: "0.005",
+                                maxSupply: 0,
+                                minted: 60
                             }
                         ]
                     }
