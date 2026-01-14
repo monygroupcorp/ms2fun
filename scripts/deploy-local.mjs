@@ -32,6 +32,134 @@ const MAINNET_ADDRESSES = {
     uniswapV2Factory: "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
 };
 
+// ═══════════════════════════════════════════════════════════
+// SEEDING HELPERS
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Create an ERC404 bonding curve instance
+ * @param {object} params - Creation parameters
+ * @param {string} params.name - Token name (no spaces, use hyphens)
+ * @param {string} params.symbol - Token symbol
+ * @param {string} params.maxSupply - Max supply in ether units
+ * @param {number} params.liquidityReservePercent - 0-100
+ * @param {string} params.creator - Creator address
+ * @param {string} params.vault - Vault address
+ * @param {object} params.factory - ERC404Factory ethers contract
+ * @param {object} params.hookFactory - Hook factory artifact
+ * @param {number} params.nonce - Transaction nonce
+ * @param {object} params.deployer - Deployer wallet
+ * @returns {Promise<{instance: string, hook: string, nonce: number}>}
+ */
+async function createERC404Instance({
+    name,
+    symbol,
+    maxSupply,
+    liquidityReservePercent,
+    creator,
+    vault,
+    factory,
+    hookFactory,
+    nonce,
+    deployer
+}) {
+    // Default bonding curve params (can be customized per instance)
+    const curveParams = {
+        initialPrice: ethers.utils.parseEther("0.0001"),     // 0.0001 ETH
+        quarticCoeff: ethers.utils.parseEther("0.00000001"), // Very small
+        cubicCoeff: ethers.utils.parseEther("0.0000001"),
+        quadraticCoeff: ethers.utils.parseEther("0.000001"),
+        normalizationFactor: ethers.utils.parseEther("1000000")
+    };
+
+    // Default tier config (1 tier, no password)
+    const tierConfig = {
+        tierType: 0, // VOLUME_CAP
+        passwordHashes: [],
+        volumeCaps: [ethers.utils.parseEther(maxSupply)], // No cap effectively
+        tierUnlockTimes: []
+    };
+
+    const instanceFee = ethers.utils.parseEther("0.01");
+    const hookFee = ethers.utils.parseEther("0.01");
+    const totalFee = instanceFee.add(hookFee);
+
+    const createTx = await factory.createInstance(
+        name,
+        symbol,
+        `https://ms2.fun/metadata/${name.toLowerCase()}/`,
+        ethers.utils.parseEther(maxSupply),
+        liquidityReservePercent,
+        curveParams,
+        tierConfig,
+        creator,
+        vault,
+        "", // styleUri
+        { nonce: nonce++, value: totalFee }
+    );
+
+    const receipt = await createTx.wait();
+    const event = receipt.events?.find(e => e.event === "InstanceCreated");
+    const instance = event?.args?.instance;
+    const hook = event?.args?.hook;
+
+    return { instance, hook, nonce };
+}
+
+/**
+ * Buy tokens on bonding curve
+ * @param {object} params - Buy parameters
+ * @param {string} params.instanceAddress - ERC404 instance address
+ * @param {object} params.instanceAbi - ERC404 instance ABI
+ * @param {string} params.buyer - Buyer address (from TEST_ACCOUNTS)
+ * @param {string} params.amountETH - ETH amount to spend
+ * @param {object} params.provider - Ethers provider
+ * @returns {Promise<void>}
+ */
+async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, amountETH, provider }) {
+    const buyerSigner = provider.getSigner(buyer);
+    const instance = new ethers.Contract(instanceAddress, instanceAbi, buyerSigner);
+
+    const buyTx = await instance.buy(
+        "", // message (empty for now)
+        { value: ethers.utils.parseEther(amountETH) }
+    );
+    await buyTx.wait();
+}
+
+/**
+ * Set bonding curve active and open
+ * @param {object} params - Activation parameters
+ * @param {string} params.instanceAddress - ERC404 instance address
+ * @param {object} params.instanceAbi - ERC404 instance ABI
+ * @param {object} params.deployer - Deployer wallet (instance owner)
+ * @param {number} params.nonce - Transaction nonce
+ * @returns {Promise<number>} Updated nonce
+ */
+async function activateBondingCurve({ instanceAddress, instanceAbi, deployer, nonce }) {
+    const instance = new ethers.Contract(instanceAddress, instanceAbi, deployer);
+
+    // Set bonding open time to now
+    const openTimeTx = await instance.setBondingOpenTime(
+        Math.floor(Date.now() / 1000),
+        { nonce: nonce++ }
+    );
+    await openTimeTx.wait();
+
+    // Set maturity time to 30 days from now
+    const maturityTimeTx = await instance.setBondingMaturityTime(
+        Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        { nonce: nonce++ }
+    );
+    await maturityTimeTx.wait();
+
+    // Set bonding active
+    const activeTx = await instance.setBondingActive(true, { nonce: nonce++ });
+    await activeTx.wait();
+
+    return nonce;
+}
+
 const main = async () => {
     console.log("📜 MS2Fun Local Deployment Script");
     console.log("🎯 Following deployment order: MasterRegistry → GlobalMessages → Vaults → Factories");
