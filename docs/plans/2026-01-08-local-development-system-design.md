@@ -668,90 +668,44 @@ Or manually:
 
 ---
 
-### Phase 1.5: MVP Contract Deployment 🚧 **NEXT**
+### Phase 1.5: MVP Contract Deployment ✅ **COMPLETE**
 
-**Goal:** Deploy minimal contracts to implement real services and show actual data
-
-**Critical Blocker Identified:** 🚨
-The governance system blocks factory/vault registration during MVP testing. We need **authoritarian control** (owner-only bypass) for the bootstrap phase before transitioning to governance.
-
-**Contract Changes Required:**
-1. Add owner bypass to `MasterRegistryV1.registerFactory()`
-2. Add owner bypass to `MasterRegistryV1.registerVault()`
-3. Add time-lock or flag to enable governance after "first 100 days"
-4. Document in contracts repo: bootstrap mode vs governance mode
-
-**Once Contracts Updated:**
-
-**MVP Deployment Strategy:**
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| **Factory Priority** | ERC1155Factory only | Simpler than ERC404, proves the system works |
-| **Test Instances** | 1 instance | Minimal - just need to show real data loading |
-| **Vault Deployment** | Yes, deploy 1 vault | Tricky but necessary to test full flow |
-| **EXEC Token** | Keep deployer placeholder | Avoid governance complexity for MVP |
-| **Seeding Level** | Minimal | Just creation, maybe 1-2 mints |
-
-**Tasks:**
-1. 🚨 **BLOCKER:** Refactor contracts for authoritarian bootstrap control
-2. Update submodule to refactored contracts
-3. Rebuild contracts (`cd contracts && forge build`)
-4. Create `scripts/deploy-mvp.mjs`:
-   - Deploy ERC1155Factory
-   - Owner registers factory (bypass governance)
-   - Deploy 1 UltraAlignmentVault
-   - Owner registers vault (bypass governance)
-   - Create 1 ERC1155 instance
-   - Mint 1-2 NFTs to test accounts
-5. Implement real services:
-   - `ProjectRegistry` - Query MasterRegistry for instances
-   - `MasterService` - Query MasterRegistry contract
-   - `FactoryService` - Query factory contracts
-6. Set `FORCE_MOCK_MODE_UNTIL_SERVICES_READY = false` in `src/config.js`
-7. Test frontend shows real data
-
-**Success Criteria:**
-- ✅ Owner can register factories without governance voting
-- ✅ Owner can register vaults without governance voting
-- ✅ 1 ERC1155 instance deployed and registered
-- ✅ Frontend loads real data from contracts
-- ✅ Can see the instance in project discovery
-- ✅ Can view instance details page
-
-**Status:** ⏸️ **BLOCKED** - Waiting on contracts refactor for authoritarian control
+**Status:** ✅ **COMPLETE** (2026-01-14)
+- Dictator control enabled in contracts
+- All factories and vaults registered
+- Sample instances deployed and functional
 
 ---
 
-### Phase 2: Seed Data (Representative)
+### Phase 2: Seed Data (Representative) ✅ **COMPLETE**
 
-**Goal:** Populate chain with representative test data
+**Status:** ✅ **COMPLETE** (2026-01-14)
 
-**Tasks:**
-1. Expand `DeployLocal.s.sol` with seeding logic:
-   - Deploy 2 vaults (ActiveVault, SimpleVault)
-   - Deploy 3 ERC404 instances in different states
-   - Deploy 3 ERC1155 instances with different configs
-   - Fund test accounts (owner, trader, collector, governance)
-   - Fund user's wallet with 10,000 ETH
-   - Mint EXEC tokens to governance account
-   - Post 15-20 messages to GlobalMessageRegistry
-2. Update `contracts.local.json` schema:
-   - Add instances array with metadata
-   - Add vaults array
-   - Add testAccounts object
-3. Add user interaction seeding:
-   - Simulate buys/sells on ERC404s
-   - Simulate mints on ERC1155s
-   - Create holdings for test accounts
+**Deployed:**
+- 2 vaults (ActiveVault, SimpleVault)
+- 3 ERC404 instances (early/active/graduated bonding states)
+- 3 ERC1155 instances (fixed/dynamic/mixed pricing models)
+- 120+ global messages from transactions
+- Realistic user interactions and holdings
 
-**Success Criteria:**
-- ✅ Browse to localhost:3000
-- ✅ See 3 ERC404 instances in different states
-- ✅ See 3 ERC1155 instances with different pricing
-- ✅ Activity feed shows 20 messages
-- ✅ Can connect wallet and interact with instances
-- ✅ Test accounts have expected balances
+### Phase 2 Implementation Notes
+
+**Simplifications Made:**
+- V4 liquidity deployment stubbed (complex integration, not critical for frontend testing)
+- Messages posted automatically during buy/sell/mint (no manual seeding needed)
+- Bonding curve progress approximate (based on ETH amounts, not precise percentages)
+
+**Seed Data Characteristics:**
+- ERC404 instances demonstrate different lifecycle stages
+- ERC1155 instances showcase all pricing models
+- User holdings distributed across test accounts
+- Activity feed populated with real transaction messages
+
+**What Works:**
+- All instances visible in discovery page
+- Instance detail pages load correctly
+- Activity feed shows chronological messages
+- Test accounts have realistic holdings
 
 ### Phase 3: Full Showcase (Future)
 
