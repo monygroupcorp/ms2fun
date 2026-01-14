@@ -340,6 +340,41 @@ class ERC1155FactoryAdapter extends ContractAdapter {
     }
 
     // =========================
+    // Public State Variables
+    // =========================
+
+    /**
+     * Get default vault (state variable)
+     * @returns {Promise<string>} Default vault contract address
+     */
+    async defaultVault() {
+        return await this.getCachedOrFetch('defaultVault', [], async () => {
+            return await this.executeContractCall('defaultVault');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get instance by index (state variable array accessor)
+     * @param {number} index - Instance index
+     * @returns {Promise<string>} Instance contract address
+     */
+    async instances(index) {
+        return await this.getCachedOrFetch('instances', [index], async () => {
+            return await this.executeContractCall('instances', [index]);
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get master registry address
+     * @returns {Promise<string>} Master registry contract address
+     */
+    async masterRegistry() {
+        return await this.getCachedOrFetch('masterRegistry', [], async () => {
+            return await this.executeContractCall('masterRegistry');
+        }, CACHE_TTL.STATIC);
+    }
+
+    // =========================
     // Contract Metadata
     // =========================
 

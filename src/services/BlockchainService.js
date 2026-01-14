@@ -192,7 +192,16 @@ class BlockchainService {
                 }
             } else {
                 const rpcUrl = this.networkConfig?.rpcUrl || 'https://ethereum.publicnode.com';
-                this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+                const chainId = parseInt(this.networkConfig?.network || '1');
+                // Use StaticJsonRpcProvider for Anvil (chainId 1337) to skip network auto-detection
+                if (chainId === 1337) {
+                    this.provider = new ethers.providers.StaticJsonRpcProvider(
+                        rpcUrl,
+                        { name: 'anvil', chainId }
+                    );
+                } else {
+                    this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+                }
             }
             
             

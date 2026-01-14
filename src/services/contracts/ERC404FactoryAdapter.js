@@ -289,6 +289,71 @@ class ERC404FactoryAdapter extends ContractAdapter {
     }
 
     // =========================
+    // Public State Variables
+    // =========================
+
+    /**
+     * Get default hook (state variable)
+     * @returns {Promise<string>} Default hook contract address
+     */
+    async defaultHook() {
+        return await this.getCachedOrFetch('defaultHook', [], async () => {
+            return await this.executeContractCall('defaultHook');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get default vault (state variable)
+     * @returns {Promise<string>} Default vault contract address
+     */
+    async defaultVault() {
+        return await this.getCachedOrFetch('defaultVault', [], async () => {
+            return await this.executeContractCall('defaultVault');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get instance by index (state variable array accessor)
+     * @param {number} index - Instance index
+     * @returns {Promise<string>} Instance contract address
+     */
+    async instances(index) {
+        return await this.getCachedOrFetch('instances', [index], async () => {
+            return await this.executeContractCall('instances', [index]);
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get master registry address
+     * @returns {Promise<string>} Master registry contract address
+     */
+    async masterRegistry() {
+        return await this.getCachedOrFetch('masterRegistry', [], async () => {
+            return await this.executeContractCall('masterRegistry');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get exec token address
+     * @returns {Promise<string>} Exec token contract address
+     */
+    async exec() {
+        return await this.getCachedOrFetch('exec', [], async () => {
+            return await this.executeContractCall('exec');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get WETH address
+     * @returns {Promise<string>} WETH contract address
+     */
+    async weth() {
+        return await this.getCachedOrFetch('weth', [], async () => {
+            return await this.executeContractCall('weth');
+        }, CACHE_TTL.STATIC);
+    }
+
+    // =========================
     // Contract Metadata
     // =========================
 

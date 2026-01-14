@@ -90,8 +90,18 @@ class GlobalMessageRegistryAdapter extends ContractAdapter {
      * @returns {Promise<Array>} Array of message objects
      */
     async getRecentMessages(count) {
+        const totalMessages = await this.getMessageCount();
         const messages = await this.executeContractCall('getRecentMessages', [count]);
-        return messages.map(msg => this._parseMessage(msg));
+
+        // Add message IDs based on their position in the array
+        // Recent messages are: [totalMessages - count, ..., totalMessages - 1]
+        const returnCount = Math.min(count, totalMessages);
+        const startId = totalMessages - returnCount;
+
+        return messages.map((msg, index) => ({
+            ...this._parseMessage(msg),
+            id: startId + index
+        }));
     }
 
     /**
@@ -240,14 +250,12 @@ class GlobalMessageRegistryAdapter extends ContractAdapter {
      * @returns {Object} Parsed message object
      */
     _parseMessage(msg) {
+        // GlobalMessage struct: instance (0), sender (1), packedData (2), message (3)
         return {
-            id: msg.id !== undefined ? parseInt(msg.id.toString()) : parseInt((msg[0] || 0).toString()),
-            instance: msg.instance || msg[1],
-            sender: msg.sender || msg[2],
-            content: msg.content || msg[3],
-            timestamp: msg.timestamp ? parseInt(msg.timestamp.toString()) : parseInt((msg[4] || 0).toString()),
-            txHash: msg.txHash || msg[5] || '',
-            eventType: msg.eventType || msg[6] || 'message'
+            instance: msg.instance || msg[0],
+            sender: msg.sender || msg[1],
+            packedData: msg.packedData || msg[2] || '0',
+            message: msg.message || msg[3] || ''
         };
     }
 
@@ -281,6 +289,65 @@ class GlobalMessageRegistryAdapter extends ContractAdapter {
         if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
         if (diff < 2592000) return `${Math.floor(diff / 604800)} weeks ago`;
         return `${Math.floor(diff / 2592000)} months ago`;
+    }
+
+    // =========================
+    // Public State Variables & Additional View Functions
+    // =========================
+
+    /**
+     * Get master registry address
+     * @returns {Promise<string>} Master registry contract address
+     */
+    async masterRegistry() {
+        return await this.getCachedOrFetch('masterRegistry', [], async () => {
+            return await this.executeContractCall('masterRegistry');
+        }, CACHE_TTL.MESSAGE_COUNT);
+    }
+
+    /**
+     * Get message count (state variable accessor)
+     * @returns {Promise<number>} Total message count
+     */
+    async messageCount() {
+        return await this.getCachedOrFetch('messageCount', [], async () => {
+            const count = await this.executeContractCall('messageCount');
+            return parseInt(count.toString());
+        }, CACHE_TTL.MESSAGE_COUNT);
+    }
+
+    /**
+     * Get message by index (state variable array accessor)
+     * @param {number} index - Message index
+     * @returns {Promise<Object>} Message object
+     */
+    async messages(index) {
+        return await this.getCachedOrFetch('messages', [index], async () => {
+            const msg = await this.executeContractCall('messages', [index]);
+            return this._parseMessage(msg);
+        }, CACHE_TTL.NO_CACHE);
+    }
+
+    /**
+     * Get messages range
+     * @param {number} startIndex - Start message index
+     * @param {number} endIndex - End message index
+     * @returns {Promise<Array>} Array of messages
+     */
+    async getMessagesRange(startIndex, endIndex) {
+        const messages = await this.executeContractCall('getMessagesRange', [startIndex, endIndex]);
+        return messages.map(msg => this._parseMessage(msg));
+    }
+
+    /**
+     * Get total message count (alternative getter)
+     * @returns {Promise<number>} Total messages
+     */
+    async totalMessages() {
+        return await this.getCachedOrFetch('totalMessages', [], async () => {
+            const count = await this.executeContractCall('totalMessages');
+            return parseInt(count.toString());
+        }, CACHE_TTL.MESSAGE_COUNT);
     }
 
     // =========================

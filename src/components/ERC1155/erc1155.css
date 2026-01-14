@@ -254,6 +254,15 @@
     font-size: 0.9rem;
 }
 
+.edition-mint-interface .success-message {
+    background: #efe;
+    color: #3c3;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+}
+
 .quantity-selector {
     display: flex;
     align-items: center;

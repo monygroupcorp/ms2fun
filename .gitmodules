@@ -1,0 +1,3 @@
+[submodule "contracts"]
+	path = contracts
+	url = https://github.com/monygroupcorp/ms2fun-contracts

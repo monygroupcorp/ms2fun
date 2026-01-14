@@ -122,10 +122,13 @@ class ContractAdapter {
             }
 
             // Execute the contract call
-            const result = await contractInstance[method](
-                ...(args || []), 
-                options.txOptions || {}
-            );
+            // Only pass txOptions for transactions, not for view functions
+            let result;
+            if (options.txOptions) {
+                result = await contractInstance[method](...(args || []), options.txOptions);
+            } else {
+                result = await contractInstance[method](...(args || []));
+            }
 
             // If this is a transaction, wait for confirmation
             if (result && typeof result.wait === 'function') {

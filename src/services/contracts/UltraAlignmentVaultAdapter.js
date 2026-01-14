@@ -350,6 +350,632 @@ class UltraAlignmentVaultAdapter extends ContractAdapter {
     }
 
     // =========================
+    // Public Constants & State Variables
+    // =========================
+
+    /**
+     * Get conversion base gas constant
+     * @returns {Promise<number>} Base gas for conversion operations
+     */
+    async CONVERSION_BASE_GAS() {
+        return await this.getCachedOrFetch('CONVERSION_BASE_GAS', [], async () => {
+            const gas = await this.executeContractCall('CONVERSION_BASE_GAS');
+            return parseInt(gas.toString());
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get gas per benefactor constant
+     * @returns {Promise<number>} Gas per benefactor
+     */
+    async GAS_PER_BENEFACTOR() {
+        return await this.getCachedOrFetch('GAS_PER_BENEFACTOR', [], async () => {
+            const gas = await this.executeContractCall('GAS_PER_BENEFACTOR');
+            return parseInt(gas.toString());
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get accumulated dust shares
+     * @returns {Promise<string>} Accumulated dust shares
+     */
+    async accumulatedDustShares() {
+        return await this.getCachedOrFetch('accumulatedDustShares', [], async () => {
+            const shares = await this.executeContractCall('accumulatedDustShares');
+            return shares.toString();
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get alignment token address
+     * @returns {Promise<string>} Alignment token contract address
+     */
+    async alignmentToken() {
+        return await this.getCachedOrFetch('alignmentToken', [], async () => {
+            return await this.executeContractCall('alignmentToken');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get alignment token decimals
+     * @returns {Promise<number>} Number of decimals
+     */
+    async alignmentTokenDecimals() {
+        return await this.getCachedOrFetch('alignmentTokenDecimals', [], async () => {
+            const decimals = await this.executeContractCall('alignmentTokenDecimals');
+            return parseInt(decimals.toString());
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get benefactor shares for address
+     * @param {string} benefactorAddress - Benefactor address
+     * @returns {Promise<string>} Benefactor shares
+     */
+    async benefactorShares(benefactorAddress) {
+        return await this.getCachedOrFetch('benefactorShares', [benefactorAddress], async () => {
+            const shares = await this.executeContractCall('benefactorShares', [benefactorAddress]);
+            return shares.toString();
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get benefactor total ETH contributed
+     * @param {string} benefactorAddress - Benefactor address
+     * @returns {Promise<string>} Total ETH contributed in wei
+     */
+    async benefactorTotalETH(benefactorAddress) {
+        return await this.getCachedOrFetch('benefactorTotalETH', [benefactorAddress], async () => {
+            const total = await this.executeContractCall('benefactorTotalETH', [benefactorAddress]);
+            return ethers.utils.formatEther(total);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get conversion participant at index
+     * @param {number} index - Participant index
+     * @returns {Promise<string>} Participant address
+     */
+    async conversionParticipants(index) {
+        return await this.getCachedOrFetch('conversionParticipants', [index], async () => {
+            return await this.executeContractCall('conversionParticipants', [index]);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get dust distribution threshold
+     * @returns {Promise<string>} Dust distribution threshold
+     */
+    async dustDistributionThreshold() {
+        return await this.getCachedOrFetch('dustDistributionThreshold', [], async () => {
+            const threshold = await this.executeContractCall('dustDistributionThreshold');
+            return threshold.toString();
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get unclaimed fees for benefactor
+     * @param {string} benefactorAddress - Benefactor address
+     * @returns {Promise<string>} Unclaimed fees in ETH
+     */
+    async getUnclaimedFees(benefactorAddress) {
+        return await this.getCachedOrFetch('getUnclaimedFees', [benefactorAddress], async () => {
+            const fees = await this.executeContractCall('getUnclaimedFees', [benefactorAddress]);
+            return ethers.utils.formatEther(fees);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get last claim timestamp for benefactor
+     * @param {string} benefactorAddress - Benefactor address
+     * @returns {Promise<number>} Last claim timestamp
+     */
+    async lastClaimTimestamp(benefactorAddress) {
+        return await this.getCachedOrFetch('lastClaimTimestamp', [benefactorAddress], async () => {
+            const timestamp = await this.executeContractCall('lastClaimTimestamp', [benefactorAddress]);
+            return parseInt(timestamp.toString());
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get last conversion participant index
+     * @returns {Promise<number>} Last participant index processed
+     */
+    async lastConversionParticipantIndex() {
+        return await this.getCachedOrFetch('lastConversionParticipantIndex', [], async () => {
+            const index = await this.executeContractCall('lastConversionParticipantIndex');
+            return parseInt(index.toString());
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get last tick lower for liquidity position
+     * @returns {Promise<number>} Last tick lower
+     */
+    async lastTickLower() {
+        return await this.getCachedOrFetch('lastTickLower', [], async () => {
+            const tick = await this.executeContractCall('lastTickLower');
+            return parseInt(tick.toString());
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get last tick upper for liquidity position
+     * @returns {Promise<number>} Last tick upper
+     */
+    async lastTickUpper() {
+        return await this.getCachedOrFetch('lastTickUpper', [], async () => {
+            const tick = await this.executeContractCall('lastTickUpper');
+            return parseInt(tick.toString());
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get last vault fee collection time
+     * @returns {Promise<number>} Last collection timestamp
+     */
+    async lastVaultFeeCollectionTime() {
+        return await this.getCachedOrFetch('lastVaultFeeCollectionTime', [], async () => {
+            const time = await this.executeContractCall('lastVaultFeeCollectionTime');
+            return parseInt(time.toString());
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get max price deviation in basis points
+     * @returns {Promise<number>} Max price deviation bps
+     */
+    async maxPriceDeviationBps() {
+        return await this.getCachedOrFetch('maxPriceDeviationBps', [], async () => {
+            const bps = await this.executeContractCall('maxPriceDeviationBps');
+            return parseInt(bps.toString());
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get pending ETH for benefactor
+     * @param {string} benefactorAddress - Benefactor address
+     * @returns {Promise<string>} Pending ETH in wei
+     */
+    async pendingETH(benefactorAddress) {
+        return await this.getCachedOrFetch('pendingETH', [benefactorAddress], async () => {
+            const pending = await this.executeContractCall('pendingETH', [benefactorAddress]);
+            return ethers.utils.formatEther(pending);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get pool manager address
+     * @returns {Promise<string>} Pool manager contract address
+     */
+    async poolManager() {
+        return await this.getCachedOrFetch('poolManager', [], async () => {
+            return await this.executeContractCall('poolManager');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get share value at last claim for benefactor
+     * @param {string} benefactorAddress - Benefactor address
+     * @returns {Promise<string>} Share value
+     */
+    async shareValueAtLastClaim(benefactorAddress) {
+        return await this.getCachedOrFetch('shareValueAtLastClaim', [benefactorAddress], async () => {
+            const value = await this.executeContractCall('shareValueAtLastClaim', [benefactorAddress]);
+            return value.toString();
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get standard conversion reward
+     * @returns {Promise<string>} Standard conversion reward in ETH
+     */
+    async standardConversionReward() {
+        return await this.getCachedOrFetch('standardConversionReward', [], async () => {
+            const reward = await this.executeContractCall('standardConversionReward');
+            return ethers.utils.formatEther(reward);
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get total LP units
+     * @returns {Promise<string>} Total LP units
+     */
+    async totalLPUnits() {
+        return await this.getCachedOrFetch('totalLPUnits', [], async () => {
+            const units = await this.executeContractCall('totalLPUnits');
+            return units.toString();
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get total pending ETH
+     * @returns {Promise<string>} Total pending ETH in wei
+     */
+    async totalPendingETH() {
+        return await this.getCachedOrFetch('totalPendingETH', [], async () => {
+            const pending = await this.executeContractCall('totalPendingETH');
+            return ethers.utils.formatEther(pending);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get V2 factory address
+     * @returns {Promise<string>} V2 factory contract address
+     */
+    async v2Factory() {
+        return await this.getCachedOrFetch('v2Factory', [], async () => {
+            return await this.executeContractCall('v2Factory');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get V2 router address
+     * @returns {Promise<string>} V2 router contract address
+     */
+    async v2Router() {
+        return await this.getCachedOrFetch('v2Router', [], async () => {
+            return await this.executeContractCall('v2Router');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get V3 factory address
+     * @returns {Promise<string>} V3 factory contract address
+     */
+    async v3Factory() {
+        return await this.getCachedOrFetch('v3Factory', [], async () => {
+            return await this.executeContractCall('v3Factory');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get V3 preferred fee tier
+     * @returns {Promise<number>} V3 preferred fee tier
+     */
+    async v3PreferredFee() {
+        return await this.getCachedOrFetch('v3PreferredFee', [], async () => {
+            const fee = await this.executeContractCall('v3PreferredFee');
+            return parseInt(fee.toString());
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get V3 router address
+     * @returns {Promise<string>} V3 router contract address
+     */
+    async v3Router() {
+        return await this.getCachedOrFetch('v3Router', [], async () => {
+            return await this.executeContractCall('v3Router');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get V4 pool key
+     * @returns {Promise<Object>} V4 pool key
+     */
+    async v4PoolKey() {
+        return await this.getCachedOrFetch('v4PoolKey', [], async () => {
+            const key = await this.executeContractCall('v4PoolKey');
+            return {
+                currency0: key.currency0 || key[0],
+                currency1: key.currency1 || key[1],
+                fee: parseInt((key.fee || key[2]).toString()),
+                tickSpacing: parseInt((key.tickSpacing || key[3]).toString()),
+                hooks: key.hooks || key[4]
+            };
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get vault fee collection interval
+     * @returns {Promise<number>} Fee collection interval in seconds
+     */
+    async vaultFeeCollectionInterval() {
+        return await this.getCachedOrFetch('vaultFeeCollectionInterval', [], async () => {
+            const interval = await this.executeContractCall('vaultFeeCollectionInterval');
+            return parseInt(interval.toString());
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get WETH address
+     * @returns {Promise<string>} WETH contract address
+     */
+    async weth() {
+        return await this.getCachedOrFetch('weth', [], async () => {
+            return await this.executeContractCall('weth');
+        }, CACHE_TTL.STATIC);
+    }
+
+    // =========================
+    // Additional View Functions
+    // =========================
+
+    /**
+     * Validate current pool key
+     * @param {Object} poolKey - Pool key to validate
+     * @returns {Promise<boolean>} True if pool key is valid
+     */
+    async validateCurrentPoolKey(poolKey) {
+        return await this.executeContractCall('validateCurrentPoolKey', [poolKey]);
+    }
+
+    // =========================
+    // State-Changing Functions
+    // =========================
+
+    /**
+     * Deposit fees to vault (called by instances)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async depositFees() {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'depositFees',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'depositFees',
+                [],
+                {
+                    requiresSigner: true,
+                    txOptions: { value: 0 } // May need to send ETH
+                }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'depositFees',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('fees', 'accumulated');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'depositFees',
+                error: this.wrapError(error, 'Failed to deposit fees')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Record accumulated fees (admin or automated)
+     * @param {string} amount - Amount of fees to record in ETH
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async recordAccumulatedFees(amount) {
+        try {
+            const amountWei = ethers.utils.parseEther(amount);
+
+            eventBus.emit('transaction:pending', {
+                type: 'recordAccumulatedFees',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'recordAccumulatedFees',
+                [amountWei],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'recordAccumulatedFees',
+                receipt,
+                amount,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('fees', 'accumulated');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'recordAccumulatedFees',
+                error: this.wrapError(error, 'Failed to record accumulated fees')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set alignment token (admin only)
+     * @param {string} tokenAddress - Alignment token contract address
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setAlignmentToken(tokenAddress) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setAlignmentToken',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setAlignmentToken',
+                [tokenAddress],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setAlignmentToken',
+                receipt,
+                tokenAddress,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('alignmentToken');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setAlignmentToken',
+                error: this.wrapError(error, 'Failed to set alignment token')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set dust distribution threshold (admin only)
+     * @param {string} threshold - Dust distribution threshold
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setDustDistributionThreshold(threshold) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setDustDistributionThreshold',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setDustDistributionThreshold',
+                [threshold],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setDustDistributionThreshold',
+                receipt,
+                threshold,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('dustDistributionThreshold');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setDustDistributionThreshold',
+                error: this.wrapError(error, 'Failed to set dust distribution threshold')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set max price deviation in basis points (admin only)
+     * @param {number} bps - Max price deviation in basis points
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setMaxPriceDeviationBps(bps) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setMaxPriceDeviationBps',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setMaxPriceDeviationBps',
+                [bps],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setMaxPriceDeviationBps',
+                receipt,
+                bps,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('maxPriceDeviationBps');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setMaxPriceDeviationBps',
+                error: this.wrapError(error, 'Failed to set max price deviation')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set standard conversion reward (admin only)
+     * @param {string} reward - Standard conversion reward in ETH
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setStandardConversionReward(reward) {
+        try {
+            const rewardWei = ethers.utils.parseEther(reward);
+
+            eventBus.emit('transaction:pending', {
+                type: 'setStandardConversionReward',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setStandardConversionReward',
+                [rewardWei],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setStandardConversionReward',
+                receipt,
+                reward,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('standardConversionReward');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setStandardConversionReward',
+                error: this.wrapError(error, 'Failed to set standard conversion reward')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set V4 pool key (admin only)
+     * @param {Object} poolKey - V4 pool key
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setV4PoolKey(poolKey) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setV4PoolKey',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setV4PoolKey',
+                [poolKey],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setV4PoolKey',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('v4PoolKey');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setV4PoolKey',
+                error: this.wrapError(error, 'Failed to set V4 pool key')
+            });
+            throw error;
+        }
+    }
+
+    // =========================
     // Contract Metadata
     // =========================
 

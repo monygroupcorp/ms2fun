@@ -32,26 +32,30 @@ export async function renderProjectDetail(params) {
         // Old format: /project/:id (address)
         projectId = params.id;
         chainId = 1; // Default to Ethereum mainnet for old format
-    } else if (params?.chainId && params?.factoryTitle && params?.instanceName) {
-        // New format: /:chainId/:factoryTitle/:instanceName
+    } else if (params?.chainId && params?.instanceName) {
+        // New format: /:chainId/:instanceName or /:chainId/:factoryTitle/:instanceName
         chainId = params.chainId;
-        const projectData = await projectRegistry.getProjectByPath(
-            params.factoryTitle,
-            params.instanceName
-        );
-        
+
+        // Check if this is 2-part (/:chainId/:instanceName) or 3-part (/:chainId/:factoryTitle/:instanceName)
+        const projectData = params.factoryTitle
+            ? await projectRegistry.getProjectByPath(params.factoryTitle, params.instanceName)
+            : await projectRegistry.getProjectByName(params.instanceName);
+
         if (!projectData || !projectData.instance) {
             // Show 404
+            const path = params.factoryTitle
+                ? `${params.chainId}/${params.factoryTitle}/${params.instanceName}`
+                : `${params.chainId}/${params.instanceName}`;
             appContainer.innerHTML = `
                 <div class="error-page">
                     <h1>404 - Project Not Found</h1>
-                    <p>The project "${params.chainId}/${params.factoryTitle}/${params.instanceName}" does not exist.</p>
+                    <p>The project "${path}" does not exist.</p>
                     <a href="/" class="home-link">Go Home</a>
                 </div>
             `;
             return;
         }
-        
+
         projectId = projectData.instance.address;
     } else {
         console.error('Project ID or path not provided');

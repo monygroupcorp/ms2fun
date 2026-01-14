@@ -1,0 +1,554 @@
+/* HeroSection - Golden Plaque Hero with Create Dropdown */
+
+.hero-section {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    padding: var(--spacing-5);
+    box-sizing: border-box;
+    position: relative;
+    overflow: visible;
+}
+
+/* Giant Golden Plaque Hero */
+.hero-plaque {
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    border: 3px solid var(--gold-metallic-dark) !important;
+    border-radius: var(--radius-sm) !important;
+    padding: var(--spacing-12) var(--spacing-16);
+    box-shadow:
+        var(--shadow-metallic-raised),
+        0 0 40px rgba(212, 175, 55, 0.3),
+        0 0 80px rgba(212, 175, 55, 0.15) !important;
+    text-align: center;
+    max-width: 800px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-plaque::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(160deg,
+        rgba(255, 255, 255, 0.1) 0%,
+        transparent 20%,
+        transparent 80%,
+        rgba(0, 0, 0, 0.1) 100%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Metallic Sheen Animation - Plaque Background */
+.hero-plaque::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.15) 20%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0.15) 80%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+    animation: sheen-sweep 4s ease-in-out infinite;
+    transform: skewX(-20deg);
+}
+
+@keyframes sheen-sweep {
+    0% {
+        left: -100%;
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 1;
+    }
+    90% {
+        opacity: 1;
+    }
+    100% {
+        left: 200%;
+        opacity: 0;
+    }
+}
+
+/* Enhanced sheen on hover */
+.hero-plaque:hover::after {
+    animation: sheen-sweep 2s ease-in-out infinite;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.2) 20%,
+        rgba(255, 255, 255, 0.35) 50%,
+        rgba(255, 255, 255, 0.2) 80%,
+        transparent 100%
+    );
+}
+
+.hero-title {
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
+    color: var(--gold-metallic-dark) !important;
+    margin: 0 0 var(--spacing-6) 0;
+    text-shadow:
+        0 2px 4px rgba(255, 255, 255, 0.4),
+        0 4px 8px rgba(0, 0, 0, 0.6),
+        0 0 2px rgba(0, 0, 0, 0.9) !important;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    position: relative;
+    z-index: 2;
+    line-height: 1.2;
+}
+
+.hero-subtitle {
+    font-size: clamp(1rem, 2.5vw, 1.25rem);
+    font-family: var(--font-engraved) !important;
+    color: var(--gold-metallic-dark) !important;
+    margin: 0 0 var(--spacing-8) 0;
+    text-shadow:
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    position: relative;
+    z-index: 2;
+    line-height: 1.6;
+}
+
+.hero-buttons {
+    display: flex;
+    gap: var(--spacing-4);
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 3;
+}
+
+/* Base CTA Button Styles */
+.hero-buttons .cta-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--button-padding-y-md) var(--button-padding-x-lg);
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    color: var(--gold-metallic-dark) !important;
+    text-decoration: none;
+    border-radius: var(--radius-sm) !important;
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-bold) !important;
+    font-family: var(--font-engraved) !important;
+    transform: none !important;
+    opacity: 1 !important;
+    transition: box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
+    border: 1px solid var(--gold-metallic-dark) !important;
+    cursor: pointer;
+    box-shadow: var(--shadow-metallic-raised) !important;
+    text-shadow:
+        0 1px 2px rgba(255, 255, 255, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 0 1px rgba(0, 0, 0, 0.8) !important;
+    position: relative;
+    overflow: hidden;
+    /* Ensure consistent sizing across <a> and <button> elements */
+    box-sizing: border-box;
+    line-height: 1.5;
+    min-height: 48px;
+    white-space: nowrap;
+}
+
+.hero-buttons .cta-button:hover {
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%) !important;
+    background-color: transparent !important;
+    box-shadow:
+        inset 0 2px 3px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 3px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.15),
+        0 0 12px rgba(212, 175, 55, 0.2) !important;
+    transition: transform var(--duration-base) var(--ease-classic),
+                box-shadow var(--duration-base) var(--ease-classic),
+                background var(--duration-base) var(--ease-classic),
+                border-color var(--duration-base) var(--ease-classic),
+                color var(--duration-base) var(--ease-classic),
+                text-shadow var(--duration-base) var(--ease-classic);
+    transform: translateY(-1px) !important;
+    border-color: var(--gold-metallic-base) !important;
+    color: var(--gold-metallic-dark) !important;
+    text-shadow:
+        0 1px 2px rgba(255, 255, 255, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 1px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Create Modal Overlay */
+.create-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: var(--spacing-5);
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Create Modal */
+.create-modal {
+    background: var(--gradient-metallic-raised);
+    border: 3px solid var(--gold-metallic-dark);
+    border-radius: 12px;
+    padding: var(--spacing-8);
+    max-width: 600px;
+    width: 100%;
+    box-shadow:
+        var(--shadow-metallic-raised),
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(212, 175, 55, 0.3);
+    position: relative;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.create-modal::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(160deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        transparent 50%,
+        rgba(0, 0, 0, 0.05) 100%);
+    pointer-events: none;
+    border-radius: 12px;
+}
+
+.modal-title {
+    font-family: var(--font-engraved);
+    font-size: 1.5rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--gold-metallic-dark);
+    text-align: center;
+    margin: 0 0 var(--spacing-6) 0;
+    text-shadow:
+        0 2px 4px rgba(255, 255, 255, 0.3),
+        0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Modal Options Grid */
+.modal-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--spacing-5);
+    margin-bottom: var(--spacing-6);
+}
+
+/* Option Card */
+.option-card {
+    background: linear-gradient(135deg, rgba(139, 69, 19, 0.4), rgba(101, 67, 33, 0.4));
+    border: 2px solid rgba(218, 165, 32, 0.3);
+    border-radius: 12px;
+    padding: var(--spacing-6);
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.option-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+.option-card:hover {
+    border-color: rgba(218, 165, 32, 0.6);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(218, 165, 32, 0.3);
+}
+
+.option-icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-4);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.option-title {
+    font-family: var(--font-engraved);
+    font-size: 1.125rem;
+    font-weight: var(--font-weight-bold);
+    color: rgba(218, 165, 32, 0.95);
+    margin: 0 0 var(--spacing-3) 0;
+    text-shadow:
+        0 1px 2px rgba(255, 255, 255, 0.2),
+        0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.option-description {
+    font-family: var(--font-body);
+    font-size: var(--font-size-small);
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Modal Close Button */
+.modal-close {
+    width: 100%;
+    padding: var(--spacing-3) var(--spacing-5);
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(218, 165, 32, 0.3);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: rgba(218, 165, 32, 0.5);
+    color: rgba(255, 255, 255, 0.95);
+}
+
+/* Scroll Indicator - Golden Plaque Style */
+.scroll-indicator {
+    position: absolute;
+    bottom: var(--spacing-8);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: box-shadow 0.3s ease;
+    background: var(--gradient-metallic-raised) !important;
+    background-color: transparent !important;
+    border: 2px solid var(--gold-metallic-dark) !important;
+    border-radius: 50%;
+    box-shadow:
+        var(--shadow-metallic-raised),
+        0 0 20px rgba(212, 175, 55, 0.2) !important;
+    overflow: hidden;
+}
+
+.scroll-indicator:hover {
+    box-shadow:
+        var(--shadow-metallic-raised),
+        0 0 30px rgba(212, 175, 55, 0.4) !important;
+}
+
+.scroll-chevron {
+    width: 32px;
+    height: 32px;
+    color: var(--gold-metallic-dark);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    position: relative;
+    z-index: 2;
+    stroke-width: 2;
+}
+
+/* Sheen animation within the scroll indicator */
+.scroll-indicator::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 50%;
+    background: radial-gradient(
+        circle at center,
+        rgba(255, 255, 255, 0.1) 0%,
+        transparent 70%
+    );
+    pointer-events: none;
+    z-index: 1;
+}
+
+.scroll-indicator::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 30%,
+        rgba(255, 255, 255, 0.6) 50%,
+        rgba(255, 255, 255, 0.3) 70%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+    animation: indicator-sheen 3.5s ease-in-out infinite;
+    animation-delay: 1s;
+    transform: skewX(-20deg);
+}
+
+@keyframes indicator-sheen {
+    0% {
+        left: -100%;
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        left: 200%;
+        opacity: 0;
+    }
+}
+
+/* Enhanced sheen on hover */
+.scroll-indicator:hover::after {
+    animation: indicator-sheen 1.8s ease-in-out infinite;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.2) 30%,
+        rgba(255, 255, 255, 0.35) 50%,
+        rgba(255, 255, 255, 0.2) 70%,
+        transparent 100%
+    );
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-section {
+        padding: var(--spacing-8) var(--spacing-3);
+        min-height: 300px;
+    }
+
+    .hero-plaque {
+        padding: var(--spacing-8) var(--spacing-6);
+        border-width: 2px !important;
+    }
+
+    .hero-title {
+        font-size: clamp(2rem, 10vw, 3rem);
+        margin-bottom: var(--spacing-4);
+    }
+
+    .hero-subtitle {
+        font-size: clamp(0.875rem, 3vw, 1rem);
+        margin-bottom: var(--spacing-6);
+    }
+
+    .hero-buttons {
+        flex-direction: column;
+        width: 100%;
+        gap: var(--spacing-3);
+    }
+
+    .hero-buttons .cta-button {
+        width: 100%;
+        max-width: 280px;
+    }
+
+    .create-modal {
+        padding: var(--spacing-6);
+        max-width: 90%;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+    }
+
+    .modal-options {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-4);
+    }
+
+    .option-card {
+        padding: var(--spacing-5);
+    }
+
+    .option-icon {
+        font-size: 2.5rem;
+    }
+
+    .option-title {
+        font-size: 1rem;
+    }
+}

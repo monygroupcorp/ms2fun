@@ -18,6 +18,8 @@ import ERC1155FactoryAdapter from './contracts/ERC1155FactoryAdapter.js';
 import walletService from './WalletService.js';
 import { eventBus } from '../core/EventBus.js';
 import serviceFactory from './ServiceFactory.js';
+import { detectNetwork } from '../config/network.js';
+import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import { projectStore } from '../store/projectStore.js';
 import { convertProjectServiceMetadata } from '../utils/projectStateInitializer.js';
 
@@ -77,14 +79,14 @@ class ProjectService {
         }
 
         // Get provider and signer from wallet service
-        const { provider, signer } = walletService.getProviderAndSigner();
-        
+        let { provider, signer } = walletService.getProviderAndSigner();
+
         // For mock contracts, we can work without a provider
         // Check common patterns first
-        let isMockContract = contractAddress.startsWith('0xMOCK') || 
+        let isMockContract = contractAddress.startsWith('0xMOCK') ||
                              contractAddress.includes('mock') ||
                              contractAddress.startsWith('0xFACTORY');
-        
+
         // Also check if it exists in mock data (for dynamically generated addresses)
         if (!isMockContract) {
             try {
@@ -99,11 +101,23 @@ class ProjectService {
                 // If we can't check, assume it's not a mock contract
             }
         }
-        
+
+        // If no wallet provider and not a mock contract, create read-only provider for local mode
         if (!provider && !isMockContract) {
-            throw new Error('Wallet provider not available');
+            const network = detectNetwork();
+            if (network.mode === 'local' && network.rpcUrl) {
+                console.log('[ProjectService] Creating read-only provider for local development');
+                // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
+                provider = new ethers.providers.StaticJsonRpcProvider(
+                    network.rpcUrl,
+                    { name: 'anvil', chainId: network.chainId }
+                );
+                signer = null;
+            } else {
+                throw new Error('Wallet provider not available. Please connect a wallet or ensure local Anvil is running.');
+            }
         }
-        
+
         // For mock contracts without provider, use a minimal provider object
         // The adapter will detect mock contracts and skip real contract calls
         const finalProvider = provider || (isMockContract ? { isMock: true } : null);

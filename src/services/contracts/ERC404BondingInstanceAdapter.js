@@ -684,6 +684,636 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
     }
 
     // =========================
+    // Public Constants & State Variables
+    // =========================
+
+    /**
+     * Get liquidity reserve constant
+     * @returns {Promise<string>} Liquidity reserve amount in wei
+     */
+    async LIQUIDITY_RESERVE() {
+        return await this.getCachedOrFetch('LIQUIDITY_RESERVE', [], async () => {
+            const reserve = await this.executeContractCall('LIQUIDITY_RESERVE');
+            return reserve.toString();
+        });
+    }
+
+    /**
+     * Get max supply constant
+     * @returns {Promise<string>} Max supply in wei
+     */
+    async MAX_SUPPLY() {
+        return await this.getCachedOrFetch('MAX_SUPPLY', [], async () => {
+            const supply = await this.executeContractCall('MAX_SUPPLY');
+            return supply.toString();
+        });
+    }
+
+    /**
+     * Get bonding active status
+     * @returns {Promise<boolean>} True if bonding is active
+     */
+    async bondingActive() {
+        return await this.getCachedOrFetch('bondingActive', [], async () => {
+            return await this.executeContractCall('bondingActive');
+        });
+    }
+
+    /**
+     * Get bonding maturity time
+     * @returns {Promise<number>} Unix timestamp when bonding matures
+     */
+    async bondingMaturityTime() {
+        return await this.getCachedOrFetch('bondingMaturityTime', [], async () => {
+            const time = await this.executeContractCall('bondingMaturityTime');
+            return parseInt(time.toString());
+        });
+    }
+
+    /**
+     * Get bonding open time
+     * @returns {Promise<number>} Unix timestamp when bonding opens
+     */
+    async bondingOpenTime() {
+        return await this.getCachedOrFetch('bondingOpenTime', [], async () => {
+            const time = await this.executeContractCall('bondingOpenTime');
+            return parseInt(time.toString());
+        });
+    }
+
+    /**
+     * Get curve parameters
+     * @returns {Promise<Object>} Bonding curve parameters
+     */
+    async curveParams() {
+        return await this.getCachedOrFetch('curveParams', [], async () => {
+            const params = await this.executeContractCall('curveParams');
+            return {
+                a: params.a?.toString() || params[0]?.toString(),
+                b: params.b?.toString() || params[1]?.toString(),
+                c: params.c?.toString() || params[2]?.toString()
+            };
+        });
+    }
+
+    /**
+     * Get token decimals
+     * @returns {Promise<number>} Number of decimals
+     */
+    async decimals() {
+        return await this.getCachedOrFetch('decimals', [], async () => {
+            const dec = await this.executeContractCall('decimals');
+            return parseInt(dec.toString());
+        });
+    }
+
+    /**
+     * Get free mint status
+     * @returns {Promise<boolean>} True if free mint is available
+     */
+    async freeMint() {
+        return await this.getCachedOrFetch('freeMint', [], async () => {
+            return await this.executeContractCall('freeMint');
+        });
+    }
+
+    /**
+     * Get free supply amount
+     * @returns {Promise<string>} Free supply in wei
+     */
+    async freeSupply() {
+        return await this.getCachedOrFetch('freeSupply', [], async () => {
+            const supply = await this.executeContractCall('freeSupply');
+            return supply.toString();
+        });
+    }
+
+    /**
+     * Get factory address
+     * @returns {Promise<string>} Factory contract address
+     */
+    async factory() {
+        return await this.getCachedOrFetch('factory', [], async () => {
+            return await this.executeContractCall('factory');
+        });
+    }
+
+    /**
+     * Get global message registry address
+     * @returns {Promise<string>} Global message registry contract address
+     */
+    async getGlobalMessageRegistry() {
+        return await this.getCachedOrFetch('getGlobalMessageRegistry', [], async () => {
+            return await this.executeContractCall('getGlobalMessageRegistry');
+        });
+    }
+
+    /**
+     * Get liquidity pool address
+     * @returns {Promise<string>} Liquidity pool address
+     */
+    async liquidityPool() {
+        return await this.getCachedOrFetch('liquidityPool', [], async () => {
+            return await this.executeContractCall('liquidityPool');
+        });
+    }
+
+    /**
+     * Get master registry address
+     * @returns {Promise<string>} Master registry contract address
+     */
+    async masterRegistry() {
+        return await this.getCachedOrFetch('masterRegistry', [], async () => {
+            return await this.executeContractCall('masterRegistry');
+        });
+    }
+
+    /**
+     * Get mirror ERC721 contract address
+     * @returns {Promise<string>} Mirror ERC721 contract address
+     */
+    async mirrorERC721() {
+        return await this.getCachedOrFetch('mirrorERC721', [], async () => {
+            return await this.executeContractCall('mirrorERC721');
+        });
+    }
+
+    /**
+     * Get token name
+     * @returns {Promise<string>} Token name
+     */
+    async name() {
+        return await this.getCachedOrFetch('name', [], async () => {
+            return await this.executeContractCall('name');
+        });
+    }
+
+    /**
+     * Get reroll escrow for address
+     * @param {string} userAddress - User address
+     * @returns {Promise<string>} Reroll escrow amount in wei
+     */
+    async rerollEscrow(userAddress) {
+        return await this.getCachedOrFetch('rerollEscrow', [userAddress], async () => {
+            const escrow = await this.executeContractCall('rerollEscrow', [userAddress]);
+            return escrow.toString();
+        });
+    }
+
+    /**
+     * Get reserve amount
+     * @returns {Promise<string>} Reserve amount in wei
+     */
+    async reserve() {
+        return await this.getCachedOrFetch('reserve', [], async () => {
+            const res = await this.executeContractCall('reserve');
+            return res.toString();
+        });
+    }
+
+    /**
+     * Get staked balance for address
+     * @param {string} userAddress - User address
+     * @returns {Promise<string>} Staked balance in wei
+     */
+    async stakedBalance(userAddress) {
+        return await this.getCachedOrFetch('stakedBalance', [userAddress], async () => {
+            const balance = await this.executeContractCall('stakedBalance', [userAddress]);
+            return balance.toString();
+        });
+    }
+
+    /**
+     * Get staker fees already claimed
+     * @param {string} stakerAddress - Staker address
+     * @returns {Promise<string>} Fees already claimed in wei
+     */
+    async stakerFeesAlreadyClaimed(stakerAddress) {
+        return await this.getCachedOrFetch('stakerFeesAlreadyClaimed', [stakerAddress], async () => {
+            const fees = await this.executeContractCall('stakerFeesAlreadyClaimed', [stakerAddress]);
+            return fees.toString();
+        });
+    }
+
+    /**
+     * Get staking enabled status
+     * @returns {Promise<boolean>} True if staking is enabled
+     */
+    async stakingEnabled() {
+        return await this.getCachedOrFetch('stakingEnabled', [], async () => {
+            return await this.executeContractCall('stakingEnabled');
+        });
+    }
+
+    /**
+     * Get style URI
+     * @returns {Promise<string>} Style URI
+     */
+    async styleUri() {
+        return await this.getCachedOrFetch('styleUri', [], async () => {
+            return await this.executeContractCall('styleUri');
+        });
+    }
+
+    /**
+     * Get token symbol
+     * @returns {Promise<string>} Token symbol
+     */
+    async symbol() {
+        return await this.getCachedOrFetch('symbol', [], async () => {
+            return await this.executeContractCall('symbol');
+        });
+    }
+
+    /**
+     * Get tier by password hash
+     * @param {string} passwordHash - Password hash
+     * @returns {Promise<number>} Tier index
+     */
+    async tierByPasswordHash(passwordHash) {
+        return await this.getCachedOrFetch('tierByPasswordHash', [passwordHash], async () => {
+            const tier = await this.executeContractCall('tierByPasswordHash', [passwordHash]);
+            return parseInt(tier.toString());
+        });
+    }
+
+    /**
+     * Get tier configuration
+     * @param {number} tierIndex - Tier index
+     * @returns {Promise<Object>} Tier configuration
+     */
+    async tierConfig(tierIndex) {
+        return await this.getCachedOrFetch('tierConfig', [tierIndex], async () => {
+            const config = await this.executeContractCall('tierConfig', [tierIndex]);
+            return {
+                volumeCap: config.volumeCap?.toString() || config[0]?.toString(),
+                unlockTime: parseInt((config.unlockTime || config[1])?.toString()),
+                isActive: config.isActive !== undefined ? config.isActive : config[2]
+            };
+        });
+    }
+
+    /**
+     * Get tier count
+     * @returns {Promise<number>} Number of tiers
+     */
+    async tierCount() {
+        return await this.getCachedOrFetch('tierCount', [], async () => {
+            const count = await this.executeContractCall('tierCount');
+            return parseInt(count.toString());
+        });
+    }
+
+    /**
+     * Get total bonding supply
+     * @returns {Promise<string>} Total bonding supply in wei
+     */
+    async totalBondingSupply() {
+        return await this.getCachedOrFetch('totalBondingSupply', [], async () => {
+            const supply = await this.executeContractCall('totalBondingSupply');
+            return supply.toString();
+        });
+    }
+
+    /**
+     * Get total fees accumulated from vault
+     * @returns {Promise<string>} Total fees in wei
+     */
+    async totalFeesAccumulatedFromVault() {
+        return await this.getCachedOrFetch('totalFeesAccumulatedFromVault', [], async () => {
+            const fees = await this.executeContractCall('totalFeesAccumulatedFromVault');
+            return fees.toString();
+        });
+    }
+
+    /**
+     * Get total staked amount
+     * @returns {Promise<string>} Total staked in wei
+     */
+    async totalStaked() {
+        return await this.getCachedOrFetch('totalStaked', [], async () => {
+            const staked = await this.executeContractCall('totalStaked');
+            return staked.toString();
+        });
+    }
+
+    /**
+     * Get total supply
+     * @returns {Promise<string>} Total supply in wei
+     */
+    async totalSupply() {
+        return await this.getCachedOrFetch('totalSupply', [], async () => {
+            const supply = await this.executeContractCall('totalSupply');
+            return supply.toString();
+        });
+    }
+
+    /**
+     * Get user purchase volume
+     * @param {string} userAddress - User address
+     * @returns {Promise<string>} Purchase volume in wei
+     */
+    async userPurchaseVolume(userAddress) {
+        return await this.getCachedOrFetch('userPurchaseVolume', [userAddress], async () => {
+            const volume = await this.executeContractCall('userPurchaseVolume', [userAddress]);
+            return volume.toString();
+        });
+    }
+
+    /**
+     * Get user tier unlocked status
+     * @param {string} userAddress - User address
+     * @param {number} tierIndex - Tier index
+     * @returns {Promise<boolean>} True if tier is unlocked for user
+     */
+    async userTierUnlocked(userAddress, tierIndex) {
+        return await this.getCachedOrFetch('userTierUnlocked', [userAddress, tierIndex], async () => {
+            return await this.executeContractCall('userTierUnlocked', [userAddress, tierIndex]);
+        });
+    }
+
+    /**
+     * Get V4 hook address
+     * @returns {Promise<string>} V4 hook contract address
+     */
+    async v4Hook() {
+        return await this.getCachedOrFetch('v4Hook', [], async () => {
+            return await this.executeContractCall('v4Hook');
+        });
+    }
+
+    /**
+     * Get V4 pool manager address
+     * @returns {Promise<string>} V4 pool manager contract address
+     */
+    async v4PoolManager() {
+        return await this.getCachedOrFetch('v4PoolManager', [], async () => {
+            return await this.executeContractCall('v4PoolManager');
+        });
+    }
+
+    /**
+     * Get vault address
+     * @returns {Promise<string>} Vault contract address
+     */
+    async vault() {
+        return await this.getCachedOrFetch('vault', [], async () => {
+            return await this.executeContractCall('vault');
+        });
+    }
+
+    /**
+     * Get WETH address
+     * @returns {Promise<string>} WETH contract address
+     */
+    async weth() {
+        return await this.getCachedOrFetch('weth', [], async () => {
+            return await this.executeContractCall('weth');
+        });
+    }
+
+    // =========================
+    // Additional Query Functions
+    // =========================
+
+    /**
+     * Calculate cost to buy tokens
+     * @param {string} amount - Amount to buy in wei
+     * @returns {Promise<string>} Cost in ETH (wei)
+     */
+    async calculateCost(amount) {
+        return await this.getCachedOrFetch('calculateCost', [amount], async () => {
+            const cost = await this.executeContractCall('calculateCost', [amount]);
+            return cost.toString();
+        });
+    }
+
+    /**
+     * Calculate refund from selling tokens
+     * @param {string} amount - Amount to sell in wei
+     * @returns {Promise<string>} Refund in ETH (wei)
+     */
+    async calculateRefund(amount) {
+        return await this.getCachedOrFetch('calculateRefund', [amount], async () => {
+            const refund = await this.executeContractCall('calculateRefund', [amount]);
+            return refund.toString();
+        });
+    }
+
+    /**
+     * Get project metadata
+     * @returns {Promise<Object>} Project metadata
+     */
+    async getProjectMetadata() {
+        return await this.getCachedOrFetch('getProjectMetadata', [], async () => {
+            const metadata = await this.executeContractCall('getProjectMetadata');
+            return {
+                name: metadata.name || metadata[0],
+                symbol: metadata.symbol || metadata[1],
+                creator: metadata.creator || metadata[2],
+                vault: metadata.vault || metadata[3]
+            };
+        });
+    }
+
+    /**
+     * Get project name
+     * @returns {Promise<string>} Project name
+     */
+    async getProjectName() {
+        return await this.getCachedOrFetch('getProjectName', [], async () => {
+            return await this.executeContractCall('getProjectName');
+        });
+    }
+
+    /**
+     * Get project symbol
+     * @returns {Promise<string>} Project symbol
+     */
+    async getProjectSymbol() {
+        return await this.getCachedOrFetch('getProjectSymbol', [], async () => {
+            return await this.executeContractCall('getProjectSymbol');
+        });
+    }
+
+    /**
+     * Get skip NFT status for user
+     * @param {string} userAddress - User address
+     * @returns {Promise<boolean>} True if user is skipping NFT minting
+     */
+    async getSkipNFT(userAddress) {
+        return await this.getCachedOrFetch('getSkipNFT', [userAddress], async () => {
+            return await this.executeContractCall('getSkipNFT', [userAddress]);
+        });
+    }
+
+    // =========================
+    // State-Changing Functions
+    // =========================
+
+    /**
+     * Buy tokens via bonding curve
+     * @param {string} amount - Amount of tokens to buy (in wei)
+     * @param {string} maxCost - Maximum cost willing to pay in ETH (in wei)
+     * @param {boolean} mintNFT - Whether to mint NFT
+     * @param {string} passwordHash - Optional password hash for tier access
+     * @param {string} message - Optional message
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async buyBonding(amount, maxCost, mintNFT = false, passwordHash = '0x0000000000000000000000000000000000000000000000000000000000000000', message = '') {
+        try {
+            // Calculate actual cost
+            const cost = await this.calculateCost(amount);
+
+            eventBus.emit('transaction:pending', {
+                type: 'buyBonding',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'buyBonding',
+                [amount, maxCost, mintNFT, passwordHash, message],
+                {
+                    requiresSigner: true,
+                    txOptions: { value: cost }
+                }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'buyBonding',
+                receipt,
+                amount,
+                cost: cost.toString()
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('bonding', 'supply', 'balance');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'buyBonding',
+                error: this.wrapError(error, 'Failed to buy tokens')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Sell tokens via bonding curve
+     * @param {string} amount - Amount of tokens to sell (in wei)
+     * @param {string} minRefund - Minimum refund expected in ETH (in wei)
+     * @param {string} passwordHash - Optional password hash
+     * @param {string} message - Optional message
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async sellBonding(amount, minRefund, passwordHash = '0x0000000000000000000000000000000000000000000000000000000000000000', message = '') {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'sellBonding',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'sellBonding',
+                [amount, minRefund, passwordHash, message],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'sellBonding',
+                receipt,
+                amount
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('bonding', 'supply', 'balance');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'sellBonding',
+                error: this.wrapError(error, 'Failed to sell tokens')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Mint NFTs from token balance
+     * @param {string} amount - Amount of tokens to convert to NFTs (in wei)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async balanceMint(amount) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'balanceMint',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'balanceMint',
+                [amount],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'balanceMint',
+                receipt,
+                amount
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('balance', 'nft');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'balanceMint',
+                error: this.wrapError(error, 'Failed to mint NFTs from balance')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set skip NFT preference
+     * @param {boolean} skipNFT - Whether to skip NFT minting
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setSkipNFT(skipNFT) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setSkipNFT',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'setSkipNFT',
+                [skipNFT],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setSkipNFT',
+                receipt,
+                skipNFT
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('getSkipNFT');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setSkipNFT',
+                error: this.wrapError(error, 'Failed to set skip NFT preference')
+            });
+            throw error;
+        }
+    }
+
+    // =========================
     // Override Metadata
     // =========================
 

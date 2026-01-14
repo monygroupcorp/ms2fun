@@ -1,0 +1,352 @@
+/* TopVaultsWidget - Shows top 3 vaults by TVL or popularity */
+
+.top-vaults-widget {
+    background: linear-gradient(135deg, rgba(139, 69, 19, 0.3), rgba(101, 67, 33, 0.3));
+    border: 2px solid rgba(218, 165, 32, 0.4);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+/* Widget Header */
+.top-vaults-widget .widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.top-vaults-widget .widget-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: rgba(218, 165, 32, 0.95);
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Mode Toggle */
+.top-vaults-widget .mode-toggle {
+    display: flex;
+    gap: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem;
+    border-radius: 20px;
+    border: 1px solid rgba(218, 165, 32, 0.3);
+}
+
+.top-vaults-widget .mode-btn {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-radius: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.top-vaults-widget .mode-btn:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(218, 165, 32, 0.1);
+}
+
+.top-vaults-widget .mode-btn.active {
+    background: linear-gradient(135deg, rgba(218, 165, 32, 0.3), rgba(184, 134, 11, 0.3));
+    color: rgba(218, 165, 32, 0.95);
+    box-shadow: 0 2px 8px rgba(218, 165, 32, 0.2);
+}
+
+/* Widget Content */
+.top-vaults-widget .widget-content {
+    min-height: 180px;
+}
+
+/* Vault Cards Grid */
+.top-vaults-widget .vault-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+/* Vault Card */
+.top-vaults-widget .vault-card {
+    background: linear-gradient(135deg, rgba(139, 69, 19, 0.4), rgba(101, 67, 33, 0.4));
+    border: 2px solid rgba(218, 165, 32, 0.3);
+    border-radius: 12px;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.top-vaults-widget .vault-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+.top-vaults-widget .vault-card:hover {
+    border-color: rgba(218, 165, 32, 0.6);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(218, 165, 32, 0.3);
+}
+
+/* Vault Card Header */
+.top-vaults-widget .vault-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.top-vaults-widget .vault-rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, rgba(218, 165, 32, 0.3), rgba(184, 134, 11, 0.3));
+    border: 2px solid rgba(218, 165, 32, 0.5);
+    border-radius: 50%;
+    font-family: 'Cinzel', serif;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: rgba(218, 165, 32, 0.95);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.top-vaults-widget .vault-asset-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(218, 165, 32, 0.2);
+    border-radius: 50%;
+    font-size: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.top-vaults-widget .vault-card:hover .vault-asset-icon {
+    border-color: rgba(218, 165, 32, 0.5);
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.top-vaults-widget .asset-icon {
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    display: inline-block;
+}
+
+/* Vault Card Body */
+.top-vaults-widget .vault-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.top-vaults-widget .vault-card-name {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.95);
+    margin: 0;
+    line-height: 1.3;
+}
+
+.top-vaults-widget .vault-card-type {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.top-vaults-widget .vault-card-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(218, 165, 32, 0.2);
+}
+
+.top-vaults-widget .metric-label {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.top-vaults-widget .metric-value {
+    font-family: 'Lato', sans-serif;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: rgba(218, 165, 32, 0.95);
+}
+
+/* Widget Footer */
+.top-vaults-widget .widget-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(218, 165, 32, 0.2);
+}
+
+.top-vaults-widget .view-all-btn {
+    width: 100%;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, rgba(139, 69, 19, 0.6), rgba(101, 67, 33, 0.6));
+    border: 2px solid rgba(218, 165, 32, 0.4);
+    border-radius: 8px;
+    color: rgba(218, 165, 32, 0.95);
+    font-family: 'Cinzel', serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.top-vaults-widget .view-all-btn:hover {
+    background: linear-gradient(135deg, rgba(160, 82, 45, 0.7), rgba(120, 80, 50, 0.7));
+    border-color: rgba(218, 165, 32, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(218, 165, 32, 0.3);
+}
+
+/* Loading State */
+.top-vaults-widget .widget-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+    gap: 1rem;
+}
+
+.top-vaults-widget .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(218, 165, 32, 0.3);
+    border-top-color: rgba(218, 165, 32, 0.9);
+    border-radius: 50%;
+    animation: vault-spin 0.8s linear infinite;
+}
+
+@keyframes vault-spin {
+    to { transform: rotate(360deg); }
+}
+
+.top-vaults-widget .widget-loading p {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+}
+
+/* Error State */
+.top-vaults-widget .widget-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+}
+
+.top-vaults-widget .widget-error p {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(255, 99, 71, 0.9);
+    margin: 0;
+}
+
+/* Empty State */
+.top-vaults-widget .widget-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+}
+
+.top-vaults-widget .widget-empty p {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .top-vaults-widget {
+        padding: 1rem;
+    }
+
+    .top-vaults-widget .widget-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .top-vaults-widget .widget-title {
+        font-size: 1.25rem;
+        text-align: center;
+    }
+
+    .top-vaults-widget .mode-toggle {
+        justify-content: center;
+    }
+
+    .top-vaults-widget .vault-cards-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .top-vaults-widget .vault-card {
+        padding: 1rem;
+    }
+
+    .top-vaults-widget .vault-card-name {
+        font-size: 0.875rem;
+    }
+
+    .top-vaults-widget .metric-value {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .top-vaults-widget .vault-rank-badge {
+        width: 32px;
+        height: 32px;
+        font-size: 0.75rem;
+    }
+
+    .top-vaults-widget .vault-asset-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.25rem;
+    }
+
+    .top-vaults-widget .vault-card-name {
+        font-size: 0.8rem;
+    }
+
+    .top-vaults-widget .vault-card-type {
+        font-size: 0.7rem;
+    }
+
+    .top-vaults-widget .metric-value {
+        font-size: 0.875rem;
+    }
+}

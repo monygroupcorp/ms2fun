@@ -5,7 +5,12 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "setup:local": "bash scripts/local-chain/setup.sh",
+    "chain:start": "bash scripts/local-chain/start-chain.sh",
+    "chain:reset": "npm run chain:start",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:update": "git submodule update --remote contracts && npm run contracts:build"
   },
   "dependencies": {
     "ethers": "^5.7.2",

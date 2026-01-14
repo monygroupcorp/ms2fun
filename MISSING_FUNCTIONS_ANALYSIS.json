@@ -1,0 +1,1574 @@
+{
+  "summary": {
+    "totalMissing": 269,
+    "high": 154,
+    "medium": 33,
+    "low": 82
+  },
+  "contracts": [
+    {
+      "contractName": "MasterRegistryV1",
+      "totalMissing": 60,
+      "byCategory": {
+        "Public Constants/Variables": [
+          "APPLICATION_FEE",
+          "CLEANUP_BASE_GAS",
+          "GAS_PER_ACTION",
+          "getGlobalMessageRegistry",
+          "globalMessageRegistry",
+          "vaultRegistry",
+          "setGlobalMessageRegistry"
+        ],
+        "Business Logic": [
+          "allInstances",
+          "baseRentalPrice",
+          "creatorInstances",
+          "demandMultiplier",
+          "execToken",
+          "factoryIdToAddress",
+          "featuredQueue",
+          "governanceModule",
+          "instanceIndex",
+          "instancePosition",
+          "maxQueueSize",
+          "maxRentalDuration",
+          "minRentalDuration",
+          "nameHashes",
+          "nextFactoryId",
+          "positionDemand",
+          "registeredFactories",
+          "registeredVaults",
+          "renewalDeposits",
+          "renewalDiscount",
+          "standardCleanupReward",
+          "vaultGovernanceModule",
+          "vaultInstances",
+          "vaultRegistrationFee",
+          "visibleThreshold"
+        ],
+        "View/Query Functions": [
+          "factoryInfo",
+          "getTotalInstances",
+          "getVaultList",
+          "instanceInfo",
+          "isFactoryRegistered",
+          "vaultInfo",
+          "vaultList"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "Initialization/Upgrade": [
+          "proxiableUUID",
+          "initialize",
+          "upgradeToAndCall"
+        ],
+        "State-Changing Functions": [
+          "deactivateVault",
+          "registerApprovedVault",
+          "registerFactory",
+          "registerFactoryWithFeatures",
+          "registerFactoryWithFeaturesAndCreator",
+          "registerInstance",
+          "setStandardCleanupReward",
+          "setVaultGovernanceModule",
+          "applyForFactory",
+          "applyForVault",
+          "registerVault"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "allInstances",
+            "category": "Business Logic"
+          },
+          {
+            "name": "baseRentalPrice",
+            "category": "Business Logic"
+          },
+          {
+            "name": "creatorInstances",
+            "category": "Business Logic"
+          },
+          {
+            "name": "demandMultiplier",
+            "category": "Business Logic"
+          },
+          {
+            "name": "execToken",
+            "category": "Business Logic"
+          },
+          {
+            "name": "factoryIdToAddress",
+            "category": "Business Logic"
+          },
+          {
+            "name": "factoryInfo",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "featuredQueue",
+            "category": "Business Logic"
+          },
+          {
+            "name": "getTotalInstances",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getVaultList",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "governanceModule",
+            "category": "Business Logic"
+          },
+          {
+            "name": "instanceIndex",
+            "category": "Business Logic"
+          },
+          {
+            "name": "instanceInfo",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "instancePosition",
+            "category": "Business Logic"
+          },
+          {
+            "name": "isFactoryRegistered",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "maxQueueSize",
+            "category": "Business Logic"
+          },
+          {
+            "name": "maxRentalDuration",
+            "category": "Business Logic"
+          },
+          {
+            "name": "minRentalDuration",
+            "category": "Business Logic"
+          },
+          {
+            "name": "nameHashes",
+            "category": "Business Logic"
+          },
+          {
+            "name": "nextFactoryId",
+            "category": "Business Logic"
+          },
+          {
+            "name": "positionDemand",
+            "category": "Business Logic"
+          },
+          {
+            "name": "registeredFactories",
+            "category": "Business Logic"
+          },
+          {
+            "name": "registeredVaults",
+            "category": "Business Logic"
+          },
+          {
+            "name": "renewalDeposits",
+            "category": "Business Logic"
+          },
+          {
+            "name": "renewalDiscount",
+            "category": "Business Logic"
+          },
+          {
+            "name": "standardCleanupReward",
+            "category": "Business Logic"
+          },
+          {
+            "name": "vaultGovernanceModule",
+            "category": "Business Logic"
+          },
+          {
+            "name": "vaultInfo",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "vaultInstances",
+            "category": "Business Logic"
+          },
+          {
+            "name": "vaultList",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "vaultRegistrationFee",
+            "category": "Business Logic"
+          },
+          {
+            "name": "visibleThreshold",
+            "category": "Business Logic"
+          },
+          {
+            "name": "deactivateVault",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "registerApprovedVault",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "registerFactory",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "registerFactoryWithFeatures",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "registerFactoryWithFeaturesAndCreator",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "registerInstance",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setStandardCleanupReward",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setVaultGovernanceModule",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "applyForFactory",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "applyForVault",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "registerVault",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "APPLICATION_FEE",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "CLEANUP_BASE_GAS",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "GAS_PER_ACTION",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "getGlobalMessageRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "globalMessageRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "vaultRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "setGlobalMessageRegistry",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "proxiableUUID",
+            "category": "Initialization/Upgrade"
+          },
+          {
+            "name": "initialize",
+            "category": "Initialization/Upgrade"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "upgradeToAndCall",
+            "category": "Initialization/Upgrade"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "GlobalMessageRegistry",
+      "totalMissing": 12,
+      "byCategory": {
+        "Business Logic": [
+          "authorizedInstances",
+          "messages",
+          "authorizeInstance",
+          "revokeInstance"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "State-Changing Functions": [
+          "addMessage"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "authorizedInstances",
+            "category": "Business Logic"
+          },
+          {
+            "name": "messages",
+            "category": "Business Logic"
+          },
+          {
+            "name": "addMessage",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "authorizeInstance",
+            "category": "Business Logic"
+          },
+          {
+            "name": "revokeInstance",
+            "category": "Business Logic"
+          }
+        ],
+        "MEDIUM": [],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "ERC404BondingInstance",
+      "totalMissing": 58,
+      "byCategory": {
+        "Public Constants/Variables": [
+          "LIQUIDITY_RESERVE",
+          "MAX_SUPPLY",
+          "factory",
+          "getGlobalMessageRegistry",
+          "masterRegistry",
+          "v4PoolManager",
+          "vault",
+          "weth"
+        ],
+        "Direct Token Operations": [
+          "allowance",
+          "balanceOf",
+          "approve",
+          "transfer",
+          "transferFrom"
+        ],
+        "Business Logic": [
+          "bondingActive",
+          "bondingMaturityTime",
+          "bondingOpenTime",
+          "curveParams",
+          "decimals",
+          "freeMint",
+          "freeSupply",
+          "liquidityPool",
+          "mirrorERC721",
+          "name",
+          "rerollEscrow",
+          "reserve",
+          "stakingEnabled",
+          "styleUri",
+          "symbol",
+          "tierByPasswordHash",
+          "tierConfig",
+          "totalBondingSupply",
+          "totalFeesAccumulatedFromVault",
+          "totalStaked",
+          "totalSupply",
+          "userPurchaseVolume",
+          "userTierUnlocked",
+          "balanceMint"
+        ],
+        "View/Query Functions": [
+          "calculateCost",
+          "calculateRefund",
+          "getProjectMetadata",
+          "getProjectName",
+          "getProjectSymbol",
+          "getSkipNFT",
+          "stakedBalance",
+          "tierCount"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "State-Changing Functions": [
+          "stakerFeesAlreadyClaimed",
+          "sellBonding",
+          "setSkipNFT",
+          "buyBonding"
+        ],
+        "Callbacks/Hooks": [
+          "v4Hook",
+          "unlockCallback"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "bondingActive",
+            "category": "Business Logic"
+          },
+          {
+            "name": "bondingMaturityTime",
+            "category": "Business Logic"
+          },
+          {
+            "name": "bondingOpenTime",
+            "category": "Business Logic"
+          },
+          {
+            "name": "calculateCost",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "calculateRefund",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "curveParams",
+            "category": "Business Logic"
+          },
+          {
+            "name": "decimals",
+            "category": "Business Logic"
+          },
+          {
+            "name": "freeMint",
+            "category": "Business Logic"
+          },
+          {
+            "name": "freeSupply",
+            "category": "Business Logic"
+          },
+          {
+            "name": "getProjectMetadata",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getProjectName",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getProjectSymbol",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getSkipNFT",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "liquidityPool",
+            "category": "Business Logic"
+          },
+          {
+            "name": "mirrorERC721",
+            "category": "Business Logic"
+          },
+          {
+            "name": "name",
+            "category": "Business Logic"
+          },
+          {
+            "name": "rerollEscrow",
+            "category": "Business Logic"
+          },
+          {
+            "name": "reserve",
+            "category": "Business Logic"
+          },
+          {
+            "name": "stakedBalance",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "stakerFeesAlreadyClaimed",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "stakingEnabled",
+            "category": "Business Logic"
+          },
+          {
+            "name": "styleUri",
+            "category": "Business Logic"
+          },
+          {
+            "name": "symbol",
+            "category": "Business Logic"
+          },
+          {
+            "name": "tierByPasswordHash",
+            "category": "Business Logic"
+          },
+          {
+            "name": "tierConfig",
+            "category": "Business Logic"
+          },
+          {
+            "name": "tierCount",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "totalBondingSupply",
+            "category": "Business Logic"
+          },
+          {
+            "name": "totalFeesAccumulatedFromVault",
+            "category": "Business Logic"
+          },
+          {
+            "name": "totalStaked",
+            "category": "Business Logic"
+          },
+          {
+            "name": "totalSupply",
+            "category": "Business Logic"
+          },
+          {
+            "name": "userPurchaseVolume",
+            "category": "Business Logic"
+          },
+          {
+            "name": "userTierUnlocked",
+            "category": "Business Logic"
+          },
+          {
+            "name": "balanceMint",
+            "category": "Business Logic"
+          },
+          {
+            "name": "sellBonding",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setSkipNFT",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "buyBonding",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "LIQUIDITY_RESERVE",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "MAX_SUPPLY",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "factory",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "getGlobalMessageRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "masterRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "v4PoolManager",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "vault",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "weth",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "allowance",
+            "category": "Direct Token Operations"
+          },
+          {
+            "name": "balanceOf",
+            "category": "Direct Token Operations"
+          },
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "v4Hook",
+            "category": "Callbacks/Hooks"
+          },
+          {
+            "name": "approve",
+            "category": "Direct Token Operations"
+          },
+          {
+            "name": "transfer",
+            "category": "Direct Token Operations"
+          },
+          {
+            "name": "transferFrom",
+            "category": "Direct Token Operations"
+          },
+          {
+            "name": "unlockCallback",
+            "category": "Callbacks/Hooks"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "ERC404Factory",
+      "totalMissing": 18,
+      "byCategory": {
+        "Business Logic": [
+          "features",
+          "hookFactory",
+          "instanceCreationFee"
+        ],
+        "View/Query Functions": [
+          "getFeatures"
+        ],
+        "Public Constants/Variables": [
+          "instanceTemplate",
+          "masterRegistry",
+          "v4PoolManager",
+          "weth"
+        ],
+        "Callbacks/Hooks": [
+          "instanceToHook"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "State-Changing Functions": [
+          "setHookFactory",
+          "setInstanceCreationFee"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "features",
+            "category": "Business Logic"
+          },
+          {
+            "name": "getFeatures",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "hookFactory",
+            "category": "Business Logic"
+          },
+          {
+            "name": "instanceCreationFee",
+            "category": "Business Logic"
+          },
+          {
+            "name": "setHookFactory",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setInstanceCreationFee",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "instanceTemplate",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "masterRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "v4PoolManager",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "weth",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "instanceToHook",
+            "category": "Callbacks/Hooks"
+          },
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "ERC1155Instance",
+      "totalMissing": 18,
+      "byCategory": {
+        "Business Logic": [
+          "creator",
+          "editionStyleUri",
+          "editions",
+          "name",
+          "nextEditionId",
+          "styleUri",
+          "totalProceeds"
+        ],
+        "Public Constants/Variables": [
+          "factory",
+          "getGlobalMessageRegistry",
+          "masterRegistry",
+          "vault"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "creator",
+            "category": "Business Logic"
+          },
+          {
+            "name": "editionStyleUri",
+            "category": "Business Logic"
+          },
+          {
+            "name": "editions",
+            "category": "Business Logic"
+          },
+          {
+            "name": "name",
+            "category": "Business Logic"
+          },
+          {
+            "name": "nextEditionId",
+            "category": "Business Logic"
+          },
+          {
+            "name": "styleUri",
+            "category": "Business Logic"
+          },
+          {
+            "name": "totalProceeds",
+            "category": "Business Logic"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "factory",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "getGlobalMessageRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "masterRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "vault",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "ERC1155Factory",
+      "totalMissing": 12,
+      "byCategory": {
+        "Business Logic": [
+          "instanceCreationFee",
+          "instanceToVault"
+        ],
+        "Public Constants/Variables": [
+          "instanceTemplate",
+          "masterRegistry"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "State-Changing Functions": [
+          "setInstanceCreationFee"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "instanceCreationFee",
+            "category": "Business Logic"
+          },
+          {
+            "name": "instanceToVault",
+            "category": "Business Logic"
+          },
+          {
+            "name": "setInstanceCreationFee",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "instanceTemplate",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "masterRegistry",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "UltraAlignmentVault",
+      "totalMissing": 47,
+      "byCategory": {
+        "Public Constants/Variables": [
+          "CONVERSION_BASE_GAS",
+          "GAS_PER_BENEFACTOR",
+          "poolManager",
+          "weth"
+        ],
+        "Business Logic": [
+          "accumulatedDustShares",
+          "alignmentToken",
+          "alignmentTokenDecimals",
+          "benefactorShares",
+          "benefactorTotalETH",
+          "conversionParticipants",
+          "dustDistributionThreshold",
+          "lastClaimTimestamp",
+          "lastConversionParticipantIndex",
+          "lastTickLower",
+          "lastTickUpper",
+          "lastVaultFeeCollectionTime",
+          "maxPriceDeviationBps",
+          "pendingETH",
+          "shareValueAtLastClaim",
+          "standardConversionReward",
+          "totalLPUnits",
+          "totalPendingETH",
+          "v2Factory",
+          "v2Router",
+          "v3Factory",
+          "v3PreferredFee",
+          "v3Router",
+          "v4PoolKey",
+          "vaultFeeCollectionInterval",
+          "recordAccumulatedFees"
+        ],
+        "View/Query Functions": [
+          "getUnclaimedFees",
+          "validateCurrentPoolKey"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "State-Changing Functions": [
+          "setAlignmentToken",
+          "setDustDistributionThreshold",
+          "setMaxPriceDeviationBps",
+          "setStandardConversionReward",
+          "setV4PoolKey",
+          "depositFees"
+        ],
+        "Callbacks/Hooks": [
+          "unlockCallback",
+          "receiveHookTax"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "accumulatedDustShares",
+            "category": "Business Logic"
+          },
+          {
+            "name": "alignmentToken",
+            "category": "Business Logic"
+          },
+          {
+            "name": "alignmentTokenDecimals",
+            "category": "Business Logic"
+          },
+          {
+            "name": "benefactorShares",
+            "category": "Business Logic"
+          },
+          {
+            "name": "benefactorTotalETH",
+            "category": "Business Logic"
+          },
+          {
+            "name": "conversionParticipants",
+            "category": "Business Logic"
+          },
+          {
+            "name": "dustDistributionThreshold",
+            "category": "Business Logic"
+          },
+          {
+            "name": "getUnclaimedFees",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "lastClaimTimestamp",
+            "category": "Business Logic"
+          },
+          {
+            "name": "lastConversionParticipantIndex",
+            "category": "Business Logic"
+          },
+          {
+            "name": "lastTickLower",
+            "category": "Business Logic"
+          },
+          {
+            "name": "lastTickUpper",
+            "category": "Business Logic"
+          },
+          {
+            "name": "lastVaultFeeCollectionTime",
+            "category": "Business Logic"
+          },
+          {
+            "name": "maxPriceDeviationBps",
+            "category": "Business Logic"
+          },
+          {
+            "name": "pendingETH",
+            "category": "Business Logic"
+          },
+          {
+            "name": "shareValueAtLastClaim",
+            "category": "Business Logic"
+          },
+          {
+            "name": "standardConversionReward",
+            "category": "Business Logic"
+          },
+          {
+            "name": "totalLPUnits",
+            "category": "Business Logic"
+          },
+          {
+            "name": "totalPendingETH",
+            "category": "Business Logic"
+          },
+          {
+            "name": "v2Factory",
+            "category": "Business Logic"
+          },
+          {
+            "name": "v2Router",
+            "category": "Business Logic"
+          },
+          {
+            "name": "v3Factory",
+            "category": "Business Logic"
+          },
+          {
+            "name": "v3PreferredFee",
+            "category": "Business Logic"
+          },
+          {
+            "name": "v3Router",
+            "category": "Business Logic"
+          },
+          {
+            "name": "v4PoolKey",
+            "category": "Business Logic"
+          },
+          {
+            "name": "validateCurrentPoolKey",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "vaultFeeCollectionInterval",
+            "category": "Business Logic"
+          },
+          {
+            "name": "recordAccumulatedFees",
+            "category": "Business Logic"
+          },
+          {
+            "name": "setAlignmentToken",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setDustDistributionThreshold",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setMaxPriceDeviationBps",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setStandardConversionReward",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "setV4PoolKey",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "depositFees",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "CONVERSION_BASE_GAS",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "GAS_PER_BENEFACTOR",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "poolManager",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "weth",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "unlockCallback",
+            "category": "Callbacks/Hooks"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "receiveHookTax",
+            "category": "Callbacks/Hooks"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "FactoryApprovalGovernance",
+      "totalMissing": 22,
+      "byCategory": {
+        "Business Logic": [
+          "applications",
+          "execToken",
+          "enterLameDuck"
+        ],
+        "View/Query Functions": [
+          "getCurrentRound",
+          "getMessage",
+          "getMessagesRange",
+          "getRound",
+          "getVoterDeposit"
+        ],
+        "Public Constants/Variables": [
+          "masterRegistry",
+          "setMasterRegistry"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "Initialization/Upgrade": [
+          "proxiableUUID",
+          "initialize",
+          "upgradeToAndCall"
+        ],
+        "State-Changing Functions": [
+          "setExecToken",
+          "submitApplicationWithApplicant"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "applications",
+            "category": "Business Logic"
+          },
+          {
+            "name": "execToken",
+            "category": "Business Logic"
+          },
+          {
+            "name": "getCurrentRound",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getMessage",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getMessagesRange",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getRound",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getVoterDeposit",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "enterLameDuck",
+            "category": "Business Logic"
+          },
+          {
+            "name": "setExecToken",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "submitApplicationWithApplicant",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "masterRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "setMasterRegistry",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "proxiableUUID",
+            "category": "Initialization/Upgrade"
+          },
+          {
+            "name": "initialize",
+            "category": "Initialization/Upgrade"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "upgradeToAndCall",
+            "category": "Initialization/Upgrade"
+          }
+        ]
+      }
+    },
+    {
+      "contractName": "VaultApprovalGovernance",
+      "totalMissing": 22,
+      "byCategory": {
+        "Business Logic": [
+          "applications",
+          "execToken",
+          "enterLameDuck"
+        ],
+        "View/Query Functions": [
+          "getCurrentRound",
+          "getMessage",
+          "getMessagesRange",
+          "getRound",
+          "getVoterDeposit"
+        ],
+        "Public Constants/Variables": [
+          "masterRegistry",
+          "setMasterRegistry"
+        ],
+        "Ownership/Admin": [
+          "owner",
+          "ownershipHandoverExpiresAt",
+          "cancelOwnershipHandover",
+          "completeOwnershipHandover",
+          "renounceOwnership",
+          "requestOwnershipHandover",
+          "transferOwnership"
+        ],
+        "Initialization/Upgrade": [
+          "proxiableUUID",
+          "initialize",
+          "upgradeToAndCall"
+        ],
+        "State-Changing Functions": [
+          "setExecToken",
+          "submitApplicationWithApplicant"
+        ]
+      },
+      "byPriority": {
+        "HIGH": [
+          {
+            "name": "applications",
+            "category": "Business Logic"
+          },
+          {
+            "name": "execToken",
+            "category": "Business Logic"
+          },
+          {
+            "name": "getCurrentRound",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getMessage",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getMessagesRange",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getRound",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "getVoterDeposit",
+            "category": "View/Query Functions"
+          },
+          {
+            "name": "enterLameDuck",
+            "category": "Business Logic"
+          },
+          {
+            "name": "setExecToken",
+            "category": "State-Changing Functions"
+          },
+          {
+            "name": "submitApplicationWithApplicant",
+            "category": "State-Changing Functions"
+          }
+        ],
+        "MEDIUM": [
+          {
+            "name": "masterRegistry",
+            "category": "Public Constants/Variables"
+          },
+          {
+            "name": "setMasterRegistry",
+            "category": "Public Constants/Variables"
+          }
+        ],
+        "LOW": [
+          {
+            "name": "owner",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "ownershipHandoverExpiresAt",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "proxiableUUID",
+            "category": "Initialization/Upgrade"
+          },
+          {
+            "name": "initialize",
+            "category": "Initialization/Upgrade"
+          },
+          {
+            "name": "cancelOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "completeOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "renounceOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "requestOwnershipHandover",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "transferOwnership",
+            "category": "Ownership/Admin"
+          },
+          {
+            "name": "upgradeToAndCall",
+            "category": "Initialization/Upgrade"
+          }
+        ]
+      }
+    }
+  ]
+}

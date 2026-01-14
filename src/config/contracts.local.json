@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-01-14T12:50:07.563Z",
+  "chainId": 1337,
+  "mode": "local-fork",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "contracts": {
+    "MasterRegistryV1": "0x6e1f48Eb6Ea9d1BEE68682a1E28050d89aE2a688",
+    "GlobalMessageRegistry": "0xF373BeF9a4F9AE4e101349477e348A700Bca90Db",
+    "FeaturedQueueManager": "0x581bfA4906eD4c8dF5A9456FC92b7C533A0d4E14",
+    "ERC404Factory": "0x713c18Ce54248ff3E814C4084f5b562d1f2a6817",
+    "ERC1155Factory": "0x64bFF2E6f09080c44291486A2Ab8B3B9BD73cd80",
+    "UltraAlignmentHookFactory": "0x1760073011246D86F43706d12B0E41d49811072A"
+  },
+  "factories": [
+    {
+      "address": "0x713c18Ce54248ff3E814C4084f5b562d1f2a6817",
+      "type": "ERC404",
+      "title": "ERC404-Bonding-Curve-Factory",
+      "displayTitle": "ERC404 Bonding Curve",
+      "factoryId": 1,
+      "registered": true
+    },
+    {
+      "address": "0x64bFF2E6f09080c44291486A2Ab8B3B9BD73cd80",
+      "type": "ERC1155",
+      "title": "ERC1155-Edition-Factory",
+      "displayTitle": "ERC1155 Editions",
+      "factoryId": 2,
+      "registered": true
+    }
+  ],
+  "vaults": [
+    {
+      "address": "0x28B77Db1Dc758A64aF9568Ee69A9a44d270eE507",
+      "name": "UltraAlignmentVault",
+      "type": "ultra-alignment",
+      "registered": true
+    }
+  ],
+  "instances": {
+    "erc404": [],
+    "erc1155": [
+      {
+        "address": "0xe954B28dd8CF0C879877abF379d1622A298f9CF7",
+        "name": "Demo-Gallery",
+        "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x28B77Db1Dc758A64aF9568Ee69A9a44d270eE507",
+        "editions": [
+          {
+            "id": 1,
+            "name": "Genesis-Piece",
+            "price": "0.01",
+            "maxSupply": 0,
+            "minted": 3
+          },
+          {
+            "id": 2,
+            "name": "Limited-Drop",
+            "price": "0.02",
+            "maxSupply": 100,
+            "minted": 2
+          }
+        ]
+      }
+    ]
+  },
+  "uniswap": {
+    "v4PoolManager": "0x000000000004444c5dc75cB358380D2e3dE08A90",
+    "v4PositionManager": "0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e",
+    "v4Quoter": "0x52F0E24D1c21C8A0cB1e5a5dD6198556BD9E1203",
+    "v3Router": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+    "v3Factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "v2Router": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+    "v2Factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+    "weth": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+  },
+  "tokens": {
+    "exec": "0x185485bF2e26e0Da48149aee0A8032c8c2060Db2"
+  },
+  "testAccounts": {
+    "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "trader": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "collector": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "governance": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+  },
+  "governance": {
+    "dictator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "abdicationInitiated": false,
+    "mode": "dictator"
+  }
+}

@@ -1,7 +1,8 @@
 /**
  * EditionMintInterface Component
- * 
- * Interface for minting editions (quantity selector, mint button).
+ *
+ * Interface for minting editions (quantity selector, mint button, optional message).
+ * Enhanced with live cost calculation and mintWithMessage support.
  */
 
 import { Component } from '../../core/Component.js';
@@ -16,16 +17,41 @@ export class EditionMintInterface extends Component {
         this.state = {
             quantity: 1,
             loading: false,
-            error: null
+            error: null,
+            success: null,
+            liveCost: null,
+            includeMessage: false,
+            message: ''
         };
+    }
+
+    async onMount() {
+        await this.updateLiveCost();
+    }
+
+    async updateLiveCost() {
+        try {
+            const cost = await this.adapter.calculateMintCost(this.edition.id, this.state.quantity);
+            this.setState({ liveCost: cost });
+        } catch (error) {
+            console.error('[EditionMintInterface] Failed to calculate live cost:', error);
+            // Fallback to static calculation
+            this.setState({ liveCost: null });
+        }
     }
 
     render() {
         const price = this.parsePrice(this.edition.price);
-        const totalCost = (price * this.state.quantity).toFixed(4);
-        const isSoldOut = this.edition.maxSupply !== '0' && 
+        const fallbackCost = (price * this.state.quantity).toFixed(4);
+
+        // Use live cost if available, otherwise fallback
+        const totalCost = this.state.liveCost
+            ? this.formatPrice(this.state.liveCost)
+            : fallbackCost;
+
+        const isSoldOut = this.edition.maxSupply !== '0' &&
                          BigInt(this.edition.currentSupply) >= BigInt(this.edition.maxSupply);
-        const maxQuantity = this.edition.maxSupply === '0' 
+        const maxQuantity = this.edition.maxSupply === '0'
             ? 100 // Arbitrary max for unlimited
             : parseInt(this.edition.maxSupply) - parseInt(this.edition.currentSupply);
 
@@ -34,12 +60,15 @@ export class EditionMintInterface extends Component {
                 ${this.state.error ? `
                     <div class="error-message">${this.escapeHtml(this.state.error)}</div>
                 ` : ''}
+                ${this.state.success ? `
+                    <div class="success-message">${this.escapeHtml(this.state.success)}</div>
+                ` : ''}
                 <div class="quantity-selector">
                     <label>Quantity:</label>
-                    <input 
-                        type="number" 
-                        min="1" 
-                        max="${maxQuantity}" 
+                    <input
+                        type="number"
+                        min="1"
+                        max="${maxQuantity}"
                         value="${this.state.quantity}"
                         ref="quantity-input"
                         ${isSoldOut ? 'disabled' : ''}
@@ -48,8 +77,27 @@ export class EditionMintInterface extends Component {
                 <div class="cost-display">
                     <span class="label">Total Cost:</span>
                     <span class="value">${totalCost} ETH</span>
+                    ${this.state.liveCost ? '<span class="live-indicator">(live)</span>' : ''}
                 </div>
-                <button 
+                <div class="message-option">
+                    <label class="message-checkbox-label">
+                        <input
+                            type="checkbox"
+                            ref="message-checkbox"
+                            ${this.state.includeMessage ? 'checked' : ''}
+                        />
+                        <span>Add message (appears in activity feed)</span>
+                    </label>
+                    ${this.state.includeMessage ? `
+                        <textarea
+                            class="message-input"
+                            ref="message-input"
+                            placeholder="Your message (optional)"
+                            maxlength="200"
+                        >${this.escapeHtml(this.state.message)}</textarea>
+                    ` : ''}
+                </div>
+                <button
                     class="mint-button"
                     ref="mint-button"
                     ${isSoldOut || this.state.loading ? 'disabled' : ''}
@@ -75,16 +123,47 @@ export class EditionMintInterface extends Component {
         }
     }
 
+    formatPrice(priceWei) {
+        try {
+            if (typeof window !== 'undefined' && window.ethers) {
+                const priceEth = parseFloat(window.ethers.utils.formatEther(priceWei));
+                return priceEth.toFixed(4);
+            }
+            const priceEth = parseFloat(priceWei) / 1e18;
+            return priceEth.toFixed(4);
+        } catch (error) {
+            const priceEth = parseFloat(priceWei) / 1e18;
+            return priceEth.toFixed(4);
+        }
+    }
+
     setupDOMEventListeners() {
         const quantityInput = this.getRef('quantity-input', 'input[type="number"]');
         if (quantityInput) {
-            quantityInput.addEventListener('input', (e) => {
+            quantityInput.addEventListener('input', async (e) => {
                 const quantity = parseInt(e.target.value) || 1;
-                const maxQuantity = this.edition.maxSupply === '0' 
+                const maxQuantity = this.edition.maxSupply === '0'
                     ? 100
                     : parseInt(this.edition.maxSupply) - parseInt(this.edition.currentSupply);
                 const clampedQuantity = Math.max(1, Math.min(quantity, maxQuantity));
                 this.setState({ quantity: clampedQuantity });
+
+                // Update live cost when quantity changes
+                await this.updateLiveCost();
+            });
+        }
+
+        const messageCheckbox = this.getRef('message-checkbox', 'input[type="checkbox"]');
+        if (messageCheckbox) {
+            messageCheckbox.addEventListener('change', (e) => {
+                this.setState({ includeMessage: e.target.checked });
+            });
+        }
+
+        const messageInput = this.getRef('message-input', '.message-input');
+        if (messageInput) {
+            messageInput.addEventListener('input', (e) => {
+                this.setState({ message: e.target.value });
             });
         }
 
@@ -106,15 +185,32 @@ export class EditionMintInterface extends Component {
 
             // Import ethers dynamically
             const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
-            
-            const price = BigInt(this.edition.price);
-            const totalCost = price * BigInt(this.state.quantity);
 
-            const tx = await this.adapter.mintEdition(
-                this.edition.id,
-                this.state.quantity,
-                totalCost.toString()
-            );
+            // Use live cost if available, otherwise calculate
+            let totalCost;
+            if (this.state.liveCost) {
+                totalCost = this.state.liveCost;
+            } else {
+                const price = BigInt(this.edition.price);
+                totalCost = (price * BigInt(this.state.quantity)).toString();
+            }
+
+            let tx;
+
+            // Use mintWithMessage if message is provided
+            if (this.state.includeMessage && this.state.message.trim()) {
+                tx = await this.adapter.mintWithMessage(
+                    this.edition.id,
+                    this.state.quantity,
+                    this.state.message.trim()
+                );
+            } else {
+                tx = await this.adapter.mintEdition(
+                    this.edition.id,
+                    this.state.quantity,
+                    totalCost
+                );
+            }
 
             // Wait for confirmation (if it's a real transaction)
             if (tx && typeof tx.wait === 'function') {
@@ -125,25 +221,34 @@ export class EditionMintInterface extends Component {
             eventBus.emit('erc1155:mint:success', {
                 editionId: this.edition.id,
                 quantity: this.state.quantity,
+                message: this.state.includeMessage ? this.state.message : null,
                 txHash: tx.transactionHash || 'mock'
             });
 
-            this.setState({ loading: false, quantity: 1, error: null });
+            this.setState({
+                loading: false,
+                quantity: 1,
+                includeMessage: false,
+                message: '',
+                error: null,
+                success: `Successfully minted ${this.state.quantity} edition${this.state.quantity > 1 ? 's' : ''}!`
+            });
 
-            // Refresh parent component
-            if (this._parent && typeof this._parent.loadUserBalance === 'function') {
-                await this._parent.loadUserBalance();
-            }
+            // Clear success message after 5 seconds
+            this.setTimeout(() => {
+                this.setState({ success: null });
+            }, 5000);
 
-            // Reload editions if parent has loadEditions method
-            if (this._parent && this._parent._parent && typeof this._parent._parent.loadEditions === 'function') {
-                await this._parent._parent.loadEditions();
-            }
+            // Update live cost for new quantity
+            await this.updateLiveCost();
+
+            // Note: Don't reload parent components here as it causes unmounting
+            // Parent components should listen for 'erc1155:mint:success' event to update themselves
         } catch (error) {
             console.error('[EditionMintInterface] Mint failed:', error);
-            this.setState({ 
-                loading: false, 
-                error: error.message || 'Minting failed' 
+            this.setState({
+                loading: false,
+                error: error.message || 'Minting failed'
             });
         }
     }
@@ -155,4 +260,3 @@ export class EditionMintInterface extends Component {
         return div.innerHTML;
     }
 }
-

@@ -611,12 +611,28 @@ body:has(#project-discovery-container) {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-5);
-    margin-bottom: var(--section-spacing-md);
     background: var(--bg-elevated);
     padding: var(--spacing-8);
     border-radius: var(--card-border-radius);
     border: var(--border-width-thin) solid var(--border-base);
     box-shadow: var(--shadow-md);
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    transition: all 0.3s ease;
+}
+
+.discovery-controls.expanded {
+    max-height: 500px;
+    opacity: 1;
+    margin-bottom: var(--spacing-6);
+    padding-top: var(--spacing-8);
+    padding-bottom: var(--spacing-8);
+    border-width: var(--border-width-thin);
 }
 
 .search-container,
@@ -817,11 +833,55 @@ body:has(#project-discovery-container) {
     margin-top: 40px;
 }
 
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-6);
+}
+
 .project-count {
     font-size: var(--font-size-body);
     font-family: var(--font-body);
     color: var(--text-muted);
     font-weight: var(--font-weight-normal);
+}
+
+/* Search Toggle Button */
+.search-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: var(--gradient-metallic-raised);
+    border: 2px solid var(--gold-metallic-dark);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+    box-shadow: var(--shadow-metallic-raised);
+}
+
+.search-toggle-btn:hover {
+    background: linear-gradient(160deg,
+        var(--gold-metallic-sheen) 0%,
+        var(--gold-metallic-light) 15%,
+        var(--gold-metallic-base) 40%,
+        var(--gold-metallic-gradient-mid) 60%,
+        var(--gold-metallic-gradient-dark) 85%,
+        var(--gold-metallic-dark) 100%);
+    box-shadow:
+        var(--shadow-metallic-raised),
+        0 0 16px rgba(212, 175, 55, 0.4);
+    transform: scale(1.05);
+}
+
+.search-icon {
+    width: 22px;
+    height: 22px;
+    color: var(--gold-metallic-dark);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
 .projects-grid {

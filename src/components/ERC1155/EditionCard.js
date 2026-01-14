@@ -21,13 +21,21 @@ export class EditionCard extends Component {
         this.state = {
             userBalance: '0',
             loading: false,
-            editionUrl: '#'
+            editionUrl: '#',
+            mintStats: null,
+            pricingInfo: null,
+            currentPrice: null
         };
     }
 
     async onMount() {
-        await this.loadUserBalance();
-        await this.generateEditionURL();
+        await Promise.all([
+            this.loadUserBalance(),
+            this.generateEditionURL(),
+            this.loadMintStats(),
+            this.loadPricingInfo(),
+            this.loadCurrentPrice()
+        ]);
     }
 
     async generateEditionURL() {
@@ -39,49 +47,30 @@ export class EditionCard extends Component {
                 project = await projectRegistry.getProject(this.projectId);
             }
 
-            if (!project) {
-                // Fallback to address-based URL
-                this.setState({ editionUrl: `/project/${this.projectId}/edition/${this.edition.id}` });
-                return;
-            }
+            // Get network info for chainId
+            const { detectNetwork } = await import('../../config/network.js');
+            const network = detectNetwork();
+            const chainId = network.chainId || 1;
 
-            // Get factory data
-            const factoryAddress = project.factoryAddress;
-            if (!factoryAddress) {
-                // Fallback to address-based URL
-                this.setState({ editionUrl: `/project/${this.projectId}/edition/${this.edition.id}` });
-                return;
-            }
+            const instanceName = project?.name || project?.displayName;
+            const pieceTitle = this.edition.pieceTitle || this.edition.metadata?.name || this.edition.metadata?.displayTitle;
 
-            // Try to get factory from mock data
-            if (serviceFactory.isUsingMock()) {
-                const mockManager = serviceFactory.mockManager;
-                if (mockManager) {
-                    const mockData = mockManager.getMockData();
-                    const factory = mockData?.factories?.[factoryAddress];
-                    
-                    if (factory) {
-                        const factoryTitle = factory.title || factory.displayTitle;
-                        const instanceName = project.name || project.displayName;
-                        const pieceTitle = this.edition.metadata?.name || this.edition.metadata?.displayTitle;
-                        
-                        if (factoryTitle && instanceName && pieceTitle) {
-                            const chainId = 1; // Default to Ethereum mainnet
-                            const url = generateProjectURL(factory, project, { title: pieceTitle, displayTitle: pieceTitle }, chainId);
-                            if (url && !url.startsWith('/project/')) {
-                                this.setState({ editionUrl: url });
-                                return;
-                            }
-                        }
-                    }
-                }
+            if (instanceName && pieceTitle) {
+                // Generate simple URL: /:chainId/:instanceName/:pieceTitle
+                const url = generateProjectURL(
+                    null, // no factory
+                    { name: instanceName },
+                    { title: pieceTitle },
+                    chainId
+                );
+                this.setState({ editionUrl: url });
+                return;
             }
 
             // Fallback to address-based URL
             this.setState({ editionUrl: `/project/${this.projectId}/edition/${this.edition.id}` });
         } catch (error) {
-            console.warn('[EditionCard] Failed to generate title-based URL:', error);
-            // Fallback to address-based URL
+            console.warn('[EditionCard] Failed to generate edition URL:', error);
             this.setState({ editionUrl: `/project/${this.projectId}/edition/${this.edition.id}` });
         }
     }
@@ -98,9 +87,36 @@ export class EditionCard extends Component {
         }
     }
 
+    async loadMintStats() {
+        try {
+            const stats = await this.adapter.getMintStats(this.edition.id);
+            this.setState({ mintStats: stats });
+        } catch (error) {
+            console.error('[EditionCard] Failed to load mint stats:', error);
+        }
+    }
+
+    async loadPricingInfo() {
+        try {
+            const pricingInfo = await this.adapter.getPricingInfo(this.edition.id);
+            this.setState({ pricingInfo });
+        } catch (error) {
+            console.error('[EditionCard] Failed to load pricing info:', error);
+        }
+    }
+
+    async loadCurrentPrice() {
+        try {
+            const currentPrice = await this.adapter.getCurrentPrice(this.edition.id);
+            this.setState({ currentPrice });
+        } catch (error) {
+            console.error('[EditionCard] Failed to load current price:', error);
+        }
+    }
+
     render() {
-        const imageUrl = this.edition.metadata?.image || 
-                        this.edition.metadata?.image_url || 
+        const imageUrl = this.edition.metadata?.image ||
+                        this.edition.metadata?.image_url ||
                         '/placeholder-edition.png';
         const name = this.edition.metadata?.name || `Edition #${this.edition.id}`;
         const description = this.edition.metadata?.description || '';
@@ -108,8 +124,13 @@ export class EditionCard extends Component {
         const currentSupply = BigInt(this.edition.currentSupply || '0');
         const maxSupply = BigInt(this.edition.maxSupply || '0');
         const supply = `${this.edition.currentSupply} / ${this.edition.maxSupply === '0' ? '∞' : this.edition.maxSupply}`;
-        const isSoldOut = this.edition.maxSupply !== '0' && 
+        const isSoldOut = this.edition.maxSupply !== '0' &&
                          currentSupply >= maxSupply;
+
+        // Calculate mint stats badge
+        const mintStatsBadge = this.getMintStatsBadge();
+        const supplyStatusBadge = this.getSupplyStatusBadge();
+        const pricingDisplay = this.getPricingDisplay();
 
         return `
             <div class="edition-card marble-bg" data-edition-id="${this.edition.id}">
@@ -117,6 +138,8 @@ export class EditionCard extends Component {
                     <div class="edition-image">
                         ${renderIpfsImage(imageUrl, name, 'edition-card-image', { loading: 'lazy' })}
                         ${isSoldOut ? '<div class="sold-out-badge">Sold Out</div>' : ''}
+                        ${mintStatsBadge}
+                        ${supplyStatusBadge}
                     </div>
                     <div class="edition-info">
                         <h3 class="edition-name">${this.escapeHtml(name)}</h3>
@@ -124,7 +147,7 @@ export class EditionCard extends Component {
                         <div class="edition-stats">
                             <div class="stat">
                                 <span class="stat-label">Price:</span>
-                                <span class="stat-value">${price} ETH</span>
+                                <span class="stat-value">${pricingDisplay}</span>
                             </div>
                             <div class="stat">
                                 <span class="stat-label">Supply:</span>
@@ -144,6 +167,65 @@ export class EditionCard extends Component {
                 </div>
             </div>
         `;
+    }
+
+    getMintStatsBadge() {
+        if (!this.state.mintStats) return '';
+
+        const { minted, maxSupply } = this.state.mintStats;
+        const isUnlimited = maxSupply === '0' || maxSupply === 0;
+
+        if (isUnlimited) {
+            return '<div class="mint-stats-badge unlimited">Unlimited</div>';
+        }
+
+        return `<div class="mint-stats-badge">${minted}/${maxSupply} minted</div>`;
+    }
+
+    getSupplyStatusBadge() {
+        if (!this.state.mintStats) return '';
+
+        const { minted, maxSupply } = this.state.mintStats;
+        const isUnlimited = maxSupply === '0' || maxSupply === 0;
+
+        if (isUnlimited) {
+            return '<div class="supply-status-badge open-edition">Open Edition</div>';
+        }
+
+        const mintedNum = parseInt(minted);
+        const maxNum = parseInt(maxSupply);
+        const percentMinted = (mintedNum / maxNum) * 100;
+
+        if (percentMinted >= 90) {
+            return '<div class="supply-status-badge nearly-sold-out">Nearly Sold Out!</div>';
+        } else if (percentMinted >= 50) {
+            return '<div class="supply-status-badge limited">Limited Edition</div>';
+        }
+
+        return '';
+    }
+
+    getPricingDisplay() {
+        if (!this.state.pricingInfo || !this.state.currentPrice) {
+            // Fallback to base price
+            return `${this.formatPrice(this.edition.price)} ETH`;
+        }
+
+        const { pricingModel } = this.state.pricingInfo;
+        const currentPrice = this.formatPrice(this.state.currentPrice);
+        const basePrice = this.formatPrice(this.edition.price);
+
+        // pricingModel: 0 = fixed, 1 = linear, 2 = exponential
+        if (pricingModel === 0 || pricingModel === '0') {
+            return `${currentPrice} ETH`;
+        }
+
+        // Dynamic pricing
+        if (currentPrice !== basePrice) {
+            return `${basePrice} ETH <span class="price-arrow">→</span> ${currentPrice} ETH`;
+        }
+
+        return `${currentPrice} ETH <span class="price-indicator">(dynamic)</span>`;
     }
 
     formatPrice(priceWei) {

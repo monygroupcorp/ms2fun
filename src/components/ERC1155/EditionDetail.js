@@ -11,6 +11,7 @@ import { AdminButton } from '../AdminButton/AdminButton.js';
 import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
+import { eventBus } from '../../core/EventBus.js';
 
 export class EditionDetail extends Component {
     constructor(projectId, editionId, adapter) {
@@ -29,6 +30,62 @@ export class EditionDetail extends Component {
     async onMount() {
         await this.loadEdition();
         await this.loadUserBalance();
+
+        // Listen for mint success to update supply count
+        this._mintSuccessHandler = this.handleMintSuccess.bind(this);
+        eventBus.on('erc1155:mint:success', this._mintSuccessHandler);
+    }
+
+    onUnmount() {
+        // Clean up event listener
+        if (this._mintSuccessHandler) {
+            eventBus.off('erc1155:mint:success', this._mintSuccessHandler);
+        }
+    }
+
+    async handleMintSuccess(data) {
+        // Only update if this is for our edition (compare as strings)
+        if (data.editionId.toString() !== this.editionId.toString()) {
+            return;
+        }
+
+        // Reload edition data to get updated supply count
+        // Use silent reload by not setting loading state
+        try {
+            const edition = await this.adapter.getEditionInfo(this.editionId);
+            // Update edition without triggering re-render
+            this.state.edition = edition;
+
+            // Manually update the supply display without full re-render
+            const supplyElements = this.element.querySelectorAll('.stat-card .stat-value');
+            if (supplyElements.length >= 2) {
+                const maxSupply = BigInt(edition.maxSupply || '0');
+                const supply = `${edition.currentSupply} / ${edition.maxSupply === '0' ? '∞' : edition.maxSupply}`;
+                supplyElements[1].textContent = supply; // Second stat is supply
+            }
+
+            // Update user balance without triggering re-render
+            const address = walletService.getAddress();
+            if (address) {
+                const balance = await this.adapter.getBalanceForEdition(address, this.editionId);
+                // Update state directly without setState to avoid re-render
+                this.state.userBalance = balance;
+
+                // Manually update the balance display if it exists
+                const statLabels = this.element.querySelectorAll('.stat-card .stat-label');
+                for (let i = 0; i < statLabels.length; i++) {
+                    if (statLabels[i].textContent === 'You Own') {
+                        const valueElement = statLabels[i].nextElementSibling;
+                        if (valueElement) {
+                            valueElement.textContent = balance;
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[EditionDetail] Failed to refresh after mint:', error);
+        }
     }
 
     async loadEdition() {
@@ -201,7 +258,7 @@ export class EditionDetail extends Component {
         if (!this.state.edition) return;
 
         const mintContainer = this.getRef('mint-interface', '.edition-mint-section');
-        if (mintContainer) {
+        if (mintContainer && !this._children.has('mint-interface')) {
             const mintInterface = new EditionMintInterface(this.state.edition, this.adapter);
             const mintElement = document.createElement('div');
             mintContainer.appendChild(mintElement);

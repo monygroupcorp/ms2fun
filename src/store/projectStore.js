@@ -134,7 +134,7 @@ class ProjectStore extends Store {
                 [projectId]: defaultProjectState
             },
             activeProjectId: this.state.activeProjectId || projectId
-        });
+        }, { immediate: true }); // Apply immediately to avoid race condition
 
         // Save to localStorage
         this.saveToLocalStorage();

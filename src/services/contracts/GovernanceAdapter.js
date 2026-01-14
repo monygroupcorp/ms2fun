@@ -631,6 +631,306 @@ class GovernanceAdapter extends ContractAdapter {
     }
 
     // =========================
+    // Public State Variables & Additional View Functions
+    // =========================
+
+    /**
+     * Get application by address (public state variable accessor)
+     * @param {string} subjectAddress - Factory or vault address
+     * @returns {Promise<Object>} Application details
+     */
+    async applications(subjectAddress) {
+        return await this.getCachedOrFetch('applications', [subjectAddress], async () => {
+            const app = await this.executeContractCall('applications', [subjectAddress]);
+            return this._parseApplication(app);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get exec token address
+     * @returns {Promise<string>} Exec token contract address
+     */
+    async execToken() {
+        return await this.getCachedOrFetch('execToken', [], async () => {
+            return await this.executeContractCall('execToken');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get master registry address
+     * @returns {Promise<string>} Master registry contract address
+     */
+    async masterRegistry() {
+        return await this.getCachedOrFetch('masterRegistry', [], async () => {
+            return await this.executeContractCall('masterRegistry');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get current round for subject
+     * @param {string} subjectAddress - Factory or vault address
+     * @returns {Promise<Object>} Current round information
+     */
+    async getCurrentRound(subjectAddress) {
+        return await this.getCachedOrFetch('getCurrentRound', [subjectAddress], async () => {
+            const round = await this.executeContractCall('getCurrentRound', [subjectAddress]);
+            return {
+                roundIndex: parseInt((round.roundIndex || round[0]).toString()),
+                approvalVotes: ethers.utils.formatEther(round.approvalVotes || round[1]),
+                rejectionVotes: ethers.utils.formatEther(round.rejectionVotes || round[2]),
+                startTime: parseInt((round.startTime || round[3]).toString()),
+                endTime: parseInt((round.endTime || round[4]).toString()),
+                isChallenged: round.isChallenged !== undefined ? round.isChallenged : round[5],
+                isFinalized: round.isFinalized !== undefined ? round.isFinalized : round[6]
+            };
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get message by ID
+     * @param {number} messageId - Message ID
+     * @returns {Promise<Object>} Message details
+     */
+    async getMessage(messageId) {
+        return await this.getCachedOrFetch('getMessage', [messageId], async () => {
+            const msg = await this.executeContractCall('getMessage', [messageId]);
+            return this._parseGovernanceMessage(msg);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get messages range
+     * @param {number} startIndex - Start message ID
+     * @param {number} endIndex - End message ID
+     * @returns {Promise<Array>} Array of messages
+     */
+    async getMessagesRange(startIndex, endIndex) {
+        return await this.getCachedOrFetch('getMessagesRange', [startIndex, endIndex], async () => {
+            const messages = await this.executeContractCall('getMessagesRange', [startIndex, endIndex]);
+            return messages.map(msg => this._parseGovernanceMessage(msg));
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get round information
+     * @param {string} subjectAddress - Factory or vault address
+     * @param {number} roundIndex - Round index
+     * @returns {Promise<Object>} Round information
+     */
+    async getRound(subjectAddress, roundIndex) {
+        return await this.getCachedOrFetch('getRound', [subjectAddress, roundIndex], async () => {
+            const round = await this.executeContractCall('getRound', [subjectAddress, roundIndex]);
+            return {
+                roundIndex: parseInt((round.roundIndex || round[0]).toString()),
+                approvalVotes: ethers.utils.formatEther(round.approvalVotes || round[1]),
+                rejectionVotes: ethers.utils.formatEther(round.rejectionVotes || round[2]),
+                startTime: parseInt((round.startTime || round[3]).toString()),
+                endTime: parseInt((round.endTime || round[4]).toString()),
+                isChallenged: round.isChallenged !== undefined ? round.isChallenged : round[5],
+                isFinalized: round.isFinalized !== undefined ? round.isFinalized : round[6]
+            };
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get voter deposit for specific round
+     * @param {string} subjectAddress - Factory or vault address
+     * @param {string} voterAddress - Voter address
+     * @param {number} roundIndex - Round index
+     * @returns {Promise<Object>} Deposit information
+     */
+    async getVoterDeposit(subjectAddress, voterAddress, roundIndex) {
+        return await this.getCachedOrFetch('getVoterDeposit', [subjectAddress, voterAddress, roundIndex], async () => {
+            const deposit = await this.executeContractCall('getVoterDeposit', [subjectAddress, voterAddress, roundIndex]);
+            return {
+                amount: ethers.utils.formatEther(deposit.amount || deposit[0]),
+                approve: deposit.approve !== undefined ? deposit.approve : deposit[1],
+                claimed: deposit.claimed !== undefined ? deposit.claimed : deposit[2]
+            };
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    // =========================
+    // State-Changing Functions (Admin)
+    // =========================
+
+    /**
+     * Enter lame duck period (admin only)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async enterLameDuck() {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'enterLameDuck',
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            const receipt = await this.executeContractCall(
+                'enterLameDuck',
+                [],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'enterLameDuck',
+                receipt,
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('governance', 'lameDuck');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'enterLameDuck',
+                error: this.wrapError(error, 'Failed to enter lame duck period')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set exec token address (admin only)
+     * @param {string} tokenAddress - Exec token contract address
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setExecToken(tokenAddress) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setExecToken',
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            const receipt = await this.executeContractCall(
+                'setExecToken',
+                [tokenAddress],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setExecToken',
+                receipt,
+                tokenAddress,
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('execToken');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setExecToken',
+                error: this.wrapError(error, 'Failed to set exec token')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Set master registry address (admin only)
+     * @param {string} registryAddress - Master registry contract address
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setMasterRegistry(registryAddress) {
+        try {
+            eventBus.emit('transaction:pending', {
+                type: 'setMasterRegistry',
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            const receipt = await this.executeContractCall(
+                'setMasterRegistry',
+                [registryAddress],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'setMasterRegistry',
+                receipt,
+                registryAddress,
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('masterRegistry');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'setMasterRegistry',
+                error: this.wrapError(error, 'Failed to set master registry')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Submit application with explicit applicant (admin only)
+     * @param {string} applicant - Applicant address
+     * @param {Object} params - Application parameters
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async submitApplicationWithApplicant(applicant, params) {
+        try {
+            const {
+                contractAddress,
+                contractType,
+                title,
+                displayTitle,
+                metadataURI,
+                features = [],
+                message = ''
+            } = params;
+
+            // Get application fee
+            const fee = await this.getApplicationFee();
+            const feeWei = ethers.utils.parseEther(fee);
+
+            eventBus.emit('transaction:pending', {
+                type: 'submitApplicationWithApplicant',
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            const receipt = await this.executeContractCall(
+                'submitApplicationWithApplicant',
+                [applicant, contractAddress, contractType, title, displayTitle, metadataURI, features, message],
+                {
+                    requiresSigner: true,
+                    txOptions: { value: feeWei }
+                }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'submitApplicationWithApplicant',
+                receipt,
+                applicant,
+                contractAddress: this.contractAddress,
+                governanceType: this.governanceType
+            });
+
+            // Invalidate cache
+            contractCache.invalidateByPattern('application', 'governance');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'submitApplicationWithApplicant',
+                error: this.wrapError(error, 'Application submission with applicant failed')
+            });
+            throw error;
+        }
+    }
+
+    // =========================
     // Helper Methods
     // =========================
 

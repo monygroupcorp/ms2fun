@@ -1,0 +1,290 @@
+/* RecentActivityWidget - Shows last 5 protocol-wide messages */
+
+.recent-activity-widget {
+    background: linear-gradient(135deg, rgba(139, 69, 19, 0.3), rgba(101, 67, 33, 0.3));
+    border: 2px solid rgba(218, 165, 32, 0.4);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+/* Widget Header */
+.recent-activity-widget .widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.recent-activity-widget .widget-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: rgba(218, 165, 32, 0.95);
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Refresh Button */
+.recent-activity-widget .refresh-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(218, 165, 32, 0.3);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 0;
+}
+
+.recent-activity-widget .refresh-btn:hover:not(:disabled) {
+    background: rgba(218, 165, 32, 0.2);
+    border-color: rgba(218, 165, 32, 0.6);
+    transform: rotate(90deg);
+}
+
+.recent-activity-widget .refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.recent-activity-widget .refresh-icon {
+    width: 20px;
+    height: 20px;
+    color: rgba(218, 165, 32, 0.9);
+}
+
+.recent-activity-widget .refresh-icon.spinning {
+    animation: activity-spin 0.8s linear infinite;
+}
+
+/* Widget Content */
+.recent-activity-widget .widget-content {
+    min-height: 200px;
+}
+
+/* Message List */
+.recent-activity-widget .message-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Message Row - Compact horizontal layout */
+.recent-activity-widget .message-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(218, 165, 32, 0.15);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.recent-activity-widget .message-row:hover {
+    background: rgba(218, 165, 32, 0.1);
+    border-color: rgba(218, 165, 32, 0.4);
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(218, 165, 32, 0.2);
+}
+
+/* Wallet Address */
+.recent-activity-widget .message-wallet {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: rgba(218, 165, 32, 0.9);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Separator */
+.recent-activity-widget .message-separator {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.75rem;
+}
+
+/* Action */
+.recent-activity-widget .message-action {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+    text-transform: lowercase;
+    white-space: nowrap;
+}
+
+/* Message Text */
+.recent-activity-widget .message-text {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.85);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Time */
+.recent-activity-widget .message-time {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+    white-space: nowrap;
+}
+
+/* Widget Footer */
+.recent-activity-widget .widget-footer {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(218, 165, 32, 0.2);
+}
+
+.recent-activity-widget .view-all-btn {
+    width: 100%;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, rgba(139, 69, 19, 0.6), rgba(101, 67, 33, 0.6));
+    border: 2px solid rgba(218, 165, 32, 0.4);
+    border-radius: 8px;
+    color: rgba(218, 165, 32, 0.95);
+    font-family: 'Cinzel', serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.recent-activity-widget .view-all-btn:hover {
+    background: linear-gradient(135deg, rgba(160, 82, 45, 0.7), rgba(120, 80, 50, 0.7));
+    border-color: rgba(218, 165, 32, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(218, 165, 32, 0.3);
+}
+
+/* Loading State */
+.recent-activity-widget .widget-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: 1rem;
+}
+
+.recent-activity-widget .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(218, 165, 32, 0.3);
+    border-top-color: rgba(218, 165, 32, 0.9);
+    border-radius: 50%;
+    animation: activity-spin 0.8s linear infinite;
+}
+
+@keyframes activity-spin {
+    to { transform: rotate(360deg); }
+}
+
+.recent-activity-widget .widget-loading p {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+}
+
+/* Error State */
+.recent-activity-widget .widget-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.recent-activity-widget .widget-error p {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(255, 99, 71, 0.9);
+    margin: 0;
+}
+
+/* Empty State */
+.recent-activity-widget .widget-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.recent-activity-widget .widget-empty p {
+    font-family: 'Lato', sans-serif;
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .recent-activity-widget {
+        padding: 1rem;
+    }
+
+    .recent-activity-widget .widget-title {
+        font-size: 1.25rem;
+    }
+
+    .recent-activity-widget .message-row {
+        padding: 0.5rem 0.75rem;
+        gap: 0.375rem;
+    }
+
+    .recent-activity-widget .message-wallet {
+        font-size: 0.7rem;
+    }
+
+    .recent-activity-widget .message-action {
+        font-size: 0.7rem;
+    }
+
+    .recent-activity-widget .message-text {
+        font-size: 0.7rem;
+    }
+
+    .recent-activity-widget .message-time {
+        font-size: 0.65rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Stack layout for very small screens */
+    .recent-activity-widget .message-row {
+        flex-wrap: wrap;
+        padding: 0.5rem;
+    }
+
+    .recent-activity-widget .message-separator {
+        display: none;
+    }
+
+    .recent-activity-widget .message-wallet,
+    .recent-activity-widget .message-action {
+        font-size: 0.65rem;
+    }
+
+    .recent-activity-widget .message-text {
+        font-size: 0.7rem;
+        flex-basis: 100%;
+        margin-top: 0.25rem;
+    }
+
+    .recent-activity-widget .message-time {
+        font-size: 0.625rem;
+        margin-left: auto;
+    }
+}

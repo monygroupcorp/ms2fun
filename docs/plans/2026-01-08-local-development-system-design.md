@@ -660,6 +660,69 @@ Or manually:
 - ✅ Can run `npm run dev` and connect to Anvil
 - ✅ Adapters can read ABIs from `contracts/out/`
 
+**Status:** ✅ **COMPLETE** (2026-01-12)
+- Replaced forge script with ethers.js direct deployment (`scripts/deploy-local.mjs`)
+- Added `--code-size-limit 100000` to Anvil for 60KB MasterRegistryV1
+- Core contracts deployed and verified
+- Frontend running with mock data (temporary)
+
+---
+
+### Phase 1.5: MVP Contract Deployment 🚧 **NEXT**
+
+**Goal:** Deploy minimal contracts to implement real services and show actual data
+
+**Critical Blocker Identified:** 🚨
+The governance system blocks factory/vault registration during MVP testing. We need **authoritarian control** (owner-only bypass) for the bootstrap phase before transitioning to governance.
+
+**Contract Changes Required:**
+1. Add owner bypass to `MasterRegistryV1.registerFactory()`
+2. Add owner bypass to `MasterRegistryV1.registerVault()`
+3. Add time-lock or flag to enable governance after "first 100 days"
+4. Document in contracts repo: bootstrap mode vs governance mode
+
+**Once Contracts Updated:**
+
+**MVP Deployment Strategy:**
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Factory Priority** | ERC1155Factory only | Simpler than ERC404, proves the system works |
+| **Test Instances** | 1 instance | Minimal - just need to show real data loading |
+| **Vault Deployment** | Yes, deploy 1 vault | Tricky but necessary to test full flow |
+| **EXEC Token** | Keep deployer placeholder | Avoid governance complexity for MVP |
+| **Seeding Level** | Minimal | Just creation, maybe 1-2 mints |
+
+**Tasks:**
+1. 🚨 **BLOCKER:** Refactor contracts for authoritarian bootstrap control
+2. Update submodule to refactored contracts
+3. Rebuild contracts (`cd contracts && forge build`)
+4. Create `scripts/deploy-mvp.mjs`:
+   - Deploy ERC1155Factory
+   - Owner registers factory (bypass governance)
+   - Deploy 1 UltraAlignmentVault
+   - Owner registers vault (bypass governance)
+   - Create 1 ERC1155 instance
+   - Mint 1-2 NFTs to test accounts
+5. Implement real services:
+   - `ProjectRegistry` - Query MasterRegistry for instances
+   - `MasterService` - Query MasterRegistry contract
+   - `FactoryService` - Query factory contracts
+6. Set `FORCE_MOCK_MODE_UNTIL_SERVICES_READY = false` in `src/config.js`
+7. Test frontend shows real data
+
+**Success Criteria:**
+- ✅ Owner can register factories without governance voting
+- ✅ Owner can register vaults without governance voting
+- ✅ 1 ERC1155 instance deployed and registered
+- ✅ Frontend loads real data from contracts
+- ✅ Can see the instance in project discovery
+- ✅ Can view instance details page
+
+**Status:** ⏸️ **BLOCKED** - Waiting on contracts refactor for authoritarian control
+
+---
+
 ### Phase 2: Seed Data (Representative)
 
 **Goal:** Populate chain with representative test data

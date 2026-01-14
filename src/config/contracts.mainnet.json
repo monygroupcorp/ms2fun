@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-01-12T00:00:00Z",
+  "chainId": 1,
+  "mode": "mainnet",
+  "contracts": {
+    "MasterRegistryV1": "0x0000000000000000000000000000000000000000",
+    "GlobalMessageRegistry": "0x0000000000000000000000000000000000000000",
+    "FactoryApprovalGovernance": "0x0000000000000000000000000000000000000000",
+    "VaultApprovalGovernance": "0x0000000000000000000000000000000000000000",
+    "ERC404Factory": "0x0000000000000000000000000000000000000000",
+    "ERC1155Factory": "0x0000000000000000000000000000000000000000",
+    "UltraAlignmentVault": "0x0000000000000000000000000000000000000000",
+    "UltraAlignmentHookFactory": "0x0000000000000000000000000000000000000000"
+  },
+  "instances": {
+    "erc404": [],
+    "erc1155": []
+  },
+  "vaults": [],
+  "testAccounts": {},
+  "_comment": "This file contains mainnet contract addresses. Update these addresses after deploying contracts to Ethereum mainnet. Zero addresses are placeholders."
+}

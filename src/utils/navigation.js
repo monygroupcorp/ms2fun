@@ -27,31 +27,36 @@ export function slugify(text) {
  * @returns {string|null} URL path or null if data insufficient
  */
 export function generateProjectURL(factory, instance, piece = null, chainId = 1) {
-    if (!factory || !instance) {
+    if (!instance) {
         return null;
     }
 
-    const factoryTitle = factory.title || factory.displayTitle;
     const instanceName = instance.name || instance.displayName;
 
-    if (!factoryTitle || !instanceName) {
-        // Fallback to address-based if titles not available
+    if (!instanceName) {
+        // Fallback to address-based if name not available
         return `/project/${instance.address}`;
     }
 
     const chainIdStr = String(chainId || 1);
-    const factorySlug = slugify(factoryTitle);
     const instanceSlug = slugify(instanceName);
 
     if (piece) {
         const pieceTitle = piece.title || piece.displayTitle;
         if (pieceTitle) {
             const pieceSlug = slugify(pieceTitle);
-            return `/${chainIdStr}/${factorySlug}/${instanceSlug}/${pieceSlug}`;
+            // If factory is provided, use 4-part URL, otherwise 3-part
+            if (factory && (factory.title || factory.displayTitle)) {
+                const factorySlug = slugify(factory.title || factory.displayTitle);
+                return `/${chainIdStr}/${factorySlug}/${instanceSlug}/${pieceSlug}`;
+            }
+            // Simple 3-part format for piece: /:chainId/:instanceName/:pieceTitle
+            return `/${chainIdStr}/${instanceSlug}/${pieceSlug}`;
         }
     }
 
-    return `/${chainIdStr}/${factorySlug}/${instanceSlug}`;
+    // Simple format: /:chainId/:instanceName
+    return `/${chainIdStr}/${instanceSlug}`;
 }
 
 /**

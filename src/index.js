@@ -6,6 +6,9 @@ import { renderHomePage } from './routes/HomePage.js';
 import { renderCultExecsPage } from './routes/CultExecsPage.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
+import { FloatingWalletButton } from './components/FloatingWalletButton/FloatingWalletButton.js';
+import stylesheetLoader from './utils/stylesheetLoader.js';
+import contractReloadService from './services/ContractReloadService.js';
 
 // Add performance markers for monitoring
 performance.mark('startApp');
@@ -43,11 +46,13 @@ async function initializeApp() {
         // Initialize router
         const router = new Router();
         window.router = router; // Make router globally available
-        
+
+        // Expose serviceFactory globally for debugging
+        window.serviceFactory = serviceFactory;
+
         // Expose mock system test globally for console testing
         if (serviceFactory.isUsingMock()) {
             window.testMockSystem = testMockSystem;
-            window.serviceFactory = serviceFactory;
             console.log('💡 Mock system loaded! Run testMockSystem() in the console to test.');
         }
         
@@ -64,30 +69,60 @@ async function initializeApp() {
         });
         
         // Register dynamic routes (order matters - more specific first)
-        // Edition detail route (most specific - must come before /project/:id)
-        router.on('/project/:projectId/edition/:editionId', async (params) => {
-            const { renderEditionDetail } = await import('./routes/EditionDetail.js');
-            return renderEditionDetail(params);
-        });
-        
-        // Triple-level route for ERC1155 pieces with chain ID
-        router.on('/:chainId/:factoryTitle/:instanceName/:pieceTitle', async (params) => {
-            const { renderPieceDetail } = await import('./routes/PieceDetail.js');
-            return renderPieceDetail(params);
-        });
-        
+
         // Create route with chain ID and factory title (new format)
         router.on('/:chainId/:factoryTitle/create', async (params) => {
             const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
             return renderProjectCreation(params);
         });
-        
-        // Double-level route for projects with chain ID (less specific)
-        router.on('/:chainId/:factoryTitle/:instanceName', async (params) => {
+
+        // Three-part route - could be either project or edition
+        // /:chainId/:factoryTitle/:instanceName (project with factory)
+        // /:chainId/:instanceName/:pieceTitle (edition)
+        router.on('/:chainId/:param1/:param2', async (params) => {
+            // Try to load config to check if param1 is a factory
+            try {
+                const configResponse = await fetch('/src/config/contracts.local.json');
+                if (configResponse.ok) {
+                    const config = await configResponse.json();
+                    const slugify = (text) => {
+                        if (!text) return '';
+                        return text.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                    };
+
+                    const factory = config.factories?.find(f =>
+                        slugify(f.title) === slugify(params.param1)
+                    );
+
+                    if (factory) {
+                        // It's a factory title, so render project detail
+                        const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
+                        return renderProjectDetail({
+                            chainId: params.chainId,
+                            factoryTitle: params.param1,
+                            instanceName: params.param2
+                        });
+                    }
+                }
+            } catch (error) {
+                console.warn('[Router] Failed to check factory config:', error);
+            }
+
+            // Not a factory, so treat as edition detail
+            const { renderEditionDetail } = await import('./routes/EditionDetail.js');
+            return renderEditionDetail({
+                chainId: params.chainId,
+                instanceName: params.param1,
+                pieceTitle: params.param2
+            });
+        });
+
+        // Two-part route for projects without factory (simpler format)
+        router.on('/:chainId/:instanceName', async (params) => {
             const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
             return renderProjectDetail(params);
         });
-        
+
         // Address-based route for backward compatibility
         router.on('/project/:id', async (params) => {
             const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
@@ -145,9 +180,12 @@ async function initializeApp() {
         
         // Start the router
         await router.start();
-        
+
         console.log('Router initialized successfully');
-        
+
+        // Add FloatingWalletButton globally (appears on all pages)
+        initializeFloatingWalletButton();
+
         // Mark body as ready to show content (removes loading overlay)
         document.body.classList.add('app-ready');
         
@@ -165,7 +203,7 @@ async function initializeApp() {
 async function initializeServices() {
     try {
         console.log('Initializing services...');
-        
+
         // Check if wallet service is already initialized
         if (!walletService.isInitialized) {
             // Initialize wallet service
@@ -174,14 +212,47 @@ async function initializeServices() {
         } else {
             console.log('Wallet service already initialized');
         }
-        
+
+        // Start contract reload service (local dev only)
+        contractReloadService.start();
+
         // Read-only mode is now lazy-loaded only when user clicks "Continue" on splash screen
         // No auto-initialization here
-        
+
         return true;
     } catch (error) {
         console.error('Service initialization error:', error);
         throw error;
+    }
+}
+
+/**
+ * Initialize FloatingWalletButton globally
+ * This button appears on all pages and provides wallet connection + power user menu
+ */
+function initializeFloatingWalletButton() {
+    try {
+        // Load stylesheet
+        stylesheetLoader.load(
+            'src/components/FloatingWalletButton/FloatingWalletButton.css',
+            'floating-wallet-button-styles'
+        );
+
+        // Create container for FloatingWalletButton
+        const floatingWalletContainer = document.createElement('div');
+        floatingWalletContainer.id = 'floating-wallet-container-global';
+        document.body.appendChild(floatingWalletContainer);
+
+        // Mount FloatingWalletButton
+        const floatingWalletButton = new FloatingWalletButton();
+        floatingWalletButton.mount(floatingWalletContainer);
+
+        // Store globally for potential cleanup
+        window.floatingWalletButton = floatingWalletButton;
+
+        console.log('FloatingWalletButton initialized globally');
+    } catch (error) {
+        console.error('Failed to initialize FloatingWalletButton:', error);
     }
 }
 

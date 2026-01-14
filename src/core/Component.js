@@ -602,7 +602,7 @@ export class Component {
      */
     getRef(name, selector) {
         if (!this.element) return null;
-        
+
         // Check cache first
         if (this._refs.has(name)) {
             const cached = this._refs.get(name);
@@ -613,14 +613,28 @@ export class Component {
             // Stale reference, remove from cache
             this._refs.delete(name);
         }
-        
+
         // Query DOM if not cached
         const element = this.element.querySelector(selector);
         if (element) {
             this._refs.set(name, element);
         }
-        
+
         return element;
+    }
+
+    /**
+     * Get multiple elements by selector (no caching for collections)
+     * @param {string} selector - CSS selector to find elements
+     * @returns {Array<HTMLElement>} - Array of matching elements (empty array if none found)
+     */
+    getRefs(selector) {
+        if (!this.element) {
+            console.warn(`[Component] getRefs called on ${this.constructor.name} before element exists`);
+            return [];
+        }
+        // Convert NodeList to Array for easier manipulation
+        return Array.from(this.element.querySelectorAll(selector));
     }
 
     /**

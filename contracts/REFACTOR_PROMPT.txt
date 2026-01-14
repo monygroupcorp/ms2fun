@@ -1,0 +1,22 @@
+The MasterRegistryV1 contract is too large to deploy on mainnet:
+- Current: 60,096 bytes
+- Limit: 24,576 bytes
+- Overage: 144% over limit
+
+Please refactor src/master/MasterRegistryV1.sol to reduce its size below the 24KB limit while preserving all functionality.
+
+Key requirements:
+1. Keep all existing functionality (factory registry, vault management, governance deployment)
+2. Maintain interface compatibility for frontend integration
+3. Preserve proxy pattern upgradability
+4. Ensure all tests still pass
+
+Suggested approach:
+- Extract governance deployment logic into a separate helper contract
+- Consider splitting into modules (Core, Factory, Vault logic)
+- Use libraries for complex operations
+- Replace long error strings with custom errors
+
+Full specification: See CONTRACT_SIZE_REFACTOR_TASK.md
+
+Please analyze the contract and propose a refactoring plan, then implement it.

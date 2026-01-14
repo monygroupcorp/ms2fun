@@ -19,7 +19,6 @@ export class ProjectDiscovery extends Component {
         this.state = {
             projects: [],
             filteredProjects: [],
-            featuredProjects: [],
             searchQuery: '',
             filters: {
                 type: 'all',
@@ -29,7 +28,8 @@ export class ProjectDiscovery extends Component {
             },
             loading: true,
             error: null,
-            factories: []
+            factories: [],
+            controlsExpanded: false
         };
     }
 
@@ -44,13 +44,7 @@ export class ProjectDiscovery extends Component {
                 this.updateProjectCardsContainer(newState.filteredProjects);
             });
         }
-        
-        // Update featured projects using granular DOM updates
-        if (oldState.featuredProjects !== newState.featuredProjects) {
-            requestAnimationFrame(() => {
-                this.updateFeaturedCardsContainer(newState.featuredProjects);
-            });
-        }
+        // Note: No need to re-setup controls on state change - update() handles it
     }
 
     /**
@@ -97,14 +91,8 @@ export class ProjectDiscovery extends Component {
                 factories.push({ address, type });
             }
 
-            // Find featured projects (excluding CULT EXEC since it's hardcoded)
-            const featuredProjects = filteredProjects.filter(p => 
-                p.name.toLowerCase().includes('featured')
-            );
-
             this.setState({
                 projects: filteredProjects, // Store filtered projects (no CULT EXEC from mock data)
-                featuredProjects,
                 factories,
                 loading: false
             });
@@ -145,78 +133,68 @@ export class ProjectDiscovery extends Component {
 
         return `
             <div class="project-discovery">
-                <div class="hero-plaque-section">
-                    <div class="hero-plaque">
-                        <h1 class="hero-title">MS2.FUN LAUNCHPAD</h1>
-                        <p class="hero-subtitle">A curated platform for Web3 project discovery and interaction</p>
-                        <div class="hero-buttons">
-                            <a href="/factories" class="cta-button launch-own-button" data-ref="launch-button">
-                                Establish Your Project
-                            </a>
-                            <a href="/about" class="cta-button about-button" data-ref="about-button">
-                                Documentation
-                            </a>
-                        </div>
-                    </div>
-                    <div class="scroll-indicator" data-ref="scroll-indicator">
-                        <svg class="scroll-chevron" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
-                </div>
-
                 <div class="discovery-content">
-                    <div class="discovery-controls" data-ref="controls-container">
-                        <!-- ProjectSearch and ProjectFilters will be mounted here -->
-                    </div>
+                    <div class="projects-section">
+                        <div class="section-header">
+                            <h2 class="section-title">
+                                Projects
+                                ${this.state.filteredProjects.length > 0 ? `
+                                    <span class="project-count">(${this.state.filteredProjects.length})</span>
+                                ` : ''}
+                            </h2>
+                            <button class="search-toggle-btn" data-ref="search-toggle-btn" title="Search & Filter Projects">
+                                <svg class="search-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </button>
+                        </div>
 
-                ${this.state.featuredProjects.length > 0 ? `
-                    <div class="featured-section">
-                        <h2 class="section-title">Featured Projects</h2>
-                        <div class="featured-grid" data-ref="featured-container">
-                            <!-- Featured project cards will be mounted here -->
+                        <div class="discovery-controls ${this.state.controlsExpanded ? 'expanded' : ''}" data-ref="controls-container">
+                            <!-- ProjectSearch and ProjectFilters will be mounted here -->
                         </div>
-                    </div>
-                ` : ''}
 
-                <div class="projects-section">
-                    <h2 class="section-title">
-                        All Projects 
-                        ${this.state.filteredProjects.length > 0 ? `
-                            <span class="project-count">(${this.state.filteredProjects.length})</span>
-                        ` : ''}
-                    </h2>
-                    ${this.state.filteredProjects.length === 0 ? `
-                        <div class="empty-state">
-                            <p>No projects found matching the specified criteria.</p>
-                            <button class="clear-filters-button" data-ref="clear-all-button">Clear Filters</button>
-                        </div>
-                    ` : `
-                        <div class="projects-grid ${this.state.filters.viewMode}" data-ref="projects-container">
-                            <!-- Project cards will be mounted here -->
-                        </div>
-                    `}
+                        ${this.state.filteredProjects.length === 0 ? `
+                            <div class="empty-state">
+                                <p>No projects found matching the specified criteria.</p>
+                                <button class="clear-filters-button" data-ref="clear-all-button">Clear Filters</button>
+                            </div>
+                        ` : `
+                            <div class="projects-grid ${this.state.filters.viewMode}" data-ref="projects-container">
+                                <!-- Project cards will be mounted here -->
+                            </div>
+                        `}
+                    </div>
                 </div>
-                </div>
-                
-                <footer class="site-footer">
-                    <nav class="footer-nav">
-                        <a href="/" class="footer-link" data-ref="footer-home">Home</a>
-                        <a href="/factories" class="footer-link" data-ref="footer-factories">Factories</a>
-                        <a href="/about" class="footer-link" data-ref="footer-about">About</a>
-                    </nav>
-                </footer>
             </div>
         `;
     }
 
     mount(element) {
         super.mount(element);
+
+        // Use event delegation on the root element for the search toggle button
+        // This way we don't care if the button gets replaced during re-renders
+        this.element.addEventListener('click', (e) => {
+            const searchToggleBtn = e.target.closest('.search-toggle-btn');
+            if (searchToggleBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleSearchToggle();
+            }
+        });
+
         // Setup child components after DOM is ready
-        // Use setTimeout to ensure render() has completed
         this.setTimeout(() => {
-            this.setupChildComponents();
             this.setupDOMEventListeners();
+            this.setupProjectCards();
+            this.setupControlsComponents();
+
+            // Ensure controls have correct initial state
+            const controlsContainer = this.getRef('controls-container', '.discovery-controls');
+            if (controlsContainer && !this.state.controlsExpanded) {
+                controlsContainer.classList.remove('expanded');
+            }
         }, 0);
     }
 
@@ -228,17 +206,21 @@ export class ProjectDiscovery extends Component {
     update() {
         // Save focus and scroll state before update
         this._domUpdater.saveState(this.element);
-        
+
         // Call parent update first
         super.update();
-        
+
         // Re-setup child components after DOM is updated
         // Use setTimeout to ensure DOM is fully updated
         this.setTimeout(() => {
             // Only re-setup if component is still mounted
             if (this.mounted && this.element) {
-                this.setupChildComponents();
-                
+                // Always setup project cards
+                this.setupProjectCards();
+
+                // Always setup controls (container is always in DOM, CSS handles visibility)
+                this.setupControlsComponents();
+
                 // Restore focus and scroll state after child components are set up
                 // This ensures focus is restored even if components were recreated
                 this._domUpdater.restoreState(this.element);
@@ -246,9 +228,9 @@ export class ProjectDiscovery extends Component {
         }, 0);
     }
 
-    setupChildComponents() {
+    setupControlsComponents() {
         const controlsContainer = this.getRef('controls-container', '.discovery-controls');
-        
+
         if (!controlsContainer) {
             // Controls container not ready yet, skip
             return;
@@ -391,10 +373,9 @@ export class ProjectDiscovery extends Component {
         if (filtersComponent && typeof filtersComponent.setFactories === 'function') {
             filtersComponent.setFactories(this.state.factories);
         }
+    }
 
-        // Mount featured projects
-        this.mountProjectCards('featured', this.state.featuredProjects, 'featured-container');
-
+    setupProjectCards() {
         // Mount regular projects
         this.mountProjectCards('projects', this.state.filteredProjects, 'projects-container');
     }
@@ -765,36 +746,37 @@ export class ProjectDiscovery extends Component {
             let path = null;
             try {
                 const factoryAddress = project.factoryAddress;
-                if (factoryAddress && serviceFactory.isUsingMock()) {
-                    const mockManager = serviceFactory.mockManager;
-                    if (mockManager) {
-                        const mockData = mockManager.getMockData();
-                        const factory = mockData?.factories?.[factoryAddress];
-                        
-                        // Check for factory title (can be title or displayTitle)
-                        const factoryTitle = factory?.title || factory?.displayTitle;
-                        // Check for project name (can be name, displayName, or title)
-                        const projectName = project.name || project.displayName || project.title;
-                        
-                        if (factory && factoryTitle && projectName) {
-                            const chainId = 1; // Default to Ethereum mainnet
+                const projectName = project.name || project.displayName || project.title;
+
+                if (factoryAddress && projectName) {
+                    // Load contract config to get factory title
+                    const { detectNetwork } = await import('../../config/network.js');
+                    const network = detectNetwork();
+                    const chainId = network.chainId || 1;
+
+                    const configResponse = await fetch('/src/config/contracts.local.json');
+                    if (configResponse.ok) {
+                        const config = await configResponse.json();
+                        const factory = config.factories?.find(f =>
+                            f.address.toLowerCase() === factoryAddress.toLowerCase()
+                        );
+
+                        if (factory && factory.title) {
                             const { generateProjectURL } = await import('../../utils/navigation.js');
-                            path = generateProjectURL(factory, project, null, chainId);
-                            
-                            // Only use if path was successfully generated (not fallback)
-                            if (path && path.startsWith('/project/')) {
-                                // Path generation fell back to address-based, try again with explicit fields
-                                const factorySlug = factoryTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                                const instanceSlug = projectName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                                if (factorySlug && instanceSlug) {
-                                    path = `/1/${factorySlug}/${instanceSlug}`;
-                                }
-                            }
+                            path = generateProjectURL(
+                                { title: factory.title },
+                                { name: projectName, address: project.address },
+                                null,
+                                chainId
+                            );
+                            console.log('[ProjectDiscovery] Generated name-based URL:', path);
+                        } else {
+                            console.warn('[ProjectDiscovery] Factory not found in config:', factoryAddress);
                         }
                     }
                 }
             } catch (error) {
-                console.warn('Failed to generate title-based URL:', error);
+                console.warn('[ProjectDiscovery] Failed to generate name-based URL:', error);
             }
 
             // Fallback to address-based URL
@@ -866,9 +848,6 @@ export class ProjectDiscovery extends Component {
     setupDOMEventListeners() {
         const retryButton = this.getRef('retry-button', '.retry-button');
         const clearAllButton = this.getRef('clear-all-button', '.clear-filters-button');
-        const launchButton = this.getRef('launch-button', '.launch-own-button');
-        const aboutButton = this.getRef('about-button', '.about-button');
-        const scrollIndicator = this.getRef('scroll-indicator', '.scroll-indicator');
 
         if (retryButton) {
             retryButton.addEventListener('click', () => {
@@ -890,74 +869,25 @@ export class ProjectDiscovery extends Component {
             });
         }
 
-        if (scrollIndicator) {
-            scrollIndicator.addEventListener('click', () => {
-                const discoveryContent = this.element?.querySelector('.discovery-content');
-                if (discoveryContent && this.element) {
-                    // Scroll the project-discovery container to reveal discovery-content
-                    discoveryContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            });
-        }
+        // Note: Search toggle button uses event delegation in mount() - no need to attach here
+    }
 
-        if (launchButton) {
-            launchButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/factories');
-                } else {
-                    window.location.href = '/factories';
-                }
-            });
-        }
+    handleSearchToggle() {
+        console.log('[ProjectDiscovery] Search toggle clicked, current state:', this.state.controlsExpanded);
+        const newExpanded = !this.state.controlsExpanded;
+        this.setState({ controlsExpanded: newExpanded });
 
-        if (aboutButton) {
-            aboutButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/about');
-                } else {
-                    window.location.href = '/about';
-                }
-            });
-        }
-
-        // Setup footer navigation links
-        const footerHome = this.getRef('footer-home', '[data-ref="footer-home"]');
-        const footerFactories = this.getRef('footer-factories', '[data-ref="footer-factories"]');
-        const footerAbout = this.getRef('footer-about', '[data-ref="footer-about"]');
-
-        if (footerHome) {
-            footerHome.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/');
-                } else {
-                    window.location.href = '/';
-                }
-            });
-        }
-
-        if (footerFactories) {
-            footerFactories.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/factories');
-                } else {
-                    window.location.href = '/factories';
-                }
-            });
-        }
-
-        if (footerAbout) {
-            footerAbout.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/about');
-                } else {
-                    window.location.href = '/about';
-                }
-            });
+        // Directly toggle the class for immediate visual feedback
+        const controlsContainer = this.getRef('controls-container', '.discovery-controls');
+        console.log('[ProjectDiscovery] Controls container found:', !!controlsContainer);
+        if (controlsContainer) {
+            if (newExpanded) {
+                console.log('[ProjectDiscovery] Adding expanded class');
+                controlsContainer.classList.add('expanded');
+            } else {
+                console.log('[ProjectDiscovery] Removing expanded class');
+                controlsContainer.classList.remove('expanded');
+            }
         }
     }
 

@@ -398,6 +398,69 @@ class WalletService {
     }
     
     /**
+     * Add a network to the wallet
+     * @param {number} networkId - The network ID to add
+     */
+    async addNetwork(networkId) {
+        const networkConfigs = {
+            1337: {
+                chainId: '0x539',
+                chainName: 'Anvil Local',
+                nativeCurrency: {
+                    name: 'Ethereum',
+                    symbol: 'ETH',
+                    decimals: 18
+                },
+                rpcUrls: ['http://127.0.0.1:8545'],
+                blockExplorerUrls: null
+            }
+        };
+
+        const config = networkConfigs[networkId];
+        if (!config) {
+            throw new Error(`Network configuration not found for chainId ${networkId}`);
+        }
+
+        await this.provider.request({
+            method: 'wallet_addEthereumChain',
+            params: [config],
+        });
+    }
+
+    /**
+     * Ensure wallet is on the correct network (from config)
+     * @returns {Promise<boolean>} True if on correct network or successfully switched
+     */
+    async ensureCorrectNetwork() {
+        try {
+            if (!this.provider || !this.ethersProvider) {
+                throw new Error('No wallet connected');
+            }
+
+            // Get expected network from config
+            const { detectNetwork } = await import('../config/network.js');
+            const expectedNetwork = detectNetwork();
+            const expectedChainId = expectedNetwork.chainId;
+
+            // Get current network from wallet
+            const currentNetwork = await this.ethersProvider.getNetwork();
+            const currentChainId = currentNetwork.chainId;
+
+            if (currentChainId === expectedChainId) {
+                return true; // Already on correct network
+            }
+
+            // Prompt user to switch
+            console.log(`Wrong network detected. Current: ${currentChainId}, Expected: ${expectedChainId}`);
+            await this.switchNetwork(expectedChainId);
+            return true;
+        } catch (error) {
+            console.error('Failed to ensure correct network:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Switch to a specific network
      * @param {number} networkId - The network ID to switch to
      */
@@ -433,8 +496,24 @@ class WalletService {
             } catch (switchError) {
                 // Network needs to be added
                 if (switchError.code === 4902) {
-                    // You would need network metadata here to add properly
-                    throw new Error('Network needs to be added first');
+                    // Try to add the network
+                    await this.addNetwork(networkId);
+                    // Try switching again after adding
+                    await this.provider.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: hexChainId }],
+                    });
+
+                    // Refresh provider after switch
+                    this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
+                    this.signer = this.ethersProvider.getSigner();
+
+                    eventBus.emit('network:switched', {
+                        to: networkId,
+                        success: true
+                    });
+
+                    return true;
                 } else {
                     throw switchError;
                 }

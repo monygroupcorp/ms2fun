@@ -1,0 +1,56 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "cancun"
+gas_reports = ["*"]
+test = "test"
+script = "script"
+broadcast = "broadcast"
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "v4-core/=lib/v4-core/src/",
+    "v4-core/test/=lib/v4-core/test/",
+    "dn404/=lib/dn404/",
+    "@uniswap/v3-core/=lib/v3-core/contracts/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/contracts/",
+    "@uniswap/v2-core/=lib/v2-core/contracts/"
+]
+fs_permissions = [{ access = "read-write", path = "../src/config" }]
+
+[profile.ci]
+fuzz_runs = 1000
+invariant_runs = 10000
+
+[profile.fork]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+solc = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+evm_version = "cancun"
+
+# Fork configuration
+# eth_rpc_url should be passed via --fork-url flag or loaded from .env
+# fork_block_number = 21000000 # Old block, V4 liquidity limited
+# Use latest block for V4 testing (December 2025)
+gas_limit = 30000000
+verbosity = 2
+
+# Only run fork tests with this profile
+match_path = "test/fork/**/*.sol"
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true

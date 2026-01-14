@@ -1,0 +1,59 @@
+.edition-detail-page {
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.edition-detail-page .detail-navigation {
+    margin-bottom: 2rem;
+}
+
+.edition-detail-page .back-button {
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+}
+
+.edition-detail-page .back-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(-4px);
+}
+
+.edition-detail-page .wallet-display-container {
+    margin-bottom: 2rem;
+}
+
+.edition-detail-page .edition-detail-content {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Make edition card larger on detail page */
+.edition-detail-page .edition-card {
+    max-width: 100%;
+}
+
+.edition-detail-page .error-page {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+
+.edition-detail-page .home-link {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.edition-detail-page .home-link:hover {
+    background: rgba(255, 255, 255, 0.2);
+}

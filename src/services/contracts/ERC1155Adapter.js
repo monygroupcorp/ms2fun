@@ -50,11 +50,21 @@ class ERC1155Adapter extends ContractAdapter {
             // Load ERC1155Instance ABI from centralized location
             const abi = await loadABI('ERC1155Instance');
 
+            // Debug: Log provider info
+            const providerToUse = this.signer || this.provider;
+            console.log('[ERC1155Adapter] Initializing contract:', {
+                address: this.contractAddress,
+                providerType: providerToUse.constructor.name,
+                network: providerToUse._network,
+                hasOwner: abi.some(item => item.name === 'owner'),
+                hasGetEditionCount: abi.some(item => item.name === 'getEditionCount')
+            });
+
             // Initialize contract
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                providerToUse
             );
 
             this.initialized = true;
@@ -212,14 +222,14 @@ class ERC1155Adapter extends ContractAdapter {
                 return 0;
             }
 
-            // Try contract method
+            // Try contract method - note: method is called getEditionCount in the contract
             try {
-                const count = await this.executeContractCall('editionCount', []);
+                const count = await this.executeContractCall('getEditionCount', []);
                 return parseInt(count.toString());
             } catch (error) {
                 // Method might not exist, try to infer from events or other methods
                 // For now, return 0 if method doesn't exist
-                console.warn('[ERC1155Adapter] editionCount method not found');
+                console.warn('[ERC1155Adapter] getEditionCount method not found');
                 return 0;
             }
         } catch (error) {
@@ -300,27 +310,15 @@ class ERC1155Adapter extends ContractAdapter {
                 throw new Error(`Edition ${editionId} not found`);
             }
 
-            // For real contracts, fetch from contract
-            const [price, maxSupply, currentSupply, active, creator, royaltyPercent] = await Promise.all([
-                this._safeContractCall('getEditionPrice', [editionId]) || 
-                this._safeContractCall('price', [editionId]) || 
-                Promise.resolve('0'),
-                this._safeContractCall('getEditionMaxSupply', [editionId]) || 
-                this._safeContractCall('maxSupply', [editionId]) || 
-                Promise.resolve('0'),
-                this._safeContractCall('getEditionSupply', [editionId]) || 
-                this._safeContractCall('totalSupply', [editionId]) || 
-                Promise.resolve('0'),
-                this._safeContractCall('isEditionActive', [editionId]) ?? Promise.resolve(true),
-                this._safeContractCall('getEditionCreator', [editionId]) || 
-                this._safeContractCall('creator', [editionId]) || 
-                Promise.resolve(null),
-                this._safeContractCall('getEditionRoyalty', [editionId]) || 
-                this._safeContractCall('royaltyPercent', [editionId]) || 
-                Promise.resolve('0')
-            ]);
+            // For real contracts, fetch edition data using getEdition() method
+            const edition = await this.executeContractCall('getEdition', [editionId]);
 
-            const uri = await this._safeContractCall('uri', [editionId]) || null;
+            if (!edition || !edition.id) {
+                throw new Error(`Edition ${editionId} not found`);
+            }
+
+            // Fetch metadata from URI if available
+            const uri = edition.metadataURI || null;
             let metadata = null;
             if (uri) {
                 try {
@@ -334,15 +332,18 @@ class ERC1155Adapter extends ContractAdapter {
             }
 
             return {
-                id: editionId,
-                price: price.toString(),
-                maxSupply: maxSupply?.toString() || '0',
-                currentSupply: currentSupply?.toString() || '0',
-                active: active ?? true,
-                creator: creator || null,
-                royaltyPercent: royaltyPercent?.toString() || '0',
-                uri: uri || null,
-                metadata: metadata
+                id: edition.id.toString(),
+                price: edition.basePrice.toString(),
+                maxSupply: edition.supply.toString(),
+                currentSupply: edition.minted.toString(),
+                active: true, // ERC1155Instance doesn't have active flag
+                creator: await this._safeContractCall('creator') || null,
+                royaltyPercent: '0', // Not stored in Edition struct
+                uri: uri,
+                metadata: metadata,
+                pieceTitle: edition.pieceTitle || null,
+                pricingModel: edition.pricingModel?.toString() || '0',
+                priceIncreaseRate: edition.priceIncreaseRate?.toString() || '0'
             };
         } catch (error) {
             throw this.handleContractError(error, 'getEditionInfo');
@@ -373,7 +374,8 @@ class ERC1155Adapter extends ContractAdapter {
             const count = await this.getEditionCount();
             const editions = [];
 
-            for (let i = 0; i < count; i++) {
+            // ERC1155Instance uses 1-indexed edition IDs
+            for (let i = 1; i <= count; i++) {
                 try {
                     const editionInfo = await this.getEditionInfo(i);
                     editions.push(editionInfo);
@@ -458,9 +460,19 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async mintEdition(editionId, quantity, payment) {
         try {
-            if (!this.signer) {
+            // Get current signer from WalletService (may have changed since initialization)
+            const walletService = (await import('../WalletService.js')).default;
+            const { signer } = walletService.getProviderAndSigner();
+
+            if (!signer) {
                 throw new Error('No wallet connected');
             }
+
+            // Ensure wallet is on the correct network
+            await walletService.ensureCorrectNetwork();
+
+            // Update adapter's signer so executeContractCall can use it
+            this.signer = signer;
 
             const editionInfo = await this.getEditionInfo(editionId);
             const priceWei = BigInt(editionInfo.price);
@@ -499,12 +511,13 @@ class ERC1155Adapter extends ContractAdapter {
             }
 
             // For real contracts, call mint function
-            let tx;
+            // Note: executeContractCall already waits for the transaction and returns the receipt
+            let receipt;
             try {
-                // Try mint method first
-                tx = await this.executeContractCall(
+                // Try mint method first (pass empty string for message)
+                receipt = await this.executeContractCall(
                     'mint',
-                    [editionId, quantity],
+                    [editionId, quantity, ""],  // Empty message saves gas
                     {
                         requiresSigner: true,
                         txOptions: { value: totalCost.toString() }
@@ -512,8 +525,8 @@ class ERC1155Adapter extends ContractAdapter {
                 );
             } catch (error) {
                 // Fallback to safeTransferFrom from zero address (if contract supports it)
-                const userAddress = await this.signer.getAddress();
-                tx = await this.executeContractCall(
+                const userAddress = await signer.getAddress();
+                receipt = await this.executeContractCall(
                     'safeTransferFrom',
                     [
                         ethers.constants.AddressZero, // From zero address (mint)
@@ -528,8 +541,6 @@ class ERC1155Adapter extends ContractAdapter {
                     }
                 );
             }
-
-            const receipt = await tx.wait();
 
             eventBus.emit('erc1155:edition:minted', {
                 editionId,
@@ -690,12 +701,22 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async mintWithMessage(editionId, amount, message) {
         try {
-            if (!this.signer) {
+            // Get current signer from WalletService (may have changed since initialization)
+            const walletService = (await import('../WalletService.js')).default;
+            const { signer } = walletService.getProviderAndSigner();
+
+            if (!signer) {
                 throw new Error('No wallet connected');
             }
 
-            const editionInfo = await this.getEditionInfo(editionId);
-            const totalCost = BigInt(editionInfo.price) * BigInt(amount);
+            // Ensure wallet is on the correct network
+            await walletService.ensureCorrectNetwork();
+
+            // Update adapter's signer so executeContractCall can use it
+            this.signer = signer;
+
+            // Use calculateMintCost to get accurate cost (handles bonding curves)
+            const totalCost = await this.calculateMintCost(editionId, amount);
 
             if (this._isMockContract()) {
                 // Mock implementation - use regular mint
@@ -719,11 +740,11 @@ class ERC1155Adapter extends ContractAdapter {
             });
 
             const receipt = await this.executeContractCall(
-                'mintWithMessage',
+                'mint',  // Unified mint function now accepts message parameter
                 [editionId, amount, message],
                 {
                     requiresSigner: true,
-                    txOptions: { value: totalCost.toString() }
+                    txOptions: { value: totalCost }
                 }
             );
 
@@ -1541,6 +1562,81 @@ class ERC1155Adapter extends ContractAdapter {
             } catch (error) {
                 return '';
             }
+        }, CACHE_TTL.STATIC);
+    }
+
+    // =========================
+    // Public State Variables
+    // =========================
+
+    /**
+     * Get factory address
+     * @returns {Promise<string>} Factory contract address
+     */
+    async factory() {
+        return await this.getCachedOrFetch('factory', [], async () => {
+            return await this.executeContractCall('factory');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get master registry address
+     * @returns {Promise<string>} Master registry contract address
+     */
+    async masterRegistry() {
+        return await this.getCachedOrFetch('masterRegistry', [], async () => {
+            return await this.executeContractCall('masterRegistry');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get vault address
+     * @returns {Promise<string>} Vault contract address
+     */
+    async vault() {
+        return await this.getCachedOrFetch('vault', [], async () => {
+            return await this.executeContractCall('vault');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get creator address
+     * @returns {Promise<string>} Creator address
+     */
+    async creator() {
+        return await this.getCachedOrFetch('creator', [], async () => {
+            return await this.executeContractCall('creator');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get token URI for token ID
+     * @param {number} tokenId - Token ID
+     * @returns {Promise<string>} Token URI
+     */
+    async uri(tokenId) {
+        return await this.getCachedOrFetch('uri', [tokenId], async () => {
+            return await this.executeContractCall('uri', [tokenId]);
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get token name
+     * @returns {Promise<string>} Token name
+     */
+    async name() {
+        return await this.getCachedOrFetch('name', [], async () => {
+            return await this.executeContractCall('name');
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get global message registry address
+     * @returns {Promise<string>} Global message registry contract address
+     */
+    async getGlobalMessageRegistry() {
+        return await this.getCachedOrFetch('getGlobalMessageRegistry', [], async () => {
+            return await this.executeContractCall('getGlobalMessageRegistry');
         }, CACHE_TTL.STATIC);
     }
 

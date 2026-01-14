@@ -228,35 +228,68 @@ export class ProjectCard extends Component {
                 return;
             }
 
-            // Try to generate title-based URL with chain ID
-            try {
-                // Get factory for this project
-                const factoryAddress = this.project.factoryAddress;
-                if (factoryAddress && serviceFactory.isUsingMock()) {
-                    // Access mock data through the service manager
-                    const mockManager = serviceFactory.mockManager;
-                    if (mockManager) {
-                        const mockData = mockManager.getMockData();
-                        const factory = mockData?.factories?.[factoryAddress];
-                        
-                        if (factory && factory.title && this.project.name) {
-                            // Default to chain ID 1 (Ethereum mainnet) for now
-                            // In production, this should come from the wallet/network connection
-                            const chainId = 1;
-                            const projectURL = generateProjectURL(factory, this.project, null, chainId);
-                            if (projectURL && !projectURL.startsWith('/project/')) {
-                                this.onNavigate(projectURL);
-                                return;
-                            }
-                        }
-                    }
-                }
-            } catch (error) {
-                console.warn('Failed to generate title-based URL, falling back to address:', error);
+            console.log('[ProjectCard] Project data:', {
+                name: this.project.name,
+                displayName: this.project.displayName,
+                address: this.project.address,
+                factoryAddress: this.project.factoryAddress,
+                contractType: this.project.contractType
+            });
+
+            // Get factory title and generate name-based URL
+            const factoryAddress = this.project.factoryAddress;
+            const projectName = this.project.name || this.project.displayName;
+
+            if (!factoryAddress || !projectName) {
+                console.warn('[ProjectCard] Missing factoryAddress or projectName, using address-based URL');
+                this.onNavigate(`/project/${this.project.address}`);
+                return;
             }
 
-            // Fallback to address-based URL
-            this.onNavigate(`/project/${this.project.address}`);
+            // Fetch factory info from contracts config
+            try {
+                const { detectNetwork } = await import('../../config/network.js');
+                const network = detectNetwork();
+                const chainId = network.chainId || 1;
+
+                // Load contract config to get factory title
+                const configResponse = await fetch('/src/config/contracts.local.json');
+                if (!configResponse.ok) {
+                    throw new Error('Failed to load contracts config');
+                }
+
+                const config = await configResponse.json();
+                const factory = config.factories?.find(f =>
+                    f.address.toLowerCase() === factoryAddress.toLowerCase()
+                );
+
+                if (!factory || !factory.title) {
+                    console.warn('[ProjectCard] Factory not found in config, using address-based URL');
+                    this.onNavigate(`/project/${this.project.address}`);
+                    return;
+                }
+
+                // Generate name-based URL
+                const projectURL = generateProjectURL(
+                    { title: factory.title },
+                    { name: projectName, address: this.project.address },
+                    null,
+                    chainId
+                );
+
+                if (projectURL && !projectURL.startsWith('/project/')) {
+                    console.log('[ProjectCard] Navigating to name-based URL:', projectURL);
+                    this.onNavigate(projectURL);
+                    return;
+                }
+
+                // Shouldn't reach here, but fallback just in case
+                console.warn('[ProjectCard] Generated URL starts with /project/, using it anyway');
+                this.onNavigate(projectURL);
+            } catch (error) {
+                console.error('[ProjectCard] Error generating name-based URL:', error);
+                this.onNavigate(`/project/${this.project.address}`);
+            }
         }
     }
 

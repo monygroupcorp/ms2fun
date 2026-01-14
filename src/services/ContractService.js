@@ -177,9 +177,12 @@ class ContractService {
             console.log('Initializing read-only contract...');
             
             // Create a read-only provider
-            const provider = new ethers.providers.JsonRpcProvider(
-                this.networkConfig.rpcUrl || 'https://ethereum.publicnode.com'
-            );
+            const rpcUrl = this.networkConfig.rpcUrl || 'https://ethereum.publicnode.com';
+            const chainId = parseInt(this.networkConfig?.network || '1');
+            // Use StaticJsonRpcProvider for Anvil (chainId 1337) to skip network auto-detection
+            const provider = chainId === 1337
+                ? new ethers.providers.StaticJsonRpcProvider(rpcUrl, { name: 'anvil', chainId })
+                : new ethers.providers.JsonRpcProvider(rpcUrl);
             
             // Load contract ABI
             const abiResponse = await this.retryOperation(
