@@ -22,6 +22,8 @@ const TEST_ACCOUNTS = {
 // Mainnet addresses (available on fork)
 const MAINNET_ADDRESSES = {
     execToken: "0x185485bF2e26e0Da48149aee0A8032c8c2060Db2",
+    ms2Token: "0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820",
+    cultToken: "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
     weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     uniswapV4PoolManager: "0x000000000004444c5dc75cB358380D2e3dE08A90",
     uniswapV4PositionManager: "0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e",
@@ -326,8 +328,8 @@ const main = async () => {
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
-        // STEP 5: Deploy UltraAlignmentVault
-        console.log("STEP 5: Deploying UltraAlignmentVault...");
+        // STEP 5: Deploy UltraAlignmentVault (MS2-aligned)
+        console.log("STEP 5: Deploying UltraAlignmentVault (MS2-aligned)...");
         const vaultArtifact = JSON.parse(
             await fs.readFile("./contracts/out/UltraAlignmentVault.sol/UltraAlignmentVault.json", "utf8")
         );
@@ -343,16 +345,16 @@ const main = async () => {
             MAINNET_ADDRESSES.uniswapV2Router,
             MAINNET_ADDRESSES.uniswapV2Factory,
             MAINNET_ADDRESSES.uniswapV3Factory,
-            MAINNET_ADDRESSES.execToken,  // alignment token
+            MAINNET_ADDRESSES.ms2Token,  // alignment token: MS2
             { nonce: nonce++ }
         );
         await vault.deployed();
         const vaultAddress = vault.address;
-        console.log(`   ✓ UltraAlignmentVault: ${vaultAddress}`);
+        console.log(`   ✓ UltraAlignmentVault (MS2): ${vaultAddress}`);
         console.log("");
 
-        // STEP 5b: Deploy second vault (SimpleVault)
-        console.log("STEP 5b: Deploying SimpleVault...");
+        // STEP 5b: Deploy second vault (SimpleVault - CULT-aligned)
+        console.log("STEP 5b: Deploying SimpleVault (CULT-aligned)...");
         const simpleVault = await VaultFactory.deploy(
             MAINNET_ADDRESSES.weth,
             MAINNET_ADDRESSES.uniswapV4PoolManager,
@@ -360,12 +362,12 @@ const main = async () => {
             MAINNET_ADDRESSES.uniswapV2Router,
             MAINNET_ADDRESSES.uniswapV2Factory,
             MAINNET_ADDRESSES.uniswapV3Factory,
-            MAINNET_ADDRESSES.execToken,
+            MAINNET_ADDRESSES.cultToken,  // alignment token: CULT
             { nonce: nonce++ }
         );
         await simpleVault.deployed();
         const simpleVaultAddress = simpleVault.address;
-        console.log(`   ✓ SimpleVault: ${simpleVaultAddress}`);
+        console.log(`   ✓ SimpleVault (CULT): ${simpleVaultAddress}`);
         console.log("");
 
         // STEP 6: Register Vault using dictator powers
@@ -1042,6 +1044,8 @@ const main = async () => {
                     type: "ultra-alignment",
                     registered: true,
                     tag: "ActiveVault",  // For seeding reference
+                    alignmentToken: MAINNET_ADDRESSES.ms2Token,
+                    alignmentTokenSymbol: "MS2",
                     benefactors: 0,
                     accumulatedFees: "0"
                 },
@@ -1051,6 +1055,8 @@ const main = async () => {
                     type: "ultra-alignment",
                     registered: true,
                     tag: "SimpleVault",
+                    alignmentToken: MAINNET_ADDRESSES.cultToken,
+                    alignmentTokenSymbol: "CULT",
                     benefactors: 0,
                     accumulatedFees: "0"
                 }
@@ -1213,8 +1219,8 @@ const main = async () => {
         console.log(`   FeaturedQueue:  ${queueManagerAddress}`);
         console.log("");
         console.log("🏦 Vaults (2):");
-        console.log(`   ActiveVault:    ${vaultAddress} ✓ registered`);
-        console.log(`   SimpleVault:    ${simpleVaultAddress} ✓ registered`);
+        console.log(`   ActiveVault:    ${vaultAddress} ✓ registered (MS2-aligned)`);
+        console.log(`   SimpleVault:    ${simpleVaultAddress} ✓ registered (CULT-aligned)`);
         console.log("");
         console.log("🏭 Factories (2):");
         console.log(`   ERC404Factory:  ${erc404FactoryAddress} ✓ registered`);
