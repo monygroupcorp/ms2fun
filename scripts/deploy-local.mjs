@@ -223,6 +223,23 @@ const main = async () => {
         console.log(`   ✓ UltraAlignmentVault: ${vaultAddress}`);
         console.log("");
 
+        // STEP 5b: Deploy second vault (SimpleVault)
+        console.log("STEP 5b: Deploying SimpleVault...");
+        const simpleVault = await VaultFactory.deploy(
+            MAINNET_ADDRESSES.weth,
+            MAINNET_ADDRESSES.uniswapV4PoolManager,
+            MAINNET_ADDRESSES.uniswapV3Router,
+            MAINNET_ADDRESSES.uniswapV2Router,
+            MAINNET_ADDRESSES.uniswapV2Factory,
+            MAINNET_ADDRESSES.uniswapV3Factory,
+            MAINNET_ADDRESSES.execToken,
+            { nonce: nonce++ }
+        );
+        await simpleVault.deployed();
+        const simpleVaultAddress = simpleVault.address;
+        console.log(`   ✓ SimpleVault: ${simpleVaultAddress}`);
+        console.log("");
+
         // STEP 6: Register Vault using dictator powers
         console.log("STEP 6: Registering vault (dictator approval)...");
 
@@ -235,6 +252,18 @@ const main = async () => {
         );
         await registerVaultTx.wait();
         console.log(`   ✓ Vault registered in MasterRegistry`);
+        console.log("");
+
+        // STEP 6b: Register SimpleVault
+        console.log("STEP 6b: Registering SimpleVault (dictator approval)...");
+        const registerSimpleVaultTx = await masterRegistry.registerVault(
+            simpleVaultAddress,
+            "SimpleVault",
+            "https://ms2.fun/metadata/vault/simple",
+            { nonce: nonce++, value: ethers.utils.parseEther("0.05") }
+        );
+        await registerSimpleVaultTx.wait();
+        console.log(`   ✓ SimpleVault registered in MasterRegistry`);
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
@@ -459,6 +488,7 @@ const main = async () => {
             { name: "GlobalMessageRegistry", address: messageRegistryAddress },
             { name: "FeaturedQueueManager", address: queueManagerAddress },
             { name: "UltraAlignmentVault", address: vaultAddress },
+            { name: "SimpleVault", address: simpleVaultAddress },
             { name: "UltraAlignmentHookFactory", address: hookFactoryAddress },
             { name: "ERC1155Factory", address: erc1155FactoryAddress },
             { name: "ERC404Factory", address: erc404FactoryAddress },
@@ -512,7 +542,19 @@ const main = async () => {
                     address: vaultAddress,
                     name: "UltraAlignmentVault",
                     type: "ultra-alignment",
-                    registered: true
+                    registered: true,
+                    tag: "ActiveVault",  // For seeding reference
+                    benefactors: 0,
+                    accumulatedFees: "0"
+                },
+                {
+                    address: simpleVaultAddress,
+                    name: "SimpleVault",
+                    type: "ultra-alignment",
+                    registered: true,
+                    tag: "SimpleVault",
+                    benefactors: 0,
+                    accumulatedFees: "0"
                 }
             ],
             instances: {
@@ -574,7 +616,8 @@ const main = async () => {
         console.log("📋 Summary:");
         console.log(`   MasterRegistry: ${masterRegistryAddress}`);
         console.log(`   GlobalMessages: ${messageRegistryAddress}`);
-        console.log(`   Vault: ${vaultAddress} ✓ registered`);
+        console.log(`   ActiveVault: ${vaultAddress} ✓ registered`);
+        console.log(`   SimpleVault: ${simpleVaultAddress} ✓ registered`);
         console.log(`   ERC404Factory: ${erc404FactoryAddress} ✓ registered`);
         console.log(`   ERC1155Factory: ${erc1155FactoryAddress} ✓ registered`);
         console.log(`   Sample Instance: ${instanceAddress}`);
