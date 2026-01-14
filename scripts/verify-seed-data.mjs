@@ -15,8 +15,27 @@ async function main() {
     console.log("🔍 Verifying Phase 2 Seed Data\n");
 
     // Load config
-    const config = JSON.parse(await fs.readFile(CONFIG_PATH, "utf8"));
+    let config;
+    try {
+        config = JSON.parse(await fs.readFile(CONFIG_PATH, "utf8"));
+    } catch (error) {
+        throw new Error(
+            `Could not load config file at ${CONFIG_PATH}.\n` +
+            `   Make sure you've run: npm run chain:start`
+        );
+    }
+
     const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+
+    // Verify network connection
+    try {
+        await provider.getNetwork();
+    } catch (error) {
+        throw new Error(
+            `Could not connect to Anvil at ${RPC_URL}.\n` +
+            `   Make sure you've run: npm run chain:start`
+        );
+    }
 
     // Verify vaults
     console.log("Vaults:");
