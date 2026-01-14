@@ -941,6 +941,40 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
+        console.log("PHASE 9: GLOBAL MESSAGE SEEDING");
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("");
+
+        console.log("STEP 19: Verifying global messages...");
+
+        const messageRegistryQuery = new ethers.Contract(
+            messageRegistryAddress,
+            messageRegistryArtifact.abi,
+            provider
+        );
+
+        // Get total message count
+        const messageCount = await messageRegistryQuery.getMessageCount();
+        console.log(`   ✓ Total messages: ${messageCount.toString()}`);
+
+        // Sample first 5 messages
+        console.log(`   Sampling first 5 messages:`);
+        for (let i = 0; i < Math.min(5, messageCount.toNumber()); i++) {
+            const msg = await messageRegistryQuery.messages(i);
+            console.log(`     ${i}: ${msg.instance.slice(0, 10)}... by ${msg.sender.slice(0, 10)}...`);
+        }
+        console.log("");
+
+        // Note: Messages are automatically posted by instances during transactions
+        // If message count is low, instances may need GlobalMessageRegistry integration
+        if (messageCount.toNumber() < 10) {
+            console.log(`   ⚠️  Low message count detected`);
+            console.log(`   ℹ️  Ensure instances call globalMessageRegistry.addMessage()`);
+            console.log(`   ℹ️  This is expected if contracts don't have messaging integration yet`);
+        }
+        console.log("");
+
+        console.log("═══════════════════════════════════════════════════════");
         console.log("VERIFICATION & CONFIG");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
@@ -1153,6 +1187,15 @@ const main = async () => {
                 dictator: deployer.address,
                 abdicationInitiated: false,
                 mode: "dictator"
+            },
+            messages: {
+                total: messageCount.toNumber(),
+                sources: {
+                    erc404Buys: "~20",
+                    erc1155Mints: "~123",
+                    other: "~0"
+                },
+                note: "Messages posted automatically during transactions"
             }
         };
 
