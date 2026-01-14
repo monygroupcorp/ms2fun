@@ -9,6 +9,7 @@
     "setup:local": "bash scripts/local-chain/setup.sh",
     "chain:start": "bash scripts/local-chain/start-chain.sh",
     "chain:reset": "npm run chain:start",
+    "chain:verify": "node scripts/verify-seed-data.mjs",
     "contracts:build": "cd contracts && forge build",
     "contracts:update": "git submodule update --remote contracts && npm run contracts:build"
   },
