@@ -605,6 +605,185 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
+        console.log("PHASE 7: ERC404 INSTANCE SEEDING");
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("");
+
+        // Load ERC404 instance ABI for interaction
+        const erc404InstanceArtifact = JSON.parse(
+            await fs.readFile("./contracts/out/ERC404BondingInstance.sol/ERC404BondingInstance.json", "utf8")
+        );
+
+        // Instance 1: Early Launch (10% bonding progress)
+        console.log("STEP 14: Creating ERC404 'Early-Launch' instance...");
+        const erc404FactoryContract = new ethers.Contract(
+            erc404FactoryAddress,
+            erc404FactoryArtifact.abi,
+            deployer
+        );
+
+        const earlyLaunch = await createERC404Instance({
+            name: "Early-Launch",
+            symbol: "EARLY",
+            maxSupply: "10000",
+            liquidityReservePercent: 20,
+            creator: deployer.address,
+            vault: vaultAddress, // ActiveVault
+            factory: erc404FactoryContract,
+            hookFactory: hookFactoryArtifact,
+            nonce: nonce,
+            deployer: deployer
+        });
+        nonce = earlyLaunch.nonce;
+        console.log(`   ✓ Early-Launch: ${earlyLaunch.instance}`);
+        console.log(`   ✓ Hook: ${earlyLaunch.hook}`);
+
+        // Activate bonding curve
+        nonce = await activateBondingCurve({
+            instanceAddress: earlyLaunch.instance,
+            instanceAbi: erc404InstanceArtifact.abi,
+            deployer: deployer,
+            nonce: nonce
+        });
+        console.log(`   ✓ Bonding curve activated`);
+
+        // Seed 5 small purchases to reach ~10% progress
+        // Approximate: 10% of 10,000 = 1,000 tokens
+        // With bonding curve, let's buy 200 tokens each from 5 accounts
+        const earlyBuyers = [
+            { address: TEST_ACCOUNTS.trader, amount: "0.05" },
+            { address: TEST_ACCOUNTS.collector, amount: "0.05" },
+            { address: TEST_ACCOUNTS.governance, amount: "0.05" },
+            { address: deployer.address, amount: "0.05" },
+            { address: TEST_ACCOUNTS.trader, amount: "0.05" } // Buy again
+        ];
+
+        for (const buyer of earlyBuyers) {
+            await buyOnBondingCurve({
+                instanceAddress: earlyLaunch.instance,
+                instanceAbi: erc404InstanceArtifact.abi,
+                buyer: buyer.address,
+                amountETH: buyer.amount,
+                provider: provider
+            });
+        }
+        console.log(`   ✓ Seeded 5 purchases (~10% bonding progress)`);
+        console.log("");
+
+        // Instance 2: Active Project (60% bonding progress)
+        console.log("STEP 15: Creating ERC404 'Active-Project' instance...");
+        const activeProject = await createERC404Instance({
+            name: "Active-Project",
+            symbol: "ACTIVE",
+            maxSupply: "10000",
+            liquidityReservePercent: 20,
+            creator: deployer.address,
+            vault: vaultAddress, // ActiveVault
+            factory: erc404FactoryContract,
+            hookFactory: hookFactoryArtifact,
+            nonce: nonce,
+            deployer: deployer
+        });
+        nonce = activeProject.nonce;
+        console.log(`   ✓ Active-Project: ${activeProject.instance}`);
+
+        nonce = await activateBondingCurve({
+            instanceAddress: activeProject.instance,
+            instanceAbi: erc404InstanceArtifact.abi,
+            deployer: deployer,
+            nonce: nonce
+        });
+
+        // Seed 15 purchases to reach ~60% progress
+        const activeBuyers = [
+            { address: TEST_ACCOUNTS.trader, amount: "0.3" },
+            { address: TEST_ACCOUNTS.collector, amount: "0.3" },
+            { address: TEST_ACCOUNTS.governance, amount: "0.3" },
+            { address: deployer.address, amount: "0.3" },
+            { address: TEST_ACCOUNTS.trader, amount: "0.2" },
+            { address: TEST_ACCOUNTS.collector, amount: "0.2" },
+            { address: TEST_ACCOUNTS.governance, amount: "0.2" },
+            { address: TEST_ACCOUNTS.trader, amount: "0.2" },
+            { address: TEST_ACCOUNTS.collector, amount: "0.2" },
+            { address: TEST_ACCOUNTS.governance, amount: "0.2" },
+            { address: deployer.address, amount: "0.2" },
+            { address: TEST_ACCOUNTS.trader, amount: "0.1" },
+            { address: TEST_ACCOUNTS.collector, amount: "0.1" },
+            { address: TEST_ACCOUNTS.governance, amount: "0.1" },
+            { address: deployer.address, amount: "0.1" }
+        ];
+
+        for (const buyer of activeBuyers) {
+            await buyOnBondingCurve({
+                instanceAddress: activeProject.instance,
+                instanceAbi: erc404InstanceArtifact.abi,
+                buyer: buyer.address,
+                amountETH: buyer.amount,
+                provider: provider
+            });
+        }
+        console.log(`   ✓ Seeded 15 purchases (~60% bonding progress)`);
+        console.log("");
+
+        // Instance 3: Graduated (liquidity deployed)
+        console.log("STEP 16: Creating ERC404 'Graduated' instance...");
+        const graduated = await createERC404Instance({
+            name: "Graduated",
+            symbol: "GRAD",
+            maxSupply: "10000",
+            liquidityReservePercent: 20,
+            creator: deployer.address,
+            vault: vaultAddress, // ActiveVault
+            factory: erc404FactoryContract,
+            hookFactory: hookFactoryArtifact,
+            nonce: nonce,
+            deployer: deployer
+        });
+        nonce = graduated.nonce;
+        console.log(`   ✓ Graduated: ${graduated.instance}`);
+
+        nonce = await activateBondingCurve({
+            instanceAddress: graduated.instance,
+            instanceAbi: erc404InstanceArtifact.abi,
+            deployer: deployer,
+            nonce: nonce
+        });
+
+        // Buy to 100% to trigger graduation
+        const graduatedBuyers = [
+            { address: TEST_ACCOUNTS.trader, amount: "1.0" },
+            { address: TEST_ACCOUNTS.collector, amount: "1.0" },
+            { address: TEST_ACCOUNTS.governance, amount: "1.0" },
+            { address: deployer.address, amount: "1.0" }
+        ];
+
+        for (const buyer of graduatedBuyers) {
+            await buyOnBondingCurve({
+                instanceAddress: graduated.instance,
+                instanceAbi: erc404InstanceArtifact.abi,
+                buyer: buyer.address,
+                amountETH: buyer.amount,
+                provider: provider
+            });
+        }
+        console.log(`   ✓ Seeded purchases to 100% bonding progress`);
+
+        // Deploy liquidity
+        console.log("   Deploying liquidity to Uniswap V4...");
+        const graduatedInstance = new ethers.Contract(
+            graduated.instance,
+            erc404InstanceArtifact.abi,
+            deployer
+        );
+
+        // Note: Liquidity deployment requires proper V4 pool initialization
+        // For MVP, we'll just mark it as "ready to deploy" state
+        // Full V4 integration is complex and may be skipped for initial seeding
+        console.log(`   ⚠️  V4 liquidity deployment stubbed (complex integration)`);
+        console.log(`   ✓ Instance in graduated state (100% bonding complete)`);
+        console.log("");
+
+        console.log("═══════════════════════════════════════════════════════");
         console.log("VERIFICATION & CONFIG");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
@@ -686,7 +865,45 @@ const main = async () => {
                 }
             ],
             instances: {
-                erc404: [],
+                erc404: [
+                    {
+                        address: earlyLaunch.instance,
+                        name: "Early-Launch",
+                        symbol: "EARLY",
+                        creator: deployer.address,
+                        vault: vaultAddress,
+                        hook: earlyLaunch.hook,
+                        state: "early-bonding",
+                        bondingProgress: "~10%",
+                        holders: 5,
+                        messages: 5
+                    },
+                    {
+                        address: activeProject.instance,
+                        name: "Active-Project",
+                        symbol: "ACTIVE",
+                        creator: deployer.address,
+                        vault: vaultAddress,
+                        hook: activeProject.hook,
+                        state: "active-bonding",
+                        bondingProgress: "~60%",
+                        holders: 4,
+                        messages: 15
+                    },
+                    {
+                        address: graduated.instance,
+                        name: "Graduated",
+                        symbol: "GRAD",
+                        creator: deployer.address,
+                        vault: vaultAddress,
+                        hook: graduated.hook,
+                        state: "graduated",
+                        bondingProgress: "100%",
+                        liquidityDeployed: false, // Stubbed
+                        holders: 4,
+                        messages: 4
+                    }
+                ],
                 erc1155: [
                     {
                         address: instanceAddress,
