@@ -9,14 +9,13 @@ import {UltraAlignmentVault} from "../../../vaults/UltraAlignmentVault.sol";
 
 /**
  * @title UltraAlignmentHookFactory
- * @notice Factory for deploying UltraAlignment hook instances
- * @dev Each hook instance can accumulate different tokens and payout to different vaults
+ * @notice Factory for deploying UltraAlignment V4 hooks
+ * @dev Hooks are deployed via CREATE2 for deterministic addresses required by Uniswap V4
  */
 contract UltraAlignmentHookFactory is Ownable, ReentrancyGuard {
     address public hookTemplate;
     uint256 public hookCreationFee;
-    address public weth; // WETH address for hook validation
-    
+
     mapping(address => bool) public authorizedFactories;
     mapping(address => address[]) public factoryHooks; // Factory -> hook instances
 
@@ -30,10 +29,9 @@ contract UltraAlignmentHookFactory is Ownable, ReentrancyGuard {
     event FactoryAuthorized(address indexed factory);
     event FactoryDeauthorized(address indexed factory);
 
-    constructor(address _hookTemplate, address _weth) {
+    constructor(address _hookTemplate) {
         _initializeOwner(msg.sender);
         hookTemplate = _hookTemplate;
-        weth = _weth;
         hookCreationFee = 0.001 ether;
     }
 
@@ -44,6 +42,7 @@ contract UltraAlignmentHookFactory is Ownable, ReentrancyGuard {
      * @param wethAddr Address of WETH for validation
      * @param creator Address of the hook creator/owner
      * @param isCanonical Whether this is a canonical vault hook (true) or independent hook (false)
+     * @param salt Salt for CREATE2 deployment (frontend computes valid salt for hook permissions)
      * @return hook Address of the created hook instance
      */
     function createHook(
@@ -51,7 +50,8 @@ contract UltraAlignmentHookFactory is Ownable, ReentrancyGuard {
         address vault,
         address wethAddr,
         address creator,
-        bool isCanonical
+        bool isCanonical,
+        bytes32 salt
     ) external payable nonReentrant returns (address hook) {
         require(msg.value >= hookCreationFee, "Insufficient fee");
         require(poolManager != address(0), "Invalid pool manager");
@@ -59,8 +59,8 @@ contract UltraAlignmentHookFactory is Ownable, ReentrancyGuard {
         require(wethAddr != address(0), "Invalid WETH");
         require(creator != address(0), "Invalid creator");
 
-        // Deploy new hook instance
-        hook = address(new UltraAlignmentV4Hook(
+        // Deploy new hook instance using CREATE2 for deterministic address
+        hook = address(new UltraAlignmentV4Hook{salt: salt}(
             IPoolManager(poolManager),
             UltraAlignmentVault(payable(vault)),
             wethAddr,

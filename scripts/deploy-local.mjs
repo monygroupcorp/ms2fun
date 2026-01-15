@@ -2,6 +2,7 @@
 
 import { promises as fs } from "fs";
 import { ethers } from "ethers";
+import { mineHookSalt, decodeHookFlags, isValidUltraAlignmentHookAddress } from "./lib/hookSaltMiner.mjs";
 
 // Configuration
 const RPC_URL_LOCAL = "http://127.0.0.1:8545";
@@ -47,11 +48,11 @@ const MAINNET_ADDRESSES = {
  * @param {number} params.liquidityReservePercent - 0-100
  * @param {string} params.creator - Creator address
  * @param {string} params.vault - Vault address
+ * @param {string} params.hook - Hook address
  * @param {object} params.factory - ERC404Factory ethers contract
- * @param {object} params.hookFactory - Hook factory artifact
  * @param {number} params.nonce - Transaction nonce
  * @param {object} params.deployer - Deployer wallet
- * @returns {Promise<{instance: string, hook: string, nonce: number}>}
+ * @returns {Promise<{instance: string, nonce: number}>}
  */
 async function createERC404Instance({
     name,
@@ -60,8 +61,8 @@ async function createERC404Instance({
     liquidityReservePercent,
     creator,
     vault,
+    hook,
     factory,
-    hookFactory,
     nonce,
     deployer
 }) {
@@ -74,17 +75,16 @@ async function createERC404Instance({
         normalizationFactor: ethers.utils.parseEther("1000000")
     };
 
-    // Default tier config (1 tier, no password)
+    // Default tier config (1 tier, public password)
     const tierConfig = {
         tierType: 0, // VOLUME_CAP
-        passwordHashes: [],
-        volumeCaps: [ethers.utils.parseEther(maxSupply)], // No cap effectively
+        passwordHashes: [ethers.utils.keccak256(ethers.utils.toUtf8Bytes("PUBLIC"))], // 1 tier, password "PUBLIC" = open access
+        volumeCaps: [ethers.utils.parseEther(maxSupply)], // Cap = maxSupply (effectively unlimited)
         tierUnlockTimes: []
     };
 
+    // Instance fee only
     const instanceFee = ethers.utils.parseEther("0.01");
-    const hookFee = ethers.utils.parseEther("0.01");
-    const totalFee = instanceFee.add(hookFee);
 
     const createTx = await factory.createInstance(
         name,
@@ -96,16 +96,16 @@ async function createERC404Instance({
         tierConfig,
         creator,
         vault,
+        hook,
         "", // styleUri
-        { nonce: nonce++, value: totalFee }
+        { nonce: nonce++, value: instanceFee }
     );
 
     const receipt = await createTx.wait();
     const event = receipt.events?.find(e => e.event === "InstanceCreated");
     const instance = event?.args?.instance;
-    const hook = event?.args?.hook;
 
-    return { instance, hook, nonce };
+    return { instance, nonce };
 }
 
 /**
@@ -114,18 +114,27 @@ async function createERC404Instance({
  * @param {string} params.instanceAddress - ERC404 instance address
  * @param {object} params.instanceAbi - ERC404 instance ABI
  * @param {string} params.buyer - Buyer address (from TEST_ACCOUNTS)
- * @param {string} params.amountETH - ETH amount to spend
+ * @param {string} params.tokenAmount - Token amount to buy (in ether units)
  * @param {object} params.provider - Ethers provider
  * @returns {Promise<void>}
  */
-async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, amountETH, provider }) {
+async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, tokenAmount, provider }) {
     const buyerSigner = provider.getSigner(buyer);
     const instance = new ethers.Contract(instanceAddress, instanceAbi, buyerSigner);
 
-    const buyTx = await instance.buy(
-        "", // message (empty for now)
-        { value: ethers.utils.parseEther(amountETH) }
-    );
+    const amount = ethers.utils.parseEther(tokenAmount);
+    const cost = await instance.calculateCost(amount);
+
+    // Add 10% buffer for slippage
+    const maxCost = cost.mul(110).div(100);
+
+    const buyTx = await instance.buyBonding(
+        amount,
+        maxCost,
+        true, // mintNFT
+        ethers.constants.HashZero, // public tier (no password)
+        "" // message
+    , { value: maxCost });
     await buyTx.wait();
 }
 
@@ -324,12 +333,42 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 2: VAULT INFRASTRUCTURE");
+        console.log("PHASE 2: HOOK FACTORY & VAULT INFRASTRUCTURE");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
-        // STEP 5: Deploy UltraAlignmentVault (MS2-aligned)
-        console.log("STEP 5: Deploying UltraAlignmentVault (MS2-aligned)...");
+        // STEP 5: Deploy UltraAlignmentHookFactory (must be deployed before vaults)
+        console.log("STEP 5: Deploying UltraAlignmentHookFactory...");
+        const hookFactoryArtifact = JSON.parse(
+            await fs.readFile("./contracts/out/UltraAlignmentHookFactory.sol/UltraAlignmentHookFactory.json", "utf8")
+        );
+        const HookFactoryFactory = new ethers.ContractFactory(
+            hookFactoryArtifact.abi,
+            hookFactoryArtifact.bytecode.object,
+            deployer
+        );
+        const hookFactory = await HookFactoryFactory.deploy(
+            ethers.constants.AddressZero,  // hookTemplate (factory creates via new, not clone)
+            { nonce: nonce++ }
+        );
+        await hookFactory.deployed();
+        const hookFactoryAddress = hookFactory.address;
+        console.log(`   ✓ UltraAlignmentHookFactory: ${hookFactoryAddress}`);
+        console.log("");
+
+        // Load UltraAlignmentV4Hook bytecode for salt mining
+        const hookArtifact = JSON.parse(
+            await fs.readFile("./contracts/out/UltraAlignmentV4Hook.sol/UltraAlignmentV4Hook.json", "utf8")
+        );
+        const hookCreationCode = hookArtifact.bytecode.object;
+
+        // WORKAROUND: createVaultWithHook doesn't support off-chain salt mining because
+        // the vault address isn't predictable. Using two-step process instead:
+        // 1. Deploy vault directly
+        // 2. Mine salt using known vault address
+        // 3. Create hook via createHook and manually link
+
+        // Load vault artifact
         const vaultArtifact = JSON.parse(
             await fs.readFile("./contracts/out/UltraAlignmentVault.sol/UltraAlignmentVault.json", "utf8")
         );
@@ -338,6 +377,35 @@ const main = async () => {
             vaultArtifact.bytecode.object,
             deployer
         );
+
+        const hookFactoryContract = new ethers.Contract(
+            hookFactoryAddress,
+            hookFactoryArtifact.abi,
+            deployer
+        );
+
+        // Helper to mine salt for a specific vault address
+        async function mineHookSaltForVault(vaultAddr, creator, vaultName) {
+            console.log(`   ⛏️  Mining hook salt for ${vaultName}...`);
+            const result = await mineHookSalt({
+                hookFactoryAddress: hookFactoryAddress,
+                hookCreationCode: hookCreationCode,
+                poolManager: MAINNET_ADDRESSES.uniswapV4PoolManager,
+                vault: vaultAddr,
+                weth: MAINNET_ADDRESSES.weth,
+                creator: creator,
+                onProgress: (iterations, rate) => {
+                    console.log(`      ... ${iterations.toLocaleString()} iterations (${rate.toLocaleString()}/sec)`);
+                }
+            });
+            console.log(`   ✓ Found valid salt in ${result.iterations.toLocaleString()} iterations (${result.timeSeconds.toFixed(2)}s)`);
+            const flags = decodeHookFlags(result.address);
+            console.log(`   ✓ Hook flags: ${flags.rawFlags} (afterSwap: ${flags.afterSwap}, afterSwapReturnDelta: ${flags.afterSwapReturnDelta})`);
+            return result.salt;
+        }
+
+        // STEP 5b: Deploy UltraAlignmentVault (MS2-aligned)
+        console.log("STEP 5b: Deploying UltraAlignmentVault (MS2-aligned)...");
         const vault = await VaultFactory.deploy(
             MAINNET_ADDRESSES.weth,
             MAINNET_ADDRESSES.uniswapV4PoolManager,
@@ -351,10 +419,29 @@ const main = async () => {
         await vault.deployed();
         const vaultAddress = vault.address;
         console.log(`   ✓ UltraAlignmentVault (MS2): ${vaultAddress}`);
+
+        // Mine salt for MS2 vault hook (now we know the vault address)
+        const ms2VaultSalt = await mineHookSaltForVault(vaultAddress, deployer.address, "MS2-Vault");
+
+        // Create hook via hookFactory.createHook
+        const hookFee = await hookFactoryContract.hookCreationFee();
+        const createMS2HookTx = await hookFactoryContract.createHook(
+            MAINNET_ADDRESSES.uniswapV4PoolManager,
+            vaultAddress,
+            MAINNET_ADDRESSES.weth,
+            deployer.address,
+            true,  // isCanonical
+            ms2VaultSalt,
+            { nonce: nonce++, value: hookFee }
+        );
+        const ms2HookReceipt = await createMS2HookTx.wait();
+        const ms2HookEvent = ms2HookReceipt.events?.find(e => e.event === "HookCreated");
+        const ms2HookAddress = ms2HookEvent?.args?.hook;
+        console.log(`   ✓ Hook: ${ms2HookAddress}`);
         console.log("");
 
-        // STEP 5b: Deploy second vault (SimpleVault - CULT-aligned)
-        console.log("STEP 5b: Deploying SimpleVault (CULT-aligned)...");
+        // STEP 5c: Deploy SimpleVault (CULT-aligned)
+        console.log("STEP 5c: Deploying SimpleVault (CULT-aligned)...");
         const simpleVault = await VaultFactory.deploy(
             MAINNET_ADDRESSES.weth,
             MAINNET_ADDRESSES.uniswapV4PoolManager,
@@ -368,6 +455,24 @@ const main = async () => {
         await simpleVault.deployed();
         const simpleVaultAddress = simpleVault.address;
         console.log(`   ✓ SimpleVault (CULT): ${simpleVaultAddress}`);
+
+        // Mine salt for CULT vault hook
+        const cultVaultSalt = await mineHookSaltForVault(simpleVaultAddress, deployer.address, "CULT-Vault");
+
+        // Create hook via hookFactory.createHook
+        const createCULTHookTx = await hookFactoryContract.createHook(
+            MAINNET_ADDRESSES.uniswapV4PoolManager,
+            simpleVaultAddress,
+            MAINNET_ADDRESSES.weth,
+            deployer.address,
+            true,  // isCanonical
+            cultVaultSalt,
+            { nonce: nonce++, value: hookFee }
+        );
+        const cultHookReceipt = await createCULTHookTx.wait();
+        const cultHookEvent = cultHookReceipt.events?.find(e => e.event === "HookCreated");
+        const cultHookAddress = cultHookEvent?.args?.hook;
+        console.log(`   ✓ Hook: ${cultHookAddress}`);
         console.log("");
 
         // STEP 6: Register Vault using dictator powers
@@ -397,40 +502,12 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 3: FACTORY INFRASTRUCTURE & TEMPLATES");
+        console.log("PHASE 3: PROJECT FACTORIES");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
-        // STEP 7: Deploy Hook Infrastructure (for ERC404)
-        console.log("STEP 7: Deploying UltraAlignmentHookFactory...");
-
-        // Note: Hook template is cloned by factory, but has constructor that requires params
-        // We'll pass address(0) since factory doesn't actually use it
-        const hookFactoryArtifact = JSON.parse(
-            await fs.readFile("./contracts/out/UltraAlignmentHookFactory.sol/UltraAlignmentHookFactory.json", "utf8")
-        );
-        const HookFactoryFactory = new ethers.ContractFactory(
-            hookFactoryArtifact.abi,
-            hookFactoryArtifact.bytecode.object,
-            deployer
-        );
-        const hookFactory = await HookFactoryFactory.deploy(
-            ethers.constants.AddressZero,  // hookTemplate (factory creates via new, not clone)
-            MAINNET_ADDRESSES.weth,
-            { nonce: nonce++ }
-        );
-        await hookFactory.deployed();
-        const hookFactoryAddress = hookFactory.address;
-        console.log(`   ✓ UltraAlignmentHookFactory: ${hookFactoryAddress}`);
-        console.log("");
-
-        console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 4: PROJECT FACTORIES");
-        console.log("═══════════════════════════════════════════════════════");
-        console.log("");
-
-        // STEP 8: Deploy ERC1155Factory
-        console.log("STEP 8: Deploying ERC1155Factory...");
+        // STEP 7: Deploy ERC1155Factory
+        console.log("STEP 7: Deploying ERC1155Factory...");
         const erc1155FactoryArtifact = JSON.parse(
             await fs.readFile("./contracts/out/ERC1155Factory.sol/ERC1155Factory.json", "utf8")
         );
@@ -449,8 +526,8 @@ const main = async () => {
         console.log(`   ✓ ERC1155Factory: ${erc1155FactoryAddress}`);
         console.log("");
 
-        // STEP 9: Deploy ERC404Factory
-        console.log("STEP 9: Deploying ERC404Factory...");
+        // STEP 8: Deploy ERC404Factory
+        console.log("STEP 8: Deploying ERC404Factory...");
         const erc404FactoryArtifact = JSON.parse(
             await fs.readFile("./contracts/out/ERC404Factory.sol/ERC404Factory.json", "utf8")
         );
@@ -462,7 +539,6 @@ const main = async () => {
         const erc404Factory = await ERC404FactoryFactory.deploy(
             masterRegistryAddress,
             ethers.constants.AddressZero,  // instanceTemplate (factory uses new, not clone)
-            hookFactoryAddress,
             MAINNET_ADDRESSES.uniswapV4PoolManager,
             MAINNET_ADDRESSES.weth,
             { nonce: nonce++ }
@@ -473,7 +549,7 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 5: FACTORY REGISTRATION");
+        console.log("PHASE 4: FACTORY REGISTRATION");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
@@ -607,7 +683,7 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 7: ERC404 INSTANCE SEEDING");
+        console.log("PHASE 5: ERC404 INSTANCE SEEDING");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
@@ -617,7 +693,8 @@ const main = async () => {
         );
 
         // Instance 1: Early Launch (10% bonding progress)
-        console.log("STEP 14: Creating ERC404 'Early-Launch' instance...");
+        // Note: Vault already has its hook configured (created via createVaultWithHook)
+        console.log("STEP 12: Creating ERC404 'Early-Launch' instance...");
         const erc404FactoryContract = new ethers.Contract(
             erc404FactoryAddress,
             erc404FactoryArtifact.abi,
@@ -630,15 +707,14 @@ const main = async () => {
             maxSupply: "10000",
             liquidityReservePercent: 20,
             creator: deployer.address,
-            vault: vaultAddress, // ActiveVault
+            vault: vaultAddress,
+            hook: ms2HookAddress,
             factory: erc404FactoryContract,
-            hookFactory: hookFactoryArtifact,
             nonce: nonce,
             deployer: deployer
         });
         nonce = earlyLaunch.nonce;
         console.log(`   ✓ Early-Launch: ${earlyLaunch.instance}`);
-        console.log(`   ✓ Hook: ${earlyLaunch.hook}`);
 
         // Activate bonding curve
         nonce = await activateBondingCurve({
@@ -650,14 +726,13 @@ const main = async () => {
         console.log(`   ✓ Bonding curve activated`);
 
         // Seed 5 small purchases to reach ~10% progress
-        // Approximate: 10% of 10,000 = 1,000 tokens
-        // With bonding curve, let's buy 200 tokens each from 5 accounts
+        // 10% of 10,000 = 1,000 tokens, so buy 200 tokens each from 5 accounts
         const earlyBuyers = [
-            { address: TEST_ACCOUNTS.trader, amount: "0.05" },
-            { address: TEST_ACCOUNTS.collector, amount: "0.05" },
-            { address: TEST_ACCOUNTS.governance, amount: "0.05" },
-            { address: deployer.address, amount: "0.05" },
-            { address: TEST_ACCOUNTS.trader, amount: "0.05" } // Buy again
+            { address: TEST_ACCOUNTS.trader, tokens: "200" },
+            { address: TEST_ACCOUNTS.collector, tokens: "200" },
+            { address: TEST_ACCOUNTS.governance, tokens: "200" },
+            { address: deployer.address, tokens: "200" },
+            { address: TEST_ACCOUNTS.trader, tokens: "200" }
         ];
 
         for (const buyer of earlyBuyers) {
@@ -665,7 +740,7 @@ const main = async () => {
                 instanceAddress: earlyLaunch.instance,
                 instanceAbi: erc404InstanceArtifact.abi,
                 buyer: buyer.address,
-                amountETH: buyer.amount,
+                tokenAmount: buyer.tokens,
                 provider: provider
             });
         }
@@ -673,16 +748,20 @@ const main = async () => {
         console.log("");
 
         // Instance 2: Active Project (60% bonding progress)
-        console.log("STEP 15: Creating ERC404 'Active-Project' instance...");
+        console.log("STEP 13: Creating ERC404 'Active-Project' instance...");
+
+        // Refresh nonce after buy transactions (deployer may have bought)
+        nonce = await deployer.getTransactionCount();
+
         const activeProject = await createERC404Instance({
             name: "Active-Project",
             symbol: "ACTIVE",
             maxSupply: "10000",
             liquidityReservePercent: 20,
             creator: deployer.address,
-            vault: vaultAddress, // ActiveVault
+            vault: vaultAddress,
+            hook: ms2HookAddress,
             factory: erc404FactoryContract,
-            hookFactory: hookFactoryArtifact,
             nonce: nonce,
             deployer: deployer
         });
@@ -696,23 +775,21 @@ const main = async () => {
             nonce: nonce
         });
 
-        // Seed 15 purchases to reach ~60% progress
+        // Seed purchases to reach ~60% progress (4800 tokens out of 8000 bonding supply)
+        // 8000 = 10000 - 20% liquidity reserve
         const activeBuyers = [
-            { address: TEST_ACCOUNTS.trader, amount: "0.3" },
-            { address: TEST_ACCOUNTS.collector, amount: "0.3" },
-            { address: TEST_ACCOUNTS.governance, amount: "0.3" },
-            { address: deployer.address, amount: "0.3" },
-            { address: TEST_ACCOUNTS.trader, amount: "0.2" },
-            { address: TEST_ACCOUNTS.collector, amount: "0.2" },
-            { address: TEST_ACCOUNTS.governance, amount: "0.2" },
-            { address: TEST_ACCOUNTS.trader, amount: "0.2" },
-            { address: TEST_ACCOUNTS.collector, amount: "0.2" },
-            { address: TEST_ACCOUNTS.governance, amount: "0.2" },
-            { address: deployer.address, amount: "0.2" },
-            { address: TEST_ACCOUNTS.trader, amount: "0.1" },
-            { address: TEST_ACCOUNTS.collector, amount: "0.1" },
-            { address: TEST_ACCOUNTS.governance, amount: "0.1" },
-            { address: deployer.address, amount: "0.1" }
+            { address: TEST_ACCOUNTS.trader, tokens: "400" },
+            { address: TEST_ACCOUNTS.collector, tokens: "400" },
+            { address: TEST_ACCOUNTS.governance, tokens: "400" },
+            { address: deployer.address, tokens: "400" },
+            { address: TEST_ACCOUNTS.trader, tokens: "400" },
+            { address: TEST_ACCOUNTS.collector, tokens: "400" },
+            { address: TEST_ACCOUNTS.governance, tokens: "400" },
+            { address: TEST_ACCOUNTS.trader, tokens: "400" },
+            { address: TEST_ACCOUNTS.collector, tokens: "400" },
+            { address: TEST_ACCOUNTS.governance, tokens: "400" },
+            { address: deployer.address, tokens: "400" },
+            { address: TEST_ACCOUNTS.trader, tokens: "400" }
         ];
 
         for (const buyer of activeBuyers) {
@@ -720,24 +797,28 @@ const main = async () => {
                 instanceAddress: activeProject.instance,
                 instanceAbi: erc404InstanceArtifact.abi,
                 buyer: buyer.address,
-                amountETH: buyer.amount,
+                tokenAmount: buyer.tokens,
                 provider: provider
             });
         }
-        console.log(`   ✓ Seeded 15 purchases (~60% bonding progress)`);
+        console.log(`   ✓ Seeded 12 purchases (~60% bonding progress)`);
         console.log("");
 
         // Instance 3: Graduated (liquidity deployed)
-        console.log("STEP 16: Creating ERC404 'Graduated' instance...");
+        console.log("STEP 14: Creating ERC404 'Graduated' instance...");
+
+        // Refresh nonce after buy transactions
+        nonce = await deployer.getTransactionCount();
+
         const graduated = await createERC404Instance({
             name: "Graduated",
             symbol: "GRAD",
             maxSupply: "10000",
             liquidityReservePercent: 20,
             creator: deployer.address,
-            vault: vaultAddress, // ActiveVault
+            vault: vaultAddress,
+            hook: ms2HookAddress,
             factory: erc404FactoryContract,
-            hookFactory: hookFactoryArtifact,
             nonce: nonce,
             deployer: deployer
         });
@@ -751,12 +832,12 @@ const main = async () => {
             nonce: nonce
         });
 
-        // Buy to 100% to trigger graduation
+        // Buy to 100% to trigger graduation (8000 tokens = full bonding supply)
         const graduatedBuyers = [
-            { address: TEST_ACCOUNTS.trader, amount: "1.0" },
-            { address: TEST_ACCOUNTS.collector, amount: "1.0" },
-            { address: TEST_ACCOUNTS.governance, amount: "1.0" },
-            { address: deployer.address, amount: "1.0" }
+            { address: TEST_ACCOUNTS.trader, tokens: "2000" },
+            { address: TEST_ACCOUNTS.collector, tokens: "2000" },
+            { address: TEST_ACCOUNTS.governance, tokens: "2000" },
+            { address: deployer.address, tokens: "2000" }
         ];
 
         for (const buyer of graduatedBuyers) {
@@ -764,7 +845,7 @@ const main = async () => {
                 instanceAddress: graduated.instance,
                 instanceAbi: erc404InstanceArtifact.abi,
                 buyer: buyer.address,
-                amountETH: buyer.amount,
+                tokenAmount: buyer.tokens,
                 provider: provider
             });
         }
@@ -790,6 +871,16 @@ const main = async () => {
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
+        // Re-fund all accounts (bonding curve buys consumed ETH)
+        await provider.send("anvil_setBalance", [deployer.address, "0x56BC75E2D63100000"]); // 100 ETH
+        await provider.send("anvil_setBalance", [TEST_ACCOUNTS.trader, "0x56BC75E2D63100000"]);
+        await provider.send("anvil_setBalance", [TEST_ACCOUNTS.collector, "0x56BC75E2D63100000"]);
+        await provider.send("anvil_setBalance", [TEST_ACCOUNTS.governance, "0x56BC75E2D63100000"]);
+        console.log("   ✓ Re-funded all accounts");
+
+        // Refresh nonce after buy transactions
+        nonce = await deployer.getTransactionCount();
+
         // Instance 2: Dynamic Pricing (linear price increase)
         console.log("STEP 17: Creating ERC1155 'Dynamic-Pricing' instance...");
 
@@ -813,32 +904,33 @@ const main = async () => {
             deployer
         );
 
-        // Edition 1: Base 0.005 ETH, +0.001 per mint
-        // PricingModel: 2 = LINEAR_INCREASE
+        // Edition 1: Base 0.005 ETH, 5% increase per mint, max 50
+        // PricingModel: 2 = LIMITED_DYNAMIC (requires supply > 0)
+        // priceIncreaseRate is in basis points (500 = 5%)
         const dynamicEd1Tx = await dynamicInstance.addEdition(
             "Evolving-Piece-1",
             ethers.utils.parseEther("0.005"), // basePrice
-            0,                                 // supply (unlimited)
+            50,                                // supply (max 50)
             "https://ms2.fun/metadata/dynamic-pricing/1.json",
-            2,                                 // pricingModel (LINEAR_INCREASE)
-            ethers.utils.parseEther("0.001"), // priceIncreaseRate
+            2,                                 // pricingModel (LIMITED_DYNAMIC)
+            500,                               // priceIncreaseRate (5% = 500 basis points)
             { nonce: nonce++ }
         );
         await dynamicEd1Tx.wait();
-        console.log(`   ✓ Edition 1: "Evolving-Piece-1" (linear price: 0.005 + 0.001 per mint)`);
+        console.log(`   ✓ Edition 1: "Evolving-Piece-1" (5% increase per mint, max 50)`);
 
-        // Edition 2: Base 0.01 ETH, +0.002 per mint
+        // Edition 2: Base 0.01 ETH, 10% increase per mint, max 30
         const dynamicEd2Tx = await dynamicInstance.addEdition(
             "Evolving-Piece-2",
             ethers.utils.parseEther("0.01"),
-            0,
+            30,                                // supply (max 30)
             "https://ms2.fun/metadata/dynamic-pricing/2.json",
-            2, // LINEAR_INCREASE
-            ethers.utils.parseEther("0.002"),
+            2, // LIMITED_DYNAMIC
+            1000,                              // priceIncreaseRate (10% = 1000 basis points)
             { nonce: nonce++ }
         );
         await dynamicEd2Tx.wait();
-        console.log(`   ✓ Edition 2: "Evolving-Piece-2" (linear price: 0.01 + 0.002 per mint)`);
+        console.log(`   ✓ Edition 2: "Evolving-Piece-2" (10% increase per mint, max 30)`);
 
         // Mint some to show price progression
         for (let i = 0; i < 10; i++) {
@@ -846,31 +938,30 @@ const main = async () => {
             const signer = provider.getSigner(buyer);
             const asUser = dynamicInstance.connect(signer);
 
-            // Calculate current price (basePrice + i * priceIncreaseRate)
-            const currentPrice = ethers.utils.parseEther("0.005").add(
-                ethers.utils.parseEther("0.001").mul(i)
-            );
-
+            // Query current price from contract
+            const currentPrice = await dynamicInstance.getCurrentPrice(1);
             await asUser.mint(1, 1, "", { value: currentPrice });
         }
-        console.log(`   ✓ Minted 10x Edition 1 (prices: 0.005 → 0.014 ETH)`);
+        console.log(`   ✓ Minted 10x Edition 1 (dynamic pricing)`);
 
         for (let i = 0; i < 8; i++) {
             const buyer = i % 2 === 0 ? TEST_ACCOUNTS.governance : deployer.address;
             const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
             const asUser = dynamicInstance.connect(signer);
 
-            const currentPrice = ethers.utils.parseEther("0.01").add(
-                ethers.utils.parseEther("0.002").mul(i)
-            );
-
+            // Query current price from contract
+            const currentPrice = await dynamicInstance.getCurrentPrice(2);
             await asUser.mint(2, 1, "", { value: currentPrice });
         }
-        console.log(`   ✓ Minted 8x Edition 2 (prices: 0.01 → 0.024 ETH)`);
+        console.log(`   ✓ Minted 8x Edition 2 (dynamic pricing)`);
         console.log("");
 
         // Instance 3: Mixed Supply (limited + unlimited)
         console.log("STEP 18: Creating ERC1155 'Mixed-Supply' instance...");
+
+        // Refresh nonce (deployer was used in minting loops)
+        nonce = await deployer.getTransactionCount();
+
         const mixedSupplyTx = await erc1155FactoryContract.createInstance(
             "Mixed-Supply",
             "https://ms2.fun/metadata/mixed-supply/",
@@ -946,6 +1037,9 @@ const main = async () => {
         console.log("PHASE 9: GLOBAL MESSAGE SEEDING");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
+
+        // Refresh nonce (deployer was used in minting loops)
+        nonce = await deployer.getTransactionCount();
 
         console.log("STEP 19: Verifying global messages...");
 
@@ -1069,7 +1163,7 @@ const main = async () => {
                         symbol: "EARLY",
                         creator: deployer.address,
                         vault: vaultAddress,
-                        hook: earlyLaunch.hook,
+                        hook: ms2HookAddress,
                         state: "early-bonding",
                         bondingProgress: "~10%",
                         holders: 4,
@@ -1081,7 +1175,7 @@ const main = async () => {
                         symbol: "ACTIVE",
                         creator: deployer.address,
                         vault: vaultAddress,
-                        hook: activeProject.hook,
+                        hook: ms2HookAddress,
                         state: "active-bonding",
                         bondingProgress: "~60%",
                         holders: 4,
@@ -1093,7 +1187,7 @@ const main = async () => {
                         symbol: "GRAD",
                         creator: deployer.address,
                         vault: vaultAddress,
-                        hook: graduated.hook,
+                        hook: ms2HookAddress,
                         state: "graduated",
                         bondingProgress: "100%",
                         liquidityDeployed: false, // Stubbed
@@ -1129,22 +1223,22 @@ const main = async () => {
                         name: "Dynamic-Pricing",
                         creator: deployer.address,
                         vault: simpleVaultAddress,
-                        pricingModel: "linear-increase",
+                        pricingModel: "exponential-increase",
                         editions: [
                             {
                                 id: 1,
                                 name: "Evolving-Piece-1",
                                 basePrice: "0.005",
-                                priceIncrease: "0.001",
-                                maxSupply: 0,
+                                priceIncreaseRate: 500, // 5% per mint
+                                maxSupply: 50,
                                 minted: 10
                             },
                             {
                                 id: 2,
                                 name: "Evolving-Piece-2",
                                 basePrice: "0.01",
-                                priceIncrease: "0.002",
-                                maxSupply: 0,
+                                priceIncreaseRate: 1000, // 10% per mint
+                                maxSupply: 30,
                                 minted: 8
                             }
                         ]

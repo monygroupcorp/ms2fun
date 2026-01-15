@@ -72,7 +72,7 @@ contract UltraAlignmentHookFactoryTest is Test {
         vault.setV4PoolKey(mockPoolKey);
 
         // Deploy factory
-        factory = new UltraAlignmentHookFactory(address(0), wethAddr);
+        factory = new UltraAlignmentHookFactory(address(0)); // hookTemplate
 
         vm.stopPrank();
 
@@ -93,7 +93,8 @@ contract UltraAlignmentHookFactoryTest is Test {
             address(vault),
             wethAddr,
             hookCreator,
-            true
+            true,
+            bytes32(0)
         );
     }
 
@@ -106,7 +107,8 @@ contract UltraAlignmentHookFactoryTest is Test {
             address(0),
             wethAddr,
             hookCreator,
-            true
+            true,
+            bytes32(0)
         );
     }
 
@@ -119,7 +121,8 @@ contract UltraAlignmentHookFactoryTest is Test {
             address(vault),
             address(0),
             hookCreator,
-            true
+            true,
+            bytes32(0)
         );
     }
 
@@ -132,7 +135,8 @@ contract UltraAlignmentHookFactoryTest is Test {
             address(vault),
             wethAddr,
             address(0),
-            true
+            true,
+            bytes32(0)
         );
     }
 
@@ -148,7 +152,8 @@ contract UltraAlignmentHookFactoryTest is Test {
             address(vault),
             wethAddr,
             hookCreator,
-            true
+            true,
+            bytes32(0)
         );
     }
 
@@ -161,7 +166,8 @@ contract UltraAlignmentHookFactoryTest is Test {
             address(vault),
             wethAddr,
             hookCreator,
-            true
+            true,
+            bytes32(0)
         );
     }
 
@@ -389,14 +395,13 @@ contract UltraAlignmentHookFactoryTest is Test {
 
     function test_constructor_initialization() public view {
         assertEq(factory.hookCreationFee(), 0.001 ether, "Default fee should be set");
-        assertEq(factory.weth(), wethAddr, "WETH should be set");
         assertTrue(factory.owner() == owner, "Owner should be initialized");
     }
 
     function test_constructor_validAddresses() public {
         UltraAlignmentHookFactory newFactory =
-            new UltraAlignmentHookFactory(address(0x888), wethAddr);
-        assertEq(newFactory.weth(), wethAddr, "WETH should be set");
+            new UltraAlignmentHookFactory(address(0x888)); // hookTemplate
+        assertEq(newFactory.hookTemplate(), address(0x888), "Hook template should be set");
         assertEq(newFactory.hookCreationFee(), 0.001 ether, "Default fee set");
     }
 
