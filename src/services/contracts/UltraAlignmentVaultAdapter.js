@@ -162,34 +162,37 @@ class UltraAlignmentVaultAdapter extends ContractAdapter {
 
     /**
      * Get total number of benefactors
-     * @returns {Promise<number>} Total benefactor count
+     * Note: Contract doesn't have a getBenefactorCount function, returns 0
+     * @returns {Promise<number>} Total benefactor count (0 - not supported)
      */
     async getBenefactorCount() {
-        return await this.getCachedOrFetch('getBenefactorCount', [], async () => {
-            const count = await this.executeContractCall('getBenefactorCount');
-            return parseInt(count.toString());
-        }, CACHE_TTL.STATIC);
+        // Contract doesn't expose benefactor enumeration
+        // Return 0 to indicate unknown count
+        return 0;
     }
 
     /**
      * Get benefactor by index
+     * Note: Contract doesn't support benefactor enumeration
      * @param {number} index - Benefactor index
-     * @returns {Promise<string>} Benefactor address
+     * @returns {Promise<string|null>} null - not supported
      */
     async getBenefactor(index) {
-        return await this.getCachedOrFetch('getBenefactor', [index], async () => {
-            return await this.executeContractCall('getBenefactor', [index]);
-        }, CACHE_TTL.STATIC);
+        // Contract doesn't expose benefactor enumeration
+        return null;
     }
 
     /**
      * Check if address is a benefactor
+     * Uses benefactorShares mapping to determine benefactor status
      * @param {string} address - Address to check
      * @returns {Promise<boolean>} True if address is benefactor
      */
     async isBenefactor(address) {
         return await this.getCachedOrFetch('isBenefactor', [address], async () => {
-            return await this.executeContractCall('isBenefactor', [address]);
+            // Check if benefactor has shares (> 0 means they are a benefactor)
+            const shares = await this.executeContractCall('benefactorShares', [address]);
+            return shares.gt(0);
         }, CACHE_TTL.DYNAMIC);
     }
 

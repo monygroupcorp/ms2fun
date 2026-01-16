@@ -288,8 +288,8 @@ class ContractAdapter {
      * @returns {Promise<any>} Cached or fetched value
      */
     async getCachedOrFetch(method, args, fetchFn, ttl = null) {
-        // Check cache first
-        const cached = contractCache.get(method, args);
+        // Check cache first - include contract address to prevent cross-contract collisions
+        const cached = contractCache.get(method, args, this.contractAddress);
         if (cached !== null) {
             return cached;
         }
@@ -297,8 +297,8 @@ class ContractAdapter {
         // Fetch value
         const value = await fetchFn();
 
-        // Cache the result
-        contractCache.set(method, args, value, ttl);
+        // Cache the result with contract address
+        contractCache.set(method, args, value, ttl, this.contractAddress);
 
         return value;
     }

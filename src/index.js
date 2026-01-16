@@ -164,7 +164,24 @@ async function initializeApp() {
             const { renderExecVotingDashboard } = await import('./routes/ExecVotingDashboard.js');
             return renderExecVotingDashboard();
         });
-        
+
+        // Vault routes
+        router.on('/vaults', async () => {
+            const { renderVaultExplorer } = await import('./routes/VaultExplorer.js');
+            return renderVaultExplorer();
+        });
+
+        router.on('/vaults/:address', async (params) => {
+            const { renderVaultDetail } = await import('./routes/VaultDetail.js');
+            return renderVaultDetail(params);
+        });
+
+        // Global activity feed route
+        router.on('/messages', async () => {
+            const { renderGlobalActivityFeed } = await import('./routes/GlobalActivityFeed.js');
+            return renderGlobalActivityFeed();
+        });
+
         // Register 404 handler
         router.notFound((path) => {
             const appContainer = document.getElementById('app-container');

@@ -18,6 +18,7 @@ import RealMasterService from './RealMasterService.js';
 import RealFactoryService from './RealFactoryService.js';
 import RealProjectRegistry from './RealProjectRegistry.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
+import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
 import walletService from './WalletService.js';
 
 /**
@@ -111,7 +112,19 @@ class ServiceFactory {
     async getMessageRegistryAdapter() {
         if (!this.messageRegistryAdapter) {
             const masterService = this.getMasterService();
-            const messageRegistryAddress = await masterService.getGlobalMessageRegistry();
+            let messageRegistryAddress = await masterService.getGlobalMessageRegistry();
+
+            // Ensure address is a string (contract may return array or other type)
+            if (Array.isArray(messageRegistryAddress)) {
+                messageRegistryAddress = messageRegistryAddress[0];
+            }
+            if (messageRegistryAddress && typeof messageRegistryAddress !== 'string') {
+                messageRegistryAddress = messageRegistryAddress.toString();
+            }
+
+            if (!messageRegistryAddress || messageRegistryAddress === '0x0000000000000000000000000000000000000000') {
+                throw new Error('GlobalMessageRegistry address not available');
+            }
 
             // Get provider - use wallet if connected, otherwise create read-only provider
             let provider, signer;
@@ -128,7 +141,7 @@ class ServiceFactory {
                     const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
                     provider = new ethers.providers.StaticJsonRpcProvider(
                         network.rpcUrl,
-                        { name: 'anvil', chainId: network.chainId }
+                        { name: 'anvil', chainId: network.chainId, ensAddress: null }
                     );
                     signer = null;
                 } else {
@@ -146,6 +159,45 @@ class ServiceFactory {
             await this.messageRegistryAdapter.initialize();
         }
         return this.messageRegistryAdapter;
+    }
+
+    /**
+     * Get UltraAlignmentVault adapter instance for a specific vault
+     * @param {string} vaultAddress - Address of the vault contract
+     * @returns {Promise<UltraAlignmentVaultAdapter>} Vault adapter
+     */
+    async getVaultAdapter(vaultAddress) {
+        // Get provider - use wallet if connected, otherwise create read-only provider
+        let provider, signer;
+        const walletProviderAndSigner = walletService.getProviderAndSigner();
+
+        if (walletProviderAndSigner.provider) {
+            // Wallet connected - use its provider
+            provider = walletProviderAndSigner.provider;
+            signer = walletProviderAndSigner.signer;
+        } else {
+            // No wallet - create read-only provider for local mode
+            const network = (await import('../config/network.js')).detectNetwork();
+            if (network.mode === 'local' && network.rpcUrl) {
+                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                provider = new ethers.providers.StaticJsonRpcProvider(
+                    network.rpcUrl,
+                    { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                );
+                signer = null;
+            } else {
+                throw new Error('No provider available for UltraAlignmentVault');
+            }
+        }
+
+        const adapter = new UltraAlignmentVaultAdapter(
+            vaultAddress,
+            'UltraAlignmentVault',
+            provider,
+            signer
+        );
+
+        return adapter;
     }
 
     /**

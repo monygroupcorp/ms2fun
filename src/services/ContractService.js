@@ -181,7 +181,7 @@ class ContractService {
             const chainId = parseInt(this.networkConfig?.network || '1');
             // Use StaticJsonRpcProvider for Anvil (chainId 1337) to skip network auto-detection
             const provider = chainId === 1337
-                ? new ethers.providers.StaticJsonRpcProvider(rpcUrl, { name: 'anvil', chainId })
+                ? new ethers.providers.StaticJsonRpcProvider(rpcUrl, { name: 'anvil', chainId, ensAddress: null })
                 : new ethers.providers.JsonRpcProvider(rpcUrl);
             
             // Load contract ABI

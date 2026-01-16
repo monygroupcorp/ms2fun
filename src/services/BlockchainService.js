@@ -197,7 +197,7 @@ class BlockchainService {
                 if (chainId === 1337) {
                     this.provider = new ethers.providers.StaticJsonRpcProvider(
                         rpcUrl,
-                        { name: 'anvil', chainId }
+                        { name: 'anvil', chainId, ensAddress: null }
                     );
                 } else {
                     this.provider = new ethers.providers.JsonRpcProvider(rpcUrl);

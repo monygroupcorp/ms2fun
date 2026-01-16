@@ -114,48 +114,68 @@ export class CreateEditionModal extends Component {
             });
         }
 
-        // Input listeners for state updates
+        // Input listeners for state updates - update state directly to prevent focus loss
         const nameInput = this.getRef('name-input', 'input[type="text"]');
         if (nameInput) {
             nameInput.addEventListener('input', (e) => {
-                this.setState({ name: e.target.value });
+                this.state.name = e.target.value;
             });
         }
 
         const descriptionInput = this.getRef('description-input', 'textarea');
         if (descriptionInput) {
             descriptionInput.addEventListener('input', (e) => {
-                this.setState({ description: e.target.value });
+                this.state.description = e.target.value;
             });
         }
 
         const imageInput = this.getRef('image-input', 'input[type="url"]');
         if (imageInput) {
             imageInput.addEventListener('input', (e) => {
-                this.setState({ imageUrl: e.target.value });
+                this.state.imageUrl = e.target.value;
             });
         }
 
         const priceInput = this.getRef('price-input', 'input[type="number"]');
         if (priceInput) {
             priceInput.addEventListener('input', (e) => {
-                this.setState({ price: e.target.value });
+                this.state.price = e.target.value;
             });
         }
 
         const maxSupplyInput = this.getRef('max-supply-input', 'input[type="number"]');
         if (maxSupplyInput) {
             maxSupplyInput.addEventListener('input', (e) => {
-                this.setState({ maxSupply: e.target.value });
+                this.state.maxSupply = e.target.value;
             });
         }
 
         const royaltyInput = this.getRef('royalty-input', 'input[type="number"]');
         if (royaltyInput) {
             royaltyInput.addEventListener('input', (e) => {
-                this.setState({ royaltyPercent: e.target.value });
+                this.state.royaltyPercent = e.target.value;
             });
         }
+    }
+
+    /**
+     * Override shouldUpdate to prevent re-renders when only form input values change
+     * Form inputs update state directly to preserve focus during typing
+     */
+    shouldUpdate(oldState, newState) {
+        if (!oldState || !newState) return true;
+        if (oldState === newState) return false;
+
+        // Only re-render for structural changes (open/close, loading, error)
+        const structuralKeys = ['open', 'loading', 'error'];
+        for (const key of structuralKeys) {
+            if (oldState[key] !== newState[key]) {
+                return true;
+            }
+        }
+
+        // Form input changes don't require re-render
+        return false;
     }
 
     async handleCreate() {

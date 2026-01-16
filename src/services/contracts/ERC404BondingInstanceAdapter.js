@@ -16,6 +16,13 @@ import { loadABI } from '../../utils/abiLoader.js';
 import { eventBus } from '../../core/EventBus.js';
 import { contractCache } from '../ContractCache.js';
 
+// Cache TTL configuration
+const CACHE_TTL = {
+    STATIC: 60 * 60 * 1000,       // 1 hour (name, symbol, addresses)
+    CONTRACT_DATA: 5 * 60 * 1000, // 5 minutes (reserve, supply stats)
+    REALTIME: 30 * 1000,          // 30 seconds (bonding status)
+};
+
 class ERC404BondingInstanceAdapter extends ERC404Adapter {
     constructor(contractAddress, contractType, ethersProvider, signer) {
         super(contractAddress, contractType || 'ERC404Bonding', ethersProvider, signer);
@@ -1101,19 +1108,31 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
     }
 
     /**
-     * Get project metadata
-     * @returns {Promise<Object>} Project metadata
+     * Get project metadata including volume and supply stats
+     * Contract returns: (name, symbol, maxSupply, liquidityReserve, totalBondingSupply,
+     *                    reserve, bondingOpenTime, bondingActive, liquidityPool,
+     *                    factory, v4Hook, weth, styleUri)
+     * @returns {Promise<Object>} Project metadata with stats
      */
     async getProjectMetadata() {
         return await this.getCachedOrFetch('getProjectMetadata', [], async () => {
-            const metadata = await this.executeContractCall('getProjectMetadata');
+            const m = await this.executeContractCall('getProjectMetadata');
             return {
-                name: metadata.name || metadata[0],
-                symbol: metadata.symbol || metadata[1],
-                creator: metadata.creator || metadata[2],
-                vault: metadata.vault || metadata[3]
+                name: m.projectName || m[0],
+                symbol: m.projectSymbol || m[1],
+                maxSupply: m.maxSupply || m[2],
+                liquidityReserve: m.liquidityReserve || m[3],
+                totalBondingSupply: m.totalBondingSupply || m[4],
+                reserve: m.reserve || m[5],  // ETH collected (volume)
+                bondingOpenTime: m.bondingOpenTime || m[6],
+                bondingActive: m.bondingActive !== undefined ? m.bondingActive : m[7],
+                liquidityPool: m.liquidityPoolAddress || m[8],
+                factory: m.factoryAddress || m[9],
+                v4Hook: m.v4HookAddress || m[10],
+                weth: m.wethAddress || m[11],
+                styleUri: m.projectStyleUri || m[12]
             };
-        });
+        }, CACHE_TTL.CONTRACT_DATA);
     }
 
     /**

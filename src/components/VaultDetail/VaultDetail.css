@@ -1,0 +1,510 @@
+/* VaultDetail - Individual vault page
+   Temple of Capital Design System */
+
+.vault-detail {
+    max-width: var(--container-5xl);
+    margin: 0 auto;
+    padding: var(--spacing-8);
+    font-family: var(--font-body);
+}
+
+/* Header */
+.vault-detail-header {
+    margin-bottom: var(--spacing-8);
+}
+
+/* Back Button - Bronze metallic plaque */
+.vault-detail .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    background: var(--gradient-bronze-raised);
+    border: var(--border-width-base) solid var(--bronze-metallic-base);
+    border-radius: var(--radius-sm);
+    color: var(--bronze-metallic-dark);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-bronze-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3),
+                 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.vault-detail .back-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-3), var(--shadow-bronze-raised);
+}
+
+/* Vault Info Section - Marble slab */
+.vault-info-section {
+    display: flex;
+    gap: var(--spacing-8);
+    align-items: flex-start;
+    padding: var(--spacing-6);
+    background: var(--marble-white);
+    border: var(--border-width-thick) solid var(--stone-warm);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-8);
+    box-shadow: var(--elevation-3);
+}
+
+/* Vault Icon - Gold metallic coin */
+.vault-icon-large {
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gradient-metallic-raised);
+    border: var(--border-width-thick) solid var(--gold-metallic-base);
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+    box-shadow: var(--shadow-metallic-raised);
+}
+
+.vault-icon-large .asset-icon {
+    font-size: 3rem;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.vault-info-content {
+    flex: 1;
+}
+
+.vault-info-content .vault-name {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-display-3);
+    font-weight: var(--font-weight-bold);
+    color: var(--stone-charcoal);
+    margin: 0 0 var(--spacing-2) 0;
+    text-shadow: var(--text-shadow-engraved-deep);
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.vault-info-content .vault-type {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-label);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+    margin: 0 0 var(--spacing-2) 0;
+}
+
+.vault-info-content .vault-address {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-xs);
+    color: var(--text-muted);
+    margin: 0 0 var(--spacing-4) 0;
+    word-break: break-all;
+}
+
+.vault-info-content .vault-description {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--text-primary);
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+}
+
+/* Stats Grid - Marble stat cards */
+.vault-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-4);
+    margin-bottom: var(--spacing-8);
+}
+
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    padding: var(--spacing-5);
+    background: var(--marble-cream);
+    border: var(--border-width-base) solid var(--stone-warm);
+    border-radius: var(--radius-md);
+    text-align: center;
+    box-shadow: var(--elevation-2);
+}
+
+.stat-card .stat-label {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-label);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+}
+
+.stat-card .stat-value {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    color: var(--gold-primary);
+    text-shadow: var(--text-shadow-engraved-light);
+}
+
+/* Section Titles - Engraved in marble */
+.section-title {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    color: var(--stone-charcoal);
+    margin: 0 0 var(--spacing-4) 0;
+    padding-bottom: var(--spacing-3);
+    border-bottom: var(--border-width-base) solid var(--stone-warm);
+    text-shadow: var(--text-shadow-engraved-light);
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+/* User Position Section */
+.user-position-section {
+    margin-bottom: var(--spacing-8);
+}
+
+/* User Position Card - Marble slab with success accent */
+.user-position-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-5);
+    background: var(--marble-white);
+    border: var(--border-width-thick) solid var(--success-500);
+    border-radius: var(--radius-md);
+    box-shadow: var(--elevation-2);
+}
+
+.position-stats {
+    display: flex;
+    gap: var(--spacing-8);
+}
+
+.position-stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+}
+
+.position-stat .stat-label {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-label);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+}
+
+.position-stat .stat-value {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+.position-stat.highlight .stat-value {
+    color: var(--success-700);
+    font-size: var(--font-size-h4);
+}
+
+/* Claim Button - Gold metallic plaque */
+.claim-btn {
+    padding: var(--spacing-3) var(--spacing-6);
+    background: var(--gradient-metallic-raised);
+    border: var(--border-width-base) solid var(--gold-metallic-base);
+    border-radius: var(--radius-sm);
+    color: var(--gold-metallic-dark);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-metallic-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3),
+                 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.claim-btn:hover:not(.disabled):not(.loading) {
+    transform: translateY(-2px);
+    box-shadow: var(--elevation-4), var(--shadow-metallic-raised);
+}
+
+.claim-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.claim-btn.loading {
+    cursor: wait;
+}
+
+/* Benefactors Section */
+.benefactors-section {
+    margin-bottom: var(--spacing-8);
+}
+
+/* Benefactors Table Container - Marble slab */
+.benefactors-table-container {
+    background: var(--marble-white);
+    border: var(--border-width-base) solid var(--stone-warm);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--elevation-2);
+}
+
+.benefactors-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.benefactors-table thead {
+    background: linear-gradient(180deg, var(--marble-cream) 0%, var(--marble-ivory) 100%);
+}
+
+.benefactors-table th {
+    padding: var(--spacing-3) var(--spacing-4);
+    text-align: left;
+    font-family: var(--font-heading);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-bold);
+    color: var(--stone-charcoal);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+    border-bottom: var(--border-width-base) solid var(--stone-warm);
+    text-shadow: var(--text-shadow-engraved-light);
+}
+
+.benefactors-table tbody tr {
+    border-bottom: var(--border-width-thin) solid var(--marble-vein);
+    transition: var(--transition-base);
+}
+
+.benefactors-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.benefactors-table tbody tr:hover {
+    background: var(--marble-cream);
+}
+
+.benefactors-table tbody tr.is-user {
+    background: var(--success-50);
+}
+
+.benefactors-table tbody tr.is-user:hover {
+    background: var(--success-100);
+}
+
+.benefactors-table td {
+    padding: var(--spacing-3) var(--spacing-4);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-primary);
+}
+
+.benefactor-address {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-xs);
+}
+
+/* You Badge - Small metallic tag */
+.you-badge {
+    display: inline-block;
+    margin-left: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-2);
+    background: var(--success-100);
+    border: var(--border-width-thin) solid var(--success-500);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-small);
+    font-weight: var(--font-weight-bold);
+    color: var(--success-700);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Projects Section */
+.projects-section {
+    margin-bottom: var(--spacing-8);
+}
+
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-4);
+}
+
+/* Project Card - Bronze metallic plaque */
+.project-card {
+    padding: var(--spacing-4) var(--spacing-5);
+    background: var(--gradient-bronze-raised);
+    border: var(--border-width-base) solid var(--bronze-metallic-base);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-bronze-raised);
+}
+
+.project-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--elevation-3), var(--shadow-bronze-raised);
+}
+
+.project-card .project-name {
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--bronze-metallic-dark);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+/* Empty Section - Marble placeholder */
+.empty-section {
+    padding: var(--spacing-8);
+    text-align: center;
+    background: var(--marble-ivory);
+    border: var(--border-width-base) dashed var(--stone-warm);
+    border-radius: var(--radius-md);
+}
+
+.empty-section p {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Loading State */
+.vault-detail-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    gap: var(--spacing-4);
+}
+
+.vault-detail-loading .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--marble-vein);
+    border-top-color: var(--gold-primary);
+    border-radius: var(--radius-full);
+    animation: vault-detail-spin 0.8s linear infinite;
+}
+
+@keyframes vault-detail-spin {
+    to { transform: rotate(360deg); }
+}
+
+.vault-detail-loading p {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Error State */
+.vault-detail-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: var(--spacing-4);
+}
+
+.vault-detail-error p {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--error-600);
+    margin: 0;
+}
+
+/* Retry Button - Bronze metallic plaque */
+.vault-detail-error .retry-btn {
+    padding: var(--spacing-3) var(--spacing-6);
+    background: var(--gradient-bronze-raised);
+    border: var(--border-width-base) solid var(--bronze-metallic-base);
+    border-radius: var(--radius-sm);
+    color: var(--bronze-metallic-dark);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-bronze-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+.vault-detail-error .retry-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-3), var(--shadow-bronze-raised);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .vault-detail {
+        padding: var(--spacing-4);
+    }
+
+    .vault-info-section {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: var(--spacing-5);
+    }
+
+    .vault-icon-large {
+        width: 80px;
+        height: 80px;
+    }
+
+    .vault-icon-large .asset-icon {
+        font-size: 2.5rem;
+    }
+
+    .vault-info-content .vault-name {
+        font-size: var(--font-size-h2);
+    }
+
+    .vault-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .user-position-card {
+        flex-direction: column;
+        gap: var(--spacing-5);
+    }
+
+    .position-stats {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: var(--spacing-4);
+    }
+
+    .position-stat {
+        text-align: center;
+        min-width: 120px;
+    }
+
+    .claim-btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .vault-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .stat-card {
+        padding: var(--spacing-4);
+    }
+
+    .stat-card .stat-value {
+        font-size: var(--font-size-h4);
+    }
+
+    .projects-grid {
+        grid-template-columns: 1fr;
+    }
+}

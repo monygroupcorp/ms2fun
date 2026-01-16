@@ -8,6 +8,15 @@ import { mineHookSalt, decodeHookFlags, isValidUltraAlignmentHookAddress } from 
 const RPC_URL_LOCAL = "http://127.0.0.1:8545";
 const CONFIG_PATH = "src/config/contracts.local.json";
 
+// User address from environment (required)
+const USER_ADDRESS = process.env.USER_ADDRESS;
+if (!USER_ADDRESS) {
+    console.error("❌ USER_ADDRESS environment variable is required");
+    console.error("   Set it to your wallet address to interact with the local chain");
+    console.error("   Example: USER_ADDRESS=0x... npm run chain:start");
+    process.exit(1);
+}
+
 // Anvil default accounts
 const DEPLOYER_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 const DEPLOYER_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
@@ -108,6 +117,47 @@ async function createERC404Instance({
     return { instance, nonce };
 }
 
+// Sample messages for seeding activity
+const BUY_MESSAGES = [
+    "LFG! 🚀",
+    "Early and often",
+    "This project is going places",
+    "Adding to my position",
+    "Bullish on this one",
+    "Great team, great vision",
+    "Diamond hands 💎",
+    "WAGMI",
+    "In it for the long haul",
+    "Love the art direction",
+    "Community is everything",
+    "Building something special here",
+    "First time buyer, excited!",
+    "Increasing my stack",
+    "Can't stop, won't stop"
+];
+
+const MINT_MESSAGES = [
+    "Beautiful piece!",
+    "Added to my collection",
+    "Love this artist's work",
+    "Supporting creators 🎨",
+    "This one speaks to me",
+    "Instant classic",
+    "Had to grab one",
+    "The details are incredible",
+    "Been waiting for this drop",
+    "My favorite so far",
+    "Art that matters",
+    "Proud to own this",
+    "Supporting the vision",
+    "This is the one",
+    "Collector's item for sure"
+];
+
+function getRandomMessage(messages) {
+    return messages[Math.floor(Math.random() * messages.length)];
+}
+
 /**
  * Buy tokens on bonding curve
  * @param {object} params - Buy parameters
@@ -133,7 +183,7 @@ async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, tokenAmo
         maxCost,
         true, // mintNFT
         ethers.constants.HashZero, // public tier (no password)
-        "" // message
+        getRandomMessage(BUY_MESSAGES)
     , { value: maxCost });
     await buyTx.wait();
 }
@@ -194,14 +244,16 @@ const main = async () => {
         console.log(`✅ Deployer: ${deployer.address} (nonce: ${nonce})`);
         console.log("");
 
-        // Fund test accounts
-        console.log("💰 Funding test accounts...");
+        // Fund test accounts and user
+        console.log("💰 Funding accounts...");
         await provider.send("anvil_setBalance", [TEST_ACCOUNTS.trader, "0x56BC75E2D63100000"]); // 100 ETH
         await provider.send("anvil_setBalance", [TEST_ACCOUNTS.collector, "0x56BC75E2D63100000"]);
         await provider.send("anvil_setBalance", [TEST_ACCOUNTS.governance, "0x56BC75E2D63100000"]);
+        await provider.send("anvil_setBalance", [USER_ADDRESS, "0x56BC75E2D63100000"]); // 100 ETH for user
         console.log(`  ✓ Funded trader: ${TEST_ACCOUNTS.trader}`);
         console.log(`  ✓ Funded collector: ${TEST_ACCOUNTS.collector}`);
         console.log(`  ✓ Funded governance: ${TEST_ACCOUNTS.governance}`);
+        console.log(`  ✓ Funded user: ${USER_ADDRESS}`);
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
@@ -663,7 +715,7 @@ const main = async () => {
         const mint1Tx = await erc1155Instance.mint(
             1,   // editionId
             3,   // quantity
-            "",  // message (empty string for no message)
+            getRandomMessage(MINT_MESSAGES),
             { nonce: nonce++, value: ethers.utils.parseEther("0.03") }
         );
         await mint1Tx.wait();
@@ -675,7 +727,7 @@ const main = async () => {
         const mint2Tx = await erc1155AsTrader.mint(
             2,   // editionId
             2,   // quantity
-            "",  // message (empty string for no message)
+            getRandomMessage(MINT_MESSAGES),
             { value: ethers.utils.parseEther("0.04") }
         );
         await mint2Tx.wait();
@@ -876,6 +928,7 @@ const main = async () => {
         await provider.send("anvil_setBalance", [TEST_ACCOUNTS.trader, "0x56BC75E2D63100000"]);
         await provider.send("anvil_setBalance", [TEST_ACCOUNTS.collector, "0x56BC75E2D63100000"]);
         await provider.send("anvil_setBalance", [TEST_ACCOUNTS.governance, "0x56BC75E2D63100000"]);
+        await provider.send("anvil_setBalance", [USER_ADDRESS, "0x56BC75E2D63100000"]);
         console.log("   ✓ Re-funded all accounts");
 
         // Refresh nonce after buy transactions
@@ -940,7 +993,7 @@ const main = async () => {
 
             // Query current price from contract
             const currentPrice = await dynamicInstance.getCurrentPrice(1);
-            await asUser.mint(1, 1, "", { value: currentPrice });
+            await asUser.mint(1, 1, getRandomMessage(MINT_MESSAGES), { value: currentPrice });
         }
         console.log(`   ✓ Minted 10x Edition 1 (dynamic pricing)`);
 
@@ -951,7 +1004,7 @@ const main = async () => {
 
             // Query current price from contract
             const currentPrice = await dynamicInstance.getCurrentPrice(2);
-            await asUser.mint(2, 1, "", { value: currentPrice });
+            await asUser.mint(2, 1, getRandomMessage(MINT_MESSAGES), { value: currentPrice });
         }
         console.log(`   ✓ Minted 8x Edition 2 (dynamic pricing)`);
         console.log("");
@@ -1017,7 +1070,7 @@ const main = async () => {
             const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
             const asUser = mixedInstance.connect(signer);
 
-            await asUser.mint(1, 1, "", { value: ethers.utils.parseEther("0.02") });
+            await asUser.mint(1, 1, getRandomMessage(MINT_MESSAGES), { value: ethers.utils.parseEther("0.02") });
         }
         console.log(`   ✓ Minted 45x Edition 1 (45% sold out)`);
 
@@ -1028,7 +1081,7 @@ const main = async () => {
             const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
             const asUser = mixedInstance.connect(signer);
 
-            await asUser.mint(2, 1, "", { value: ethers.utils.parseEther("0.005") });
+            await asUser.mint(2, 1, getRandomMessage(MINT_MESSAGES), { value: ethers.utils.parseEther("0.005") });
         }
         console.log(`   ✓ Minted 60x Edition 2`);
         console.log("");
@@ -1069,6 +1122,189 @@ const main = async () => {
             console.log(`   ℹ️  This is expected if contracts don't have messaging integration yet`);
         }
         console.log("");
+
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("PHASE 10: VAULT CONTRIBUTION SEEDING");
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("");
+
+        // Refresh nonce
+        nonce = await deployer.getTransactionCount();
+
+        // Connect to vaults for contribution operations
+        const vaultContract = new ethers.Contract(
+            vaultAddress,
+            vaultArtifact.abi,
+            deployer
+        );
+
+        const simpleVaultContract = new ethers.Contract(
+            simpleVaultAddress,
+            vaultArtifact.abi,
+            deployer
+        );
+
+        console.log("STEP 20: Artist withdrawals (triggers vault contributions)...");
+
+        // Artist (deployer) withdraws from Demo-Gallery ERC1155 instance
+        // This sends 20% tithe to the vault
+        const demoGalleryBalance = await provider.getBalance(instanceAddress);
+        console.log(`   Demo-Gallery balance: ${ethers.utils.formatEther(demoGalleryBalance)} ETH`);
+
+        if (demoGalleryBalance.gt(0)) {
+            // Withdraw all proceeds from Demo-Gallery (deployer is creator)
+            const withdrawTx = await erc1155Instance.withdraw(
+                demoGalleryBalance,
+                { nonce: nonce++ }
+            );
+            await withdrawTx.wait();
+            const titheAmount = demoGalleryBalance.mul(20).div(100);
+            console.log(`   ✓ Withdrawn from Demo-Gallery`);
+            console.log(`     Creator received: ${ethers.utils.formatEther(demoGalleryBalance.sub(titheAmount))} ETH`);
+            console.log(`     Vault tithe (20%): ${ethers.utils.formatEther(titheAmount)} ETH`);
+        }
+
+        // Withdraw from Dynamic-Pricing instance
+        const dynamicBalance = await provider.getBalance(dynamicInstanceAddress);
+        console.log(`   Dynamic-Pricing balance: ${ethers.utils.formatEther(dynamicBalance)} ETH`);
+
+        if (dynamicBalance.gt(0)) {
+            const withdrawDynamicTx = await dynamicInstance.withdraw(
+                dynamicBalance,
+                { nonce: nonce++ }
+            );
+            await withdrawDynamicTx.wait();
+            const titheAmount = dynamicBalance.mul(20).div(100);
+            console.log(`   ✓ Withdrawn from Dynamic-Pricing`);
+            console.log(`     Creator received: ${ethers.utils.formatEther(dynamicBalance.sub(titheAmount))} ETH`);
+            console.log(`     Vault tithe (20%): ${ethers.utils.formatEther(titheAmount)} ETH`);
+        }
+
+        // Withdraw from Mixed-Supply instance
+        const mixedBalance = await provider.getBalance(mixedInstanceAddress);
+        console.log(`   Mixed-Supply balance: ${ethers.utils.formatEther(mixedBalance)} ETH`);
+
+        if (mixedBalance.gt(0)) {
+            const withdrawMixedTx = await mixedInstance.withdraw(
+                mixedBalance,
+                { nonce: nonce++ }
+            );
+            await withdrawMixedTx.wait();
+            const titheAmount = mixedBalance.mul(20).div(100);
+            console.log(`   ✓ Withdrawn from Mixed-Supply`);
+            console.log(`     Creator received: ${ethers.utils.formatEther(mixedBalance.sub(titheAmount))} ETH`);
+            console.log(`     Vault tithe (20%): ${ethers.utils.formatEther(titheAmount)} ETH`);
+        }
+        console.log("");
+
+        console.log("STEP 21: Simulating direct vault contributions...");
+
+        // Simulate direct contributions to vaults via receiveHookTax
+        // This mimics what V4 hooks would do during swaps
+        const contributionAmounts = [
+            { contributor: TEST_ACCOUNTS.trader, amount: "0.5" },
+            { contributor: TEST_ACCOUNTS.collector, amount: "0.3" },
+            { contributor: TEST_ACCOUNTS.governance, amount: "0.2" }
+        ];
+
+        // MS2 Vault contributions (via direct ETH transfer - vault's receive() tracks sender)
+        for (const { contributor, amount } of contributionAmounts) {
+            const contributorSigner = provider.getSigner(contributor);
+            const tx = await contributorSigner.sendTransaction({
+                to: vaultAddress,
+                value: ethers.utils.parseEther(amount)
+            });
+            await tx.wait();
+            console.log(`   ✓ ${contributor.slice(0, 8)}... contributed ${amount} ETH to MS2 Vault`);
+        }
+
+        // CULT Vault contributions
+        for (const { contributor, amount } of contributionAmounts) {
+            const contributorSigner = provider.getSigner(contributor);
+            const tx = await contributorSigner.sendTransaction({
+                to: simpleVaultAddress,
+                value: ethers.utils.parseEther(amount)
+            });
+            await tx.wait();
+            console.log(`   ✓ ${contributor.slice(0, 8)}... contributed ${amount} ETH to CULT Vault`);
+        }
+        console.log("");
+
+        console.log("STEP 22: Processing vault contributions (convertAndAddLiquidity)...");
+
+        // Check pending ETH in vaults before conversion
+        const ms2PendingBefore = await vaultContract.totalPendingETH();
+        const cultPendingBefore = await simpleVaultContract.totalPendingETH();
+        console.log(`   MS2 Vault pending ETH: ${ethers.utils.formatEther(ms2PendingBefore)} ETH`);
+        console.log(`   CULT Vault pending ETH: ${ethers.utils.formatEther(cultPendingBefore)} ETH`);
+
+        // Refresh nonce
+        nonce = await deployer.getTransactionCount();
+
+        // Try to convert and add liquidity for MS2 vault
+        // Note: This may fail if there's not enough liquidity in the alignment token pools
+        // That's expected in a fresh fork - the important thing is contributions are tracked
+        if (ms2PendingBefore.gt(0)) {
+            try {
+                const convertMs2Tx = await vaultContract.convertAndAddLiquidity(
+                    0, // minOutTarget (0 for testing, would be higher in production)
+                    { nonce: nonce++, gasLimit: 5000000 }
+                );
+                await convertMs2Tx.wait();
+                console.log(`   ✓ MS2 Vault: convertAndAddLiquidity completed`);
+            } catch (error) {
+                console.log(`   ⚠️  MS2 Vault conversion skipped: ${error.message.slice(0, 50)}...`);
+                console.log(`      (Normal if alignment token liquidity is low on fork)`);
+            }
+        }
+
+        // Try to convert for CULT vault
+        if (cultPendingBefore.gt(0)) {
+            try {
+                // Refresh nonce in case previous tx failed
+                nonce = await deployer.getTransactionCount();
+                const convertCultTx = await simpleVaultContract.convertAndAddLiquidity(
+                    0,
+                    { nonce: nonce++, gasLimit: 5000000 }
+                );
+                await convertCultTx.wait();
+                console.log(`   ✓ CULT Vault: convertAndAddLiquidity completed`);
+            } catch (error) {
+                console.log(`   ⚠️  CULT Vault conversion skipped: ${error.message.slice(0, 50)}...`);
+                console.log(`      (Normal if alignment token liquidity is low on fork)`);
+            }
+        }
+        console.log("");
+
+        console.log("STEP 23: Verifying vault state...");
+
+        // Get final vault stats
+        const ms2AccumulatedFees = await vaultContract.accumulatedFees();
+        const ms2TotalShares = await vaultContract.totalShares();
+        const ms2PendingAfter = await vaultContract.totalPendingETH();
+        const ms2VaultBalance = await provider.getBalance(vaultAddress);
+
+        const cultAccumulatedFees = await simpleVaultContract.accumulatedFees();
+        const cultTotalShares = await simpleVaultContract.totalShares();
+        const cultPendingAfter = await simpleVaultContract.totalPendingETH();
+        const cultVaultBalance = await provider.getBalance(simpleVaultAddress);
+
+        console.log(`   MS2 Vault (${vaultAddress.slice(0, 10)}...):`);
+        console.log(`     Balance: ${ethers.utils.formatEther(ms2VaultBalance)} ETH`);
+        console.log(`     Accumulated Fees: ${ethers.utils.formatEther(ms2AccumulatedFees)} ETH`);
+        console.log(`     Total Shares: ${ms2TotalShares.toString()}`);
+        console.log(`     Pending ETH: ${ethers.utils.formatEther(ms2PendingAfter)} ETH`);
+
+        console.log(`   CULT Vault (${simpleVaultAddress.slice(0, 10)}...):`);
+        console.log(`     Balance: ${ethers.utils.formatEther(cultVaultBalance)} ETH`);
+        console.log(`     Accumulated Fees: ${ethers.utils.formatEther(cultAccumulatedFees)} ETH`);
+        console.log(`     Total Shares: ${cultTotalShares.toString()}`);
+        console.log(`     Pending ETH: ${ethers.utils.formatEther(cultPendingAfter)} ETH`);
+        console.log("");
+
+        // Update vault metadata for config
+        const ms2VaultTVL = ethers.utils.formatEther(ms2VaultBalance.add(ms2AccumulatedFees));
+        const cultVaultTVL = ethers.utils.formatEther(cultVaultBalance.add(cultAccumulatedFees));
 
         console.log("═══════════════════════════════════════════════════════");
         console.log("VERIFICATION & CONFIG");
@@ -1137,11 +1373,14 @@ const main = async () => {
                     name: "UltraAlignmentVault",
                     type: "ultra-alignment",
                     registered: true,
-                    tag: "ActiveVault",  // For seeding reference
+                    tag: "ActiveVault",
                     alignmentToken: MAINNET_ADDRESSES.ms2Token,
                     alignmentTokenSymbol: "MS2",
-                    benefactors: 0,
-                    accumulatedFees: "0"
+                    totalShares: ms2TotalShares.toString(),
+                    accumulatedFees: ethers.utils.formatEther(ms2AccumulatedFees),
+                    pendingETH: ethers.utils.formatEther(ms2PendingAfter),
+                    balance: ethers.utils.formatEther(ms2VaultBalance),
+                    tvl: ms2VaultTVL
                 },
                 {
                     address: simpleVaultAddress,
@@ -1151,8 +1390,11 @@ const main = async () => {
                     tag: "SimpleVault",
                     alignmentToken: MAINNET_ADDRESSES.cultToken,
                     alignmentTokenSymbol: "CULT",
-                    benefactors: 0,
-                    accumulatedFees: "0"
+                    totalShares: cultTotalShares.toString(),
+                    accumulatedFees: ethers.utils.formatEther(cultAccumulatedFees),
+                    pendingETH: ethers.utils.formatEther(cultPendingAfter),
+                    balance: ethers.utils.formatEther(cultVaultBalance),
+                    tvl: cultVaultTVL
                 }
             ],
             instances: {
@@ -1283,6 +1525,7 @@ const main = async () => {
                 exec: MAINNET_ADDRESSES.execToken
             },
             testAccounts: TEST_ACCOUNTS,
+            userAddress: USER_ADDRESS,
             governance: {
                 dictator: deployer.address,
                 abdicationInitiated: false,
@@ -1313,8 +1556,10 @@ const main = async () => {
         console.log(`   FeaturedQueue:  ${queueManagerAddress}`);
         console.log("");
         console.log("🏦 Vaults (2):");
-        console.log(`   ActiveVault:    ${vaultAddress} ✓ registered (MS2-aligned)`);
-        console.log(`   SimpleVault:    ${simpleVaultAddress} ✓ registered (CULT-aligned)`);
+        console.log(`   MS2 Vault:      ${vaultAddress}`);
+        console.log(`                   TVL: ${ms2VaultTVL} ETH | Shares: ${ms2TotalShares.toString()}`);
+        console.log(`   CULT Vault:     ${simpleVaultAddress}`);
+        console.log(`                   TVL: ${cultVaultTVL} ETH | Shares: ${cultTotalShares.toString()}`);
         console.log("");
         console.log("🏭 Factories (2):");
         console.log(`   ERC404Factory:  ${erc404FactoryAddress} ✓ registered`);
@@ -1338,7 +1583,8 @@ const main = async () => {
         console.log(`   Mode:            Dictator`);
         console.log(`   Dictator:        ${deployer.address}`);
         console.log("");
-        console.log("💰 Test Accounts:");
+        console.log("💰 Funded Accounts:");
+        console.log(`   User:            ${USER_ADDRESS} (100 ETH) ⭐`);
         console.log(`   Owner:           ${TEST_ACCOUNTS.owner} (100 ETH)`);
         console.log(`   Trader:          ${TEST_ACCOUNTS.trader} (100 ETH)`);
         console.log(`   Collector:       ${TEST_ACCOUNTS.collector} (100 ETH)`);

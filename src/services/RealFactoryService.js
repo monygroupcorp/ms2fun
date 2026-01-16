@@ -36,7 +36,7 @@ export default class RealFactoryService {
             // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
             const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(
                 network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId }
+                { name: 'anvil', chainId: network.chainId, ensAddress: null }
             );
             return { provider: readOnlyProvider, signer: null };
         }

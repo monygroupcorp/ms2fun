@@ -1,0 +1,497 @@
+/* GlobalActivityFeed - Protocol-wide activity feed page
+   Temple of Capital Design System */
+
+.global-activity-feed {
+    max-width: var(--container-7xl);
+    margin: 0 auto;
+    padding: var(--spacing-8);
+    font-family: var(--font-body);
+}
+
+/* Header */
+.feed-header {
+    margin-bottom: var(--spacing-8);
+}
+
+/* Back Button - Bronze metallic plaque */
+.global-activity-feed .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    background: var(--gradient-bronze-raised);
+    border: var(--border-width-base) solid var(--bronze-metallic-base);
+    border-radius: var(--radius-sm);
+    color: var(--bronze-metallic-dark);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-bronze-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3),
+                 0 2px 4px rgba(0, 0, 0, 0.5);
+    margin-bottom: var(--spacing-6);
+}
+
+.global-activity-feed .back-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-3), var(--shadow-bronze-raised);
+}
+
+/* Header Content */
+.feed-header .header-content {
+    margin-top: var(--spacing-4);
+}
+
+.feed-header .page-title {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-display-3);
+    font-weight: var(--font-weight-bold);
+    color: var(--stone-charcoal);
+    margin: 0 0 var(--spacing-2) 0;
+    text-shadow: var(--text-shadow-engraved-deep);
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.feed-header .page-subtitle {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Controls - Marble slab */
+.feed-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-4);
+    padding: var(--spacing-5) var(--spacing-6);
+    background: var(--marble-cream);
+    border: var(--border-width-base) solid var(--stone-warm);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-6);
+    box-shadow: var(--elevation-2);
+}
+
+.filter-section {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+}
+
+.filter-label {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-label);
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+}
+
+/* Filter Buttons - Gold metallic plaques */
+.filter-buttons {
+    display: flex;
+    gap: var(--spacing-1);
+    background: var(--marble-ivory);
+    padding: var(--spacing-1);
+    border-radius: var(--radius-sm);
+    border: var(--border-width-thin) solid var(--stone-warm);
+}
+
+.filter-btn {
+    padding: var(--spacing-2) var(--spacing-4);
+    background: var(--marble-white);
+    border: var(--border-width-thin) solid var(--stone-warm);
+    border-radius: var(--radius-sm);
+    color: var(--text-tertiary);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.filter-btn:hover {
+    background: var(--marble-cream);
+    color: var(--text-primary);
+}
+
+.filter-btn.active {
+    background: var(--gradient-metallic-raised);
+    border-color: var(--gold-metallic-base);
+    color: var(--gold-metallic-dark);
+    box-shadow: var(--shadow-metallic-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3),
+                 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.message-count {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+}
+
+.message-count strong {
+    color: var(--gold-primary);
+    font-weight: var(--font-weight-bold);
+}
+
+/* Content */
+.feed-content {
+    min-height: 400px;
+}
+
+/* Message Table Container - Marble slab */
+.message-table-container {
+    background: var(--marble-white);
+    border: var(--border-width-base) solid var(--stone-warm);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--elevation-2);
+}
+
+/* Message Table */
+.message-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.message-table thead {
+    background: linear-gradient(180deg, var(--marble-cream) 0%, var(--marble-ivory) 100%);
+}
+
+.message-table th {
+    padding: var(--spacing-4);
+    text-align: left;
+    font-family: var(--font-heading);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-bold);
+    color: var(--stone-charcoal);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wider);
+    border-bottom: var(--border-width-base) solid var(--stone-warm);
+    text-shadow: var(--text-shadow-engraved-light);
+}
+
+.message-table tbody tr {
+    cursor: pointer;
+    transition: var(--transition-base);
+    border-bottom: var(--border-width-thin) solid var(--marble-vein);
+}
+
+.message-table tbody tr:hover {
+    background: var(--marble-cream);
+}
+
+.message-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.message-table td {
+    padding: var(--spacing-4);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+/* Column Widths */
+.message-table .col-type { width: 60px; text-align: center; }
+.message-table .col-user { width: 120px; }
+.message-table .col-action { width: 100px; }
+.message-table .col-message { min-width: 200px; }
+.message-table .col-project { width: 120px; }
+.message-table .col-time { width: 100px; text-align: right; }
+
+/* Type Icon */
+.type-icon {
+    font-size: 1.25rem;
+    display: inline-block;
+}
+
+/* User Address */
+.user-address {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-xs);
+    color: var(--gold-primary);
+    font-weight: var(--font-weight-bold);
+}
+
+/* Action Badge */
+.action-badge {
+    display: inline-block;
+    padding: var(--spacing-1) var(--spacing-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-label);
+    font-weight: var(--font-weight-bold);
+    text-transform: lowercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.action-badge.action-mint {
+    background: var(--success-50);
+    color: var(--success-700);
+    border: var(--border-width-thin) solid var(--success-500);
+}
+
+.action-badge.action-buy {
+    background: var(--success-50);
+    color: var(--success-700);
+    border: var(--border-width-thin) solid var(--success-500);
+}
+
+.action-badge.action-sell {
+    background: var(--error-50);
+    color: var(--error-700);
+    border: var(--border-width-thin) solid var(--error-500);
+}
+
+.action-badge.action-stake {
+    background: var(--warning-50);
+    color: var(--warning-700);
+    border: var(--border-width-thin) solid var(--warning-500);
+}
+
+.action-badge.action-unstake {
+    background: var(--warning-50);
+    color: var(--warning-700);
+    border: var(--border-width-thin) solid var(--warning-500);
+}
+
+.action-badge.action-claim {
+    background: linear-gradient(180deg, rgba(218, 165, 32, 0.1) 0%, rgba(218, 165, 32, 0.2) 100%);
+    color: var(--gold-primary);
+    border: var(--border-width-thin) solid var(--gold-metallic-base);
+}
+
+.action-badge.action-withdraw,
+.action-badge.action-deploy,
+.action-badge.action-activity {
+    background: var(--marble-cream);
+    color: var(--text-secondary);
+    border: var(--border-width-thin) solid var(--stone-warm);
+}
+
+/* Message Text */
+.message-text {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 300px;
+    display: inline-block;
+}
+
+/* Project Link */
+.project-link {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-xs);
+    color: var(--text-secondary);
+}
+
+/* Time */
+.time-relative {
+    font-size: var(--font-size-body-xs);
+    color: var(--text-muted);
+}
+
+/* Pagination */
+.feed-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-4);
+    margin-top: var(--spacing-6);
+    padding: var(--spacing-4);
+}
+
+/* Page Buttons - Bronze metallic plaques */
+.page-btn {
+    padding: var(--spacing-2) var(--spacing-5);
+    background: var(--gradient-bronze-raised);
+    border: var(--border-width-base) solid var(--bronze-metallic-base);
+    border-radius: var(--radius-sm);
+    color: var(--bronze-metallic-dark);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-bronze-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.page-btn:hover:not(.disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-3), var(--shadow-bronze-raised);
+}
+
+.page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.page-info {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+}
+
+/* Loading State */
+.feed-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: var(--spacing-4);
+}
+
+.feed-loading .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--marble-vein);
+    border-top-color: var(--gold-primary);
+    border-radius: var(--radius-full);
+    animation: feed-spin 0.8s linear infinite;
+}
+
+@keyframes feed-spin {
+    to { transform: rotate(360deg); }
+}
+
+.feed-loading p {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Error State */
+.feed-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: var(--spacing-4);
+}
+
+.feed-error p {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--error-600);
+    margin: 0;
+}
+
+/* Retry Button - Bronze metallic */
+.feed-error .retry-btn {
+    padding: var(--spacing-3) var(--spacing-6);
+    background: var(--gradient-bronze-raised);
+    border: var(--border-width-base) solid var(--bronze-metallic-base);
+    border-radius: var(--radius-sm);
+    color: var(--bronze-metallic-dark);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    transition: var(--transition-base);
+    box-shadow: var(--shadow-bronze-raised);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+.feed-error .retry-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-3), var(--shadow-bronze-raised);
+}
+
+/* Empty State */
+.feed-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.feed-empty p {
+    font-family: var(--font-body);
+    font-size: var(--font-size-body);
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .global-activity-feed {
+        padding: var(--spacing-6);
+    }
+
+    .message-table .col-project {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .global-activity-feed {
+        padding: var(--spacing-4);
+    }
+
+    .feed-header .page-title {
+        font-size: var(--font-size-h2);
+    }
+
+    .feed-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-2);
+    }
+
+    .filter-buttons {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .message-count {
+        text-align: center;
+    }
+
+    .message-table .col-action,
+    .message-table .col-message {
+        display: none;
+    }
+
+    .message-table th,
+    .message-table td {
+        padding: var(--spacing-3) var(--spacing-2);
+    }
+
+    .feed-pagination {
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 480px) {
+    .message-table .col-time {
+        display: none;
+    }
+
+    .filter-btn {
+        padding: var(--spacing-2) var(--spacing-3);
+        font-size: var(--font-size-body-xs);
+    }
+
+    .type-icon {
+        font-size: 1rem;
+    }
+
+    .user-address {
+        font-size: 0.65rem;
+    }
+}

@@ -172,40 +172,44 @@ Wallet Badge Dropdown → Portfolio Dashboard
 
 These components appear on ALL or MOST pages.
 
-### 1. FloatingWalletButton (NEW - replaces WalletSplash)
+### 1. FloatingWalletButton (Redesigned 2026-01-15)
 **File:** `src/components/FloatingWalletButton/FloatingWalletButton.js`
 
 **Location:** Bottom-right corner (floating action button)
 
 **Purpose:** Persistent wallet connection + power user menu access
 
+**Design:** Metal plaque style (Temple of Capital design system)
+- **Diamond icon** (CSS-styled rotated square) - no emojis
+- **Silver metallic** when disconnected
+- **Gold metallic** when connected
+- **Sharp corners** (`--radius-sm`) - not rounded pill
+
 **States:**
-- **Not connected:** Shows "Connect" button
-- **Connected:** Shows abbreviated address (0x1234...5678)
-- **Hover:** Shows full address + balance
+- **Not connected:** Silver plaque with "Connect" text
+- **Connected:** Gold plaque with abbreviated address (0x1234...5678)
 - **Clicked (connected):** Opens dropdown menu
 
 **Behavior:**
-- Not connected + Click → Opens `WalletConnector` modal (existing)
-- Connected + Click → Opens dropdown menu (NEW)
+- On mount: silently checks `eth_accounts` (no popup, no localStorage)
+- Not connected + Click → Opens `WalletModal`
+- Connected + Click → Opens dropdown menu
 - Always accessible, never blocks page content
 - Z-index above all content
 
 **Dropdown Menu Structure:**
 ```
 ┌─────────────────────────────┐
-│ 0x1234...5678              │ ← Wallet address
-│ Balance: 2.5 ETH           │
+│ 0x1234...5678              │ ← Wallet address (gold header)
+│ 2.5 ETH                    │
 ├─────────────────────────────┤
-│ 📊 Portfolio               │ → /portfolio
-│ 🗳️ Governance              │ → /governance
-│ 🎯 Staking                 │ → /staking (or scroll to section)
-│ 💰 Vault Positions         │ → /portfolio?filter=vaults
+│ ◆ Portfolio                │ → /portfolio
+│ ◇ Staking                  │ → /staking
 ├─────────────────────────────┤
-│ ⚙️ Settings                 │
-│ 🔌 Disconnect              │
+│ ✕ Disconnect               │
 └─────────────────────────────┘
 ```
+Note: Governance menu item conditionally added when EXEC holdings detected (future)
 
 **Menu Items:**
 
@@ -262,16 +266,13 @@ These components appear on ALL or MOST pages.
 │                                 │
 │                                 │
 │                          ┌────┐ │
-│                          │ 🦊 │ │  ← Floating button
+│                          │ ◆  │ │  ← Silver/Gold plaque
 │                          │0x..│ │     (bottom-right)
 │                          └────┘ │
 │                             ↑    │
 │                    ┌──────────┐ │  ← Dropdown menu
 │                    │ Portfolio│ │     (on click)
-│                    │Governance│ │
 │                    │  Staking │ │
-│                    │ Vaults   │ │
-│                    │ Settings │ │
 │                    │Disconnect│ │
 │                    └──────────┘ │
 └─────────────────────────────────┘
@@ -1276,260 +1277,317 @@ Update existing ERC404 project detail page with new adapter methods
 
 ## Implementation Roadmap
 
-### Phase 1: Remove Friction & Home Page Redesign (Week 1-2)
+### Current Adapter Coverage (as of 2026-01-15)
+
+| Adapter | Methods | UI Coverage | Status |
+|---------|---------|-------------|--------|
+| ERC1155Adapter | 123 | 40-50% | Good |
+| ERC404Adapter | 35 | 30% | Partial |
+| ERC404BondingInstanceAdapter | 87 | ~5% | **Critical Gap** |
+| MasterRegistryAdapter | 114 | ~5% | **Critical Gap** |
+| ERC1155FactoryAdapter | 16 | 0% | **Critical Gap** |
+
+---
+
+### Phase 1: Remove Friction & Home Page Redesign ✅ COMPLETE
 **Goal:** Ship improved UX and home page with vaults + messaging
 
-**Priority:** Critical
+**Status:** ✅ Complete
 
-**Tasks:**
-1. Create `FloatingWalletButton` component
-2. Remove `WalletSplash` blocking behavior
-3. Update all routes to remove splash dependency
-4. Create `TopVaultsWidget` component
-5. Create `RecentActivityWidget` component
-6. Simplify `ProjectGallery` (collapsed search)
-7. Update `HeroSection` with Create dropdown
-8. Wire up new components to home page
-9. Test deep linking (direct to project pages)
+**Completed:**
+- ✅ `FloatingWalletButton` component created
+- ✅ `FloatingWalletButton` redesigned (2026-01-15):
+  - Metal plaque style (silver disconnected, gold connected)
+  - Diamond icon (CSS) instead of fox emoji
+  - Removed localStorage dependency
+  - Simplified dropdown menu
+- ✅ `WalletSplash` blocking behavior removed
+- ✅ Routes updated - no splash dependency
+- ✅ `TopVaultsWidget` component created
+- ✅ `RecentActivityWidget` component created (activity feed)
+- ✅ `ProjectGallery` simplified with search
+- ✅ `HeroSection` updated with Create dropdown
+- ✅ Deep linking works (direct to project pages)
 
-**Deliverables:**
-- ✅ No wallet splash blocking
-- ✅ Floating wallet button on all pages
-- ✅ Home page shows vaults widget
-- ✅ Home page shows activity widget
-- ✅ Simplified project gallery with search
-
-**Contract Methods Used:**
-- 14 new methods (vaults + messaging)
-
-**Estimated Effort:** Medium (2 weeks)
+**Contract Methods Wired:** 14 methods (vaults + messaging)
 
 ---
 
-### Phase 2: Edition Card Enhancements (Week 3)
+### Phase 2: Edition Card Enhancements ✅ COMPLETE
 **Goal:** Show mint stats and pricing info on edition cards
 
-**Priority:** High (high value, low effort)
+**Status:** ✅ Complete
 
-**Tasks:**
-1. Update `EditionCard` to call `getMintStats()`
-2. Display "X/Y minted" or "Unlimited" badge
-3. Update `EditionCard` to call `getPricingInfo()`
-4. Show dynamic pricing indicators
-5. Update `EditionMintInterface` to use `calculateMintCost()`
-6. Add optional message input to mint interface
-7. Wire up `mintWithMessage()` method
+**Completed:**
+- ✅ `EditionCard` calls `getMintStats()` - shows "X/Y minted"
+- ✅ `EditionCard` calls `getPricingInfo()` - dynamic pricing indicators
+- ✅ `EditionMintInterface` uses `calculateMintCost()` - live cost display
+- ✅ `mintWithMessage()` wired up - users can mint with messages
 
-**Deliverables:**
-- ✅ Edition cards show supply remaining
-- ✅ Edition cards show pricing model
-- ✅ Mint interface shows live cost calculation
-- ✅ Users can mint with messages
-
-**Contract Methods Used:**
-- 4 new methods (ERC1155 enhancements)
-
-**Estimated Effort:** Small (1 week)
+**Contract Methods Wired:** 4 methods (ERC1155 enhancements)
 
 ---
 
-### Phase 3: Vault Pages (Week 4-5)
+### Phase 3: Vault Pages ✅ COMPLETE
 **Goal:** Full vault discovery and detail pages
 
-**Priority:** High
+**Status:** ✅ Complete
 
-**Tasks:**
-1. Create `/vaults` route
-2. Create `VaultExplorer` component
-3. Create `/vaults/:address` route
-4. Create `VaultDetail` component
-5. Wire up all vault adapter methods
-6. Implement claim fees functionality
-7. Show benefactor positions
-8. Link projects to vaults
+**Completed:**
+- ✅ Create `/vaults` route
+- ✅ Create `VaultExplorer` component (full leaderboard with pagination)
+- ✅ Create `/vaults/:address` route
+- ✅ Create `VaultDetail` component
+- ✅ Wire up vault adapter methods:
+  - `getTotalVaults()`, `getVaults()`, `getVaultInfo()`
+  - `getInstancesByVault()` - projects using vault
+  - `accumulatedFees()`, `totalShares()`, `description()`
+  - `getBenefactorContribution()`, `getBenefactorShares()`
+  - `calculateClaimableAmount()`, `claimFees()`
+- ✅ Implement claim fees functionality
+- ✅ Show benefactor positions
+- ✅ Link projects to vaults
 
-**Deliverables:**
-- ✅ Vault explorer page
-- ✅ Vault detail pages
-- ✅ Claim fees interface
-- ✅ View benefactors and projects
+**Note:** TVL display pending contract-side `totalValueLocked` variable (user will add)
 
-**Contract Methods Used:**
-- 10 new methods (vault management)
-
-**Estimated Effort:** Medium (2 weeks)
+**Contract Methods Wired:** ~15 methods (vault discovery + management)
 
 ---
 
-### Phase 4: Activity Feed Page (Week 6)
+### Phase 4: Activity Feed Page ✅ COMPLETE
 **Goal:** Full global activity feed with pagination
 
-**Priority:** Medium
+**Status:** ✅ Complete
 
-**Tasks:**
-1. Create `/messages` route
-2. Create `GlobalActivityFeed` component
-3. Implement pagination
-4. Add filter controls (type, project)
-5. Format messages nicely
-6. Make messages clickable → projects
+**Completed:**
+- ✅ Create `/messages` route
+- ✅ Create `GlobalActivityFeed` component
+- ✅ Implement pagination with `getRecentMessagesPaginated()`
+- ✅ Add filter controls (type filter: all/mint/buy/sell/stake/claim)
+- ✅ Wire up filtering methods (client-side filtering)
+- ✅ Format messages with icons by type
+- ✅ Make messages clickable → navigate to projects
+- ✅ Temple of Capital design system styling
 
 **Deliverables:**
-- ✅ Full activity feed page
-- ✅ Paginated messages
-- ✅ Filterable by type and project
+- Full activity feed page at `/messages`
+- Paginated message list (20 per page)
+- Filter by message type (mint/buy/sell/stake/claim)
 
-**Contract Methods Used:**
-- 6 new methods (message pagination + filtering)
-
-**Estimated Effort:** Small (1 week)
+**Contract Methods Wired:** ~6 methods (pagination + filtering)
 
 ---
 
-### Phase 5: User Portfolio Page (Week 7-8)
+### Phase 5: User Portfolio Page 🔜 NEXT
 **Goal:** Personal dashboard for users
 
-**Priority:** Medium
+**Status:** Not started - accessible via wallet menu
+
+**Priority:** Medium-High (next up)
 
 **Tasks:**
-1. Create `/portfolio` route
-2. Create `UserPortfolio` component
-3. Query all user holdings (ERC404 + ERC1155)
-4. Show vault positions
-5. Show staking positions
-6. Implement batch claim functionality
+- [ ] Create `/portfolio` route
+- [ ] Create `UserPortfolio` component
+- [ ] Query ERC404 holdings per project:
+  - `balanceOf()`, `getNFTBalance()`, `getStakingInfo()`, `calculatePendingRewards()`
+- [ ] Query ERC1155 holdings:
+  - `balanceOf()`, `balanceOfBatch()` for editions
+- [ ] Query vault positions:
+  - `getBenefactorContribution()`, `getBenefactorShares()`, `calculateClaimableAmount()`
+- [ ] Show staking positions with pending rewards
+- [ ] Implement batch claim functionality
+- [ ] Add "Claim All Rewards" button
 
 **Deliverables:**
-- ✅ User portfolio page
-- ✅ View all holdings
-- ✅ Claim rewards interface
+- User portfolio page at `/portfolio`
+- View all ERC404 + ERC1155 holdings
+- View vault benefactor positions
+- Claim rewards interface (individual + batch)
 
-**Contract Methods Used:**
-- 20+ methods (queries across all contracts)
-
-**Estimated Effort:** Medium (2 weeks)
+**Contract Methods to Wire:** ~20 methods (queries across all contracts)
 
 ---
 
-### Phase 6: ERC404 Enhancements (Week 9-10)
-**Goal:** Complete ERC404 feature set
+### Phase 6: ERC404 Enhancements ⏳ PENDING (CRITICAL)
+**Goal:** Complete ERC404 feature set - **currently at ~5% coverage**
 
-**Priority:** Medium
+**Status:** Critical gap - ERC404BondingInstanceAdapter has 87 methods, only ~5 used
+
+**Priority:** High (critical coverage gap)
 
 **Tasks:**
-1. Create `BondingStatusPanel` component
-2. Create `StakingInterface` component
-3. Create `NFTManagement` component
-4. Create `OwnerDashboard` component (ERC404)
-5. Wire up all new ERC404 methods
-6. Add staking UI
-7. Add NFT balance minting UI
-8. Add owner controls
+- [ ] Create `BondingStatusPanel` component:
+  - `getBondingStatus()`, `getSupplyInfo()`, `getLiquidityInfo()`
+  - `getBondingCurveParams()`, `bondingActive()`, `bondingMaturityTime()`
+- [ ] Create `StakingInterface` component:
+  - `stake()`, `unstake()`, `claimStakerRewards()`
+  - `getStakingInfo()`, `getStakingStats()`, `calculatePendingRewards()`
+  - `stakingEnabled()`, `totalStaked()`, `stakedBalance()`
+- [ ] Create `TierStatusPanel` component:
+  - `getTierConfigSummary()`, `getUserTierInfo()`, `canAccessTier()`
+  - `getTierPasswordHash()`, `getTierVolumeCap()`, `getTierUnlockTime()`
+- [ ] Create `NFTManagement` component:
+  - `getSkipNFT()`, `setSkipNFT()`, `balanceMint()`
+  - `rerollSelectedNFTs()`, `getRerollEscrow()`
+  - `getUserNFTIds()`, `getTokenUri()`
+- [ ] Create `OwnerDashboard` component (ERC404):
+  - `setBondingOpenTime()`, `setBondingMaturityTime()`, `setBondingActive()`
+  - `deployLiquidity()`, `canDeployPermissionless()`
+  - `enableStaking()`, `setStyle()`, `setV4Hook()`, `setVault()`
 
 **Deliverables:**
-- ✅ Bonding status display
-- ✅ Staking interface
-- ✅ NFT management tools
-- ✅ Owner dashboard
+- Bonding status display (phase, progress, liquidity)
+- Full staking interface (stake/unstake/claim)
+- Tier management and status display
+- NFT management (skip NFT, balance mint, reroll)
+- Owner dashboard with all controls
 
-**Contract Methods Used:**
-- 25+ new methods (ERC404 advanced features)
-
-**Estimated Effort:** Medium (2 weeks)
+**Contract Methods to Wire:** ~60 methods (ERC404BondingInstance coverage)
 
 ---
 
-### Phase 7: ERC1155 Creator Dashboard (Week 11)
+### Phase 7: ERC1155 Creator Dashboard ⏳ PENDING
 **Goal:** Complete ERC1155 owner tools
 
-**Priority:** Low
+**Status:** Partial - `CreatorDashboard` exists but missing key features
+
+**Priority:** Medium
 
 **Tasks:**
-1. Enhance `CreatorDashboard` component
-2. Add withdraw interface
-3. Add metadata update tools
-4. Add style customization tools
-5. Add edition management (add/update)
+- [ ] Enhance `CreatorDashboard` component:
+  - `getTotalProceeds()` - show total revenue
+  - `getCreatorBalance()` - show withdrawable amount (80% after tithe)
+- [ ] Add withdraw interface:
+  - `withdraw(amount)` - withdraw proceeds
+- [ ] Add vault fee claiming:
+  - `claimVaultFees()` - claim if owner is benefactor
+- [ ] Add metadata update tools:
+  - `updateEditionMetadata(editionId, uri)`
+- [ ] Add style customization:
+  - `setStyle(uri)`, `setEditionStyle(editionId, uri)`
+  - `getStyle()` - display current style
+- [ ] Add edition management:
+  - Wire existing `addEdition()` to UI
 
 **Deliverables:**
-- ✅ Creator dashboard on project pages
-- ✅ Withdraw proceeds
-- ✅ Update metadata
-- ✅ Style customization
+- Enhanced creator dashboard on project pages
+- Withdraw proceeds interface
+- Metadata and style update tools
+- Edition management controls
 
-**Contract Methods Used:**
-- 7 new methods (ERC1155 owner functions)
-
-**Estimated Effort:** Small (1 week)
+**Contract Methods to Wire:** ~10 methods (ERC1155 owner functions)
 
 ---
 
-### Phase 8: Governance Pages (Week 12-14)
+### Phase 8: Governance Pages ⏳ PENDING
 **Goal:** Full governance voting interface
 
-**Priority:** Low
+**Status:** Not started
+
+**Priority:** Low (can defer)
 
 **Tasks:**
-1. Expand `/voting` page
-2. Create factory governance interface
-3. Create vault governance interface
-4. Add voting functionality
-5. Add challenge submission
-6. Add deposit management
-7. Show governance constants and status
+- [ ] Expand `/voting` page or create `/governance`
+- [ ] Create factory governance interface:
+  - `applyForFactory()` - submit factory application
+  - `getFactoryApplication()` - view application status
+- [ ] Create vault governance interface:
+  - `applyForVault()`, `registerVault()` - vault registration
+- [ ] Add voting functionality for EXEC holders
+- [ ] Add challenge submission
+- [ ] Add deposit management
+- [ ] Show governance constants and status
+- [ ] Dictator abdication interface:
+  - `initiateAbdication()`, `cancelAbdication()`, `finalizeAbdication()`
 
 **Deliverables:**
-- ✅ Full governance UI
-- ✅ Vote on factory/vault applications
-- ✅ Submit challenges
-- ✅ Manage deposits
+- Full governance UI at `/governance`
+- Vote on factory/vault applications
+- Submit challenges
+- Manage deposits
+- Dictator abdication process
 
-**Contract Methods Used:**
-- 24 new methods (governance)
-
-**Estimated Effort:** Large (3 weeks)
+**Contract Methods to Wire:** ~24 methods (governance)
 
 ---
 
-### Phase 9: Advanced Features (Week 15-16)
-**Goal:** Featured position rental, factory management
+### Phase 9: Advanced Features ⏳ PENDING (CRITICAL for MasterRegistry)
+**Goal:** Featured position rental, factory management - **MasterRegistry at ~5% coverage**
 
-**Priority:** Low
+**Status:** Critical gap - MasterRegistryAdapter has 114 methods, only ~2 used
+
+**Priority:** Medium-High
 
 **Tasks:**
-1. Add featured position rental UI
-2. Add factory instance creation UI
-3. Add transfer interfaces (send tokens/editions)
-4. Add approval management UI
-5. Polish and optimize
+- [ ] Create featured position rental UI:
+  - `getPositionRentalPrice()`, `calculateRentalCost()`
+  - `getRentalInfo()`, `rentFeaturedPosition()`
+  - `renewPosition()`, `bumpPosition()`
+  - `depositForAutoRenewal()`, `withdrawRenewalDeposit()`
+- [ ] Create factory browser/discovery:
+  - `getTotalFactories()`, `getFactories()`, `getFactoryInfo()`
+  - `getFactoryInfoByAddress()`
+- [ ] Add factory instance creation UI:
+  - `createInstance()` from ERC1155FactoryAdapter
+  - `getInstancesByCreator()`, `getInstanceCount()`
+- [ ] Add transfer interfaces:
+  - `safeTransferFrom()`, `safeBatchTransferFrom()` for ERC1155
+- [ ] Add approval management UI:
+  - `setApprovalForAll()`, `isApprovedForAll()`
+- [ ] Show featured instances:
+  - `getFeaturedInstances()`, `getInstanceInfo()`
+- [ ] Cleanup operations:
+  - `cleanupExpiredRentals()`, `getQueueUtilization()`
 
 **Deliverables:**
-- ✅ Rent featured positions
-- ✅ Create instances from factories
-- ✅ Transfer UI
-- ✅ Complete feature parity
+- Featured position rental marketplace
+- Factory browser/discovery page
+- Instance creation from factories
+- Transfer and approval UI
+- Featured queue management
 
-**Contract Methods Used:**
-- Remaining ~30 methods
-
-**Estimated Effort:** Medium (2 weeks)
+**Contract Methods to Wire:** ~40 methods (MasterRegistry + Factory coverage)
 
 ---
 
-## Total Implementation Timeline
+## Implementation Summary
 
 **Total Phases:** 9
-**Total Time:** 16 weeks (~4 months)
-**Total New Methods Wired:** ~218 (from 20 to 238)
+**Completed:** 4 (Phases 1-4)
+**Remaining:** 5 (Phases 5-9)
+**Total Adapter Methods:** ~375 across all adapters
+**Currently Wired to UI:** ~99 methods (~26%)
+**Target:** 100% critical path coverage
 
-### Milestones
+### Progress Overview
 
-- **Week 2:** Home page redesign complete
-- **Week 5:** Vault system complete
-- **Week 8:** User portfolio complete
-- **Week 10:** ERC404 feature complete
-- **Week 14:** Governance complete
-- **Week 16:** Full feature parity achieved
+| Phase | Status | Methods | Priority |
+|-------|--------|---------|----------|
+| 1. Home Page Redesign | ✅ Complete | 14 | - |
+| 2. Edition Cards | ✅ Complete | 4 | - |
+| 3. Vault Pages | ✅ Complete | ~15 | - |
+| 4. Activity Feed | ✅ Complete | ~6 | - |
+| 5. User Portfolio | 🔜 Next | ~20 | Medium-High |
+| 6. ERC404 Enhancements | ⏳ Pending | ~60 | **Critical** |
+| 7. ERC1155 Creator | ⏳ Pending | ~10 | Medium |
+| 8. Governance | ⏳ Pending | ~24 | Low |
+| 9. Advanced Features | ⏳ Pending | ~40 | **Critical** |
+
+### Critical Coverage Gaps
+
+1. **ERC404BondingInstanceAdapter** (~5% coverage) - Staking, tiers, bonding lifecycle
+2. **MasterRegistryAdapter** (~5% coverage) - Featured positions, factory discovery
+3. **ERC1155FactoryAdapter** (0% coverage) - Instance creation
+
+### Recommended Next Steps
+
+**Immediate (High Impact):**
+1. Phase 5: Portfolio - users see all holdings in one place
+2. Phase 6: ERC404 Staking - unlock staking for all ERC404 projects
+
+**Short-term:**
+3. Phase 9: Featured Positions - unlock rental marketplace
+4. Phase 7: ERC1155 Creator Dashboard - complete creator tools
 
 ---
 
@@ -1564,37 +1622,55 @@ Update existing ERC404 project detail page with new adapter methods
 
 ## Success Metrics
 
-### By Phase 1 (Week 2):
-- ✅ Zero complaints about wallet splash blocking
+### Phase 1-2 (Complete) ✅:
+- ✅ Zero wallet splash blocking
 - ✅ Users can deep link to any page
-- ✅ Home page shows live vault and message data
+- ✅ Home page shows live vault widget (TopVaultsWidget)
+- ✅ Home page shows activity feed
+- ✅ Edition cards show mint stats and pricing
+- ✅ Mint interface shows live cost calculation
 
-### By Phase 3 (Week 5):
-- ✅ Users can discover all vaults
-- ✅ Benefactors can claim fees
-- ✅ Vault TVL rankings visible
+### Phase 3 (Complete) ✅:
+- ✅ Users can browse full vault leaderboard
+- ✅ Users can view individual vault details
+- ✅ Benefactors can claim fees from vault detail page
+- ✅ Projects linked to vaults are visible
 
-### By Phase 5 (Week 8):
-- ✅ Users can see complete portfolio
-- ✅ One-click claim all rewards works
-- ✅ All holdings visible across protocols
+### Phase 4 (Complete) ✅:
+- ✅ Users can browse full activity feed at `/messages`
+- ✅ Pagination working (20 messages per page)
+- ✅ Filter by message type (mint/buy/sell/stake/claim)
 
-### By Phase 9 (Week 16):
-- ✅ 238/238 adapter methods used (100%)
-- ✅ All checklist features accessible
-- ✅ Complete feature parity achieved
+### Phase 6 (Critical Target):
+- [ ] Users can stake/unstake ERC404 tokens
+- [ ] Users can claim staking rewards
+- [ ] Tier status and access displayed
+- [ ] NFT management (skip, balance mint, reroll) works
+
+### Phase 5 (Portfolio Target):
+- [ ] Users can see complete portfolio
+- [ ] One-click claim all rewards works
+- [ ] All holdings visible across protocols
+
+### Phase 9 (Full Coverage Target):
+- [ ] ~375 adapter methods used (100% critical path)
+- [ ] All checklist features accessible
+- [ ] Complete feature parity achieved
 
 ---
 
 ## Next Steps
 
 1. ✅ Review this architecture document
-2. ✅ Approve or request changes
-3. ⏭️ Begin Phase 1 implementation
-4. ⏭️ Iterate based on feedback
-5. ⏭️ Deploy progressively (phase by phase)
+2. ✅ Phase 1 complete (Home page, FloatingWalletButton)
+3. ✅ Phase 2 complete (Edition card enhancements)
+4. ✅ Phase 3 complete (Vault Pages: `/vaults`, `/vaults/:address`)
+5. ✅ Phase 4 complete (Activity Feed: `/messages`)
+6. 🔜 **Phase 5: Build User Portfolio** (`/portfolio`)
+7. ⏭️ Phase 6: ERC404 Staking & Bonding UI (critical coverage gap)
+8. ⏭️ Phase 9: Featured Positions & Factory Browser (critical coverage gap)
 
-**Ready to start building?**
+**Current Focus:** Build UI for the ~276 adapter methods not yet wired to frontend.
 
 ---
 

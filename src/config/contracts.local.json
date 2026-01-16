@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-01-15T15:58:05.343Z",
+  "generatedAt": "2026-01-15T21:14:41.113Z",
   "chainId": 1337,
   "mode": "local-fork",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
@@ -38,8 +38,11 @@
       "tag": "ActiveVault",
       "alignmentToken": "0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820",
       "alignmentTokenSymbol": "MS2",
-      "benefactors": 0,
-      "accumulatedFees": "0"
+      "totalShares": "0",
+      "accumulatedFees": "0.0",
+      "pendingETH": "1.014",
+      "balance": "1.014",
+      "tvl": "1.014"
     },
     {
       "address": "0x64bFF2E6f09080c44291486A2Ab8B3B9BD73cd80",
@@ -49,8 +52,11 @@
       "tag": "SimpleVault",
       "alignmentToken": "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
       "alignmentTokenSymbol": "CULT",
-      "benefactors": 0,
-      "accumulatedFees": "0"
+      "totalShares": "0",
+      "accumulatedFees": "0.0",
+      "pendingETH": "1.275449668735548828",
+      "balance": "1.275449668735548828",
+      "tvl": "1.275449668735548828"
     }
   ],
   "instances": {
@@ -186,13 +192,14 @@
     "collector": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
     "governance": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
   },
+  "userAddress": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
   "governance": {
     "dictator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "abdicationInitiated": false,
     "mode": "dictator"
   },
   "messages": {
-    "total": 0,
+    "total": 146,
     "sources": {
       "erc404Buys": "~20",
       "erc1155Mints": "~123",

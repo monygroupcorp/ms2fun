@@ -37,7 +37,7 @@ export default class RealMasterService {
             // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
             const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(
                 network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId }
+                { name: 'anvil', chainId: network.chainId, ensAddress: null }
             );
             return { provider: readOnlyProvider, signer: null };
         }
@@ -256,6 +256,90 @@ export default class RealMasterService {
         } catch (error) {
             console.warn('Error getting GlobalMessageRegistry address:', error);
             return '0x0000000000000000000000000000000000000000';
+        }
+    }
+
+    /**
+     * Get top vaults sorted by TVL
+     * @param {number} limit - Number of vaults to return
+     * @returns {Promise<object[]>} Array of vault objects sorted by TVL
+     */
+    async getVaultsByTVL(limit = 3) {
+        await this._ensureInitialized();
+        try {
+            return await this.masterRegistry.getVaultsByTVL(limit);
+        } catch (error) {
+            console.warn('Error getting vaults by TVL:', error);
+            // Fallback: get all vaults and sort manually
+            const vaults = await this.getAllVaults();
+            return vaults
+                .sort((a, b) => parseFloat(b.tvl) - parseFloat(a.tvl))
+                .slice(0, limit);
+        }
+    }
+
+    /**
+     * Get top vaults sorted by popularity (instance count)
+     * @param {number} limit - Number of vaults to return
+     * @returns {Promise<object[]>} Array of vault objects sorted by instance count
+     */
+    async getVaultsByPopularity(limit = 3) {
+        await this._ensureInitialized();
+        try {
+            return await this.masterRegistry.getVaultsByPopularity(limit);
+        } catch (error) {
+            console.warn('Error getting vaults by popularity:', error);
+            // Fallback: get all vaults and sort manually
+            const vaults = await this.getAllVaults();
+            return vaults
+                .sort((a, b) => b.instanceCount - a.instanceCount)
+                .slice(0, limit);
+        }
+    }
+
+    /**
+     * Get vault info by address
+     * @param {string} vaultAddress - Vault contract address
+     * @returns {Promise<object|null>} Vault info or null if not found
+     */
+    async getVaultInfo(vaultAddress) {
+        await this._ensureInitialized();
+        try {
+            return await this.masterRegistry.getVaultInfo(vaultAddress);
+        } catch (error) {
+            console.warn(`Error getting vault info for ${vaultAddress}:`, error);
+            return null;
+        }
+    }
+
+    /**
+     * Get total number of registered vaults
+     * @returns {Promise<number>} Total vault count
+     */
+    async getTotalVaults() {
+        await this._ensureInitialized();
+        try {
+            return await this.masterRegistry.getTotalVaults();
+        } catch (error) {
+            console.warn('Error getting total vaults:', error);
+            // Fallback: get all vaults and count
+            const vaults = await this.getAllVaults();
+            return vaults.length;
+        }
+    }
+
+    /**
+     * Get instances using a specific vault
+     * @param {string} vaultAddress - Vault contract address
+     * @returns {Promise<object[]>} Array of instance addresses/objects
+     */
+    async getInstancesByVault(vaultAddress) {
+        await this._ensureInitialized();
+        try {
+            return await this.masterRegistry.getInstancesByVault(vaultAddress);
+        } catch (error) {
+            console.warn(`Error getting instances for vault ${vaultAddress}:`, error);
+            return [];
         }
     }
 }

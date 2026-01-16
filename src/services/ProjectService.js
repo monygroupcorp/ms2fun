@@ -110,7 +110,7 @@ class ProjectService {
                 // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
                 provider = new ethers.providers.StaticJsonRpcProvider(
                     network.rpcUrl,
-                    { name: 'anvil', chainId: network.chainId }
+                    { name: 'anvil', chainId: network.chainId, ensAddress: null }
                 );
                 signer = null;
             } else {

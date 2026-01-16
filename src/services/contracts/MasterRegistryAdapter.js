@@ -672,24 +672,46 @@ class MasterRegistryAdapter extends ContractAdapter {
     /**
      * Get top vaults by TVL
      * @param {number} limit - Number of vaults to return
-     * @returns {Promise<Array>} Array of vault addresses sorted by TVL
+     * @returns {Promise<Array>} Array of vault info objects sorted by TVL
      */
     async getVaultsByTVL(limit) {
         return await this.getCachedOrFetch('getVaultsByTVL', [limit], async () => {
-            const vaults = await this.executeContractCall('getVaultsByTVL', [limit]);
-            return vaults.map(v => v.toString());
+            // Contract returns: (address[] vaults, uint256[] tvls, string[] names)
+            const result = await this.executeContractCall('getVaultsByTVL', [limit]);
+            const [vaultAddresses, tvls, names] = result;
+
+            // Combine into vault info objects
+            return vaultAddresses.map((addr, index) => ({
+                vaultAddress: addr.toString(),
+                vaultType: 'ultra-alignment',
+                name: names[index] || 'Unnamed Vault',
+                tvl: ethers.utils.formatEther(tvls[index] || 0),
+                instanceCount: 0, // Not returned by this method
+                isActive: true
+            }));
         }, CACHE_TTL.DYNAMIC);
     }
 
     /**
      * Get top vaults by popularity (instance count)
      * @param {number} limit - Number of vaults to return
-     * @returns {Promise<Array>} Array of vault addresses sorted by popularity
+     * @returns {Promise<Array>} Array of vault info objects sorted by popularity
      */
     async getVaultsByPopularity(limit) {
         return await this.getCachedOrFetch('getVaultsByPopularity', [limit], async () => {
-            const vaults = await this.executeContractCall('getVaultsByPopularity', [limit]);
-            return vaults.map(v => v.toString());
+            // Contract returns: (address[] vaults, uint256[] instanceCounts, string[] names)
+            const result = await this.executeContractCall('getVaultsByPopularity', [limit]);
+            const [vaultAddresses, instanceCounts, names] = result;
+
+            // Combine into vault info objects
+            return vaultAddresses.map((addr, index) => ({
+                vaultAddress: addr.toString(),
+                vaultType: 'ultra-alignment',
+                name: names[index] || 'Unnamed Vault',
+                tvl: '0', // Not returned by this method
+                instanceCount: parseInt((instanceCounts[index] || 0).toString()),
+                isActive: true
+            }));
         }, CACHE_TTL.DYNAMIC);
     }
 

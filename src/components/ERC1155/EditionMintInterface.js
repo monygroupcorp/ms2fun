@@ -89,12 +89,15 @@ export class EditionMintInterface extends Component {
                         <span>Add message (appears in activity feed)</span>
                     </label>
                     ${this.state.includeMessage ? `
-                        <textarea
-                            class="message-input"
-                            ref="message-input"
-                            placeholder="Your message (optional)"
-                            maxlength="200"
-                        >${this.escapeHtml(this.state.message)}</textarea>
+                        <div class="message-input-wrapper">
+                            <textarea
+                                class="message-input"
+                                ref="message-input"
+                                placeholder="Your message (optional)"
+                                maxlength="200"
+                            >${this.escapeHtml(this.state.message)}</textarea>
+                            <span class="message-char-count ${this.state.message.length > 180 ? 'warning' : ''} ${this.state.message.length >= 200 ? 'error' : ''}">${this.state.message.length}/200</span>
+                        </div>
                     ` : ''}
                 </div>
                 <button
@@ -163,7 +166,10 @@ export class EditionMintInterface extends Component {
         const messageInput = this.getRef('message-input', '.message-input');
         if (messageInput) {
             messageInput.addEventListener('input', (e) => {
-                this.setState({ message: e.target.value });
+                // Update state directly without triggering re-render to prevent focus loss
+                this.state.message = e.target.value;
+                // Update character count if present
+                this.updateMessageCharCount();
             });
         }
 
@@ -258,5 +264,39 @@ export class EditionMintInterface extends Component {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Update message character count without triggering full re-render
+     */
+    updateMessageCharCount() {
+        const charCount = this.element?.querySelector('.message-char-count');
+        if (charCount) {
+            const count = this.state.message.length;
+            charCount.textContent = `${count}/200`;
+            charCount.classList.toggle('warning', count > 180);
+            charCount.classList.toggle('error', count >= 200);
+        }
+    }
+
+    /**
+     * Override shouldUpdate to prevent re-renders when only message text changes
+     * Message text changes are handled directly via updateMessageCharCount
+     */
+    shouldUpdate(oldState, newState) {
+        if (!oldState || !newState) return true;
+        if (oldState === newState) return false;
+
+        // Allow update for structural changes (loading, error, success, includeMessage, quantity)
+        // but NOT for message text changes alone
+        const structuralKeys = ['loading', 'error', 'success', 'includeMessage', 'quantity', 'liveCost'];
+        for (const key of structuralKeys) {
+            if (oldState[key] !== newState[key]) {
+                return true;
+            }
+        }
+
+        // If only message changed, don't re-render (handled by updateMessageCharCount)
+        return false;
     }
 }

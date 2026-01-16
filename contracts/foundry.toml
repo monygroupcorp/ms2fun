@@ -12,7 +12,6 @@ test = "test"
 script = "script"
 broadcast = "broadcast"
 remappings = [
-    "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "solady/=lib/solady/src/",
     "v4-core/=lib/v4-core/src/",
@@ -22,7 +21,6 @@ remappings = [
     "@uniswap/v3-periphery/=lib/v3-periphery/contracts/",
     "@uniswap/v2-core/=lib/v2-core/contracts/"
 ]
-fs_permissions = [{ access = "read-write", path = "../src/config" }]
 
 [profile.ci]
 fuzz_runs = 1000

@@ -99,14 +99,15 @@ class ContractCache {
     }
 
     /**
-     * Generate cache key from method name and arguments
+     * Generate cache key from method name, arguments, and contract address
      * @param {string} method - Method name
      * @param {Array} args - Method arguments
+     * @param {string} contractAddress - Contract address (required for per-contract caching)
      * @returns {string} - Cache key
      */
-    generateKey(method, args = []) {
-        // Create a stable key from method and args
-        const argsKey = args.length > 0 
+    generateKey(method, args = [], contractAddress = '') {
+        // Create a stable key from contract address, method and args
+        const argsKey = args.length > 0
             ? JSON.stringify(args.map(arg => {
                 // Handle BigNumber and other special types
                 if (arg && typeof arg === 'object' && arg.toString) {
@@ -115,22 +116,25 @@ class ContractCache {
                 return arg;
             }))
             : '';
-        return `${method}:${argsKey}`;
+        // Include contract address to prevent cross-contract cache collisions
+        const addressKey = contractAddress ? contractAddress.toLowerCase() : 'global';
+        return `${addressKey}:${method}:${argsKey}`;
     }
 
     /**
      * Get cached value if available and not expired
      * @param {string} method - Method name
      * @param {Array} args - Method arguments
+     * @param {string} contractAddress - Contract address for per-contract caching
      * @returns {any|null} - Cached value or null if not found/expired
      */
-    get(method, args = []) {
+    get(method, args = [], contractAddress = '') {
         // Don't cache certain methods
         if (this.noCacheMethods.has(method)) {
             return null;
         }
 
-        const key = this.generateKey(method, args);
+        const key = this.generateKey(method, args, contractAddress);
         const entry = this.cache.get(key);
 
         if (!entry) {
@@ -162,8 +166,9 @@ class ContractCache {
      * @param {Array} args - Method arguments
      * @param {any} value - Value to cache
      * @param {number} ttl - Time to live in milliseconds (optional, uses default if not provided)
+     * @param {string} contractAddress - Contract address for per-contract caching
      */
-    set(method, args = [], value, ttl = null) {
+    set(method, args = [], value, ttl = null, contractAddress = '') {
         // Don't cache certain methods
         if (this.noCacheMethods.has(method)) {
             return;
@@ -174,7 +179,7 @@ class ContractCache {
             ttl = this.getTTLForMethod(method);
         }
 
-        const key = this.generateKey(method, args);
+        const key = this.generateKey(method, args, contractAddress);
         const expiresAt = Date.now() + ttl;
 
         this.cache.set(key, {
@@ -261,9 +266,10 @@ class ContractCache {
      * Invalidate specific cache entry
      * @param {string} method - Method name
      * @param {Array} args - Method arguments
+     * @param {string} contractAddress - Contract address for per-contract caching
      */
-    invalidate(method, args = []) {
-        const key = this.generateKey(method, args);
+    invalidate(method, args = [], contractAddress = '') {
+        const key = this.generateKey(method, args, contractAddress);
         if (this.cache.delete(key)) {
             this.stats.invalidations++;
             if (this.debug) {

@@ -1641,6 +1641,47 @@ class ERC1155Adapter extends ContractAdapter {
     }
 
     /**
+     * Get instance stats including volume and total minted
+     * Volume is calculated as sum of (minted * basePrice) for each edition
+     * Note: For dynamic pricing, this is an approximation
+     * @returns {Promise<Object>} Stats object with volume, totalMinted, editionCount
+     */
+    async getInstanceStats() {
+        return await this.getCachedOrFetch('getInstanceStats', [], async () => {
+            try {
+                const editions = await this.getEditions();
+
+                let totalVolumeWei = ethers.BigNumber.from(0);
+                let totalMinted = 0;
+
+                for (const edition of editions) {
+                    const minted = parseInt(edition.currentSupply || '0');
+                    const priceWei = ethers.BigNumber.from(edition.price || '0');
+
+                    // Approximate volume as minted * basePrice
+                    totalVolumeWei = totalVolumeWei.add(priceWei.mul(minted));
+                    totalMinted += minted;
+                }
+
+                return {
+                    volume: totalVolumeWei.toString(),
+                    volumeEth: ethers.utils.formatEther(totalVolumeWei),
+                    totalMinted,
+                    editionCount: editions.length
+                };
+            } catch (error) {
+                console.warn('[ERC1155Adapter] Error calculating instance stats:', error);
+                return {
+                    volume: '0',
+                    volumeEth: '0',
+                    totalMinted: 0,
+                    editionCount: 0
+                };
+            }
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
      * Convert text to URL-safe slug
      * @param {string} text - Text to slugify
      * @returns {string} URL-safe slug

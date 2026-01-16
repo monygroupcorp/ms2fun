@@ -9,9 +9,16 @@ let contractConfigVersion = Date.now();
 const contractConfigPath = path.join(__dirname, 'src/config/contracts.local.json');
 
 // Watch for contract config changes
+// Use mtime check because fs.watch on macOS fires spuriously on file reads
+let lastMtime = fs.existsSync(contractConfigPath) ? fs.statSync(contractConfigPath).mtimeMs : 0;
 if (fs.existsSync(contractConfigPath)) {
     fs.watch(contractConfigPath, (eventType) => {
         if (eventType === 'change') {
+            // Only trigger if file was actually modified
+            const currentMtime = fs.statSync(contractConfigPath).mtimeMs;
+            if (currentMtime === lastMtime) return;
+            lastMtime = currentMtime;
+
             contractConfigVersion = Date.now();
             console.log('🔄 Contract config changed - browser will reload contract adapters');
             // Broadcast to all SSE clients

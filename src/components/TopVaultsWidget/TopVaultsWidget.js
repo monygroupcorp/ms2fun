@@ -1,10 +1,12 @@
 import { Component } from '../../core/Component.js';
 import { getAssetIcon } from '../../utils/assetMetadata.js';
+import serviceFactory from '../../services/ServiceFactory.js';
+import { detectNetwork } from '../../config/network.js';
 
 /**
  * TopVaultsWidget component
  * Shows top 3 vaults by TVL or popularity with toggle
- * Currently uses mock data - will be wired to real adapters in later phases
+ * Uses real contract data via MasterRegistryAdapter
  */
 export class TopVaultsWidget extends Component {
     constructor() {
@@ -15,12 +17,12 @@ export class TopVaultsWidget extends Component {
             loading: true,
             error: null
         };
+        this.vaultMetadata = null; // Cache for vault metadata from contracts.local.json
     }
 
     async onMount() {
-        // TODO: Replace with real adapter when vault adapters are wired up
-        // For now, use mock data
         try {
+            await this.loadVaultMetadata();
             await this.loadVaults();
         } catch (error) {
             console.error('[TopVaultsWidget] Error initializing:', error);
@@ -31,18 +33,49 @@ export class TopVaultsWidget extends Component {
         }
     }
 
+    /**
+     * Load vault metadata from contracts.local.json for alignment token info
+     */
+    async loadVaultMetadata() {
+        try {
+            const network = detectNetwork();
+            if (network.contracts) {
+                const response = await fetch(network.contracts);
+                const config = await response.json();
+                // Create a map of vault address -> metadata
+                this.vaultMetadata = {};
+                if (config.vaults) {
+                    for (const vault of config.vaults) {
+                        this.vaultMetadata[vault.address.toLowerCase()] = vault;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('[TopVaultsWidget] Could not load vault metadata:', error);
+            this.vaultMetadata = {};
+        }
+    }
+
     async loadVaults() {
         try {
             this.setState({ loading: true, error: null });
 
             const { mode } = this.state;
+            const masterService = serviceFactory.getMasterService();
 
-            // TODO: Replace with real vault adapter calls when available
-            // For now, use mock data
-            const mockVaults = this.getMockVaults(mode);
+            // Fetch vaults from contract based on mode
+            let rawVaults;
+            if (mode === 'tvl') {
+                rawVaults = await masterService.getVaultsByTVL(3);
+            } else {
+                rawVaults = await masterService.getVaultsByPopularity(3);
+            }
+
+            // Transform contract data to widget format
+            const vaults = rawVaults.map((vault, index) => this.transformVault(vault, index));
 
             this.setState({
-                vaults: mockVaults,
+                vaults,
                 loading: false
             });
         } catch (error) {
@@ -55,102 +88,60 @@ export class TopVaultsWidget extends Component {
     }
 
     /**
-     * Get mock vault data for development
-     * TODO: Remove when real vault adapters are wired up
+     * Transform contract vault data to widget display format
      */
-    getMockVaults(mode) {
-        const mockVaultsByTVL = [
-            {
-                rank: 1,
-                address: '0xVAULT1000000000000000000000000000000001',
-                name: 'Community Growth Vault',
-                type: 'Ultra Alignment',
-                targetAsset: 'ETH',  // Asset this vault is aligned to
-                tvl: '$1.2M',
-                tvlRaw: '1200000000000000000000000',
-                popularity: 150,
-                description: 'Community-focused vault'
-            },
-            {
-                rank: 2,
-                address: '0xVAULT2000000000000000000000000000000002',
-                name: 'Development Fund',
-                type: 'Ultra Alignment',
-                targetAsset: 'USDC',  // Asset this vault is aligned to
-                tvl: '$850K',
-                tvlRaw: '850000000000000000000000',
-                popularity: 95,
-                description: 'Protocol development vault'
-            },
-            {
-                rank: 3,
-                address: '0xVAULT3000000000000000000000000000000003',
-                name: 'Marketing Vault',
-                type: 'Ultra Alignment',
-                targetAsset: 'CULT',  // Asset this vault is aligned to
-                tvl: '$620K',
-                tvlRaw: '620000000000000000000000',
-                popularity: 75,
-                description: 'Marketing and growth vault'
-            }
-        ];
+    transformVault(vault, index) {
+        // Get additional metadata from contracts.local.json if available
+        const metadata = this.vaultMetadata?.[vault.vaultAddress?.toLowerCase()] || {};
 
-        const mockVaultsByPopularity = [
-            {
-                rank: 1,
-                address: '0xVAULT1000000000000000000000000000000001',
-                name: 'Community Growth Vault',
-                type: 'Ultra Alignment',
-                targetAsset: 'ETH',
-                tvl: '$1.2M',
-                tvlRaw: '1200000000000000000000000',
-                popularity: 150,
-                description: 'Community-focused vault'
-            },
-            {
-                rank: 2,
-                address: '0xVAULT2000000000000000000000000000000002',
-                name: 'Development Fund',
-                type: 'Ultra Alignment',
-                targetAsset: 'USDC',
-                tvl: '$850K',
-                tvlRaw: '850000000000000000000000',
-                popularity: 95,
-                description: 'Protocol development vault'
-            },
-            {
-                rank: 3,
-                address: '0xVAULT3000000000000000000000000000000003',
-                name: 'Marketing Vault',
-                type: 'Ultra Alignment',
-                targetAsset: 'CULT',
-                tvl: '$620K',
-                tvlRaw: '620000000000000000000000',
-                popularity: 75,
-                description: 'Marketing and growth vault'
-            }
-        ];
+        // Parse TVL from ETH string to raw wei and formatted string
+        const tvlEth = parseFloat(vault.tvl || '0');
+        const tvlWei = (tvlEth * 1e18).toString();
 
-        return mode === 'tvl' ? mockVaultsByTVL : mockVaultsByPopularity;
+        return {
+            rank: index + 1,
+            address: vault.vaultAddress,
+            name: metadata.tag || vault.name || 'Unnamed Vault',
+            type: this.formatVaultType(vault.vaultType),
+            targetAsset: metadata.alignmentTokenSymbol || 'ETH',
+            tvl: this.formatTVL(tvlWei),
+            tvlRaw: tvlWei,
+            popularity: vault.instanceCount || 0,
+            description: metadata.description || ''
+        };
     }
 
     /**
-     * Format TVL value for display
+     * Format vault type for display
+     */
+    formatVaultType(vaultType) {
+        if (!vaultType) return 'Ultra Alignment';
+        // Convert 'ultra-alignment' to 'Ultra Alignment'
+        return vaultType
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    }
+
+    /**
+     * Format TVL value for display in ETH
      */
     formatTVL(value) {
         try {
             // Convert from wei to ETH
             const eth = parseFloat(value) / 1e18;
 
-            if (eth >= 1000000) {
-                return `$${(eth / 1000000).toFixed(2)}M`;
-            } else if (eth >= 1000) {
-                return `$${(eth / 1000).toFixed(2)}K`;
+            if (eth >= 1000) {
+                return `${(eth / 1000).toFixed(2)}K Ξ`;
+            } else if (eth >= 1) {
+                return `${eth.toFixed(2)} Ξ`;
+            } else if (eth >= 0.001) {
+                return `${eth.toFixed(4)} Ξ`;
             } else {
-                return `$${eth.toFixed(2)}`;
+                return `${eth.toFixed(6)} Ξ`;
             }
         } catch (error) {
-            return '$0';
+            return '0 Ξ';
         }
     }
 

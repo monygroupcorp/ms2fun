@@ -6,8 +6,12 @@ import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethe
 
 /**
  * FloatingWalletButton component
- * Persistent floating wallet button (bottom-right corner) with power user dropdown menu
- * Replaces WalletSplash for non-blocking wallet connection
+ * Persistent floating wallet button (bottom-right corner) with dropdown menu
+ *
+ * Design: Metal plaque style
+ * - Silver when disconnected
+ * - Gold when connected
+ * - Diamond icon (CSS-styled)
  */
 export class FloatingWalletButton extends Component {
     constructor() {
@@ -18,10 +22,7 @@ export class FloatingWalletButton extends Component {
             address: null,
             balance: '0.00',
             loading: true,
-            menuOpen: false,
-            // Conditional menu items
-            hasExecTokens: false,
-            isVaultBenefactor: false
+            menuOpen: false
         };
     }
 
@@ -37,93 +38,79 @@ export class FloatingWalletButton extends Component {
     }
 
     /**
-     * Check if wallet is already connected and load info
+     * Check if wallet is already connected
+     * Simple check - no auto-reconnect attempts, no localStorage
      */
     async checkWalletConnection() {
         try {
-            // Initialize wallet service if needed
-            if (!walletService.isInitialized) {
-                await walletService.initialize();
-            }
-
-            // Check if wallet service thinks it's connected
-            let isConnected = walletService.isConnected();
-            let address = walletService.getAddress();
-
-            // If not connected, try to auto-reconnect to last used wallet
-            if (!isConnected && typeof window.ethereum !== 'undefined') {
-                try {
-                    const lastWallet = localStorage.getItem('ms2fun_lastWallet');
-
-                    if (lastWallet) {
-                        // Check if that wallet has accounts (without prompting)
-                        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                        const hasAccounts = accounts && accounts.length > 0;
-
-                        // Only try to reconnect if the last wallet has accounts
-                        if (hasAccounts) {
-                            try {
-                                await walletService.selectWallet(lastWallet);
-                                await walletService.connect();
-                                isConnected = walletService.isConnected();
-                                address = walletService.getAddress();
-
-                                if (isConnected) {
-                                    console.log('[FloatingWalletButton] Auto-reconnected to', lastWallet);
-                                }
-                            } catch (connectError) {
-                                console.log('[FloatingWalletButton] Auto-reconnect not possible');
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.log('[FloatingWalletButton] Could not check existing accounts:', error);
+            // Check if walletService already has a connection
+            if (walletService.isConnected()) {
+                const address = walletService.getAddress();
+                if (address) {
+                    await this.loadWalletInfo(address);
+                    return;
                 }
             }
 
-            if (isConnected && address) {
-                await this.loadWalletInfo(address);
-            } else {
-                this.setState({ loading: false, walletConnected: false });
+            // Check if window.ethereum has accounts (user previously connected)
+            if (typeof window.ethereum !== 'undefined') {
+                try {
+                    // eth_accounts doesn't prompt - just checks existing permissions
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+
+                    if (accounts && accounts.length > 0) {
+                        // User has previously connected - update our state
+                        // But don't fully initialize walletService yet (they need to click)
+                        this.setState({
+                            walletConnected: true,
+                            address: accounts[0],
+                            loading: false
+                        });
+
+                        // Try to get balance
+                        await this.loadWalletInfo(accounts[0]);
+                        return;
+                    }
+                } catch (error) {
+                    console.log('[FloatingWalletButton] Could not check accounts:', error.message);
+                }
             }
+
+            // No connection found
+            this.setState({ loading: false, walletConnected: false });
         } catch (error) {
-            console.error('[FloatingWalletButton] Error checking wallet connection:', error);
+            console.error('[FloatingWalletButton] Error checking wallet:', error);
             this.setState({ loading: false, walletConnected: false });
         }
     }
 
     /**
-     * Load wallet info (balance, EXEC tokens, vault benefactor status)
+     * Load wallet info (balance)
      */
     async loadWalletInfo(address) {
         try {
-            // Get ETH balance
             let provider = walletService.ethersProvider;
+
+            // If walletService doesn't have a provider, create a temporary one
             if (!provider && typeof window.ethereum !== 'undefined') {
                 provider = new ethers.providers.Web3Provider(window.ethereum);
             }
 
             let balance = '0.00';
             if (provider && address) {
-                const balanceWei = await provider.getBalance(address);
-                balance = parseFloat(ethers.utils.formatEther(balanceWei)).toFixed(4);
+                try {
+                    const balanceWei = await provider.getBalance(address);
+                    balance = parseFloat(ethers.utils.formatEther(balanceWei)).toFixed(4);
+                } catch (balanceError) {
+                    console.log('[FloatingWalletButton] Could not fetch balance:', balanceError.message);
+                }
             }
-
-            // TODO: Check EXEC token holdings for governance menu visibility
-            // const hasExecTokens = await this.checkExecTokens(address);
-            const hasExecTokens = false; // Placeholder for now
-
-            // TODO: Check vault benefactor status
-            // const isVaultBenefactor = await this.checkVaultBenefactor(address);
-            const isVaultBenefactor = false; // Placeholder for now
 
             this.setState({
                 walletConnected: true,
                 address,
                 balance,
-                loading: false,
-                hasExecTokens,
-                isVaultBenefactor
+                loading: false
             });
         } catch (error) {
             console.error('[FloatingWalletButton] Failed to load wallet info:', error);
@@ -133,25 +120,6 @@ export class FloatingWalletButton extends Component {
                 loading: false
             });
         }
-    }
-
-    /**
-     * TODO: Check if user holds EXEC tokens
-     */
-    async checkExecTokens(address) {
-        // Will implement when ERC404 adapter is wired up
-        // const execBalance = await ERC404Adapter.balanceOf(address, EXEC_TOKEN_ADDRESS);
-        // return execBalance > 0;
-        return false;
-    }
-
-    /**
-     * TODO: Check if user is a vault benefactor
-     */
-    async checkVaultBenefactor(address) {
-        // Will implement when vault adapters are wired up
-        // Iterate vaults, check getBenefactorShares(address) > 0
-        return false;
     }
 
     setupEventListeners() {
@@ -166,9 +134,7 @@ export class FloatingWalletButton extends Component {
                 walletConnected: false,
                 address: null,
                 balance: '0.00',
-                menuOpen: false,
-                hasExecTokens: false,
-                isVaultBenefactor: false
+                menuOpen: false
             });
         });
 
@@ -247,20 +213,12 @@ export class FloatingWalletButton extends Component {
 
     async handleWalletSelection(walletType) {
         try {
-            // Select the wallet
+            // Select and connect to the wallet
             await walletService.selectWallet(walletType);
-
-            // Store the selected wallet in localStorage for future auto-reconnect
-            localStorage.setItem('ms2fun_lastWallet', walletType);
-
-            // Connect to the wallet
             await walletService.connect();
-
-            // Wallet is now connected (event listener will update state)
-
+            // Event listener will update state on success
         } catch (error) {
             console.error('[FloatingWalletButton] Error connecting wallet:', error);
-            // TODO: Show error message
         }
     }
 
@@ -289,44 +247,46 @@ export class FloatingWalletButton extends Component {
     }
 
     render() {
-        if (this.state.loading) {
+        const { walletConnected, address, balance, loading, menuOpen } = this.state;
+
+        if (loading) {
             return `
                 <div class="floating-wallet-button loading">
-                    <div class="wallet-spinner"></div>
+                    <div class="wallet-btn">
+                        <div class="wallet-spinner"></div>
+                    </div>
                 </div>
             `;
         }
 
-        const { walletConnected, address, balance, menuOpen, hasExecTokens, isVaultBenefactor } = this.state;
-
         if (!walletConnected) {
-            // Not connected - show "Connect" button
+            // Disconnected - silver plaque
             return `
                 <div class="floating-wallet-button disconnected" data-ref="wallet-button">
-                    <button class="wallet-btn" data-ref="connect-btn">
-                        <span class="wallet-icon">🦊</span>
+                    <button class="wallet-btn" data-ref="wallet-btn">
+                        <span class="wallet-icon"></span>
                         <span class="wallet-text">Connect</span>
                     </button>
                 </div>
             `;
         }
 
-        // Connected - show abbreviated address
+        // Connected - gold plaque with address
         const truncatedAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
         return `
             <div class="floating-wallet-button connected ${menuOpen ? 'menu-open' : ''}" data-ref="wallet-button">
-                <button class="wallet-btn" data-ref="wallet-btn" title="${this.escapeHtml(address)}\nBalance: ${balance} ETH">
-                    <span class="wallet-icon">🦊</span>
+                <button class="wallet-btn" data-ref="wallet-btn" title="${this.escapeHtml(address)}">
+                    <span class="wallet-icon"></span>
                     <span class="wallet-address">${this.escapeHtml(truncatedAddress)}</span>
                 </button>
 
-                ${menuOpen ? this.renderDropdownMenu(address, balance, hasExecTokens, isVaultBenefactor) : ''}
+                ${menuOpen ? this.renderDropdownMenu(address, balance) : ''}
             </div>
         `;
     }
 
-    renderDropdownMenu(address, balance, hasExecTokens, isVaultBenefactor) {
+    renderDropdownMenu(address, balance) {
         const truncatedAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
         return `
@@ -340,40 +300,21 @@ export class FloatingWalletButton extends Component {
 
                 <div class="dropdown-items">
                     <button class="dropdown-item" data-route="/portfolio" data-ref="menu-item">
-                        <span class="item-icon">📊</span>
+                        <span class="item-icon">&#9670;</span>
                         <span class="item-label">Portfolio</span>
                     </button>
 
-                    ${hasExecTokens ? `
-                        <button class="dropdown-item" data-route="/governance" data-ref="menu-item">
-                            <span class="item-icon">🗳️</span>
-                            <span class="item-label">Governance</span>
-                        </button>
-                    ` : ''}
-
                     <button class="dropdown-item" data-route="/staking" data-ref="menu-item">
-                        <span class="item-icon">🎯</span>
+                        <span class="item-icon">&#9671;</span>
                         <span class="item-label">Staking</span>
                     </button>
-
-                    ${isVaultBenefactor ? `
-                        <button class="dropdown-item" data-route="/portfolio?filter=vaults" data-ref="menu-item">
-                            <span class="item-icon">💰</span>
-                            <span class="item-label">Vault Positions</span>
-                        </button>
-                    ` : ''}
                 </div>
 
                 <div class="dropdown-divider"></div>
 
                 <div class="dropdown-items">
-                    <button class="dropdown-item" data-action="settings" data-ref="menu-item">
-                        <span class="item-icon">⚙️</span>
-                        <span class="item-label">Settings</span>
-                    </button>
-
                     <button class="dropdown-item disconnect" data-ref="disconnect-btn">
-                        <span class="item-icon">🔌</span>
+                        <span class="item-icon">&#10005;</span>
                         <span class="item-label">Disconnect</span>
                     </button>
                 </div>
@@ -397,21 +338,14 @@ export class FloatingWalletButton extends Component {
         }
 
         // Menu item click handlers
-        const menuItems = this.getRefs('.dropdown-item[data-route], .dropdown-item[data-action]');
+        const menuItems = this.getRefs('.dropdown-item[data-route]');
         menuItems.forEach(item => {
             item.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-
                 const route = item.getAttribute('data-route');
-                const action = item.getAttribute('data-action');
-
                 if (route) {
                     this.handleMenuItemClick(route);
-                } else if (action === 'settings') {
-                    // TODO: Implement settings modal
-                    console.log('Settings clicked');
-                    this.setState({ menuOpen: false });
                 }
             });
         });
@@ -424,8 +358,9 @@ export class FloatingWalletButton extends Component {
     }
 
     onStateUpdate(oldState, newState) {
-        // Re-setup DOM listeners when state changes
-        if (oldState.menuOpen !== newState.menuOpen) {
+        // Re-setup DOM listeners when menu state changes
+        if (oldState.menuOpen !== newState.menuOpen ||
+            oldState.walletConnected !== newState.walletConnected) {
             this.setTimeout(() => {
                 this.setupDOMEventListeners();
             }, 0);

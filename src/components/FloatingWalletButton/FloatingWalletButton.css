@@ -1,52 +1,113 @@
-/* FloatingWalletButton - Bottom-right floating wallet connection button with power user dropdown */
+/* FloatingWalletButton - Bottom-right floating wallet connection button
+   Temple of Capital Design System - Metal Plaque Style */
 
 .floating-wallet-button {
     position: fixed;
     bottom: 2rem;
     right: 2rem;
-    z-index: 9999; /* Above all content */
+    z-index: 9999;
 }
 
+/* Diamond Icon - CSS shape */
+.floating-wallet-button .wallet-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    transform: rotate(45deg);
+    flex-shrink: 0;
+}
+
+/* Base button - metal plaque style */
 .floating-wallet-button .wallet-btn {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.25rem;
-    background: linear-gradient(135deg, rgba(139, 69, 19, 0.9), rgba(101, 67, 33, 0.9));
-    border: 2px solid rgba(218, 165, 32, 0.6);
-    border-radius: 50px;
-    color: #fff;
-    font-family: 'Cinzel', serif;
-    font-size: 0.9rem;
-    font-weight: 600;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-engraved);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(10px);
+    transition: var(--transition-base);
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3),
+                 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.floating-wallet-button .wallet-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(218, 165, 32, 0.4);
-    border-color: rgba(218, 165, 32, 0.8);
-    background: linear-gradient(135deg, rgba(160, 82, 45, 0.95), rgba(120, 80, 50, 0.95));
+/* ===== DISCONNECTED STATE - Silver Metallic ===== */
+.floating-wallet-button.disconnected .wallet-btn {
+    background: linear-gradient(
+        180deg,
+        #e8e8e8 0%,
+        #c0c0c0 15%,
+        #a8a8a8 50%,
+        #b8b8b8 85%,
+        #d0d0d0 100%
+    );
+    border: var(--border-width-base) solid #909090;
+    color: #404040;
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
 }
 
-.floating-wallet-button .wallet-btn:active {
+.floating-wallet-button.disconnected .wallet-btn:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+    border-color: #707070;
+}
+
+.floating-wallet-button.disconnected .wallet-btn:active {
     transform: translateY(0);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.3),
+        inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* Wallet icon */
-.floating-wallet-button .wallet-icon {
-    font-size: 1.2rem;
-    line-height: 1;
+.floating-wallet-button.disconnected .wallet-icon {
+    background: linear-gradient(135deg, #606060 0%, #404040 100%);
+    border: 1px solid #505050;
+}
+
+/* ===== CONNECTED STATE - Gold Metallic ===== */
+.floating-wallet-button.connected .wallet-btn {
+    background: var(--gradient-metallic-raised);
+    border: var(--border-width-base) solid var(--gold-metallic-base);
+    color: var(--gold-metallic-dark);
+    box-shadow: var(--shadow-metallic-raised);
+}
+
+.floating-wallet-button.connected .wallet-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--elevation-3), var(--shadow-metallic-raised);
+    border-color: var(--gold-metallic-light);
+}
+
+.floating-wallet-button.connected .wallet-btn:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-metallic-pressed);
+}
+
+.floating-wallet-button.connected .wallet-icon {
+    background: linear-gradient(135deg, var(--gold-metallic-dark) 0%, var(--gold-primary) 100%);
+    border: 1px solid var(--gold-metallic-base);
+}
+
+/* Menu open state */
+.floating-wallet-button.connected.menu-open .wallet-btn {
+    border-color: var(--gold-metallic-light);
+    box-shadow: var(--elevation-3), var(--shadow-metallic-raised);
 }
 
 /* Wallet text/address */
 .floating-wallet-button .wallet-text,
 .floating-wallet-button .wallet-address {
-    font-size: 0.875rem;
+    font-size: var(--font-size-body-sm);
     white-space: nowrap;
+    letter-spacing: var(--letter-spacing-wide);
 }
 
 /* Loading state */
@@ -54,11 +115,24 @@
     pointer-events: none;
 }
 
+.floating-wallet-button.loading .wallet-btn {
+    background: linear-gradient(
+        180deg,
+        #e8e8e8 0%,
+        #c0c0c0 15%,
+        #a8a8a8 50%,
+        #b8b8b8 85%,
+        #d0d0d0 100%
+    );
+    border: var(--border-width-base) solid #909090;
+    padding: var(--spacing-3);
+}
+
 .floating-wallet-button .wallet-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(218, 165, 32, 0.3);
-    border-top-color: rgba(218, 165, 32, 0.9);
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(64, 64, 64, 0.3);
+    border-top-color: #404040;
     border-radius: 50%;
     animation: wallet-spin 0.8s linear infinite;
 }
@@ -67,25 +141,24 @@
     to { transform: rotate(360deg); }
 }
 
-/* Dropdown menu */
+/* ===== DROPDOWN MENU - Gold Metal Plaque ===== */
 .wallet-dropdown-menu {
     position: absolute;
-    bottom: calc(100% + 0.5rem);
+    bottom: calc(100% + var(--spacing-2));
     right: 0;
-    min-width: 240px;
-    background: linear-gradient(135deg, rgba(139, 69, 19, 0.98), rgba(101, 67, 33, 0.98));
-    border: 2px solid rgba(218, 165, 32, 0.6);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(15px);
+    min-width: 220px;
+    background: var(--marble-white);
+    border: var(--border-width-base) solid var(--gold-metallic-base);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--elevation-4);
     overflow: hidden;
-    animation: dropdown-slide-up 0.2s ease-out;
+    animation: dropdown-slide-up 0.15s ease-out;
 }
 
 @keyframes dropdown-slide-up {
     from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
@@ -95,88 +168,89 @@
 
 /* Dropdown header */
 .wallet-dropdown-menu .dropdown-header {
-    padding: 1rem;
-    background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid rgba(218, 165, 32, 0.3);
+    padding: var(--spacing-3) var(--spacing-4);
+    background: var(--gradient-metallic-raised);
+    border-bottom: var(--border-width-thin) solid var(--gold-metallic-base);
 }
 
 .wallet-dropdown-menu .dropdown-address {
-    font-family: 'Cinzel', serif;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: rgba(218, 165, 32, 0.95);
-    margin-bottom: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-xs);
+    font-weight: var(--font-weight-bold);
+    color: var(--gold-metallic-dark);
+    margin-bottom: var(--spacing-1);
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
 .wallet-dropdown-menu .dropdown-balance {
-    font-family: 'Lato', sans-serif;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.7);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-xs);
+    color: var(--gold-metallic-dark);
+    opacity: 0.8;
 }
 
 /* Dropdown divider */
 .wallet-dropdown-menu .dropdown-divider {
     height: 1px;
-    background: linear-gradient(90deg,
-        transparent,
-        rgba(218, 165, 32, 0.3) 50%,
-        transparent
-    );
+    background: var(--marble-vein);
     margin: 0;
 }
 
 /* Dropdown items */
 .wallet-dropdown-menu .dropdown-items {
-    padding: 0.5rem;
+    padding: var(--spacing-2);
+    background: var(--marble-cream);
 }
 
 .wallet-dropdown-menu .dropdown-item {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--spacing-3);
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: var(--spacing-2) var(--spacing-3);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.9);
-    font-family: 'Lato', sans-serif;
-    font-size: 0.875rem;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
     text-align: left;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: var(--transition-base);
 }
 
 .wallet-dropdown-menu .dropdown-item:hover {
-    background: rgba(218, 165, 32, 0.15);
-    color: #fff;
+    background: var(--marble-white);
+    color: var(--gold-primary);
 }
 
 .wallet-dropdown-menu .dropdown-item:active {
-    background: rgba(218, 165, 32, 0.25);
+    background: var(--marble-ivory);
 }
 
 .wallet-dropdown-menu .dropdown-item .item-icon {
-    font-size: 1.125rem;
+    width: 20px;
+    text-align: center;
+    font-size: 1rem;
     line-height: 1;
-    opacity: 0.9;
+    opacity: 0.8;
 }
 
 .wallet-dropdown-menu .dropdown-item .item-label {
     flex: 1;
 }
 
-/* Disconnect button special styling */
+/* Disconnect button - subtle red tint */
 .wallet-dropdown-menu .dropdown-item.disconnect {
-    color: rgba(255, 99, 71, 0.9);
+    color: var(--error-600);
 }
 
 .wallet-dropdown-menu .dropdown-item.disconnect:hover {
-    background: rgba(255, 99, 71, 0.15);
-    color: rgba(255, 99, 71, 1);
+    background: var(--error-50);
+    color: var(--error-700);
 }
 
-/* Responsive adjustments */
+/* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     .floating-wallet-button {
         bottom: 1rem;
@@ -184,22 +258,25 @@
     }
 
     .floating-wallet-button .wallet-btn {
-        padding: 0.625rem 1rem;
-        font-size: 0.8rem;
+        padding: var(--spacing-2) var(--spacing-3);
+        font-size: var(--font-size-body-xs);
+    }
+
+    .floating-wallet-button .wallet-icon {
+        width: 10px;
+        height: 10px;
     }
 
     .wallet-dropdown-menu {
         min-width: 200px;
-        right: 0;
     }
 
     .wallet-dropdown-menu .dropdown-item {
-        padding: 0.625rem 0.875rem;
-        font-size: 0.8rem;
+        padding: var(--spacing-2);
+        font-size: var(--font-size-body-xs);
     }
 }
 
-/* Small screens - even more compact */
 @media (max-width: 480px) {
     .floating-wallet-button {
         bottom: 0.75rem;
@@ -207,21 +284,15 @@
     }
 
     .floating-wallet-button .wallet-btn {
-        padding: 0.5rem 0.875rem;
-        font-size: 0.75rem;
+        padding: var(--spacing-1) var(--spacing-2);
     }
 
     .floating-wallet-button .wallet-icon {
-        font-size: 1rem;
+        width: 8px;
+        height: 8px;
     }
 
     .wallet-dropdown-menu {
         min-width: 180px;
     }
-}
-
-/* Ensure menu appears above button when open */
-.floating-wallet-button.menu-open .wallet-btn {
-    border-color: rgba(218, 165, 32, 0.9);
-    background: linear-gradient(135deg, rgba(160, 82, 45, 0.95), rgba(120, 80, 50, 0.95));
 }

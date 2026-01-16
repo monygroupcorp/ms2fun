@@ -41,7 +41,7 @@ export default class RealProjectRegistry {
             // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
             const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(
                 network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId }
+                { name: 'anvil', chainId: network.chainId, ensAddress: null }
             );
             return { provider: readOnlyProvider, signer: null };
         }
@@ -121,10 +121,10 @@ export default class RealProjectRegistry {
     }
 
     /**
-     * Fetch metadata for a single instance
+     * Fetch metadata for a single instance including stats
      * @param {string} instanceAddress - Instance contract address
      * @param {string} contractType - Contract type ('ERC404' or 'ERC1155')
-     * @returns {Promise<object|null>} Instance metadata
+     * @returns {Promise<object|null>} Instance metadata with stats
      */
     async _fetchInstanceMetadata(instanceAddress, contractType) {
         const { provider, signer } = this._getProvider();
@@ -140,17 +140,64 @@ export default class RealProjectRegistry {
 
         await adapter.initialize();
 
-        // Fetch basic metadata
-        // Note: name() is available but owner() is not on all adapters
-        // We'll get owner from the instance info in MasterRegistry instead
-        const name = await adapter.name();
+        // Fetch stats and name based on contract type
+        let name = '';
+        let stats = {
+            volume: '0 ETH',
+            holders: 0,
+            totalSupply: 0
+        };
+
+        try {
+            if (contractType === 'ERC404') {
+                // Get project metadata which includes name and reserve (ETH volume)
+                const projectMeta = await adapter.getProjectMetadata();
+                name = projectMeta.name || '';
+
+                // Handle BigNumber or string for reserve
+                const reserveWei = projectMeta.reserve ? projectMeta.reserve.toString() : '0';
+                const volumeEth = ethers.utils.formatEther(reserveWei);
+
+                stats = {
+                    volume: `${parseFloat(volumeEth).toFixed(4)} ETH`,
+                    totalSupply: projectMeta.totalBondingSupply?.toString() || '0',
+                    maxSupply: projectMeta.maxSupply?.toString() || '0',
+                    bondingActive: projectMeta.bondingActive,
+                    holders: 0 // Would need event indexing to calculate
+                };
+            } else if (contractType === 'ERC1155') {
+                // Get name separately for ERC1155
+                name = await adapter.name();
+
+                // Get instance stats (volume calculated from editions)
+                const instanceStats = await adapter.getInstanceStats();
+
+                stats = {
+                    volume: `${parseFloat(instanceStats.volumeEth).toFixed(4)} ETH`,
+                    totalSupply: instanceStats.totalMinted,
+                    editionCount: instanceStats.editionCount,
+                    holders: 0 // Would need event indexing to calculate
+                };
+            }
+        } catch (error) {
+            console.error(`[RealProjectRegistry] Error fetching metadata for ${instanceAddress} (${contractType}):`, error);
+            // Try to get at least the name as fallback
+            if (!name) {
+                try {
+                    name = await adapter.name();
+                } catch (nameError) {
+                    console.error(`[RealProjectRegistry] Failed to get name for ${instanceAddress}:`, nameError);
+                }
+            }
+        }
 
         return {
             address: instanceAddress,
             contractType: contractType,
             name: name,
             displayName: name,
-            createdAt: Date.now() // We don't have creation timestamp on-chain
+            createdAt: Date.now(), // We don't have creation timestamp on-chain
+            stats: stats
         };
     }
 
