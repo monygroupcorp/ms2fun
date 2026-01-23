@@ -1859,3 +1859,117 @@
     }
 }
 
+/* =================================
+   Staking Section (Token Tab)
+   ================================= */
+
+.staking-section {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.staking-section.loading,
+.staking-section.disabled {
+    text-align: center;
+}
+
+.staking-section.loading .loading-spinner {
+    border: 4px solid var(--bg-secondary);
+    border-top: 4px solid var(--accent-primary);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+.staking-section .disabled-message {
+    color: var(--text-secondary);
+    font-style: italic;
+    padding: 20px 0;
+}
+
+.staking-section .success-banner {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    border-left: 3px solid #34c759;
+}
+
+.staking-global-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+}
+
+.staking-global-stat .stat-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.staking-global-stat .stat-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.staking-user-section {
+    margin-top: 16px;
+}
+
+.staking-user-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.staking-user-stats .stat-item {
+    background: var(--bg-secondary);
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+}
+
+.staking-user-stats .stat-item.highlight {
+    background: rgba(52, 199, 89, 0.1);
+}
+
+.staking-user-stats .stat-item.highlight .stat-value {
+    color: #34c759;
+}
+
+.staking-user-stats .stat-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.staking-user-stats .stat-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.staking-user-stats .stat-value.rewards {
+    font-size: 1.1rem;
+}
+
+@media (max-width: 500px) {
+    .staking-user-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
