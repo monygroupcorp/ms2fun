@@ -1,0 +1,188 @@
+/* src/components/ERC404/erc404-project-page.css */
+
+.erc404-project-page {
+    display: flex;
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.page-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.page-sidebar {
+    width: 360px;
+    flex-shrink: 0;
+}
+
+/* Header styles */
+.project-header-compact {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.header-left {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.project-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.project-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.icon-placeholder {
+    width: 100%;
+    height: 100%;
+    background: var(--border-color, #333);
+}
+
+.project-name {
+    margin: 0;
+    font-size: 28px;
+    color: var(--text-color, #fff);
+}
+
+.project-ticker {
+    color: var(--text-muted, #888);
+    font-weight: 400;
+}
+
+.project-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 14px;
+    color: var(--text-muted, #888);
+}
+
+.project-meta a {
+    color: var(--primary-color, #6366f1);
+    text-decoration: none;
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.project-header-compact .action-btn {
+    background: var(--surface-color, #1a1a2e);
+    border: 1px solid var(--border-color, #333);
+    color: var(--text-color, #fff);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.project-header-compact .action-btn:hover {
+    background: var(--border-color, #333);
+}
+
+.project-header-compact .action-btn.favorite-btn.is-favorite {
+    color: #fbbf24;
+}
+
+.address-btn .address-text {
+    font-family: monospace;
+    font-size: 13px;
+}
+
+/* Admin button container */
+.admin-button-container {
+    margin-bottom: 16px;
+}
+
+/* Tab bar */
+.tab-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.tab-btn {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    color: var(--text-muted, #888);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+}
+
+.tab-btn.active {
+    color: var(--text-color, #fff);
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary-color, #6366f1);
+}
+
+/* Tab content */
+.tab-content {
+    margin-bottom: 32px;
+}
+
+/* Comments section */
+.comments-section {
+    border-top: 1px solid var(--border-color, #333);
+    padding-top: 24px;
+}
+
+/* Sidebar sticky behavior override for project page context */
+.erc404-project-page .erc404-trading-sidebar {
+    position: sticky;
+    top: 24px;
+}
+
+/* Mobile responsive */
+@media (max-width: 900px) {
+    .erc404-project-page {
+        flex-direction: column-reverse;
+    }
+
+    .page-sidebar {
+        width: 100%;
+    }
+
+    .erc404-project-page .erc404-trading-sidebar {
+        position: static;
+    }
+
+    .project-header-compact {
+        flex-direction: column;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
