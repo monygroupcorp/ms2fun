@@ -497,3 +497,1365 @@
     border-left: 4px solid #ff3b30;
 }
 
+/* =================================
+   ERC404 Page Layout
+   ================================= */
+
+.contract-type-router.erc404 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto auto;
+    gap: 20px;
+    padding: 20px 0;
+}
+
+.contract-type-router.erc404 .erc404-bonding-status {
+    grid-column: 1 / -1;
+}
+
+.contract-type-router.erc404 .erc404-trading {
+    grid-column: 1 / -1;
+}
+
+.contract-type-router.erc404 .erc404-staking {
+    grid-column: 1 / 2;
+}
+
+.contract-type-router.erc404 .erc404-sidebar {
+    grid-column: 2 / 3;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.contract-type-router.erc404 .erc404-owner-dashboard {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 1024px) {
+    .contract-type-router.erc404 {
+        grid-template-columns: 1fr;
+    }
+
+    .contract-type-router.erc404 .erc404-staking,
+    .contract-type-router.erc404 .erc404-sidebar {
+        grid-column: 1 / -1;
+    }
+}
+
+/* =================================
+   Common Panel Styles
+   ================================= */
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-base);
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: var(--text-primary);
+    font-family: var(--font-heading);
+    font-weight: var(--font-weight-bold);
+}
+
+.status-badge,
+.phase-badge {
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-family: var(--font-body);
+}
+
+.status-badge.enabled,
+.phase-badge.phase-active {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+
+.status-badge.disabled,
+.phase-badge.phase-pending {
+    background: rgba(142, 142, 147, 0.15);
+    color: #8e8e93;
+}
+
+.phase-badge.phase-matured {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+}
+
+.phase-badge.phase-deployed {
+    background: rgba(88, 86, 214, 0.15);
+    color: #5856d6;
+}
+
+.error-banner {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+    border-left: 3px solid #ff3b30;
+}
+
+.connect-prompt {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* =================================
+   Bonding Status Panel
+   ================================= */
+
+.bonding-status-panel {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.bonding-status-panel.loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.status-section {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+}
+
+.status-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Progress Bar */
+.progress-container {
+    margin-bottom: 12px;
+}
+
+.progress-bar {
+    height: 12px;
+    background: var(--bg-elevated);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--gold-metallic-light));
+    border-radius: 6px;
+    transition: width 0.3s ease;
+}
+
+.progress-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+/* Stats */
+.supply-stats,
+.liquidity-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.stat-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stat-value.address {
+    font-family: monospace;
+    font-size: 0.8rem;
+}
+
+/* Time Section */
+.time-status {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.time-status.active {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+
+.time-status.inactive {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+}
+
+.time-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.time-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.time-label {
+    color: var(--text-secondary);
+}
+
+.time-value {
+    color: var(--text-primary);
+}
+
+/* Liquidity Section */
+.liquidity-status {
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    display: inline-block;
+    margin-bottom: 12px;
+}
+
+.liquidity-status.deployed {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+
+.liquidity-status.pending {
+    background: rgba(142, 142, 147, 0.15);
+    color: #8e8e93;
+}
+
+/* Tier Section */
+.tier-overview {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 12px;
+}
+
+.tier-current,
+.tier-user {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-elevated);
+}
+
+.tier-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.tier-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.tier-user.has-access {
+    background: rgba(52, 199, 89, 0.1);
+}
+
+.tier-user.has-access .tier-value {
+    color: #34c759;
+}
+
+.tier-user.no-access {
+    background: rgba(255, 59, 48, 0.1);
+}
+
+.tier-user.no-access .tier-value {
+    color: #ff3b30;
+}
+
+.tier-volume {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.no-tiers {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* =================================
+   Staking Interface
+   ================================= */
+
+.staking-interface {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.staking-interface.loading,
+.staking-interface.disabled {
+    text-align: center;
+}
+
+.disabled-message {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.staking-stats-section,
+.user-staking-section {
+    margin-bottom: 24px;
+}
+
+.staking-stats-section h4,
+.user-staking-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.stats-grid,
+.user-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 600px) {
+    .stats-grid,
+    .user-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+.user-stats .stat-item {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    flex-direction: column;
+    text-align: center;
+}
+
+.user-stats .stat-item.highlight {
+    background: rgba(52, 199, 89, 0.1);
+}
+
+.user-stats .stat-item.highlight .stat-value {
+    color: #34c759;
+}
+
+.stat-value.rewards {
+    font-size: 1.1rem;
+}
+
+/* Staking Actions */
+.staking-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 600px) {
+    .staking-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+.action-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.action-group label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.input-row input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.input-row input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.max-btn {
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: var(--transition-base);
+}
+
+.max-btn:hover:not(:disabled) {
+    background: var(--accent-primary);
+    color: var(--text-inverse);
+    border-color: var(--accent-primary);
+}
+
+.action-btn {
+    padding: 12px 20px;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-base);
+    font-family: var(--font-body);
+}
+
+.action-btn.stake-btn {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+    border-color: #34c759;
+}
+
+.action-btn.stake-btn:hover:not(:disabled) {
+    background: #34c759;
+    color: white;
+}
+
+.action-btn.unstake-btn {
+    background: rgba(255, 149, 0, 0.1);
+    color: #ff9500;
+    border-color: #ff9500;
+}
+
+.action-btn.unstake-btn:hover:not(:disabled) {
+    background: #ff9500;
+    color: white;
+}
+
+.claim-section {
+    padding-top: 16px;
+    border-top: 1px solid var(--border-base);
+}
+
+.action-btn.claim-btn {
+    width: 100%;
+    background: var(--gradient-metallic-raised);
+    color: var(--gold-metallic-dark);
+    border-color: var(--gold-metallic-dark);
+    padding: 14px 24px;
+}
+
+.action-btn.claim-btn:hover:not(:disabled) {
+    background: var(--accent-primary);
+    color: var(--text-inverse);
+    border-color: var(--accent-primary);
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* =================================
+   Tier Status Panel
+   ================================= */
+
+.tier-status-panel {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.tier-status-panel.loading,
+.tier-status-panel.no-tiers {
+    text-align: center;
+}
+
+.no-tiers-message {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.tier-count {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+}
+
+.user-access-section {
+    background: var(--bg-secondary);
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+}
+
+.access-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.access-status .status-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.access-status.has-access .status-icon {
+    background: #34c759;
+    color: white;
+}
+
+.access-status.no-access .status-icon {
+    background: #ff3b30;
+    color: white;
+}
+
+.access-status .status-text {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.user-volume {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.tier-list {
+    margin-top: 20px;
+}
+
+.tier-list h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.tier-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 10px;
+    border-left: 3px solid var(--border-base);
+    transition: var(--transition-base);
+}
+
+.tier-card.current {
+    border-left-color: var(--accent-primary);
+    background: rgba(212, 175, 55, 0.05);
+}
+
+.tier-card.unlocked {
+    border-left-color: #34c759;
+}
+
+.tier-card.locked {
+    opacity: 0.7;
+}
+
+.tier-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.tier-number {
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.current-badge,
+.unlocked-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.current-badge {
+    background: rgba(212, 175, 55, 0.15);
+    color: var(--accent-primary);
+}
+
+.unlocked-badge {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+
+.tier-details {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.tier-detail {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.detail-label {
+    color: var(--text-secondary);
+}
+
+.detail-value {
+    color: var(--text-primary);
+}
+
+.detail-value.unlocked {
+    color: #34c759;
+}
+
+.detail-value.active {
+    color: #34c759;
+}
+
+.detail-value.inactive {
+    color: #8e8e93;
+}
+
+/* Password Section */
+.password-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-base);
+}
+
+.password-section h4 {
+    margin: 0 0 8px 0;
+    font-size: 0.95rem;
+}
+
+.password-hint {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+.password-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.password-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.password-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.check-btn {
+    padding: 10px 20px;
+    background: var(--accent-primary);
+    color: var(--text-inverse);
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.check-btn:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.check-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.access-result {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.access-result.success {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+}
+
+.access-result.failure {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+}
+
+.result-icon {
+    font-weight: bold;
+}
+
+/* =================================
+   NFT Management
+   ================================= */
+
+.nft-management {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.nft-management.loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.nft-section {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-base);
+}
+
+.nft-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.nft-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.section-description {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 12px;
+}
+
+/* Skip Toggle */
+.skip-toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.toggle-info {
+    flex: 1;
+}
+
+.toggle-label {
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.toggle-description {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.toggle-btn {
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: var(--transition-base);
+    border: 2px solid;
+    min-width: 80px;
+}
+
+.toggle-btn:not(.active) {
+    background: var(--bg-secondary);
+    border-color: var(--border-base);
+    color: var(--text-secondary);
+}
+
+.toggle-btn.active {
+    background: #34c759;
+    border-color: #34c759;
+    color: white;
+}
+
+.toggle-btn:hover:not(:disabled) {
+    opacity: 0.85;
+}
+
+/* Holdings */
+.holdings-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+@media (max-width: 500px) {
+    .holdings-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.holding-item {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    text-align: center;
+}
+
+.holding-label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.holding-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* Mint Controls */
+.mint-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mint-input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    font-size: 0.95rem;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.mint-input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.action-btn.mint-btn {
+    background: rgba(88, 86, 214, 0.1);
+    color: #5856d6;
+    border-color: #5856d6;
+}
+
+.action-btn.mint-btn:hover:not(:disabled) {
+    background: #5856d6;
+    color: white;
+}
+
+/* Reroll Section */
+.escrow-info {
+    background: rgba(255, 149, 0, 0.1);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+}
+
+.escrow-label {
+    color: var(--text-secondary);
+}
+
+.escrow-value {
+    font-weight: 600;
+    color: #ff9500;
+}
+
+.nft-selection {
+    margin-bottom: 16px;
+}
+
+.selection-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.nft-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.nft-item {
+    padding: 8px 14px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-base);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nft-item:hover {
+    border-color: var(--accent-primary);
+}
+
+.nft-item.selected {
+    background: rgba(52, 199, 89, 0.1);
+    border-color: #34c759;
+}
+
+.nft-id {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.selection-indicator {
+    color: #34c759;
+    font-weight: bold;
+}
+
+.selection-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.no-nft-ids {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+.action-btn.reroll-btn {
+    background: rgba(255, 149, 0, 0.1);
+    color: #ff9500;
+    border-color: #ff9500;
+}
+
+.action-btn.reroll-btn:hover:not(:disabled) {
+    background: #ff9500;
+    color: white;
+}
+
+/* =================================
+   Owner Dashboard
+   ================================= */
+
+.owner-dashboard {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+    border: 2px solid var(--accent-primary);
+}
+
+.owner-dashboard.loading,
+.owner-dashboard.not-owner {
+    text-align: center;
+    border-color: var(--border-base);
+}
+
+.not-owner-message {
+    color: var(--text-secondary);
+}
+
+.owner-address {
+    font-family: monospace;
+    font-size: 0.85rem;
+    margin-top: 8px;
+}
+
+.owner-badge {
+    padding: 4px 12px;
+    background: var(--gradient-metallic-raised);
+    color: var(--gold-metallic-dark);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.owner-section {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-base);
+}
+
+.owner-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.owner-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.control-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.control-row:last-child {
+    margin-bottom: 0;
+}
+
+.control-group {
+    flex: 1;
+}
+
+.control-group label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-weight: 500;
+}
+
+.input-action-row {
+    display: flex;
+    gap: 8px;
+}
+
+.input-action-row input,
+.input-action-row select {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+}
+
+.input-action-row input:focus,
+.input-action-row select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.action-btn.small {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+}
+
+.control-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.status-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.status-value {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.status-value.enabled {
+    color: #34c759;
+}
+
+.status-value.disabled {
+    color: #8e8e93;
+}
+
+.action-btn.enable-staking-btn {
+    background: rgba(52, 199, 89, 0.1);
+    color: #34c759;
+    border-color: #34c759;
+}
+
+.action-btn.enable-staking-btn:hover:not(:disabled) {
+    background: #34c759;
+    color: white;
+}
+
+/* Liquidity Controls */
+.liquidity-deployed {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(52, 199, 89, 0.1);
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+}
+
+.deployed-label {
+    color: #34c759;
+    font-weight: 600;
+}
+
+.pool-address {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.liquidity-form .control-row {
+    margin-bottom: 16px;
+}
+
+.action-btn.deploy-btn {
+    width: 100%;
+    background: rgba(88, 86, 214, 0.1);
+    color: #5856d6;
+    border-color: #5856d6;
+    padding: 14px 24px;
+}
+
+.action-btn.deploy-btn:hover:not(:disabled) {
+    background: #5856d6;
+    color: white;
+}
+
+.permissionless-note {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 8px;
+    font-style: italic;
+}
+
+/* Toggle Button in Owner Dashboard */
+.toggle-btn.active {
+    background: #34c759;
+    color: white;
+    border-color: #34c759;
+}
+
+.toggle-btn.inactive {
+    background: rgba(255, 59, 48, 0.1);
+    color: #ff3b30;
+    border-color: #ff3b30;
+}
+
+/* =================================
+   Bonding Progress Section
+   ================================= */
+
+.bonding-progress-section {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow-md);
+}
+
+.bonding-progress-section.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.bonding-progress-section .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--bg-secondary);
+    border-top-color: var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.bonding-progress-section .phase-badge {
+    display: inline-block;
+    margin-bottom: 16px;
+}
+
+.bonding-progress-section .phase-badge.phase-pre-open {
+    background: rgba(142, 142, 147, 0.15);
+    color: #8e8e93;
+}
+
+.bonding-progress-section .phase-badge.phase-bonding {
+    background: rgba(52, 199, 89, 0.15);
+    color: #34c759;
+}
+
+.bonding-progress-section .phase-badge.phase-matured {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+}
+
+.bonding-progress-section .phase-badge.phase-deployed {
+    background: rgba(88, 86, 214, 0.15);
+    color: #5856d6;
+}
+
+.bonding-progress-section .bonding-curve-container {
+    min-height: 300px;
+    margin-bottom: 20px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.bonding-progress-section .progress-bar-container {
+    margin-bottom: 20px;
+}
+
+.bonding-progress-section .bonding-stats {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+}
+
+.bonding-progress-section .bonding-stats .stat {
+    text-align: center;
+    flex: 1;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.bonding-progress-section .bonding-stats .stat-value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.bonding-progress-section .bonding-stats .stat-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Dextools View */
+.bonding-progress-section.dextools-view {
+    padding: 0;
+    overflow: hidden;
+}
+
+.bonding-progress-section .dextools-container {
+    width: 100%;
+    height: 450px;
+    position: relative;
+}
+
+.bonding-progress-section .dextools-container iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.bonding-progress-section .dextools-fallback {
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.bonding-progress-section .dextools-fallback a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.bonding-progress-section .dextools-fallback a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 600px) {
+    .bonding-progress-section .bonding-stats {
+        flex-direction: column;
+    }
+
+    .bonding-progress-section .dextools-container {
+        height: 350px;
+    }
+}
+
