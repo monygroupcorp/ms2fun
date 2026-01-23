@@ -123,6 +123,12 @@ async function initializeApp() {
             return renderProjectDetail(params);
         });
 
+        // NFT Gallery route for ERC404 projects
+        router.on('/project/:id/gallery', async (params) => {
+            const { renderNFTGalleryPage } = await import('./routes/NFTGalleryPage.js');
+            return renderNFTGalleryPage(params);
+        });
+
         // Address-based route for backward compatibility
         router.on('/project/:id', async (params) => {
             const { renderProjectDetail } = await import('./routes/ProjectDetail.js');
@@ -180,6 +186,12 @@ async function initializeApp() {
         router.on('/messages', async () => {
             const { renderGlobalActivityFeed } = await import('./routes/GlobalActivityFeed.js');
             return renderGlobalActivityFeed();
+        });
+
+        // Portfolio route (user holdings + settings)
+        router.on('/portfolio', async () => {
+            const { renderPortfolio } = await import('./routes/Portfolio.js');
+            return renderPortfolio();
         });
 
         // Register 404 handler
