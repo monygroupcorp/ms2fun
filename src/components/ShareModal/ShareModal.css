@@ -1,0 +1,247 @@
+/* ============================================================================
+   SHARE MODAL COMPONENT STYLES
+   ============================================================================
+   Uses Temple of Capital design system tokens for styling.
+   ============================================================================ */
+
+/* Modal Overlay */
+.share-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--modal-backdrop);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal-backdrop);
+    padding: var(--spacing-4);
+    animation: share-modal-fade-in var(--duration-base) var(--ease-out-classic);
+}
+
+@keyframes share-modal-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Modal Container */
+.share-modal {
+    background: var(--bg-elevated);
+    border-radius: var(--modal-border-radius);
+    padding: var(--spacing-6);
+    width: 100%;
+    max-width: 420px;
+    box-shadow: var(--elevation-5);
+    z-index: var(--z-modal);
+    animation: share-modal-slide-up var(--duration-base) var(--ease-out-classic);
+    position: relative;
+}
+
+@keyframes share-modal-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Modal Header */
+.share-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-5);
+    padding-bottom: var(--spacing-4);
+    border-bottom: var(--border-width-thin) solid var(--border-base);
+}
+
+.share-modal-header h3 {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.share-modal-close-btn {
+    background: none;
+    border: none;
+    padding: var(--spacing-2);
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--font-size-h3);
+    line-height: 1;
+    transition: var(--transition-color);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+}
+
+.share-modal-close-btn:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+}
+
+.share-modal-close-btn:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+}
+
+/* Preview Card */
+.share-preview-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-4);
+    padding: var(--spacing-4);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--spacing-5);
+    border: var(--border-width-thin) solid var(--border-base);
+}
+
+.share-preview-image {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--bg-tertiary);
+}
+
+.share-preview-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.share-placeholder-image {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--stone-warm) 0%, var(--stone-ochre) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.share-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.share-preview-name {
+    font-family: var(--font-heading);
+    font-size: var(--font-size-body-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.share-preview-symbol {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+/* Share Actions */
+.share-actions {
+    display: flex;
+    gap: var(--spacing-3);
+    margin-bottom: var(--spacing-4);
+}
+
+.share-actions .share-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    min-height: var(--button-height-md);
+}
+
+.share-btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+}
+
+.share-btn-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Share URL Display */
+.share-url {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-xs);
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    padding: var(--spacing-3);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    border: var(--border-width-thin) solid var(--border-light);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 480px) {
+    .share-modal {
+        padding: var(--spacing-4);
+        margin: var(--spacing-2);
+        max-width: calc(100% - var(--spacing-4));
+    }
+
+    .share-modal-header h3 {
+        font-size: var(--font-size-h4);
+    }
+
+    .share-actions {
+        flex-direction: column;
+    }
+
+    .share-actions .share-btn {
+        width: 100%;
+    }
+
+    .share-preview-card {
+        padding: var(--spacing-3);
+    }
+
+    .share-preview-image {
+        width: 48px;
+        height: 48px;
+    }
+}
+
+/* Dark Theme Support */
+[data-theme="dark"] .share-modal {
+    background: var(--bg-dark-elevated);
+}
+
+[data-theme="dark"] .share-preview-card {
+    background: var(--bg-dark-secondary);
+}
+
+[data-theme="dark"] .share-url {
+    background: var(--bg-dark-secondary);
+}
