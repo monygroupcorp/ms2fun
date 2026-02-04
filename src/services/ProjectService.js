@@ -35,13 +35,14 @@ class ProjectService {
         this.projectRegistry = serviceFactory.getProjectRegistry();
         
         // Register adapters with registry
-        contractTypeRegistry.setAdapterClass('ERC404', ERC404Adapter);
+        // Note: ERC404 instances from factory are bonding instances, so use bonding adapter
+        contractTypeRegistry.setAdapterClass('ERC404', ERC404BondingInstanceAdapter);
         contractTypeRegistry.setAdapterClass('ERC1155', ERC1155Adapter);
 
         // Phase 2 adapters (complete)
         contractTypeRegistry.setAdapterClass('MasterRegistry', MasterRegistryAdapter);
         contractTypeRegistry.setAdapterClass('GlobalMessageRegistry', GlobalMessageRegistryAdapter);
-        contractTypeRegistry.setAdapterClass('ERC404Bonding', ERC404BondingInstanceAdapter);
+        contractTypeRegistry.setAdapterClass('ERC404Bonding', ERC404BondingInstanceAdapter); // alias
 
         // Phase 3 adapters (complete)
         contractTypeRegistry.setAdapterClass('UltraAlignmentVault', UltraAlignmentVaultAdapter);
@@ -343,6 +344,26 @@ class ProjectService {
     getAdapter(projectId) {
         const instance = this.instances.get(projectId);
         return instance ? instance.adapter : null;
+    }
+
+    /**
+     * Get or create adapter for an instance address
+     * Convenience method that loads the project if needed
+     * @param {string} address - Instance contract address
+     * @param {string|null} contractType - Contract type (auto-detected if null)
+     * @returns {Promise<ContractAdapter>} Adapter instance
+     */
+    async getAdapterForInstance(address, contractType = null) {
+        const projectId = address.toLowerCase();
+
+        // Check if already loaded
+        if (this.isProjectLoaded(projectId)) {
+            return this.getAdapter(projectId);
+        }
+
+        // Load the project
+        await this.loadProject(projectId, address, contractType);
+        return this.getAdapter(projectId);
     }
 
     /**

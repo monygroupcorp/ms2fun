@@ -74,6 +74,15 @@ export default class RealMasterService {
     }
 
     /**
+     * Get the underlying MasterRegistryAdapter instance
+     * @returns {Promise<MasterRegistryAdapter>} The adapter instance
+     */
+    async getAdapter() {
+        await this._ensureInitialized();
+        return this.masterRegistry;
+    }
+
+    /**
      * Check if a factory is authorized
      * @param {string} factoryAddress - Factory contract address
      * @returns {Promise<boolean>} True if factory is authorized
@@ -105,21 +114,20 @@ export default class RealMasterService {
     async getAllFactories() {
         await this._ensureInitialized();
         const totalFactories = await this.masterRegistry.getTotalFactories();
-        const factories = [];
 
-        // Factory IDs start at 1
+        // Parallelize factory fetches - IDs start at 1
+        const factoryPromises = [];
         for (let i = 1; i <= totalFactories; i++) {
-            try {
-                const factory = await this.masterRegistry.getFactoryInfo(i);
-                if (factory) {
-                    factories.push(factory);
-                }
-            } catch (error) {
-                console.warn(`Error fetching factory ${i}:`, error);
-            }
+            factoryPromises.push(
+                this.masterRegistry.getFactoryInfo(i).catch(error => {
+                    console.warn(`Error fetching factory ${i}:`, error);
+                    return null;
+                })
+            );
         }
 
-        return factories;
+        const results = await Promise.all(factoryPromises);
+        return results.filter(f => f !== null);
     }
 
     /**
@@ -140,21 +148,20 @@ export default class RealMasterService {
     async getAllVaults() {
         await this._ensureInitialized();
         const totalVaults = await this.masterRegistry.getTotalVaults();
-        const vaults = [];
 
-        // Vault IDs start at 1
+        // Parallelize vault fetches - IDs start at 1
+        const vaultPromises = [];
         for (let i = 1; i <= totalVaults; i++) {
-            try {
-                const vault = await this.masterRegistry.getVaultInfo(i);
-                if (vault) {
-                    vaults.push(vault);
-                }
-            } catch (error) {
-                console.warn(`Error fetching vault ${i}:`, error);
-            }
+            vaultPromises.push(
+                this.masterRegistry.getVaultInfo(i).catch(error => {
+                    console.warn(`Error fetching vault ${i}:`, error);
+                    return null;
+                })
+            );
         }
 
-        return vaults;
+        const results = await Promise.all(vaultPromises);
+        return results.filter(v => v !== null);
     }
 
     /**
@@ -210,16 +217,17 @@ export default class RealMasterService {
         await this._ensureInitialized();
         try {
             const totalInstances = await this.masterRegistry.getTotalInstances();
-            const instances = [];
 
+            // Parallelize instance address fetches
+            const instancePromises = [];
             for (let i = 0; i < totalInstances; i++) {
-                const instanceAddress = await this.masterRegistry.allInstances(i);
-                if (instanceAddress) {
-                    instances.push(instanceAddress);
-                }
+                instancePromises.push(
+                    this.masterRegistry.allInstances(i).catch(() => null)
+                );
             }
 
-            return instances;
+            const results = await Promise.all(instancePromises);
+            return results.filter(addr => addr !== null);
         } catch (error) {
             console.warn('Error getting all instances:', error);
             return [];

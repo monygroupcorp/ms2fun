@@ -1,19 +1,20 @@
 {
-  "generatedAt": "2026-01-15T21:14:41.113Z",
+  "generatedAt": "2026-01-23T17:19:07.677Z",
   "chainId": 1337,
   "mode": "local-fork",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "contracts": {
-    "MasterRegistryV1": "0x6e1f48Eb6Ea9d1BEE68682a1E28050d89aE2a688",
-    "GlobalMessageRegistry": "0xF373BeF9a4F9AE4e101349477e348A700Bca90Db",
-    "FeaturedQueueManager": "0x581bfA4906eD4c8dF5A9456FC92b7C533A0d4E14",
-    "ERC404Factory": "0x9214C484342dDd434dCA9Cf6722A27d8d0ae3084",
-    "ERC1155Factory": "0x8680CbbfD92c4525e36ef40132841A77F4D91591",
-    "UltraAlignmentHookFactory": "0x28B77Db1Dc758A64aF9568Ee69A9a44d270eE507"
+    "MasterRegistryV1": "0x1Bc0b43638985b57A31121E93078bCfcdaeE8F6E",
+    "GlobalMessageRegistry": "0x68B5f6a7ccD9EA0642d7B069135d84AD2CC26232",
+    "FeaturedQueueManager": "0x49e6bBc93948E1EaeBd5EFE0005213F3D70363c0",
+    "QueryAggregator": "0x5e73679B61D14516ce7C30c7daC6F1da3C51D626",
+    "ERC404Factory": "0xc554A5A22a550A0919305e459A749bbe1bCd65DD",
+    "ERC1155Factory": "0x10b9855003fa6649768C8Ce4b092F5c09e44A113",
+    "UltraAlignmentHookFactory": "0xE448f102e02B972AD89890B582E8C4E268f99F51"
   },
   "factories": [
     {
-      "address": "0x9214C484342dDd434dCA9Cf6722A27d8d0ae3084",
+      "address": "0xc554A5A22a550A0919305e459A749bbe1bCd65DD",
       "type": "ERC404",
       "title": "ERC404-Bonding-Curve-Factory",
       "displayTitle": "ERC404 Bonding Curve",
@@ -21,7 +22,7 @@
       "registered": true
     },
     {
-      "address": "0x8680CbbfD92c4525e36ef40132841A77F4D91591",
+      "address": "0x10b9855003fa6649768C8Ce4b092F5c09e44A113",
       "type": "ERC1155",
       "title": "ERC1155-Edition-Factory",
       "displayTitle": "ERC1155 Editions",
@@ -31,7 +32,7 @@
   ],
   "vaults": [
     {
-      "address": "0x82b9a983Fb737E6d59494957349A7664D10bf6f8",
+      "address": "0x8B87e3bD7559F09c9FeE5f665d735f7bC952AF97",
       "name": "UltraAlignmentVault",
       "type": "ultra-alignment",
       "registered": true,
@@ -40,12 +41,12 @@
       "alignmentTokenSymbol": "MS2",
       "totalShares": "0",
       "accumulatedFees": "0.0",
-      "pendingETH": "1.014",
-      "balance": "1.014",
-      "tvl": "1.014"
+      "pendingETH": "1.022",
+      "balance": "1.022",
+      "tvl": "1.022"
     },
     {
-      "address": "0x64bFF2E6f09080c44291486A2Ab8B3B9BD73cd80",
+      "address": "0x224458E756356f5B53b713922B496fCa4de0F6B8",
       "name": "SimpleVault",
       "type": "ultra-alignment",
       "registered": true,
@@ -54,44 +55,46 @@
       "alignmentTokenSymbol": "CULT",
       "totalShares": "0",
       "accumulatedFees": "0.0",
-      "pendingETH": "1.275449668735548828",
-      "balance": "1.275449668735548828",
-      "tvl": "1.275449668735548828"
+      "pendingETH": "1.280584759046464711",
+      "balance": "1.280584759046464711",
+      "tvl": "1.280584759046464711"
     }
   ],
   "instances": {
     "erc404": [
       {
-        "address": "0x9908c897419e2Dd0C28CCcF47Da4f18f52002bff",
+        "address": "0xdcc384fF0D525d5dca9a37d1beA4E32C26b7D53C",
         "name": "Early-Launch",
         "symbol": "EARLY",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x82b9a983Fb737E6d59494957349A7664D10bf6f8",
-        "hook": "0x1E0cE1C3A2e8c2996f0386e47549C6B0c956C044",
+        "owner": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
+        "vault": "0x8B87e3bD7559F09c9FeE5f665d735f7bC952AF97",
+        "hook": "0x3765C1fD2aFDe72D48cecB17337feb3129C80044",
         "state": "early-bonding",
         "bondingProgress": "~10%",
         "holders": 4,
-        "messages": 5
+        "messages": 5,
+        "note": "Owned by USER_ADDRESS for owner view testing"
       },
       {
-        "address": "0xbC3889e01e4424a9fD23182F118eb7aFd1cCeCD7",
+        "address": "0x37D8BF3C67968E657D68e211aaf86D3cb9E7368b",
         "name": "Active-Project",
         "symbol": "ACTIVE",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x82b9a983Fb737E6d59494957349A7664D10bf6f8",
-        "hook": "0x1E0cE1C3A2e8c2996f0386e47549C6B0c956C044",
+        "vault": "0x8B87e3bD7559F09c9FeE5f665d735f7bC952AF97",
+        "hook": "0x3765C1fD2aFDe72D48cecB17337feb3129C80044",
         "state": "active-bonding",
         "bondingProgress": "~60%",
         "holders": 4,
         "messages": 15
       },
       {
-        "address": "0x478C85f848504f2cfDF386d1DB7b8d0CF7a69532",
+        "address": "0x2ea45070BE80390f09570fd7de5Fd0F64b447966",
         "name": "Graduated",
         "symbol": "GRAD",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x82b9a983Fb737E6d59494957349A7664D10bf6f8",
-        "hook": "0x1E0cE1C3A2e8c2996f0386e47549C6B0c956C044",
+        "vault": "0x8B87e3bD7559F09c9FeE5f665d735f7bC952AF97",
+        "hook": "0x3765C1fD2aFDe72D48cecB17337feb3129C80044",
         "state": "graduated",
         "bondingProgress": "100%",
         "liquidityDeployed": false,
@@ -101,32 +104,34 @@
     ],
     "erc1155": [
       {
-        "address": "0xE5A48F9b5987b5523590012daA9276682594Eff8",
+        "address": "0xcb442F5f61A91Cb889A1AB500C3DD6FD8058FDEA",
         "name": "Demo-Gallery",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x82b9a983Fb737E6d59494957349A7664D10bf6f8",
+        "owner": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
+        "vault": "0x8B87e3bD7559F09c9FeE5f665d735f7bC952AF97",
         "editions": [
           {
             "id": 1,
             "name": "Genesis-Piece",
             "price": "0.01",
             "maxSupply": 0,
-            "minted": 3
+            "minted": 5
           },
           {
             "id": 2,
             "name": "Limited-Drop",
             "price": "0.02",
             "maxSupply": 100,
-            "minted": 2
+            "minted": 3
           }
-        ]
+        ],
+        "note": "Owned by USER_ADDRESS for owner view testing"
       },
       {
-        "address": "0xaa577DBa243Ed9754B0069cB04e8DF094De37651",
+        "address": "0x383AF62Ee445ea63E86390477bD4c7A4993c62c4",
         "name": "Dynamic-Pricing",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x64bFF2E6f09080c44291486A2Ab8B3B9BD73cd80",
+        "vault": "0x224458E756356f5B53b713922B496fCa4de0F6B8",
         "pricingModel": "exponential-increase",
         "editions": [
           {
@@ -135,7 +140,7 @@
             "basePrice": "0.005",
             "priceIncreaseRate": 500,
             "maxSupply": 50,
-            "minted": 10
+            "minted": 13
           },
           {
             "id": 2,
@@ -148,10 +153,10 @@
         ]
       },
       {
-        "address": "0xda4d8395Fe8a76b107DE532a0b1f95a1B7386259",
+        "address": "0xD64492e25d50Cd0a4f9500F910e5651738D01cD0",
         "name": "Mixed-Supply",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x64bFF2E6f09080c44291486A2Ab8B3B9BD73cd80",
+        "vault": "0x224458E756356f5B53b713922B496fCa4de0F6B8",
         "pricingModel": "mixed",
         "editions": [
           {
@@ -199,12 +204,69 @@
     "mode": "dictator"
   },
   "messages": {
-    "total": 146,
+    "total": 148,
     "sources": {
-      "erc404Buys": "~20",
-      "erc1155Mints": "~123",
+      "erc404Buys": "~24",
+      "erc1155Mints": "~133",
       "other": "~0"
     },
     "note": "Messages posted automatically during transactions"
+  },
+  "userHoldings": {
+    "note": "Expected holdings for USER_ADDRESS after seeding",
+    "erc404": [
+      {
+        "instance": "Early-Launch",
+        "tokens": "150",
+        "note": "150 EARLY tokens from 1 purchase"
+      },
+      {
+        "instance": "Active-Project",
+        "tokens": "800",
+        "note": "800 ACTIVE tokens from 2 purchases (500 + 300)"
+      },
+      {
+        "instance": "Graduated",
+        "tokens": "1000",
+        "note": "1000 GRAD tokens from 1 purchase"
+      }
+    ],
+    "erc1155": [
+      {
+        "instance": "Demo-Gallery",
+        "holdings": [
+          {
+            "editionId": 1,
+            "quantity": 2
+          },
+          {
+            "editionId": 2,
+            "quantity": 1
+          }
+        ]
+      },
+      {
+        "instance": "Dynamic-Pricing",
+        "holdings": [
+          {
+            "editionId": 1,
+            "quantity": 3
+          }
+        ]
+      },
+      {
+        "instance": "Mixed-Supply",
+        "holdings": [
+          {
+            "editionId": 1,
+            "quantity": 5
+          },
+          {
+            "editionId": 2,
+            "quantity": 5
+          }
+        ]
+      }
+    ]
   }
 }

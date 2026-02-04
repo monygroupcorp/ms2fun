@@ -278,12 +278,10 @@ export class VaultDetail extends Component {
         }
     }
 
-    handleProjectClick(projectAddress) {
-        if (window.router) {
-            window.router.navigate(`/project/${projectAddress}`);
-        } else {
-            window.location.href = `/project/${projectAddress}`;
-        }
+    async handleProjectClick(projectAddress) {
+        // Navigate using modern URL format
+        const { navigateToProject } = await import('../../utils/navigation.js');
+        await navigateToProject(projectAddress);
     }
 
     render() {

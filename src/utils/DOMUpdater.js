@@ -14,6 +14,14 @@ export class DOMUpdater {
      * @param {HTMLElement} rootElement - Root element to save state from
      */
     saveState(rootElement) {
+        // Guard against null rootElement (component not mounted)
+        if (!rootElement) {
+            this._activeElement = null;
+            this._activeElementPath = null;
+            this._scrollPositions.clear();
+            return;
+        }
+
         // Save active element
         const activeElement = document.activeElement;
         if (activeElement && rootElement.contains(activeElement)) {
@@ -43,6 +51,11 @@ export class DOMUpdater {
      * @param {HTMLElement} rootElement - Root element to restore state in
      */
     restoreState(rootElement) {
+        // Guard against null rootElement (component not mounted)
+        if (!rootElement) {
+            return;
+        }
+
         // Restore focus
         if (this._activeElementPath) {
             const element = this._getElementByPath(rootElement, this._activeElementPath);

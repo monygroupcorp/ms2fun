@@ -6,17 +6,21 @@
  */
 
 import { Component } from '../../core/Component.js';
+import { eventBus } from '../../core/EventBus.js';
 import ownershipService from '../../services/OwnershipService.js';
 import walletService from '../../services/WalletService.js';
 import { AdminDashboardModal } from '../AdminDashboard/AdminDashboardModal.js';
+import { ERC1155AdminModal } from '../AdminDashboard/ERC1155AdminModal.js';
+import { ERC404AdminModal } from '../AdminDashboard/ERC404AdminModal.js';
 import stylesheetLoader from '../../utils/stylesheetLoader.js';
 
 export class AdminButton extends Component {
-    constructor(contractAddress, contractType = null, adapter = null) {
+    constructor(contractAddress, contractType = null, adapter = null, projectData = null) {
         super();
         this.contractAddress = contractAddress;
         this.contractType = contractType;
         this.adapter = adapter;
+        this.projectData = projectData;
         this.modal = null;
         this.state = {
             isOwner: false,
@@ -31,6 +35,13 @@ export class AdminButton extends Component {
             contractType: this.contractType,
             hasAdapter: !!this.adapter
         });
+
+        // Listen for wallet connection events to re-check ownership
+        this._walletConnectedHandler = () => this.checkOwnership();
+        this._walletChangedHandler = () => this.checkOwnership();
+        eventBus.on('wallet:connected', this._walletConnectedHandler);
+        eventBus.on('wallet:changed', this._walletChangedHandler);
+
         await this.checkOwnership();
     }
 
@@ -156,17 +167,44 @@ export class AdminButton extends Component {
     }
 
     openAdminModal() {
-        // Load admin dashboard stylesheet
-        stylesheetLoader.load('src/components/AdminDashboard/AdminDashboard.css', 'admin-dashboard-styles');
-
         // Create modal if it doesn't exist
         if (!this.modal) {
-            this.modal = new AdminDashboardModal(
-                this.contractAddress,
-                this.contractType,
-                this.adapter
-            );
-            
+            // Use contract-type-specific modals
+            const contractTypeUpper = this.contractType?.toUpperCase() || '';
+            const isERC1155 = contractTypeUpper === 'ERC1155';
+            const isERC404 = contractTypeUpper === 'ERC404' || contractTypeUpper === 'ERC404BONDING';
+
+            if (isERC1155) {
+                // Load ERC1155-specific admin stylesheet
+                stylesheetLoader.load('src/components/AdminDashboard/erc1155-admin.css', 'erc1155-admin-styles');
+
+                this.modal = new ERC1155AdminModal(
+                    this.contractAddress,
+                    this.contractType,
+                    this.adapter,
+                    this.projectData
+                );
+            } else if (isERC404) {
+                // Load ERC404-specific admin stylesheet
+                stylesheetLoader.load('src/components/AdminDashboard/erc404-admin.css', 'erc404-admin-styles');
+
+                this.modal = new ERC404AdminModal(
+                    this.contractAddress,
+                    this.contractType,
+                    this.adapter,
+                    this.projectData
+                );
+            } else {
+                // Load generic admin dashboard stylesheet
+                stylesheetLoader.load('src/components/AdminDashboard/AdminDashboard.css', 'admin-dashboard-styles');
+
+                this.modal = new AdminDashboardModal(
+                    this.contractAddress,
+                    this.contractType,
+                    this.adapter
+                );
+            }
+
             // Mount modal to body
             const modalContainer = document.createElement('div');
             modalContainer.id = 'admin-modal-container';
@@ -186,6 +224,14 @@ export class AdminButton extends Component {
     }
 
     unmount() {
+        // Cleanup wallet event listeners
+        if (this._walletConnectedHandler) {
+            eventBus.off('wallet:connected', this._walletConnectedHandler);
+        }
+        if (this._walletChangedHandler) {
+            eventBus.off('wallet:changed', this._walletChangedHandler);
+        }
+
         // Cleanup modal if it exists
         if (this.modal) {
             this.modal.close();
@@ -198,8 +244,17 @@ export class AdminButton extends Component {
             }
         }
 
-        // Unload stylesheet
-        stylesheetLoader.unload('admin-dashboard-styles');
+        // Unload stylesheet based on contract type
+        const contractTypeUpper = this.contractType?.toUpperCase() || '';
+        const isERC1155 = contractTypeUpper === 'ERC1155';
+        const isERC404 = contractTypeUpper === 'ERC404' || contractTypeUpper === 'ERC404BONDING';
+        if (isERC1155) {
+            stylesheetLoader.unload('erc1155-admin-styles');
+        } else if (isERC404) {
+            stylesheetLoader.unload('erc404-admin-styles');
+        } else {
+            stylesheetLoader.unload('admin-dashboard-styles');
+        }
 
         super.unmount();
     }

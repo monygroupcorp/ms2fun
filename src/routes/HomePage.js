@@ -3,6 +3,7 @@ import { ProjectDiscovery } from '../components/ProjectDiscovery/ProjectDiscover
 import { TopVaultsWidget } from '../components/TopVaultsWidget/TopVaultsWidget.js';
 import { RecentActivityWidget } from '../components/RecentActivityWidget/RecentActivityWidget.js';
 import { HeroSection } from '../components/HeroSection/HeroSection.js';
+import { HomePageDataProvider } from '../components/HomePageDataProvider/HomePageDataProvider.js';
 
 /**
  * Home page route handler
@@ -62,32 +63,46 @@ export function renderHomePage() {
     contentSection.style.boxSizing = 'border-box';
     scrollContainer.appendChild(contentSection);
 
+    // Create HomePageDataProvider for batched data fetching
+    // This fetches all home page data in ONE call instead of 80+ individual calls
+    const dataProvider = new HomePageDataProvider();
+
     // Create container for TopVaultsWidget
     const vaultsWidgetContainer = document.createElement('div');
     vaultsWidgetContainer.id = 'top-vaults-widget-container';
     contentSection.appendChild(vaultsWidgetContainer);
 
-    // Mount TopVaultsWidget
-    const topVaultsWidget = new TopVaultsWidget();
+    // Mount TopVaultsWidget (using data provider)
+    const topVaultsWidget = new TopVaultsWidget({ useDataProvider: true });
     topVaultsWidget.mount(vaultsWidgetContainer);
+    dataProvider.registerChild('topVaultsWidget', topVaultsWidget);
 
     // Create container for RecentActivityWidget
     const activityWidgetContainer = document.createElement('div');
     activityWidgetContainer.id = 'recent-activity-widget-container';
     contentSection.appendChild(activityWidgetContainer);
 
-    // Mount RecentActivityWidget
-    const recentActivityWidget = new RecentActivityWidget();
+    // Mount RecentActivityWidget (using data provider)
+    const recentActivityWidget = new RecentActivityWidget({ useDataProvider: true });
     recentActivityWidget.mount(activityWidgetContainer);
+    dataProvider.registerChild('recentActivityWidget', recentActivityWidget);
 
     // Create container for ProjectDiscovery (always visible, no blocking)
     const discoveryContainer = document.createElement('div');
     discoveryContainer.id = 'project-discovery-container';
     contentSection.appendChild(discoveryContainer);
 
-    // Mount ProjectDiscovery component (immediately visible)
-    const projectDiscovery = new ProjectDiscovery();
+    // Mount ProjectDiscovery component (using data provider)
+    const projectDiscovery = new ProjectDiscovery({ useDataProvider: true });
     projectDiscovery.mount(discoveryContainer);
+    dataProvider.registerChild('projectDiscovery', projectDiscovery);
+
+    // Mount the data provider (this triggers the single batched fetch)
+    // It doesn't render anything, just fetches and distributes data
+    const providerContainer = document.createElement('div');
+    providerContainer.style.display = 'none';
+    contentSection.appendChild(providerContainer);
+    dataProvider.mount(providerContainer);
 
     // Note: FloatingWalletButton is mounted globally in index.js
     // No need to mount it here
@@ -95,6 +110,10 @@ export function renderHomePage() {
     // Return cleanup function
     return {
         cleanup: () => {
+            // Unmount data provider first
+            if (dataProvider && typeof dataProvider.unmount === 'function') {
+                dataProvider.unmount();
+            }
             // Unmount components
             if (heroSection && typeof heroSection.unmount === 'function') {
                 heroSection.unmount();

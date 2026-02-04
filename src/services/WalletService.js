@@ -255,13 +255,52 @@ class WalletService {
             } catch (error) {
                 // Ignore errors when removing non-existent listeners
             }
-            
+
             // Add new listeners
             this.provider.on('chainChanged', () => this.handleNetworkChange());
             this.provider.on('accountsChanged', (accounts) => this.handleAccountChange(accounts));
         }
     }
-    
+
+    /**
+     * Detect which wallet is currently providing window.ethereum
+     * This checks the properties of window.ethereum itself, not just
+     * whether a wallet extension is installed
+     * @private
+     * @returns {string|null} The detected wallet type or null
+     */
+    _detectActiveWalletType() {
+        if (typeof window.ethereum === 'undefined') {
+            return null;
+        }
+
+        const eth = window.ethereum;
+
+        // Check specific wallet identifiers on the active provider
+        // Order matters - check more specific ones first
+        if (eth.isRabby) {
+            return 'rabby';
+        }
+        if (eth.isRainbow) {
+            return 'rainbow';
+        }
+        // Phantom sets isPhantom on its ethereum provider
+        if (eth.isPhantom) {
+            return 'phantom';
+        }
+        // MetaMask check - but many wallets set isMetaMask for compatibility
+        // So this should be last
+        if (eth.isMetaMask) {
+            // Double-check it's not another wallet pretending to be MetaMask
+            if (!eth.isRabby && !eth.isRainbow && !eth.isPhantom) {
+                return 'metamask';
+            }
+        }
+
+        // Default fallback
+        return null;
+    }
+
     /**
      * Clean up resources when switching wallets
      * @private
@@ -396,7 +435,67 @@ class WalletService {
             throw formattedError;
         }
     }
-    
+
+    /**
+     * Sync wallet service state with an existing connection
+     * This is used when accounts are detected via eth_accounts (no popup)
+     * without needing to call eth_requestAccounts
+     * @param {string} address - The detected wallet address
+     * @param {string} [walletType] - Optional wallet type (metamask, phantom, etc.)
+     */
+    async syncWithExistingConnection(address, walletType = null) {
+        if (!address) return false;
+
+        try {
+            console.log('[WalletService] Syncing with existing connection:', address);
+
+            // If we don't have a provider yet, try to set one up
+            if (!this.provider && typeof window.ethereum !== 'undefined') {
+                // Always detect wallet type based on window.ethereum properties
+                // since that's what responded to eth_accounts
+                // Don't blindly trust localStorage - user might have switched wallets
+                const detectedType = this._detectActiveWalletType();
+
+                // Use detected type, fallback to provided type, then default to metamask
+                walletType = detectedType || walletType || 'metamask';
+                this.provider = window.ethereum;
+
+                this.selectedWallet = walletType;
+                this.setupEventListeners();
+            }
+
+            // Update internal state
+            this.connectedAddress = address;
+            this.connected = true;
+
+            // Store wallet type for future auto-reconnect
+            if (walletType) {
+                localStorage.setItem('ms2fun_lastWallet', walletType);
+            }
+
+            // Create ethers provider if we have a provider
+            if (this.provider) {
+                this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
+                this.signer = this.ethersProvider.getSigner();
+            }
+
+            // Emit connected event so other components can react
+            eventBus.emit('wallet:connected', {
+                address: this.connectedAddress,
+                walletType: this.selectedWallet,
+                provider: this.provider,
+                ethersProvider: this.ethersProvider,
+                signer: this.signer
+            });
+
+            console.log('[WalletService] Synced successfully with address:', address);
+            return true;
+        } catch (error) {
+            console.error('[WalletService] Failed to sync with existing connection:', error);
+            return false;
+        }
+    }
+
     /**
      * Add a network to the wallet
      * @param {number} networkId - The network ID to add

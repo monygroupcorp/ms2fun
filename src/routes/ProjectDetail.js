@@ -87,21 +87,74 @@ export async function renderProjectDetail(params) {
     
     // Load project detail stylesheet
     stylesheetLoader.load('src/routes/project-detail.css', 'project-detail-styles');
-    
-    // Load WalletDisplay stylesheet
-    stylesheetLoader.load('src/components/WalletDisplay/WalletDisplay.css', 'wallet-display-styles');
-    
+
     // Load contract-type-specific CSS
     if (contractType === 'ERC1155') {
         stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
     } else if (contractType === 'ERC404') {
         // ERC404 styles would be loaded here if needed
     }
-    
+
+    // CRITICAL: Check for cached project style and preload BEFORE rendering
+    // This prevents flash of default styles
+    const cachedStyleUri = localStorage.getItem(`projectStyle:${projectId}`);
+    if (cachedStyleUri) {
+        // Add class to both html and body (html may already have it from inline script)
+        document.documentElement.classList.add('has-project-style');
+        document.body.classList.add('has-project-style');
+        document.body.setAttribute('data-project-style', projectId);
+
+        // Preload the stylesheet
+        const styleId = `project-style-${projectId}`;
+        const existingLink = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
+        if (!existingLink) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = cachedStyleUri.startsWith('/') || cachedStyleUri.startsWith('http')
+                ? cachedStyleUri
+                : '/' + cachedStyleUri;
+            link.setAttribute('data-stylesheet-id', styleId);
+            link.onload = () => {
+                // Add loaded/resolved to both html and body
+                document.documentElement.classList.add('project-style-loaded');
+                document.documentElement.classList.add('project-style-resolved');
+                document.body.classList.add('project-style-loaded');
+                document.body.classList.add('project-style-resolved');
+            };
+            link.onerror = () => {
+                // Style failed to load, resolve anyway to show content
+                document.documentElement.classList.add('project-style-resolved');
+                document.documentElement.classList.remove('has-project-style');
+                document.body.classList.add('project-style-resolved');
+                document.body.classList.remove('has-project-style');
+            };
+            document.head.appendChild(link);
+
+            // Wait a frame for CSS to apply before continuing
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        } else {
+            // Already loaded
+            document.documentElement.classList.add('project-style-loaded');
+            document.documentElement.classList.add('project-style-resolved');
+            document.body.classList.add('project-style-loaded');
+            document.body.classList.add('project-style-resolved');
+        }
+    } else {
+        // No cached style for this project
+        // Remove speculative/pending classes and revert to default marble style
+        document.documentElement.classList.remove('has-project-style');
+        document.documentElement.classList.remove('project-style-speculative');
+        document.documentElement.classList.remove('project-style-pending');
+        document.documentElement.classList.add('project-style-resolved');
+        document.body.classList.remove('has-project-style');
+        document.body.classList.remove('project-style-pending');
+        document.body.classList.add('project-style-resolved');
+    }
+
     // Unload other page styles
     stylesheetLoader.unload('cultexecs-styles');
     stylesheetLoader.unload('home-styles');
-    
+
     // Clear existing content
     appTopContainer.innerHTML = '';
     appContainer.innerHTML = '';
@@ -123,8 +176,27 @@ export async function renderProjectDetail(params) {
             if (projectDetail && typeof projectDetail.unmount === 'function') {
                 projectDetail.unmount();
             }
-            // Unload stylesheet
+            // Unload stylesheets
             stylesheetLoader.unload('project-detail-styles');
+
+            // Clean up project style classes from both html and body
+            document.documentElement.classList.remove('has-project-style');
+            document.documentElement.classList.remove('project-style-loaded');
+            document.documentElement.classList.remove('project-style-resolved');
+            document.documentElement.classList.remove('project-style-pending');
+            document.documentElement.classList.remove('project-style-speculative');
+            document.body.classList.remove('has-project-style');
+            document.body.classList.remove('project-style-loaded');
+            document.body.classList.remove('project-style-resolved');
+            document.body.classList.remove('project-style-pending');
+            document.body.removeAttribute('data-project-style');
+
+            // Unload project-specific stylesheet
+            const styleId = `project-style-${projectId}`;
+            const link = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
+            if (link) {
+                link.remove();
+            }
         }
     };
 }

@@ -51,8 +51,14 @@ app.get('/api/contract-reload-events', (req, res) => {
     // Add client to set
     sseClients.add(res);
 
+    // Send heartbeat every 30 seconds to keep connection alive
+    const heartbeat = setInterval(() => {
+        res.write(`: heartbeat\n\n`);
+    }, 30000);
+
     // Remove client on disconnect
     req.on('close', () => {
+        clearInterval(heartbeat);
         sseClients.delete(res);
     });
 });

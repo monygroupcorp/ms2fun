@@ -229,10 +229,69 @@
    PROJECT METADATA
    ============================================================================ */
 
+/* Toggle button for metadata */
+.project-metadata-toggle {
+    margin-top: var(--spacing-4);
+}
+
+.metadata-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    background: transparent;
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    cursor: pointer;
+    transition: var(--transition-all);
+}
+
+.metadata-toggle-btn:hover {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border-color: var(--border-dark);
+}
+
+.toggle-icon {
+    font-size: 0.7em;
+    transition: transform 0.2s ease;
+}
+
+/* Collapsible metadata section */
 .project-metadata {
-    margin-top: var(--spacing-6);
-    padding-top: var(--spacing-6);
+    margin-top: var(--spacing-3);
+    padding-top: var(--spacing-4);
     border-top: var(--border-width-thin) solid var(--border-base);
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+}
+
+.project-header .project-metadata.collapsed,
+.project-metadata.collapsed {
+    max-height: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    border-top: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    display: none !important;
+}
+
+.project-header .project-metadata.expanded,
+.project-metadata.expanded {
+    display: block !important;
+    max-height: 500px !important;
+    height: auto !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
 }
 
 .metadata-item {

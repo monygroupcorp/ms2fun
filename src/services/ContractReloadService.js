@@ -15,6 +15,8 @@ class ContractReloadService {
         this.isConnected = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
+        this.hasConnectedOnce = false;
+        this.reconnectTimeout = null;
     }
 
     /**
@@ -41,16 +43,21 @@ class ContractReloadService {
     /**
      * Connect to SSE endpoint
      */
-    connect() {
+    connect(silent = false) {
         try {
-            console.log('[ContractReload] Connecting to contract reload events...');
+            if (!silent) {
+                console.log('[ContractReload] Connecting to contract reload events...');
+            }
 
             this.eventSource = new EventSource('/api/contract-reload-events');
 
             this.eventSource.onopen = () => {
                 this.isConnected = true;
                 this.reconnectAttempts = 0;
-                console.log('✅ [ContractReload] Connected - watching for contract changes');
+                if (!this.hasConnectedOnce) {
+                    this.hasConnectedOnce = true;
+                    console.log('✅ [ContractReload] Connected - watching for contract changes');
+                }
             };
 
             this.eventSource.onmessage = (event) => {
@@ -64,17 +71,24 @@ class ContractReloadService {
 
             this.eventSource.onerror = () => {
                 this.isConnected = false;
-                this.eventSource.close();
-                this.eventSource = null;
+                if (this.eventSource) {
+                    this.eventSource.close();
+                    this.eventSource = null;
+                }
 
-                // Attempt reconnect with backoff
+                // Clear any existing reconnect timeout
+                if (this.reconnectTimeout) {
+                    clearTimeout(this.reconnectTimeout);
+                }
+
+                // Silent reconnect with backoff - SSE drops are normal
                 if (this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.reconnectAttempts++;
-                    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
-                    console.log(`[ContractReload] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-                    setTimeout(() => this.connect(), delay);
+                    const delay = Math.min(2000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+                    this.reconnectTimeout = setTimeout(() => this.connect(true), delay);
                 } else {
-                    console.warn('[ContractReload] Max reconnect attempts reached - contract hot reload disabled');
+                    // Only warn after truly exhausting retries
+                    console.warn('[ContractReload] Connection lost - contract hot reload disabled');
                 }
             };
         } catch (error) {
@@ -88,7 +102,7 @@ class ContractReloadService {
     handleMessage(data) {
         switch (data.type) {
             case 'connected':
-                console.log('[ContractReload] Initial connection established');
+                // Silent - onopen already logged connection
                 break;
 
             case 'contract-config-changed':
@@ -97,7 +111,8 @@ class ContractReloadService {
                 break;
 
             default:
-                console.warn('[ContractReload] Unknown message type:', data.type);
+                // Ignore unknown messages (including heartbeats)
+                break;
         }
     }
 
@@ -177,11 +192,14 @@ class ContractReloadService {
      * Stop listening
      */
     stop() {
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
         if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;
             this.isConnected = false;
-            console.log('[ContractReload] Disconnected');
         }
     }
 

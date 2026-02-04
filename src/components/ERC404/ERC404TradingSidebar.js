@@ -14,10 +14,11 @@ export class ERC404TradingSidebar extends Component {
         this.adapter = adapter;
         this.projectData = projectData;
         this.portfolioModal = null;
-        this._formValues = { amount: '' };
+        this._formValues = { amount: '', message: '' };
         this.state = {
             loading: true,
             isBuying: true,
+            isBondingActive: true,
             price: '0',
             userBalance: '0',
             userNFTCount: 0,
@@ -49,6 +50,15 @@ export class ERC404TradingSidebar extends Component {
                 console.warn('[ERC404TradingSidebar] Error getting price:', e);
             }
 
+            // Check if bonding is still active (for message input)
+            let isBondingActive = true;
+            try {
+                const bondingStatus = await this.adapter.getBondingStatus();
+                isBondingActive = bondingStatus.isActive && !bondingStatus.hasLiquidity;
+            } catch (e) {
+                console.warn('[ERC404TradingSidebar] Error getting bonding status:', e);
+            }
+
             const userAddress = walletService.getAddress();
 
             let userBalance = '0';
@@ -77,6 +87,7 @@ export class ERC404TradingSidebar extends Component {
             this.setState({
                 loading: false,
                 price,
+                isBondingActive,
                 userBalance,
                 userNFTCount
             });
@@ -95,10 +106,12 @@ export class ERC404TradingSidebar extends Component {
             if (target.closest('[data-action="toggle-buy"]')) {
                 this.setState({ isBuying: true });
                 this._formValues.amount = '';
+                this._formValues.message = '';
                 this.update();
             } else if (target.closest('[data-action="toggle-sell"]')) {
                 this.setState({ isBuying: false });
                 this._formValues.amount = '';
+                this._formValues.message = '';
                 this.update();
             } else if (target.closest('[data-action="quick-pick"]')) {
                 const value = target.closest('[data-action="quick-pick"]').dataset.value;
@@ -115,6 +128,8 @@ export class ERC404TradingSidebar extends Component {
         this.element.addEventListener('input', (e) => {
             if (e.target.name === 'amount') {
                 this._formValues.amount = e.target.value;
+            } else if (e.target.name === 'message') {
+                this._formValues.message = e.target.value;
             }
         });
     }
@@ -154,52 +169,64 @@ export class ERC404TradingSidebar extends Component {
 
             if (this.state.isBuying) {
                 // Buy: amount is in ETH
-                const ethAmount = ethers.utils.parseEther(amount);
+                const ethAmountFloat = parseFloat(amount);
+                const ethAmountWei = ethers.utils.parseEther(amount);
 
-                // Calculate how many tokens we can get for this ETH
-                let tokenAmount;
-                try {
-                    tokenAmount = await this.adapter.getExecForEth(amount);
-                    // Convert to wei
-                    tokenAmount = ethers.utils.parseUnits(tokenAmount, 18);
-                } catch (e) {
-                    console.warn('[ERC404TradingSidebar] Error calculating token amount:', e);
-                    throw new Error('Failed to calculate token amount');
+                // Estimate tokens from current price
+                const currentPrice = parseFloat(this.state.price) || 0.0001;
+                const estimatedTokens = Math.floor(ethAmountFloat / currentPrice);
+
+                if (estimatedTokens <= 0) {
+                    throw new Error('Amount too small');
                 }
 
-                // Use buyBonding with calculated amounts
+                // Convert to wei (tokens have 18 decimals in ERC404)
+                const tokenAmountWei = ethers.utils.parseUnits(estimatedTokens.toString(), 18);
+
+                // Add 5% slippage to max cost
+                const maxCost = ethAmountWei.mul(105).div(100);
+
+                const message = this._formValues.message || '';
+                const passwordHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+                // buyBonding(amount, maxCost, mintNFT, passwordHash, message)
                 await this.adapter.buyBonding(
-                    tokenAmount.toString(),
-                    ethAmount.toString(),
-                    null, // proof
-                    '' // message
+                    tokenAmountWei.toString(),
+                    maxCost.toString(),
+                    false, // mintNFT
+                    passwordHash,
+                    message
                 );
             } else {
                 // Sell: amount is in tokens
-                const tokenAmount = ethers.utils.parseUnits(amount, 18);
+                const tokenAmountWei = ethers.utils.parseUnits(amount, 18);
 
-                // Calculate expected ETH return
-                let ethReturn;
+                // Calculate expected ETH return using adapter method
+                let minRefund;
                 try {
-                    ethReturn = await this.adapter.getEthForExec(amount);
-                    ethReturn = ethers.utils.parseEther(ethReturn);
-                    // Apply 1% slippage tolerance
-                    ethReturn = ethReturn.mul(99).div(100);
+                    const refundWei = await this.adapter.calculateRefund(tokenAmountWei.toString());
+                    minRefund = ethers.BigNumber.from(refundWei);
+                    // Apply 2% slippage tolerance
+                    minRefund = minRefund.mul(98).div(100);
                 } catch (e) {
-                    console.warn('[ERC404TradingSidebar] Error calculating ETH return:', e);
-                    ethReturn = ethers.utils.parseEther('0');
+                    console.warn('[ERC404TradingSidebar] Error calculating refund, using 0:', e);
+                    minRefund = ethers.BigNumber.from(0);
                 }
 
-                // Use sellBonding
+                const message = this._formValues.message || '';
+                const passwordHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+                // sellBonding(amount, minRefund, passwordHash, message)
                 await this.adapter.sellBonding(
-                    tokenAmount.toString(),
-                    ethReturn.toString(),
-                    null, // proof
-                    '' // message
+                    tokenAmountWei.toString(),
+                    minRefund.toString(),
+                    passwordHash,
+                    message
                 );
             }
 
             this._formValues.amount = '';
+            this._formValues.message = '';
             this.setState({ txPending: false });
             await this.loadData();
         } catch (error) {
@@ -229,7 +256,7 @@ export class ERC404TradingSidebar extends Component {
     }
 
     render() {
-        const { loading, isBuying, price, userBalance, userNFTCount, txPending, error } = this.state;
+        const { loading, isBuying, isBondingActive, price, userBalance, userNFTCount, txPending, error } = this.state;
         const connected = this.isConnected();
         const symbol = this.projectData.symbol || 'TOKEN';
 
@@ -278,6 +305,20 @@ export class ERC404TradingSidebar extends Component {
                             </button>
                         `).join('')}
                     </div>
+
+                    ${isBondingActive ? `
+                        <div class="message-input-container">
+                            <input
+                                type="text"
+                                name="message"
+                                class="message-input"
+                                placeholder="Add a message (optional)"
+                                value="${this.escapeHtml(this._formValues.message)}"
+                                maxlength="280"
+                                ${txPending ? 'disabled' : ''}
+                            >
+                        </div>
+                    ` : ''}
 
                     ${!connected ? `
                         <button class="execute-btn connect-btn" data-action="connect">

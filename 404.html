@@ -36,7 +36,178 @@
 
     <!-- Font Preload -->
     <link rel="preload" href="/public/fonts/RedHatTextVarLatinSubsetBasic.woff2" as="font" type="font/woff2" crossorigin>
-    
+
+    <!-- Critical CSS - Prevent FOUC (Flash of Unstyled Content) -->
+    <style>
+        /* Hide body until CSS loads */
+        body {
+            visibility: hidden;
+            opacity: 0;
+        }
+
+        /* Show body once CSS is loaded */
+        body.css-loaded {
+            visibility: visible;
+            opacity: 1;
+            transition: opacity 0.2s ease-in;
+        }
+
+        /* Ensure critical base styles are applied immediately */
+        html {
+            box-sizing: border-box;
+        }
+
+        *, *::before, *::after {
+            box-sizing: inherit;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Playfair Display', 'Times New Roman', 'Georgia', serif;
+            background: #faf9f7;
+            color: #2d2d2d;
+        }
+
+        html[data-theme='dark'] body {
+            background: #1a1a1a;
+            color: #faf9f7;
+        }
+
+        /* =================================================================
+           PROJECT-SPECIFIC STYLE FOUC PREVENTION
+           When a project has custom styles, override base styles immediately
+           Classes can be on <html> (direct load) or <body> (SPA navigation)
+           ================================================================= */
+
+        /* When project has custom style, use dark background immediately */
+        html.has-project-style body,
+        body.has-project-style {
+            background: #0a0a0f !important;
+        }
+
+        /* Hide ALL content until project stylesheet is loaded */
+        html.has-project-style:not(.project-style-loaded) #app-container,
+        html.has-project-style:not(.project-style-loaded) #app-top-container,
+        html.has-project-style:not(.project-style-loaded) #app-bottom-container,
+        body.has-project-style:not(.project-style-loaded) #app-container,
+        body.has-project-style:not(.project-style-loaded) #app-top-container,
+        body.has-project-style:not(.project-style-loaded) #app-bottom-container {
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+
+        /* Kill the marble texture pseudo-element immediately */
+        html.has-project-style body::before,
+        html.has-project-style body.marble-bg::before,
+        html.has-project-style .marble-bg::before,
+        body.has-project-style::before,
+        body.has-project-style .marble-bg::before,
+        html.has-project-style.has-project-style body.marble-bg::before,
+        body.has-project-style.marble-bg::before {
+            display: none !important;
+            content: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            background: none !important;
+            background-image: none !important;
+        }
+
+        /* Remove marble-bg class effects when project style is active */
+        html.has-project-style body.marble-bg,
+        body.has-project-style.marble-bg {
+            background-image: none !important;
+        }
+
+        /* Smooth transition when project style loads */
+        html.has-project-style.project-style-loaded #app-container,
+        html.has-project-style.project-style-loaded #app-top-container,
+        html.has-project-style.project-style-loaded #app-bottom-container,
+        body.has-project-style.project-style-loaded #app-container,
+        body.has-project-style.project-style-loaded #app-top-container,
+        body.has-project-style.project-style-loaded #app-bottom-container {
+            visibility: visible !important;
+            opacity: 1 !important;
+            transition: opacity 0.15s ease-out;
+        }
+
+        /* Pending state for slug-based URLs where we don't know the project yet */
+        html.project-style-pending:not(.project-style-resolved) #app-container,
+        html.project-style-pending:not(.project-style-resolved) #app-top-container,
+        html.project-style-pending:not(.project-style-resolved) #app-bottom-container,
+        body.project-style-pending:not(.project-style-resolved) #app-container,
+        body.project-style-pending:not(.project-style-resolved) #app-top-container,
+        body.project-style-pending:not(.project-style-resolved) #app-bottom-container {
+            opacity: 0;
+            transition: opacity 0.1s ease-out;
+        }
+
+        /* Quick reveal once resolved (either has styles or doesn't) */
+        html.project-style-resolved #app-container,
+        html.project-style-resolved #app-top-container,
+        html.project-style-resolved #app-bottom-container,
+        body.project-style-resolved #app-container,
+        body.project-style-resolved #app-top-container,
+        body.project-style-resolved #app-bottom-container {
+            opacity: 1;
+        }
+    </style>
+
+    <!-- Project Style Early Detection - runs BEFORE stylesheets load -->
+    <script>
+        console.log('[ProjectStyleEarly] Script starting...');
+        (function() {
+            console.log('[ProjectStyleEarly] Inside IIFE');
+            var path = window.location.pathname;
+            console.log('[ProjectStyleEarly] Path:', path);
+
+            // Match project URLs: /project/:address or /:chainId/:slug or /:chainId/:factory/:instance
+            var isProjectPage = /^\/project\/0x[a-fA-F0-9]+/.test(path) ||
+                                /^\/\d+\/[^\/]+/.test(path);
+
+            console.log('[ProjectStyleEarly] Is project page:', isProjectPage);
+            if (!isProjectPage) return;
+
+            // For /project/:address format, check localStorage directly
+            var addressMatch = path.match(/^\/project\/(0x[a-fA-F0-9]+)/i);
+            if (addressMatch) {
+                var projectId = addressMatch[1].toLowerCase();
+                var cachedStyle = localStorage.getItem('projectStyle:' + projectId);
+                if (cachedStyle) {
+                    document.documentElement.classList.add('has-project-style');
+                    console.log('[ProjectStyleEarly] Added has-project-style for address:', projectId);
+
+                    var link = document.createElement('link');
+                    link.rel = 'preload';
+                    link.as = 'style';
+                    link.href = cachedStyle.startsWith('/') || cachedStyle.startsWith('http')
+                        ? cachedStyle : '/' + cachedStyle;
+                    document.head.appendChild(link);
+                }
+            } else {
+                // For slug-based URLs, check if ANY project has cached styles
+                console.log('[ProjectStyleEarly] Slug-based URL, checking for any cached styles...');
+                for (var i = 0; i < localStorage.length; i++) {
+                    var key = localStorage.key(i);
+                    if (key && key.startsWith('projectStyle:')) {
+                        console.log('[ProjectStyleEarly] Found cached style:', key);
+                        document.documentElement.classList.add('has-project-style');
+                        document.documentElement.classList.add('project-style-speculative');
+                        console.log('[ProjectStyleEarly] Added has-project-style to html element');
+                        break;
+                    }
+                }
+            }
+        })();
+    </script>
+
+    <!-- Preload critical stylesheets -->
+    <link rel="preload" href="/src/core/global.css" as="style">
+    <link rel="preload" href="/src/core/theme.css" as="style">
+    <link rel="preload" href="/src/core/marble.css" as="style">
+
     <!-- Stylesheets -->
     <!-- Base styles (shared) -->
     <link rel="stylesheet" href="/src/core/global.css">
@@ -54,12 +225,134 @@
     <link rel="stylesheet" href="/src/components/SwapInterface/SwapInterface.css">
     <link rel="stylesheet" href="/src/components/WalletConnector/WalletConnector.css">
     <link rel="stylesheet" href="/src/components/MessagePopup/MessagePopup.css">
+    <link rel="stylesheet" href="/src/components/FeaturedRental/FeaturedRental.css">
     <!-- Route-specific styles will be loaded dynamically -->
-    
+
+    <!-- CRITICAL: Project Style Override - MUST come AFTER all other stylesheets -->
+    <style id="project-style-override">
+        /* Kill marble when project has custom styles - highest priority */
+        html.has-project-style body.marble-bg::before {
+            display: none !important;
+            content: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            background: none !important;
+            background-image: none !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        /* Dark background for project style pages */
+        html.has-project-style body,
+        html.has-project-style body.marble-bg {
+            background: #0a0a0f !important;
+            background-image: none !important;
+        }
+
+        /* Hide content until project style loads */
+        html.has-project-style:not(.project-style-loaded) #app-container,
+        html.has-project-style:not(.project-style-loaded) #app-top-container,
+        html.has-project-style:not(.project-style-loaded) #app-bottom-container {
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+
+        /* Show content once loaded */
+        html.has-project-style.project-style-loaded #app-container,
+        html.has-project-style.project-style-loaded #app-top-container,
+        html.has-project-style.project-style-loaded #app-bottom-container {
+            visibility: visible !important;
+            opacity: 1 !important;
+            transition: opacity 0.15s ease-out;
+        }
+    </style>
+
     <!-- External Libraries -->
     <!-- Ethers.js: Keep synchronous for now as it's imported at top-level in core services -->
     <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js" integrity="sha512-KmJieQAYZM+jvcGHQzpnSjqjoWVwMAbziPWQnWfvWkQ91R7XlMUVJZgGuw6gUhJnwOo92Z3sr3vE7dREsSEjRQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    
+
+    <!-- Prevent FOUC - Show body once CSS is loaded -->
+    <script>
+        (function() {
+            var stylesheetsLoaded = 0;
+            var totalStylesheets = 0;
+            var bodyShown = false;
+
+            function showBody() {
+                if (!bodyShown) {
+                    bodyShown = true;
+                    document.body.classList.add('css-loaded');
+                }
+            }
+
+            function checkStylesheetLoad(link) {
+                if (link.sheet) {
+                    stylesheetsLoaded++;
+                    if (stylesheetsLoaded >= totalStylesheets) {
+                        setTimeout(showBody, 50);
+                    }
+                } else if (link.addEventListener) {
+                    link.addEventListener('load', function() {
+                        stylesheetsLoaded++;
+                        if (stylesheetsLoaded >= totalStylesheets) {
+                            setTimeout(showBody, 50);
+                        }
+                    });
+                    link.addEventListener('error', function() {
+                        stylesheetsLoaded++;
+                        if (stylesheetsLoaded >= totalStylesheets) {
+                            setTimeout(showBody, 50);
+                        }
+                    });
+                } else {
+                    stylesheetsLoaded++;
+                }
+            }
+
+            function initFOUC() {
+                var stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+                totalStylesheets = stylesheets.length;
+
+                if (totalStylesheets === 0) {
+                    showBody();
+                    return;
+                }
+
+                stylesheets.forEach(checkStylesheetLoad);
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', function() {
+                        setTimeout(function() {
+                            if (!bodyShown) showBody();
+                        }, 200);
+                    });
+                } else {
+                    setTimeout(function() {
+                        if (!bodyShown) showBody();
+                    }, 200);
+                }
+
+                document.addEventListener('readystatechange', function() {
+                    if (document.readyState === 'complete') {
+                        setTimeout(function() {
+                            if (!bodyShown) showBody();
+                        }, 100);
+                    }
+                });
+
+                setTimeout(function() {
+                    if (!bodyShown) showBody();
+                }, 1000);
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initFOUC);
+            } else {
+                initFOUC();
+            }
+        })();
+    </script>
+
     <!-- Application Scripts -->
     <!-- Theme system (must load early) -->
     <script type="module" src="/src/core/theme.js"></script>

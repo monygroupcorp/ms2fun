@@ -5,7 +5,6 @@
  */
 
 import { Component } from '../../core/Component.js';
-import { EditionMintInterface } from './EditionMintInterface.js';
 import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { generateProjectURL } from '../../utils/navigation.js';
@@ -36,6 +35,11 @@ export class EditionCard extends Component {
             this.loadPricingInfo(),
             this.loadCurrentPrice()
         ]);
+
+        // Enhance IPFS images after mount
+        if (this.element) {
+            enhanceAllIpfsImages(this.element);
+        }
     }
 
     async generateEditionURL() {
@@ -63,15 +67,23 @@ export class EditionCard extends Component {
                     { title: pieceTitle },
                     chainId
                 );
-                this.setState({ editionUrl: url });
-                return;
+                if (url) {
+                    this.setState({ editionUrl: url });
+                    return;
+                }
             }
 
-            // Fallback to address-based URL
-            this.setState({ editionUrl: `/project/${this.projectId}/edition/${this.edition.id}` });
+            // No valid URL - edition will not be linkable
+            console.error('[EditionCard] Cannot generate URL - missing instanceName or pieceTitle:', {
+                instanceName,
+                pieceTitle,
+                projectId: this.projectId,
+                editionId: this.edition.id
+            });
+            this.setState({ editionUrl: null });
         } catch (error) {
-            console.warn('[EditionCard] Failed to generate edition URL:', error);
-            this.setState({ editionUrl: `/project/${this.projectId}/edition/${this.edition.id}` });
+            console.error('[EditionCard] Failed to generate edition URL:', error);
+            this.setState({ editionUrl: null });
         }
     }
 
@@ -134,7 +146,7 @@ export class EditionCard extends Component {
 
         return `
             <div class="edition-card marble-bg" data-edition-id="${this.edition.id}">
-                <a href="${this.state.editionUrl}" class="edition-link" ref="edition-link" data-edition-id="${this.edition.id}">
+                <a href="${this.state.editionUrl || '#'}" class="edition-link" ref="edition-link" data-edition-id="${this.edition.id}">
                     <div class="edition-image">
                         ${renderIpfsImage(imageUrl, name, 'edition-card-image', { loading: 'lazy' })}
                         ${isSoldOut ? '<div class="sold-out-badge">Sold Out</div>' : ''}
@@ -162,9 +174,6 @@ export class EditionCard extends Component {
                         </div>
                     </div>
                 </a>
-                <div class="edition-actions" ref="mint-interface">
-                    <!-- EditionMintInterface will be mounted here -->
-                </div>
             </div>
         `;
     }
@@ -256,23 +265,6 @@ export class EditionCard extends Component {
                     window.location.href = this.state.editionUrl;
                 }
             });
-        }
-    }
-
-    setupChildComponents() {
-        const mintContainer = this.getRef('mint-interface', '.edition-actions');
-        if (mintContainer) {
-            const mintInterface = new EditionMintInterface(this.edition, this.adapter);
-            const mintElement = document.createElement('div');
-            mintContainer.appendChild(mintElement);
-            mintInterface.mount(mintElement);
-            mintInterface._parent = this; // Set parent reference
-            this.createChild('mint-interface', mintInterface);
-        }
-        
-        // Enhance IPFS images with gateway rotation
-        if (this.element) {
-            enhanceAllIpfsImages(this.element);
         }
     }
 

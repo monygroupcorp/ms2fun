@@ -236,6 +236,16 @@ class ContractTypeRegistry {
             return hasCreateInstance && hasAddEdition && hasGetVaultForInstance;
         });
 
+        // QueryAggregator detection: has getHomePageData, getProjectCardsBatch, getPortfolioData
+        this.registerType('QueryAggregator', null, (abi, functions) => {
+            const hasGetHomePageData = functions.includes('getHomePageData');
+            const hasGetProjectCardsBatch = functions.includes('getProjectCardsBatch');
+            const hasGetPortfolioData = functions.includes('getPortfolioData');
+            const hasGetVaultLeaderboard = functions.includes('getVaultLeaderboard');
+
+            return hasGetHomePageData && hasGetProjectCardsBatch && hasGetPortfolioData && hasGetVaultLeaderboard;
+        });
+
         // Note: Adapter classes will be set when adapters are imported
         // This allows for lazy loading of adapters
     }

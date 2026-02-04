@@ -10,6 +10,7 @@ import { detectNetwork } from './network.js';
 // Cache for loaded configurations
 let configCache = null;
 let lastNetworkMode = null;
+let preLaunchCache = null; // Cache for pre-launch detection
 
 /**
  * Load contract configuration for current network
@@ -185,6 +186,61 @@ export function isMockMode() {
     return detectNetwork().mode === 'mock';
 }
 
+/**
+ * Check if we're in pre-launch mode (mainnet but contracts not deployed)
+ * Pre-launch means: on mainnet, but core contracts have zero addresses
+ *
+ * @returns {Promise<boolean>} True if in pre-launch mode
+ */
+export async function isPreLaunch() {
+    // Use cached result if available
+    if (preLaunchCache !== null) {
+        return preLaunchCache;
+    }
+
+    const network = detectNetwork();
+
+    // Only mainnet can be in pre-launch
+    if (network.mode !== 'mainnet') {
+        preLaunchCache = false;
+        return false;
+    }
+
+    try {
+        const config = await loadContractConfig();
+
+        if (!config || !config.contracts) {
+            // No config means pre-launch
+            preLaunchCache = true;
+            return true;
+        }
+
+        // Check if core contracts are deployed (non-zero addresses)
+        const coreContracts = ['MasterRegistryV1', 'GlobalMessageRegistry', 'ERC404Factory'];
+        const zeroAddress = '0x0000000000000000000000000000000000000000';
+
+        const allZero = coreContracts.every(name => {
+            const addr = config.contracts[name];
+            return !addr || addr === zeroAddress;
+        });
+
+        preLaunchCache = allZero;
+        return allZero;
+    } catch (error) {
+        // If config loading fails on mainnet, assume pre-launch
+        console.log('[contractConfig] Config load failed on mainnet, assuming pre-launch:', error.message);
+        preLaunchCache = true;
+        return true;
+    }
+}
+
+/**
+ * Clear pre-launch cache (useful for testing or config changes)
+ */
+export function clearPreLaunchCache() {
+    preLaunchCache = null;
+}
+
 export default {
     loadContractConfig,
     getContractAddress,
@@ -192,8 +248,10 @@ export default {
     isContractDeployed,
     getNetworkInfo,
     clearConfigCache,
+    clearPreLaunchCache,
     getTestAccounts,
     isLocalMode,
     isMainnet,
-    isMockMode
+    isMockMode,
+    isPreLaunch
 };

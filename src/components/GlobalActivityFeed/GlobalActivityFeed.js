@@ -1,5 +1,6 @@
 import { Component } from '../../core/Component.js';
 import serviceFactory from '../../services/ServiceFactory.js';
+import { isPreLaunch } from '../../config/contractConfig.js';
 
 /**
  * GlobalActivityFeed component
@@ -35,6 +36,19 @@ export class GlobalActivityFeed extends Component {
     async loadMessages() {
         try {
             this.setState({ loading: true, error: null });
+
+            // Check for pre-launch mode (mainnet but contracts not deployed)
+            const preLaunch = await isPreLaunch();
+            if (preLaunch) {
+                console.log('[GlobalActivityFeed] Pre-launch mode: no messages yet');
+                this.setState({
+                    messages: [],
+                    totalMessages: 0,
+                    loading: false,
+                    hasMore: false
+                });
+                return;
+            }
 
             // Get GlobalMessageRegistry adapter
             const masterService = serviceFactory.getMasterService();
@@ -278,12 +292,10 @@ export class GlobalActivityFeed extends Component {
         }
     }
 
-    handleMessageClick(msg) {
-        if (window.router) {
-            window.router.navigate(`/project/${msg.instance}`);
-        } else {
-            window.location.href = `/project/${msg.instance}`;
-        }
+    async handleMessageClick(msg) {
+        // Navigate to the project using modern URL format
+        const { navigateToProject } = await import('../../utils/navigation.js');
+        await navigateToProject(msg.instance);
     }
 
     handleBackClick() {

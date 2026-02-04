@@ -43,8 +43,8 @@
 --gold-primary: #d4af37;         /* Classic gold */
 --gold-burnished: #b8941f;      /* Burnished gold */
 --gold-light: #e8d5a3;          /* Light gold */
---bronze: #cd7f32;               /* Bronze */
---bronze-dark: #a66d28;          /* Dark bronze */
+--bronze: #cd7f32;               /* Bronze - DEPRECATED, use silver */
+--bronze-dark: #a66d28;          /* Dark bronze - DEPRECATED */
 --copper: #b87333;               /* Copper accent */
 
 /* Art Deco Colors */
@@ -94,8 +94,12 @@ The engraved plaque aesthetic is inspired by:
 --gold-metallic-gradient-dark: #8b6f2a;   /* Bottom shadow */
 ```
 
-**Bronze Metallic - Secondary Actions:**
+**Bronze Metallic - DEPRECATED:**
+
+> **DEPRECATED (2026-01)**: Bronze has been removed from the active design system. Use **Gold** for primary actions and **Silver** for secondary actions. Bronze variables are preserved for backward compatibility but should not be used in new code.
+
 ```css
+/* DEPRECATED - DO NOT USE IN NEW CODE */
 --bronze-metallic-base: #cd7f32;         /* Classic bronze */
 --bronze-metallic-light: #e8b882;        /* Light bronze highlight */
 --bronze-metallic-dark: #8b5a2a;         /* Deep bronze shadow (used for text) */
@@ -141,7 +145,7 @@ All metallic palettes have dark theme variants that shift cooler and reduce brig
 --gold-metallic-gradient-mid: #b48b2c;    /* Cooler mid-tone */
 --gold-metallic-gradient-dark: #5a4218;   /* Deep shadow */
 
-/* Bronze Metallic (Dark Theme) */
+/* Bronze Metallic (Dark Theme) - DEPRECATED */
 --bronze-metallic-base: #b87333;         /* Warmer bronze */
 --bronze-metallic-light: #d4a574;       /* Softer highlight */
 --bronze-metallic-dark: #5a3a1a;         /* Deeper shadow */
@@ -191,8 +195,9 @@ All metallic palettes have dark theme variants that shift cooler and reduce brig
     var(--gold-metallic-light) 100%);
 ```
 
-**Bronze Metallic Gradients:**
+**Bronze Metallic Gradients (DEPRECATED):**
 ```css
+/* DEPRECATED - Use silver gradients instead */
 --gradient-bronze-raised: linear-gradient(160deg,
     var(--bronze-metallic-light) 0%,
     var(--bronze-metallic-gradient-light) 15%,
@@ -239,8 +244,8 @@ All metallic palettes have dark theme variants that shift cooler and reduce brig
     inset 0 -1px 2px rgba(255, 255, 255, 0.1),   /* Subtle highlight */
     0 1px 2px rgba(0, 0, 0, 0.1);                /* Edge definition */
 
-/* Bronze-specific shadows */
---shadow-bronze-raised: 
+/* Bronze-specific shadows - DEPRECATED */
+--shadow-bronze-raised:
     inset 0 2px 3px rgba(255, 255, 255, 0.2),
     inset 0 -2px 3px rgba(0, 0, 0, 0.35),
     0 2px 4px rgba(0, 0, 0, 0.15),
@@ -287,20 +292,23 @@ text-shadow:
 
 #### Button Hierarchy & Metallic Assignment
 
+> **Updated (2026-01)**: The design system now uses only **Gold** and **Silver** metallic finishes. Bronze has been deprecated.
+
 | Button Type | Metallic Finish | Use Case |
 |------------|----------------|----------|
 | `.btn-primary` | Gold | Primary CTAs, main actions |
-| `.btn-secondary` | Bronze | Secondary actions, alternative choices |
+| `.btn-secondary` | Silver | Secondary actions, alternative choices |
 | `.btn-outline` | Gold (engraved style) | Tertiary actions, subtle CTAs |
 | `.btn-ghost` | Silver (subtle) | Minimal actions, background buttons |
 | `.cta-button` | Gold | Hero CTAs, major call-to-actions |
-| `.cta-button.secondary` | Silver | Secondary CTAs (better contrast with gold) |
+| `.cta-button.secondary` | Silver | Secondary CTAs |
 | `.connect-button` | Gold | Wallet connection actions |
 | `.submit-button` | Gold | Form submissions |
-| `.cancel-button` | Bronze | Cancel actions |
-| `.back-button` | Bronze | Navigation back |
-| `.retry-button` | Bronze | Retry/retry actions |
+| `.cancel-button` | Silver | Cancel actions |
+| `.back-button` | Silver | Navigation back |
+| `.retry-button` | Silver | Retry actions |
 | `.view-project-button` | Gold | View project actions |
+| `.btn-danger` | Silver + red text | Destructive actions |
 
 #### Technical Implementation
 
@@ -476,9 +484,9 @@ The engraved plaque system is designed to be extensible and refinable. Potential
 --accent-primary-hover: #b8941f; /* Burnished gold */
 --accent-primary-light: #e8d5a3;  /* Light gold */
 
-/* Secondary Accent - Bronze */
---accent-secondary: #cd7f32;      /* Bronze */
---accent-secondary-hover: #a66d28; /* Dark bronze */
+/* Secondary Accent - Silver (previously Bronze, now deprecated) */
+--accent-secondary: #9e9e9e;      /* Silver - use instead of bronze */
+--accent-secondary-hover: #757575; /* Dark silver */
 
 /* Tertiary Accent - Copper */
 --accent-tertiary: #b87333;       /* Copper */

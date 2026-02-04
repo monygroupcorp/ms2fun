@@ -19,7 +19,10 @@ import RealFactoryService from './RealFactoryService.js';
 import RealProjectRegistry from './RealProjectRegistry.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
 import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
+import FeaturedQueueManagerAdapter from './contracts/FeaturedQueueManagerAdapter.js';
 import walletService from './WalletService.js';
+import queryService from './QueryService.js';
+import projectIndex from './ProjectIndex.js';
 
 /**
  * Service Factory
@@ -37,6 +40,7 @@ class ServiceFactory {
         this.factoryService = null;
         this.projectRegistryInstance = null;
         this.messageRegistryAdapter = null;
+        this.featuredQueueAdapter = null;
 
         if (this.useMock) {
             this.mockManager = new MockServiceManager(true, true);
@@ -103,6 +107,77 @@ class ServiceFactory {
             this.projectService = new ProjectService();
         }
         return this.projectService;
+    }
+
+    /**
+     * Get QueryService instance (singleton)
+     * @returns {QueryService} QueryService instance
+     */
+    getQueryService() {
+        return queryService;
+    }
+
+    /**
+     * Get ProjectIndex instance (singleton)
+     * @returns {ProjectIndex} ProjectIndex instance
+     */
+    getProjectIndex() {
+        return projectIndex;
+    }
+
+    /**
+     * Get MasterRegistry adapter instance
+     * @returns {Promise<MasterRegistryAdapter>} Master registry adapter
+     */
+    async getMasterRegistryAdapter() {
+        const masterService = this.getMasterService();
+        return await masterService.getAdapter();
+    }
+
+    /**
+     * Get FeaturedQueueManager adapter instance (singleton)
+     * @returns {Promise<FeaturedQueueManagerAdapter>} Featured queue manager adapter
+     */
+    async getFeaturedQueueManagerAdapter() {
+        if (!this.featuredQueueAdapter) {
+            // Get address from config
+            const featuredQueueAddress = await getContractAddress('FeaturedQueueManager');
+
+            if (!featuredQueueAddress || featuredQueueAddress === '0x0000000000000000000000000000000000000000') {
+                throw new Error('FeaturedQueueManager address not available');
+            }
+
+            // Get provider - use wallet if connected, otherwise create read-only provider
+            let provider, signer;
+            const walletProviderAndSigner = walletService.getProviderAndSigner();
+
+            if (walletProviderAndSigner.provider) {
+                provider = walletProviderAndSigner.provider;
+                signer = walletProviderAndSigner.signer;
+            } else {
+                const network = (await import('../config/network.js')).detectNetwork();
+                if (network.mode === 'local' && network.rpcUrl) {
+                    const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                    provider = new ethers.providers.StaticJsonRpcProvider(
+                        network.rpcUrl,
+                        { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                    );
+                    signer = null;
+                } else {
+                    throw new Error('No provider available for FeaturedQueueManager');
+                }
+            }
+
+            this.featuredQueueAdapter = new FeaturedQueueManagerAdapter(
+                featuredQueueAddress,
+                'FeaturedQueueManager',
+                provider,
+                signer
+            );
+
+            await this.featuredQueueAdapter.initialize();
+        }
+        return this.featuredQueueAdapter;
     }
 
     /**
@@ -337,6 +412,17 @@ class ServiceFactory {
         if (this.messageRegistryAdapter) {
             this.messageRegistryAdapter = null;
         }
+        if (this.featuredQueueAdapter) {
+            this.featuredQueueAdapter = null;
+        }
+
+        // Clear QueryService cache (it listens for contracts:reloaded too,
+        // but explicitly clearing here ensures proper order)
+        queryService.clearAll();
+
+        // Note: ProjectIndex is NOT cleared on contract reload as it stores
+        // historical event data that doesn't change with contract updates.
+        // Users can manually clear via StorageSettings if needed.
 
         // Don't clear projectService, blockchainService, execVotingService
         // as they don't cache contract instances directly

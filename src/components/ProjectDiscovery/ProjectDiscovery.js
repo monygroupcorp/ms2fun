@@ -12,7 +12,7 @@ import { renderIcon } from '../../core/icons.js';
  * Main component for browsing and discovering projects
  */
 export class ProjectDiscovery extends Component {
-    constructor() {
+    constructor(options = {}) {
         super();
         this.projectRegistry = serviceFactory.getProjectRegistry();
         this.masterService = serviceFactory.getMasterService();
@@ -29,12 +29,65 @@ export class ProjectDiscovery extends Component {
             loading: true,
             error: null,
             factories: [],
-            controlsExpanded: false
+            controlsExpanded: false,
+            totalFeatured: 0
         };
+        // If true, wait for data from HomePageDataProvider instead of fetching
+        this.useDataProvider = options.useDataProvider || false;
     }
 
     async onMount() {
-        await this.loadData();
+        // Only fetch if not using data provider
+        if (!this.useDataProvider) {
+            await this.loadData();
+        }
+    }
+
+    /**
+     * Set projects data from HomePageDataProvider
+     * @param {Array} projects - Array of ProjectCard objects from QueryService
+     * @param {number} totalFeatured - Total featured count for pagination
+     */
+    setProjectsData(projects, totalFeatured = 0) {
+        if (!Array.isArray(projects)) return;
+
+        // Transform ProjectCard format to ProjectDiscovery format
+        const transformedProjects = projects.map(card => this.transformProjectCard(card));
+
+        this.setState({
+            projects: transformedProjects,
+            totalFeatured,
+            loading: false,
+            error: null
+        });
+
+        // Apply filters to the new data
+        this.applyFilters();
+    }
+
+    /**
+     * Transform ProjectCard from QueryService to ProjectDiscovery format
+     */
+    transformProjectCard(card) {
+        return {
+            name: card.name || 'Unknown',
+            address: card.instance,
+            contractType: card.contractType || 'Unknown',
+            factory: card.factory,
+            factoryTitle: card.factoryTitle,
+            vault: card.vault,
+            vaultName: card.vaultName,
+            creator: card.creator,
+            metadataURI: card.metadataURI,
+            registeredAt: card.registeredAt,
+            currentPrice: card.currentPrice,
+            totalSupply: card.totalSupply,
+            maxSupply: card.maxSupply,
+            isActive: card.isActive,
+            isFeatured: card.featuredPosition > 0,
+            featuredPosition: card.featuredPosition,
+            featuredExpires: card.featuredExpires
+        };
     }
 
     onStateUpdate(oldState, newState) {
@@ -454,11 +507,11 @@ export class ProjectDiscovery extends Component {
                 const isMobileNow = window.innerWidth <= 768;
                 if (!isMobileNow) {
                     filtersEl.classList.add('expanded');
-                    newToggleButton.classList.add('expanded');
-                    newToggleButton.style.display = 'none';
+                    actualToggleButton.classList.add('expanded');
+                    actualToggleButton.style.display = 'none';
                 } else {
                     // On mobile, ensure toggle is visible
-                    newToggleButton.style.display = 'flex';
+                    actualToggleButton.style.display = 'flex';
                 }
             };
             
@@ -745,43 +798,30 @@ export class ProjectDiscovery extends Component {
             // Try to generate title-based URL
             let path = null;
             try {
-                const factoryAddress = project.factoryAddress;
                 const projectName = project.name || project.displayName || project.title;
 
-                if (factoryAddress && projectName) {
-                    // Load contract config to get factory title
+                if (projectName) {
                     const { detectNetwork } = await import('../../config/network.js');
                     const network = detectNetwork();
                     const chainId = network.chainId || 1;
 
-                    const configResponse = await fetch('/src/config/contracts.local.json');
-                    if (configResponse.ok) {
-                        const config = await configResponse.json();
-                        const factory = config.factories?.find(f =>
-                            f.address.toLowerCase() === factoryAddress.toLowerCase()
-                        );
-
-                        if (factory && factory.title) {
-                            const { generateProjectURL } = await import('../../utils/navigation.js');
-                            path = generateProjectURL(
-                                { title: factory.title },
-                                { name: projectName, address: project.address },
-                                null,
-                                chainId
-                            );
-                            console.log('[ProjectDiscovery] Generated name-based URL:', path);
-                        } else {
-                            console.warn('[ProjectDiscovery] Factory not found in config:', factoryAddress);
-                        }
-                    }
+                    const { generateProjectURL } = await import('../../utils/navigation.js');
+                    path = generateProjectURL(
+                        null,
+                        { name: projectName, address: project.address },
+                        null,
+                        chainId
+                    );
+                    console.log('[ProjectDiscovery] Generated name-based URL:', path);
                 }
             } catch (error) {
                 console.warn('[ProjectDiscovery] Failed to generate name-based URL:', error);
             }
 
-            // Fallback to address-based URL
+            // Only navigate if we have a valid path
             if (!path) {
-                path = `/project/${project.address}`;
+                console.error('[ProjectDiscovery] Failed to generate URL for project:', project.name || project.address);
+                return;
             }
 
             if (window.router) {

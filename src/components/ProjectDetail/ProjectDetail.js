@@ -1,7 +1,6 @@
 import { Component } from '../../core/Component.js';
 import { ProjectHeader } from './ProjectHeader.js';
 import { ContractTypeRouter } from './ContractTypeRouter.js';
-import { WalletDisplay } from '../WalletDisplay/WalletDisplay.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 
 /**
@@ -111,13 +110,10 @@ export class ProjectDetail extends Component {
                 <div class="detail-navigation">
                     <button class="back-button" data-ref="back-button">← Back to Launchpad</button>
                 </div>
-                <div class="wallet-display-container" data-ref="wallet-display-container">
-                    <!-- WalletDisplay will be mounted here -->
-                </div>
                 <div class="detail-header-container" data-ref="header-container">
                     <!-- ProjectHeader will be mounted here -->
                 </div>
-                
+
                 <div class="detail-content-container" data-ref="content-container">
                     <!-- ContractTypeRouter will be mounted here -->
                 </div>
@@ -146,24 +142,19 @@ export class ProjectDetail extends Component {
     setupChildComponents() {
         if (!this.state.project) return;
 
-        // Mount WalletDisplay
-        const walletContainer = this.getRef('wallet-display-container', '.wallet-display-container');
-        if (walletContainer) {
-            const walletDisplay = new WalletDisplay();
-            const walletElement = document.createElement('div');
-            walletContainer.appendChild(walletElement);
-            walletDisplay.mount(walletElement);
-            this.createChild('wallet-display', walletDisplay);
-        }
+        const contractType = this.state.project.contractType?.toUpperCase() || '';
+        const isERC404 = contractType === 'ERC404' || contractType === 'ERC404BONDING';
 
-        // Mount ProjectHeader
-        const headerContainer = this.getRef('header-container', '.detail-header-container');
-        if (headerContainer) {
-            const headerComponent = new ProjectHeader(this.state.project);
-            const headerElement = document.createElement('div');
-            headerContainer.appendChild(headerElement);
-            headerComponent.mount(headerElement);
-            this.createChild('header', headerComponent);
+        // Mount ProjectHeader (skip for ERC404 - it has its own compact header)
+        if (!isERC404) {
+            const headerContainer = this.getRef('header-container', '.detail-header-container');
+            if (headerContainer) {
+                const headerComponent = new ProjectHeader(this.state.project);
+                const headerElement = document.createElement('div');
+                headerContainer.appendChild(headerElement);
+                headerComponent.mount(headerElement);
+                this.createChild('header', headerComponent);
+            }
         }
 
         // Mount ContractTypeRouter

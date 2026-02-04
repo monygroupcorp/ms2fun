@@ -2,6 +2,7 @@ import { Component } from '../../core/Component.js';
 import { getAssetIcon } from '../../utils/assetMetadata.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { detectNetwork } from '../../config/network.js';
+import queryService from '../../services/QueryService.js';
 
 /**
  * TopVaultsWidget component
@@ -9,7 +10,7 @@ import { detectNetwork } from '../../config/network.js';
  * Uses real contract data via MasterRegistryAdapter
  */
 export class TopVaultsWidget extends Component {
-    constructor() {
+    constructor(options = {}) {
         super();
         this.state = {
             mode: 'tvl', // 'tvl' or 'popularity'
@@ -18,12 +19,17 @@ export class TopVaultsWidget extends Component {
             error: null
         };
         this.vaultMetadata = null; // Cache for vault metadata from contracts.local.json
+        // If true, wait for data from HomePageDataProvider instead of fetching
+        this.useDataProvider = options.useDataProvider || false;
     }
 
     async onMount() {
         try {
             await this.loadVaultMetadata();
-            await this.loadVaults();
+            // Only fetch if not using data provider
+            if (!this.useDataProvider) {
+                await this.loadVaults();
+            }
         } catch (error) {
             console.error('[TopVaultsWidget] Error initializing:', error);
             this.setState({
@@ -31,6 +37,25 @@ export class TopVaultsWidget extends Component {
                 error: 'Failed to load vaults'
             });
         }
+    }
+
+    /**
+     * Set vaults data from HomePageDataProvider
+     * @param {Array} vaults - Array of VaultSummary objects from QueryService
+     */
+    setVaultsData(vaults) {
+        if (!Array.isArray(vaults)) return;
+
+        // Transform to widget format
+        const transformedVaults = vaults.map((vault, index) =>
+            this.transformVaultFromQuery(vault, index)
+        );
+
+        this.setState({
+            vaults: transformedVaults,
+            loading: false,
+            error: null
+        });
     }
 
     /**
@@ -61,18 +86,13 @@ export class TopVaultsWidget extends Component {
             this.setState({ loading: true, error: null });
 
             const { mode } = this.state;
-            const masterService = serviceFactory.getMasterService();
+            const sortBy = mode === 'tvl' ? 0 : 1;
 
-            // Fetch vaults from contract based on mode
-            let rawVaults;
-            if (mode === 'tvl') {
-                rawVaults = await masterService.getVaultsByTVL(3);
-            } else {
-                rawVaults = await masterService.getVaultsByPopularity(3);
-            }
+            // Use QueryService for batched/cached queries (with fallback)
+            const rawVaults = await queryService.getVaultLeaderboard(sortBy, 3);
 
-            // Transform contract data to widget format
-            const vaults = rawVaults.map((vault, index) => this.transformVault(vault, index));
+            // Transform QueryService data to widget format
+            const vaults = rawVaults.map((vault, index) => this.transformVaultFromQuery(vault, index));
 
             this.setState({
                 vaults,
@@ -85,6 +105,30 @@ export class TopVaultsWidget extends Component {
                 error: 'Failed to load vaults'
             });
         }
+    }
+
+    /**
+     * Transform QueryService VaultSummary to widget display format
+     */
+    transformVaultFromQuery(vault, index) {
+        // Get additional metadata from contracts.local.json if available
+        const metadata = this.vaultMetadata?.[vault.vault?.toLowerCase()] || {};
+
+        // Parse TVL from ETH string to raw wei and formatted string
+        const tvlEth = parseFloat(vault.tvl || '0');
+        const tvlWei = (tvlEth * 1e18).toString();
+
+        return {
+            rank: index + 1,
+            address: vault.vault,
+            name: metadata.tag || vault.name || 'Unnamed Vault',
+            type: 'Ultra Alignment',
+            targetAsset: metadata.alignmentTokenSymbol || 'ETH',
+            tvl: this.formatTVL(tvlWei),
+            tvlRaw: tvlWei,
+            popularity: vault.instanceCount || 0,
+            description: metadata.description || ''
+        };
     }
 
     /**

@@ -382,17 +382,54 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
 
     /**
      * Get bonding status
+     * Contract returns: (isConfigured, isActive, isEnded, openTime, currentSupply, maxBondingSupply, availableSupply, currentReserve)
      * @returns {Promise<Object>} Bonding status information
      */
     async getBondingStatus() {
         return await this.getCachedOrFetch('getBondingStatus', [], async () => {
-            const status = await this.executeContractCall('getBondingStatus');
+            const [status, maturityTime] = await Promise.all([
+                this.executeContractCall('getBondingStatus'),
+                this.executeContractCall('bondingMaturityTime').catch(() => 0)
+            ]);
+
+            // Contract returns: isConfigured[0], isActive[1], isEnded[2], openTime[3],
+            // currentSupply[4], maxBondingSupply[5], availableSupply[6], currentReserve[7]
+            const isConfigured = status.isConfigured !== undefined ? status.isConfigured : status[0];
+            const isActive = status.isActive !== undefined ? status.isActive : status[1];
+            const isEnded = status.isEnded !== undefined ? status.isEnded : status[2];
+            const openTime = parseInt((status.openTime || status[3]).toString());
+            const currentSupply = status.currentSupply || status[4];
+            const maxBondingSupply = status.maxBondingSupply || status[5];
+            const availableSupply = status.availableSupply || status[6];
+            const currentReserve = status.currentReserve || status[7];
+            const maturityTimeValue = parseInt(maturityTime.toString());
+
+            // Compute currentPhase for component compatibility
+            // 0 = Not Started, 1 = Early Bonding, 2 = Active Bonding, 3 = Matured, 4 = Liquidity Deployed
+            let currentPhase = 0;
+            const now = Math.floor(Date.now() / 1000);
+            if (isEnded) {
+                currentPhase = 4; // Liquidity Deployed
+            } else if (maturityTimeValue > 0 && now >= maturityTimeValue) {
+                currentPhase = 3; // Matured
+            } else if (isActive && openTime > 0 && now >= openTime) {
+                currentPhase = 2; // Active Bonding
+            } else if (isActive) {
+                currentPhase = 1; // Early Bonding (configured but not yet open)
+            }
+
             return {
-                isActive: status.isActive !== undefined ? status.isActive : status[0],
-                openTime: parseInt((status.openTime || status[1]).toString()),
-                maturityTime: parseInt((status.maturityTime || status[2]).toString()),
-                currentPhase: parseInt((status.currentPhase || status[3]).toString()),
-                hasLiquidity: status.hasLiquidity !== undefined ? status.hasLiquidity : status[4]
+                isConfigured,
+                isActive,
+                isEnded,
+                hasLiquidity: isEnded, // isEnded means liquidity has been deployed
+                openTime,
+                maturityTime: maturityTimeValue,
+                currentPhase,
+                currentSupply: this.ethers.utils.formatUnits(currentSupply, 18),
+                maxBondingSupply: this.ethers.utils.formatUnits(maxBondingSupply, 18),
+                availableSupply: this.ethers.utils.formatUnits(availableSupply, 18),
+                currentReserve: this.ethers.utils.formatEther(currentReserve)
             };
         });
     }
@@ -433,14 +470,33 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      * Get supply information
      * @returns {Promise<Object>} Supply details
      */
+    /**
+     * Get supply information
+     * Contract returns: (maxSupply, liquidityReserve, maxBondingSupply, currentBondingSupply, availableBondingSupply, totalERC20Supply)
+     */
     async getSupplyInfo() {
         return await this.getCachedOrFetch('getSupplyInfo', [], async () => {
             const info = await this.executeContractCall('getSupplyInfo');
+            // Contract returns: maxSupply[0], liquidityReserve[1], maxBondingSupply[2],
+            // currentBondingSupply[3], availableBondingSupply[4], totalERC20Supply[5]
+            const maxSupply = this.ethers.utils.formatUnits(info.maxSupply || info[0], 18);
+            const liquidityReserve = this.ethers.utils.formatUnits(info.liquidityReserve || info[1], 18);
+            const maxBondingSupply = this.ethers.utils.formatUnits(info.maxBondingSupply || info[2], 18);
+            const currentBondingSupply = this.ethers.utils.formatUnits(info.currentBondingSupply || info[3], 18);
+            const availableBondingSupply = this.ethers.utils.formatUnits(info.availableBondingSupply || info[4], 18);
+            const totalERC20Supply = this.ethers.utils.formatUnits(info.totalERC20Supply || info[5], 18);
+
             return {
-                totalSupply: this.ethers.utils.formatUnits(info.totalSupply || info[0], 18),
-                bondingSupply: this.ethers.utils.formatUnits(info.bondingSupply || info[1], 18),
-                liquiditySupply: this.ethers.utils.formatUnits(info.liquiditySupply || info[2], 18),
-                maxSupply: this.ethers.utils.formatUnits(info.maxSupply || info[3], 18)
+                // Canonical names (match contract)
+                maxSupply,
+                liquidityReserve,
+                maxBondingSupply,
+                currentBondingSupply,
+                availableBondingSupply,
+                totalERC20Supply,
+                // Legacy aliases (for component compatibility)
+                totalSupply: totalERC20Supply,
+                bondingSupply: currentBondingSupply
             };
         });
     }
@@ -1076,6 +1132,16 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
     async weth() {
         return await this.getCachedOrFetch('weth', [], async () => {
             return await this.executeContractCall('weth');
+        });
+    }
+
+    /**
+     * Get contract owner address
+     * @returns {Promise<string>} Owner address
+     */
+    async owner() {
+        return await this.getCachedOrFetch('owner', [], async () => {
+            return await this.executeContractCall('owner');
         });
     }
 

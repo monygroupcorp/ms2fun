@@ -1,0 +1,394 @@
+/**
+ * COMPLETE STYLE OVERRIDE - Test Project
+ *
+ * This demonstrates FULL customization - no trace of original Temple style.
+ * Uses a cyberpunk/neon theme to make the contrast obvious.
+ */
+
+/* ============================================================================
+   KILL THE MARBLE TEXTURE
+   ============================================================================ */
+
+/* Hide the marble ::before pseudo-element everywhere */
+body.has-project-style .marble-bg::before,
+body.has-project-style.marble-bg::before,
+body.has-project-style .edition-gallery::before,
+body.has-project-style .edition-detail::before,
+body.has-project-style .card::before,
+body.has-project-style .project-card::before {
+    display: none !important;
+    content: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
+/* ============================================================================
+   OVERRIDE ALL DESIGN SYSTEM VARIABLES
+   ============================================================================ */
+
+body.has-project-style {
+    /* ------------------------------------------------------------------------
+       COLOR SYSTEM - CYBERPUNK NEON
+       ------------------------------------------------------------------------ */
+
+    /* Kill marble colors */
+    --marble-white: #0a0a0f;
+    --marble-cream: #0d0d14;
+    --marble-ivory: #12121a;
+    --marble-vein: #1a1a25;
+
+    /* Kill classical stone */
+    --stone-warm: #1e1e2e;
+    --stone-terracotta: #2a2a3a;
+    --stone-ochre: #2e2e40;
+    --stone-sand: #1a1a28;
+    --stone-deep: #252535;
+    --stone-shadow: #15151f;
+    --stone-charcoal: #0d0d14;
+
+    /* Replace gold with cyan/neon */
+    --gold-primary: #00ffff;
+    --gold-burnished: #00cccc;
+    --gold-light: #80ffff;
+    --bronze: #ff00ff;
+    --bronze-dark: #cc00cc;
+    --copper: #ff6600;
+
+    /* Neon metallic palette */
+    --gold-metallic-base: #00ffff;
+    --gold-metallic-light: #80ffff;
+    --gold-metallic-dark: #008b8b;
+    --gold-metallic-sheen: #ccffff;
+    --gold-metallic-gradient-light: #66ffff;
+    --gold-metallic-gradient-mid: #00ffff;
+    --gold-metallic-gradient-dark: #009999;
+    --gold-accent: #00ffff;
+
+    /* Magenta metallic for secondary */
+    --bronze-metallic-base: #ff00ff;
+    --bronze-metallic-light: #ff80ff;
+    --bronze-metallic-dark: #990099;
+    --bronze-metallic-sheen: #ffccff;
+    --bronze-metallic-gradient-light: #ff66ff;
+    --bronze-metallic-gradient-mid: #ff00ff;
+    --bronze-metallic-gradient-dark: #cc00cc;
+
+    /* Dark silver */
+    --silver-metallic-base: #404050;
+    --silver-metallic-light: #606075;
+    --silver-metallic-dark: #252530;
+    --silver-metallic-sheen: #707085;
+    --silver-metallic-gradient-light: #505065;
+    --silver-metallic-gradient-mid: #404050;
+    --silver-metallic-gradient-dark: #303040;
+
+    /* Dark neutrals */
+    --neutral-100: #0a0a0f;
+    --neutral-200: #0d0d14;
+    --neutral-300: #12121a;
+    --neutral-400: #1a1a25;
+    --neutral-500: #2a2a3a;
+    --neutral-600: #3a3a4a;
+    --neutral-700: #4a4a5a;
+    --neutral-800: #5a5a6a;
+    --neutral-900: #6a6a7a;
+
+    /* Art Deco - Neon dark */
+    --deco-black: #050508;
+    --deco-charcoal: #0a0a10;
+    --deco-navy: #0a0a1a;
+    --deco-emerald: #001a0a;
+    --deco-royal: #1a0a1a;
+
+    /* Text colors - bright on dark */
+    --text-primary: #e0e0ff;
+    --text-secondary: #b0b0d0;
+    --text-tertiary: #8080a0;
+    --text-muted: #606080;
+    --text-inverse: #0a0a0f;
+    --text-on-gold: #0a0a0f;
+
+    /* Backgrounds - deep dark */
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #0d0d14;
+    --bg-tertiary: #12121a;
+    --bg-elevated: #15151f;
+    --bg-surface: #1a1a25;
+    --bg-base: #0a0a0f;
+    --bg-overlay: rgba(0, 255, 255, 0.1);
+
+    /* Accents - neon */
+    --accent-primary: #00ffff;
+    --accent-primary-hover: #00cccc;
+    --accent-primary-light: #80ffff;
+    --accent-secondary: #ff00ff;
+    --accent-secondary-hover: #cc00cc;
+    --accent-tertiary: #ff6600;
+
+    /* Borders - neon glow */
+    --border-light: rgba(0, 255, 255, 0.2);
+    --border-base: rgba(0, 255, 255, 0.3);
+    --border-dark: rgba(0, 255, 255, 0.5);
+    --border-accent: #00ffff;
+    --border-default: rgba(0, 255, 255, 0.3);
+    --border-subtle: rgba(0, 255, 255, 0.15);
+
+    /* Gradients - neon */
+    --gradient-metallic-raised: linear-gradient(135deg, #00ffff 0%, #0099cc 50%, #00ffff 100%);
+    --gradient-metallic-hover: linear-gradient(135deg, #33ffff 0%, #00ccff 50%, #33ffff 100%);
+    --gradient-silver-raised: linear-gradient(135deg, #303045 0%, #404055 50%, #303045 100%);
+
+    /* Shadows - neon glow */
+    --shadow: 0 4px 20px rgba(0, 255, 255, 0.3);
+    --shadow-sm: 0 2px 8px rgba(0, 255, 255, 0.2);
+    --shadow-md: 0 4px 16px rgba(0, 255, 255, 0.25);
+    --shadow-lg: 0 8px 32px rgba(0, 255, 255, 0.3);
+    --shadow-xl: 0 12px 48px rgba(0, 255, 255, 0.35);
+    --shadow-metallic-raised: 0 4px 20px rgba(0, 255, 255, 0.4);
+    --shadow-metallic-hover: 0 8px 30px rgba(0, 255, 255, 0.5);
+    --shadow-silver-raised: 0 4px 15px rgba(100, 100, 150, 0.3);
+    --shadow-marble: none;
+
+    /* Elevation */
+    --elevation-1: 0 2px 8px rgba(0, 255, 255, 0.15);
+    --elevation-2: 0 4px 16px rgba(0, 255, 255, 0.2);
+    --elevation-3: 0 8px 24px rgba(0, 255, 255, 0.25);
+    --elevation-4: 0 12px 32px rgba(0, 255, 255, 0.3);
+    --elevation-5: 0 16px 48px rgba(0, 255, 255, 0.35);
+}
+
+/* ============================================================================
+   OVERRIDE SPECIFIC COMPONENTS
+   ============================================================================ */
+
+/* Body background */
+body.has-project-style,
+body.has-project-style .marble-bg {
+    background: linear-gradient(180deg, #0a0a0f 0%, #0d0d18 50%, #0a0a14 100%) !important;
+}
+
+/* Add scanlines effect for cyberpunk feel */
+body.has-project-style::after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.1) 0px,
+        rgba(0, 0, 0, 0.1) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    z-index: 9999;
+    opacity: 0.3;
+}
+
+/* Project header banner */
+body.has-project-style .edition-gallery > *:first-child::before,
+body.has-project-style .edition-detail > *:first-child::before {
+    content: "◢ CYBERPUNK THEME ACTIVE ◣";
+    display: block;
+    background: linear-gradient(90deg, #ff00ff, #00ffff, #ff00ff);
+    background-size: 200% 100%;
+    animation: neonShift 3s linear infinite;
+    color: #0a0a0f;
+    text-align: center;
+    padding: 12px 20px;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    border-radius: 0;
+    clip-path: polygon(5% 0%, 95% 0%, 100% 50%, 95% 100%, 5% 100%, 0% 50%);
+}
+
+@keyframes neonShift {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Cards */
+body.has-project-style .edition-card,
+body.has-project-style .card,
+body.has-project-style .project-card {
+    background: linear-gradient(145deg, #12121a 0%, #0d0d14 100%) !important;
+    border: 1px solid rgba(0, 255, 255, 0.3) !important;
+    box-shadow:
+        0 0 20px rgba(0, 255, 255, 0.1),
+        inset 0 0 20px rgba(0, 255, 255, 0.05) !important;
+}
+
+body.has-project-style .edition-card:hover,
+body.has-project-style .card:hover,
+body.has-project-style .project-card:hover {
+    border-color: #00ffff !important;
+    box-shadow:
+        0 0 30px rgba(0, 255, 255, 0.3),
+        0 0 60px rgba(0, 255, 255, 0.1),
+        inset 0 0 30px rgba(0, 255, 255, 0.1) !important;
+    transform: translateY(-4px);
+}
+
+/* Edition images */
+body.has-project-style .edition-card img,
+body.has-project-style .edition-image {
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+}
+
+/* Text styling */
+body.has-project-style h1,
+body.has-project-style h2,
+body.has-project-style h3,
+body.has-project-style h4 {
+    color: #00ffff !important;
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+body.has-project-style p,
+body.has-project-style span,
+body.has-project-style label {
+    color: #b0b0d0;
+}
+
+/* Prices */
+body.has-project-style .edition-price,
+body.has-project-style .price-value,
+body.has-project-style .stat-value,
+body.has-project-style .price {
+    color: #ff00ff !important;
+    text-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+}
+
+/* Buttons - neon style */
+body.has-project-style .btn,
+body.has-project-style button:not(.theme-toggle) {
+    background: linear-gradient(135deg, #00cccc 0%, #009999 100%) !important;
+    border: 1px solid #00ffff !important;
+    color: #0a0a0f !important;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.4) !important;
+    text-shadow: none !important;
+    font-weight: bold !important;
+}
+
+body.has-project-style .btn:hover,
+body.has-project-style button:not(.theme-toggle):hover {
+    background: linear-gradient(135deg, #00ffff 0%, #00cccc 100%) !important;
+    box-shadow: 0 0 25px rgba(0, 255, 255, 0.6), 0 0 50px rgba(0, 255, 255, 0.3) !important;
+    transform: translateY(-2px);
+}
+
+body.has-project-style .btn-gold {
+    background: linear-gradient(135deg, #00ffff 0%, #0099cc 100%) !important;
+}
+
+body.has-project-style .btn-silver {
+    background: linear-gradient(135deg, #ff00ff 0%, #cc00cc 100%) !important;
+    border-color: #ff00ff !important;
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.4) !important;
+}
+
+body.has-project-style .btn-silver:hover {
+    background: linear-gradient(135deg, #ff33ff 0%, #ff00ff 100%) !important;
+    box-shadow: 0 0 25px rgba(255, 0, 255, 0.6), 0 0 50px rgba(255, 0, 255, 0.3) !important;
+}
+
+/* Admin button */
+body.has-project-style .admin-button {
+    background: linear-gradient(135deg, #ff6600 0%, #cc5200 100%) !important;
+    border-color: #ff6600 !important;
+    box-shadow: 0 0 15px rgba(255, 102, 0, 0.5) !important;
+}
+
+/* Inputs */
+body.has-project-style input,
+body.has-project-style select,
+body.has-project-style textarea {
+    background: #0d0d14 !important;
+    border: 1px solid rgba(0, 255, 255, 0.3) !important;
+    color: #e0e0ff !important;
+}
+
+body.has-project-style input:focus,
+body.has-project-style select:focus,
+body.has-project-style textarea:focus {
+    border-color: #00ffff !important;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3) !important;
+    outline: none !important;
+}
+
+/* Edition detail page */
+body.has-project-style .edition-detail {
+    background: linear-gradient(180deg, #0a0a0f 0%, #0d0d18 100%) !important;
+}
+
+body.has-project-style .edition-detail .edition-hero,
+body.has-project-style .edition-detail .edition-info {
+    background: rgba(0, 255, 255, 0.05) !important;
+    border: 1px solid rgba(0, 255, 255, 0.2) !important;
+}
+
+/* Stats */
+body.has-project-style .stat-card,
+body.has-project-style .stats-grid > div {
+    background: rgba(0, 255, 255, 0.05) !important;
+    border: 1px solid rgba(0, 255, 255, 0.2) !important;
+}
+
+body.has-project-style .stat-label {
+    color: #606080 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Loading spinner */
+body.has-project-style .loading-spinner {
+    border-color: rgba(0, 255, 255, 0.2) !important;
+    border-top-color: #00ffff !important;
+}
+
+/* Back button */
+body.has-project-style .back-button,
+body.has-project-style [class*="back"] {
+    color: #00ffff !important;
+}
+
+/* Links */
+body.has-project-style a {
+    color: #00ffff;
+}
+
+body.has-project-style a:hover {
+    color: #80ffff;
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+/* Modal backdrop override (if modals are shown) */
+body.has-project-style .modal-backdrop,
+body.has-project-style [class*="overlay"] {
+    background: rgba(0, 0, 0, 0.9) !important;
+}
+
+/* Scrollbar styling */
+body.has-project-style ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+body.has-project-style ::-webkit-scrollbar-track {
+    background: #0a0a0f;
+}
+
+body.has-project-style ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #00ffff, #0099cc);
+    border-radius: 4px;
+}
+
+body.has-project-style ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #33ffff, #00cccc);
+}

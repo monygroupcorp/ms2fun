@@ -1,11 +1,43 @@
 /* src/components/ERC404/erc404-project-page.css */
 
+/* Override old ERC404 grid layout when using new project page */
+.contract-type-router.erc404:has(.erc404-project-page) {
+    display: block;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+
+/* Ensure all parent containers expand for ERC404 */
+.project-detail:has(.erc404-project-page) {
+    max-width: none;
+    padding: 0;
+}
+
+.project-detail:has(.erc404-project-page) .detail-navigation {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 24px 0;
+}
+
+.detail-content-container,
+.detail-content-container > div,
+.contract-type-router.erc404 {
+    width: 100%;
+}
+
 .erc404-project-page {
-    display: flex;
-    gap: 24px;
+    width: 100%;
     max-width: 1400px;
     margin: 0 auto;
     padding: 24px;
+}
+
+.two-column-layout {
+    display: flex;
+    gap: 24px;
 }
 
 .page-main {
@@ -151,13 +183,14 @@
     margin-bottom: 32px;
 }
 
-/* Comments section */
-.comments-section {
-    border-top: 1px solid var(--border-color, #333);
+/* Comments section - full width below two columns */
+.erc404-project-page > .comments-section {
+    margin-top: 32px;
     padding-top: 24px;
+    border-top: 1px solid var(--border-color, #333);
 }
 
-/* Sidebar sticky behavior override for project page context */
+/* Sidebar sticky behavior */
 .erc404-project-page .erc404-trading-sidebar {
     position: sticky;
     top: 24px;
@@ -165,7 +198,7 @@
 
 /* Mobile responsive */
 @media (max-width: 900px) {
-    .erc404-project-page {
+    .two-column-layout {
         flex-direction: column-reverse;
     }
 

@@ -34,8 +34,8 @@ export function generateProjectURL(factory, instance, piece = null, chainId = 1)
     const instanceName = instance.name || instance.displayName;
 
     if (!instanceName) {
-        // Fallback to address-based if name not available
-        return `/project/${instance.address}`;
+        console.error('[generateProjectURL] No instance name available - cannot generate URL for address:', instance.address);
+        return null;
     }
 
     const chainIdStr = String(chainId || 1);
@@ -45,17 +45,12 @@ export function generateProjectURL(factory, instance, piece = null, chainId = 1)
         const pieceTitle = piece.title || piece.displayTitle;
         if (pieceTitle) {
             const pieceSlug = slugify(pieceTitle);
-            // If factory is provided, use 4-part URL, otherwise 3-part
-            if (factory && (factory.title || factory.displayTitle)) {
-                const factorySlug = slugify(factory.title || factory.displayTitle);
-                return `/${chainIdStr}/${factorySlug}/${instanceSlug}/${pieceSlug}`;
-            }
-            // Simple 3-part format for piece: /:chainId/:instanceName/:pieceTitle
+            // Edition format: /:chainId/:instanceName/:pieceTitle
             return `/${chainIdStr}/${instanceSlug}/${pieceSlug}`;
         }
     }
 
-    // Simple format: /:chainId/:instanceName
+    // Project format: /:chainId/:instanceName
     return `/${chainIdStr}/${instanceSlug}`;
 }
 
@@ -90,5 +85,65 @@ export function parseProjectURL(path) {
     };
 
     return result;
+}
+
+/**
+ * Navigate to a project by address, looking up the proper URL format
+ * @param {string} instanceAddress - The instance/project contract address
+ * @param {number} [chainId] - Chain ID (defaults to detected network or 1)
+ * @returns {Promise<void>}
+ */
+export async function navigateToProject(instanceAddress, chainId = null) {
+    if (!instanceAddress) {
+        console.warn('[navigateToProject] No instance address provided');
+        return;
+    }
+
+    try {
+        // Get chain ID if not provided
+        if (!chainId) {
+            const { detectNetwork } = await import('../config/network.js');
+            const network = detectNetwork();
+            chainId = network.chainId || 1;
+        }
+
+        // Try to look up project info for modern URL
+        const { default: serviceFactory } = await import('../services/ServiceFactory.js');
+        const queryService = serviceFactory.getQueryService();
+
+        if (queryService) {
+            const projectCard = await queryService.getProjectCard(instanceAddress);
+
+            if (projectCard && projectCard.name) {
+                const projectURL = generateProjectURL(
+                    null,
+                    { name: projectCard.name, address: instanceAddress },
+                    null,
+                    chainId
+                );
+
+                if (projectURL && !projectURL.startsWith('/project/')) {
+                    console.log('[navigateToProject] Using modern URL:', projectURL);
+                    if (window.router) {
+                        window.router.navigate(projectURL);
+                    } else {
+                        window.location.href = projectURL;
+                    }
+                    return;
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('[navigateToProject] Error looking up project info:', error);
+    }
+
+    // No fallback - deprecated /project/ routes have been removed
+    console.error('[navigateToProject] Failed to generate URL for address:', instanceAddress);
+    console.error('[navigateToProject] Project name not found in registry. Navigating to discovery.');
+    if (window.router) {
+        window.router.navigate('/');
+    } else {
+        window.location.href = '/';
+    }
 }
 

@@ -1723,139 +1723,207 @@
 }
 
 /* =================================
-   Bonding Progress Section
+   Bonding Section (New Design)
    ================================= */
 
-.bonding-progress-section {
+.bonding-section {
     background: var(--bg-elevated);
     border-radius: var(--radius-lg);
     padding: 24px;
-    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-base);
 }
 
-.bonding-progress-section.loading {
+.bonding-section.loading {
     display: flex;
     align-items: center;
     justify-content: center;
     min-height: 400px;
 }
 
-.bonding-progress-section .spinner {
+.bonding-section .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid var(--bg-secondary);
+    border: 3px solid var(--border-base);
     border-top-color: var(--accent-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
 
-.bonding-progress-section .phase-badge {
-    display: inline-block;
-    margin-bottom: 16px;
+/* Header with phase badge and time */
+.bonding-section .bonding-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
 }
 
-.bonding-progress-section .phase-badge.phase-pre-open {
-    background: rgba(142, 142, 147, 0.15);
-    color: #8e8e93;
+.bonding-section .phase-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.bonding-progress-section .phase-badge.phase-bonding {
-    background: rgba(52, 199, 89, 0.15);
-    color: #34c759;
-}
-
-.bonding-progress-section .phase-badge.phase-matured {
-    background: rgba(255, 149, 0, 0.15);
-    color: #ff9500;
-}
-
-.bonding-progress-section .phase-badge.phase-deployed {
+.bonding-section .phase-badge.deployed {
     background: rgba(88, 86, 214, 0.15);
     color: #5856d6;
 }
 
-.bonding-progress-section .bonding-curve-container {
-    min-height: 300px;
-    margin-bottom: 20px;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-}
-
-.bonding-progress-section .progress-bar-container {
-    margin-bottom: 20px;
-}
-
-.bonding-progress-section .bonding-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: 20px;
-}
-
-.bonding-progress-section .bonding-stats .stat {
-    text-align: center;
-    flex: 1;
-    padding: 16px;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-md);
-}
-
-.bonding-progress-section .bonding-stats .stat-value {
-    display: block;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
-
-.bonding-progress-section .bonding-stats .stat-label {
-    display: block;
+.bonding-section .time-remaining {
     font-size: 0.85rem;
     color: var(--text-secondary);
 }
 
+/* Chart canvas */
+.bonding-section .bonding-chart {
+    width: 100%;
+    height: 220px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.4) 100%);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.bonding-section .bonding-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Progress bar */
+.bonding-section .bonding-progress {
+    margin-bottom: 24px;
+}
+
+.bonding-section .progress-track {
+    height: 8px;
+    background: var(--bg-secondary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.bonding-section .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
+    border-radius: 4px;
+    transition: width 0.5s ease-out;
+}
+
+.bonding-section .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+}
+
+.bonding-section .progress-labels .progress-current {
+    color: #34c759;
+    font-weight: 600;
+}
+
+/* Stats grid */
+.bonding-section .bonding-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.bonding-section .stat-card {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    padding: 16px 12px;
+    text-align: center;
+    border: 1px solid var(--border-base);
+}
+
+.bonding-section .stat-card .stat-value {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.bonding-section .stat-card .stat-label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
 /* Dextools View */
-.bonding-progress-section.dextools-view {
+.bonding-section.dextools-view {
     padding: 0;
     overflow: hidden;
 }
 
-.bonding-progress-section .dextools-container {
+.bonding-section .dextools-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-base);
+}
+
+.bonding-section .dextools-link {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.bonding-section .dextools-link:hover {
+    text-decoration: underline;
+}
+
+.bonding-section .dextools-embed {
     width: 100%;
-    height: 450px;
+    height: 400px;
     position: relative;
 }
 
-.bonding-progress-section .dextools-container iframe {
+.bonding-section .dextools-embed iframe {
     width: 100%;
     height: 100%;
     border: none;
 }
 
-.bonding-progress-section .dextools-fallback {
-    padding: 12px 16px;
-    background: var(--bg-secondary);
-    text-align: center;
-    font-size: 0.9rem;
-}
-
-.bonding-progress-section .dextools-fallback a {
-    color: var(--accent-primary);
-    text-decoration: none;
-    font-weight: 500;
-}
-
-.bonding-progress-section .dextools-fallback a:hover {
-    text-decoration: underline;
-}
-
-@media (max-width: 600px) {
-    .bonding-progress-section .bonding-stats {
-        flex-direction: column;
+/* Responsive */
+@media (max-width: 768px) {
+    .bonding-section .bonding-stats {
+        grid-template-columns: repeat(2, 1fr);
     }
 
-    .bonding-progress-section .dextools-container {
-        height: 350px;
+    .bonding-section .bonding-chart {
+        height: 180px;
+    }
+}
+
+@media (max-width: 480px) {
+    .bonding-section .bonding-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .bonding-section .stat-card {
+        padding: 12px 8px;
+    }
+
+    .bonding-section .stat-card .stat-value {
+        font-size: 0.95rem;
+    }
+
+    .bonding-section .dextools-embed {
+        height: 300px;
     }
 }
 
@@ -2290,6 +2358,38 @@
 }
 
 .erc404-trading-sidebar .quick-pick-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Message Input */
+.erc404-trading-sidebar .message-input-container {
+    margin-top: var(--spacing-3);
+}
+
+.erc404-trading-sidebar .message-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    border: var(--border-width-thin) solid var(--border-base);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: var(--font-body);
+    transition: var(--transition-base);
+}
+
+.erc404-trading-sidebar .message-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.erc404-trading-sidebar .message-input:focus {
+    outline: none;
+    border-color: var(--gold-metallic-base);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1);
+}
+
+.erc404-trading-sidebar .message-input:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }

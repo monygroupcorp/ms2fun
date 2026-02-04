@@ -11,6 +11,10 @@ export class ProjectHeader extends Component {
         super();
         this.project = project;
         this.adminButton = null;
+        this.listenersAttached = false;
+        this.state = {
+            metadataExpanded: false
+        };
     }
 
     render() {
@@ -58,7 +62,14 @@ export class ProjectHeader extends Component {
                     ` : ''}
                 </div>
 
-                <div class="project-metadata">
+                <div class="project-metadata-toggle">
+                    <button class="metadata-toggle-btn" data-ref="metadata-toggle">
+                        <span class="toggle-text">${this.state.metadataExpanded ? 'Hide' : 'Show'} Contract Details</span>
+                        <span class="toggle-icon">${this.state.metadataExpanded ? '▲' : '▼'}</span>
+                    </button>
+                </div>
+
+                <div class="project-metadata" data-ref="metadata-content" style="display: ${this.state.metadataExpanded ? 'block' : 'none'}">
                     <div class="metadata-item">
                         <span class="metadata-label">Contract Address:</span>
                         <span class="metadata-value address" data-ref="contract-address">${address}</span>
@@ -66,21 +77,21 @@ export class ProjectHeader extends Component {
                             📋
                         </button>
                     </div>
-                    
+
                     ${factoryAddress ? `
                         <div class="metadata-item">
                             <span class="metadata-label">Factory:</span>
                             <a href="/factory/${factoryAddress}" class="metadata-link">${factoryAddress.slice(0, 10)}...${factoryAddress.slice(-8)}</a>
                         </div>
                     ` : ''}
-                    
+
                     ${creator ? `
                         <div class="metadata-item">
                             <span class="metadata-label">Creator:</span>
                             <span class="metadata-value">${creator.slice(0, 10)}...${creator.slice(-8)}</span>
                         </div>
                     ` : ''}
-                    
+
                     <div class="metadata-item">
                         <span class="metadata-label">Created:</span>
                         <span class="metadata-value">${createdAt}</span>
@@ -135,8 +146,29 @@ export class ProjectHeader extends Component {
     }
 
     setupDOMEventListeners() {
+        // Guard against duplicate listener attachment
+        if (this.listenersAttached) {
+            console.log('[ProjectHeader] Listeners already attached, skipping');
+            return;
+        }
+        this.listenersAttached = true;
+
+        console.log('[ProjectHeader] setupDOMEventListeners called, element:', this.element);
         const copyButton = this.getRef('copy-address', '.copy-button');
         const factoryLink = this.element?.querySelector('.metadata-link');
+        const metadataToggle = this.element?.querySelector('.metadata-toggle-btn');
+
+        console.log('[ProjectHeader] metadataToggle found:', metadataToggle);
+
+        if (metadataToggle) {
+            metadataToggle.addEventListener('click', (e) => {
+                console.log('[ProjectHeader] Toggle clicked!');
+                e.preventDefault();
+                this.toggleMetadata();
+            });
+        } else {
+            console.warn('[ProjectHeader] Could not find metadata toggle button');
+        }
 
         if (copyButton) {
             copyButton.addEventListener('click', () => {
@@ -166,6 +198,33 @@ export class ProjectHeader extends Component {
                     window.location.href = href;
                 }
             });
+        }
+    }
+
+    toggleMetadata() {
+        this.state.metadataExpanded = !this.state.metadataExpanded;
+        console.log('[ProjectHeader] toggleMetadata, expanded:', this.state.metadataExpanded);
+
+        // Update DOM directly with inline styles (CSS classes not working)
+        const content = this.element?.querySelector('.project-metadata');
+        const toggle = this.element?.querySelector('.metadata-toggle-btn');
+
+        if (content) {
+            if (this.state.metadataExpanded) {
+                content.style.display = 'block';
+                content.style.maxHeight = '500px';
+                content.style.opacity = '1';
+                content.style.visibility = 'visible';
+            } else {
+                content.style.display = 'none';
+            }
+        }
+
+        if (toggle) {
+            const textSpan = toggle.querySelector('.toggle-text');
+            const iconSpan = toggle.querySelector('.toggle-icon');
+            if (textSpan) textSpan.textContent = this.state.metadataExpanded ? 'Hide Contract Details' : 'Show Contract Details';
+            if (iconSpan) iconSpan.textContent = this.state.metadataExpanded ? '▲' : '▼';
         }
     }
 

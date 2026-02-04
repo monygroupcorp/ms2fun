@@ -59,8 +59,11 @@ export class FloatingWalletButton extends Component {
                     const accounts = await window.ethereum.request({ method: 'eth_accounts' });
 
                     if (accounts && accounts.length > 0) {
-                        // User has previously connected - update our state
-                        // But don't fully initialize walletService yet (they need to click)
+                        // User has previously connected - sync walletService so all components can see the connection
+                        const lastWallet = localStorage.getItem('ms2fun_lastWallet');
+                        await walletService.syncWithExistingConnection(accounts[0], lastWallet);
+
+                        // Update our own state too
                         this.setState({
                             walletConnected: true,
                             address: accounts[0],

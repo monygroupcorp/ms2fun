@@ -7,6 +7,7 @@
 
 import { eventBus } from '../../core/EventBus.js';
 import { contractCache } from '../ContractCache.js';
+import walletService from '../WalletService.js';
 
 class ContractAdapter {
     constructor(contractAddress, contractType, ethersProvider, signer) {
@@ -93,6 +94,21 @@ class ContractAdapter {
     }
 
     /**
+     * Ensure signer is available, refreshing from walletService if needed
+     * Call this before operations that require a signer
+     * @returns {boolean} Whether a signer is now available
+     */
+    ensureSigner() {
+        if (!this.signer) {
+            const { signer } = walletService.getProviderAndSigner();
+            if (signer) {
+                this.signer = signer;
+            }
+        }
+        return !!this.signer;
+    }
+
+    /**
      * Execute a contract call with error handling
      * @param {string} method - Method name
      * @param {Array} args - Method arguments
@@ -110,10 +126,19 @@ class ContractAdapter {
             // Select contract instance (with or without signer)
             let contractInstance = this.contract;
             if (options.requiresSigner) {
-                if (!this.signer) {
+                // Try to get fresh signer from walletService if we don't have one
+                let signer = this.signer;
+                if (!signer) {
+                    const { signer: freshSigner } = walletService.getProviderAndSigner();
+                    signer = freshSigner;
+                    if (signer) {
+                        this.signer = signer; // Cache for future use
+                    }
+                }
+                if (!signer) {
                     throw new Error('No wallet connected');
                 }
-                contractInstance = contractInstance.connect(this.signer);
+                contractInstance = contractInstance.connect(signer);
             }
 
             // Check if method exists
@@ -163,13 +188,35 @@ class ContractAdapter {
         }
         if (error.code === 'UNPREDICTABLE_GAS_LIMIT') {
             const revertMatch = error.message.match(/execution reverted: (.*?)(?:\"|$)/);
-            message = revertMatch 
-                ? `Tx Reverted: ${revertMatch[1]}` 
+            message = revertMatch
+                ? `Tx Reverted: ${revertMatch[1]}`
                 : 'Transaction would fail - check your inputs';
             return new Error(message);
         }
         if (error.code === 4001 || error.code === 'ACTION_REJECTED') {
             return new Error('Transaction rejected by user');
+        }
+
+        // Handle internal JSON-RPC errors (often contain revert reason in data)
+        if (error.code === -32603 || error.message?.includes('Internal JSON-RPC')) {
+            // Try to extract revert reason from error data
+            let revertReason = null;
+            if (error.data?.message) {
+                revertReason = error.data.message;
+            } else if (error.data?.data?.message) {
+                revertReason = error.data.data.message;
+            } else if (typeof error.data === 'string' && error.data.includes('revert')) {
+                revertReason = error.data;
+            }
+
+            if (revertReason) {
+                // Extract just the reason text
+                const match = revertReason.match(/revert(?:ed)?:?\s*(.*)/i);
+                message = match ? `Contract reverted: ${match[1]}` : revertReason;
+            } else {
+                message = 'Transaction would fail - you may not be authorized or inputs are invalid';
+            }
+            return new Error(message);
         }
 
         // Extract revert reason from other error types

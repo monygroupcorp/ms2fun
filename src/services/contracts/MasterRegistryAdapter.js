@@ -119,13 +119,13 @@ class MasterRegistryAdapter extends ContractAdapter {
         const total = await this.getTotalFactories();
         const actualEnd = Math.min(endIndex, total);
 
-        const factories = [];
+        // Parallelize factory fetches
+        const factoryPromises = [];
         for (let i = startIndex; i < actualEnd; i++) {
-            const factory = await this.getFactoryInfo(i);
-            factories.push(factory);
+            factoryPromises.push(this.getFactoryInfo(i));
         }
 
-        return factories;
+        return Promise.all(factoryPromises);
     }
 
     /**

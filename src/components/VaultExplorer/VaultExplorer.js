@@ -1,7 +1,9 @@
 import { Component } from '../../core/Component.js';
 import { getAssetIcon } from '../../utils/assetMetadata.js';
 import serviceFactory from '../../services/ServiceFactory.js';
+import queryService from '../../services/QueryService.js';
 import { detectNetwork } from '../../config/network.js';
+import { isPreLaunch } from '../../config/contractConfig.js';
 
 /**
  * VaultExplorer component
@@ -61,41 +63,38 @@ export class VaultExplorer extends Component {
         try {
             this.setState({ loading: true, error: null });
 
+            // Check for pre-launch mode (mainnet but contracts not deployed)
+            const preLaunch = await isPreLaunch();
+            if (preLaunch) {
+                console.log('[VaultExplorer] Pre-launch mode: no vaults deployed yet');
+                this.setState({
+                    vaults: [],
+                    totalVaults: 0,
+                    loading: false
+                });
+                return;
+            }
+
             const { mode, currentPage, pageSize } = this.state;
-            const masterService = serviceFactory.getMasterService();
 
-            // Get total vault count
-            let totalVaults = 0;
-            try {
-                totalVaults = await masterService.getTotalVaults();
-            } catch (e) {
-                console.warn('[VaultExplorer] Could not get total vaults:', e);
-            }
+            // Use QueryService for cached/batched vault data
+            // sortBy: 0 = TVL, 1 = popularity
+            const sortBy = mode === 'tvl' ? 0 : 1;
+            const rawVaults = await queryService.getVaultLeaderboard(sortBy, 100);
 
-            // Fetch vaults based on mode
-            let rawVaults;
-            const limit = pageSize;
-
-            if (mode === 'tvl') {
-                // For TVL mode, get more vaults if we need pagination
-                rawVaults = await masterService.getVaultsByTVL(Math.min(totalVaults || 100, 100));
-            } else {
-                rawVaults = await masterService.getVaultsByPopularity(Math.min(totalVaults || 100, 100));
-            }
-
-            // Apply pagination client-side (since contract may not support offset)
+            // Apply pagination client-side
             const startIndex = currentPage * pageSize;
             const endIndex = startIndex + pageSize;
             const paginatedVaults = rawVaults.slice(startIndex, endIndex);
 
-            // Transform contract data to display format
+            // Transform to display format
             const vaults = paginatedVaults.map((vault, index) =>
-                this.transformVault(vault, startIndex + index)
+                this.transformVaultFromQuery(vault, startIndex + index)
             );
 
             this.setState({
                 vaults,
-                totalVaults: rawVaults.length || totalVaults,
+                totalVaults: rawVaults.length,
                 loading: false
             });
         } catch (error) {
@@ -127,6 +126,30 @@ export class VaultExplorer extends Component {
             instanceCount: vault.instanceCount || 0,
             description: metadata.description || '',
             isActive: vault.isActive !== false
+        };
+    }
+
+    /**
+     * Transform QueryService VaultSummary to display format
+     */
+    transformVaultFromQuery(vault, index) {
+        const vaultAddress = vault.vault || vault.vaultAddress || vault.address;
+        const metadata = this.vaultMetadata?.[vaultAddress?.toLowerCase()] || {};
+        const tvlEth = parseFloat(vault.tvl || '0');
+        const tvlWei = (tvlEth * 1e18).toString();
+
+        return {
+            rank: index + 1,
+            address: vaultAddress,
+            name: metadata.tag || vault.name || 'Unnamed Vault',
+            type: 'Ultra Alignment',
+            targetAsset: metadata.alignmentTokenSymbol || 'ETH',
+            tvl: this.formatTVL(tvlWei),
+            tvlRaw: tvlWei,
+            popularity: vault.instanceCount || 0,
+            instanceCount: vault.instanceCount || 0,
+            description: metadata.description || '',
+            isActive: true
         };
     }
 

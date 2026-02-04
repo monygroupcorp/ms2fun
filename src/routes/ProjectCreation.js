@@ -469,12 +469,10 @@ async function handleFormSubmit(form, statusContainer) {
         showStatus(statusContainer, 'success', `Project created successfully! Instance address: ${instanceAddress}`);
 
         // Navigate to project detail after a short delay
-        setTimeout(() => {
-            if (window.router) {
-                window.router.navigate(`/project/${instanceAddress}`);
-            } else {
-                window.location.href = `/project/${instanceAddress}`;
-            }
+        setTimeout(async () => {
+            // Use modern URL format when possible
+            const { navigateToProject } = await import('../utils/navigation.js');
+            await navigateToProject(instanceAddress);
         }, 2000);
 
     } catch (error) {

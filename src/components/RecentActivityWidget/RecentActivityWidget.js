@@ -6,25 +6,47 @@ import serviceFactory from '../../services/ServiceFactory.js';
  * Shows last 5 protocol-wide messages from GlobalMessageRegistry
  */
 export class RecentActivityWidget extends Component {
-    constructor() {
+    constructor(options = {}) {
         super();
         this.state = {
             messages: [],
             loading: true,
             error: null
         };
+        // If true, wait for data from HomePageDataProvider instead of fetching
+        this.useDataProvider = options.useDataProvider || false;
     }
 
     async onMount() {
-        try {
-            await this.loadMessages();
-        } catch (error) {
-            console.error('[RecentActivityWidget] Error initializing:', error);
-            this.setState({
-                loading: false,
-                error: 'Failed to load activity'
-            });
+        // Only fetch if not using data provider
+        if (!this.useDataProvider) {
+            try {
+                await this.loadMessages();
+            } catch (error) {
+                console.error('[RecentActivityWidget] Error initializing:', error);
+                this.setState({
+                    loading: false,
+                    error: 'Failed to load activity'
+                });
+            }
         }
+    }
+
+    /**
+     * Set messages data from HomePageDataProvider
+     * @param {Array} messages - Array of GlobalMessage objects from QueryService
+     */
+    setMessagesData(messages) {
+        if (!Array.isArray(messages)) return;
+
+        // Transform to display format
+        const transformedMessages = messages.map(msg => this.transformMessage(msg));
+
+        this.setState({
+            messages: transformedMessages,
+            loading: false,
+            error: null
+        });
     }
 
     async loadMessages() {
@@ -251,13 +273,10 @@ export class RecentActivityWidget extends Component {
         await this.loadMessages();
     }
 
-    handleMessageClick(msg) {
-        // Navigate to the project that generated this message
-        if (window.router) {
-            window.router.navigate(`/project/${msg.instance}`);
-        } else {
-            window.location.href = `/project/${msg.instance}`;
-        }
+    async handleMessageClick(msg) {
+        // Navigate to the project that generated this message using modern URL
+        const { navigateToProject } = await import('../../utils/navigation.js');
+        await navigateToProject(msg.instance);
     }
 
     handleViewAllClick() {

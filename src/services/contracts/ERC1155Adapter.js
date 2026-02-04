@@ -608,7 +608,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async createEdition(metadata, price, maxSupply, royaltyPercent = '0') {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1093,7 +1093,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async safeTransferFrom(from, to, id, amount, data = '0x') {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1153,7 +1153,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async safeBatchTransferFrom(from, to, ids, amounts, data = '0x') {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1210,7 +1210,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async setApprovalForAll(operator, approved) {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1294,7 +1294,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async updateEditionMetadata(editionId, metadataURI) {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1357,7 +1357,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async withdraw(amount) {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1405,7 +1405,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async claimVaultFees() {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1451,7 +1451,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async setStyle(uri) {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1499,7 +1499,7 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async setEditionStyle(editionId, uri) {
         try {
-            if (!this.signer) {
+            if (!this.ensureSigner()) {
                 throw new Error('No wallet connected');
             }
 
@@ -1543,6 +1543,139 @@ class ERC1155Adapter extends ContractAdapter {
     }
 
     /**
+     * Transfer ownership to new address (from Solady Ownable)
+     * WARNING: This action is irreversible
+     * @param {string} newOwner - New owner address
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async transferOwnership(newOwner) {
+        try {
+            if (!this.ensureSigner()) {
+                throw new Error('No wallet connected');
+            }
+
+            // Validate new owner address
+            if (!newOwner || !ethers.utils.isAddress(newOwner)) {
+                throw new Error('Invalid new owner address');
+            }
+
+            // Prevent transferring to zero address (use renounceOwnership for that)
+            if (newOwner === ethers.constants.AddressZero) {
+                throw new Error('Use renounceOwnership to remove ownership');
+            }
+
+            if (this._isMockContract()) {
+                const mockData = loadMockData();
+                const instance = mockData?.instances?.[this.contractAddress];
+                if (instance) {
+                    instance.owner = newOwner;
+                    instance.creator = newOwner;
+                    const { saveMockData } = await import('../mock/mockData.js');
+                    saveMockData(mockData);
+                }
+
+                eventBus.emit('erc1155:ownership-transferred', {
+                    previousOwner: await this.owner(),
+                    newOwner,
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'transferOwnership',
+                contractAddress: this.contractAddress,
+                newOwner
+            });
+
+            const receipt = await this.executeContractCall(
+                'transferOwnership',
+                [newOwner],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'transferOwnership',
+                receipt,
+                contractAddress: this.contractAddress,
+                newOwner
+            });
+
+            // Invalidate owner cache
+            contractCache.invalidateByPattern('owner');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'transferOwnership',
+                error: this.wrapError(error, 'Transfer ownership failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Renounce ownership permanently (from Solady Ownable)
+     * WARNING: This action is irreversible - the contract will have no owner
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async renounceOwnership() {
+        try {
+            if (!this.ensureSigner()) {
+                throw new Error('No wallet connected');
+            }
+
+            if (this._isMockContract()) {
+                const mockData = loadMockData();
+                const instance = mockData?.instances?.[this.contractAddress];
+                if (instance) {
+                    instance.owner = ethers.constants.AddressZero;
+                    const { saveMockData } = await import('../mock/mockData.js');
+                    saveMockData(mockData);
+                }
+
+                eventBus.emit('erc1155:ownership-renounced', {
+                    previousOwner: await this.owner(),
+                    contractAddress: this.contractAddress,
+                    txHash: '0xMOCK' + Date.now().toString(16)
+                });
+
+                return { transactionHash: '0xMOCK' + Date.now().toString(16) };
+            }
+
+            eventBus.emit('transaction:pending', {
+                type: 'renounceOwnership',
+                contractAddress: this.contractAddress
+            });
+
+            const receipt = await this.executeContractCall(
+                'renounceOwnership',
+                [],
+                { requiresSigner: true }
+            );
+
+            eventBus.emit('transaction:success', {
+                type: 'renounceOwnership',
+                receipt,
+                contractAddress: this.contractAddress
+            });
+
+            // Invalidate owner cache
+            contractCache.invalidateByPattern('owner');
+
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', {
+                type: 'renounceOwnership',
+                error: this.wrapError(error, 'Renounce ownership failed')
+            });
+            throw error;
+        }
+    }
+
+    /**
      * Get style URI
      * @param {number|null} editionId - Edition ID (null for instance style)
      * @returns {Promise<string>} Style URI
@@ -1555,11 +1688,14 @@ class ERC1155Adapter extends ContractAdapter {
 
             try {
                 if (editionId !== null) {
-                    return await this.executeContractCall('getEditionStyle', [editionId]);
+                    // Get style for specific edition (returns edition style or falls back to project style)
+                    return await this.executeContractCall('getStyle', [editionId]);
                 } else {
-                    return await this.executeContractCall('getStyle');
+                    // Get project-level style from the public styleUri variable
+                    return await this.executeContractCall('styleUri', []);
                 }
             } catch (error) {
+                console.warn('[ERC1155Adapter] getStyle error:', error.message);
                 return '';
             }
         }, CACHE_TTL.STATIC);
@@ -1605,7 +1741,41 @@ class ERC1155Adapter extends ContractAdapter {
      */
     async creator() {
         return await this.getCachedOrFetch('creator', [], async () => {
-            return await this.executeContractCall('creator');
+            if (this._isMockContract()) {
+                const mockData = loadMockData();
+                const instance = mockData?.instances?.[this.contractAddress];
+                return instance?.creator || null;
+            }
+
+            try {
+                const creatorAddr = await this.executeContractCall('creator', []);
+                return creatorAddr;
+            } catch (error) {
+                console.error('[ERC1155Adapter] Failed to get creator:', error);
+                return null;
+            }
+        }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get owner address (from Ownable)
+     * @returns {Promise<string>} Owner address
+     */
+    async owner() {
+        return await this.getCachedOrFetch('owner', [], async () => {
+            if (this._isMockContract()) {
+                const mockData = loadMockData();
+                const instance = mockData?.instances?.[this.contractAddress];
+                return instance?.creator || instance?.owner || null;
+            }
+
+            try {
+                const ownerAddr = await this.executeContractCall('owner', []);
+                return ownerAddr;
+            } catch (error) {
+                console.error('[ERC1155Adapter] Failed to get owner:', error);
+                return null;
+            }
         }, CACHE_TTL.STATIC);
     }
 

@@ -25,7 +25,7 @@ export class EditionGallery extends Component {
         // Load ERC1155 styles immediately (don't wait)
         // Also ensure it's loaded even if route didn't load it
         stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
-        
+
         // Double-check the link was created
         this.setTimeout(() => {
             const link = document.querySelector('link[data-stylesheet-id="erc1155-styles"]');
@@ -40,13 +40,122 @@ export class EditionGallery extends Component {
                 console.log('[EditionGallery] ERC1155 CSS link found:', link.href);
             }
         }, 100);
-        
+
         await this.loadEditions();
+        await this.loadProjectStyle();
     }
 
     onUnmount() {
-        // Don't unload styles on unmount - they might be needed if user navigates back
+        // Don't unload base styles on unmount - they might be needed if user navigates back
         // stylesheetLoader.unload('erc1155-styles');
+
+        // Do unload project-specific styles
+        this.unloadProjectStyle();
+    }
+
+    /**
+     * Load project-specific styles from styleUri stored on-chain
+     * Uses caching to prevent flash of unstyled content on return visits
+     */
+    async loadProjectStyle() {
+        try {
+            // Check cache first for instant loading
+            const cacheKey = `projectStyle:${this.projectId}`;
+            const cachedUri = localStorage.getItem(cacheKey);
+
+            // If we have a cached URI, preload it immediately (before contract call)
+            if (cachedUri) {
+                this._applyProjectStyle(cachedUri);
+            }
+
+            // Fetch from contract (may be same as cached, or updated)
+            const styleUri = await this.adapter.getStyle().catch(() => '');
+
+            if (styleUri && styleUri.trim()) {
+                // Update cache
+                localStorage.setItem(cacheKey, styleUri);
+
+                // Apply if different from cached (or if no cache)
+                if (styleUri !== cachedUri) {
+                    this._applyProjectStyle(styleUri);
+                }
+            } else if (cachedUri) {
+                // Style was removed on-chain, clear cache and styles
+                localStorage.removeItem(cacheKey);
+                this.unloadProjectStyle();
+            }
+        } catch (error) {
+            console.warn('[EditionGallery] Failed to load project style:', error);
+        }
+    }
+
+    /**
+     * Apply project style and show content when loaded
+     */
+    _applyProjectStyle(styleUri) {
+        console.log('[EditionGallery] Applying project style:', styleUri);
+        const styleId = `project-style-${this.projectId}`;
+
+        // Add marker class immediately to both html and body
+        document.documentElement.classList.add('has-project-style');
+        document.body.classList.add('has-project-style');
+        document.body.setAttribute('data-project-style', this.projectId);
+
+        // Load stylesheet with onload callback
+        const existingLink = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
+        if (existingLink) {
+            // Already loaded, just mark as ready
+            document.documentElement.classList.add('project-style-loaded');
+            document.documentElement.classList.add('project-style-resolved');
+            document.body.classList.add('project-style-loaded');
+            document.body.classList.add('project-style-resolved');
+        } else {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = styleUri.startsWith('/') || styleUri.startsWith('http') ? styleUri : '/' + styleUri;
+            link.setAttribute('data-stylesheet-id', styleId);
+
+            link.onload = () => {
+                console.log('[EditionGallery] Project style loaded');
+                document.documentElement.classList.add('project-style-loaded');
+                document.documentElement.classList.add('project-style-resolved');
+                document.body.classList.add('project-style-loaded');
+                document.body.classList.add('project-style-resolved');
+            };
+
+            link.onerror = () => {
+                console.warn('[EditionGallery] Failed to load project style CSS');
+                document.documentElement.classList.remove('has-project-style');
+                document.documentElement.classList.add('project-style-resolved');
+                document.body.classList.remove('has-project-style');
+                document.body.classList.add('project-style-resolved');
+            };
+
+            document.head.appendChild(link);
+        }
+
+        this._projectStyleId = styleId;
+    }
+
+    /**
+     * Unload project-specific styles
+     */
+    unloadProjectStyle() {
+        if (this._projectStyleId) {
+            stylesheetLoader.unload(this._projectStyleId);
+            this._projectStyleId = null;
+
+            // Remove marker classes from both html and body
+            document.documentElement.classList.remove('has-project-style');
+            document.documentElement.classList.remove('project-style-loaded');
+            document.documentElement.classList.remove('project-style-resolved');
+            document.documentElement.classList.remove('project-style-pending');
+            document.body.classList.remove('has-project-style');
+            document.body.classList.remove('project-style-loaded');
+            document.body.classList.remove('project-style-resolved');
+            document.body.classList.remove('project-style-pending');
+            document.body.removeAttribute('data-project-style');
+        }
     }
 
     async loadEditions() {

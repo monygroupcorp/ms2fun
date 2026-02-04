@@ -601,7 +601,47 @@ const main = async () => {
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 4: FACTORY REGISTRATION");
+        console.log("PHASE 4: QUERY AGGREGATOR");
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("");
+
+        // STEP 9: Deploy QueryAggregator
+        console.log("STEP 9: Deploying QueryAggregator...");
+        const queryAggregatorArtifact = JSON.parse(
+            await fs.readFile("./contracts/out/QueryAggregator.sol/QueryAggregator.json", "utf8")
+        );
+        const QueryAggregatorFactory = new ethers.ContractFactory(
+            queryAggregatorArtifact.abi,
+            queryAggregatorArtifact.bytecode.object,
+            deployer
+        );
+        const queryAggregator = await QueryAggregatorFactory.deploy({ nonce: nonce++ });
+        await queryAggregator.deployed();
+        const queryAggregatorAddress = queryAggregator.address;
+        console.log(`   ✓ QueryAggregator deployed: ${queryAggregatorAddress}`);
+
+        // Initialize QueryAggregator
+        const queryAggregatorContract = new ethers.Contract(
+            queryAggregatorAddress,
+            queryAggregatorArtifact.abi,
+            deployer
+        );
+        const initQueryAggTx = await queryAggregatorContract.initialize(
+            masterRegistryAddress,
+            queueManagerAddress,
+            messageRegistryAddress,
+            deployer.address,
+            { nonce: nonce++ }
+        );
+        await initQueryAggTx.wait();
+        console.log(`   ✓ QueryAggregator initialized`);
+        console.log(`     MasterRegistry: ${masterRegistryAddress}`);
+        console.log(`     FeaturedQueue:  ${queueManagerAddress}`);
+        console.log(`     MessageRegistry: ${messageRegistryAddress}`);
+        console.log("");
+
+        console.log("═══════════════════════════════════════════════════════");
+        console.log("PHASE 5: FACTORY REGISTRATION");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
@@ -732,10 +772,51 @@ const main = async () => {
         );
         await mint2Tx.wait();
         console.log(`   ✓ Minted 2x Edition 2 to trader`);
+
+        // Mint and transfer to USER_ADDRESS (we don't have user's private key)
+        const collectorSigner = provider.getSigner(TEST_ACCOUNTS.collector);
+        const erc1155AsCollector = erc1155Instance.connect(collectorSigner);
+
+        // Mint for user via collector
+        const mintForUserTx1 = await erc1155AsCollector.mint(
+            1,   // editionId
+            2,   // quantity
+            getRandomMessage(MINT_MESSAGES),
+            { value: ethers.utils.parseEther("0.02") }
+        );
+        await mintForUserTx1.wait();
+
+        const mintForUserTx2 = await erc1155AsCollector.mint(
+            2,   // editionId
+            1,   // quantity
+            getRandomMessage(MINT_MESSAGES),
+            { value: ethers.utils.parseEther("0.02") }
+        );
+        await mintForUserTx2.wait();
+
+        // Transfer to user
+        const transfer1Tx = await erc1155AsCollector.safeTransferFrom(
+            TEST_ACCOUNTS.collector,
+            USER_ADDRESS,
+            1,  // editionId
+            2,  // quantity
+            "0x"
+        );
+        await transfer1Tx.wait();
+
+        const transfer2Tx = await erc1155AsCollector.safeTransferFrom(
+            TEST_ACCOUNTS.collector,
+            USER_ADDRESS,
+            2,  // editionId
+            1,  // quantity
+            "0x"
+        );
+        await transfer2Tx.wait();
+        console.log(`   ✓ Minted & transferred 2x Edition 1, 1x Edition 2 to user`);
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
-        console.log("PHASE 5: ERC404 INSTANCE SEEDING");
+        console.log("PHASE 7: ERC404 INSTANCE SEEDING");
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
 
@@ -777,14 +858,14 @@ const main = async () => {
         });
         console.log(`   ✓ Bonding curve activated`);
 
-        // Seed 5 small purchases to reach ~10% progress
-        // 10% of 10,000 = 1,000 tokens, so buy 200 tokens each from 5 accounts
+        // Seed purchases to reach ~10% progress
+        // 10% of 10,000 = 1,000 tokens
         const earlyBuyers = [
             { address: TEST_ACCOUNTS.trader, tokens: "200" },
-            { address: TEST_ACCOUNTS.collector, tokens: "200" },
+            { address: TEST_ACCOUNTS.collector, tokens: "350" },  // Extra 150 to transfer to user
             { address: TEST_ACCOUNTS.governance, tokens: "200" },
             { address: deployer.address, tokens: "200" },
-            { address: TEST_ACCOUNTS.trader, tokens: "200" }
+            { address: TEST_ACCOUNTS.trader, tokens: "50" }
         ];
 
         for (const buyer of earlyBuyers) {
@@ -796,7 +877,19 @@ const main = async () => {
                 provider: provider
             });
         }
-        console.log(`   ✓ Seeded 5 purchases (~10% bonding progress)`);
+
+        // Transfer 150 tokens from collector to user
+        const earlyInstance = new ethers.Contract(
+            earlyLaunch.instance,
+            erc404InstanceArtifact.abi,
+            provider.getSigner(TEST_ACCOUNTS.collector)
+        );
+        const earlyTransferTx = await earlyInstance.transfer(
+            USER_ADDRESS,
+            ethers.utils.parseEther("150")
+        );
+        await earlyTransferTx.wait();
+        console.log(`   ✓ Seeded purchases & transferred 150 tokens to user (~10% bonding)`);
         console.log("");
 
         // Instance 2: Active Project (60% bonding progress)
@@ -831,17 +924,14 @@ const main = async () => {
         // 8000 = 10000 - 20% liquidity reserve
         const activeBuyers = [
             { address: TEST_ACCOUNTS.trader, tokens: "400" },
-            { address: TEST_ACCOUNTS.collector, tokens: "400" },
+            { address: TEST_ACCOUNTS.collector, tokens: "1200" },  // Extra 800 to transfer to user
             { address: TEST_ACCOUNTS.governance, tokens: "400" },
             { address: deployer.address, tokens: "400" },
             { address: TEST_ACCOUNTS.trader, tokens: "400" },
-            { address: TEST_ACCOUNTS.collector, tokens: "400" },
             { address: TEST_ACCOUNTS.governance, tokens: "400" },
             { address: TEST_ACCOUNTS.trader, tokens: "400" },
-            { address: TEST_ACCOUNTS.collector, tokens: "400" },
             { address: TEST_ACCOUNTS.governance, tokens: "400" },
-            { address: deployer.address, tokens: "400" },
-            { address: TEST_ACCOUNTS.trader, tokens: "400" }
+            { address: deployer.address, tokens: "200" }
         ];
 
         for (const buyer of activeBuyers) {
@@ -853,7 +943,19 @@ const main = async () => {
                 provider: provider
             });
         }
-        console.log(`   ✓ Seeded 12 purchases (~60% bonding progress)`);
+
+        // Transfer 800 tokens from collector to user
+        const activeInstance = new ethers.Contract(
+            activeProject.instance,
+            erc404InstanceArtifact.abi,
+            provider.getSigner(TEST_ACCOUNTS.collector)
+        );
+        const activeTransferTx = await activeInstance.transfer(
+            USER_ADDRESS,
+            ethers.utils.parseEther("800")
+        );
+        await activeTransferTx.wait();
+        console.log(`   ✓ Seeded purchases & transferred 800 tokens to user (~60% bonding)`);
         console.log("");
 
         // Instance 3: Graduated (liquidity deployed)
@@ -886,8 +988,8 @@ const main = async () => {
 
         // Buy to 100% to trigger graduation (8000 tokens = full bonding supply)
         const graduatedBuyers = [
-            { address: TEST_ACCOUNTS.trader, tokens: "2000" },
-            { address: TEST_ACCOUNTS.collector, tokens: "2000" },
+            { address: TEST_ACCOUNTS.trader, tokens: "1500" },
+            { address: TEST_ACCOUNTS.collector, tokens: "2500" },  // Extra 1000 to transfer to user
             { address: TEST_ACCOUNTS.governance, tokens: "2000" },
             { address: deployer.address, tokens: "2000" }
         ];
@@ -901,7 +1003,19 @@ const main = async () => {
                 provider: provider
             });
         }
-        console.log(`   ✓ Seeded purchases to 100% bonding progress`);
+
+        // Transfer 1000 tokens from collector to user
+        const graduatedAsCollector = new ethers.Contract(
+            graduated.instance,
+            erc404InstanceArtifact.abi,
+            provider.getSigner(TEST_ACCOUNTS.collector)
+        );
+        const gradTransferTx = await graduatedAsCollector.transfer(
+            USER_ADDRESS,
+            ethers.utils.parseEther("1000")
+        );
+        await gradTransferTx.wait();
+        console.log(`   ✓ Seeded purchases & transferred 1000 tokens to user (100% bonding)`);
 
         // Deploy liquidity
         console.log("   Deploying liquidity to Uniswap V4...");
@@ -997,6 +1111,24 @@ const main = async () => {
         }
         console.log(`   ✓ Minted 10x Edition 1 (dynamic pricing)`);
 
+        // Mint and transfer to user (we don't have user's private key)
+        const dynamicCollectorSigner = provider.getSigner(TEST_ACCOUNTS.collector);
+        const dynamicAsCollector = dynamicInstance.connect(dynamicCollectorSigner);
+        for (let i = 0; i < 3; i++) {
+            const currentPrice = await dynamicInstance.getCurrentPrice(1);
+            await dynamicAsCollector.mint(1, 1, getRandomMessage(MINT_MESSAGES), { value: currentPrice });
+        }
+        // Transfer to user
+        const dynamicTransferTx = await dynamicAsCollector.safeTransferFrom(
+            TEST_ACCOUNTS.collector,
+            USER_ADDRESS,
+            1,  // editionId
+            3,  // quantity
+            "0x"
+        );
+        await dynamicTransferTx.wait();
+        console.log(`   ✓ Minted & transferred 3x Edition 1 to user (dynamic pricing)`);
+
         for (let i = 0; i < 8; i++) {
             const buyer = i % 2 === 0 ? TEST_ACCOUNTS.governance : deployer.address;
             const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
@@ -1063,8 +1195,8 @@ const main = async () => {
         await mixedEd2Tx.wait();
         console.log(`   ✓ Edition 2: "Common-Unlimited" (0.005 ETH, unlimited)`);
 
-        // Mint 45 limited editions (approaching sellout)
-        for (let i = 0; i < 45; i++) {
+        // Mint 40 limited editions (approaching sellout)
+        for (let i = 0; i < 40; i++) {
             const buyers = [TEST_ACCOUNTS.trader, TEST_ACCOUNTS.collector, TEST_ACCOUNTS.governance, deployer.address];
             const buyer = buyers[i % buyers.length];
             const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
@@ -1072,10 +1204,27 @@ const main = async () => {
 
             await asUser.mint(1, 1, getRandomMessage(MINT_MESSAGES), { value: ethers.utils.parseEther("0.02") });
         }
-        console.log(`   ✓ Minted 45x Edition 1 (45% sold out)`);
+        console.log(`   ✓ Minted 40x Edition 1 (40% sold out)`);
 
-        // Mint 60 unlimited editions
-        for (let i = 0; i < 60; i++) {
+        // Mint and transfer to user (we don't have user's private key)
+        const mixedCollectorSigner = provider.getSigner(TEST_ACCOUNTS.collector);
+        const mixedAsCollector = mixedInstance.connect(mixedCollectorSigner);
+        for (let i = 0; i < 5; i++) {
+            await mixedAsCollector.mint(1, 1, getRandomMessage(MINT_MESSAGES), { value: ethers.utils.parseEther("0.02") });
+        }
+        // Transfer to user
+        const mixedTransfer1Tx = await mixedAsCollector.safeTransferFrom(
+            TEST_ACCOUNTS.collector,
+            USER_ADDRESS,
+            1,  // editionId
+            5,  // quantity
+            "0x"
+        );
+        await mixedTransfer1Tx.wait();
+        console.log(`   ✓ Minted & transferred 5x Edition 1 to user (limited)`);
+
+        // Mint 55 unlimited editions
+        for (let i = 0; i < 55; i++) {
             const buyers = [TEST_ACCOUNTS.trader, TEST_ACCOUNTS.collector, TEST_ACCOUNTS.governance, deployer.address];
             const buyer = buyers[i % buyers.length];
             const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer);
@@ -1083,7 +1232,22 @@ const main = async () => {
 
             await asUser.mint(2, 1, getRandomMessage(MINT_MESSAGES), { value: ethers.utils.parseEther("0.005") });
         }
-        console.log(`   ✓ Minted 60x Edition 2`);
+        console.log(`   ✓ Minted 55x Edition 2`);
+
+        // Mint and transfer unlimited editions to user
+        for (let i = 0; i < 5; i++) {
+            await mixedAsCollector.mint(2, 1, getRandomMessage(MINT_MESSAGES), { value: ethers.utils.parseEther("0.005") });
+        }
+        // Transfer to user
+        const mixedTransfer2Tx = await mixedAsCollector.safeTransferFrom(
+            TEST_ACCOUNTS.collector,
+            USER_ADDRESS,
+            2,  // editionId
+            5,  // quantity
+            "0x"
+        );
+        await mixedTransfer2Tx.wait();
+        console.log(`   ✓ Minted & transferred 5x Edition 2 to user (unlimited)`);
         console.log("");
 
         console.log("═══════════════════════════════════════════════════════");
@@ -1276,7 +1440,39 @@ const main = async () => {
         }
         console.log("");
 
-        console.log("STEP 23: Verifying vault state...");
+        console.log("STEP 23: Transferring ownership for testing...");
+
+        // Transfer ownership of one ERC1155 and one ERC404 instance to USER_ADDRESS
+        // This allows testing owner views vs user views on project pages
+
+        // Refresh nonce
+        nonce = await deployer.getTransactionCount();
+
+        // Transfer Demo-Gallery (ERC1155) ownership to USER_ADDRESS
+        console.log(`   Transferring Demo-Gallery ownership to user...`);
+        const transferOwnership1155Tx = await erc1155Instance.transferOwnership(
+            USER_ADDRESS,
+            { nonce: nonce++ }
+        );
+        await transferOwnership1155Tx.wait();
+        console.log(`   ✓ Demo-Gallery owner: ${USER_ADDRESS}`);
+
+        // Transfer Early-Launch (ERC404) ownership to USER_ADDRESS
+        console.log(`   Transferring Early-Launch ownership to user...`);
+        const earlyLaunchInstance = new ethers.Contract(
+            earlyLaunch.instance,
+            erc404InstanceArtifact.abi,
+            deployer
+        );
+        const transferOwnership404Tx = await earlyLaunchInstance.transferOwnership(
+            USER_ADDRESS,
+            { nonce: nonce++ }
+        );
+        await transferOwnership404Tx.wait();
+        console.log(`   ✓ Early-Launch owner: ${USER_ADDRESS}`);
+        console.log("");
+
+        console.log("STEP 24: Verifying vault state...");
 
         // Get final vault stats
         const ms2AccumulatedFees = await vaultContract.accumulatedFees();
@@ -1317,6 +1513,7 @@ const main = async () => {
             { name: "MasterRegistry", address: masterRegistryAddress },
             { name: "GlobalMessageRegistry", address: messageRegistryAddress },
             { name: "FeaturedQueueManager", address: queueManagerAddress },
+            { name: "QueryAggregator", address: queryAggregatorAddress },
             { name: "UltraAlignmentVault", address: vaultAddress },
             { name: "SimpleVault", address: simpleVaultAddress },
             { name: "UltraAlignmentHookFactory", address: hookFactoryAddress },
@@ -1345,6 +1542,7 @@ const main = async () => {
                 MasterRegistryV1: masterRegistryAddress,
                 GlobalMessageRegistry: messageRegistryAddress,
                 FeaturedQueueManager: queueManagerAddress,
+                QueryAggregator: queryAggregatorAddress,
                 ERC404Factory: erc404FactoryAddress,
                 ERC1155Factory: erc1155FactoryAddress,
                 UltraAlignmentHookFactory: hookFactoryAddress
@@ -1404,12 +1602,14 @@ const main = async () => {
                         name: "Early-Launch",
                         symbol: "EARLY",
                         creator: deployer.address,
+                        owner: USER_ADDRESS,  // Ownership transferred for testing
                         vault: vaultAddress,
                         hook: ms2HookAddress,
                         state: "early-bonding",
                         bondingProgress: "~10%",
                         holders: 4,
-                        messages: 5
+                        messages: 5,
+                        note: "Owned by USER_ADDRESS for owner view testing"
                     },
                     {
                         address: activeProject.instance,
@@ -1442,6 +1642,7 @@ const main = async () => {
                         address: instanceAddress,
                         name: "Demo-Gallery",
                         creator: deployer.address,
+                        owner: USER_ADDRESS,  // Ownership transferred for testing
                         vault: vaultAddress,
                         editions: [
                             {
@@ -1449,16 +1650,17 @@ const main = async () => {
                                 name: "Genesis-Piece",
                                 price: "0.01",
                                 maxSupply: 0,
-                                minted: 3
+                                minted: 5  // 3 deployer + 2 user
                             },
                             {
                                 id: 2,
                                 name: "Limited-Drop",
                                 price: "0.02",
                                 maxSupply: 100,
-                                minted: 2
+                                minted: 3  // 2 trader + 1 user
                             }
-                        ]
+                        ],
+                        note: "Owned by USER_ADDRESS for owner view testing"
                     },
                     {
                         address: dynamicInstanceAddress,
@@ -1473,7 +1675,7 @@ const main = async () => {
                                 basePrice: "0.005",
                                 priceIncreaseRate: 500, // 5% per mint
                                 maxSupply: 50,
-                                minted: 10
+                                minted: 13  // 10 others + 3 user
                             },
                             {
                                 id: 2,
@@ -1497,7 +1699,7 @@ const main = async () => {
                                 name: "Rare-Limited",
                                 price: "0.02",
                                 maxSupply: 100,
-                                minted: 45,
+                                minted: 45,  // 40 others + 5 user
                                 percentSold: 45
                             },
                             {
@@ -1505,7 +1707,7 @@ const main = async () => {
                                 name: "Common-Unlimited",
                                 price: "0.005",
                                 maxSupply: 0,
-                                minted: 60
+                                minted: 60  // 55 others + 5 user
                             }
                         ]
                     }
@@ -1534,11 +1736,53 @@ const main = async () => {
             messages: {
                 total: messageCount.toNumber(),
                 sources: {
-                    erc404Buys: "~20",
-                    erc1155Mints: "~123",
+                    erc404Buys: "~24",
+                    erc1155Mints: "~133",
                     other: "~0"
                 },
                 note: "Messages posted automatically during transactions"
+            },
+            userHoldings: {
+                note: "Expected holdings for USER_ADDRESS after seeding",
+                erc404: [
+                    {
+                        instance: "Early-Launch",
+                        tokens: "150",
+                        note: "150 EARLY tokens from 1 purchase"
+                    },
+                    {
+                        instance: "Active-Project",
+                        tokens: "800",
+                        note: "800 ACTIVE tokens from 2 purchases (500 + 300)"
+                    },
+                    {
+                        instance: "Graduated",
+                        tokens: "1000",
+                        note: "1000 GRAD tokens from 1 purchase"
+                    }
+                ],
+                erc1155: [
+                    {
+                        instance: "Demo-Gallery",
+                        holdings: [
+                            { editionId: 1, quantity: 2 },
+                            { editionId: 2, quantity: 1 }
+                        ]
+                    },
+                    {
+                        instance: "Dynamic-Pricing",
+                        holdings: [
+                            { editionId: 1, quantity: 3 }
+                        ]
+                    },
+                    {
+                        instance: "Mixed-Supply",
+                        holdings: [
+                            { editionId: 1, quantity: 5 },
+                            { editionId: 2, quantity: 5 }
+                        ]
+                    }
+                ]
             }
         };
 
@@ -1551,9 +1795,10 @@ const main = async () => {
         console.log("═══════════════════════════════════════════════════════");
         console.log("");
         console.log("📋 Core Contracts:");
-        console.log(`   MasterRegistry: ${masterRegistryAddress}`);
-        console.log(`   GlobalMessages: ${messageRegistryAddress}`);
-        console.log(`   FeaturedQueue:  ${queueManagerAddress}`);
+        console.log(`   MasterRegistry:   ${masterRegistryAddress}`);
+        console.log(`   GlobalMessages:   ${messageRegistryAddress}`);
+        console.log(`   FeaturedQueue:    ${queueManagerAddress}`);
+        console.log(`   QueryAggregator:  ${queryAggregatorAddress}`);
         console.log("");
         console.log("🏦 Vaults (2):");
         console.log(`   MS2 Vault:      ${vaultAddress}`);
@@ -1566,12 +1811,12 @@ const main = async () => {
         console.log(`   ERC1155Factory: ${erc1155FactoryAddress} ✓ registered`);
         console.log("");
         console.log("🎨 ERC404 Instances (3):");
-        console.log(`   Early-Launch:   ${earlyLaunch.instance} (~10% bonding)`);
+        console.log(`   Early-Launch:   ${earlyLaunch.instance} (~10% bonding) 👑 USER OWNED`);
         console.log(`   Active-Project: ${activeProject.instance} (~60% bonding)`);
         console.log(`   Graduated:      ${graduated.instance} (100% complete)`);
         console.log("");
         console.log("🖼️  ERC1155 Instances (3):");
-        console.log(`   Demo-Gallery:    ${instanceAddress} (fixed pricing)`);
+        console.log(`   Demo-Gallery:    ${instanceAddress} (fixed pricing) 👑 USER OWNED`);
         console.log(`   Dynamic-Pricing: ${dynamicInstanceAddress} (linear increase)`);
         console.log(`   Mixed-Supply:    ${mixedInstanceAddress} (limited + unlimited)`);
         console.log("");
@@ -1582,6 +1827,20 @@ const main = async () => {
         console.log("👑 Governance:");
         console.log(`   Mode:            Dictator`);
         console.log(`   Dictator:        ${deployer.address}`);
+        console.log("");
+        console.log("👑 User-Owned Instances (for owner view testing):");
+        console.log(`   ERC404:  Early-Launch   (can test owner dashboard)`);
+        console.log(`   ERC1155: Demo-Gallery   (can test creator dashboard)`);
+        console.log("");
+        console.log("👛 User Holdings (for portfolio testing):");
+        console.log(`   ERC404:`);
+        console.log(`     - 150 EARLY tokens (Early-Launch) + OWNER`);
+        console.log(`     - 800 ACTIVE tokens (Active-Project)`);
+        console.log(`     - 1000 GRAD tokens (Graduated)`);
+        console.log(`   ERC1155:`);
+        console.log(`     - Demo-Gallery: 2x Ed.1, 1x Ed.2 + OWNER`);
+        console.log(`     - Dynamic-Pricing: 3x Ed.1`);
+        console.log(`     - Mixed-Supply: 5x Ed.1, 5x Ed.2`);
         console.log("");
         console.log("💰 Funded Accounts:");
         console.log(`   User:            ${USER_ADDRESS} (100 ETH) ⭐`);
