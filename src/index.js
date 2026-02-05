@@ -202,7 +202,7 @@ async function initializeApp() {
                 appContainer.innerHTML = `
                     <div class="error-page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
                         <h1 style="font-size: 4rem; margin-bottom: 2rem;">404</h1>
-                        <img src="/public/execs/0109_2.gif" alt="404" style="max-width: 100%; height: auto;" />
+                        <img src="/execs/0109_2.gif" alt="404" style="max-width: 100%; height: auto;" />
                     </div>
                 `;
             }

@@ -31,7 +31,7 @@ export class OverlayManager extends Component {
             className: 'not-allowed-overlay',
             onClick: this.bind(this.handleOverlayClick)
         },
-            h('img', { src: '/public/execs/stop.png', alt: 'Not Allowed' }),
+            h('img', { src: '/execs/stop.png', alt: 'Not Allowed' }),
             h('div', { className: 'overlay-text' }, 'NOT ALLOWED'),
             h('div', { className: 'tier-text' },
                 `Current Whitelist: Tier ${currentTier !== null ? currentTier : 'Loading...'}`

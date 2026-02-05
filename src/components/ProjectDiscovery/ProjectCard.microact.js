@@ -115,7 +115,7 @@ export class ProjectCard extends Component {
         const etherscanLink = etherscanUrl || (address ? `https://etherscan.io/address/${address}` : null);
 
         const projectImage = project.imageURI || project.image || null;
-        const cardImage = isFeatured ? 'public/execs/695.jpeg' : projectImage;
+        const cardImage = isFeatured ? '/execs/695.jpeg' : projectImage;
         const hasImage = !!cardImage;
 
         const cardClassName = [
@@ -209,7 +209,7 @@ export class ProjectCard extends Component {
         if (isFeatured) {
             return h('div', { className: 'card-meta' },
                 h('div', { className: 'meta-item allegiance' },
-                    h('img', { src: 'public/remilia.gif', alt: 'Remilia', className: 'meta-icon-image' }),
+                    h('img', { src: '/remilia.gif', alt: 'Remilia', className: 'meta-icon-image' }),
                     h('span', { className: 'meta-text' }, 'Ultra-Aligned Dual Nature NFT')
                 )
             );

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { copyFileSync } from 'fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync } from 'fs';
 
 export default defineConfig({
     root: '.',
@@ -20,10 +20,27 @@ export default defineConfig({
     },
     plugins: [
         {
-            name: 'copy-404',
+            name: 'copy-runtime-assets',
             closeBundle() {
                 // Copy index.html to 404.html for GitHub Pages SPA routing
                 copyFileSync('dist/index.html', 'dist/404.html');
+
+                // Copy src directory for runtime CSS loading (stylesheetLoader pattern)
+                // This preserves paths like /src/routes/home.css that are loaded dynamically
+                if (existsSync('src')) {
+                    mkdirSync('dist/src', { recursive: true });
+                    cpSync('src', 'dist/src', {
+                        recursive: true,
+                        filter: (src) => {
+                            // Copy CSS files and config files needed at runtime
+                            if (src.endsWith('.css')) return true;
+                            if (src.endsWith('.json')) return true;
+                            // Copy directories to traverse them
+                            if (!src.includes('.')) return true;
+                            return false;
+                        }
+                    });
+                }
             }
         }
     ]

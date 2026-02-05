@@ -73,7 +73,7 @@ export class ProjectCard extends Component {
 
         // Get card image - use project imageURI if available, otherwise use CULT EXEC hardcoded image
         const projectImage = this.project.imageURI || this.project.image || null;
-        const cardImage = isFeatured ? 'public/execs/695.jpeg' : projectImage;
+        const cardImage = isFeatured ? '/execs/695.jpeg' : projectImage;
         const cardTopBarStyle = cardImage ? `style="background-image: url('${this.escapeHtml(cardImage)}'); background-size: cover; background-position: center; background-repeat: no-repeat;"` : '';
         const hasImage = !!cardImage;
 
@@ -145,7 +145,7 @@ export class ProjectCard extends Component {
                 ${isFeatured ? `
                     <div class="card-meta">
                         <div class="meta-item allegiance">
-                            <img src="public/remilia.gif" alt="Remilia" class="meta-icon-image" />
+                            <img src="/remilia.gif" alt="Remilia" class="meta-icon-image" />
                             <span class="meta-text">
                                 Ultra-Aligned Dual Nature NFT
                             </span>
