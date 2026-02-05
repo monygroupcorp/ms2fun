@@ -1,9 +1,9 @@
-import { UserPortfolio } from '../components/UserPortfolio/UserPortfolio.js';
+import { h, render, unmountRoot } from '../core/microact-setup.js';
+import { UserPortfolio } from '../components/UserPortfolio/UserPortfolio.microact.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 
 /**
  * Render the Portfolio page
- * Shows user's holdings across all instances, vault positions, and settings
  */
 export async function renderPortfolio() {
     const appContainer = document.getElementById('app-container');
@@ -13,17 +13,18 @@ export async function renderPortfolio() {
     }
 
     // Load stylesheet
-    stylesheetLoader.load(
-        'src/components/UserPortfolio/UserPortfolio.css',
-        'user-portfolio-styles'
-    );
+    stylesheetLoader.load('src/components/UserPortfolio/UserPortfolio.css', 'user-portfolio-styles');
 
-    // Create and mount the component
-    const portfolio = new UserPortfolio();
-
-    // Clear container and mount
+    // Clear and render
     appContainer.innerHTML = '';
-    portfolio.mount(appContainer);
+    render(h(UserPortfolio), appContainer);
 
     console.log('[Portfolio] Page rendered');
+
+    return {
+        cleanup: () => {
+            unmountRoot(appContainer);
+            stylesheetLoader.unload('user-portfolio-styles');
+        }
+    };
 }

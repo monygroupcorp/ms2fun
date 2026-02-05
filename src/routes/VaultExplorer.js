@@ -1,9 +1,9 @@
-import { VaultExplorer } from '../components/VaultExplorer/VaultExplorer.js';
+import { h, render, unmountRoot } from '../core/microact-setup.js';
+import { VaultExplorer } from '../components/VaultExplorer/VaultExplorer.microact.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 
 /**
  * Render the Vault Explorer page
- * Shows all registered vaults with TVL/popularity ranking and pagination
  */
 export async function renderVaultExplorer() {
     const appContainer = document.getElementById('app-container');
@@ -13,17 +13,18 @@ export async function renderVaultExplorer() {
     }
 
     // Load stylesheet
-    stylesheetLoader.load(
-        'src/components/VaultExplorer/VaultExplorer.css',
-        'vault-explorer-styles'
-    );
+    stylesheetLoader.load('src/components/VaultExplorer/VaultExplorer.css', 'vault-explorer-styles');
 
-    // Create and mount the component
-    const vaultExplorer = new VaultExplorer();
-
-    // Clear container and mount
+    // Clear and render
     appContainer.innerHTML = '';
-    vaultExplorer.mount(appContainer);
+    render(h(VaultExplorer), appContainer);
 
     console.log('[VaultExplorer] Page rendered');
+
+    return {
+        cleanup: () => {
+            unmountRoot(appContainer);
+            stylesheetLoader.unload('vault-explorer-styles');
+        }
+    };
 }

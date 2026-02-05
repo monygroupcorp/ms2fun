@@ -1,17 +1,16 @@
 import stylesheetLoader from '../utils/stylesheetLoader.js';
+import { h, render, unmountRoot } from '../core/microact-setup.js';
 import serviceFactory from '../services/ServiceFactory.js';
-import { ProjectCard } from '../components/ProjectDiscovery/ProjectCard.js';
+import { ProjectCard } from '../components/ProjectDiscovery/ProjectCard.microact.js';
 
 /**
  * Factory detail page route handler
- * @param {object} params - Route parameters
- * @param {string} params.id - Factory address
  */
 export async function renderFactoryDetail(params) {
     const appContainer = document.getElementById('app-container');
     const appTopContainer = document.getElementById('app-top-container');
     const appBottomContainer = document.getElementById('app-bottom-container');
-    
+
     if (!appContainer || !appTopContainer || !appBottomContainer) {
         console.error('App containers not found');
         return;
@@ -25,17 +24,19 @@ export async function renderFactoryDetail(params) {
 
     // Load stylesheet
     stylesheetLoader.load('src/routes/factory-detail.css', 'factory-detail-styles');
-    
-    // Unload other page styles
+
     stylesheetLoader.unload('cultexecs-styles');
     stylesheetLoader.unload('home-styles');
     stylesheetLoader.unload('project-detail-styles');
-    
+
     // Clear existing content
     appTopContainer.innerHTML = '';
     appContainer.innerHTML = '';
     appBottomContainer.innerHTML = '';
-    
+
+    // Track card containers for cleanup
+    const cardContainers = [];
+
     // Show loading state
     appContainer.innerHTML = `
         <div class="factory-detail">
@@ -47,7 +48,6 @@ export async function renderFactoryDetail(params) {
     `;
 
     try {
-        // Load factory data
         const masterService = serviceFactory.getMasterService();
         const factoryService = serviceFactory.getFactoryService();
         const projectRegistry = serviceFactory.getProjectRegistry();
@@ -57,7 +57,6 @@ export async function renderFactoryDetail(params) {
         const instanceAddresses = await factoryService.getInstances(factoryId);
         const instanceCount = instanceAddresses.length;
 
-        // Load project data for each instance
         const instances = [];
         for (const address of instanceAddresses) {
             const project = await projectRegistry.getProject(address);
@@ -66,10 +65,8 @@ export async function renderFactoryDetail(params) {
             }
         }
 
-        // Get create URL
         const createURL = await getCreateURL(factoryId);
 
-        // Render factory detail page
         appContainer.innerHTML = `
             <div class="factory-detail">
                 <div class="factory-header">
@@ -82,10 +79,8 @@ export async function renderFactoryDetail(params) {
                         <h2>Factory Information</h2>
                         <div class="info-item">
                             <span class="info-label">Factory Address:</span>
-                            <span class="info-value address" data-ref="factory-address">${factoryId}</span>
-                            <button class="copy-button" data-ref="copy-address" data-address="${factoryId}" aria-label="Copy address">
-                                📋
-                            </button>
+                            <span class="info-value address">${factoryId}</span>
+                            <button class="copy-button" data-ref="copy-address" aria-label="Copy address">📋</button>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Contract Type:</span>
@@ -117,39 +112,38 @@ export async function renderFactoryDetail(params) {
                     ${instances.length === 0 ? `
                         <div class="empty-state">
                             <p>No instances created yet.</p>
-                            <a href="${createURL}" class="create-instance-link">
-                                Create the first instance →
-                            </a>
+                            <a href="${createURL}" class="create-instance-link">Create the first instance →</a>
                         </div>
                     ` : `
-                        <div class="instances-grid" data-ref="instances-container">
-                            <!-- Instance cards will be mounted here -->
-                        </div>
+                        <div class="instances-grid" data-ref="instances-container"></div>
                     `}
                 </div>
             </div>
         `;
 
-        // Mount instance cards
+        // Render instance cards
         if (instances.length > 0) {
             const instancesContainer = appContainer.querySelector('[data-ref="instances-container"]');
             if (instancesContainer) {
                 instances.forEach((project) => {
-                    const card = new ProjectCard(project, (path) => {
-                        if (window.router) {
-                            window.router.navigate(path);
-                        } else {
-                            window.location.href = path;
+                    const cardContainer = document.createElement('div');
+                    instancesContainer.appendChild(cardContainer);
+                    cardContainers.push(cardContainer);
+
+                    render(h(ProjectCard, {
+                        project,
+                        onNavigate: (path) => {
+                            if (window.router) {
+                                window.router.navigate(path);
+                            } else {
+                                window.location.href = path;
+                            }
                         }
-                    });
-                    const cardElement = document.createElement('div');
-                    instancesContainer.appendChild(cardElement);
-                    card.mount(cardElement);
+                    }), cardContainer);
                 });
             }
         }
 
-        // Setup event listeners
         setupEventListeners(appContainer, factoryId);
 
     } catch (error) {
@@ -165,26 +159,17 @@ export async function renderFactoryDetail(params) {
         `;
         setupEventListeners(appContainer);
     }
-    
-    // Return cleanup function
+
     return {
         cleanup: () => {
-            // Unload stylesheet
+            cardContainers.forEach(container => unmountRoot(container));
             stylesheetLoader.unload('factory-detail-styles');
         }
     };
 }
 
-/**
- * Get create URL for factory (new format: /chainId/factoryTitle/create)
- * Falls back to old format if factory title not available
- * @param {string} factoryAddress - Factory address
- * @returns {Promise<string>} Create URL
- */
 async function getCreateURL(factoryAddress) {
     try {
-        const projectRegistry = serviceFactory.getProjectRegistry();
-        // Try to get factory from mock data
         if (serviceFactory.isUsingMock()) {
             const mockManager = serviceFactory.mockManager;
             if (mockManager) {
@@ -193,7 +178,7 @@ async function getCreateURL(factoryAddress) {
                 if (factory) {
                     const factoryTitle = factory.title || factory.displayTitle;
                     if (factoryTitle) {
-                        const chainId = 1; // Default to Ethereum mainnet
+                        const chainId = 1;
                         const titleSlug = factoryTitle.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                         return `/${chainId}/${titleSlug}/create`;
                     }
@@ -201,16 +186,11 @@ async function getCreateURL(factoryAddress) {
             }
         }
     } catch (error) {
-        console.warn('[FactoryDetail] Could not get factory title, using fallback URL:', error);
+        console.warn('[FactoryDetail] Could not get factory title:', error);
     }
-    
-    // Fallback to old format
     return `/create?factory=${encodeURIComponent(factoryAddress)}`;
 }
 
-/**
- * Setup event listeners for factory detail page
- */
 function setupEventListeners(container, factoryId) {
     const backButton = container.querySelector('[data-ref="back-button"]');
     const copyButton = container.querySelector('[data-ref="copy-address"]');
@@ -230,14 +210,9 @@ function setupEventListeners(container, factoryId) {
     if (copyButton && factoryId) {
         copyButton.addEventListener('click', () => {
             navigator.clipboard.writeText(factoryId).then(() => {
-                const originalText = copyButton.textContent;
                 copyButton.textContent = '✓';
-                setTimeout(() => {
-                    copyButton.textContent = originalText;
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-            });
+                setTimeout(() => { copyButton.textContent = '📋'; }, 2000);
+            }).catch(err => console.error('Failed to copy:', err));
         });
     }
 
@@ -265,4 +240,3 @@ function setupEventListeners(container, factoryId) {
         });
     }
 }
-

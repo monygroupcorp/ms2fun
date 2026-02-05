@@ -1,5 +1,6 @@
 import stylesheetLoader from '../utils/stylesheetLoader.js';
-import { ProjectDetail } from '../components/ProjectDetail/ProjectDetail.js';
+import { h, render, unmountRoot } from '../core/microact-setup.js';
+import { ProjectDetail } from '../components/ProjectDetail/ProjectDetail.microact.js';
 import serviceFactory from '../services/ServiceFactory.js';
 
 /**
@@ -7,17 +8,12 @@ import serviceFactory from '../services/ServiceFactory.js';
  * Supports both:
  * - Old format: /project/:id (address-based)
  * - New format: /:chainId/:factoryTitle/:instanceName (title-based with chain ID)
- * @param {object} params - Route parameters
- * @param {string} [params.id] - Project ID (instance address) for old format
- * @param {string|number} [params.chainId] - Chain ID for new format
- * @param {string} [params.factoryTitle] - Factory title slug for new format
- * @param {string} [params.instanceName] - Instance name slug for new format
  */
 export async function renderProjectDetail(params) {
     const appContainer = document.getElementById('app-container');
     const appTopContainer = document.getElementById('app-top-container');
     const appBottomContainer = document.getElementById('app-bottom-container');
-    
+
     if (!appContainer || !appTopContainer || !appBottomContainer) {
         console.error('App containers not found');
         return;
@@ -29,20 +25,16 @@ export async function renderProjectDetail(params) {
 
     // Check if params has address (old format) or title/name (new format)
     if (params?.id) {
-        // Old format: /project/:id (address)
         projectId = params.id;
-        chainId = 1; // Default to Ethereum mainnet for old format
+        chainId = 1;
     } else if (params?.chainId && params?.instanceName) {
-        // New format: /:chainId/:instanceName or /:chainId/:factoryTitle/:instanceName
         chainId = params.chainId;
 
-        // Check if this is 2-part (/:chainId/:instanceName) or 3-part (/:chainId/:factoryTitle/:instanceName)
         const projectData = params.factoryTitle
             ? await projectRegistry.getProjectByPath(params.factoryTitle, params.instanceName)
             : await projectRegistry.getProjectByName(params.instanceName);
 
         if (!projectData || !projectData.instance) {
-            // Show 404
             const path = params.factoryTitle
                 ? `${params.chainId}/${params.factoryTitle}/${params.instanceName}`
                 : `${params.chainId}/${params.instanceName}`;
@@ -73,7 +65,7 @@ export async function renderProjectDetail(params) {
         console.error('Project ID not resolved');
         return;
     }
-    
+
     // Get project to determine contract type for CSS loading
     let contractType = null;
     try {
@@ -84,27 +76,21 @@ export async function renderProjectDetail(params) {
     } catch (error) {
         console.warn('[ProjectDetail route] Could not get project for CSS loading:', error);
     }
-    
-    // Load project detail stylesheet
+
+    // Load stylesheets
     stylesheetLoader.load('src/routes/project-detail.css', 'project-detail-styles');
 
-    // Load contract-type-specific CSS
     if (contractType === 'ERC1155') {
         stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
-    } else if (contractType === 'ERC404') {
-        // ERC404 styles would be loaded here if needed
     }
 
-    // CRITICAL: Check for cached project style and preload BEFORE rendering
-    // This prevents flash of default styles
+    // Handle cached project style
     const cachedStyleUri = localStorage.getItem(`projectStyle:${projectId}`);
     if (cachedStyleUri) {
-        // Add class to both html and body (html may already have it from inline script)
         document.documentElement.classList.add('has-project-style');
         document.body.classList.add('has-project-style');
         document.body.setAttribute('data-project-style', projectId);
 
-        // Preload the stylesheet
         const styleId = `project-style-${projectId}`;
         const existingLink = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
         if (!existingLink) {
@@ -115,33 +101,26 @@ export async function renderProjectDetail(params) {
                 : '/' + cachedStyleUri;
             link.setAttribute('data-stylesheet-id', styleId);
             link.onload = () => {
-                // Add loaded/resolved to both html and body
                 document.documentElement.classList.add('project-style-loaded');
                 document.documentElement.classList.add('project-style-resolved');
                 document.body.classList.add('project-style-loaded');
                 document.body.classList.add('project-style-resolved');
             };
             link.onerror = () => {
-                // Style failed to load, resolve anyway to show content
                 document.documentElement.classList.add('project-style-resolved');
                 document.documentElement.classList.remove('has-project-style');
                 document.body.classList.add('project-style-resolved');
                 document.body.classList.remove('has-project-style');
             };
             document.head.appendChild(link);
-
-            // Wait a frame for CSS to apply before continuing
             await new Promise(resolve => requestAnimationFrame(resolve));
         } else {
-            // Already loaded
             document.documentElement.classList.add('project-style-loaded');
             document.documentElement.classList.add('project-style-resolved');
             document.body.classList.add('project-style-loaded');
             document.body.classList.add('project-style-resolved');
         }
     } else {
-        // No cached style for this project
-        // Remove speculative/pending classes and revert to default marble style
         document.documentElement.classList.remove('has-project-style');
         document.documentElement.classList.remove('project-style-speculative');
         document.documentElement.classList.remove('project-style-pending');
@@ -159,27 +138,22 @@ export async function renderProjectDetail(params) {
     appTopContainer.innerHTML = '';
     appContainer.innerHTML = '';
     appBottomContainer.innerHTML = '';
-    
-    // Create container for ProjectDetail
+
+    // Create container
     const detailContainer = document.createElement('div');
     detailContainer.id = 'project-detail-container';
     appContainer.appendChild(detailContainer);
-    
-    // Mount ProjectDetail component
-    const projectDetail = new ProjectDetail(projectId);
-    projectDetail.mount(detailContainer);
-    
+
+    // Render ProjectDetail
+    render(h(ProjectDetail, { projectId }), detailContainer);
+
     // Return cleanup function
     return {
         cleanup: () => {
-            // Unmount ProjectDetail component
-            if (projectDetail && typeof projectDetail.unmount === 'function') {
-                projectDetail.unmount();
-            }
-            // Unload stylesheets
+            unmountRoot(detailContainer);
             stylesheetLoader.unload('project-detail-styles');
 
-            // Clean up project style classes from both html and body
+            // Clean up project style classes
             document.documentElement.classList.remove('has-project-style');
             document.documentElement.classList.remove('project-style-loaded');
             document.documentElement.classList.remove('project-style-resolved');
@@ -191,7 +165,6 @@ export async function renderProjectDetail(params) {
             document.body.classList.remove('project-style-pending');
             document.body.removeAttribute('data-project-style');
 
-            // Unload project-specific stylesheet
             const styleId = `project-style-${projectId}`;
             const link = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
             if (link) {
@@ -200,4 +173,3 @@ export async function renderProjectDetail(params) {
         }
     };
 }
-

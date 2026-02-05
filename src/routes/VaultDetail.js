@@ -1,10 +1,9 @@
-import { VaultDetail } from '../components/VaultDetail/VaultDetail.js';
+import { h, render, unmountRoot } from '../core/microact-setup.js';
+import { VaultDetail } from '../components/VaultDetail/VaultDetail.microact.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 
 /**
  * Render the Vault Detail page
- * Shows individual vault info, benefactors, user position, and projects
- * @param {Object} params - Route params containing vault address
  */
 export async function renderVaultDetail(params) {
     const appContainer = document.getElementById('app-container');
@@ -26,17 +25,18 @@ export async function renderVaultDetail(params) {
     }
 
     // Load stylesheet
-    stylesheetLoader.load(
-        'src/components/VaultDetail/VaultDetail.css',
-        'vault-detail-styles'
-    );
+    stylesheetLoader.load('src/components/VaultDetail/VaultDetail.css', 'vault-detail-styles');
 
-    // Create and mount the component
-    const vaultDetail = new VaultDetail(vaultAddress);
-
-    // Clear container and mount
+    // Clear and render
     appContainer.innerHTML = '';
-    vaultDetail.mount(appContainer);
+    render(h(VaultDetail, { vaultAddress }), appContainer);
 
     console.log('[VaultDetail] Page rendered for vault:', vaultAddress);
+
+    return {
+        cleanup: () => {
+            unmountRoot(appContainer);
+            stylesheetLoader.unload('vault-detail-styles');
+        }
+    };
 }

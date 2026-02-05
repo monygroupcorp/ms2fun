@@ -43,17 +43,24 @@ export default class MockServiceManager {
         this.projectRegistry = new MockProjectRegistry(this.data);
 
         // Seed example data if requested and needed
-        if (seedData) {
-            // Check if seeding is needed
-            if (this.needsSeeding()) {
-                // seedExampleData will handle indexing after seeding completes
-                this.seedExampleData();
-                return; // Don't index here, let seedExampleData handle it
-            }
+        if (seedData && this.needsSeeding()) {
+            // Store the promise so we can wait for it
+            this.seedingPromise = this.seedExampleData();
+        } else {
+            // Index projects immediately
+            this.projectRegistry.indexFromMaster();
+            this.seedingPromise = Promise.resolve();
         }
+    }
 
-        // Index projects (only if seeding was not needed or not requested)
-        this.projectRegistry.indexFromMaster();
+    /**
+     * Wait for initialization to complete (including seeding)
+     * @returns {Promise<void>}
+     */
+    async ensureReady() {
+        if (this.seedingPromise) {
+            await this.seedingPromise;
+        }
     }
 
     /**

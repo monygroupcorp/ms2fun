@@ -12,6 +12,7 @@ import BlockchainService from './BlockchainService.js';
 import createExecVotingService from './ExecVotingService.js';
 import { getContractAddress, isMockMode } from '../config/contractConfig.js';
 import { eventBus } from '../core/EventBus.js';
+import { checkRpcAvailable, detectNetwork } from '../config/network.js';
 
 // Real service implementations
 import RealMasterService from './RealMasterService.js';
@@ -41,9 +42,12 @@ class ServiceFactory {
         this.projectRegistryInstance = null;
         this.messageRegistryAdapter = null;
         this.featuredQueueAdapter = null;
+        this.initialized = false;
+        this.initPromise = null;
 
         if (this.useMock) {
             this.mockManager = new MockServiceManager(true, true);
+            this.initialized = true;
         }
 
         // Listen for contract reload events (local dev only)
@@ -54,11 +58,95 @@ class ServiceFactory {
     }
 
     /**
+     * Initialize services with RPC availability check
+     * Auto-falls back to mock mode if RPC is unavailable or contracts missing
+     * @returns {Promise<void>}
+     */
+    async initialize() {
+        if (this.initialized) return;
+        if (this.initPromise) return this.initPromise;
+
+        this.initPromise = (async () => {
+            const network = detectNetwork();
+
+            // Skip contract checks if already in mock mode
+            if (this.useMock) {
+                this.initialized = true;
+                console.log('[ServiceFactory] Initialized in mock mode (configured)');
+                return;
+            }
+
+            // Check contracts for both local and mainnet modes
+            if (network.mode === 'local' || network.mode === 'mainnet') {
+                let masterAddress = null;
+                let contractsAvailable = false;
+
+                // Try to load contract config to get MasterRegistry address
+                try {
+                    const response = await fetch(network.contracts);
+                    if (response.ok) {
+                        const config = await response.json();
+                        masterAddress = config?.contracts?.MasterRegistryV1;
+
+                        // Check if address is valid (not zero address)
+                        const isZeroAddress = !masterAddress ||
+                            masterAddress === '0x0000000000000000000000000000000000000000';
+
+                        if (isZeroAddress) {
+                            console.log('[ServiceFactory] No contracts deployed (zero address)');
+                        } else {
+                            contractsAvailable = true;
+                        }
+                    }
+                } catch (e) {
+                    console.log('[ServiceFactory] Could not load contract config');
+                }
+
+                // For local mode, also verify RPC is available and has code
+                if (contractsAvailable && network.mode === 'local') {
+                    const rpcAvailable = await checkRpcAvailable(masterAddress);
+                    if (!rpcAvailable) {
+                        console.log('[ServiceFactory] RPC unavailable or contract not deployed');
+                        contractsAvailable = false;
+                    }
+                }
+
+                // Fall back to mock mode if no contracts available
+                if (!contractsAvailable) {
+                    console.log('[ServiceFactory] No contracts available, using static mode');
+                    this.useMock = true;
+                    this.mockManager = new MockServiceManager(true, true);
+                    eventBus.emit('services:mock-mode', { reason: 'contracts-missing' });
+                }
+            }
+
+            this.initialized = true;
+            console.log('[ServiceFactory] Initialized in', this.useMock ? 'static/mock' : 'real', 'mode');
+        })();
+
+        return this.initPromise;
+    }
+
+    /**
+     * Ensure services are initialized before use
+     * @returns {Promise<void>}
+     */
+    async ensureInitialized() {
+        if (!this.initialized) {
+            await this.initialize();
+        }
+    }
+
+    /**
      * Get master service instance
      * @returns {MockMasterService|RealMasterService} Master service
      */
     getMasterService() {
+        // Sync check - if not initialized yet, check current useMock state
         if (this.useMock) {
+            if (!this.mockManager) {
+                this.mockManager = new MockServiceManager(true, true);
+            }
             return this.mockManager.getMasterService();
         } else {
             if (!this.masterService) {
@@ -74,6 +162,9 @@ class ServiceFactory {
      */
     getFactoryService() {
         if (this.useMock) {
+            if (!this.mockManager) {
+                this.mockManager = new MockServiceManager(true, true);
+            }
             return this.mockManager.getFactoryService();
         } else {
             if (!this.factoryService) {
@@ -89,12 +180,25 @@ class ServiceFactory {
      */
     getProjectRegistry() {
         if (this.useMock) {
+            if (!this.mockManager) {
+                this.mockManager = new MockServiceManager(true, true);
+            }
             return this.mockManager.getProjectRegistry();
         } else {
             if (!this.projectRegistryInstance) {
                 this.projectRegistryInstance = new RealProjectRegistry();
             }
             return this.projectRegistryInstance;
+        }
+    }
+
+    /**
+     * Ensure mock services are fully initialized (including data seeding)
+     * @returns {Promise<void>}
+     */
+    async ensureMockReady() {
+        if (this.useMock && this.mockManager) {
+            await this.mockManager.ensureReady();
         }
     }
 

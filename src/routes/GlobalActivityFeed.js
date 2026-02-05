@@ -1,9 +1,9 @@
-import { GlobalActivityFeed } from '../components/GlobalActivityFeed/GlobalActivityFeed.js';
+import { h, render, unmountRoot } from '../core/microact-setup.js';
+import { GlobalActivityFeed } from '../components/GlobalActivityFeed/GlobalActivityFeed.microact.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 
 /**
  * Render the Global Activity Feed page
- * Shows all protocol-wide messages with pagination and filtering
  */
 export async function renderGlobalActivityFeed() {
     const appContainer = document.getElementById('app-container');
@@ -13,17 +13,18 @@ export async function renderGlobalActivityFeed() {
     }
 
     // Load stylesheet
-    stylesheetLoader.load(
-        'src/components/GlobalActivityFeed/GlobalActivityFeed.css',
-        'global-activity-feed-styles'
-    );
+    stylesheetLoader.load('src/components/GlobalActivityFeed/GlobalActivityFeed.css', 'global-activity-feed-styles');
 
-    // Create and mount the component
-    const globalActivityFeed = new GlobalActivityFeed();
-
-    // Clear container and mount
+    // Clear and render
     appContainer.innerHTML = '';
-    globalActivityFeed.mount(appContainer);
+    render(h(GlobalActivityFeed), appContainer);
 
     console.log('[GlobalActivityFeed] Page rendered');
+
+    return {
+        cleanup: () => {
+            unmountRoot(appContainer);
+            stylesheetLoader.unload('global-activity-feed-styles');
+        }
+    };
 }

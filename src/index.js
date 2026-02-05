@@ -6,7 +6,8 @@ import { renderHomePage } from './routes/HomePage.js';
 import { renderCultExecsPage } from './routes/CultExecsPage.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
-import { FloatingWalletButton } from './components/FloatingWalletButton/FloatingWalletButton.js';
+import { FloatingWalletButton } from './components/FloatingWalletButton/FloatingWalletButton.microact.js';
+import { h, render, unmountRoot } from './core/microact-setup.js';
 import stylesheetLoader from './utils/stylesheetLoader.js';
 import contractReloadService from './services/ContractReloadService.js';
 
@@ -233,6 +234,10 @@ async function initializeServices() {
     try {
         console.log('Initializing services...');
 
+        // Initialize service factory (checks RPC availability, falls back to mock)
+        await serviceFactory.initialize();
+        console.log('Service factory initialized, mode:', serviceFactory.isUsingMock() ? 'mock' : 'real');
+
         // Check if wallet service is already initialized
         if (!walletService.isInitialized) {
             // Initialize wallet service
@@ -242,8 +247,10 @@ async function initializeServices() {
             console.log('Wallet service already initialized');
         }
 
-        // Start contract reload service (local dev only)
-        contractReloadService.start();
+        // Start contract reload service (local dev only - skip in mock mode)
+        if (!serviceFactory.isUsingMock()) {
+            contractReloadService.start();
+        }
 
         // Read-only mode is now lazy-loaded only when user clicks "Continue" on splash screen
         // No auto-initialization here
@@ -272,12 +279,11 @@ function initializeFloatingWalletButton() {
         floatingWalletContainer.id = 'floating-wallet-container-global';
         document.body.appendChild(floatingWalletContainer);
 
-        // Mount FloatingWalletButton
-        const floatingWalletButton = new FloatingWalletButton();
-        floatingWalletButton.mount(floatingWalletContainer);
+        // Mount FloatingWalletButton using microact render
+        render(h(FloatingWalletButton), floatingWalletContainer);
 
-        // Store globally for potential cleanup
-        window.floatingWalletButton = floatingWalletButton;
+        // Store container for potential cleanup
+        window.floatingWalletContainer = floatingWalletContainer;
 
         console.log('FloatingWalletButton initialized globally');
     } catch (error) {

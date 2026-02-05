@@ -52,6 +52,17 @@ class QueryService {
 
     async _doInitialize() {
         try {
+            // Check if ServiceFactory is in mock mode
+            const { default: serviceFactory } = await import('./ServiceFactory.js');
+            await serviceFactory.ensureInitialized();
+
+            if (serviceFactory.isUsingMock()) {
+                console.log('[QueryService] Mock mode detected - using mock data');
+                this.preLaunchMode = true; // Reuse pre-launch behavior for mock
+                this.aggregatorAvailable = false;
+                return false;
+            }
+
             // Check for pre-launch mode (mainnet but contracts not deployed)
             const preLaunch = await isPreLaunch();
             if (preLaunch) {
