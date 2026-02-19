@@ -2,7 +2,7 @@ import { eventBus } from './core/EventBus.js';
 import walletService from './services/WalletService.js';
 import MessagePopup from './components/MessagePopup/MessagePopup.js';
 import Router from './core/Router.js';
-import { renderHomePage } from './routes/HomePage.js';
+import { HomePage } from './routes/HomePage.js';
 import { renderCultExecsPage } from './routes/CultExecsPage.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
@@ -58,7 +58,25 @@ async function initializeApp() {
         }
         
         // Register routes
-        router.on('/', renderHomePage);
+        router.on('/', () => {
+            const appContainer = document.getElementById('app-container');
+            if (!appContainer) {
+                console.error('App container not found');
+                return;
+            }
+
+            // Clear existing content
+            appContainer.innerHTML = '';
+
+            // Render v2 HomePage component
+            render(h(HomePage), appContainer);
+
+            return {
+                cleanup: () => {
+                    unmountRoot(appContainer);
+                }
+            };
+        });
         router.on('/cultexecs', renderCultExecsPage);
         router.on('/about', async () => {
             const { renderDocumentation } = await import('./routes/Documentation.js');
@@ -193,6 +211,52 @@ async function initializeApp() {
         router.on('/portfolio', async () => {
             const { renderPortfolio } = await import('./routes/Portfolio.js');
             return renderPortfolio();
+        });
+
+        // Governance Hub routes
+        router.on('/governance', async () => {
+            const { renderGovernanceOverview } = await import('./routes/governance/GovernanceOverview.js');
+            return renderGovernanceOverview();
+        });
+
+        router.on('/governance/proposals', async () => {
+            const { renderProposalsList } = await import('./routes/governance/ProposalsList.js');
+            return renderProposalsList();
+        });
+
+        router.on('/governance/proposals/:id', async (params) => {
+            const { renderProposalDetail } = await import('./routes/governance/ProposalDetail.js');
+            return renderProposalDetail(params);
+        });
+
+        router.on('/governance/apply', async () => {
+            const { renderGovernanceApply } = await import('./routes/governance/GovernanceApply.js');
+            return renderGovernanceApply();
+        });
+
+        router.on('/governance/apply/factory', async () => {
+            const { renderFactoryApplicationForm } = await import('./routes/governance/FactoryApplicationForm.js');
+            return renderFactoryApplicationForm();
+        });
+
+        router.on('/governance/apply/vault', async () => {
+            const { renderVaultApplicationForm } = await import('./routes/governance/VaultApplicationForm.js');
+            return renderVaultApplicationForm();
+        });
+
+        router.on('/governance/member', async () => {
+            const { renderMemberDashboard } = await import('./routes/governance/MemberDashboard.js');
+            return renderMemberDashboard();
+        });
+
+        router.on('/governance/treasury', async () => {
+            const { renderTreasuryView } = await import('./routes/governance/TreasuryView.js');
+            return renderTreasuryView();
+        });
+
+        router.on('/governance/shares', async () => {
+            const { renderShareOffering } = await import('./routes/governance/ShareOffering.js');
+            return renderShareOffering();
         });
 
         // Register 404 handler

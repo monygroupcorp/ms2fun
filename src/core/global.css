@@ -5,6 +5,9 @@
    CULT EXEC styles are isolated and protected - they use body.cultexecs-active
    ============================================================================ */
 
+/* Import Google Fonts - must come before all other rules */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap');
+
 /* ============================================================================
    FONTS
    ============================================================================ */
@@ -17,9 +20,6 @@
     font-style: normal;
     font-display: swap;
 }
-
-/* Import Google Fonts for classical typography */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Bebas+Neue&display=swap');
 
 /* ============================================================================
    DESIGN SYSTEM TOKENS - TEMPLE OF CAPITAL
