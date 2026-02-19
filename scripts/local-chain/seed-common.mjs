@@ -208,7 +208,8 @@ export async function createERC404Instance({
 
   const instanceFee = ethers.utils.parseEther('0.01')
 
-  const createTx = await factory.createInstance(
+  // Use full signature to disambiguate overloaded createInstance (ethers v5 requirement)
+  const createTx = await factory['createInstance(string,string,string,uint256,uint256,(uint8,bytes32[],uint256[],uint256[]),address,address,address,string)'](
     name,
     symbol,
     `https://ms2.fun/metadata/${name.toLowerCase()}/`,
