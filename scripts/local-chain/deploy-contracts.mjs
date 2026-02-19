@@ -3,15 +3,16 @@
 // Deploys all core contracts for the local dev chain.
 // - Uses `forge script` (via execSync) for: DeployMaster, DeployERC1155Factory, DeployERC404Factory
 // - Uses ethers.js v5 for everything else: GlobalMessageRegistry, FeaturedQueueManager,
-//   UltraAlignmentHookFactory, and template contract deployments
+//   UltraAlignmentHookFactory, UltraAlignmentVault instances, QueryAggregator
 //
-// Returns { core, factories, provider, deployer }
+// Returns { core, factories, vaults, provider, deployer }
 
 import { execSync } from 'child_process'
 import { promises as fs } from 'fs'
 import { ethers } from 'ethers'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { mineHookSalt, decodeHookFlags } from './lib/hookSaltMiner.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -249,12 +250,156 @@ export async function deployContracts() {
   await hookFactory.deployed()
   console.log('   UltraAlignmentHookFactory:  ', hookFactory.address)
 
-  // TODO (Task 5): Deploy UltraAlignmentVault instances here.
-  //   - Mine hook salt via mineHookSalt() from ./lib/hookSaltMiner.mjs
-  //   - Deploy UltraAlignmentVault (ethers.js)
-  //   - Call hookFactory.createHook() to create the V4 hook
-  //   - Register vault in MasterRegistry
-  // Port from scripts/deploy-local.mjs lines ~459-555
+  // Load UltraAlignmentV4Hook bytecode for salt mining
+  const hookArtifact = await loadArtifact('UltraAlignmentV4Hook')
+  const hookCreationCode = hookArtifact.bytecode.object
+
+  // Load UltraAlignmentVault artifact
+  const vaultAbi = await loadAbi('UltraAlignmentVault')
+  const vaultBytecode = await loadBytecode('UltraAlignmentVault')
+  const vaultContractFactory = new ethers.ContractFactory(vaultAbi, vaultBytecode, deployer)
+
+  // Helper: mine hook salt for a given vault address
+  async function mineHookSaltForVault(vaultAddr, creator, vaultLabel) {
+    console.log(`   Mining hook salt for ${vaultLabel}...`)
+    const result = await mineHookSalt({
+      hookFactoryAddress: hookFactory.address,
+      hookCreationCode,
+      poolManager: MAINNET_ADDRESSES.uniswapV4PoolManager,
+      vault: vaultAddr,
+      weth: MAINNET_ADDRESSES.weth,
+      creator,
+      onProgress: (iterations, rate) => {
+        console.log(`      ... ${iterations.toLocaleString()} iterations (${rate.toLocaleString()}/sec)`)
+      },
+    })
+    console.log(`   Found valid salt in ${result.iterations.toLocaleString()} iterations (${result.timeSeconds.toFixed(2)}s)`)
+    const flags = decodeHookFlags(result.address)
+    console.log(`   Hook flags: ${flags.rawFlags} (afterSwap: ${flags.afterSwap}, afterSwapReturnDelta: ${flags.afterSwapReturnDelta})`)
+    return result.salt
+  }
+
+  // Register alignment targets so vaults can be registered against them.
+  // UltraAlignmentVault constructor requires alignmentToken() to be present,
+  // so we register targets first then register vaults against them.
+  console.log('   Registering MS2 alignment target...')
+  const registerMS2TargetTx = await registry.registerAlignmentTarget(
+    'MS2',
+    'Milady Station 2 community alignment target',
+    'https://ms2.fun/metadata/target/ms2',
+    [{ token: MAINNET_ADDRESSES.ms2Token, weight: 10000 }]
+  )
+  const ms2TargetReceipt = await registerMS2TargetTx.wait()
+  // nextAlignmentTargetId starts at 0, increments to 1 on first register; targetId = 1
+  const ms2TargetId = 1
+  console.log(`   MS2 alignment target registered (targetId=${ms2TargetId})`)
+
+  console.log('   Registering CULT alignment target...')
+  const registerCULTTargetTx = await registry.registerAlignmentTarget(
+    'CULT',
+    'Cult DAO community alignment target',
+    'https://ms2.fun/metadata/target/cult',
+    [{ token: MAINNET_ADDRESSES.cultToken, weight: 10000 }]
+  )
+  await registerCULTTargetTx.wait()
+  const cultTargetId = 2
+  console.log(`   CULT alignment target registered (targetId=${cultTargetId})`)
+
+  // Deploy UltraAlignmentVault #1 (MS2-aligned)
+  // constructor(weth, poolManager, v3Router, v2Router, v2Factory, v3Factory, alignmentToken, factoryCreator, creatorYieldCutBps)
+  console.log('   Deploying UltraAlignmentVault (MS2-aligned)...')
+  const ms2Vault = await vaultContractFactory.deploy(
+    MAINNET_ADDRESSES.weth,
+    MAINNET_ADDRESSES.uniswapV4PoolManager,
+    MAINNET_ADDRESSES.uniswapV3Router,
+    MAINNET_ADDRESSES.uniswapV2Router,
+    MAINNET_ADDRESSES.uniswapV2Factory,
+    MAINNET_ADDRESSES.uniswapV3Factory,
+    MAINNET_ADDRESSES.ms2Token,
+    DEPLOYER_ADDRESS,  // factoryCreator
+    250,               // creatorYieldCutBps (2.5%)
+  )
+  await ms2Vault.deployed()
+  console.log('   UltraAlignmentVault (MS2):', ms2Vault.address)
+
+  // Mine salt for MS2 vault hook
+  const ms2VaultSalt = await mineHookSaltForVault(ms2Vault.address, DEPLOYER_ADDRESS, 'MS2-Vault')
+
+  // createHook(poolManager, vault, wethAddr, creator, isCanonical, salt, hookFeeBips, initialLpFeeRate)
+  const hookFee = await hookFactory.hookCreationFee()
+  const createMS2HookTx = await hookFactory.createHook(
+    MAINNET_ADDRESSES.uniswapV4PoolManager,
+    ms2Vault.address,
+    MAINNET_ADDRESSES.weth,
+    DEPLOYER_ADDRESS,
+    true,          // isCanonical
+    ms2VaultSalt,
+    500,           // hookFeeBips (5%)
+    3000,          // initialLpFeeRate
+    { value: hookFee }
+  )
+  const ms2HookReceipt = await createMS2HookTx.wait()
+  const ms2HookEvent = ms2HookReceipt.events?.find(e => e.event === 'HookCreated')
+  const ms2HookAddress = ms2HookEvent?.args?.hook
+  console.log('   MS2 vault hook:', ms2HookAddress)
+
+  // Register MS2 vault in MasterRegistry
+  // registerVault(vault, name, metadataURI, targetId) — requires owner, vault has fee
+  const registerMS2VaultTx = await registry.registerVault(
+    ms2Vault.address,
+    'UltraAlignmentVault-MS2',
+    'https://ms2.fun/metadata/vault/ultra-alignment-ms2',
+    ms2TargetId,
+    { value: ethers.utils.parseEther('0.05') }
+  )
+  await registerMS2VaultTx.wait()
+  console.log('   MS2 vault registered in MasterRegistry')
+
+  // Deploy UltraAlignmentVault #2 (CULT-aligned)
+  console.log('   Deploying UltraAlignmentVault (CULT-aligned)...')
+  const cultVault = await vaultContractFactory.deploy(
+    MAINNET_ADDRESSES.weth,
+    MAINNET_ADDRESSES.uniswapV4PoolManager,
+    MAINNET_ADDRESSES.uniswapV3Router,
+    MAINNET_ADDRESSES.uniswapV2Router,
+    MAINNET_ADDRESSES.uniswapV2Factory,
+    MAINNET_ADDRESSES.uniswapV3Factory,
+    MAINNET_ADDRESSES.cultToken,
+    DEPLOYER_ADDRESS,  // factoryCreator
+    250,               // creatorYieldCutBps (2.5%)
+  )
+  await cultVault.deployed()
+  console.log('   UltraAlignmentVault (CULT):', cultVault.address)
+
+  // Mine salt for CULT vault hook
+  const cultVaultSalt = await mineHookSaltForVault(cultVault.address, DEPLOYER_ADDRESS, 'CULT-Vault')
+
+  const createCULTHookTx = await hookFactory.createHook(
+    MAINNET_ADDRESSES.uniswapV4PoolManager,
+    cultVault.address,
+    MAINNET_ADDRESSES.weth,
+    DEPLOYER_ADDRESS,
+    true,           // isCanonical
+    cultVaultSalt,
+    500,            // hookFeeBips (5%)
+    3000,           // initialLpFeeRate
+    { value: hookFee }
+  )
+  const cultHookReceipt = await createCULTHookTx.wait()
+  const cultHookEvent = cultHookReceipt.events?.find(e => e.event === 'HookCreated')
+  const cultHookAddress = cultHookEvent?.args?.hook
+  console.log('   CULT vault hook:', cultHookAddress)
+
+  // Register CULT vault in MasterRegistry
+  const registerCULTVaultTx = await registry.registerVault(
+    cultVault.address,
+    'UltraAlignmentVault-CULT',
+    'https://ms2.fun/metadata/vault/ultra-alignment-cult',
+    cultTargetId,
+    { value: ethers.utils.parseEther('0.05') }
+  )
+  await registerCULTVaultTx.wait()
+  console.log('   CULT vault registered in MasterRegistry')
 
   // ───────────────────────────────────────────────────────────────────────────
   // PHASE 4: PROJECT FACTORIES (forge scripts)
@@ -351,11 +496,47 @@ export async function deployContracts() {
   const erc404FactoryAddress = await readBroadcastAddress('DeployERC404Factory')
   console.log('   ERC404Factory:             ', erc404FactoryAddress)
 
-  // TODO (Task 5): Deploy QueryAggregator and register factories in MasterRegistry.
-  //   - Deploy QueryAggregator (ethers.js)
-  //   - Call registry.registerFactory(erc1155FactoryAddress, ...) for ERC1155Factory
-  //   - Call registry.registerFactory(erc404FactoryAddress, ...) for ERC404Factory
-  // Port from scripts/deploy-local.mjs lines ~608-670
+  // Deploy QueryAggregator
+  // constructor() — zero-arg, then initialize(masterRegistry, featuredQueueManager, globalMessageRegistry, owner)
+  const queryAggAbi = await loadAbi('QueryAggregator')
+  const queryAggBytecode = await loadBytecode('QueryAggregator')
+  const queryAggContractFactory = new ethers.ContractFactory(queryAggAbi, queryAggBytecode, deployer)
+  const queryAgg = await queryAggContractFactory.deploy()
+  await queryAgg.deployed()
+  console.log('   QueryAggregator:            ', queryAgg.address)
+
+  // Initialize QueryAggregator: initialize(masterRegistry, featuredQueueManager, globalMessageRegistry, owner)
+  const initQueryAggTx = await queryAgg.initialize(
+    innerProxyAddress,
+    fqm.address,
+    gmr.address,
+    DEPLOYER_ADDRESS
+  )
+  await initQueryAggTx.wait()
+  console.log('   QueryAggregator initialized')
+
+  // Register ERC404Factory in MasterRegistry (factoryId=1)
+  // registerFactory(factoryAddress, contractType, title, displayTitle, metadataURI)
+  const registerERC404Tx = await registry.registerFactory(
+    erc404FactoryAddress,
+    'ERC404',
+    'ERC404-Bonding-Curve-Factory',
+    'ERC404 Bonding Curve',
+    'https://ms2.fun/metadata/factory/erc404'
+  )
+  await registerERC404Tx.wait()
+  console.log('   ERC404Factory registered (factoryId=1)')
+
+  // Register ERC1155Factory in MasterRegistry (factoryId=2)
+  const registerERC1155Tx = await registry.registerFactory(
+    erc1155FactoryAddress,
+    'ERC1155',
+    'ERC1155-Edition-Factory',
+    'ERC1155 Editions',
+    'https://ms2.fun/metadata/factory/erc1155'
+  )
+  await registerERC1155Tx.wait()
+  console.log('   ERC1155Factory registered (factoryId=2)')
 
   console.log('\n════════════════════════════════════════════════════')
   console.log('DEPLOYMENT COMPLETE')
@@ -363,7 +544,10 @@ export async function deployContracts() {
   console.log('   masterRegistry (inner):  ', innerProxyAddress)
   console.log('   globalMessageRegistry:   ', gmr.address)
   console.log('   featuredQueueManager:    ', fqm.address)
+  console.log('   queryAggregator:         ', queryAgg.address)
   console.log('   hookFactory:             ', hookFactory.address)
+  console.log('   vault (MS2):             ', ms2Vault.address, '  hook:', ms2HookAddress)
+  console.log('   vault (CULT):            ', cultVault.address, '  hook:', cultHookAddress)
   console.log('   erc1155Factory:          ', erc1155FactoryAddress)
   console.log('   erc404Factory:           ', erc404FactoryAddress)
 
@@ -373,13 +557,25 @@ export async function deployContracts() {
       masterRegistryOuter: masterRegistryOuterProxy, // kept for reference
       globalMessageRegistry: gmr.address,
       featuredQueueManager: fqm.address,
-      queryAggregator: null,                    // TODO (Task 5)
+      queryAggregator: queryAgg.address,
       hookFactory: hookFactory.address,
     },
     factories: {
       erc1155: erc1155FactoryAddress,
       erc404: erc404FactoryAddress,
     },
+    vaults: [
+      {
+        address: ms2Vault.address,
+        alignmentToken: MAINNET_ADDRESSES.ms2Token,
+        hookAddress: ms2HookAddress,
+      },
+      {
+        address: cultVault.address,
+        alignmentToken: MAINNET_ADDRESSES.cultToken,
+        hookAddress: cultHookAddress,
+      },
+    ],
     provider,
     deployer,
   }
