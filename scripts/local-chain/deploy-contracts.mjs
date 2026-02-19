@@ -289,7 +289,7 @@ export async function deployContracts() {
     'MS2',
     'Milady Station 2 community alignment target',
     'https://ms2.fun/metadata/target/ms2',
-    [{ token: MAINNET_ADDRESSES.ms2Token, weight: 10000 }]
+    [{ token: MAINNET_ADDRESSES.ms2Token, symbol: 'MS2', info: 'Milady Station 2 token', metadataURI: '' }]
   )
   const ms2TargetReceipt = await registerMS2TargetTx.wait()
   const ms2TargetEvent = ms2TargetReceipt.events?.find(e => e.event === 'AlignmentTargetRegistered')
@@ -301,7 +301,7 @@ export async function deployContracts() {
     'CULT',
     'Cult DAO community alignment target',
     'https://ms2.fun/metadata/target/cult',
-    [{ token: MAINNET_ADDRESSES.cultToken, weight: 10000 }]
+    [{ token: MAINNET_ADDRESSES.cultToken, symbol: 'CULT', info: 'Cult DAO token', metadataURI: '' }]
   )
   const cultTargetReceipt = await registerCULTTargetTx.wait()
   const cultTargetEvent = cultTargetReceipt.events?.find(e => e.event === 'AlignmentTargetRegistered')
