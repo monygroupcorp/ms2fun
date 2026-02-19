@@ -117,7 +117,7 @@ echo "  ✓ Contracts built successfully"
 
 # Run deployment and seeding
 echo ""
-bash scripts/local-chain/deploy-and-seed.sh
+node scripts/local-chain/run-local.mjs "$@"
 
 echo ""
 echo "✅ Local chain ready at http://127.0.0.1:8545"
