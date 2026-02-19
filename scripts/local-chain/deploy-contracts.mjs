@@ -269,6 +269,8 @@ export async function deployContracts() {
       vault: vaultAddr,
       weth: MAINNET_ADDRESSES.weth,
       creator,
+      hookFeeBips: 500,      // 5% — matches createHook() call below
+      initialLpFeeRate: 3000, // matches createHook() call below
       onProgress: (iterations, rate) => {
         console.log(`      ... ${iterations.toLocaleString()} iterations (${rate.toLocaleString()}/sec)`)
       },
@@ -290,8 +292,8 @@ export async function deployContracts() {
     [{ token: MAINNET_ADDRESSES.ms2Token, weight: 10000 }]
   )
   const ms2TargetReceipt = await registerMS2TargetTx.wait()
-  // nextAlignmentTargetId starts at 0, increments to 1 on first register; targetId = 1
-  const ms2TargetId = 1
+  const ms2TargetEvent = ms2TargetReceipt.events?.find(e => e.event === 'AlignmentTargetRegistered')
+  const ms2TargetId = ms2TargetEvent.args.targetId.toNumber()
   console.log(`   MS2 alignment target registered (targetId=${ms2TargetId})`)
 
   console.log('   Registering CULT alignment target...')
@@ -301,8 +303,9 @@ export async function deployContracts() {
     'https://ms2.fun/metadata/target/cult',
     [{ token: MAINNET_ADDRESSES.cultToken, weight: 10000 }]
   )
-  await registerCULTTargetTx.wait()
-  const cultTargetId = 2
+  const cultTargetReceipt = await registerCULTTargetTx.wait()
+  const cultTargetEvent = cultTargetReceipt.events?.find(e => e.event === 'AlignmentTargetRegistered')
+  const cultTargetId = cultTargetEvent.args.targetId.toNumber()
   console.log(`   CULT alignment target registered (targetId=${cultTargetId})`)
 
   // Deploy UltraAlignmentVault #1 (MS2-aligned)
@@ -349,8 +352,7 @@ export async function deployContracts() {
     ms2Vault.address,
     'UltraAlignmentVault-MS2',
     'https://ms2.fun/metadata/vault/ultra-alignment-ms2',
-    ms2TargetId,
-    { value: ethers.utils.parseEther('0.05') }
+    ms2TargetId
   )
   await registerMS2VaultTx.wait()
   console.log('   MS2 vault registered in MasterRegistry')
@@ -395,8 +397,7 @@ export async function deployContracts() {
     cultVault.address,
     'UltraAlignmentVault-CULT',
     'https://ms2.fun/metadata/vault/ultra-alignment-cult',
-    cultTargetId,
-    { value: ethers.utils.parseEther('0.05') }
+    cultTargetId
   )
   await registerCULTVaultTx.wait()
   console.log('   CULT vault registered in MasterRegistry')
