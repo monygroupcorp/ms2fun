@@ -10,6 +10,13 @@
 import { execSync } from 'child_process'
 import { promises as fs } from 'fs'
 import { ethers } from 'ethers'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const CONTRACTS_DIR = path.resolve(__dirname, '../../contracts')
+const PROJECT_ROOT = path.resolve(__dirname, '../..')
 
 const RPC = 'http://127.0.0.1:8545'
 const ANVIL_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
@@ -49,7 +56,7 @@ function runForgeScript(scriptPath, envVars = {}) {
   }
   execSync(
     `forge script ${scriptPath} --rpc-url ${RPC} --private-key ${ANVIL_KEY} --broadcast --chain-id ${CHAIN_ID}`,
-    { cwd: 'contracts', stdio: 'inherit', env }
+    { cwd: CONTRACTS_DIR, stdio: 'inherit', env }
   )
 }
 
@@ -62,7 +69,7 @@ function runForgeScript(scriptPath, envVars = {}) {
  * @returns {Promise<Array<{contractName: string, address: string}>>}
  */
 async function readAllBroadcastAddresses(scriptName) {
-  const broadcastPath = `contracts/broadcast/${scriptName}.s.sol/${CHAIN_ID}/run-latest.json`
+  const broadcastPath = path.join(CONTRACTS_DIR, 'broadcast', `${scriptName}.s.sol`, CHAIN_ID, 'run-latest.json')
   const raw = await fs.readFile(broadcastPath, 'utf8')
   const broadcast = JSON.parse(raw)
   return broadcast.transactions
@@ -93,7 +100,7 @@ async function readBroadcastAddress(scriptName) {
  */
 async function loadArtifact(contractName, solFile) {
   const file = solFile || `${contractName}.sol`
-  const artifactPath = `contracts/out/${file}/${contractName}.json`
+  const artifactPath = path.join(CONTRACTS_DIR, 'out', file, `${contractName}.json`)
   const raw = await fs.readFile(artifactPath, 'utf8')
   return JSON.parse(raw)
 }
@@ -222,30 +229,23 @@ export async function deployContracts() {
   console.log('════════════════════════════════════════════════════')
 
   // UltraAlignmentHookFactory — constructor(address _hookTemplate)
-  // We need to deploy UltraAlignmentV4Hook template first.
-  const hookTemplateAbi = await loadAbi('UltraAlignmentV4Hook')
-  const hookTemplateBytecode = await loadBytecode('UltraAlignmentV4Hook')
-  const hookTemplateContractFactory = new ethers.ContractFactory(hookTemplateAbi, hookTemplateBytecode, deployer)
-  // UltraAlignmentV4Hook constructor:
-  //   (IPoolManager, IAlignmentVault _vault, address _weth, address _owner, uint256 _hookFeeBips, uint24 _initialLpFeeRate)
-  // All args must be non-zero. We use DEPLOYER_ADDRESS as a placeholder for vault/owner
-  // since this is a template contract (cloned by UltraAlignmentHookFactory.createHook());
-  // its storage is never used directly.
-  const hookTemplateInstance = await hookTemplateContractFactory.deploy(
-    MAINNET_ADDRESSES.uniswapV4PoolManager, // _poolManager
-    DEPLOYER_ADDRESS,                        // _vault (placeholder — non-zero required)
-    MAINNET_ADDRESSES.weth,                  // _weth
-    DEPLOYER_ADDRESS,                        // _owner
-    100,                                     // _hookFeeBips (1%)
-    3000                                     // _initialLpFeeRate
-  )
-  await hookTemplateInstance.deployed()
-  console.log('   UltraAlignmentV4Hook template:', hookTemplateInstance.address)
-
+  //
+  // UltraAlignmentHookFactory.createHook() deploys hooks directly via:
+  //   new UltraAlignmentV4Hook{salt: salt}(...)
+  // The _hookTemplate address is stored in hookTemplate storage but is NOT used
+  // for cloning (no LibClone). It exists as a reference/upgrade mechanism only.
+  //
+  // We cannot deploy UltraAlignmentV4Hook with plain `new` because its constructor
+  // calls Hooks.validateHookPermissions(IHooks(address(this)), ...), which requires
+  // specific bits set in the deployed address (Uniswap V4 hook address encoding).
+  // A random address from plain `new` fails this check.
+  //
+  // Since _hookTemplate is never dereferenced for bytecode during createHook(),
+  // we pass DEPLOYER_ADDRESS as a harmless placeholder.
   const hookFactoryAbi = await loadAbi('UltraAlignmentHookFactory')
   const hookFactoryBytecode = await loadBytecode('UltraAlignmentHookFactory')
   const hookFactoryContractFactory = new ethers.ContractFactory(hookFactoryAbi, hookFactoryBytecode, deployer)
-  const hookFactory = await hookFactoryContractFactory.deploy(hookTemplateInstance.address)
+  const hookFactory = await hookFactoryContractFactory.deploy(DEPLOYER_ADDRESS)
   await hookFactory.deployed()
   console.log('   UltraAlignmentHookFactory:  ', hookFactory.address)
 
@@ -322,7 +322,7 @@ export async function deployContracts() {
     MAINNET_ADDRESSES.weth,                     // _weth
     DEPLOYER_ADDRESS,                           // _factory (placeholder)
     innerProxyAddress,                          // _masterRegistry
-    DEPLOYER_ADDRESS,                           // _vault (placeholder — must be non-zero... see note)
+    DEPLOYER_ADDRESS,                           // _vault (placeholder — must be non-zero)
     DEPLOYER_ADDRESS,                           // _owner
     '',                                         // _styleUri
     DEPLOYER_ADDRESS,                           // _protocolTreasury (placeholder)
