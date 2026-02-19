@@ -26,6 +26,9 @@ export const CONFIG_PATH = path.resolve(__dirname, '../../src/config/contracts.l
  * @param {object} params.mainnetAddresses - Mainnet fork addresses (uniswap, tokens, etc.)
  * @param {object} params.userHoldings - Summary of what USER_ADDRESS holds
  * @param {string} [params.scenario] - Scenario name (e.g. "default")
+ * @param {string} [params.grandCentral] - GrandCentral DAO address (optional, zero address if not deployed)
+ * Note: a `messages` field (total global message count etc.) is intentionally NOT written here.
+ * It is populated by the seeding scenario after seeding completes, then merged in via run-local.mjs.
  */
 export async function writeConfig({
   core,
@@ -36,6 +39,7 @@ export async function writeConfig({
   mainnetAddresses,
   userHoldings,
   scenario,
+  grandCentral,
 }) {
   const config = {
     generatedAt: new Date().toISOString(),
@@ -51,7 +55,7 @@ export async function writeConfig({
       ERC404Factory: factories.erc404,
       ERC1155Factory: factories.erc1155,
       UltraAlignmentHookFactory: core.hookFactory,
-      GrandCentral: '0x0000000000000000000000000000000000000000',
+      GrandCentral: grandCentral ?? '0x0000000000000000000000000000000000000000',
     },
     factories: [
       {
