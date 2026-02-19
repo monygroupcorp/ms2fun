@@ -254,7 +254,8 @@ export async function createERC1155Instance({
 }) {
   const instanceFee = ethers.utils.parseEther('0.01')
 
-  const createTx = await factory.createInstance(
+  // Use full signature to disambiguate overloaded createInstance (ethers v5 requirement)
+  const createTx = await factory['createInstance(string,string,address,address,string)'](
     name,
     `https://ms2.fun/metadata/${name.toLowerCase()}/`,
     creator,
