@@ -14,6 +14,7 @@
     "chain:start:busy": "bash scripts/local-chain/start-chain.sh --scenario busy",
     "chain:start:proposal": "bash scripts/local-chain/start-chain.sh --scenario proposal",
     "chain:reset": "npm run chain:start",
+    "chain:stop": "lsof -ti:8545 | xargs kill -9 2>/dev/null && echo 'Anvil stopped' || echo 'No Anvil running on :8545'",
     "chain:verify": "node scripts/verify-seed-data.mjs",
     "contracts:build": "cd contracts && forge build",
     "contracts:update": "git submodule update --remote contracts && npm run contracts:build"
