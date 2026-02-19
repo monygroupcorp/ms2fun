@@ -323,20 +323,24 @@ export async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, t
  * @param {Array} params.instanceAbi - ERC404BondingInstance ABI
  * @param {object} params.deployer - Deployer wallet (instance owner)
  */
-export async function activateBondingCurve({ instanceAddress, instanceAbi, deployer }) {
+export async function activateBondingCurve({ instanceAddress, instanceAbi, deployer, provider }) {
   const instance = new ethers.Contract(instanceAddress, instanceAbi, deployer)
 
-  // Set bonding open time to now
-  const openTimeTx = await instance.setBondingOpenTime(Math.floor(Date.now() / 1000))
+  const now = Math.floor(Date.now() / 1000)
+
+  // Set bonding open time slightly in the future (contract requires timestamp > block.timestamp)
+  const openTimeTx = await instance.setBondingOpenTime(now + 10)
   await openTimeTx.wait()
 
-  // Set maturity time to 30 days from now
-  const maturityTimeTx = await instance.setBondingMaturityTime(
-    Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
-  )
-  await maturityTimeTx.wait()
+  // Warp Anvil time forward so block.timestamp >= bondingOpenTime (required by setBondingActive)
+  await provider.send('evm_increaseTime', [11])
+  await provider.send('evm_mine', [])
 
   // Set bonding active
   const activeTx = await instance.setBondingActive(true)
   await activeTx.wait()
+
+  // Set maturity time far in the future so bonding doesn't auto-mature during seeding
+  const maturityTimeTx = await instance.setBondingMaturityTime(now + 365 * 24 * 3600)
+  await maturityTimeTx.wait()
 }

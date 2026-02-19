@@ -41,8 +41,8 @@ import {
  * @param {string} userAddress - External user wallet to receive tokens/ownership
  * @returns {Promise<object>} Seed result for write-config
  */
-export async function seed(addresses, provider, deployer, userAddress) {
-  const { factories, vaults } = addresses
+export async function seed(addresses, provider, deployer, userAddress, vaults) {
+  const { factories } = addresses
 
   // Primary vault (MS2-aligned, index 0) and secondary vault (CULT-aligned, index 1)
   const primaryVault = vaults[0]
@@ -178,6 +178,7 @@ export async function seed(addresses, provider, deployer, userAddress) {
     instanceAddress: earlyLaunchAddress,
     instanceAbi: erc404InstanceAbi,
     deployer,
+    provider,
   })
   console.log('   Bonding curve activated')
 
@@ -211,8 +212,6 @@ export async function seed(addresses, provider, deployer, userAddress) {
 
   // Instance 2: Active-Project (~60% bonding progress)
   console.log('\n   Creating ERC404 Active-Project...')
-  // Refresh deployer nonce after the buy transactions (deployer also bought)
-  const activeProject_nonce = await deployer.getTransactionCount()
 
   const activeProjectAddress = await createERC404Instance({
     name: 'Active-Project',
@@ -230,6 +229,7 @@ export async function seed(addresses, provider, deployer, userAddress) {
     instanceAddress: activeProjectAddress,
     instanceAbi: erc404InstanceAbi,
     deployer,
+    provider,
   })
 
   // Seed ~60% progress
@@ -263,7 +263,6 @@ export async function seed(addresses, provider, deployer, userAddress) {
 
   // Instance 3: Graduated (100% bonding)
   console.log('\n   Creating ERC404 Graduated...')
-  await deployer.getTransactionCount() // refresh nonce internally by creating new tx
 
   const graduatedAddress = await createERC404Instance({
     name: 'Graduated',
@@ -281,6 +280,7 @@ export async function seed(addresses, provider, deployer, userAddress) {
     instanceAddress: graduatedAddress,
     instanceAbi: erc404InstanceAbi,
     deployer,
+    provider,
   })
 
   // Buy to 100% to trigger graduation
