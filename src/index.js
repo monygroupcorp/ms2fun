@@ -59,20 +59,35 @@ async function initializeApp() {
         
         // Register routes
         router.on('/', () => {
+            console.log('[Router] Rendering v2 HomePage');
+
             const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+
             if (!appContainer) {
                 console.error('App container not found');
                 return;
             }
 
-            // Clear existing content
+            // Clear ALL containers
             appContainer.innerHTML = '';
+            if (appTopContainer) appTopContainer.innerHTML = '';
+            if (appBottomContainer) appBottomContainer.innerHTML = '';
+
+            // Add v2 class to body for styling
+            document.body.classList.add('v2-route');
+            document.body.classList.remove('cultexecs-active');
 
             // Render v2 HomePage component
+            console.log('[Router] Rendering HomePage component...');
             render(h(HomePage), appContainer);
+            console.log('[Router] HomePage rendered');
 
             return {
                 cleanup: () => {
+                    console.log('[Router] Cleaning up HomePage');
+                    document.body.classList.remove('v2-route');
                     unmountRoot(appContainer);
                 }
             };

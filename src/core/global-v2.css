@@ -1,0 +1,548 @@
+/**
+ * Design System V2: Gallery Brutalism
+ * Pure monochrome. Maximum clarity. Zero decoration.
+ */
+
+:root {
+  /* ========================================
+     COLOR SYSTEM - LIGHT MODE (Default)
+     ======================================== */
+
+  /* Backgrounds */
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f5f5f5;
+
+  /* Text */
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --text-tertiary: #999999;
+  --text-disabled: #cccccc;
+
+  /* Borders */
+  --border-primary: #000000;
+  --border-secondary: #e0e0e0;
+  --border-tertiary: #f0f0f0;
+
+  /* Interactive States */
+  --state-hover-bg: #f5f5f5;
+  --state-active-bg: #e0e0e0;
+  --state-focus-outline: #000000;
+
+  /* Semantic (Monochrome) */
+  --semantic-error: #000000;
+  --semantic-success: #000000;
+  --semantic-warning: #000000;
+
+  /* ========================================
+     TYPOGRAPHY
+     ======================================== */
+
+  /* Font Families */
+  --font-primary: 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', 'Courier', monospace;
+  --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Type Scale */
+  --font-size-display: 4.5rem;      /* 72px */
+  --font-size-h1: 3rem;             /* 48px */
+  --font-size-h2: 2.25rem;          /* 36px */
+  --font-size-h3: 1.5rem;           /* 24px */
+  --font-size-h4: 1.125rem;         /* 18px */
+  --font-size-body-lg: 1.125rem;    /* 18px */
+  --font-size-body: 1rem;           /* 16px */
+  --font-size-body-sm: 0.875rem;    /* 14px */
+  --font-size-caption: 0.75rem;     /* 12px */
+
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.05em;
+
+  /* ========================================
+     SPACING (8px Grid System)
+     ======================================== */
+
+  --space-0: 0;
+  --space-1: 0.5rem;     /* 8px */
+  --space-2: 1rem;       /* 16px */
+  --space-3: 1.5rem;     /* 24px */
+  --space-4: 2rem;       /* 32px */
+  --space-5: 2.5rem;     /* 40px */
+  --space-6: 3rem;       /* 48px */
+  --space-8: 4rem;       /* 64px */
+  --space-10: 5rem;      /* 80px */
+  --space-12: 6rem;      /* 96px */
+  --space-16: 8rem;      /* 128px */
+  --space-20: 10rem;     /* 160px */
+  --space-24: 12rem;     /* 192px */
+
+  /* Component Spacing */
+  --padding-sm: var(--space-2);
+  --padding-md: var(--space-3);
+  --padding-lg: var(--space-4);
+  --padding-xl: var(--space-6);
+
+  --gap-sm: var(--space-1);
+  --gap-md: var(--space-2);
+  --gap-lg: var(--space-3);
+  --gap-xl: var(--space-4);
+
+  --section-spacing-sm: var(--space-8);
+  --section-spacing-md: var(--space-12);
+  --section-spacing-lg: var(--space-16);
+  --section-spacing-xl: var(--space-20);
+
+  /* ========================================
+     LAYOUT
+     ======================================== */
+
+  /* Container Widths */
+  --container-sm: 40rem;      /* 640px */
+  --container-md: 48rem;      /* 768px */
+  --container-lg: 64rem;      /* 1024px */
+  --container-xl: 75rem;      /* 1200px */
+  --container-full: 100%;
+
+  /* Grid */
+  --grid-columns: 12;
+  --grid-gap: var(--space-3);
+
+  /* Breakpoints */
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+
+  /* ========================================
+     BORDERS
+     ======================================== */
+
+  --border-width-thin: 1px;
+  --border-width-thick: 2px;
+  --border-width-bold: 4px;
+
+  --radius-none: 0;
+  --radius-sm: 2px;
+
+  /* ========================================
+     SHADOWS (Minimal)
+     ======================================== */
+
+  --shadow-none: none;
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.08);
+
+  /* ========================================
+     ANIMATION
+     ======================================== */
+
+  --ease-standard: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0.0, 1, 1);
+  --ease-out: cubic-bezier(0.0, 0.0, 0.2, 1);
+
+  --duration-instant: 0ms;
+  --duration-fast: 100ms;
+  --duration-base: 200ms;
+  --duration-slow: 300ms;
+
+  --transition-base: all var(--duration-base) var(--ease-standard);
+  --transition-fast: all var(--duration-fast) var(--ease-standard);
+  --transition-color: color var(--duration-base) var(--ease-standard);
+  --transition-opacity: opacity var(--duration-base) var(--ease-standard);
+
+  /* ========================================
+     COMPONENT TOKENS
+     ======================================== */
+
+  /* Buttons */
+  --button-height-sm: 2rem;
+  --button-height-md: 2.5rem;
+  --button-height-lg: 3rem;
+  --button-padding-x: var(--space-3);
+  --button-padding-y: var(--space-2);
+
+  /* Cards */
+  --card-padding: var(--padding-lg);
+  --card-border: 1px solid var(--border-secondary);
+  --card-shadow: var(--shadow-subtle);
+
+  /* Forms */
+  --input-height: 3rem;
+  --input-padding: var(--space-2);
+  --input-border: 1px solid var(--border-secondary);
+
+  /* ========================================
+     Z-INDEX
+     ======================================== */
+
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-tooltip: 500;
+}
+
+/* ========================================
+   DARK MODE
+   ======================================== */
+
+[data-theme="dark"] {
+  /* Backgrounds */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #141414;
+
+  /* Text */
+  --text-primary: #ffffff;
+  --text-secondary: #999999;
+  --text-tertiary: #666666;
+  --text-disabled: #333333;
+
+  /* Borders */
+  --border-primary: #ffffff;
+  --border-secondary: #1a1a1a;
+  --border-tertiary: #0f0f0f;
+
+  /* Interactive States */
+  --state-hover-bg: #1a1a1a;
+  --state-active-bg: #2a2a2a;
+  --state-focus-outline: #ffffff;
+
+  /* Semantic (Monochrome) */
+  --semantic-error: #ffffff;
+  --semantic-success: #ffffff;
+  --semantic-warning: #ffffff;
+
+  /* Shadows (Inverted) */
+  --shadow-subtle: 0 1px 2px rgba(255, 255, 255, 0.02);
+  --shadow-sm: 0 1px 3px rgba(255, 255, 255, 0.04);
+  --shadow-md: 0 2px 4px rgba(255, 255, 255, 0.06);
+}
+
+/* ========================================
+   GLOBAL RESET & BASE STYLES
+   ======================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Override old Temple of Capital styles with high specificity */
+body,
+body.marble-bg,
+body:not(.cultexecs-active) {
+  font-family: var(--font-primary) !important;
+  font-size: var(--font-size-body) !important;
+  font-weight: var(--font-weight-regular) !important;
+  line-height: var(--line-height-normal) !important;
+  color: var(--text-primary) !important;
+  background-color: var(--bg-primary) !important;
+  background-image: none !important;
+  transition: var(--transition-color) !important;
+}
+
+/* Kill marble background pseudo-element */
+body.marble-bg::before,
+body::before {
+  display: none !important;
+  content: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+/* ========================================
+   TYPOGRAPHY ELEMENTS
+   ======================================== */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-primary);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h3 {
+  font-size: var(--font-size-h3);
+}
+
+h4 {
+  font-size: var(--font-size-h4);
+}
+
+p {
+  margin-bottom: var(--space-3);
+  line-height: var(--line-height-relaxed);
+}
+
+a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  transition: var(--transition-opacity);
+}
+
+a:hover {
+  opacity: 0.7;
+}
+
+a:focus {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+
+strong {
+  font-weight: var(--font-weight-bold);
+}
+
+em {
+  font-style: italic;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background-color: var(--bg-secondary);
+  padding: 0.125rem 0.25rem;
+  border-radius: var(--radius-sm);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Text Utilities */
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+
+.text-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.text-uppercase {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Crepuscular Rays - "Light through stained glass" */
+/* Cathedral light, warm reverent glow, soft colored beams */
+
+/* Stained Glass Glow - Warm amber, ruby, sapphire */
+.text-stained-glass {
+  filter: drop-shadow(0 0 8px rgba(255, 191, 0, 0.3))     /* Amber */
+          drop-shadow(0 0 12px rgba(220, 20, 60, 0.2))    /* Ruby */
+          drop-shadow(0 0 16px rgba(15, 82, 186, 0.2));   /* Sapphire */
+}
+
+/* Cathedral Light - Directional beams from above */
+.text-cathedral {
+  text-shadow:
+    0 -4px 8px rgba(255, 215, 100, 0.3),    /* Golden beam from above */
+    0 -8px 16px rgba(255, 191, 0, 0.2),     /* Amber halo */
+    0 -12px 24px rgba(255, 245, 200, 0.1);  /* Soft ivory glow */
+}
+
+/* Sacred Aura - Soft golden halo */
+.text-sacred-aura {
+  text-shadow:
+    0 0 10px rgba(255, 215, 100, 0.3),   /* Golden core */
+    0 0 20px rgba(255, 191, 0, 0.2),     /* Amber mid */
+    0 0 40px rgba(255, 245, 200, 0.1);   /* Ivory outer */
+}
+
+/* Light Rays - Multiple colored rays radiating */
+.text-light-rays {
+  text-shadow:
+    -4px -4px 12px rgba(255, 191, 0, 0.2),    /* Amber top-left */
+    4px -4px 12px rgba(220, 20, 60, 0.2),     /* Ruby top-right */
+    -4px 4px 12px rgba(15, 82, 186, 0.2),     /* Sapphire bottom-left */
+    4px 4px 12px rgba(5, 160, 60, 0.2),       /* Emerald bottom-right */
+    0 0 20px rgba(255, 245, 200, 0.1);        /* Central glow */
+}
+
+/* Spacing Utilities */
+.mt-0 { margin-top: var(--space-0); }
+.mt-1 { margin-top: var(--space-1); }
+.mt-2 { margin-top: var(--space-2); }
+.mt-3 { margin-top: var(--space-3); }
+.mt-4 { margin-top: var(--space-4); }
+.mt-6 { margin-top: var(--space-6); }
+.mt-8 { margin-top: var(--space-8); }
+
+.mb-0 { margin-bottom: var(--space-0); }
+.mb-1 { margin-bottom: var(--space-1); }
+.mb-2 { margin-bottom: var(--space-2); }
+.mb-3 { margin-bottom: var(--space-3); }
+.mb-4 { margin-bottom: var(--space-4); }
+.mb-6 { margin-bottom: var(--space-6); }
+.mb-8 { margin-bottom: var(--space-8); }
+
+.p-2 { padding: var(--space-2); }
+.p-3 { padding: var(--space-3); }
+.p-4 { padding: var(--space-4); }
+.p-6 { padding: var(--space-6); }
+
+/* Layout Utilities */
+.container {
+  width: 100%;
+  max-width: var(--container-xl);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--space-10);
+  padding-right: var(--space-10);
+}
+
+.container-md {
+  max-width: var(--container-md);
+}
+
+.container-lg {
+  max-width: var(--container-lg);
+}
+
+/* Grid Utilities */
+.grid {
+  display: grid;
+  gap: var(--grid-gap);
+}
+
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* Flexbox Utilities */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-1 { gap: var(--space-1); }
+.gap-2 { gap: var(--space-2); }
+.gap-3 { gap: var(--space-3); }
+.gap-4 { gap: var(--space-4); }
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Focus-visible (keyboard navigation) */
+*:focus-visible {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+
+/* Remove outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 1024px) {
+  .container {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --font-size-display: 2rem;
+    --font-size-h1: 1.75rem;
+    --font-size-h2: 1.5rem;
+    --font-size-h3: 1.25rem;
+    --space-10: 2rem;
+    --space-8: 1.5rem;
+  }
+
+  html {
+    font-size: 14px;
+  }
+
+  .container {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --font-size-display: 1.75rem;
+    --font-size-h1: 1.5rem;
+    --font-size-h2: 1.25rem;
+    --font-size-h3: 1.125rem;
+    --button-height-md: 2.75rem; /* 44px touch target */
+    --space-10: 1.5rem;
+    --space-8: 1rem;
+  }
+
+  .grid-4,
+  .grid-3,
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
