@@ -539,6 +539,17 @@ export async function deployContracts() {
   await registerERC1155Tx.wait()
   console.log('   ERC1155Factory registered (factoryId=2)')
 
+  // Set protocol treasury on both factories (required before any instance can be created)
+  const erc1155FactoryAbi = await loadAbi('ERC1155Factory')
+  const erc1155FactoryContract = new ethers.Contract(erc1155FactoryAddress, erc1155FactoryAbi, deployer)
+  await (await erc1155FactoryContract.setProtocolTreasury(DEPLOYER_ADDRESS)).wait()
+  console.log('   ERC1155Factory treasury set:', DEPLOYER_ADDRESS)
+
+  const erc404FactoryAbi = await loadAbi('ERC404Factory')
+  const erc404FactoryContract = new ethers.Contract(erc404FactoryAddress, erc404FactoryAbi, deployer)
+  await (await erc404FactoryContract.setProtocolTreasury(DEPLOYER_ADDRESS)).wait()
+  console.log('   ERC404Factory treasury set:', DEPLOYER_ADDRESS)
+
   console.log('\n════════════════════════════════════════════════════')
   console.log('DEPLOYMENT COMPLETE')
   console.log('════════════════════════════════════════════════════')
