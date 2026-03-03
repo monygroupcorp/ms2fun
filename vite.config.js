@@ -118,8 +118,9 @@ export default defineConfig({
         },
         {
             name: 'copy-runtime-assets',
-            closeBundle() {
+            writeBundle() {
                 // Copy index.html to 404.html for GitHub Pages SPA routing
+                if (!existsSync('dist/index.html')) return;
                 copyFileSync('dist/index.html', 'dist/404.html');
 
                 // Copy src directory for runtime CSS loading (stylesheetLoader pattern)
