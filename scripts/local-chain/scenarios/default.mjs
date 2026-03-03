@@ -102,7 +102,8 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     0,       // supply=0 means unlimited
     'https://ms2.fun/metadata/demo-gallery/1.json',
     0,       // PricingModel.UNLIMITED
-    0        // priceIncreaseRate (unused for fixed)
+    0,       // priceIncreaseRate (unused for fixed)
+    0        // openTime (0 = open immediately)
   )).wait()
   console.log('   Added Edition 1: Genesis-Piece (0.01 ETH, unlimited)')
 
@@ -113,13 +114,15 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     100,     // max supply
     'https://ms2.fun/metadata/demo-gallery/2.json',
     1,       // PricingModel.LIMITED_FIXED
-    0
+    0,
+    0        // openTime
   )).wait()
   console.log('   Added Edition 2: Limited-Drop (0.02 ETH, max 100)')
 
   // Mint Edition 1: 3x to deployer
   await (await demoGallery.mint(
     1, 3,
+    ethers.constants.HashZero, // gatingData
     getRandomMessageData(MINT_MESSAGES),
     0, // maxCost=0 means no cap check
     { value: ethers.utils.parseEther('0.03') }
@@ -131,6 +134,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const demoGalleryAsTrader = demoGallery.connect(traderSigner)
   await (await demoGalleryAsTrader.mint(
     2, 2,
+    ethers.constants.HashZero,
     getRandomMessageData(MINT_MESSAGES),
     0,
     { value: ethers.utils.parseEther('0.04') }
@@ -143,12 +147,14 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
 
   await (await demoGalleryAsCollector.mint(
     1, 2,
+    ethers.constants.HashZero,
     getRandomMessageData(MINT_MESSAGES),
     0,
     { value: ethers.utils.parseEther('0.02') }
   )).wait()
   await (await demoGalleryAsCollector.mint(
     2, 1,
+    ethers.constants.HashZero,
     getRandomMessageData(MINT_MESSAGES),
     0,
     { value: ethers.utils.parseEther('0.02') }
@@ -175,11 +181,10 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const earlyLaunchAddress = await createERC404Instance({
     name: 'Early-Launch',
     symbol: 'EARLY',
-    nftCount: 10,       // profileId=1: unitPerNFT=1,000,000 => maxSupply=10,000,000 tokens
-    profileId: 1,
+    nftCount: 10,       // presetId=1: unitPerNFT=1,000,000 => maxSupply=10,000,000 tokens
+    presetId: 1,
     creator: deployer.address,
     vault: primaryVault.address,
-    hook: primaryVault.hookAddress,
     factory: erc404Factory,
   })
   console.log(`   Early-Launch: ${earlyLaunchAddress}`)
@@ -227,10 +232,9 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     name: 'Active-Project',
     symbol: 'ACTIVE',
     nftCount: 10,
-    profileId: 1,
+    presetId: 1,
     creator: deployer.address,
     vault: primaryVault.address,
-    hook: primaryVault.hookAddress,
     factory: erc404Factory,
   })
   console.log(`   Active-Project: ${activeProjectAddress}`)
@@ -278,10 +282,9 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     name: 'Graduated',
     symbol: 'GRAD',
     nftCount: 10,
-    profileId: 1,
+    presetId: 1,
     creator: deployer.address,
     vault: primaryVault.address,
-    hook: primaryVault.hookAddress,
     factory: erc404Factory,
   })
   console.log(`   Graduated: ${graduatedAddress}`)
@@ -346,8 +349,9 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     ethers.utils.parseEther('0.005'),
     50,
     'https://ms2.fun/metadata/dynamic-pricing/1.json',
-    2,   // PricingModel.LIMITED_DYNAMIC
-    500  // 5% increase per mint (basis points)
+    2,    // PricingModel.LIMITED_DYNAMIC
+    500,  // 5% increase per mint (basis points)
+    0     // openTime
   )).wait()
   console.log('   Added Edition 1: Evolving-Piece-1 (5% increase per mint, max 50)')
 
@@ -357,8 +361,9 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     ethers.utils.parseEther('0.01'),
     30,
     'https://ms2.fun/metadata/dynamic-pricing/2.json',
-    2,    // LIMITED_DYNAMIC
-    1000  // 10% increase per mint
+    2,     // LIMITED_DYNAMIC
+    1000,  // 10% increase per mint
+    0      // openTime
   )).wait()
   console.log('   Added Edition 2: Evolving-Piece-2 (10% increase per mint, max 30)')
 
@@ -368,7 +373,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const signer = provider.getSigner(buyer)
     const asUser = dynamicInstance.connect(signer)
     const currentPrice = await dynamicInstance.getCurrentPrice(1)
-    await (await asUser.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    await (await asUser.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
   }
   console.log('   Minted 10x Edition 1 (dynamic pricing)')
 
@@ -376,7 +381,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const dynamicAsCollector = dynamicInstance.connect(provider.getSigner(TEST_ACCOUNTS.collector.address))
   for (let i = 0; i < 3; i++) {
     const currentPrice = await dynamicInstance.getCurrentPrice(1)
-    await (await dynamicAsCollector.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    await (await dynamicAsCollector.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
   }
   await (await dynamicAsCollector.safeTransferFrom(
     TEST_ACCOUNTS.collector.address, userAddress, 1, 3, '0x'
@@ -389,7 +394,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
     const asUser = dynamicInstance.connect(signer)
     const currentPrice = await dynamicInstance.getCurrentPrice(2)
-    await (await asUser.mint(2, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    await (await asUser.mint(2, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
   }
   console.log('   Minted 8x Edition 2 (dynamic pricing)')
 
@@ -412,7 +417,8 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     100,
     'https://ms2.fun/metadata/mixed-supply/1.json',
     1,  // LIMITED_FIXED
-    0
+    0,
+    0   // openTime
   )).wait()
   console.log('   Added Edition 1: Rare-Limited (0.02 ETH, max 100)')
 
@@ -423,7 +429,8 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     0,  // unlimited
     'https://ms2.fun/metadata/mixed-supply/2.json',
     0,  // UNLIMITED
-    0
+    0,
+    0   // openTime
   )).wait()
   console.log('   Added Edition 2: Common-Unlimited (0.005 ETH, unlimited)')
 
@@ -438,14 +445,14 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const buyer = buyers[i % buyers.length]
     const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
     const asUser = mixedInstance.connect(signer)
-    await (await asUser.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
+    await (await asUser.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
   }
   console.log('   Minted 40x Edition 1 (40% sold out)')
 
   // Mint 5x Edition 1 for user via collector, transfer
   const mixedAsCollector = mixedInstance.connect(provider.getSigner(TEST_ACCOUNTS.collector.address))
   for (let i = 0; i < 5; i++) {
-    await (await mixedAsCollector.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
+    await (await mixedAsCollector.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
   }
   await (await mixedAsCollector.safeTransferFrom(
     TEST_ACCOUNTS.collector.address, userAddress, 1, 5, '0x'
@@ -463,13 +470,13 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const buyer = buyers[i % buyers.length]
     const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
     const asUser = mixedInstance.connect(signer)
-    await (await asUser.mint(2, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
+    await (await asUser.mint(2, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
   }
   console.log('   Minted 55x Edition 2')
 
   // Mint 5x Edition 2 for user via collector, transfer
   for (let i = 0; i < 5; i++) {
-    await (await mixedAsCollector.mint(2, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
+    await (await mixedAsCollector.mint(2, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
   }
   await (await mixedAsCollector.safeTransferFrom(
     TEST_ACCOUNTS.collector.address, userAddress, 2, 5, '0x'

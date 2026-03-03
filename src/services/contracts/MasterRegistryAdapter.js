@@ -1923,12 +1923,10 @@ class MasterRegistryAdapter extends ContractAdapter {
         return this.getCachedOrFetch('getFactoryRequiredFeatures', [factoryAddress], async () => {
             if (this.isMock) return this._getMockRequiredFeatures(factoryAddress);
 
-            const { loadABI } = await import('../../utils/abiLoader.js');
-            const abi = await loadABI('IFactory');
-            const factoryContract = new this.ethers.Contract(
-                factoryAddress, abi, this.signer || this.provider
-            );
-            return await factoryContract.requiredFeatures();
+            // IFactory only exposes features() (supported component tags).
+            // There is no on-chain distinction between required and optional features —
+            // all are optional (users can pass AddressZero). Return empty array.
+            return [];
         }, 60 * 60 * 1000);
     }
 

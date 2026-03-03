@@ -1,24 +1,24 @@
 {
-  "generatedAt": "2026-02-20T16:39:56.548Z",
+  "generatedAt": "2026-03-03T11:18:47.764Z",
   "chainId": 1337,
   "mode": "local-fork",
   "scenario": "default",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "contracts": {
-    "MasterRegistryV1": "0x35ab71c8718FBAd363Ec8D1E5cc9D7d6D3b05Fa5",
-    "AlignmentRegistryV1": "0x9dfCf0801f348e02c1d201F0cf0A2CDBCBBBFCbA",
-    "GlobalMessageRegistry": "0x1Db6f0B4E780c7eccD9736090627e824E4abe83D",
-    "FeaturedQueueManager": "0x33521d8103eb074Fb8c57f42C399E02c4021d408",
-    "QueryAggregator": "0x1F82203300E3aE8B618068F46D3Ae55aa6fB5bE1",
-    "ERC404Factory": "0x10a8bda08f16a6cb801e7ad83ce66fc21e893f2b",
-    "ERC1155Factory": "0xb22ff3da60bee8d5746a295197e79a4285204ed9",
-    "UltraAlignmentHookFactory": "0xa97b35D0DaCC291fFF2C4f11Ed2fCa14686b71De",
-    "GrandCentral": "0x0000000000000000000000000000000000000000",
-    "ComponentRegistry": "0x0000000000000000000000000000000000000000"
+    "MasterRegistryV1": "0x651B75282fcCF90bB8fB01B8acB2bE7bD1173623",
+    "AlignmentRegistryV1": "0x6D9728f28E0a9D1Add98FB40f2e7C704971193AA",
+    "GlobalMessageRegistry": "0x24e4940caB72Fe42B1e243f5409ff4e56299684f",
+    "FeaturedQueueManager": "0x23b7449875f57117b4df194405e4c775b895CF19",
+    "QueryAggregator": "0x8086F2ab25023CF90d6efA36f8B5943B0e349A9C",
+    "ERC404Factory": "0x4d02ba4e8c554c3a0da03e4971f71bf806abedf8",
+    "ERC1155Factory": "0x8f80853cef490f3094d677ff02e03fc8ed90b6f4",
+    "UltraAlignmentHookFactory": "0xfC110fe90553e5Cad507527E7Ad5445635b68940",
+    "ComponentRegistry": "0x2D8b2b88D082a0e31dC8FeDd7e7955f874581351",
+    "GrandCentral": "0x0000000000000000000000000000000000000000"
   },
   "factories": [
     {
-      "address": "0x10a8bda08f16a6cb801e7ad83ce66fc21e893f2b",
+      "address": "0x4d02ba4e8c554c3a0da03e4971f71bf806abedf8",
       "type": "ERC404",
       "title": "ERC404-Bonding-Curve-Factory",
       "displayTitle": "ERC404 Bonding Curve",
@@ -26,7 +26,7 @@
       "registered": true
     },
     {
-      "address": "0xb22ff3da60bee8d5746a295197e79a4285204ed9",
+      "address": "0x8f80853cef490f3094d677ff02e03fc8ed90b6f4",
       "type": "ERC1155",
       "title": "ERC1155-Edition-Factory",
       "displayTitle": "ERC1155 Editions",
@@ -36,47 +36,47 @@
   ],
   "vaults": [
     {
-      "address": "0x4e850C82E0512B4Edcd00F8C993f3fb9dEA3e7e3",
+      "address": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
       "alignmentToken": "0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820",
-      "hookAddress": "0xf1E243922b8C96e660e651e581f0FBed502D40c4"
+      "hookAddress": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4"
     },
     {
-      "address": "0xd9338ccb63FF248525b34d1ace299b6a194e8480",
+      "address": "0x5370da02E87336736b751c7a1c4e5F81fbAE104e",
       "alignmentToken": "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
-      "hookAddress": "0x73F9549fAA529837bf6bef4C107F87a1A2eCC0C4"
+      "hookAddress": "0x0B2D46BC8B7344ea83ee4b2202A005120abE00c4"
     }
   ],
   "instances": {
     "erc404": [
       {
-        "address": "0x743FF7bef2BEc29A940d0065766601cc2544dc95",
+        "address": "0xf882e8932A3E7642C957aF33B7aa86ACF5Fe84cA",
         "name": "Early-Launch",
         "symbol": "EARLY",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "owner": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
-        "vault": "0x4e850C82E0512B4Edcd00F8C993f3fb9dEA3e7e3",
-        "hook": "0xf1E243922b8C96e660e651e581f0FBed502D40c4",
+        "owner": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69",
+        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
+        "hook": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4",
         "state": "early-bonding",
         "bondingProgress": "~10%",
         "note": "Owned by userAddress for owner view testing"
       },
       {
-        "address": "0x732a12C4Eb31a0253Df226173515395344b3e2a4",
+        "address": "0xf0F10A34c0AfF96A521F7d505d8b2c5a322dac14",
         "name": "Active-Project",
         "symbol": "ACTIVE",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x4e850C82E0512B4Edcd00F8C993f3fb9dEA3e7e3",
-        "hook": "0xf1E243922b8C96e660e651e581f0FBed502D40c4",
+        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
+        "hook": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4",
         "state": "active-bonding",
         "bondingProgress": "~60%"
       },
       {
-        "address": "0x0Ede31972B3190e1D99069DE5f7a777e3a75d0f2",
+        "address": "0xbDA34Eb0e4f0c1A4B791FFed2D907ab3F9b7a458",
         "name": "Graduated",
         "symbol": "GRAD",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x4e850C82E0512B4Edcd00F8C993f3fb9dEA3e7e3",
-        "hook": "0xf1E243922b8C96e660e651e581f0FBed502D40c4",
+        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
+        "hook": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4",
         "state": "graduated",
         "bondingProgress": "100%",
         "liquidityDeployed": false
@@ -84,11 +84,11 @@
     ],
     "erc1155": [
       {
-        "address": "0xc1e761eEe1a70c799deB77C2ef71c601a4b0F205",
+        "address": "0x016d4056B324893A42a6600968094a22067d65Cc",
         "name": "Demo-Gallery",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "owner": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
-        "vault": "0x4e850C82E0512B4Edcd00F8C993f3fb9dEA3e7e3",
+        "owner": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69",
+        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
         "editions": [
           {
             "id": 1,
@@ -108,10 +108,10 @@
         "note": "Owned by userAddress for owner view testing"
       },
       {
-        "address": "0x07ae18945101374412C21071FD03760Ca0636766",
+        "address": "0xb53fA23Fc428b71DF6E5582230A2d77F45B734d6",
         "name": "Dynamic-Pricing",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0xd9338ccb63FF248525b34d1ace299b6a194e8480",
+        "vault": "0x5370da02E87336736b751c7a1c4e5F81fbAE104e",
         "pricingModel": "exponential-increase",
         "editions": [
           {
@@ -133,10 +133,10 @@
         ]
       },
       {
-        "address": "0x7B66030e4C30F7BE4963E963EDE0aa12bf481b84",
+        "address": "0x5c420700A0FEf16DA002D2B573B55c9a1205bd4b",
         "name": "Mixed-Supply",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0xd9338ccb63FF248525b34d1ace299b6a194e8480",
+        "vault": "0x5370da02E87336736b751c7a1c4e5F81fbAE104e",
         "pricingModel": "mixed",
         "editions": [
           {
@@ -176,9 +176,9 @@
     "trader": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     "collector": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
     "governance": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-    "user": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6"
+    "user": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69"
   },
-  "userAddress": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
+  "userAddress": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69",
   "governance": {
     "dictator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "abdicationInitiated": false,

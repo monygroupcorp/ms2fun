@@ -199,54 +199,63 @@ export async function refundAccounts(provider, deployer, userAddress) {
  *   createInstance(name, symbol, metadataURI, maxSupply, liquidityReservePercent,
  *                  curveParams, tierConfig, creator, vault, hook, styleUri)
  *
- * Current signature:
- *   createInstance(name, symbol, metadataURI, nftCount, profileId,
- *                  tierConfig, instanceCreator, vault, hook, styleUri)
+ * Current signature (struct-based):
+ *   createInstance(IdentityParams identity, string metadataURI, address liquidityDeployer,
+ *                  address gatingModule, FreeMintParams freeMint)
+ *
+ *   IdentityParams = (name, symbol, styleUri, owner, vault, nftCount, presetId, creationTier)
+ *   FreeMintParams = (allocation, scope)
  *
  * @param {object} params
  * @param {string} params.name - Token name (no spaces)
  * @param {string} params.symbol - Token symbol
- * @param {number} params.nftCount - Number of NFTs (determines maxSupply via profile)
- * @param {number} [params.profileId=1] - Graduation profile ID (default=1)
- * @param {string} params.creator - Creator address
+ * @param {number} params.nftCount - Number of NFTs (determines maxSupply via preset)
+ * @param {number} [params.presetId=1] - Launch preset ID (default=1)
+ * @param {string} params.creator - Creator/owner address
  * @param {string} params.vault - Vault address
- * @param {string} params.hook - Hook address
  * @param {object} params.factory - ERC404Factory ethers Contract instance
- * @param {object} params.deployer - Deployer wallet (not used directly but kept for consistency)
  * @returns {Promise<string>} Deployed instance address
  */
 export async function createERC404Instance({
   name,
   symbol,
   nftCount,
-  profileId = 1,
+  presetId = 1,
   creator,
   vault,
-  hook,
   factory,
 }) {
-  // Public tier config (1 tier, open access via zero password hash)
-  const tierConfig = {
-    tierType: 0, // VOLUME_CAP
-    passwordHashes: [ethers.utils.keccak256(ethers.utils.toUtf8Bytes('PUBLIC'))],
-    volumeCaps: [ethers.utils.parseEther(String(nftCount * 1_000_000))], // cap = total supply (effectively unlimited)
-    tierUnlockTimes: [],
-  }
-
   const instanceFee = ethers.utils.parseEther('0.01')
 
-  // Use full signature to disambiguate overloaded createInstance (ethers v5 requirement)
-  const createTx = await factory['createInstance(string,string,string,uint256,uint256,(uint8,bytes32[],uint256[],uint256[]),address,address,address,string)'](
+  // IdentityParams struct
+  const identity = {
     name,
     symbol,
-    `https://ms2.fun/metadata/${name.toLowerCase()}/`,
-    nftCount,
-    profileId,
-    tierConfig,
-    creator,
+    styleUri: '',
+    owner: creator,
     vault,
-    hook,
-    '', // styleUri
+    nftCount,
+    presetId,
+    creationTier: 0, // CreationTier.STANDARD
+  }
+
+  // FreeMintParams struct (no free mint)
+  const freeMint = {
+    allocation: 0,
+    scope: 0, // GatingScope.NONE
+  }
+
+  // liquidityDeployer must be an approved component in ComponentRegistry.
+  // Use mock Uniswap V4 Deployer (seeded in seedComponentRegistry).
+  const liquidityDeployer = '0x0000000000000000000000000000000000C0DE03'
+
+  // Use full signature to disambiguate overloaded createInstance (ethers v5 requirement)
+  const createTx = await factory['createInstance((string,string,string,address,address,uint256,uint8,uint8),string,address,address,(uint256,uint8))'](
+    identity,
+    `https://ms2.fun/metadata/${name.toLowerCase()}/`,
+    liquidityDeployer,
+    ethers.constants.AddressZero, // gatingModule (none)
+    freeMint,
     { value: instanceFee }
   )
 
@@ -465,10 +474,11 @@ export async function setupPortfolioTestData({
     try { name = await instance.name() } catch (e) {}
 
     try {
-      // mint(editionId, quantity, messageData, maxCost) — maxCost=0 means no cap check
+      // mint(editionId, quantity, gatingData, messageData, maxCost)
       const mintTx = await instance.mint(
         1,
         5,
+        ethers.constants.HashZero, // gatingData (no gating)
         getRandomMessageData(MINT_MESSAGES),
         0, // maxCost
         { value: ethers.utils.parseEther('0.05') }
@@ -634,17 +644,22 @@ export async function seedComponentRegistry(componentRegistryAddress, deployer) 
   const mockLiq1 = '0x0000000000000000000000000000000000C0DE03'
   const mockLiq2 = '0x0000000000000000000000000000000000C0DE04'
 
-  await (await registry.approveComponent(mockGating1, gatingTag, 'Password Tier Gating')).wait()
-  console.log('      ✓ Registered: Password Tier Gating')
+  const components = [
+    { addr: mockGating1, tag: gatingTag, name: 'Password Tier Gating' },
+    { addr: mockGating2, tag: gatingTag, name: 'Merkle Allowlist Gating' },
+    { addr: mockLiq1,    tag: liqTag,    name: 'Uniswap V4 Deployer' },
+    { addr: mockLiq2,    tag: liqTag,    name: 'ZAMM Deployer' },
+  ]
+  let registered = 0
+  for (const { addr, tag, name } of components) {
+    if (await registry.isApprovedComponent(addr)) {
+      console.log(`      ⏭ Already registered: ${name}`)
+    } else {
+      await (await registry.approveComponent(addr, tag, name)).wait()
+      console.log(`      ✓ Registered: ${name}`)
+      registered++
+    }
+  }
 
-  await (await registry.approveComponent(mockGating2, gatingTag, 'Merkle Allowlist Gating')).wait()
-  console.log('      ✓ Registered: Merkle Allowlist Gating')
-
-  await (await registry.approveComponent(mockLiq1, liqTag, 'Uniswap V4 Deployer')).wait()
-  console.log('      ✓ Registered: Uniswap V4 Deployer')
-
-  await (await registry.approveComponent(mockLiq2, liqTag, 'ZAMM Deployer')).wait()
-  console.log('      ✓ Registered: ZAMM Deployer')
-
-  console.log('   ✅ ComponentRegistry seeded with 4 test components')
+  console.log(`   ✅ ComponentRegistry seeded (${registered} new, ${components.length - registered} already approved)`)
 }

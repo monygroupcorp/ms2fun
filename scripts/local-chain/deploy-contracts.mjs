@@ -95,7 +95,7 @@ function runForgeScript(scriptPath, envVars = {}) {
     ...envVars,
   }
   execSync(
-    `forge script ${scriptPath} --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID}`,
+    `forge script ${scriptPath} --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID} --code-size-limit 30000`,
     { cwd: CONTRACTS_DIR, stdio: 'inherit', env }
   )
 }
@@ -277,13 +277,18 @@ export async function deployContracts() {
   console.log('PHASE 2: SUPPORTING REGISTRIES (ethers.js)')
   console.log('════════════════════════════════════════════════════')
 
-  // GlobalMessageRegistry — constructor(address _owner, address _masterRegistry)
+  // GlobalMessageRegistry — constructor() then initialize(address _owner, address _masterRegistry)
   const gmrAbi = await loadAbi('GlobalMessageRegistry')
   const gmrBytecode = await loadBytecode('GlobalMessageRegistry')
   const gmrFactory = new ethers.ContractFactory(gmrAbi, gmrBytecode, deployer)
-  const gmr = await gmrFactory.deploy(DEPLOYER_ADDRESS, innerProxyAddress)
+  const gmr = await gmrFactory.deploy()
   await gmr.deployed()
   console.log('   GlobalMessageRegistry:  ', gmr.address)
+
+  // Initialize GlobalMessageRegistry
+  const gmrInitTx = await gmr.initialize(DEPLOYER_ADDRESS, innerProxyAddress)
+  await gmrInitTx.wait()
+  console.log('   GlobalMessageRegistry initialized')
 
   // FeaturedQueueManager — constructor() (owner set to msg.sender)
   //   then call initialize(address _masterRegistry, address _owner) to wire up
@@ -510,46 +515,28 @@ export async function deployContracts() {
     DEPLOYER_ADDRESS,              // _vault (placeholder — must be non-zero)
     '',                            // _styleUri
     gmr.address,                   // _globalMessageRegistry
-    DEPLOYER_ADDRESS               // _protocolTreasury (placeholder)
+    DEPLOYER_ADDRESS,              // _protocolTreasury (placeholder)
+    innerProxyAddress,             // _masterRegistry
+    ethers.constants.AddressZero   // _gatingModule (none for template)
   )
   await erc1155Template.deployed()
   console.log('   ERC1155Instance template:   ', erc1155Template.address)
 
-  // ERC1155Factory — constructor now takes globalMessageRegistry
+  // ERC1155Factory — constructor(masterRegistry, instanceTemplate, globalMessageRegistry, gatingModule)
   runForgeScript('script/DeployERC1155Factory.s.sol', {
     MASTER_REGISTRY: innerProxyAddress,
     INSTANCE_TEMPLATE: erc1155Template.address,
-    CREATOR: DEPLOYER_ADDRESS,
-    CREATOR_FEE_BPS: '250',
     GLOBAL_MESSAGE_REGISTRY: gmr.address,
   })
   const erc1155FactoryAddress = await readBroadcastAddress('DeployERC1155Factory')
   console.log('   ERC1155Factory:            ', erc1155FactoryAddress)
 
-  // ERC404Factory — forge script now deploys ALL modules internally:
-  //   ERC404BondingInstance impl, ERC404StakingModule, LiquidityDeployerModule,
-  //   LaunchManager, CurveParamsComputer, then the factory itself.
-  // No more ethers.js template deployment needed.
-  // The INSTANCE_TEMPLATE env var is still used by the forge script for the Solady clone template.
-  //
-  // Deploy a minimal ERC404BondingInstance as clone template for LibClone.
-  // The new constructor is zero-arg (just locks implementation).
-  const erc404InstanceAbi = await loadAbi('ERC404BondingInstance')
-  const erc404InstanceBytecode = await loadBytecode('ERC404BondingInstance')
-  const erc404InstanceContractFactory = new ethers.ContractFactory(erc404InstanceAbi, erc404InstanceBytecode, deployer)
-  const erc404Template = await erc404InstanceContractFactory.deploy()
-  await erc404Template.deployed()
-  console.log('   ERC404BondingInstance template:', erc404Template.address)
-
+  // ERC404Factory — forge script deploys ERC404BondingInstance impl, LaunchManager,
+  //   CurveParamsComputer, and the factory itself.
   runForgeScript('script/DeployERC404Factory.s.sol', {
     MASTER_REGISTRY: innerProxyAddress,
-    INSTANCE_TEMPLATE: erc404Template.address,
-    V4_POOL_MANAGER: MAINNET_ADDRESSES.uniswapV4PoolManager,
-    WETH: MAINNET_ADDRESSES.weth,
     PROTOCOL: DEPLOYER_ADDRESS,
-    CREATOR: DEPLOYER_ADDRESS,
-    CREATOR_FEE_BPS: '100',
-    CREATOR_GRADUATION_FEE_BPS: '200',
+    COMPONENT_REGISTRY: compRegInnerProxy,
     GLOBAL_MESSAGE_REGISTRY: gmr.address,
   })
 
@@ -564,6 +551,44 @@ export async function deployContracts() {
   for (const d of erc404Deployments) {
     if (d.contractName !== 'ERC404Factory') {
       console.log(`   ${d.contractName}:`, ' '.repeat(Math.max(0, 25 - d.contractName.length)), d.address)
+    }
+  }
+
+  // Configure LaunchManager preset (required before any ERC404 instance creation)
+  const launchManagerDeployment = erc404Deployments.find(d => d.contractName === 'LaunchManager')
+  const curveComputerDeployment = erc404Deployments.find(d => d.contractName === 'CurveParamsComputer')
+  if (!launchManagerDeployment) throw new Error('LaunchManager deployment not found in broadcast')
+  if (!curveComputerDeployment) throw new Error('CurveParamsComputer deployment not found in broadcast')
+
+  const launchManagerAbi = await loadAbi('LaunchManager')
+  const launchManager = new ethers.Contract(launchManagerDeployment.address, launchManagerAbi, deployer)
+
+  // Set preset 1 (STANDARD): 15 ETH target, 1M units per NFT, 10% liquidity reserve
+  const setPresetTx = await launchManager.setPreset(1, {
+    targetETH: ethers.utils.parseEther('15'),
+    unitPerNFT: 1_000_000,
+    liquidityReserveBps: 1000,  // 10%
+    curveComputer: curveComputerDeployment.address,
+    active: true,
+  })
+  await setPresetTx.wait()
+  console.log('   LaunchManager preset 1 configured (15 ETH, 1M/NFT, 10% reserve)')
+
+  // Approve CurveParamsComputer and mock LiquidityDeployer in ComponentRegistry (skip if already approved by forge script)
+  const MOCK_LIQUIDITY_DEPLOYER = '0x0000000000000000000000000000000000C0DE03'
+  const componentsToApprove = [
+    { addr: curveComputerDeployment.address, tag: 'CurveComputer', name: 'CurveParamsComputer' },
+    { addr: MOCK_LIQUIDITY_DEPLOYER, tag: 'LiquidityDeployer', name: 'MockLiquidityDeployer' },
+  ]
+  for (const { addr, tag, name } of componentsToApprove) {
+    const alreadyApproved = await componentRegistry.isApprovedComponent(addr)
+    if (!alreadyApproved) {
+      await (await componentRegistry.approveComponent(
+        addr, ethers.utils.formatBytes32String(tag), name
+      )).wait()
+      console.log(`   ComponentRegistry: approved ${name}`, addr)
+    } else {
+      console.log(`   ComponentRegistry: ${name} already approved`)
     }
   }
 
