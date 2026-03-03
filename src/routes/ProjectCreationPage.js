@@ -85,7 +85,11 @@ export default class ProjectCreationPage extends Component {
             this.setState({ factories, loading: false });
         } catch (err) {
             console.error('[ProjectCreationPage] Failed to load factories:', err);
-            this.setState({ loading: false, error: err.message });
+            const isCallException = err.message?.includes('CALL_EXCEPTION') || err.code === 'CALL_EXCEPTION';
+            const message = isCallException
+                ? 'Contract connection failed. Your local chain may need restarting: npm run chain:start'
+                : err.message;
+            this.setState({ loading: false, error: message });
         }
     }
 

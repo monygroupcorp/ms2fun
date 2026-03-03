@@ -30,7 +30,7 @@ export class Footer extends Component {
 
             // GitHub
             h('a', {
-                href: 'https://github.com/monyverse/ms2fun',
+                href: 'https://github.com/monygroupcorp/ms2fun-contracts',
                 className: 'site-footer-icon',
                 'aria-label': 'GitHub',
                 target: '_blank',
@@ -43,7 +43,7 @@ export class Footer extends Component {
 
             // X (Twitter)
             h('a', {
-                href: 'https://x.com/monyverse',
+                href: 'https://x.com/miladystation',
                 className: 'site-footer-icon',
                 'aria-label': 'X',
                 target: '_blank',

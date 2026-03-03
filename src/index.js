@@ -74,15 +74,15 @@ async function initializeApp() {
             return web3Context;
         }
 
-        // Register routes
-        router.on('/', async () => {
+        // Shared setup for v2 routes — clears containers and resets all v1 styling classes
+        function prepareV2Route() {
             const appContainer = document.getElementById('app-container');
             const appTopContainer = document.getElementById('app-top-container');
             const appBottomContainer = document.getElementById('app-bottom-container');
 
             if (!appContainer) {
                 console.error('App container not found');
-                return;
+                return null;
             }
 
             // Clear ALL containers
@@ -90,24 +90,33 @@ async function initializeApp() {
             if (appTopContainer) appTopContainer.innerHTML = '';
             if (appBottomContainer) appBottomContainer.innerHTML = '';
 
-            // KILL all old Temple of Capital classes
+            // Remove all v1 styling classes that could hide containers or conflict
             document.body.classList.remove(
-                'marble-bg',
-                'marble-smooth-render',
-                'marble-pos-a',
-                'marble-pos-b',
-                'marble-pos-c',
-                'marble-pos-d',
-                'cultexecs-active'
+                'marble-bg', 'marble-smooth-render',
+                'marble-pos-a', 'marble-pos-b', 'marble-pos-c', 'marble-pos-d',
+                'cultexecs-active',
+                'has-project-style', 'project-style-loaded',
+                'project-style-resolved', 'project-style-pending'
             );
+            document.documentElement.classList.remove(
+                'has-project-style', 'project-style-loaded',
+                'project-style-resolved', 'project-style-pending',
+                'project-style-speculative'
+            );
+            document.body.removeAttribute('data-project-style');
 
-            // Add v2 class to body for styling
+            // Add v2 class for styling
             document.body.classList.add('v2-route');
 
-            // Ensure web3 is ready before rendering
-            const web3 = await ensureWeb3Ready();
+            return appContainer;
+        }
 
-            // Render v2 HomePage component with web3 context
+        // Register routes
+        router.on('/', async () => {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
             render(h(HomePage, web3), appContainer);
 
             return {
@@ -124,38 +133,10 @@ async function initializeApp() {
 
         // Discovery page - browse all projects
         router.on('/discover', async () => {
-            const appContainer = document.getElementById('app-container');
-            const appTopContainer = document.getElementById('app-top-container');
-            const appBottomContainer = document.getElementById('app-bottom-container');
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
 
-            if (!appContainer) {
-                console.error('App container not found');
-                return;
-            }
-
-            // Clear ALL containers
-            appContainer.innerHTML = '';
-            if (appTopContainer) appTopContainer.innerHTML = '';
-            if (appBottomContainer) appBottomContainer.innerHTML = '';
-
-            // KILL all old Temple of Capital classes
-            document.body.classList.remove(
-                'marble-bg',
-                'marble-smooth-render',
-                'marble-pos-a',
-                'marble-pos-b',
-                'marble-pos-c',
-                'marble-pos-d',
-                'cultexecs-active'
-            );
-
-            // Add v2 class to body for styling
-            document.body.classList.add('v2-route');
-
-            // Ensure web3 is ready before rendering
             const web3 = await ensureWeb3Ready();
-
-            // Render v2 ProjectDiscovery component with web3 context
             render(h(ProjectDiscovery, web3), appContainer);
 
             return {
@@ -172,38 +153,10 @@ async function initializeApp() {
 
         // Activity page - platform-wide activity feed
         router.on('/activity', async () => {
-            const appContainer = document.getElementById('app-container');
-            const appTopContainer = document.getElementById('app-top-container');
-            const appBottomContainer = document.getElementById('app-bottom-container');
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
 
-            if (!appContainer) {
-                console.error('App container not found');
-                return;
-            }
-
-            // Clear ALL containers
-            appContainer.innerHTML = '';
-            if (appTopContainer) appTopContainer.innerHTML = '';
-            if (appBottomContainer) appBottomContainer.innerHTML = '';
-
-            // KILL all old Temple of Capital classes
-            document.body.classList.remove(
-                'marble-bg',
-                'marble-smooth-render',
-                'marble-pos-a',
-                'marble-pos-b',
-                'marble-pos-c',
-                'marble-pos-d',
-                'cultexecs-active'
-            );
-
-            // Add v2 class to body for styling
-            document.body.classList.add('v2-route');
-
-            // Ensure web3 is ready before rendering
             const web3 = await ensureWeb3Ready();
-
-            // Render v2 Activity component with web3 context
             render(h(Activity, web3), appContainer);
 
             return {
@@ -301,16 +254,8 @@ async function initializeApp() {
         
         // Project creation wizard (v2)
         router.on('/create', async () => {
-            const appContainer = document.getElementById('app-container');
-            const appTopContainer = document.getElementById('app-top-container');
-            const appBottomContainer = document.getElementById('app-bottom-container');
-
-            appTopContainer.innerHTML = '';
-            appContainer.innerHTML = '';
-            appBottomContainer.innerHTML = '';
-
-            document.body.classList.remove('marble-bg', 'obsidian-bg');
-            document.body.classList.add('v2-route');
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
 
             const { default: ProjectCreationPage } = await import('./routes/ProjectCreationPage.js');
             const page = new ProjectCreationPage(appContainer);
@@ -370,35 +315,9 @@ async function initializeApp() {
 
         // Portfolio page - user's personal portfolio
         router.on('/portfolio', async () => {
-            const appContainer = document.getElementById('app-container');
-            const appTopContainer = document.getElementById('app-top-container');
-            const appBottomContainer = document.getElementById('app-bottom-container');
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
 
-            if (!appContainer) {
-                console.error('App container not found');
-                return;
-            }
-
-            // Clear ALL containers
-            appContainer.innerHTML = '';
-            if (appTopContainer) appTopContainer.innerHTML = '';
-            if (appBottomContainer) appBottomContainer.innerHTML = '';
-
-            // KILL all old Temple of Capital classes
-            document.body.classList.remove(
-                'marble-bg',
-                'marble-smooth-render',
-                'marble-pos-a',
-                'marble-pos-b',
-                'marble-pos-c',
-                'marble-pos-d',
-                'cultexecs-active'
-            );
-
-            // Add v2 class to body for styling
-            document.body.classList.add('v2-route');
-
-            // Ensure web3 is ready before rendering
             const web3 = await ensureWeb3Ready();
 
             // Render v2 Portfolio component with web3 context

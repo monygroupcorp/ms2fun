@@ -6,6 +6,7 @@
   "scripts": {
     "start": "vite preview",
     "dev": "vite",
+    "dev:coming-soon": "VITE_FORCE_MODE=COMING_SOON vite",
     "build": "vite build",
     "server:legacy": "nodemon server.js",
     "setup:local": "bash scripts/local-chain/setup.sh",

@@ -22,7 +22,8 @@ export class MobileNav extends Component {
     }
 
     render() {
-        const { isOpen = false, currentPath = '' } = this.props;
+        const { isOpen = false, currentPath = '', mode } = this.props;
+        const comingSoon = mode === 'COMING_SOON';
         const className = isOpen ? 'mobile-nav-panel is-open' : 'mobile-nav-panel';
 
         return h('div', {
@@ -54,9 +55,10 @@ export class MobileNav extends Component {
             }, 'Docs'),
 
             h('a', {
-                href: '/create',
-                className: 'mobile-nav-link mobile-nav-link-primary',
-                onclick: this.handleNavClick('/create')
+                href: comingSoon ? undefined : '/create',
+                className: `mobile-nav-link mobile-nav-link-primary${comingSoon ? ' btn-disabled' : ''}`,
+                onclick: comingSoon ? undefined : this.handleNavClick('/create'),
+                'aria-disabled': comingSoon ? 'true' : undefined
             }, 'Create')
         );
     }

@@ -36,17 +36,19 @@ export class Layout extends Component {
     }
 
     render() {
-        const { children, currentPath = '' } = this.props;
+        const { children, currentPath = '', mode } = this.props;
         const { mobileNavOpen } = this.state;
 
         return h('div', { className: 'app-layout' },
             h(TopBar, {
                 currentPath,
+                mode,
                 onToggleMobileNav: this.handleToggleMobileNav,
                 mobileNavOpen,
                 children: h(MobileNav, {
                     isOpen: mobileNavOpen,
                     currentPath,
+                    mode,
                     onClose: this.handleCloseMobileNav
                 })
             }),

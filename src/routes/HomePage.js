@@ -173,6 +173,7 @@ export class HomePage extends Component {
         if (error) {
             return h(Layout, {
                 currentPath: '/',
+                mode,
                 children: h('div', { className: 'home-page' },
                     h('div', { className: 'home-content' },
                         h('div', { className: 'error-state', style: 'text-align: center; padding: var(--space-10);' },
@@ -188,13 +189,42 @@ export class HomePage extends Component {
         if (mode === 'COMING_SOON') {
             return h(Layout, {
                 currentPath: '/',
+                mode,
                 children: h('div', { className: 'home-page' },
                     h('div', { className: 'home-content' },
+                        // Featured Banner - CULT EXECS is always shown
+                        h('div', { className: 'featured-banner', onclick: () => window.router.navigate('/cultexecs') },
+                            h('div', { className: 'featured-banner-image' },
+                                h('img', {
+                                    src: '/execs/695.jpeg',
+                                    alt: 'CULT EXECUTIVES #695',
+                                    className: 'featured-banner-img'
+                                })
+                            ),
+                            h('div', { className: 'featured-banner-content' },
+                                h('div', { className: 'featured-banner-label' }, 'FEATURED'),
+                                h('h2', { className: 'featured-banner-title' }, 'CULT EXECUTIVES'),
+                                h('div', { className: 'featured-banner-meta' },
+                                    h('span', { className: 'badge' }, 'ERC404')
+                                )
+                            )
+                        ),
+
+                        // Coming Soon message
                         h('div', { className: 'coming-soon-state', style: 'text-align: center; padding: var(--space-10);' },
-                            h('h1', { style: 'font-size: var(--font-size-display); margin-bottom: var(--space-4);' }, 'MS2'),
-                            h('p', { className: 'text-secondary', style: 'font-size: var(--font-size-h3);' }, message || 'Coming Soon'),
+                            h('p', { className: 'text-secondary', style: 'font-size: var(--font-size-h3);' }, 'More Projects Coming Soon'),
                             h('p', { className: 'text-secondary', style: 'margin-top: var(--space-4);' },
                                 'The next generation of creative projects is launching soon.'
+                            ),
+                            h('p', { className: 'text-secondary', style: 'margin-top: var(--space-6);' },
+                                'Prepare your collection on ',
+                                h('a', {
+                                    href: 'https://noema.art',
+                                    target: '_blank',
+                                    rel: 'noopener noreferrer',
+                                    className: 'text-link'
+                                }, 'noema.art'),
+                                ' and be ready to launch on day one.'
                             )
                         )
                     )

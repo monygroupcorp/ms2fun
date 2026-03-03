@@ -29,7 +29,8 @@ export class TopBar extends Component {
     }
 
     render() {
-        const { currentPath = '', children, mobileNavOpen } = this.props;
+        const { currentPath = '', children, mobileNavOpen, mode } = this.props;
+        const comingSoon = mode === 'COMING_SOON';
 
         return h('div', { className: 'home-top-bar' },
             // Logo
@@ -58,12 +59,13 @@ export class TopBar extends Component {
             // Desktop Nav Links (minimal - Create button only)
             h('div', { className: 'nav-links' },
                 h('a', {
-                    href: '/create',
-                    className: 'btn btn-primary',
-                    onclick: (e) => {
+                    href: comingSoon ? undefined : '/create',
+                    className: `btn btn-primary${comingSoon ? ' btn-disabled' : ''}`,
+                    onclick: comingSoon ? undefined : (e) => {
                         e.preventDefault();
                         window.router.navigate('/create');
-                    }
+                    },
+                    'aria-disabled': comingSoon ? 'true' : undefined
                 }, 'Create')
             ),
 
