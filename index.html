@@ -34,9 +34,8 @@
     <meta property="twitter:description" content="A fully decentralized launchpad for Web3 projects. Browse, discover, and interact with multiple projects from a single interface.">
     <meta property="twitter:image" content="//ms2.fun/execs/og-image.png">
 
-    <!-- Font Preload -->
-    <link rel="preload" href="/fonts/RedHatTextVarLatinSubsetBasic.woff2" as="font" type="font/woff2" crossorigin>
-    
+    <!-- Font Preload - Removed: Gallery Brutalism v2 uses system fonts (Helvetica Neue, IBM Plex Mono) -->
+
     <!-- Critical CSS - Prevent FOUC (Flash of Unstyled Content) -->
     <style>
         /* Hide body until CSS loads */
@@ -159,20 +158,16 @@
     
     <!-- Project Style Early Detection - runs BEFORE stylesheets load -->
     <script>
-        console.log('[ProjectStyleEarly] Script starting...');
         (function() {
-            console.log('[ProjectStyleEarly] Inside IIFE');
             // Check if current URL is a project page and has cached project style
             // This must run synchronously before any styles load
             // IMPORTANT: Use documentElement (html) since body doesn't exist yet in <head>
             var path = window.location.pathname;
-            console.log('[ProjectStyleEarly] Path:', path);
 
             // Match project URLs: /project/:address or /:chainId/:slug or /:chainId/:factory/:instance
             var isProjectPage = /^\/project\/0x[a-fA-F0-9]+/.test(path) ||
                                 /^\/\d+\/[^\/]+/.test(path);
 
-            console.log('[ProjectStyleEarly] Is project page:', isProjectPage);
             if (!isProjectPage) return;
 
             // Look for cached project styles
@@ -197,16 +192,13 @@
                 // For slug-based URLs, we can't know the address yet
                 // AGGRESSIVE: If ANY project has cached styles, assume THIS project might too
                 // Show dark background immediately - route handler will confirm or revert
-                console.log('[ProjectStyleEarly] Slug-based URL, checking for any cached styles...');
                 for (var i = 0; i < localStorage.length; i++) {
                     var key = localStorage.key(i);
                     if (key && key.startsWith('projectStyle:')) {
-                        console.log('[ProjectStyleEarly] Found cached style:', key);
                         // At least one project has styles - optimistically apply dark mode
                         // Route handler will either load the actual style or revert to default
                         document.documentElement.classList.add('has-project-style');
                         document.documentElement.classList.add('project-style-speculative');
-                        console.log('[ProjectStyleEarly] Added has-project-style to html element');
                         break;
                     }
                 }
@@ -215,29 +207,13 @@
     </script>
 
     <!-- Preload critical stylesheets -->
-    <link rel="preload" href="/src/core/global.css" as="style">
-    <link rel="preload" href="/src/core/theme.css" as="style">
-    <link rel="preload" href="/src/core/marble.css" as="style">
+    <link rel="preload" href="/src/core/global-v2.css" as="style">
+    <link rel="preload" href="/src/core/core-components-v2.css" as="style">
     
-    <!-- Stylesheets -->
-    <!-- Base styles (shared) -->
-    <link rel="stylesheet" href="/src/core/global.css">
-    <!-- Theme system (light/dark mode) -->
-    <link rel="stylesheet" href="/src/core/theme.css">
-    <!-- Elevation system (depth hierarchy) -->
-    <link rel="stylesheet" href="/src/core/elevation.css">
-    <!-- Marble texture system (retro N64 style) -->
-    <link rel="stylesheet" href="/src/core/marble.css">
-    <!-- Component styles (standardized buttons, cards, forms, modals) -->
-    <link rel="stylesheet" href="/src/core/components.css">
-    <!-- Base stylesheet (contains CSS variables and base styles) -->
-    <link rel="stylesheet" href="/style.css" id="base-styles">
-    <!-- Component styles (loaded as needed) -->
-    <link rel="stylesheet" href="/src/components/SwapInterface/SwapInterface.css">
-    <link rel="stylesheet" href="/src/components/WalletConnector/WalletConnector.css">
-    <link rel="stylesheet" href="/src/components/MessagePopup/MessagePopup.css">
-    <link rel="stylesheet" href="/src/components/FeaturedRental/FeaturedRental.css">
-    <!-- Route-specific styles will be loaded dynamically -->
+    <!-- V2 Gallery Brutalism styles ONLY -->
+    <link rel="stylesheet" href="/src/core/global-v2.css">
+    <link rel="stylesheet" href="/src/core/core-components-v2.css">
+    <!-- Route-specific styles loaded dynamically by each route -->
 
     <!-- CRITICAL: Project Style Override - MUST come AFTER all other stylesheets -->
     <!-- This ensures these rules take precedence over marble.css -->
@@ -393,14 +369,11 @@
         })();
     </script>
     
-    <!-- Theme system (must load early) -->
-    <script type="module" src="/src/core/theme.js"></script>
-    <!-- Marble texture configuration (assigns unique distortions) -->
-    <script src="/src/core/marbleConfig.js"></script>
+    <!-- Application Scripts -->
     <script type="module" src="/app.js"></script>
     <script type="module" src="/src/index.js"></script>
 </head>
-<body class="marble-bg">
+<body>
     <!-- App Container for Router Top Section -->
     <div id="app-top-container"></div>
     
@@ -416,7 +389,7 @@
     
     <!-- Message popup container -->
     <div id="message-popup-container"></div>
-    
+
     <!-- SVG Filters for Marble Texture (Optional Distortion) -->
     <svg class="marble-svg-filters" aria-hidden="true">
         <filter id="marbleWobble">

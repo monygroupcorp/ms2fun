@@ -2,7 +2,10 @@ import { eventBus } from './core/EventBus.js';
 import walletService from './services/WalletService.js';
 import MessagePopup from './components/MessagePopup/MessagePopup.js';
 import Router from './core/Router.js';
-import { renderHomePage } from './routes/HomePage.js';
+import { HomePage } from './routes/HomePage.js';
+import { ProjectDiscovery } from './routes/ProjectDiscovery.js';
+import { Activity } from './routes/Activity.js';
+import { Portfolio } from './routes/Portfolio.js';
 import { renderCultExecsPage } from './routes/CultExecsPage.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
@@ -22,7 +25,6 @@ const messagePopup = new MessagePopup();
  */
 async function initializeApp() {
     try {
-        console.log('Initializing blockchain application with routing...');
         
         // Add global unhandled rejection handler for wallet errors
         window.addEventListener('unhandledrejection', event => {
@@ -54,11 +56,121 @@ async function initializeApp() {
         // Expose mock system test globally for console testing
         if (serviceFactory.isUsingMock()) {
             window.testMockSystem = testMockSystem;
-            console.log('💡 Mock system loaded! Run testMockSystem() in the console to test.');
         }
         
+        // Initialize web3 infrastructure once (shared across all routes)
+        let web3Context = null;
+        async function ensureWeb3Ready() {
+            if (web3Context) return web3Context;
+
+            const EnvironmentDetector = (await import('./services/EnvironmentDetector.js')).EnvironmentDetector;
+            const providerManager = (await import('./services/ProviderManager.js')).default;
+
+            const { provider, type: providerType } = await providerManager.initialize();
+            const detector = new EnvironmentDetector();
+            const { mode, config } = await detector.detect();
+
+            web3Context = { provider, providerType, mode, config, web3Ready: true };
+            return web3Context;
+        }
+
+        // Shared setup for v2 routes — clears containers and resets all v1 styling classes
+        function prepareV2Route() {
+            const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+
+            if (!appContainer) {
+                console.error('App container not found');
+                return null;
+            }
+
+            // Clear ALL containers
+            appContainer.innerHTML = '';
+            if (appTopContainer) appTopContainer.innerHTML = '';
+            if (appBottomContainer) appBottomContainer.innerHTML = '';
+
+            // Remove all v1 styling classes that could hide containers or conflict
+            document.body.classList.remove(
+                'marble-bg', 'marble-smooth-render',
+                'marble-pos-a', 'marble-pos-b', 'marble-pos-c', 'marble-pos-d',
+                'cultexecs-active',
+                'has-project-style', 'project-style-loaded',
+                'project-style-resolved', 'project-style-pending'
+            );
+            document.documentElement.classList.remove(
+                'has-project-style', 'project-style-loaded',
+                'project-style-resolved', 'project-style-pending',
+                'project-style-speculative'
+            );
+            document.body.removeAttribute('data-project-style');
+
+            // Add v2 class for styling
+            document.body.classList.add('v2-route');
+
+            return appContainer;
+        }
+
         // Register routes
-        router.on('/', renderHomePage);
+        router.on('/', async () => {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            render(h(HomePage, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:home');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
+        // Discovery page - browse all projects
+        router.on('/discover', async () => {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            render(h(ProjectDiscovery, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:discovery');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
+        // Activity page - platform-wide activity feed
+        router.on('/activity', async () => {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            render(h(Activity, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:activity');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
         router.on('/cultexecs', renderCultExecsPage);
         router.on('/about', async () => {
             const { renderDocumentation } = await import('./routes/Documentation.js');
@@ -71,10 +183,9 @@ async function initializeApp() {
         
         // Register dynamic routes (order matters - more specific first)
 
-        // Create route with chain ID and factory title (new format)
-        router.on('/:chainId/:factoryTitle/create', async (params) => {
-            const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
-            return renderProjectCreation(params);
+        // Legacy create route with chain ID and factory title — redirect to /create
+        router.on('/:chainId/:factoryTitle/create', async () => {
+            window.location.href = '/create';
         });
 
         // Three-part route - could be either project or edition
@@ -141,10 +252,23 @@ async function initializeApp() {
             return renderFactoryDetail(params);
         });
         
-        // Old create route for backward compatibility
+        // Project creation wizard (v2)
         router.on('/create', async () => {
-            const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
-            return renderProjectCreation();
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const { default: ProjectCreationPage } = await import('./routes/ProjectCreationPage.js');
+            const page = new ProjectCreationPage(appContainer);
+            page.mount(appContainer);
+
+            return {
+                cleanup: () => {
+                    page.unmount();
+                    document.body.classList.remove('v2-route');
+                    document.body.classList.add('marble-bg');
+                    stylesheetLoader.unload('route:create');
+                }
+            };
         });
         
         router.on('/factories', async () => {
@@ -189,10 +313,72 @@ async function initializeApp() {
             return renderGlobalActivityFeed();
         });
 
-        // Portfolio route (user holdings + settings)
+        // Portfolio page - user's personal portfolio
         router.on('/portfolio', async () => {
-            const { renderPortfolio } = await import('./routes/Portfolio.js');
-            return renderPortfolio();
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+
+            // Render v2 Portfolio component with web3 context
+            render(h(Portfolio, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:portfolio');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
+        // Governance Hub routes
+        router.on('/governance', async () => {
+            const { renderGovernanceOverview } = await import('./routes/governance/GovernanceOverview.js');
+            return renderGovernanceOverview();
+        });
+
+        router.on('/governance/proposals', async () => {
+            const { renderProposalsList } = await import('./routes/governance/ProposalsList.js');
+            return renderProposalsList();
+        });
+
+        router.on('/governance/proposals/:id', async (params) => {
+            const { renderProposalDetail } = await import('./routes/governance/ProposalDetail.js');
+            return renderProposalDetail(params);
+        });
+
+        router.on('/governance/apply', async () => {
+            const { renderGovernanceApply } = await import('./routes/governance/GovernanceApply.js');
+            return renderGovernanceApply();
+        });
+
+        router.on('/governance/apply/factory', async () => {
+            const { renderFactoryApplicationForm } = await import('./routes/governance/FactoryApplicationForm.js');
+            return renderFactoryApplicationForm();
+        });
+
+        router.on('/governance/apply/vault', async () => {
+            const { renderVaultApplicationForm } = await import('./routes/governance/VaultApplicationForm.js');
+            return renderVaultApplicationForm();
+        });
+
+        router.on('/governance/member', async () => {
+            const { renderMemberDashboard } = await import('./routes/governance/MemberDashboard.js');
+            return renderMemberDashboard();
+        });
+
+        router.on('/governance/treasury', async () => {
+            const { renderTreasuryView } = await import('./routes/governance/TreasuryView.js');
+            return renderTreasuryView();
+        });
+
+        router.on('/governance/shares', async () => {
+            const { renderShareOffering } = await import('./routes/governance/ShareOffering.js');
+            return renderShareOffering();
         });
 
         // Register 404 handler
@@ -210,8 +396,6 @@ async function initializeApp() {
         
         // Start the router
         await router.start();
-
-        console.log('Router initialized successfully');
 
         // Add FloatingWalletButton globally (appears on all pages)
         initializeFloatingWalletButton();
@@ -232,19 +416,13 @@ async function initializeApp() {
  */
 async function initializeServices() {
     try {
-        console.log('Initializing services...');
-
         // Initialize service factory (checks RPC availability, falls back to mock)
         await serviceFactory.initialize();
-        console.log('Service factory initialized, mode:', serviceFactory.isUsingMock() ? 'mock' : 'real');
 
         // Check if wallet service is already initialized
         if (!walletService.isInitialized) {
             // Initialize wallet service
             await walletService.initialize();
-            console.log('Wallet service initialized');
-        } else {
-            console.log('Wallet service already initialized');
         }
 
         // Start contract reload service (local dev only - skip in mock mode)
@@ -284,8 +462,6 @@ function initializeFloatingWalletButton() {
 
         // Store container for potential cleanup
         window.floatingWalletContainer = floatingWalletContainer;
-
-        console.log('FloatingWalletButton initialized globally');
     } catch (error) {
         console.error('Failed to initialize FloatingWalletButton:', error);
     }
@@ -300,15 +476,13 @@ export async function initializeReadOnlyMode() {
     try {
         // Dynamically import ReadOnlyService
         const { default: readOnlyService } = await import('./services/ReadOnlyService.js');
-        
+
         // Initialize read-only service
         await readOnlyService.initialize();
-        
-        console.log('Read-only mode initialized');
+
         return true;
     } catch (error) {
         // Read-only mode is optional, so we don't throw
-        console.warn('Read-only mode not available:', error.message);
         return false;
     }
 }

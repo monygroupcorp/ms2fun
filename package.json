@@ -6,18 +6,25 @@
   "scripts": {
     "start": "vite preview",
     "dev": "vite",
+    "dev:coming-soon": "VITE_FORCE_MODE=COMING_SOON vite",
     "build": "vite build",
     "server:legacy": "nodemon server.js",
     "setup:local": "bash scripts/local-chain/setup.sh",
     "chain:start": "bash scripts/local-chain/start-chain.sh",
+    "chain:start:empty": "bash scripts/local-chain/start-chain.sh --scenario empty",
+    "chain:start:busy": "bash scripts/local-chain/start-chain.sh --scenario busy",
+    "chain:start:proposal": "bash scripts/local-chain/start-chain.sh --scenario proposal",
     "chain:reset": "npm run chain:start",
+    "chain:stop": "lsof -ti:8545 | xargs kill -9 2>/dev/null && echo 'Anvil stopped' || echo 'No Anvil running on :8545'",
     "chain:verify": "node scripts/verify-seed-data.mjs",
-    "contracts:build": "cd contracts && forge build",
-    "contracts:update": "git submodule update --remote contracts && npm run contracts:build"
+    "contracts:build": "cd contracts && FOUNDRY_VIA_IR=false forge build",
+    "contracts:build:prod": "cd contracts && forge build",
+    "contracts:update": "git submodule update --remote contracts && npm run contracts:build",
+    "chain:validate": "node scripts/local-chain/validate-deploy.mjs"
   },
   "dependencies": {
-    "@monygroupcorp/micro-web3": "^1.3.9",
-    "@monygroupcorp/microact": "^0.2.1",
+    "@monygroupcorp/micro-web3": "^1.4.2",
+    "@monygroupcorp/microact": "^0.2.4",
     "ethers": "^5.7.2",
     "express": "^4.17.1",
     "web3": "^4.16.0"

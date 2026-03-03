@@ -35,7 +35,8 @@ const HOOK_FLAGS = {
 const ALL_HOOK_FLAGS = 0x3FFFn;
 
 // Flags required for UltraAlignmentV4Hook
-const ULTRA_ALIGNMENT_REQUIRED_FLAGS = HOOK_FLAGS.AFTER_SWAP | HOOK_FLAGS.AFTER_SWAP_RETURNS_DELTA; // 0x44
+// beforeSwap (0x80) + afterSwap (0x40) + afterSwapReturnDelta (0x04) = 0xC4
+const ULTRA_ALIGNMENT_REQUIRED_FLAGS = HOOK_FLAGS.BEFORE_SWAP | HOOK_FLAGS.AFTER_SWAP | HOOK_FLAGS.AFTER_SWAP_RETURNS_DELTA; // 0xC4
 
 // Flags that must NOT be set
 const ULTRA_ALIGNMENT_FORBIDDEN_FLAGS = ALL_HOOK_FLAGS ^ ULTRA_ALIGNMENT_REQUIRED_FLAGS; // 0x3FBB
@@ -81,13 +82,15 @@ export function computeCreate2Address(deployer, salt, initCodeHash) {
  * @param {string} vault - UltraAlignmentVault address
  * @param {string} weth - WETH address
  * @param {string} owner - Hook owner address
+ * @param {number} hookFeeBips - Hook fee in basis points (uint256)
+ * @param {number} initialLpFeeRate - Initial LP fee rate (uint24, ABI-encoded as uint256)
  * @returns {string} The keccak256 hash of the full init code
  */
-export function computeInitCodeHash(creationCode, poolManager, vault, weth, owner) {
-    // Encode constructor arguments (4 addresses)
+export function computeInitCodeHash(creationCode, poolManager, vault, weth, owner, hookFeeBips, initialLpFeeRate) {
+    // Encode constructor arguments (4 addresses + 2 uints)
     const constructorArgs = ethers.utils.defaultAbiCoder.encode(
-        ["address", "address", "address", "address"],
-        [poolManager, vault, weth, owner]
+        ["address", "address", "address", "address", "uint256", "uint256"],
+        [poolManager, vault, weth, owner, hookFeeBips, initialLpFeeRate]
     );
 
     // Concatenate creation code + constructor args
@@ -158,6 +161,8 @@ export async function mineSaltForUltraAlignmentHook({
  * @param {string} params.vault - Vault address
  * @param {string} params.weth - WETH address
  * @param {string} params.creator - Hook creator/owner address
+ * @param {number} params.hookFeeBips - Hook fee in basis points (uint256)
+ * @param {number} params.initialLpFeeRate - Initial LP fee rate (uint24, ABI-encoded as uint256)
  * @param {function} [params.onProgress] - Progress callback
  * @returns {Promise<{salt: string, address: string, iterations: number}>}
  */
@@ -168,6 +173,8 @@ export async function mineHookSalt({
     vault,
     weth,
     creator,
+    hookFeeBips,
+    initialLpFeeRate,
     onProgress = null
 }) {
     // Compute init code hash
@@ -176,7 +183,9 @@ export async function mineHookSalt({
         poolManager,
         vault,
         weth,
-        creator
+        creator,
+        hookFeeBips,
+        initialLpFeeRate
     );
 
     // Mine salt

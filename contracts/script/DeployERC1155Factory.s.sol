@@ -6,13 +6,14 @@ import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
 
 contract DeployERC1155Factory is Script {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address masterRegistry = vm.envAddress("MASTER_REGISTRY");
         address instanceTemplate = vm.envAddress("INSTANCE_TEMPLATE");
-        
-        vm.startBroadcast(deployerPrivateKey);
+        address creator = vm.envAddress("CREATOR");
+        uint256 creatorFeeBps = vm.envUint("CREATOR_FEE_BPS");
 
-        ERC1155Factory factory = new ERC1155Factory(masterRegistry, instanceTemplate);
+        vm.startBroadcast();
+
+        ERC1155Factory factory = new ERC1155Factory(masterRegistry, instanceTemplate, creator, creatorFeeBps);
         console.log("ERC1155Factory deployed at:", address(factory));
 
         vm.stopBroadcast();

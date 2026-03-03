@@ -59,8 +59,8 @@ echo ""
 
 # Start Anvil in background with unlocked accounts
 # Using Anvil's default test accounts with known private keys
-# Note: --code-size-limit increased to allow deployment of MasterRegistryV1 (60KB)
-#       This is for local testing only - mainnet deployment requires refactoring
+# Note: --code-size-limit raised for UltraAlignmentVault (26.3 KB, over the 24KB Spurious Dragon limit).
+#       All other contracts are under 24KB after the ERC404Factory atomization refactor.
 anvil \
     --fork-url "$MAINNET_RPC_URL" \
     --chain-id 1337 \
@@ -68,7 +68,7 @@ anvil \
     --host 127.0.0.1 \
     --accounts 10 \
     --balance 10000 \
-    --code-size-limit 100000 \
+    --code-size-limit 30000 \
     > /tmp/anvil.log 2>&1 &
 
 ANVIL_PID=$!
@@ -99,10 +99,14 @@ for i in {1..30}; do
 done
 
 # Build contracts
+# FOUNDRY_VIA_IR=false overrides via_ir=true in foundry.toml for local dev.
+# via_ir is required for production (stack-too-deep fixes) but adds 10-20x
+# compile time. Skip it locally — if a contract fails to compile without it,
+# that's a signal to fix the stack depth, not enable IR for dev builds.
 echo ""
-echo "🔨 Building contracts..."
+echo "🔨 Building contracts (via_ir disabled for speed)..."
 cd contracts
-forge build
+FOUNDRY_VIA_IR=false forge build
 if [ $? -ne 0 ]; then
     echo ""
     echo "❌ Contract build failed!"
@@ -117,7 +121,7 @@ echo "  ✓ Contracts built successfully"
 
 # Run deployment and seeding
 echo ""
-bash scripts/local-chain/deploy-and-seed.sh
+node scripts/local-chain/run-local.mjs "$@"
 
 echo ""
 echo "✅ Local chain ready at http://127.0.0.1:8545"

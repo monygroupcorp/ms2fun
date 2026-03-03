@@ -1798,6 +1798,247 @@ class MasterRegistryAdapter extends ContractAdapter {
         };
     }
 
+    // ============ Alignment Targets ============
+
+    /**
+     * Get all alignment targets by indexing AlignmentTargetRegistered events
+     * @returns {Promise<Array>} Array of alignment targets
+     */
+    async getAlignmentTargets() {
+        return await this.getCachedOrFetch('getAlignmentTargets', [], async () => {
+            if (!this.contract) return [];
+            const filter = this.contract.filters.AlignmentTargetRegistered();
+            const events = await this.contract.queryFilter(filter, 0, 'latest');
+
+            const targets = [];
+            for (const event of events) {
+                const targetId = event.args.targetId.toNumber();
+                try {
+                    const target = await this.getAlignmentTarget(targetId);
+                    if (target.active) {
+                        targets.push({ id: targetId, ...target });
+                    }
+                } catch (e) {
+                    console.warn(`[MasterRegistryAdapter] Failed to load target ${targetId}:`, e);
+                }
+            }
+            return targets;
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get alignment target details
+     * @param {number} targetId - Target ID
+     * @returns {Promise<Object>} Target details
+     */
+    async getAlignmentTarget(targetId) {
+        return await this.getCachedOrFetch('getAlignmentTarget', [targetId], async () => {
+            const target = await this.executeContractCall('getAlignmentTarget', [targetId]);
+            return {
+                title: target.title || target[0],
+                description: target.description || target[1],
+                metadataURI: target.metadataURI || target[2],
+                active: target.active !== undefined ? target.active : target[3],
+                assets: target.assets || target[4] || []
+            };
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get alignment target assets
+     * @param {number} targetId - Target ID
+     * @returns {Promise<Array>} Array of alignment assets
+     */
+    async getAlignmentTargetAssets(targetId) {
+        return await this.getCachedOrFetch('getAlignmentTargetAssets', [targetId], async () => {
+            const assets = await this.executeContractCall('getAlignmentTargetAssets', [targetId]);
+            return assets.map(a => ({
+                token: a.token || a[0],
+                weight: parseInt((a.weight || a[1]).toString()),
+                isLP: a.isLP !== undefined ? a.isLP : a[2]
+            }));
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    /**
+     * Get vaults registered for a specific alignment target
+     * @param {number} targetId - Target ID
+     * @returns {Promise<Array>} Array of vault info objects
+     */
+    async getVaultsForTarget(targetId) {
+        return await this.getCachedOrFetch('getVaultsForTarget', [targetId], async () => {
+            if (!this.contract) return [];
+            // Index VaultRegistered events filtered by targetId
+            const filter = this.contract.filters.VaultRegistered(null, null, null, targetId);
+            const events = await this.contract.queryFilter(filter, 0, 'latest');
+
+            const vaults = [];
+            for (const event of events) {
+                const vaultAddress = event.args.vault;
+                try {
+                    const isRegistered = await this.executeContractCall('isVaultRegistered', [vaultAddress]);
+                    if (isRegistered) {
+                        const info = await this.executeContractCall('getVaultInfo', [vaultAddress]);
+                        vaults.push({
+                            address: vaultAddress,
+                            name: info.name || info[1],
+                            targetId: parseInt((info.targetId || info[3]).toString()),
+                            active: info.active !== undefined ? info.active : info[4]
+                        });
+                    }
+                } catch (e) {
+                    console.warn(`[MasterRegistryAdapter] Failed to load vault ${vaultAddress}:`, e);
+                }
+            }
+            return vaults.filter(v => v.active !== false);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
+    // ── Factory Feature Querying (for creation wizard) ──
+
+    /**
+     * Get features (component tags) supported by a factory.
+     * @param {string} factoryAddress
+     * @returns {Promise<string[]>} Array of bytes32 tag hashes
+     */
+    async getFactoryFeatures(factoryAddress) {
+        return this.getCachedOrFetch('getFactoryFeatures', [factoryAddress], async () => {
+            if (this.isMock) return this._getMockFactoryFeatures(factoryAddress);
+
+            const { loadABI } = await import('../../utils/abiLoader.js');
+            const abi = await loadABI('IFactory');
+            const factoryContract = new this.ethers.Contract(
+                factoryAddress, abi, this.signer || this.provider
+            );
+            return await factoryContract.features();
+        }, 60 * 60 * 1000); // 1 hour — features don't change after deploy
+    }
+
+    /**
+     * Get required features (mandatory component tags) for a factory.
+     * @param {string} factoryAddress
+     * @returns {Promise<string[]>} Array of bytes32 tag hashes that are mandatory
+     */
+    async getFactoryRequiredFeatures(factoryAddress) {
+        return this.getCachedOrFetch('getFactoryRequiredFeatures', [factoryAddress], async () => {
+            if (this.isMock) return this._getMockRequiredFeatures(factoryAddress);
+
+            // IFactory only exposes features() (supported component tags).
+            // There is no on-chain distinction between required and optional features —
+            // all are optional (users can pass AddressZero). Return empty array.
+            return [];
+        }, 60 * 60 * 1000);
+    }
+
+    /**
+     * Get active factories with their info from MasterRegistry.
+     * @returns {Promise<Array<{address, factoryId, contractType, title, displayTitle, metadataURI, features, active}>>}
+     */
+    async getActiveFactories() {
+        return this.getCachedOrFetch('getActiveFactories', [], async () => {
+            if (this.isMock) return this._getMockActiveFactories();
+
+            const totalFactories = await this.executeContractCall('nextFactoryId', []);
+            const count = Number(totalFactories);
+            const factories = [];
+
+            for (let i = 1; i < count; i++) {
+                const address = await this.executeContractCall('factoryIdToAddress', [i]);
+                if (address === this.ethers.constants.AddressZero) continue;
+
+                const info = await this.executeContractCall('factoryInfo', [address]);
+                if (!info.active) continue;
+
+                factories.push({
+                    address: info.factoryAddress,
+                    factoryId: Number(info.factoryId),
+                    contractType: info.contractType,
+                    title: info.title,
+                    displayTitle: info.displayTitle,
+                    metadataURI: info.metadataURI,
+                    features: info.features,
+                    active: info.active,
+                });
+            }
+            return factories;
+        }, 5 * 60 * 1000);
+    }
+
+    /**
+     * Get active vaults from MasterRegistry.
+     * @returns {Promise<Array<{address, name, metadataURI, targetId, active}>>}
+     */
+    async getActiveVaults() {
+        return this.getCachedOrFetch('getActiveVaults', [], async () => {
+            if (this.isMock) return this._getMockActiveVaults();
+
+            // TODO: MasterRegistryV1 doesn't have a vault enumeration function.
+            // For now, return empty. Future: add getRegisteredVaults() or use QueryAggregator.
+            const vaultData = [];
+            return vaultData;
+        }, 5 * 60 * 1000);
+    }
+
+    // ── Mock helpers for creation wizard ──
+
+    _getMockFactoryFeatures(factoryAddress) {
+        const gatingTag = this.ethers.utils.keccak256(this.ethers.utils.toUtf8Bytes('gating'));
+        const liqTag = this.ethers.utils.keccak256(this.ethers.utils.toUtf8Bytes('liquidity'));
+
+        if (factoryAddress.includes('404')) return [gatingTag, liqTag];
+        if (factoryAddress.includes('1155')) return [gatingTag];
+        return [];
+    }
+
+    _getMockRequiredFeatures(factoryAddress) {
+        const liqTag = this.ethers.utils.keccak256(this.ethers.utils.toUtf8Bytes('liquidity'));
+        if (factoryAddress.includes('404')) return [liqTag];
+        return [];
+    }
+
+    _getMockActiveFactories() {
+        return [
+            {
+                address: '0xMOCK_FACTORY_404',
+                factoryId: 1,
+                contractType: 'ERC404',
+                title: 'ERC404Factory',
+                displayTitle: 'ERC404 Bonding Curve',
+                metadataURI: '',
+                features: [],
+                active: true,
+            },
+            {
+                address: '0xMOCK_FACTORY_1155',
+                factoryId: 2,
+                contractType: 'ERC1155',
+                title: 'ERC1155Factory',
+                displayTitle: 'ERC1155 Open Editions',
+                metadataURI: '',
+                features: [],
+                active: true,
+            },
+            {
+                address: '0xMOCK_FACTORY_721',
+                factoryId: 3,
+                contractType: 'ERC721',
+                title: 'ERC721AuctionFactory',
+                displayTitle: 'ERC721 Auctions',
+                metadataURI: '',
+                features: [],
+                active: true,
+            },
+        ];
+    }
+
+    _getMockActiveVaults() {
+        return [
+            { address: '0xMOCK_VAULT_ALPHA', name: 'Alpha Vault', metadataURI: '', targetId: 1, active: true },
+            { address: '0xMOCK_VAULT_BETA', name: 'Beta Vault', metadataURI: '', targetId: 1, active: true },
+            { address: '0xMOCK_VAULT_GAMMA', name: 'Gamma Vault', metadataURI: '', targetId: 2, active: true },
+        ];
+    }
+
     /**
      * Get balance (not applicable for registry)
      * @returns {Promise<string>} Always returns '0'

@@ -84,8 +84,8 @@ export class ProjectDiscovery extends Component {
             totalSupply: card.totalSupply,
             maxSupply: card.maxSupply,
             isActive: card.isActive,
-            isFeatured: card.featuredPosition > 0,
-            featuredPosition: card.featuredPosition,
+            isFeatured: card.featuredRank > 0,
+            featuredRank: card.featuredRank,
             featuredExpires: card.featuredExpires
         };
     }

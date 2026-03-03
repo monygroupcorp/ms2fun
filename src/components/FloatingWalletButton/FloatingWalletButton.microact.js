@@ -19,7 +19,10 @@ export class FloatingWalletButton extends Component {
             address: null,
             balance: '0.00',
             loading: true,
-            menuOpen: false
+            menuOpen: false,
+            // Indexing status
+            currentBlock: 0,
+            blocksBehind: 0
         };
     }
 
@@ -152,9 +155,39 @@ export class FloatingWalletButton extends Component {
         e.stopPropagation();
 
         if (this.state.walletConnected) {
-            this.setState({ menuOpen: !this.state.menuOpen });
+            const newMenuState = !this.state.menuOpen;
+            this.setState({ menuOpen: newMenuState });
+
+            // Load indexing status when opening menu
+            if (newMenuState) {
+                await this.loadIndexingStatus();
+            }
         } else {
             await this.showWalletModal();
+        }
+    }
+
+    async loadIndexingStatus() {
+        try {
+            let provider = walletService.ethersProvider;
+
+            if (!provider && typeof window.ethereum !== 'undefined') {
+                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+            }
+
+            if (provider) {
+                const currentBlock = await provider.getBlockNumber();
+
+                // Try to get last indexed block from activity if available
+                // For now, just show current block (blocks behind will be 0)
+                this.setState({
+                    currentBlock,
+                    blocksBehind: 0
+                });
+            }
+        } catch (error) {
+            console.error('[FloatingWalletButton] Failed to load indexing status:', error);
         }
     }
 
@@ -231,7 +264,7 @@ export class FloatingWalletButton extends Component {
     }
 
     render() {
-        const { walletConnected, address, balance, loading, menuOpen } = this.state;
+        const { walletConnected, address, balance, loading, menuOpen, currentBlock, blocksBehind } = this.state;
 
         if (loading) {
             return h('div', { className: 'floating-wallet-button loading' },
@@ -280,17 +313,29 @@ export class FloatingWalletButton extends Component {
                     },
                         h('span', { className: 'item-icon' }, '\u25C6'),
                         h('span', { className: 'item-label' }, 'Portfolio')
-                    ),
-                    h('button', {
-                        className: 'dropdown-item',
-                        onClick: () => this.handleMenuItemClick('/staking')
-                    },
-                        h('span', { className: 'item-icon' }, '\u25C7'),
-                        h('span', { className: 'item-label' }, 'Staking')
                     )
                 ),
 
                 h('div', { className: 'dropdown-divider' }),
+
+                // Indexing Status Section
+                currentBlock > 0 && h('div', { className: 'dropdown-section' },
+                    h('div', { className: 'section-title' }, 'Indexing Status'),
+                    h('div', { className: 'section-content' },
+                        h('div', { className: 'status-row' },
+                            h('span', { className: 'status-label' }, 'Current Block'),
+                            h('span', { className: 'status-value' }, currentBlock.toLocaleString())
+                        ),
+                        h('div', { className: 'status-row' },
+                            h('span', { className: 'status-label' }, 'Blocks Behind'),
+                            h('span', {
+                                className: `status-value ${blocksBehind > 10 ? 'warning' : 'success'}`
+                            }, blocksBehind.toLocaleString())
+                        )
+                    )
+                ),
+
+                currentBlock > 0 && h('div', { className: 'dropdown-divider' }),
 
                 h('div', { className: 'dropdown-items' },
                     h('button', {
