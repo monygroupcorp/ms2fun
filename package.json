@@ -1,7 +1,7 @@
 {
-  "name": "cult-execs-terminal",
+  "name": "ms2fun-launchpad",
   "version": "1.0.0",
-  "description": "CULT EXECS Terminal Interface",
+  "description": "MS2.fun Launchpad",
   "main": "server.js",
   "scripts": {
     "start": "vite preview",
