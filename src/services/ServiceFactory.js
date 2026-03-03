@@ -21,9 +21,11 @@ import RealProjectRegistry from './RealProjectRegistry.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
 import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
 import FeaturedQueueManagerAdapter from './contracts/FeaturedQueueManagerAdapter.js';
+import GrandCentralAdapter from './contracts/GrandCentralAdapter.js';
 import walletService from './WalletService.js';
 import queryService from './QueryService.js';
 import projectIndex from './ProjectIndex.js';
+import governanceEventIndexer from './GovernanceEventIndexer.js';
 
 /**
  * Service Factory
@@ -42,6 +44,8 @@ class ServiceFactory {
         this.projectRegistryInstance = null;
         this.messageRegistryAdapter = null;
         this.featuredQueueAdapter = null;
+        this.grandCentralAdapter = null;
+        this.componentRegistryAdapter = null;
         this.initialized = false;
         this.initPromise = null;
 
@@ -52,7 +56,6 @@ class ServiceFactory {
 
         // Listen for contract reload events (local dev only)
         eventBus.on('contracts:reloaded', () => {
-            console.log('[ServiceFactory] Clearing cached services due to contract reload');
             this.clearCache();
         });
     }
@@ -72,7 +75,6 @@ class ServiceFactory {
             // Skip contract checks if already in mock mode
             if (this.useMock) {
                 this.initialized = true;
-                console.log('[ServiceFactory] Initialized in mock mode (configured)');
                 return;
             }
 
@@ -92,28 +94,24 @@ class ServiceFactory {
                         const isZeroAddress = !masterAddress ||
                             masterAddress === '0x0000000000000000000000000000000000000000';
 
-                        if (isZeroAddress) {
-                            console.log('[ServiceFactory] No contracts deployed (zero address)');
-                        } else {
+                        if (!isZeroAddress) {
                             contractsAvailable = true;
                         }
                     }
                 } catch (e) {
-                    console.log('[ServiceFactory] Could not load contract config');
+                    // Contract config not available
                 }
 
                 // For local mode, also verify RPC is available and has code
                 if (contractsAvailable && network.mode === 'local') {
                     const rpcAvailable = await checkRpcAvailable(masterAddress);
                     if (!rpcAvailable) {
-                        console.log('[ServiceFactory] RPC unavailable or contract not deployed');
                         contractsAvailable = false;
                     }
                 }
 
                 // Fall back to mock mode if no contracts available
                 if (!contractsAvailable) {
-                    console.log('[ServiceFactory] No contracts available, using static mode');
                     this.useMock = true;
                     this.mockManager = new MockServiceManager(true, true);
                     eventBus.emit('services:mock-mode', { reason: 'contracts-missing' });
@@ -121,7 +119,6 @@ class ServiceFactory {
             }
 
             this.initialized = true;
-            console.log('[ServiceFactory] Initialized in', this.useMock ? 'static/mock' : 'real', 'mode');
         })();
 
         return this.initPromise;
@@ -282,6 +279,101 @@ class ServiceFactory {
             await this.featuredQueueAdapter.initialize();
         }
         return this.featuredQueueAdapter;
+    }
+
+    /**
+     * Get GrandCentral DAO adapter instance (singleton)
+     * @returns {Promise<GrandCentralAdapter>} GrandCentral adapter
+     */
+    async getGrandCentralAdapter() {
+        if (!this.grandCentralAdapter) {
+            const grandCentralAddress = await getContractAddress('GrandCentral');
+
+            if (!grandCentralAddress || grandCentralAddress === '0x0000000000000000000000000000000000000000') {
+                throw new Error('GrandCentral address not available');
+            }
+
+            let provider, signer;
+            const walletProviderAndSigner = walletService.getProviderAndSigner();
+
+            if (walletProviderAndSigner.provider) {
+                provider = walletProviderAndSigner.provider;
+                signer = walletProviderAndSigner.signer;
+            } else {
+                const network = (await import('../config/network.js')).detectNetwork();
+                if (network.mode === 'local' && network.rpcUrl) {
+                    const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                    provider = new ethers.providers.StaticJsonRpcProvider(
+                        network.rpcUrl,
+                        { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                    );
+                    signer = null;
+                } else {
+                    throw new Error('No provider available for GrandCentral');
+                }
+            }
+
+            this.grandCentralAdapter = new GrandCentralAdapter(
+                grandCentralAddress,
+                provider,
+                signer
+            );
+            await this.grandCentralAdapter.initialize();
+        }
+        return this.grandCentralAdapter;
+    }
+
+    /**
+     * Get ComponentRegistry adapter instance (singleton)
+     * @returns {Promise<ComponentRegistryAdapter|null>} ComponentRegistry adapter or null if not configured
+     */
+    async getComponentRegistryAdapter() {
+        if (this.componentRegistryAdapter) return this.componentRegistryAdapter;
+
+        const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+        const { default: ComponentRegistryAdapter } = await import('./contracts/ComponentRegistryAdapter.js');
+
+        const address = await getContractAddress('ComponentRegistry');
+        if (!address || address === ethers.constants.AddressZero) {
+            console.warn('[ServiceFactory] ComponentRegistry not configured');
+            return null;
+        }
+
+        let provider, signer;
+        const walletProviderAndSigner = walletService.getProviderAndSigner();
+
+        if (walletProviderAndSigner.provider) {
+            provider = walletProviderAndSigner.provider;
+            signer = walletProviderAndSigner.signer;
+        } else {
+            const network = (await import('../config/network.js')).detectNetwork();
+            if (network.mode === 'local' && network.rpcUrl) {
+                provider = new ethers.providers.StaticJsonRpcProvider(
+                    network.rpcUrl,
+                    { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                );
+                signer = null;
+            } else {
+                console.warn('[ServiceFactory] No provider available for ComponentRegistry');
+                return null;
+            }
+        }
+
+        this.componentRegistryAdapter = new ComponentRegistryAdapter(address, 'ComponentRegistry', provider, signer);
+        await this.componentRegistryAdapter.initialize();
+        return this.componentRegistryAdapter;
+    }
+
+    /**
+     * Get GovernanceEventIndexer (singleton, initializes with GrandCentralAdapter)
+     * @returns {Promise<Object>} Initialized GovernanceEventIndexer
+     */
+    async getGovernanceEventIndexer() {
+        if (!governanceEventIndexer.initialized) {
+            const adapter = await this.getGrandCentralAdapter();
+            await governanceEventIndexer.initialize(adapter);
+        }
+        return governanceEventIndexer;
     }
 
     /**
@@ -470,7 +562,8 @@ class ServiceFactory {
                 'ERC404Factory': '0xFACTORY404000000000000000000000000000000',
                 'ERC1155Factory': '0xFACTORY1155000000000000000000000000000000',
                 'UltraAlignmentVault': '0xVAULT00000000000000000000000000000000000',
-                'UltraAlignmentHookFactory': '0xHOOKFACTORY0000000000000000000000000000'
+                'UltraAlignmentHookFactory': '0xHOOKFACTORY0000000000000000000000000000',
+                'GrandCentral': '0xGRANDCENTRAL000000000000000000000000000'
             };
             return mockAddresses[contractName] || '0x0000000000000000000000000000000000000000';
         }
@@ -499,8 +592,6 @@ class ServiceFactory {
      * Called when contracts are reloaded in development
      */
     clearCache() {
-        console.log('[ServiceFactory] Clearing service caches...');
-
         // Clear real service caches
         if (this.masterService) {
             this.masterService = null;
@@ -519,6 +610,12 @@ class ServiceFactory {
         if (this.featuredQueueAdapter) {
             this.featuredQueueAdapter = null;
         }
+        if (this.grandCentralAdapter) {
+            this.grandCentralAdapter = null;
+        }
+        if (this.componentRegistryAdapter) {
+            this.componentRegistryAdapter = null;
+        }
 
         // Clear QueryService cache (it listens for contracts:reloaded too,
         // but explicitly clearing here ensures proper order)
@@ -530,8 +627,6 @@ class ServiceFactory {
 
         // Don't clear projectService, blockchainService, execVotingService
         // as they don't cache contract instances directly
-
-        console.log('[ServiceFactory] Service caches cleared');
     }
 }
 
