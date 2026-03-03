@@ -4,16 +4,20 @@
  * Combines TopBar, content area, and Footer
  * Handles mobile navigation state
  *
+ * Web3 initialization handled by route handlers, not Layout
+ *
  * @example
- * h(Layout, null,
- *   h('div', null, 'Page content')
- * )
+ * h(Layout, {
+ *     currentPath: '/',
+ *     children: h(YourRoute)
+ * })
  */
 
 import { h, Component } from '@monygroupcorp/microact';
 import { TopBar } from './TopBar.js';
 import { MobileNav } from './MobileNav.js';
 import { Footer } from './Footer.js';
+import { SimpleWalletButton } from '../Web3/SimpleWalletButton.js';
 
 export class Layout extends Component {
     constructor(props) {
@@ -36,21 +40,22 @@ export class Layout extends Component {
         const { mobileNavOpen } = this.state;
 
         return h('div', { className: 'app-layout' },
-            h('div', { className: 'home-top-bar' },
-                h(TopBar, {
-                    currentPath,
-                    onToggleMobileNav: this.handleToggleMobileNav
-                }),
-                h(MobileNav, {
+            h(TopBar, {
+                currentPath,
+                onToggleMobileNav: this.handleToggleMobileNav,
+                mobileNavOpen,
+                children: h(MobileNav, {
                     isOpen: mobileNavOpen,
                     currentPath,
                     onClose: this.handleCloseMobileNav
                 })
-            ),
+            }),
 
             h('main', { className: 'app-main' },
                 children
             ),
+
+            h(SimpleWalletButton),
 
             h(Footer)
         );

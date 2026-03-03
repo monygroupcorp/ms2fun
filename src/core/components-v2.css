@@ -645,8 +645,60 @@
 }
 
 /* ========================================
+   APP LAYOUT
+   ======================================== */
+
+#app-container {
+  height: 100%;
+}
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  height: 100%;
+}
+
+.app-main {
+  flex: 1;
+}
+
+/* ========================================
    TOP BAR - Shared responsive nav
    ======================================== */
+
+/* Base Top Bar Layout */
+.home-top-bar,
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4) var(--space-10);
+  border-bottom: 1px solid var(--border-secondary);
+  background-color: var(--bg-primary);
+}
+
+/* Logo */
+.home-logo {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  transition: var(--transition-opacity);
+}
+
+.home-logo:hover {
+  opacity: 0.7;
+}
+
+/* Desktop Nav Links */
+.nav-links {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
 
 @media (max-width: 768px) {
   .top-bar {
@@ -818,19 +870,26 @@
   margin-top: var(--space-8);
 }
 
+/* Hide footer on mobile (mobile nav has all these links) */
+@media (max-width: 768px) {
+  .site-footer {
+    display: none !important;
+  }
+}
+
 .site-footer-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  color: var(--text-tertiary);
+  color: var(--text-primary);
   text-decoration: none;
   transition: var(--transition-base);
+  opacity: 0.6;
 }
 
 .site-footer-icon:hover {
-  color: var(--text-primary);
   opacity: 1;
 }
 
@@ -841,16 +900,214 @@
 }
 
 /* ========================================
-   WALLET BUTTON (micro-web3 overrides)
-   Gallery Brutalism styling for FloatingWalletButton
+   WALLET BUTTON
    ======================================== */
 
-/* Reset floating wallet button to Gallery Brutalism */
-.floating-wallet-button {
+/* Brutalist wallet button with status indicator */
+.brutalist-wallet-button {
   position: fixed;
   bottom: var(--space-4);
   right: var(--space-4);
-  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 3rem;
+  padding: 0 var(--space-3);
+
+  /* Brutalist styling - inverted from regular buttons */
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 2px solid var(--text-primary);
+
+  /* Typography */
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  /* Interaction */
+  cursor: pointer;
+  transition: var(--transition-base);
+  z-index: 100;
+}
+
+.brutalist-wallet-button:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+.brutalist-wallet-button:active {
+  transform: translateY(1px);
+}
+
+/* Status indicator dot */
+.wallet-status-indicator {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Status colors */
+.wallet-status-disconnected .wallet-status-indicator {
+  background-color: #ff0000;
+}
+
+.wallet-status-connected .wallet-status-indicator {
+  background-color: cyan;
+}
+
+/* Wallet text */
+.wallet-text {
+  white-space: nowrap;
+}
+
+/* Wallet container (for button + dropdown) */
+.brutalist-wallet-container {
+  position: fixed;
+  bottom: var(--space-4);
+  right: var(--space-4);
+  z-index: 100;
+}
+
+/* Reposition button when in container */
+.brutalist-wallet-container .brutalist-wallet-button {
+  position: relative;
+  bottom: auto;
+  right: auto;
+}
+
+/* Wallet dropdown (expanded state) */
+.wallet-dropdown {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  right: 0;
+  min-width: 280px;
+  background-color: var(--bg-primary);
+  border: 2px solid var(--text-primary);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.wallet-dropdown-address {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  word-break: break-all;
+  padding-bottom: var(--space-1);
+}
+
+.wallet-dropdown-balance {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-body-sm);
+}
+
+.wallet-balance-label {
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.wallet-balance-value {
+  font-weight: var(--font-weight-bold);
+}
+
+.wallet-dropdown-divider {
+  height: 1px;
+  background-color: var(--border-secondary);
+  margin: var(--space-1) 0;
+}
+
+.wallet-dropdown-link,
+.wallet-dropdown-disconnect {
+  width: 100%;
+  padding: var(--space-2);
+  background-color: transparent;
+  border: 1px solid var(--border-secondary);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.wallet-dropdown-link:hover,
+.wallet-dropdown-disconnect:hover {
+  background-color: var(--state-hover-bg);
+  border-color: var(--text-primary);
+}
+
+.wallet-dropdown-disconnect {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+.wallet-dropdown-disconnect:hover {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+/* Wallet Dropdown - Indexing Status Section */
+.wallet-dropdown-section {
+  padding: var(--space-3);
+}
+
+.wallet-section-title {
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.wallet-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.wallet-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-body-sm);
+}
+
+.wallet-status-label {
+  color: var(--text-secondary);
+}
+
+.wallet-status-value {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.text-warning {
+  opacity: 0.7;
+}
+
+.text-success {
+  color: var(--text-primary);
+}
+
+/* ========================================
+   WALLET BUTTON (micro-web3 overrides)
+   Hide micro-web3 FloatingWalletButton - we use custom brutalist button
+   ======================================== */
+
+/* Hide micro-web3 wallet button - we use brutalist-wallet-button instead */
+.floating-wallet-button {
+  display: none !important;
 }
 
 .floating-wallet-button .wallet-btn {
@@ -1102,7 +1359,6 @@
    ======================================== */
 
 .home-page {
-  min-height: 100vh;
   background-color: var(--bg-primary);
 }
 
@@ -1111,11 +1367,8 @@
   max-width: var(--container-xl);
   margin: 0 auto;
   padding: 0 var(--space-10);
-}
-
-/* Logo (.home-logo handled by TopBar) */
-.home-logo .logo-tld {
-  color: var(--text-secondary);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Featured Banner */
@@ -1145,6 +1398,13 @@
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
   color: var(--text-tertiary);
+}
+
+.featured-banner-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .featured-banner-content {
@@ -1260,6 +1520,8 @@
 .projects-section {
   margin-top: var(--space-8);
   margin-bottom: var(--space-12);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .projects-title {
@@ -1275,6 +1537,8 @@
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-3);
   margin-bottom: var(--space-6);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Project Card */
@@ -1283,6 +1547,9 @@
   border: 1px solid var(--border-secondary);
   cursor: pointer;
   transition: var(--transition-base);
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .project-card:hover {
@@ -1359,6 +1626,311 @@
 
   .home-content {
     padding: 0 var(--space-4);
+  }
+}
+
+@media (max-width: 640px) {
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ========================================
+   SKELETON LOADING STATES
+   From: docs/examples/loading-states-demo.html
+   ======================================== */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 50%,
+    var(--bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 2s ease-in-out infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-bottom: var(--space-2);
+}
+
+.skeleton-text.title {
+  height: 1.5em;
+  width: 60%;
+}
+
+.skeleton-text.short {
+  width: 40%;
+}
+
+.skeleton-text.medium {
+  width: 70%;
+}
+
+.skeleton-text.long {
+  width: 90%;
+}
+
+.skeleton-box {
+  height: 100px;
+  margin-bottom: var(--space-3);
+}
+
+.skeleton-square {
+  aspect-ratio: 1;
+  width: 100%;
+}
+
+.skeleton-avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.skeleton-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-4);
+}
+
+/* ========================================
+   PROJECT DISCOVERY PAGE
+   ======================================== */
+
+.discovery-page {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.discovery-content {
+  max-width: var(--container-xl);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-10);
+}
+
+.page-title {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-tight);
+  margin-bottom: var(--space-6);
+}
+
+/* Search Bar */
+.search-section {
+  margin-bottom: var(--space-6);
+}
+
+.search-bar {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.search-input {
+  flex: 1;
+  height: 3rem;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-body);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-none);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: var(--transition-base);
+}
+
+.search-input:focus {
+  outline: 2px solid var(--border-primary);
+  border-color: var(--border-primary);
+}
+
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Filter Panel */
+.filter-panel {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filter-label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+}
+
+.filter-select {
+  height: 2.5rem;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-body);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-none);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.filter-select:hover {
+  border-color: var(--border-primary);
+}
+
+.filter-select:focus {
+  outline: 2px solid var(--border-primary);
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-tertiary);
+}
+
+/* Results */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.results-count {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Project Card in Discovery */
+.project-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.project-card:hover {
+  background-color: var(--state-hover-bg);
+}
+
+.project-card-image {
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-tertiary);
+}
+
+.project-card-content {
+  padding: var(--space-3);
+}
+
+.project-card-title {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-caption);
+}
+
+.project-card-description {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-card-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-body-sm);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-tertiary);
+}
+
+.project-card-state {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  margin-top: var(--space-2);
+}
+
+/* Load More */
+.load-more-section {
+  text-align: center;
+  padding: var(--space-6) 0;
+}
+
+/* Responsive - Discovery */
+@media (max-width: 1024px) {
+  .discovery-content {
+    padding: var(--space-6);
+  }
+  .projects-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .discovery-content {
+    padding: var(--space-4);
+  }
+  .projects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .filter-grid {
+    grid-template-columns: 1fr;
   }
 }
 

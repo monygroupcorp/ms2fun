@@ -91,6 +91,67 @@ render() {
 
 ---
 
+### SVG / Namespace Support
+
+#### Requirement: SVG Element Creation via `h()` Calls
+
+**Problem encountered:** SVG icons in the Footer component are invisible when created via `h('svg', ...)` because `diff.js:24` uses `document.createElement(vnode.type)` which creates HTML elements, not SVG elements. SVGs require `document.createElementNS('http://www.w3.org/2000/svg', tagName)` to render correctly.
+
+**Workaround applied:** Moved footer to static HTML in `index.html` outside microact's render tree entirely. The Footer.js component is no longer used.
+
+**Approaches that failed:**
+1. `h('svg', { xmlns: '...' }, h('path', ...))` — createElement ignores xmlns
+2. `innerHTML` attribute in `h()` props — microact doesn't pass innerHTML to DOM
+3. `didMount()` with `document.querySelectorAll` + innerHTML injection — SVGs injected but parent re-renders wipe them
+4. `shouldUpdate() { return false }` + innerHTML injection — still not visible (likely timing or parent tree reconciliation)
+
+**Desired behavior:**
+```javascript
+// SVG elements created with correct namespace automatically
+render() {
+    return h('footer', { className: 'site-footer' },
+        h('a', { href: '/docs' },
+            h('svg', { viewBox: '0 0 24 24' },
+                h('path', { d: 'M21 4H3...' })
+            )
+        )
+    );
+}
+// Renders visible, interactive SVG icons
+```
+
+**Status (0.2.3):** SVG namespace creation works, but attribute names are lowercased. `viewBox` becomes `viewbox`, which breaks SVG rendering (SVG attributes are case-sensitive).
+
+**Acceptance criteria:**
+- [x] `h('svg', ...)` creates element via `createElementNS('http://www.w3.org/2000/svg', 'svg')` *(fixed in 0.2.3)*
+- [x] All SVG child elements (path, circle, rect, g, etc.) also use SVG namespace *(fixed in 0.2.3)*
+- [ ] SVG attributes preserve case (`viewBox`, not `viewbox`; `preserveAspectRatio`, not `preserveaspectratio`)
+- [ ] Nested SVGs inside HTML elements work (e.g., `<a><svg>...</svg></a>`)
+- [ ] SVG elements survive parent component re-renders (same as HTML elements)
+
+**Implementation hint:** In `diff.js`, detect SVG context and switch to `createElementNS`. Common approach: check if `vnode.type === 'svg'` or if parent is already in SVG namespace, then propagate namespace to all children.
+
+```javascript
+// Example fix in diff.js createElement logic
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const SVG_TAGS = new Set(['svg', 'path', 'circle', 'rect', 'line', 'polyline',
+    'polygon', 'ellipse', 'g', 'defs', 'use', 'text', 'tspan', 'image',
+    'clipPath', 'mask', 'filter', 'foreignObject', 'animate', 'animateTransform']);
+
+function createElement(vnode, isSvg = false) {
+    if (vnode.type === 'svg' || isSvg) {
+        const el = document.createElementNS(SVG_NS, vnode.type);
+        // Recursively create children with isSvg = true
+        // ...
+        return el;
+    }
+    const el = document.createElement(vnode.type);
+    // ...
+}
+```
+
+---
+
 ### Component Lifecycle
 
 #### Requirement: Declarative Child Components
@@ -210,6 +271,8 @@ willUnmount() {}    // Before removal
 |------|----------|---------------|----------------|------------|-------------|
 | 2026-01-21 | microact | Child destroyed on parent re-render | EditionDetail | `shouldUpdate()` override | Preserve Children |
 | 2026-01-22 | microact | Visual flash on tab/dropdown state changes | ERC1155AdminModal | CSS fade animation on content | Efficient DOM Diffing |
+| 2026-02-19 | microact | SVG elements invisible — createElement lacks namespace | Footer.js | Static HTML in index.html | SVG Namespace Support |
+| 2026-02-19 | microact | SVG viewBox lowercased to viewbox in 0.2.3 | Footer.js | Static HTML in index.html | SVG Attribute Casing |
 | | | | | | |
 
 ---

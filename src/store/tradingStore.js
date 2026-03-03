@@ -282,7 +282,7 @@ class TradingStore extends Store {
             // If we have existing messages, we need to merge them properly
             // The blockchain returns arrays of comma-separated strings for each field
             // We need to append the new batch to the existing one
-            const updatedMessages = [];
+            let updatedMessages = [];
             
             if (currentMessages.length >= 5 && currentMessages[0] && currentMessages[0] !== '') {
                 // We have existing messages, merge them

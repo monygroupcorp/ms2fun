@@ -76,21 +76,19 @@ class QueryAggregatorAdapter extends ContractAdapter {
     // =========================
 
     /**
-     * Get all data needed for home page in one call
+     * Get featured projects for home page
      * @param {number} offset - Starting index in featured queue
      * @param {number} limit - Number of projects to return (max 50)
-     * @returns {Promise<Object>} Home page data
+     * @returns {Promise<Object>} Home page data {projects, totalFeatured}
      */
     async getHomePageData(offset = 0, limit = 20) {
         return await this.getCachedOrFetch('getHomePageData', [offset, limit], async () => {
-            const [projects, totalFeatured, topVaults, recentActivity] =
+            const [projects, totalFeatured] =
                 await this.executeContractCall('getHomePageData', [offset, limit]);
 
             return {
                 projects: projects.map(p => this._parseProjectCard(p)),
-                totalFeatured: this._toNumber(totalFeatured),
-                topVaults: topVaults.map(v => this._parseVaultSummary(v)),
-                recentActivity: recentActivity.map(m => this._parseGlobalMessage(m))
+                totalFeatured: this._toNumber(totalFeatured)
             };
         }, CACHE_TTL.HOME_PAGE);
     }
@@ -125,38 +123,32 @@ class QueryAggregatorAdapter extends ContractAdapter {
      * Get portfolio data for a user
      * @param {string} userAddress - User address to query
      * @param {Array<string>} instances - Array of instance addresses to check holdings for
-     * @returns {Promise<Object>} Portfolio data
+     * @param {Array<string>} vaults - Array of vault addresses to check positions for
+     * @returns {Promise<Object>} Portfolio data {erc404Holdings, erc1155Holdings, vaultPositions, totalClaimable}
      */
-    async getPortfolioData(userAddress, instances) {
+    async getPortfolioData(userAddress, instances = [], vaults = []) {
         if (!userAddress) {
             throw new Error('User address is required');
         }
 
-        return await this.getCachedOrFetch('getPortfolioData', [userAddress, instances.join(',')], async () => {
-            const [erc404Holdings, erc1155Holdings, vaultPositions, totalClaimable] =
-                await this.executeContractCall('getPortfolioData', [userAddress, instances]);
+        return await this.getCachedOrFetch(
+            'getPortfolioData',
+            [userAddress, instances.join(','), vaults.join(',')],
+            async () => {
+                const [erc404Holdings, erc1155Holdings, vaultPositions, totalClaimable] =
+                    await this.executeContractCall('getPortfolioData', [userAddress, instances, vaults]);
 
-            return {
-                erc404Holdings: erc404Holdings.map(h => this._parseERC404Holding(h)),
-                erc1155Holdings: erc1155Holdings.map(h => this._parseERC1155Holding(h)),
-                vaultPositions: vaultPositions.map(p => this._parseVaultPosition(p)),
-                totalClaimable: ethers.utils.formatEther(totalClaimable)
-            };
-        }, CACHE_TTL.PORTFOLIO);
+                return {
+                    erc404Holdings: erc404Holdings.map(h => this._parseERC404Holding(h)),
+                    erc1155Holdings: erc1155Holdings.map(h => this._parseERC1155Holding(h)),
+                    vaultPositions: vaultPositions.map(p => this._parseVaultPosition(p)),
+                    totalClaimable: ethers.utils.formatEther(totalClaimable)
+                };
+            },
+            CACHE_TTL.PORTFOLIO
+        );
     }
 
-    /**
-     * Get vault leaderboard
-     * @param {number} sortBy - 0 = by TVL, 1 = by popularity (instance count)
-     * @param {number} limit - Number of vaults to return (max 50)
-     * @returns {Promise<Array>} Array of VaultSummary objects
-     */
-    async getVaultLeaderboard(sortBy = 0, limit = 10) {
-        return await this.getCachedOrFetch('getVaultLeaderboard', [sortBy, limit], async () => {
-            const vaults = await this.executeContractCall('getVaultLeaderboard', [sortBy, limit]);
-            return vaults.map(v => this._parseVaultSummary(v));
-        }, CACHE_TTL.VAULT_LEADERBOARD);
-    }
 
     // =========================
     // Parse Methods
@@ -188,7 +180,7 @@ class QueryAggregatorAdapter extends ContractAdapter {
             isActive: card.isActive ?? card[13] ?? false,
             extraData: card.extraData || card[14] || '0x',
             // Featured status
-            featuredPosition: this._toNumber(card.featuredPosition || card[15]),
+            featuredRank: this._toNumber(card.featuredRank || card[15]),
             featuredExpires: this._toNumber(card.featuredExpires || card[16])
         };
     }
@@ -251,18 +243,6 @@ class QueryAggregatorAdapter extends ContractAdapter {
         };
     }
 
-    /**
-     * Parse GlobalMessage from contract response
-     * @private
-     */
-    _parseGlobalMessage(msg) {
-        return {
-            instance: msg.instance || msg[0],
-            sender: msg.sender || msg[1],
-            packedData: (msg.packedData || msg[2] || '0').toString(),
-            message: msg.message || msg[3] || ''
-        };
-    }
 
     // =========================
     // Helper Methods

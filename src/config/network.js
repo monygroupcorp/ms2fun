@@ -35,7 +35,6 @@ export async function checkRpcAvailable(contractAddress = null) {
             const chainData = await chainResponse.json();
 
             if (!chainData.result) {
-                console.log('[Network] RPC not responding properly');
                 rpcAvailable = false;
                 return false;
             }
@@ -57,17 +56,14 @@ export async function checkRpcAvailable(contractAddress = null) {
                 const hasCode = codeData.result && codeData.result !== '0x' && codeData.result.length > 2;
 
                 if (!hasCode) {
-                    console.log('[Network] RPC available but contract not deployed at', contractAddress);
                     rpcAvailable = false;
                     return false;
                 }
             }
 
-            console.log('[Network] RPC available with valid contracts');
             rpcAvailable = true;
             return true;
         } catch (error) {
-            console.log('[Network] RPC unavailable:', error.message);
             rpcAvailable = false;
             return false;
         }

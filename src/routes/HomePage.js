@@ -1,10 +1,11 @@
 /**
- * HomePage - Gallery Brutalism homepage (MINIMAL TEST VERSION)
+ * HomePage - Gallery Brutalism homepage with environment detection
  *
- * This is a minimal test to verify:
- * 1. Microact component renders correctly
- * 2. Gallery Brutalism v2 styles apply
- * 3. Layout components work
+ * Uses EnvironmentDetector to determine mode:
+ * - LOCAL_BLOCKCHAIN: Real data from local Anvil
+ * - PLACEHOLDER_MOCK: Hardcoded placeholder data
+ * - PRODUCTION_DEPLOYED: Real data from deployed contracts
+ * - COMING_SOON: Minimal content for pre-launch
  *
  * @example
  * h(HomePage)
@@ -12,56 +13,129 @@
 
 import { h, Component } from '@monygroupcorp/microact';
 import { Layout } from '../components/Layout/Layout.js';
+import { DataAdapter } from '../services/DataAdapter.js';
+import { ProjectCardSkeleton, ActivityItemSkeleton, FeaturedBannerSkeleton } from '../components/Skeletons/Skeletons.js';
+import { debug } from '../utils/debug.js';
+import stylesheetLoader from '../utils/stylesheetLoader.js';
 
 export class HomePage extends Component {
     constructor(props) {
         super(props);
-        console.log('[HomePage] Constructor called');
 
-        // MINIMAL TEST: Just hardcode mock data
         this.state = {
-            loading: false,
-            featured: {
-                address: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
-                name: 'Art Collection Alpha',
-                type: 'ERC404',
-                description: 'Test featured project'
-            },
-            projects: [
-                { address: '0x1111', name: 'Project Alpha', type: 'ERC404', description: 'Test project 1', tvl: '1200000' },
-                { address: '0x2222', name: 'Project Beta', type: 'ERC1155', description: 'Test project 2', tvl: '800000' },
-                { address: '0x3333', name: 'Project Gamma', type: 'ERC404', description: 'Test project 3', tvl: '650000' },
-                { address: '0x4444', name: 'Project Delta', type: 'ERC721', description: 'Test project 4', tvl: '450000' }
-            ],
-            vaults: [
-                { address: '0xaaaa', name: 'Alpha Vault', tvl: '1200000' },
-                { address: '0xbbbb', name: 'Beta Vault', tvl: '800000' },
-                { address: '0xcccc', name: 'Gamma Vault', tvl: '650000' }
-            ],
-            activity: [
-                { text: 'User minted NFT #42 in Project Alpha' },
-                { text: 'Creator launched Music Collection' },
-                { text: 'Collector bought Edition #7' },
-                { text: 'Artist updated Generative Series' }
-            ]
+            // Progressive loading states
+            loading: true,
+            loadingFeatured: true,
+            loadingProjects: true,
+            loadingActivity: true,
+
+            error: null,
+            featured: null,
+            projects: [],
+            vaults: [],
+            activity: [],
+            message: null,
+            contracts: null
         };
     }
 
-    didMount() {
-        console.log('[HomePage] didMount called - component mounted successfully!');
+    async didMount() {
+        // Load route-specific CSS with layer ID
+        await stylesheetLoader.load('/src/core/route-home-v2.css', 'route:home');
+
+        // Web3 context provided by route handler as props
+        const { mode, config, provider } = this.props;
+        debug.log('[HomePage] Loading data with mode:', mode);
+        this.loadData(mode, config, provider);
+    }
+
+    async loadData(mode, config, provider) {
+        try {
+            // Create adapter with provider
+            const adapter = new DataAdapter(mode, config, provider);
+
+            // Load featured + projects first (critical path)
+            const t0 = performance.now();
+            const criticalData = await adapter.getCriticalData();
+            const t1 = performance.now();
+            console.log(`[HomePage] ✓ Critical data loaded (${(t1 - t0).toFixed(0)}ms): featured="${criticalData.featured?.name}", projects=${criticalData.projects.length}, vaults=${criticalData.vaults.length}`);
+
+            this.setState({
+                loading: false,
+                loadingFeatured: false,
+                loadingProjects: false,
+                featured: criticalData.featured,
+                projects: criticalData.projects,
+                vaults: criticalData.vaults,
+                contracts: criticalData.contracts
+            });
+
+            // Load activity lazily in background
+            this.loadActivityAsync(adapter);
+
+        } catch (error) {
+            debug.error('[HomePage] Data loading failed:', error);
+            this.setState({
+                loading: false,
+                loadingFeatured: false,
+                loadingProjects: false,
+                loadingActivity: false,
+                error: error.message
+            });
+        }
+    }
+
+    async loadActivityAsync(adapter) {
+        try {
+            const t0 = performance.now();
+            const allActivity = await adapter.getActivity(0); // Get all activity
+
+            // Filter to only show on-chain actions (trades, mints) - no messages or reactions
+            const actions = allActivity
+                .filter(item => item.type !== 'message') // Exclude all messages
+                .slice(0, 4); // Top 4 actions for homepage preview
+
+            const t1 = performance.now();
+            console.log(`[HomePage] ✓ Activity indexed (${(t1 - t0).toFixed(0)}ms): ${actions.length} items`);
+
+            this.setState({
+                activity: actions,
+                loadingActivity: false
+            });
+        } catch (error) {
+            debug.error('[HomePage] Activity loading failed:', error);
+            this.setState({ loadingActivity: false });
+        }
+    }
+
+    formatProjectNameForUrl(projectName) {
+        // Convert project name to URL-safe format
+        // "Early-Launch" -> "early-launch"
+        // "Demo Gallery" -> "demo-gallery"
+        return projectName.toLowerCase().replace(/\s+/g, '-');
     }
 
     handleProjectClick = (project) => (e) => {
         e.preventDefault();
-        const path = `/${project.address}`;
+        const projectSlug = this.formatProjectNameForUrl(project.name);
+        const path = `/${projectSlug}`;
         window.router.navigate(path);
     }
 
     handleFeaturedClick = () => {
-        if (this.state.featured) {
-            const path = `/${this.state.featured.address}`;
-            window.router.navigate(path);
+        const { featured } = this.state;
+        if (!featured) return;
+
+        // CULT EXECS always navigates to /cultexecs
+        if (featured.name === 'CULT EXECUTIVES' || featured.name === 'CULT EXEC') {
+            window.router.navigate('/cultexecs');
+            return;
         }
+
+        // Other projects navigate to their name slug
+        const projectSlug = this.formatProjectNameForUrl(featured.name);
+        const path = `/${projectSlug}`;
+        window.router.navigate(path);
     }
 
     handleViewAllActivity = (e) => {
@@ -87,22 +161,65 @@ export class HomePage extends Component {
     }
 
     render() {
-        console.log('[HomePage] render called');
-        const { featured, projects, vaults, activity } = this.state;
+        const {
+            loading, loadingFeatured, loadingProjects, loadingActivity,
+            error, featured, projects, vaults, activity
+        } = this.state;
 
-        return h(Layout, { currentPath: '/' },
-            h('div', { className: 'home-page' },
+        // Get mode from props (provided by Layout)
+        const { mode } = this.props;
+
+        // Error state
+        if (error) {
+            return h(Layout, {
+                currentPath: '/',
+                children: h('div', { className: 'home-page' },
+                    h('div', { className: 'home-content' },
+                        h('div', { className: 'error-state', style: 'text-align: center; padding: var(--space-10);' },
+                            h('h2', {}, 'Error Loading Data'),
+                            h('p', { className: 'text-secondary' }, error)
+                        )
+                    )
+                )
+            });
+        }
+
+        // Coming Soon state
+        if (mode === 'COMING_SOON') {
+            return h(Layout, {
+                currentPath: '/',
+                children: h('div', { className: 'home-page' },
+                    h('div', { className: 'home-content' },
+                        h('div', { className: 'coming-soon-state', style: 'text-align: center; padding: var(--space-10);' },
+                            h('h1', { style: 'font-size: var(--font-size-display); margin-bottom: var(--space-4);' }, 'MS2'),
+                            h('p', { className: 'text-secondary', style: 'font-size: var(--font-size-h3);' }, message || 'Coming Soon'),
+                            h('p', { className: 'text-secondary', style: 'margin-top: var(--space-4);' },
+                                'The next generation of creative projects is launching soon.'
+                            )
+                        )
+                    )
+                )
+            });
+        }
+
+        // Normal state (with data)
+        return h(Layout, {
+            currentPath: '/',
+            children: h('div', { className: 'home-page' },
                 h('div', { className: 'home-content' },
-                    // Test message
-                    h('div', { style: 'padding: 20px; background: yellow; color: black; margin: 20px 0;' },
-                        h('h1', null, '✅ MINIMAL TEST: HomePage Component Rendering!'),
-                        h('p', null, 'If you see this, Microact is working.')
-                    ),
-
-                    // Featured Banner
-                    h('div', { className: 'featured-banner', onclick: this.handleFeaturedClick },
+                    // Featured Banner (show skeleton while loading, then real data)
+                    loadingFeatured
+                        ? FeaturedBannerSkeleton()
+                        : featured ? h('div', { className: 'featured-banner', onclick: this.handleFeaturedClick },
                         h('div', { className: 'featured-banner-image' },
-                            featured.name.charAt(0).toUpperCase()
+                            // CULT EXECS gets special image treatment - show piece from collection
+                            (featured.name === 'CULT EXECUTIVES' || featured.name === 'CULT EXEC')
+                                ? h('img', {
+                                    src: '/execs/695.jpeg',
+                                    alt: 'CULT EXECUTIVES #695',
+                                    className: 'featured-banner-img'
+                                })
+                                : featured.name.charAt(0).toUpperCase()
                         ),
                         h('div', { className: 'featured-banner-content' },
                             h('div', { className: 'featured-banner-label' }, 'FEATURED'),
@@ -114,10 +231,10 @@ export class HomePage extends Component {
                                 h('span', { className: 'badge' }, featured.type)
                             )
                         )
-                    ),
+                    ) : null,
 
-                    // Stats Bar
-                    h('div', { className: 'stats-bar' },
+                    // Stats Bar (only show if we have vaults)
+                    vaults.length > 0 ? h('div', { className: 'stats-bar' },
                         h('span', { className: 'stats-bar-label' }, 'TOP VAULTS:'),
                         ...vaults.flatMap((vault, index) => {
                             const items = [
@@ -131,10 +248,20 @@ export class HomePage extends Component {
                             }
                             return items;
                         })
-                    ),
+                    ) : null,
 
-                    // Activity Section
-                    h('div', { className: 'activity-section' },
+                    // Activity Section (show skeleton while loading)
+                    loadingActivity
+                        ? h('div', { className: 'activity-section' },
+                            h('h3', { className: 'activity-title' }, 'RECENT ACTIVITY'),
+                            h('div', { className: 'activity-list' },
+                                ActivityItemSkeleton(),
+                                ActivityItemSkeleton(),
+                                ActivityItemSkeleton(),
+                                ActivityItemSkeleton()
+                            )
+                        )
+                        : activity.length > 0 ? h('div', { className: 'activity-section' },
                         h('h3', { className: 'activity-title' }, 'RECENT ACTIVITY'),
                         h('div', { className: 'activity-list' },
                             ...activity.map((item, index) =>
@@ -147,13 +274,25 @@ export class HomePage extends Component {
                         h('button', { className: 'btn btn-ghost', onclick: this.handleViewAllActivity },
                             'View All Activity →'
                         )
-                    ),
+                    ) : null,
 
-                    // Projects Grid
-                    h('div', { className: 'projects-section' },
-                        h('h3', { className: 'projects-title' }, 'PROJECTS'),
-                        h('div', { className: 'projects-grid' },
-                            ...projects.map((project) =>
+                    // Projects Grid (show skeletons while loading)
+                    loadingProjects
+                        ? h('div', { className: 'projects-section' },
+                            h('h3', { className: 'projects-title' }, 'PROJECTS'),
+                            h('div', { className: 'projects-grid' },
+                                ProjectCardSkeleton(),
+                                ProjectCardSkeleton(),
+                                ProjectCardSkeleton(),
+                                ProjectCardSkeleton(),
+                                ProjectCardSkeleton(),
+                                ProjectCardSkeleton()
+                            )
+                        )
+                        : projects.length > 0 ? h('div', { className: 'projects-section' },
+                            h('h3', { className: 'projects-title' }, 'PROJECTS'),
+                            h('div', { className: 'projects-grid' },
+                                ...projects.map((project) =>
                                 h('div', {
                                     key: project.address,
                                     className: 'project-card',
@@ -180,11 +319,19 @@ export class HomePage extends Component {
                                     )
                                 )
                             )
-                        )
-                    )
+                        ),
+                        h('button', {
+                            className: 'btn btn-secondary',
+                            style: 'width: 100%;',
+                            onclick: (e) => {
+                                e.preventDefault();
+                                window.router.navigate('/discover');
+                            }
+                        }, 'View All Projects →')
+                    ) : null
                 )
             )
-        );
+        });
     }
 }
 

@@ -245,6 +245,7 @@
 
 html {
   font-size: 16px;
+  height: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -261,6 +262,7 @@ body:not(.cultexecs-active) {
   background-color: var(--bg-primary) !important;
   background-image: none !important;
   transition: var(--transition-color) !important;
+  height: 100% !important;
 }
 
 /* Kill marble background pseudo-element */

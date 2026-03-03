@@ -32,8 +32,6 @@ class ContractTypeRegistry {
             adapterClass: adapterClass || null,
             detector
         });
-
-        console.log(`[ContractTypeRegistry] Registered type: ${type}${adapterClass ? ' (with adapter)' : ' (adapter to be set later)'}`);
     }
 
     /**
@@ -227,6 +225,27 @@ class ContractTypeRegistry {
             return hasCreateInstance && hasGetHookForInstance && hasERC404Methods;
         });
 
+        // ERC721AuctionFactory detection: has createInstance, createBid-like patterns
+        this.registerType('ERC721AuctionFactory', null, (abi, functions) => {
+            const hasCreateInstance = functions.includes('createInstance');
+            const hasCreator = functions.includes('creator');
+            const hasCreatorFeeBps = functions.includes('creatorFeeBps');
+            // Distinguish from other factories: has creator/creatorFeeBps but not getHookForInstance or addEdition
+            const hasNoHook = !functions.includes('getHookForInstance');
+            const hasNoEdition = !functions.includes('addEdition');
+
+            return hasCreateInstance && hasCreator && hasCreatorFeeBps && hasNoHook && hasNoEdition;
+        });
+
+        // ERC721AuctionInstance detection: has createBid, settleAuction, queuePiece
+        this.registerType('ERC721Auction', null, (abi, functions) => {
+            const hasCreateBid = functions.includes('createBid');
+            const hasSettleAuction = functions.includes('settleAuction');
+            const hasQueuePiece = functions.includes('queuePiece');
+
+            return hasCreateBid && hasSettleAuction && hasQueuePiece;
+        });
+
         // ERC1155Factory detection: has createInstance, addEdition
         this.registerType('ERC1155Factory', null, (abi, functions) => {
             const hasCreateInstance = functions.includes('createInstance');
@@ -261,7 +280,6 @@ class ContractTypeRegistry {
             throw new Error(`Type ${type} is not registered`);
         }
         entry.adapterClass = adapterClass;
-        console.log(`[ContractTypeRegistry] Set adapter class for type: ${type}`);
     }
 }
 

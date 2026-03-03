@@ -237,6 +237,67 @@ class ProjectIndex {
     }
 
     /**
+     * Sync StateChanged events for all indexed projects
+     * @param {Object} provider - Ethers provider
+     * @returns {Promise<number>} Number of state updates
+     */
+    async syncLifecycleStates(provider) {
+        if (!this.isSupported) return 0;
+
+        console.log('[ProjectIndex] Syncing lifecycle states...');
+
+        const projects = await this.getAllProjects(1000, 0); // Get all projects
+        let updateCount = 0;
+
+        for (const project of projects) {
+            try {
+                // Create contract instance to query StateChanged events
+                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                const instance = new ethers.Contract(
+                    project.address,
+                    [
+                        'event StateChanged(bytes32 indexed newState)',
+                        'function instanceType() external pure returns (bytes32)'
+                    ],
+                    provider
+                );
+
+                // Get instanceType (static call)
+                try {
+                    const instanceType = await instance.instanceType();
+                    if (instanceType && instanceType !== project.instanceType) {
+                        await this.updateProject(project.address, { instanceType });
+                        updateCount++;
+                    }
+                } catch (e) {
+                    // Instance might not implement instanceType() yet
+                    console.warn(`[ProjectIndex] ${project.address} doesn't implement instanceType()`);
+                }
+
+                // Query StateChanged events to get current state
+                const filter = instance.filters.StateChanged();
+                const events = await instance.queryFilter(filter, project.blockNumber, 'latest');
+
+                if (events.length > 0) {
+                    // Get the most recent state
+                    const latestEvent = events[events.length - 1];
+                    const currentState = latestEvent.args.newState;
+
+                    if (currentState !== project.currentState) {
+                        await this.updateProject(project.address, { currentState });
+                        updateCount++;
+                    }
+                }
+            } catch (error) {
+                console.warn(`[ProjectIndex] Failed to sync state for ${project.address}:`, error.message);
+            }
+        }
+
+        console.log(`[ProjectIndex] ✓ Synced ${updateCount} state updates`);
+        return updateCount;
+    }
+
+    /**
      * Parse InstanceRegistered event to project object
      * @private
      */
@@ -249,7 +310,9 @@ class ProjectIndex {
             factory: factory?.toLowerCase() || '',
             creator: creator?.toLowerCase() || '',
             vault: '', // Will be populated on hydration
-            contractType: '', // Will be populated on hydration
+            contractType: '', // Will be populated on hydration (string, deprecated)
+            instanceType: null, // Will be populated on hydration (bytes32)
+            currentState: null, // Will be updated via StateChanged events
             blockNumber: event.blockNumber,
             transactionHash: event.transactionHash,
             registeredAt: 0, // Will be populated on hydration

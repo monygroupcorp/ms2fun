@@ -1,293 +1,118 @@
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 import serviceFactory from '../services/ServiceFactory.js';
+import walletService from '../services/WalletService.js';
+
+const FACTORY_TYPES = [
+    { id: 'erc404', label: 'ERC404 Bonding', description: 'Bonding curve tokens with NFT duality' },
+    { id: 'erc1155', label: 'ERC1155 Editions', description: 'Multi-edition NFT collections with tiered pricing' },
+    { id: 'erc721', label: 'ERC721 Auctions', description: 'Single-edition NFTs with auction mechanics' },
+];
 
 /**
  * Project creation page route handler
- * Handles creating new project instances
- * Supports both:
- * - Old format: /create?factory=0x... (address-based)
- * - New format: /:chainId/:factoryTitle/create (title-based with chain ID)
- * @param {object} [params] - Route parameters (for new format)
- * @param {string|number} [params.chainId] - Chain ID for new format
- * @param {string} [params.factoryTitle] - Factory title slug for new format
+ * Cascading flow: factory type → alignment target → vault → project details → deploy
+ * @param {object} [params] - Route parameters
  */
 export async function renderProjectCreation(params = null) {
     const appContainer = document.getElementById('app-container');
     const appTopContainer = document.getElementById('app-top-container');
     const appBottomContainer = document.getElementById('app-bottom-container');
-    
+
     if (!appContainer || !appTopContainer || !appBottomContainer) {
         console.error('App containers not found');
         return;
     }
 
-    // Determine factory from route params or URL query string
-    let factoryParam = null;
-    let chainId = 1; // Default to Ethereum mainnet
-    
-    if (params && params.factoryTitle) {
-        // New format: /:chainId/:factoryTitle/create
-        chainId = params.chainId || 1;
-        const projectRegistry = serviceFactory.getProjectRegistry();
-        const factory = await projectRegistry.getFactoryByTitle(params.factoryTitle);
-        if (factory) {
-            factoryParam = factory.address;
-        } else {
-            console.error(`Factory not found for title: ${params.factoryTitle}`);
-        }
-    } else {
-        // Old format: /create?factory=0x...
-        const urlParams = new URLSearchParams(window.location.search);
-        factoryParam = urlParams.get('factory');
-    }
-
     // Load stylesheet
     stylesheetLoader.load('src/routes/project-creation.css', 'project-creation-styles');
-    
+
     // Unload other page styles
     stylesheetLoader.unload('cultexecs-styles');
     stylesheetLoader.unload('home-styles');
     stylesheetLoader.unload('project-detail-styles');
     stylesheetLoader.unload('factory-detail-styles');
-    
+
     // Clear existing content
     appTopContainer.innerHTML = '';
     appContainer.innerHTML = '';
     appBottomContainer.innerHTML = '';
-    
-    // Show loading state while fetching factories
+
+    const connectedAddress = walletService.getAddress();
+    if (!connectedAddress) {
+        appContainer.innerHTML = `
+            <div class="project-creation">
+                <div class="creation-header">
+                    <div class="creation-header-content">
+                        <h1>Create New Project</h1>
+                        <p class="creation-subtitle">Connect your wallet to launch a project.</p>
+                    </div>
+                    <button class="back-button" data-ref="back-button">&larr; Back</button>
+                </div>
+                <p class="empty-state" style="text-align:center; padding: var(--spacing-6);">Please connect your wallet to create a project.</p>
+            </div>
+        `;
+        setupBackButton(appContainer);
+        return;
+    }
+
+    // Show loading state
     appContainer.innerHTML = `
         <div class="project-creation">
             <div class="loading-state">
                 <div class="spinner"></div>
-                <p>Loading factories...</p>
+                <p>Loading creation options...</p>
             </div>
         </div>
     `;
 
     try {
-        // Load factories
+        // Load factories grouped by type
         const masterService = serviceFactory.getMasterService();
         const factoryAddresses = await masterService.getAuthorizedFactories();
-        
+
         const factories = [];
         for (const address of factoryAddresses) {
             const type = await masterService.getFactoryType(address);
             factories.push({ address, type });
         }
 
-        // Determine selected factory
-        let selectedFactory = null;
-        if (factoryParam) {
-            // Validate that the factory is authorized
-            const isAuthorized = await masterService.isFactoryAuthorized(factoryParam);
-            if (isAuthorized) {
-                selectedFactory = factoryParam;
-            } else {
-                console.warn(`Factory ${factoryParam} is not authorized, using default`);
+        // Load alignment targets
+        let alignmentTargets = [];
+        try {
+            const masterAdapter = await serviceFactory.getMasterRegistryAdapter();
+            if (masterAdapter && typeof masterAdapter.getAlignmentTargets === 'function') {
+                alignmentTargets = await masterAdapter.getAlignmentTargets();
+            }
+        } catch (e) {
+            console.warn('[ProjectCreation] Failed to load alignment targets:', e);
+        }
+
+        // Determine pre-selected factory from params/query
+        let preselectedType = null;
+        if (params && params.factoryTitle) {
+            const projectRegistry = serviceFactory.getProjectRegistry();
+            const factory = await projectRegistry.getFactoryByTitle(params.factoryTitle);
+            if (factory) {
+                const type = factories.find(f => f.address === factory.address)?.type;
+                if (type) preselectedType = type.toLowerCase().includes('404') ? 'erc404' : type.toLowerCase().includes('1155') ? 'erc1155' : 'erc721';
             }
         }
-        
-        // Fall back to first factory if no valid factory param
-        if (!selectedFactory && factories.length > 0) {
-            selectedFactory = factories[0].address;
+
+        // Group factories by type
+        const factoriesByType = {};
+        for (const f of factories) {
+            const typeKey = f.type.toLowerCase().includes('404') ? 'erc404' : f.type.toLowerCase().includes('1155') ? 'erc1155' : 'erc721';
+            if (!factoriesByType[typeKey]) factoriesByType[typeKey] = [];
+            factoriesByType[typeKey].push(f);
         }
 
-        // Render creation form
-        appContainer.innerHTML = `
-            <div class="project-creation">
-                <div class="creation-header">
-                    <div class="creation-header-content">
-                        <h1>Create New Project</h1>
-                        <p class="creation-subtitle">Launch your project on-chain with our factory system. Fill in the details below to create a new project instance.</p>
-                    </div>
-                    <button class="back-button" data-ref="back-button">← Back</button>
-                </div>
-
-                <div class="creation-form-container card">
-                    <form class="creation-form" data-ref="creation-form">
-                        <div class="form-section">
-                            <div class="form-section-header">
-                                <h2>Factory Selection</h2>
-                                <p class="form-section-description">Choose the factory contract that will deploy your project. Each factory type has different capabilities and features.</p>
-                            </div>
-                            <div class="form-group">
-                                <label for="factory-select" class="form-label required">Factory Contract</label>
-                                <select id="factory-select" class="form-select" data-ref="factory-select" required>
-                                    ${factories.map(factory => `
-                                        <option value="${factory.address}" ${factory.address === selectedFactory ? 'selected' : ''}>
-                                            ${factory.type} - ${factory.address.slice(0, 10)}...
-                                        </option>
-                                    `).join('')}
-                                </select>
-                                <small class="form-help">The factory contract determines the type and capabilities of your project instance.</small>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <div class="form-section-header">
-                                <h2>Project Details</h2>
-                                <p class="form-section-description">Essential information about your project. Required fields are marked with an asterisk (*).</p>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="project-name" class="form-label required">Project Name</label>
-                                <input 
-                                    type="text" 
-                                    id="project-name" 
-                                    class="form-input" 
-                                    data-ref="project-name"
-                                    placeholder="e.g., My Awesome Project"
-                                    required
-                                />
-                                <small class="form-help">Choose a clear, memorable name for your project. This will be displayed publicly.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="project-symbol" class="form-label required">Token Symbol</label>
-                                <input 
-                                    type="text" 
-                                    id="project-symbol" 
-                                    class="form-input" 
-                                    data-ref="project-symbol"
-                                    placeholder="e.g., MAP"
-                                    pattern="[A-Z0-9]{3,10}"
-                                    title="3-10 uppercase letters or numbers"
-                                    required
-                                />
-                                <small class="form-help">A short identifier for your project token (3-10 uppercase letters or numbers). This is typically used in trading pairs and token displays.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="project-description" class="form-label">Description</label>
-                                <textarea 
-                                    id="project-description" 
-                                    class="form-textarea" 
-                                    data-ref="project-description"
-                                    placeholder="Describe your project, its goals, and what makes it unique..."
-                                    rows="5"
-                                ></textarea>
-                                <small class="form-help">Provide a detailed description of your project. This helps users understand what your project is about and why they should be interested.</small>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <div class="form-section-header">
-                                <h2>Metadata & Links</h2>
-                                <p class="form-section-description">Add metadata URIs and links to help users discover and learn more about your project. All fields are optional.</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="metadata-uri" class="form-label">Metadata URI</label>
-                                <input 
-                                    type="text" 
-                                    id="metadata-uri" 
-                                    class="form-input" 
-                                    data-ref="metadata-uri"
-                                    placeholder="https://ipfs.io/ipfs/..."
-                                />
-                                <small class="form-help">A URI pointing to your project's metadata JSON. If left empty, metadata will be auto-generated from the fields below.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="image-uri" class="form-label">Project Image</label>
-                                <input 
-                                    type="url" 
-                                    id="image-uri" 
-                                    class="form-input" 
-                                    data-ref="image-uri"
-                                    placeholder="https://example.com/image.jpg or example.com/logo.png"
-                                />
-                                <small class="form-help">URL to your project's logo or main image. The protocol (https://) will be added automatically if missing. Recommended: 512x512px or larger.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="website-uri" class="form-label">Website</label>
-                                <input 
-                                    type="url" 
-                                    id="website-uri" 
-                                    class="form-input" 
-                                    data-ref="website-uri"
-                                    placeholder="https://myproject.com or myproject.com"
-                                />
-                                <small class="form-help">Your project's official website. The protocol (https://) will be added automatically if missing.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="twitter-uri" class="form-label">Twitter/X</label>
-                                <input 
-                                    type="text" 
-                                    id="twitter-uri" 
-                                    class="form-input" 
-                                    data-ref="twitter-uri"
-                                    placeholder="@username, username, or https://twitter.com/username"
-                                />
-                                <small class="form-help">Your project's Twitter/X handle. You can enter just the username (with or without @), or the full URL. It will be normalized automatically.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="github-uri" class="form-label">GitHub Repository</label>
-                                <input 
-                                    type="url" 
-                                    id="github-uri" 
-                                    class="form-input" 
-                                    data-ref="github-uri"
-                                    placeholder="https://github.com/user/repo or github.com/user/repo"
-                                />
-                                <small class="form-help">Link to your project's GitHub repository. The protocol (https://) will be added automatically if missing.</small>
-                            </div>
-                        </div>
-
-                        <div class="form-section">
-                            <div class="form-section-header">
-                                <h2>Categories & Tags</h2>
-                                <p class="form-section-description">Help users discover your project by adding categories and tags. These improve searchability and organization.</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="category" class="form-label">Category</label>
-                                <input 
-                                    type="text" 
-                                    id="category" 
-                                    class="form-input" 
-                                    data-ref="category"
-                                    placeholder="e.g., Art, Gaming, DeFi, NFT, DAO"
-                                />
-                                <small class="form-help">A single category that best describes your project (e.g., Art, Gaming, DeFi). This helps users filter and discover projects.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="tags" class="form-label">Tags</label>
-                                <input 
-                                    type="text" 
-                                    id="tags" 
-                                    class="form-input" 
-                                    data-ref="tags"
-                                    placeholder="tag1, tag2, tag3"
-                                />
-                                <small class="form-help">Comma-separated tags that describe your project. Use specific, relevant tags to improve discoverability (e.g., "nft, art, generative, ethereum").</small>
-                            </div>
-                        </div>
-
-                        <div class="form-actions">
-                            <button type="submit" class="btn btn-primary submit-button" data-ref="submit-button">
-                                Create Project
-                            </button>
-                            <button type="button" class="btn cancel-button" data-ref="cancel-button">
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="creation-status" data-ref="status-container" style="display: none;">
-                    <!-- Status messages will appear here -->
-                </div>
-            </div>
-        `;
-
-        // Setup event listeners
-        setupEventListeners(appContainer, selectedFactory);
+        // Render the cascading form
+        renderCascadingForm(appContainer, {
+            factories,
+            factoriesByType,
+            alignmentTargets,
+            preselectedType,
+        });
 
     } catch (error) {
         console.error('Error loading project creation page:', error);
@@ -296,42 +121,315 @@ export async function renderProjectCreation(params = null) {
                 <div class="error-state">
                     <h2>Error</h2>
                     <p class="error-message">${error.message || 'Failed to load creation form'}</p>
-                    <button class="back-button" data-ref="back-button">← Back</button>
+                    <button class="back-button" data-ref="back-button">&larr; Back</button>
                 </div>
             </div>
         `;
-        setupEventListeners(appContainer);
+        setupBackButton(appContainer);
     }
-    
-    // Return cleanup function
+
     return {
         cleanup: () => {
-            // Unload stylesheet
             stylesheetLoader.unload('project-creation-styles');
         }
     };
 }
 
 /**
- * Setup event listeners for project creation page
+ * Render the cascading creation form
  */
-function setupEventListeners(container, initialFactory) {
-    const form = container.querySelector('[data-ref="creation-form"]');
+function renderCascadingForm(container, { factories, factoriesByType, alignmentTargets, preselectedType }) {
+    container.innerHTML = `
+        <div class="project-creation">
+            <div class="creation-header">
+                <div class="creation-header-content">
+                    <h1>Create New Project</h1>
+                    <p class="creation-subtitle">Launch your project on-chain, bound to an alignment vault.</p>
+                </div>
+                <button class="back-button" data-ref="back-button">&larr; Back</button>
+            </div>
+
+            <div class="creation-form-container card">
+                <form class="creation-form" data-ref="creation-form">
+
+                    <!-- Step 1: Factory Type -->
+                    <div class="form-section">
+                        <div class="form-section-header">
+                            <h2>1. Project Type</h2>
+                            <p class="form-section-description">Choose the type of project you want to create.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="factory-type-select" class="form-label required">Factory Type</label>
+                            <select id="factory-type-select" class="form-select" data-ref="factory-type-select" required>
+                                <option value="">Select project type...</option>
+                                ${FACTORY_TYPES.map(ft => `
+                                    <option value="${ft.id}" ${ft.id === preselectedType ? 'selected' : ''}>${ft.label} &mdash; ${ft.description}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Alignment Target (hidden until type selected) -->
+                    <div class="form-section" id="step-alignment" style="display: none;">
+                        <div class="form-section-header">
+                            <h2>2. Alignment Target</h2>
+                            <p class="form-section-description">Select the community your project aligns with. This determines which vault options are available.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="alignment-target-select" class="form-label required">Community</label>
+                            <select id="alignment-target-select" class="form-select" data-ref="alignment-target-select" required>
+                                <option value="">Select alignment target...</option>
+                                ${alignmentTargets.map(t => `
+                                    <option value="${t.id}" data-description="${(t.description || '').replace(/"/g, '&quot;')}">${t.title} (ID: ${t.id})</option>
+                                `).join('')}
+                            </select>
+                            <small class="form-help" id="alignment-target-description"></small>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Vault Selection (hidden until target selected) -->
+                    <div class="form-section" id="step-vault" style="display: none;">
+                        <div class="form-section-header">
+                            <h2>3. Alignment Vault</h2>
+                            <p class="form-section-description">Choose a vault for your project. Your project's fees will flow to this vault.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="vault-select" class="form-label required">Vault</label>
+                            <select id="vault-select" class="form-select" data-ref="vault-select" required>
+                                <option value="">Loading vaults...</option>
+                            </select>
+                            <small class="form-help">Each vault buys and LPs the target community's token with project fees.</small>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Factory Contract (hidden until vault selected, only if multiple factories of the type) -->
+                    <div class="form-section" id="step-factory" style="display: none;">
+                        <div class="form-section-header">
+                            <h2>4. Factory Contract</h2>
+                            <p class="form-section-description">Select the specific factory contract to deploy from.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="factory-select" class="form-label required">Factory</label>
+                            <select id="factory-select" class="form-select" data-ref="factory-select" required>
+                                <option value="">Select factory...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Project Details (hidden until vault/factory selected) -->
+                    <div class="form-section" id="step-details" style="display: none;">
+                        <div class="form-section-header">
+                            <h2>Project Details</h2>
+                            <p class="form-section-description">Required fields are marked with an asterisk (*).</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="project-name" class="form-label required">Project Name</label>
+                            <input type="text" id="project-name" class="form-input" data-ref="project-name" placeholder="e.g., My Awesome Project" required />
+                            <small class="form-help">Choose a clear, memorable name for your project.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="project-symbol" class="form-label required">Token Symbol</label>
+                            <input type="text" id="project-symbol" class="form-input" data-ref="project-symbol" placeholder="e.g., MAP" pattern="[A-Z0-9]{3,10}" title="3-10 uppercase letters or numbers" required />
+                            <small class="form-help">A short identifier (3-10 uppercase letters or numbers).</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="project-description" class="form-label">Description</label>
+                            <textarea id="project-description" class="form-textarea" data-ref="project-description" placeholder="Describe your project..." rows="4"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Metadata & Links (hidden until details visible) -->
+                    <div class="form-section" id="step-metadata" style="display: none;">
+                        <div class="form-section-header">
+                            <h2>Metadata & Links</h2>
+                            <p class="form-section-description">Optional links to help users discover your project.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="metadata-uri" class="form-label">Metadata URI</label>
+                            <input type="text" id="metadata-uri" class="form-input" data-ref="metadata-uri" placeholder="https://ipfs.io/ipfs/..." />
+                            <small class="form-help">If left empty, metadata will be auto-generated.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="image-uri" class="form-label">Project Image</label>
+                            <input type="url" id="image-uri" class="form-input" data-ref="image-uri" placeholder="https://example.com/image.jpg" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="website-uri" class="form-label">Website</label>
+                            <input type="url" id="website-uri" class="form-input" data-ref="website-uri" placeholder="https://myproject.com" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="twitter-uri" class="form-label">Twitter/X</label>
+                            <input type="text" id="twitter-uri" class="form-input" data-ref="twitter-uri" placeholder="@username or https://twitter.com/username" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="github-uri" class="form-label">GitHub Repository</label>
+                            <input type="url" id="github-uri" class="form-input" data-ref="github-uri" placeholder="https://github.com/user/repo" />
+                        </div>
+                    </div>
+
+                    <!-- Categories & Tags -->
+                    <div class="form-section" id="step-tags" style="display: none;">
+                        <div class="form-section-header">
+                            <h2>Categories & Tags</h2>
+                        </div>
+                        <div class="form-group">
+                            <label for="category" class="form-label">Category</label>
+                            <input type="text" id="category" class="form-input" data-ref="category" placeholder="e.g., Art, Gaming, DeFi" />
+                        </div>
+                        <div class="form-group">
+                            <label for="tags" class="form-label">Tags</label>
+                            <input type="text" id="tags" class="form-input" data-ref="tags" placeholder="tag1, tag2, tag3" />
+                            <small class="form-help">Comma-separated tags for discoverability.</small>
+                        </div>
+                    </div>
+
+                    <div class="form-actions" id="step-submit" style="display: none;">
+                        <button type="submit" class="btn btn-primary submit-button" data-ref="submit-button">
+                            Create Project
+                        </button>
+                        <button type="button" class="btn cancel-button" data-ref="cancel-button">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="creation-status" data-ref="status-container" style="display: none;"></div>
+        </div>
+    `;
+
+    // Setup cascading logic
+    setupCascadingListeners(container, { factories, factoriesByType, alignmentTargets });
+    setupBackButton(container);
+
+    // If pre-selected type, trigger cascade
+    if (preselectedType) {
+        const typeSelect = container.querySelector('[data-ref="factory-type-select"]');
+        if (typeSelect && typeSelect.value) {
+            typeSelect.dispatchEvent(new Event('change'));
+        }
+    }
+}
+
+/**
+ * Setup cascading form listeners: type → target → vault → factory → details
+ */
+function setupCascadingListeners(container, { factories, factoriesByType, alignmentTargets }) {
+    const typeSelect = container.querySelector('[data-ref="factory-type-select"]');
+    const targetSelect = container.querySelector('[data-ref="alignment-target-select"]');
+    const vaultSelect = container.querySelector('[data-ref="vault-select"]');
     const factorySelect = container.querySelector('[data-ref="factory-select"]');
-    const backButton = container.querySelector('[data-ref="back-button"]');
+    const form = container.querySelector('[data-ref="creation-form"]');
     const cancelButton = container.querySelector('[data-ref="cancel-button"]');
     const statusContainer = container.querySelector('[data-ref="status-container"]');
 
-    if (backButton) {
-        backButton.addEventListener('click', () => {
-            if (window.router) {
-                window.router.navigate('/');
-            } else {
-                window.location.href = '/';
-            }
-        });
+    const stepAlignment = container.querySelector('#step-alignment');
+    const stepVault = container.querySelector('#step-vault');
+    const stepFactory = container.querySelector('#step-factory');
+    const stepDetails = container.querySelector('#step-details');
+    const stepMetadata = container.querySelector('#step-metadata');
+    const stepTags = container.querySelector('#step-tags');
+    const stepSubmit = container.querySelector('#step-submit');
+
+    // Hide all steps after the given one
+    function hideFrom(step) {
+        const steps = [stepAlignment, stepVault, stepFactory, stepDetails, stepMetadata, stepTags, stepSubmit];
+        const idx = steps.indexOf(step);
+        for (let i = idx; i < steps.length; i++) {
+            steps[i].style.display = 'none';
+        }
     }
 
+    // Step 1: Factory type changes → show alignment targets
+    typeSelect.addEventListener('change', () => {
+        hideFrom(stepAlignment);
+        const selectedType = typeSelect.value;
+        if (!selectedType) return;
+
+        // Reset target selection
+        targetSelect.value = '';
+        stepAlignment.style.display = '';
+    });
+
+    // Step 2: Alignment target changes → load vaults for that target
+    targetSelect.addEventListener('change', async () => {
+        hideFrom(stepVault);
+        const targetId = parseInt(targetSelect.value);
+        if (!targetId) return;
+
+        // Show target description
+        const selectedOption = targetSelect.options[targetSelect.selectedIndex];
+        const descEl = container.querySelector('#alignment-target-description');
+        if (descEl) {
+            descEl.textContent = selectedOption.dataset.description || '';
+        }
+
+        // Load vaults for this target
+        vaultSelect.innerHTML = '<option value="">Loading vaults...</option>';
+        stepVault.style.display = '';
+
+        try {
+            const masterAdapter = await serviceFactory.getMasterRegistryAdapter();
+            const vaults = await masterAdapter.getVaultsForTarget(targetId);
+
+            if (vaults.length === 0) {
+                vaultSelect.innerHTML = '<option value="">No vaults available for this target</option>';
+            } else {
+                vaultSelect.innerHTML = '<option value="">Select vault...</option>' +
+                    vaults.map(v => `<option value="${v.address}">${v.name || v.address.slice(0, 10) + '...'}</option>`).join('');
+            }
+        } catch (e) {
+            console.error('[ProjectCreation] Failed to load vaults:', e);
+            vaultSelect.innerHTML = '<option value="">Failed to load vaults</option>';
+        }
+    });
+
+    // Step 3: Vault selected → show factory selection and project details
+    vaultSelect.addEventListener('change', () => {
+        hideFrom(stepFactory);
+        if (!vaultSelect.value) return;
+
+        const selectedType = typeSelect.value;
+        const typeFactories = factoriesByType[selectedType] || [];
+
+        if (typeFactories.length > 1) {
+            // Multiple factories of this type — show factory picker
+            factorySelect.innerHTML = '<option value="">Select factory...</option>' +
+                typeFactories.map(f => `<option value="${f.address}">${f.type} - ${f.address.slice(0, 10)}...</option>`).join('');
+            stepFactory.style.display = '';
+        } else if (typeFactories.length === 1) {
+            // Only one factory — auto-select and skip to details
+            factorySelect.innerHTML = `<option value="${typeFactories[0].address}" selected>${typeFactories[0].type}</option>`;
+            showDetailsSteps();
+        } else {
+            // No factories of this type
+            showStatus(statusContainer, 'error', 'No authorized factories available for this project type.');
+        }
+    });
+
+    // Step 4: Factory selected → show details
+    factorySelect.addEventListener('change', () => {
+        hideFrom(stepDetails);
+        if (!factorySelect.value) return;
+        showDetailsSteps();
+    });
+
+    function showDetailsSteps() {
+        stepDetails.style.display = '';
+        stepMetadata.style.display = '';
+        stepTags.style.display = '';
+        stepSubmit.style.display = '';
+    }
+
+    // Cancel button
     if (cancelButton) {
         cancelButton.addEventListener('click', () => {
             if (window.router) {
@@ -342,29 +440,22 @@ function setupEventListeners(container, initialFactory) {
         });
     }
 
+    // Form submission
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            await handleFormSubmit(form, statusContainer);
+            await handleFormSubmit(form, statusContainer, vaultSelect.value);
         });
     }
 
-    // Update form based on factory selection
-    if (factorySelect) {
-        factorySelect.addEventListener('change', () => {
-            // Could update form fields based on factory type here
-            // For now, just store the selected factory
-        });
-    }
-
-    // Add real-time URL normalization and validation
+    // URL normalization
     setupURLValidation(container, statusContainer);
 }
 
 /**
- * Handle form submission
+ * Handle form submission - deploy instance with vault binding
  */
-async function handleFormSubmit(form, statusContainer) {
+async function handleFormSubmit(form, statusContainer, vaultAddress) {
     const submitButton = form.querySelector('[data-ref="submit-button"]');
     const factorySelect = form.querySelector('[data-ref="factory-select"]');
     const projectName = form.querySelector('[data-ref="project-name"]');
@@ -383,48 +474,29 @@ async function handleFormSubmit(form, statusContainer) {
     const symbol = projectSymbol.value.trim().toUpperCase();
     const description = projectDescription.value.trim();
     const metadata = metadataURI.value.trim();
-    
-    // Parse optional metadata fields
+
     let image = imageURI.value.trim();
     let website = websiteURI.value.trim();
     let twitter = twitterURI.value.trim();
     let github = githubURI.value.trim();
     const categoryValue = category.value.trim();
     const tagsValue = tags.value.trim();
-    
-    // Normalize URLs (auto-fix, don't block)
-    if (image) {
-        image = normalizeURL(image);
-    }
-    
-    if (website) {
-        website = normalizeURL(website);
-    }
-    
-    if (github) {
-        github = normalizeURL(github);
-    }
-    
-    // Normalize Twitter URI
-    if (twitter) {
-        twitter = normalizeTwitterURL(twitter);
-    }
-    
-    // Validate image URL in background (non-blocking)
+
+    if (image) image = normalizeURL(image);
+    if (website) website = normalizeURL(website);
+    if (github) github = normalizeURL(github);
+    if (twitter) twitter = normalizeTwitterURL(twitter);
+
     if (image) {
         validateImageURL(image).then(isValid => {
             if (!isValid) {
-                showStatus(statusContainer, 'warning', '⚠️ Image URL may not be valid or accessible. The project was still created successfully.');
+                showStatus(statusContainer, 'warning', 'Image URL may not be valid or accessible. The project was still created successfully.');
             }
-        }).catch(() => {
-            // Silently fail - validation is optional
-        });
+        }).catch(() => {});
     }
-    
-    // Parse tags
+
     const tagsArray = tagsValue ? tagsValue.split(',').map(t => t.trim()).filter(t => t) : [];
 
-    // Validate
     if (!name || !symbol) {
         showStatus(statusContainer, 'error', 'Please fill in all required fields.');
         return;
@@ -435,7 +507,11 @@ async function handleFormSubmit(form, statusContainer) {
         return;
     }
 
-    // Show loading state
+    if (!vaultAddress) {
+        showStatus(statusContainer, 'error', 'Please select an alignment vault.');
+        return;
+    }
+
     submitButton.disabled = true;
     submitButton.textContent = 'Creating...';
     showStatus(statusContainer, 'info', 'Creating project instance...');
@@ -444,7 +520,6 @@ async function handleFormSubmit(form, statusContainer) {
         const factoryService = serviceFactory.getFactoryService();
         const projectRegistry = serviceFactory.getProjectRegistry();
 
-        // Create instance with all metadata
         const instanceAddress = await factoryService.createInstance(
             factoryAddress,
             name,
@@ -458,19 +533,15 @@ async function handleFormSubmit(form, statusContainer) {
                 githubURI: github || undefined,
                 category: categoryValue || undefined,
                 tags: tagsArray.length > 0 ? tagsArray : undefined,
-                creator: '0xCREATOR0000000000000000000000000000000000' // Mock creator
+                vaultAddress,
             }
         );
 
-        // Index the new project
         await projectRegistry.indexProject(instanceAddress);
 
-        // Show success
         showStatus(statusContainer, 'success', `Project created successfully! Instance address: ${instanceAddress}`);
 
-        // Navigate to project detail after a short delay
         setTimeout(async () => {
-            // Use modern URL format when possible
             const { navigateToProject } = await import('../utils/navigation.js');
             await navigateToProject(instanceAddress);
         }, 2000);
@@ -480,6 +551,22 @@ async function handleFormSubmit(form, statusContainer) {
         showStatus(statusContainer, 'error', `Failed to create project: ${error.message}`);
         submitButton.disabled = false;
         submitButton.textContent = 'Create Project';
+    }
+}
+
+/**
+ * Setup back button navigation
+ */
+function setupBackButton(container) {
+    const backButton = container.querySelector('[data-ref="back-button"]');
+    if (backButton) {
+        backButton.addEventListener('click', () => {
+            if (window.router) {
+                window.router.navigate('/');
+            } else {
+                window.location.href = '/';
+            }
+        });
     }
 }
 

@@ -29,8 +29,7 @@ export class TopBar extends Component {
     }
 
     render() {
-        const { currentPath = '' } = this.props;
-        const { mobileNavOpen } = this.state;
+        const { currentPath = '', children, mobileNavOpen } = this.props;
 
         return h('div', { className: 'home-top-bar' },
             // Logo
@@ -56,11 +55,8 @@ export class TopBar extends Component {
                 h('span', { className: 'hamburger-bar' })
             ),
 
-            // Desktop Nav Links
-            h('div', {
-                className: 'nav-links',
-                style: 'display: flex; gap: var(--space-2); align-items: center;'
-            },
+            // Desktop Nav Links (minimal - Create button only)
+            h('div', { className: 'nav-links' },
                 h('a', {
                     href: '/create',
                     className: 'btn btn-primary',
@@ -69,7 +65,10 @@ export class TopBar extends Component {
                         window.router.navigate('/create');
                     }
                 }, 'Create')
-            )
+            ),
+
+            // MobileNav rendered as child
+            children
         );
     }
 }

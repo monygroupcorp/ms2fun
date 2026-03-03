@@ -57,23 +57,17 @@ class WalletService {
      */
     async initialize() {
         try {
-            console.log('Initializing WalletService...');
-            
             // Check if window.ethereum exists
             if (typeof window.ethereum !== 'undefined') {
-                // Log that we found a wallet provider
-                console.log('Found Ethereum provider');
-                
                 // Let other components know a wallet was detected
                 eventBus.emit('wallet:detected');
-                
+
                 // Check if the provider is in MetaMask compatibility mode
                 this.isMetaMask = window.ethereum.isMetaMask;
-                
+
                 // Set up event listeners for wallet changes
                 this.setupEventListeners();
             } else {
-                console.log('No Ethereum provider found');
                 eventBus.emit('wallet:notdetected');
             }
             
