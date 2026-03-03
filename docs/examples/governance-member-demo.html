@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Member Dashboard — GrandCentral DAO</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        .governance-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        .governance-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .governance-nav-home {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .governance-nav-home:hover {
+            opacity: 0.7;
+        }
+
+        .governance-nav-links {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .governance-nav-link {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-base);
+        }
+
+        .governance-nav-link:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .governance-nav-link.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .governance-content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .page-address {
+            font-size: var(--font-size-body);
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+        }
+
+        .member-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-8);
+        }
+
+        .member-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-6);
+        }
+
+        .member-card-title {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .member-card-value {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--space-2);
+        }
+
+        .member-card-detail {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .section-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-4);
+        }
+
+        .vote-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .vote-history-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+        }
+
+        .vote-history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-2);
+        }
+
+        .vote-proposal-id {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .vote-choice {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding: var(--space-1) var(--space-2);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .vote-choice--yes {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .vote-choice--no {
+            background-color: transparent;
+            color: var(--text-secondary);
+        }
+
+        .vote-history-title {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+        }
+
+        .vote-history-time {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .ragequit-section {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-6);
+            margin-bottom: var(--space-8);
+        }
+
+        .ragequit-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-4);
+        }
+
+        .ragequit-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--space-4);
+        }
+
+        .ragequit-calculator {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .ragequit-result {
+            grid-column: 1 / -1;
+            padding: var(--space-4);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            font-size: var(--font-size-body);
+            text-align: center;
+        }
+
+        .ragequit-result-value {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+            margin-top: var(--space-2);
+        }
+
+        @media (max-width: 1024px) {
+            .governance-content {
+                padding: 0 var(--space-6);
+            }
+
+            .governance-nav {
+                padding: var(--space-4) var(--space-6);
+            }
+
+            .member-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .governance-content {
+                padding: 0 var(--space-4);
+            }
+
+            .governance-nav {
+                padding: var(--space-3) var(--space-4);
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .governance-nav-links {
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            .ragequit-calculator {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .governance-nav {
+                padding: var(--space-3);
+            }
+
+            .governance-content {
+                padding: 0 var(--space-3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="governance-page">
+        <!-- Navigation -->
+        <nav class="governance-nav">
+            <a href="homepage-v2-demo.html" class="governance-nav-home">← ms2<span class="logo-tld">.fun</span></a>
+            <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+                <span class="hamburger-bar"></span>
+            </button>
+            <div class="governance-nav-links">
+                <a href="governance-hub-demo.html" class="governance-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="governance-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="governance-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="governance-nav-link active">Member</a>
+                <a href="governance-treasury-demo.html" class="governance-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="governance-nav-link">Shares</a>
+            </div>
+            <div class="mobile-nav-panel" id="mobile-nav">
+                <a href="governance-hub-demo.html" class="mobile-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="mobile-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="mobile-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="mobile-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="mobile-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="mobile-nav-link">Shares</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="governance-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">Member Dashboard</h1>
+                <p class="page-address">0x742d35c9abcdef1234567890abcdef1234567890</p>
+            </header>
+
+            <!-- Member Stats Grid -->
+            <div class="member-grid">
+                <div class="member-card">
+                    <div class="member-card-title">Total Shares</div>
+                    <div class="member-card-value">45</div>
+                    <div class="member-card-detail">5.2% of total</div>
+                </div>
+
+                <div class="member-card">
+                    <div class="member-card-title">Total Loot</div>
+                    <div class="member-card-value">12</div>
+                    <div class="member-card-detail">Non-voting power</div>
+                </div>
+
+                <div class="member-card">
+                    <div class="member-card-title">Pending Claims</div>
+                    <div class="member-card-value text-mono">0.4523 ETH</div>
+                    <div class="member-card-detail">
+                        <button class="btn btn-primary" style="margin-top: var(--space-2); width: 100%;">Claim</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Votes Section -->
+            <section style="margin-bottom: var(--space-8);">
+                <h2 class="section-title">Recent Votes</h2>
+                <div class="vote-history-list">
+                    <div class="vote-history-item">
+                        <div class="vote-history-header">
+                            <span class="vote-proposal-id">#042</span>
+                            <span class="vote-choice vote-choice--yes">Yes</span>
+                        </div>
+                        <div class="vote-history-title">Register new ERC721 auction factory for generative art collections</div>
+                        <div class="vote-history-time">2 days ago • 45 shares</div>
+                    </div>
+
+                    <div class="vote-history-item">
+                        <div class="vote-history-header">
+                            <span class="vote-proposal-id">#040</span>
+                            <span class="vote-choice vote-choice--yes">Yes</span>
+                        </div>
+                        <div class="vote-history-title">Register Ethereum Foundation Climate Initiatives vault as alignment target</div>
+                        <div class="vote-history-time">5 days ago • 45 shares</div>
+                    </div>
+
+                    <div class="vote-history-item">
+                        <div class="vote-history-header">
+                            <span class="vote-proposal-id">#038</span>
+                            <span class="vote-choice vote-choice--yes">Yes</span>
+                        </div>
+                        <div class="vote-history-title">Register UltraSound.Money vault as alignment target for ETH deflationary projects</div>
+                        <div class="vote-history-time">8 days ago • 45 shares</div>
+                    </div>
+
+                    <div class="vote-history-item">
+                        <div class="vote-history-header">
+                            <span class="vote-proposal-id">#036</span>
+                            <span class="vote-choice vote-choice--no">No</span>
+                        </div>
+                        <div class="vote-history-title">Reduce voting period from 72 hours to 48 hours</div>
+                        <div class="vote-history-time">15 days ago • 45 shares</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Ragequit Section -->
+            <section class="ragequit-section">
+                <h2 class="ragequit-title">Ragequit</h2>
+                <p class="ragequit-description">
+                    Burn your shares and/or loot to exit the DAO and claim your proportional share of the ragequit pool. This action is irreversible.
+                </p>
+                <div class="ragequit-calculator">
+                    <div class="form-group">
+                        <label>Shares to Burn</label>
+                        <input type="number" class="input" placeholder="0" max="45" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Loot to Burn</label>
+                        <input type="number" class="input" placeholder="0" max="12" value="0">
+                    </div>
+                    <div class="ragequit-result">
+                        <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide);">You would receive</div>
+                        <div class="ragequit-result-value">0.0000 ETH</div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" style="width: 100%;" disabled>Ragequit</button>
+            </section>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

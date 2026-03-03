@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Share Offering — GrandCentral DAO</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        .governance-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        .governance-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .governance-nav-home {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .governance-nav-home:hover {
+            opacity: 0.7;
+        }
+
+        .governance-nav-links {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .governance-nav-link {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-base);
+        }
+
+        .governance-nav-link:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .governance-nav-link.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .governance-content {
+            max-width: var(--container-lg);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .page-subtitle {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+        }
+
+        .offering-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-8);
+            margin-bottom: var(--space-8);
+        }
+
+        .offering-header {
+            text-align: center;
+            padding-bottom: var(--space-6);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .offering-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .offering-status {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .progress-section {
+            margin-bottom: var(--space-6);
+        }
+
+        .progress-bar-container {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            height: 48px;
+            margin-bottom: var(--space-3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--text-primary);
+            transition: width 0.5s ease;
+        }
+
+        .progress-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+            mix-blend-mode: difference;
+            color: var(--bg-primary);
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .offering-details-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .detail-item {
+            text-align: center;
+            padding: var(--space-4);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .detail-label {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .detail-value {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+        }
+
+        .contribute-section {
+            padding: var(--space-6);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .contribute-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-4);
+            text-align: center;
+        }
+
+        .contribute-form {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .contribution-summary {
+            padding: var(--space-4);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            margin-top: var(--space-4);
+            text-align: center;
+        }
+
+        .summary-label {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .summary-value {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+        }
+
+        @media (max-width: 1024px) {
+            .governance-content {
+                padding: 0 var(--space-6);
+            }
+
+            .governance-nav {
+                padding: var(--space-4) var(--space-6);
+            }
+
+            .offering-details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .governance-content {
+                padding: 0 var(--space-4);
+            }
+
+            .governance-nav {
+                padding: var(--space-3) var(--space-4);
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .governance-nav-links {
+                width: 100%;
+                overflow-x: auto;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .governance-nav {
+                padding: var(--space-3);
+            }
+
+            .governance-content {
+                padding: 0 var(--space-3);
+            }
+
+            .offering-card {
+                padding: var(--space-4);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="governance-page">
+        <!-- Navigation -->
+        <nav class="governance-nav">
+            <a href="homepage-v2-demo.html" class="governance-nav-home">← ms2<span class="logo-tld">.fun</span></a>
+            <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+                <span class="hamburger-bar"></span>
+            </button>
+            <div class="governance-nav-links">
+                <a href="governance-hub-demo.html" class="governance-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="governance-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="governance-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="governance-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="governance-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="governance-nav-link active">Shares</a>
+            </div>
+            <div class="mobile-nav-panel" id="mobile-nav">
+                <a href="governance-hub-demo.html" class="mobile-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="mobile-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="mobile-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="mobile-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="mobile-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="mobile-nav-link">Shares</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="governance-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">Share Offering</h1>
+                <p class="page-subtitle">
+                    Acquire voting power in the DAO by contributing to share offerings. Shares grant proportional voting rights and claims pool allocation.
+                </p>
+            </header>
+
+            <!-- Active Offering Card -->
+            <div class="offering-card">
+                <div class="offering-header">
+                    <h2 class="offering-title">Series A Share Offering</h2>
+                    <p class="offering-status">Active • Ends in 5 days 14 hours</p>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-section">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" style="width: 68.3%;"></div>
+                        <div class="progress-label">68.3%</div>
+                    </div>
+                    <div class="progress-stats">
+                        <span>Raised: 34.1500 ETH</span>
+                        <span>Goal: 50.0000 ETH</span>
+                    </div>
+                </div>
+
+                <!-- Offering Details -->
+                <div class="offering-details-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Share Price</div>
+                        <div class="detail-value">0.1 ETH</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Total Shares</div>
+                        <div class="detail-value">500</div>
+                    </div>
+
+                    <div class="detail-item">
+                        <div class="detail-label">Remaining</div>
+                        <div class="detail-value">158</div>
+                    </div>
+                </div>
+
+                <!-- Contribute Section -->
+                <div class="contribute-section">
+                    <h3 class="contribute-title">Contribute</h3>
+                    <div class="contribute-form">
+                        <div class="form-group">
+                            <label>ETH Amount</label>
+                            <input type="number" class="input" placeholder="0.0" step="0.1" id="eth-input">
+                            <div class="form-hint">Minimum: 0.1 ETH</div>
+                        </div>
+
+                        <div class="contribution-summary">
+                            <div class="summary-label">You will receive</div>
+                            <div class="summary-value" id="shares-output">0 shares</div>
+                        </div>
+
+                        <button class="btn btn-primary" style="width: 100%; margin-top: var(--space-4);">Contribute</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Your Contribution -->
+            <section style="margin-bottom: var(--space-8);">
+                <div style="padding: var(--space-6); background-color: var(--bg-secondary); border: 1px solid var(--border-secondary);">
+                    <h3 style="font-size: var(--font-size-h4); font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); margin-bottom: var(--space-4); text-align: center;">Your Contribution</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4);">
+                        <div class="detail-item">
+                            <div class="detail-label">Contributed</div>
+                            <div class="detail-value">2.5 ETH</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Claimable Shares</div>
+                            <div class="detail-value">25</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" style="width: 100%; margin-top: var(--space-4);" disabled>Claim Shares (After Offering Ends)</button>
+                </div>
+            </section>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Simple calculator
+        const ethInput = document.getElementById('eth-input');
+        const sharesOutput = document.getElementById('shares-output');
+
+        ethInput.addEventListener('input', () => {
+            const ethValue = parseFloat(ethInput.value) || 0;
+            const sharePrice = 0.1;
+            const shares = Math.floor(ethValue / sharePrice);
+            sharesOutput.textContent = `${shares} ${shares === 1 ? 'share' : 'shares'}`;
+        });
+    </script>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

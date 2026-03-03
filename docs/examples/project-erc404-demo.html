@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Early Alignment ($EARLY) — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Content Layout */
+        .content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-10);
+        }
+
+        .project-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: var(--space-8);
+        }
+
+        /* Project Header */
+        .project-header {
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .project-icon {
+            width: 64px;
+            height: 64px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--space-3);
+        }
+
+        .project-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .project-ticker {
+            color: var(--text-secondary);
+        }
+
+        .project-meta {
+            display: flex;
+            gap: var(--space-4);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .project-actions {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        .action-btn {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .action-btn:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: var(--space-2);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .tab {
+            padding: var(--space-3) var(--space-4);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--border-primary);
+        }
+
+        /* Bonding Section */
+        .bonding-section {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-6);
+            margin-bottom: var(--space-6);
+        }
+
+        .bonding-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-4);
+        }
+
+        .bonding-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .phase-badge {
+            padding: var(--space-1) var(--space-3);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .bonding-progress {
+            margin-bottom: var(--space-4);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--text-primary);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            color: var(--bg-primary);
+            mix-blend-mode: difference;
+        }
+
+        .bonding-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-4);
+            margin-top: var(--space-3);
+        }
+
+        .bonding-stat {
+            text-align: center;
+        }
+
+        .bonding-stat-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-1);
+        }
+
+        .bonding-stat-label {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .bonding-chart {
+            width: 100%;
+            height: 300px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            margin-bottom: var(--space-3);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: sticky;
+            top: var(--space-6);
+            height: fit-content;
+        }
+
+        .trading-card {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-5);
+            margin-bottom: var(--space-4);
+        }
+
+        .trading-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-4);
+        }
+
+        .trade-toggle {
+            display: flex;
+            gap: 0;
+            margin-bottom: var(--space-4);
+        }
+
+        .trade-toggle-btn {
+            flex: 1;
+            padding: var(--space-2);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .trade-toggle-btn:first-child {
+            border-right: none;
+        }
+
+        .trade-toggle-btn.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .amount-input-wrapper {
+            position: relative;
+            margin-bottom: var(--space-3);
+        }
+
+        .amount-input {
+            width: 100%;
+            height: var(--input-height);
+            padding: var(--space-2) var(--space-10) var(--space-2) var(--space-2);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body-lg);
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-secondary);
+            color: var(--text-primary);
+        }
+
+        .amount-input:focus {
+            outline: none;
+            border-color: var(--text-primary);
+        }
+
+        .amount-unit {
+            position: absolute;
+            right: var(--space-2);
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-secondary);
+        }
+
+        .quick-picks {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-2);
+            margin-bottom: var(--space-4);
+        }
+
+        .quick-pick-btn {
+            padding: var(--space-2);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            font-family: var(--font-mono);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .quick-pick-btn:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .info-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--space-2) 0;
+            border-bottom: 1px solid var(--border-tertiary);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .info-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        /* NFT Gallery */
+        .nft-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: var(--space-3);
+        }
+
+        .nft-item {
+            aspect-ratio: 1;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-tertiary);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .project-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                top: 0;
+                order: -1;
+            }
+
+            .bonding-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: var(--space-4);
+            }
+
+            .quick-picks {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .bonding-chart {
+                height: 200px;
+            }
+
+            .bonding-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .content {
+                padding: var(--space-3);
+            }
+
+            .bonding-section {
+                padding: var(--space-4);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <a href="homepage-v2-demo.html" class="logo">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+        <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+            <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+        </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <div class="project-layout">
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Project Header -->
+                <div class="project-header">
+                    <div class="project-icon">EA</div>
+                    <h1 class="project-title">
+                        Early Alignment <span class="project-ticker">($EARLY)</span>
+                    </h1>
+                    <div class="project-meta">
+                        <div>Created by <span class="text-mono">0x742d...35c9</span></div>
+                        <div>Jan 20, 2026</div>
+                        <div>ERC404 Bonding</div>
+                    </div>
+                    <div class="project-actions">
+                        <button class="action-btn">Share</button>
+                        <button class="action-btn">0x7a3d...8e2f ⎘</button>
+                        <button class="action-btn">☆</button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" onclick="showTab('token')">Token</button>
+                    <button class="tab" onclick="showTab('nft')">NFT</button>
+                </div>
+
+                <!-- Token Tab -->
+                <div id="token-tab">
+                    <!-- Bonding Section -->
+                    <div class="bonding-section">
+                        <div class="bonding-header">
+                            <div class="bonding-title">Bonding Curve</div>
+                            <div class="phase-badge">Bonding Active</div>
+                        </div>
+
+                        <div class="bonding-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: 42.5%;"></div>
+                                <div class="progress-text">42.5% FILLED</div>
+                            </div>
+                        </div>
+
+                        <div class="bonding-stats">
+                            <div class="bonding-stat">
+                                <div class="bonding-stat-value">4.25 ETH</div>
+                                <div class="bonding-stat-label">Raised</div>
+                            </div>
+                            <div class="bonding-stat">
+                                <div class="bonding-stat-value">425K</div>
+                                <div class="bonding-stat-label">Tokens Sold</div>
+                            </div>
+                            <div class="bonding-stat">
+                                <div class="bonding-stat-value">575K</div>
+                                <div class="bonding-stat-label">Available</div>
+                            </div>
+                        </div>
+
+                        <div class="bonding-chart">
+                            BONDING CURVE CHART
+                        </div>
+
+                        <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary); text-align: center;">
+                            When bonding completes, liquidity will be deployed to Uniswap V4 with the UltraAlignment hook. Post-graduation fees flow to stakers and the Protocol Guild vault.
+                        </div>
+                    </div>
+
+                    <!-- Staking Section -->
+                    <div class="bonding-section">
+                        <div class="bonding-header">
+                            <div class="bonding-title">Staking</div>
+                            <div class="phase-badge" style="background-color: var(--bg-tertiary); color: var(--text-secondary);">Not Enabled</div>
+                        </div>
+                        <div style="font-size: var(--font-size-body); color: var(--text-secondary); text-align: center; padding: var(--space-6) 0;">
+                            Staking will be enabled by the project creator. Once enabled, holders can stake tokens to earn a share of vault fees.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NFT Tab -->
+                <div id="nft-tab" style="display: none;">
+                    <div style="background-color: var(--bg-secondary); border: 1px solid var(--border-secondary); padding: var(--space-6); margin-bottom: var(--space-6);">
+                        <h3 style="font-size: var(--font-size-h3); font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); margin-bottom: var(--space-4);">
+                            NFT Gallery
+                        </h3>
+                        <div class="nft-gallery">
+                            <div class="nft-item">#1</div>
+                            <div class="nft-item">#2</div>
+                            <div class="nft-item">#3</div>
+                            <div class="nft-item">#4</div>
+                            <div class="nft-item">#5</div>
+                            <div class="nft-item">#6</div>
+                            <div class="nft-item">#7</div>
+                            <div class="nft-item">#8</div>
+                        </div>
+                        <div style="text-align: center; margin-top: var(--space-4);">
+                            <a href="#" style="font-size: var(--font-size-body); color: var(--text-primary); text-decoration: none; text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); font-weight: var(--font-weight-medium);">
+                                View Full Gallery →
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Trading Card -->
+                <div class="trading-card">
+                    <div class="trading-title">Trade</div>
+
+                    <div class="trade-toggle">
+                        <button class="trade-toggle-btn active">Buy</button>
+                        <button class="trade-toggle-btn">Sell</button>
+                    </div>
+
+                    <div class="amount-input-wrapper">
+                        <input type="text" class="amount-input" placeholder="0.0">
+                        <div class="amount-unit">ETH</div>
+                    </div>
+
+                    <div class="quick-picks">
+                        <button class="quick-pick-btn">.1</button>
+                        <button class="quick-pick-btn">.5</button>
+                        <button class="quick-pick-btn">1</button>
+                        <button class="quick-pick-btn">max</button>
+                    </div>
+
+                    <button class="btn btn-primary btn-full">Connect Wallet</button>
+                </div>
+
+                <!-- Token Info -->
+                <div class="info-card" style="margin-bottom: var(--space-4);">
+                    <div class="info-row">
+                        <div class="info-label">Current Price</div>
+                        <div class="info-value">0.00001 ETH</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Market Cap</div>
+                        <div class="info-value">4.25 ETH</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Holders</div>
+                        <div class="info-value">127</div>
+                    </div>
+                </div>
+
+                <!-- Vault Info -->
+                <div class="info-card">
+                    <div class="info-row">
+                        <div class="info-label">Aligned To</div>
+                        <div class="info-value" style="font-family: var(--font-primary); font-size: var(--font-size-caption);">Protocol Guild</div>
+                    </div>
+                    <div class="info-row">
+                        <div class="info-label">Creator</div>
+                        <div class="info-value">0x742d...35c9</div>
+                    </div>
+                    <div style="padding-top: var(--space-2); font-size: var(--font-size-caption); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide);">
+                        Post-graduation fees go to stakers
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            document.getElementById('token-tab').style.display = 'none';
+            document.getElementById('nft-tab').style.display = 'none';
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').style.display = 'block';
+
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Buy/Sell toggle
+        document.querySelectorAll('.trade-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.trade-toggle-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                // Update unit label
+                const unit = this.textContent === 'Buy' ? 'ETH' : 'EARLY';
+                document.querySelector('.amount-unit').textContent = unit;
+
+                // Update quick picks
+                const quickPicks = document.querySelectorAll('.quick-pick-btn');
+                if (this.textContent === 'Buy') {
+                    quickPicks[0].textContent = '.1';
+                    quickPicks[1].textContent = '.5';
+                    quickPicks[2].textContent = '1';
+                    quickPicks[3].textContent = 'max';
+                } else {
+                    quickPicks[0].textContent = '25%';
+                    quickPicks[1].textContent = '50%';
+                    quickPicks[2].textContent = '75%';
+                    quickPicks[3].textContent = 'max';
+                }
+            });
+        });
+    </script>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

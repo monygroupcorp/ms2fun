@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault Application — GrandCentral DAO</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        .governance-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        .governance-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .governance-nav-home {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .governance-nav-home:hover {
+            opacity: 0.7;
+        }
+
+        .governance-nav-links {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .governance-nav-link {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-base);
+        }
+
+        .governance-nav-link:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .governance-nav-link.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .governance-content {
+            max-width: var(--container-md);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+        }
+
+        .page-subtitle {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+        }
+
+        .application-form {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-8);
+            margin-bottom: var(--space-8);
+        }
+
+        .form-section {
+            margin-bottom: var(--space-8);
+        }
+
+        .form-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-section-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-4);
+        }
+
+        @media (max-width: 1024px) {
+            .governance-content {
+                padding: 0 var(--space-6);
+            }
+
+            .governance-nav {
+                padding: var(--space-4) var(--space-6);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .governance-content {
+                padding: 0 var(--space-4);
+            }
+
+            .governance-nav {
+                padding: var(--space-3) var(--space-4);
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .governance-nav-links {
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            .application-form {
+                padding: var(--space-4);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .governance-nav {
+                padding: var(--space-3);
+            }
+
+            .governance-content {
+                padding: 0 var(--space-3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="governance-page">
+        <!-- Navigation -->
+        <nav class="governance-nav">
+            <a href="homepage-v2-demo.html" class="governance-nav-home">← ms2<span class="logo-tld">.fun</span></a>
+            <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+                <span class="hamburger-bar"></span>
+            </button>
+            <div class="governance-nav-links">
+                <a href="governance-hub-demo.html" class="governance-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="governance-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="governance-nav-link active">Apply</a>
+                <a href="governance-member-demo.html" class="governance-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="governance-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="governance-nav-link">Shares</a>
+            </div>
+            <div class="mobile-nav-panel" id="mobile-nav">
+                <a href="governance-hub-demo.html" class="mobile-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="mobile-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="mobile-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="mobile-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="mobile-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="mobile-nav-link">Shares</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="governance-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">Vault Application</h1>
+                <p class="page-subtitle">
+                    Submit a proposal to register your alignment vault. This form will generate a governance proposal for DAO vote approval.
+                </p>
+            </header>
+
+            <!-- Application Form -->
+            <form class="application-form">
+                <!-- Vault Details Section -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Vault Details</h2>
+
+                    <div class="form-group">
+                        <label>Vault Contract Address *</label>
+                        <input type="text" class="input" placeholder="0x..." required>
+                        <div class="form-hint">Deployed contract address implementing IAlignmentVault interface</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Alignment Target *</label>
+                        <select class="input" required>
+                            <option value="">Select alignment target...</option>
+                            <option value="1">Protocol Guild</option>
+                            <option value="2">UltraSound.Money</option>
+                            <option value="3">Ethereum Foundation Climate Initiatives</option>
+                            <option value="4">Public Goods Funding</option>
+                        </select>
+                        <div class="form-hint">Select the registered alignment target this vault belongs to</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Vault Name *</label>
+                        <input type="text" class="input" placeholder="e.g., Climate Action Vault" required>
+                        <div class="form-hint">User-facing name for the vault</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Organization Name</label>
+                        <input type="text" class="input" placeholder="e.g., Climate Collective DAO">
+                        <div class="form-hint">Name of the organization managing this vault (if applicable)</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Metadata URI</label>
+                        <input type="text" class="input" placeholder="ipfs://... or https://...">
+                        <div class="form-hint">Optional IPFS or HTTP link to vault documentation</div>
+                    </div>
+                </div>
+
+                <!-- Mission Section -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Mission & Impact</h2>
+
+                    <div class="form-group">
+                        <label>Mission Statement *</label>
+                        <textarea class="input" rows="4" placeholder="Describe the vault's mission and primary objectives..." required></textarea>
+                        <div class="form-hint">What is the purpose of this vault?</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Impact Description *</label>
+                        <textarea class="input" rows="6" placeholder="Explain how funds will be used and what impact they will create..." required></textarea>
+                        <div class="form-hint">How will aligned projects' revenue create positive change?</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Target Beneficiaries</label>
+                        <textarea class="input" rows="3" placeholder="Who benefits from this vault's activities?"></textarea>
+                        <div class="form-hint">Describe the communities or causes that benefit</div>
+                    </div>
+                </div>
+
+                <!-- Fund Management Section -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Fund Management</h2>
+
+                    <div class="form-group">
+                        <label>Allocation Strategy *</label>
+                        <textarea class="input" rows="6" placeholder="Describe how incoming funds will be allocated and distributed..." required></textarea>
+                        <div class="form-hint">Transparency in fund allocation builds trust with aligned projects</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Distribution Frequency</label>
+                        <select class="input">
+                            <option value="">Select distribution frequency...</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="annual">Annual</option>
+                            <option value="continuous">Continuous</option>
+                            <option value="custom">Custom Schedule</option>
+                        </select>
+                        <div class="form-hint">How often will funds be distributed or deployed?</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Reporting Commitment</label>
+                        <textarea class="input" rows="4" placeholder="Describe how you will report on fund usage and impact..."></textarea>
+                        <div class="form-hint">Transparency reports help aligned projects track their contributions</div>
+                    </div>
+                </div>
+
+                <!-- Proposal Details Section -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Proposal Details</h2>
+
+                    <div class="form-group">
+                        <label>Rationale *</label>
+                        <textarea class="input" rows="8" placeholder="Explain why this vault should be registered. Include information about your track record, governance structure, and alignment with ms2.fun values..." required></textarea>
+                        <div class="form-hint">Detailed justification for DAO members to evaluate this proposal</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Expiration (days from now) *</label>
+                        <input type="number" class="input" placeholder="30" value="30" min="7" max="90" required>
+                        <div class="form-hint">Proposal will expire if not processed within this timeframe (7-90 days)</div>
+                    </div>
+                </div>
+
+                <!-- Verification Section -->
+                <div class="form-section">
+                    <h2 class="form-section-title">Verification</h2>
+
+                    <div class="form-group">
+                        <label>Website URL</label>
+                        <input type="text" class="input" placeholder="https://...">
+                        <div class="form-hint">Official website for verification</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Social Media / Community</label>
+                        <input type="text" class="input" placeholder="https://twitter.com/... or https://discord.gg/...">
+                        <div class="form-hint">Link to active community for verification</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="checkbox" required>
+                            <span>I confirm this vault implements the IAlignmentVault interface *</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="checkbox" required>
+                            <span>I commit to transparent reporting on fund allocation and impact *</span>
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer;">
+                            <input type="checkbox" required>
+                            <span>I understand this will create a governance proposal requiring DAO approval *</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Proposal</button>
+                <a href="governance-apply-demo.html" class="btn btn-secondary" style="width: 100%; margin-top: var(--space-3); display: block; text-align: center; text-decoration: none;">Cancel</a>
+            </form>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>
