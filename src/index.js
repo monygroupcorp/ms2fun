@@ -3,6 +3,9 @@ import walletService from './services/WalletService.js';
 import MessagePopup from './components/MessagePopup/MessagePopup.js';
 import Router from './core/Router.js';
 import { HomePage } from './routes/HomePage.js';
+import { ProjectDiscovery } from './routes/ProjectDiscovery.js';
+import { Activity } from './routes/Activity.js';
+import { Portfolio } from './routes/Portfolio.js';
 import { renderCultExecsPage } from './routes/CultExecsPage.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
@@ -22,7 +25,6 @@ const messagePopup = new MessagePopup();
  */
 async function initializeApp() {
     try {
-        console.log('Initializing blockchain application with routing...');
         
         // Add global unhandled rejection handler for wallet errors
         window.addEventListener('unhandledrejection', event => {
@@ -54,13 +56,26 @@ async function initializeApp() {
         // Expose mock system test globally for console testing
         if (serviceFactory.isUsingMock()) {
             window.testMockSystem = testMockSystem;
-            console.log('💡 Mock system loaded! Run testMockSystem() in the console to test.');
         }
         
-        // Register routes
-        router.on('/', () => {
-            console.log('[Router] Rendering v2 HomePage');
+        // Initialize web3 infrastructure once (shared across all routes)
+        let web3Context = null;
+        async function ensureWeb3Ready() {
+            if (web3Context) return web3Context;
 
+            const EnvironmentDetector = (await import('./services/EnvironmentDetector.js')).EnvironmentDetector;
+            const providerManager = (await import('./services/ProviderManager.js')).default;
+
+            const { provider, type: providerType } = await providerManager.initialize();
+            const detector = new EnvironmentDetector();
+            const { mode, config } = await detector.detect();
+
+            web3Context = { provider, providerType, mode, config, web3Ready: true };
+            return web3Context;
+        }
+
+        // Register routes
+        router.on('/', async () => {
             const appContainer = document.getElementById('app-container');
             const appTopContainer = document.getElementById('app-top-container');
             const appBottomContainer = document.getElementById('app-bottom-container');
@@ -75,23 +90,134 @@ async function initializeApp() {
             if (appTopContainer) appTopContainer.innerHTML = '';
             if (appBottomContainer) appBottomContainer.innerHTML = '';
 
+            // KILL all old Temple of Capital classes
+            document.body.classList.remove(
+                'marble-bg',
+                'marble-smooth-render',
+                'marble-pos-a',
+                'marble-pos-b',
+                'marble-pos-c',
+                'marble-pos-d',
+                'cultexecs-active'
+            );
+
             // Add v2 class to body for styling
             document.body.classList.add('v2-route');
-            document.body.classList.remove('cultexecs-active');
 
-            // Render v2 HomePage component
-            console.log('[Router] Rendering HomePage component...');
-            render(h(HomePage), appContainer);
-            console.log('[Router] HomePage rendered');
+            // Ensure web3 is ready before rendering
+            const web3 = await ensureWeb3Ready();
+
+            // Render v2 HomePage component with web3 context
+            render(h(HomePage, web3), appContainer);
 
             return {
                 cleanup: () => {
-                    console.log('[Router] Cleaning up HomePage');
                     document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:home');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
                     unmountRoot(appContainer);
                 }
             };
         });
+
+        // Discovery page - browse all projects
+        router.on('/discover', async () => {
+            const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+
+            if (!appContainer) {
+                console.error('App container not found');
+                return;
+            }
+
+            // Clear ALL containers
+            appContainer.innerHTML = '';
+            if (appTopContainer) appTopContainer.innerHTML = '';
+            if (appBottomContainer) appBottomContainer.innerHTML = '';
+
+            // KILL all old Temple of Capital classes
+            document.body.classList.remove(
+                'marble-bg',
+                'marble-smooth-render',
+                'marble-pos-a',
+                'marble-pos-b',
+                'marble-pos-c',
+                'marble-pos-d',
+                'cultexecs-active'
+            );
+
+            // Add v2 class to body for styling
+            document.body.classList.add('v2-route');
+
+            // Ensure web3 is ready before rendering
+            const web3 = await ensureWeb3Ready();
+
+            // Render v2 ProjectDiscovery component with web3 context
+            render(h(ProjectDiscovery, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:discovery');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
+        // Activity page - platform-wide activity feed
+        router.on('/activity', async () => {
+            const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+
+            if (!appContainer) {
+                console.error('App container not found');
+                return;
+            }
+
+            // Clear ALL containers
+            appContainer.innerHTML = '';
+            if (appTopContainer) appTopContainer.innerHTML = '';
+            if (appBottomContainer) appBottomContainer.innerHTML = '';
+
+            // KILL all old Temple of Capital classes
+            document.body.classList.remove(
+                'marble-bg',
+                'marble-smooth-render',
+                'marble-pos-a',
+                'marble-pos-b',
+                'marble-pos-c',
+                'marble-pos-d',
+                'cultexecs-active'
+            );
+
+            // Add v2 class to body for styling
+            document.body.classList.add('v2-route');
+
+            // Ensure web3 is ready before rendering
+            const web3 = await ensureWeb3Ready();
+
+            // Render v2 Activity component with web3 context
+            render(h(Activity, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:activity');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
         router.on('/cultexecs', renderCultExecsPage);
         router.on('/about', async () => {
             const { renderDocumentation } = await import('./routes/Documentation.js');
@@ -104,10 +230,9 @@ async function initializeApp() {
         
         // Register dynamic routes (order matters - more specific first)
 
-        // Create route with chain ID and factory title (new format)
-        router.on('/:chainId/:factoryTitle/create', async (params) => {
-            const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
-            return renderProjectCreation(params);
+        // Legacy create route with chain ID and factory title — redirect to /create
+        router.on('/:chainId/:factoryTitle/create', async () => {
+            window.location.href = '/create';
         });
 
         // Three-part route - could be either project or edition
@@ -174,10 +299,31 @@ async function initializeApp() {
             return renderFactoryDetail(params);
         });
         
-        // Old create route for backward compatibility
+        // Project creation wizard (v2)
         router.on('/create', async () => {
-            const { renderProjectCreation } = await import('./routes/ProjectCreation.js');
-            return renderProjectCreation();
+            const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+
+            appTopContainer.innerHTML = '';
+            appContainer.innerHTML = '';
+            appBottomContainer.innerHTML = '';
+
+            document.body.classList.remove('marble-bg', 'obsidian-bg');
+            document.body.classList.add('v2-route');
+
+            const { default: ProjectCreationPage } = await import('./routes/ProjectCreationPage.js');
+            const page = new ProjectCreationPage(appContainer);
+            page.mount(appContainer);
+
+            return {
+                cleanup: () => {
+                    page.unmount();
+                    document.body.classList.remove('v2-route');
+                    document.body.classList.add('marble-bg');
+                    stylesheetLoader.unload('route:create');
+                }
+            };
         });
         
         router.on('/factories', async () => {
@@ -222,10 +368,52 @@ async function initializeApp() {
             return renderGlobalActivityFeed();
         });
 
-        // Portfolio route (user holdings + settings)
+        // Portfolio page - user's personal portfolio
         router.on('/portfolio', async () => {
-            const { renderPortfolio } = await import('./routes/Portfolio.js');
-            return renderPortfolio();
+            const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+
+            if (!appContainer) {
+                console.error('App container not found');
+                return;
+            }
+
+            // Clear ALL containers
+            appContainer.innerHTML = '';
+            if (appTopContainer) appTopContainer.innerHTML = '';
+            if (appBottomContainer) appBottomContainer.innerHTML = '';
+
+            // KILL all old Temple of Capital classes
+            document.body.classList.remove(
+                'marble-bg',
+                'marble-smooth-render',
+                'marble-pos-a',
+                'marble-pos-b',
+                'marble-pos-c',
+                'marble-pos-d',
+                'cultexecs-active'
+            );
+
+            // Add v2 class to body for styling
+            document.body.classList.add('v2-route');
+
+            // Ensure web3 is ready before rendering
+            const web3 = await ensureWeb3Ready();
+
+            // Render v2 Portfolio component with web3 context
+            render(h(Portfolio, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route');
+                    // Unload route-specific CSS
+                    stylesheetLoader.unload('route:portfolio');
+                    // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
         });
 
         // Governance Hub routes
@@ -290,8 +478,6 @@ async function initializeApp() {
         // Start the router
         await router.start();
 
-        console.log('Router initialized successfully');
-
         // Add FloatingWalletButton globally (appears on all pages)
         initializeFloatingWalletButton();
 
@@ -311,19 +497,13 @@ async function initializeApp() {
  */
 async function initializeServices() {
     try {
-        console.log('Initializing services...');
-
         // Initialize service factory (checks RPC availability, falls back to mock)
         await serviceFactory.initialize();
-        console.log('Service factory initialized, mode:', serviceFactory.isUsingMock() ? 'mock' : 'real');
 
         // Check if wallet service is already initialized
         if (!walletService.isInitialized) {
             // Initialize wallet service
             await walletService.initialize();
-            console.log('Wallet service initialized');
-        } else {
-            console.log('Wallet service already initialized');
         }
 
         // Start contract reload service (local dev only - skip in mock mode)
@@ -363,8 +543,6 @@ function initializeFloatingWalletButton() {
 
         // Store container for potential cleanup
         window.floatingWalletContainer = floatingWalletContainer;
-
-        console.log('FloatingWalletButton initialized globally');
     } catch (error) {
         console.error('Failed to initialize FloatingWalletButton:', error);
     }
@@ -379,15 +557,13 @@ export async function initializeReadOnlyMode() {
     try {
         // Dynamically import ReadOnlyService
         const { default: readOnlyService } = await import('./services/ReadOnlyService.js');
-        
+
         // Initialize read-only service
         await readOnlyService.initialize();
-        
-        console.log('Read-only mode initialized');
+
         return true;
     } catch (error) {
         // Read-only mode is optional, so we don't throw
-        console.warn('Read-only mode not available:', error.message);
         return false;
     }
 }
