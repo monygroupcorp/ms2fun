@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vault Explorer — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Content */
+        .content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        /* Page Header */
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .page-description {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            max-width: 700px;
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: var(--space-2);
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .filter-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-pill {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+            white-space: nowrap;
+        }
+
+        .filter-pill:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .filter-pill.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        /* Section Header */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .section-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .section-count {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* Vault Grid */
+        .vault-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: var(--space-3);
+            margin-bottom: var(--space-8);
+        }
+
+        /* Vault Card */
+        .vault-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            transition: var(--transition-base);
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-primary);
+            display: block;
+        }
+
+        .vault-card:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .vault-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-3);
+            gap: var(--space-2);
+        }
+
+        .vault-target {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .vault-badge {
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border: 1px solid var(--text-primary);
+            flex-shrink: 0;
+        }
+
+        .vault-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+            margin-bottom: var(--space-3);
+        }
+
+        .vault-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-3);
+            padding: var(--space-3) 0;
+            border-top: 1px solid var(--border-tertiary);
+            border-bottom: 1px solid var(--border-tertiary);
+            margin-bottom: var(--space-3);
+        }
+
+        .vault-stat {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
+        }
+
+        .vault-stat-label {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .vault-stat-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        .vault-meta {
+            display: flex;
+            gap: var(--space-3);
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* Available Target Card */
+        .target-card {
+            background-color: var(--bg-secondary);
+            border: 1px dashed var(--border-secondary);
+            padding: var(--space-4);
+            transition: var(--transition-base);
+            cursor: pointer;
+        }
+
+        .target-card:hover {
+            background-color: var(--state-hover-bg);
+            border-style: solid;
+        }
+
+        .target-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-3);
+        }
+
+        .target-name {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .target-status {
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .target-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+            margin-bottom: var(--space-3);
+        }
+
+        .target-info {
+            display: flex;
+            gap: var(--space-3);
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+        }
+
+        .target-action {
+            margin-top: var(--space-3);
+        }
+
+        /* Empty State */
+        .empty-state {
+            padding: var(--space-8) var(--space-4);
+            text-align: center;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .empty-state-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .empty-state-description {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-4);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .content {
+                padding: 0 var(--space-6);
+            }
+
+            .top-bar {
+                padding: var(--space-4) var(--space-6);
+            }
+
+            .vault-grid {
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: 0 var(--space-4);
+            }
+
+            .top-bar {
+                padding: var(--space-3) var(--space-4);
+            }
+
+            .vault-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .vault-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .top-bar {
+                flex-direction: column;
+                gap: var(--space-3);
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <a href="homepage-v2-demo.html" class="logo">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+        <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+            <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+        </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <!-- Page Header -->
+        <header class="page-header">
+            <h1 class="page-title">Vault Explorer</h1>
+            <p class="page-description">
+                Vaults funnel project tithes into target assets, building Uniswap v4 liquidity positions and providing yield to benefactors. Each DAO-approved target can have one vault.
+            </p>
+        </header>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <button class="filter-pill active">All Vaults</button>
+            <button class="filter-pill">Available Targets</button>
+            <button class="filter-pill">By TVL</button>
+            <button class="filter-pill">By Yield</button>
+            <button class="filter-pill">By Projects</button>
+        </div>
+
+        <!-- Active Vaults Section -->
+        <section style="margin-bottom: var(--space-8);">
+            <div class="section-header">
+                <h2 class="section-title">Active Vaults</h2>
+                <div class="section-count">8 Vaults</div>
+            </div>
+
+            <div class="vault-grid">
+                <!-- Vault Card 1: WETH -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">WETH</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Primary Ethereum vault. Builds concentrated liquidity in WETH/USDC pool, distributes yield to benefactors proportionally.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">247.3 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">12.4%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">23</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">156</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: WETH</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 2: USDC -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">USDC</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Stablecoin vault for risk-averse alignment. Tight range USDC/DAI position with consistent yields.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">$84,291</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">8.7%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">12</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">87</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: USDC</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 3: Protocol Guild -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">Protocol Guild</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Direct support for Ethereum core developers. 100% of yield flows to Protocol Guild split contract.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">128.5 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">11.2%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">18</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">PG Split</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: Protocol Guild</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 4: Climate Initiatives -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">Climate Initiatives</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Environmental impact vault. Yields support carbon credit purchases and climate-positive projects.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">67.8 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">9.8%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">8</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">42</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: Climate Fund</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 5: Gitcoin Grants -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">Gitcoin Grants</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Public goods funding vault. Quarterly yield distributions to Gitcoin matching rounds.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">92.1 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">10.5%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">15</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">GG Round</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: Gitcoin</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 6: DeFi Education -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">DeFi Education</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Educational content and developer training. Funds workshops, documentation, tutorials.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">34.2 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">11.8%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">6</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">24</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: Education DAO</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 7: Artist Collective -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">Artist Collective</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        Creator support vault. Yields distributed to collective members based on participation.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">156.7 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">13.2%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">28</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">112</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: Collective Split</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+
+                <!-- Vault Card 8: Community Treasury -->
+                <a href="#" class="vault-card">
+                    <div class="vault-header">
+                        <div class="vault-target">Community Treasury</div>
+                        <div class="vault-badge">Ultra Alignment</div>
+                    </div>
+
+                    <div class="vault-description">
+                        General community fund. Governance-directed spending for platform improvements and grants.
+                    </div>
+
+                    <div class="vault-stats">
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">TVL</div>
+                            <div class="vault-stat-value">203.4 ETH</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">APY</div>
+                            <div class="vault-stat-value">10.9%</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Aligned Projects</div>
+                            <div class="vault-stat-value">31</div>
+                        </div>
+                        <div class="vault-stat">
+                            <div class="vault-stat-label">Benefactors</div>
+                            <div class="vault-stat-value">DAO Treasury</div>
+                        </div>
+                    </div>
+
+                    <div class="vault-meta">
+                        <div>Target: MS2 DAO</div>
+                        <div>Pool: v4</div>
+                    </div>
+                </a>
+            </div>
+        </section>
+
+        <!-- Available Targets Section -->
+        <section style="margin-bottom: var(--space-8);">
+            <div class="section-header">
+                <h2 class="section-title">Available Targets</h2>
+                <div class="section-count">3 Unminted</div>
+            </div>
+
+            <div class="vault-grid">
+                <!-- Available Target 1 -->
+                <div class="target-card">
+                    <div class="target-header">
+                        <div class="target-name">Open Source Software</div>
+                        <div class="target-status">No Vault</div>
+                    </div>
+
+                    <div class="target-description">
+                        DAO-approved target for supporting open source development. Yield would fund maintainers and infrastructure.
+                    </div>
+
+                    <div class="target-info">
+                        <div>Approved: Prop #42</div>
+                        <div>Target Type: Split Contract</div>
+                    </div>
+
+                    <div class="target-action">
+                        <button class="btn btn-primary btn-full">Mint Vault for This Target</button>
+                    </div>
+                </div>
+
+                <!-- Available Target 2 -->
+                <div class="target-card">
+                    <div class="target-header">
+                        <div class="target-name">Privacy Research</div>
+                        <div class="target-status">No Vault</div>
+                    </div>
+
+                    <div class="target-description">
+                        Privacy and cryptography research fund. Approved for ZK research, privacy tooling development.
+                    </div>
+
+                    <div class="target-info">
+                        <div>Approved: Prop #38</div>
+                        <div>Target Type: Multisig</div>
+                    </div>
+
+                    <div class="target-action">
+                        <button class="btn btn-primary btn-full">Mint Vault for This Target</button>
+                    </div>
+                </div>
+
+                <!-- Available Target 3 -->
+                <div class="target-card">
+                    <div class="target-header">
+                        <div class="target-name">L2 Research</div>
+                        <div class="target-status">No Vault</div>
+                    </div>
+
+                    <div class="target-description">
+                        Layer 2 scaling research and development. Funding for rollup research, sequencer decentralization.
+                    </div>
+
+                    <div class="target-info">
+                        <div>Approved: Prop #51</div>
+                        <div>Target Type: DAO Treasury</div>
+                    </div>
+
+                    <div class="target-action">
+                        <button class="btn btn-primary btn-full">Mint Vault for This Target</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        // Filter functionality
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+            });
+        });
+    </script>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

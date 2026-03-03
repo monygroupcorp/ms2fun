@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proposals — GrandCentral DAO</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        /* ========================================
+           GOVERNANCE PAGE STYLES
+           ======================================== */
+
+        .governance-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* ========================================
+           GOVERNANCE NAVIGATION
+           ======================================== */
+
+        .governance-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .governance-nav-home {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .governance-nav-home:hover {
+            opacity: 0.7;
+        }
+
+        .governance-nav-links {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .governance-nav-link {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-base);
+        }
+
+        .governance-nav-link:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .governance-nav-link.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        /* ========================================
+           GOVERNANCE CONTENT
+           ======================================== */
+
+        .governance-content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        /* ========================================
+           PAGE HEADER
+           ======================================== */
+
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* ========================================
+           FILTER BAR
+           ======================================== */
+
+        .filter-bar {
+            display: flex;
+            gap: var(--space-2);
+            margin-bottom: var(--space-6);
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid var(--border-secondary);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .filter-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-pill {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+            white-space: nowrap;
+        }
+
+        .filter-pill:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .filter-pill.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        /* ========================================
+           PROPOSALS LIST
+           ======================================== */
+
+        .proposals-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+            margin-bottom: var(--space-8);
+        }
+
+        .proposal-card {
+            display: block;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            text-decoration: none;
+            transition: var(--transition-base);
+        }
+
+        .proposal-card:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .proposal-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-3);
+        }
+
+        .proposal-id {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        .proposal-state {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding: var(--space-1) var(--space-2);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .proposal-state--voting {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .proposal-state--submitted {
+            background-color: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        .proposal-state--grace {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .proposal-state--ready {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--text-primary);
+        }
+
+        .proposal-state--processed {
+            background-color: transparent;
+            color: var(--text-tertiary);
+        }
+
+        .proposal-state--defeated,
+        .proposal-state--cancelled {
+            background-color: transparent;
+            color: var(--text-tertiary);
+            text-decoration: line-through;
+        }
+
+        .proposal-details {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .proposal-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-4);
+            font-size: var(--font-size-body-sm);
+        }
+
+        .proposal-votes {
+            display: flex;
+            gap: var(--space-4);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .votes-yes {
+            color: var(--text-primary);
+        }
+
+        .votes-no {
+            color: var(--text-secondary);
+        }
+
+        .proposal-timestamp {
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* ========================================
+           RESPONSIVE
+           ======================================== */
+
+        @media (max-width: 1024px) {
+            .governance-content {
+                padding: 0 var(--space-6);
+            }
+
+            .governance-nav {
+                padding: var(--space-4) var(--space-6);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .governance-content {
+                padding: 0 var(--space-4);
+            }
+
+            .governance-nav {
+                padding: var(--space-3) var(--space-4);
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .governance-nav-links {
+                width: 100%;
+                overflow-x: auto;
+            }
+
+            .proposal-meta {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .governance-nav {
+                padding: var(--space-3);
+            }
+
+            .governance-content {
+                padding: 0 var(--space-3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="governance-page">
+        <!-- Navigation -->
+        <nav class="governance-nav">
+            <a href="homepage-v2-demo.html" class="governance-nav-home">← ms2<span class="logo-tld">.fun</span></a>
+            <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+                <span class="hamburger-bar"></span>
+            </button>
+            <div class="governance-nav-links">
+                <a href="governance-hub-demo.html" class="governance-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="governance-nav-link active">Proposals</a>
+                <a href="governance-apply-demo.html" class="governance-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="governance-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="governance-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="governance-nav-link">Shares</a>
+            </div>
+            <div class="mobile-nav-panel" id="mobile-nav">
+                <a href="governance-hub-demo.html" class="mobile-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="mobile-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="mobile-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="mobile-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="mobile-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="mobile-nav-link">Shares</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="governance-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">All Proposals</h1>
+            </header>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <button class="filter-pill active">All</button>
+                <button class="filter-pill">Active</button>
+                <button class="filter-pill">Voting</button>
+                <button class="filter-pill">Grace</button>
+                <button class="filter-pill">Ready</button>
+                <button class="filter-pill">Processed</button>
+                <button class="filter-pill">Defeated</button>
+            </div>
+
+            <!-- Proposals List -->
+            <div class="proposals-list">
+                <!-- Proposal 1 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#042</span>
+                        <span class="proposal-state proposal-state--voting">Voting</span>
+                    </div>
+                    <p class="proposal-details">
+                        Register new ERC721 auction factory for generative art collections with Dutch auction mechanics and embedded royalty distribution to support sustainable creator economies
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 145</span>
+                            <span class="votes-no">No: 12</span>
+                        </div>
+                        <span class="proposal-timestamp">2 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 2 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#041</span>
+                        <span class="proposal-state proposal-state--voting">Voting</span>
+                    </div>
+                    <p class="proposal-details">
+                        Update quorum threshold from 30% to 25% to increase governance participation and reduce friction for smaller protocol decisions while maintaining security
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 89</span>
+                            <span class="votes-no">No: 34</span>
+                        </div>
+                        <span class="proposal-timestamp">3 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 3 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#040</span>
+                        <span class="proposal-state proposal-state--grace">Grace</span>
+                    </div>
+                    <p class="proposal-details">
+                        Register Ethereum Foundation Climate Initiatives vault as alignment target for climate-positive art projects and environmental impact tracking
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 201</span>
+                            <span class="votes-no">No: 5</span>
+                        </div>
+                        <span class="proposal-timestamp">5 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 4 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#039</span>
+                        <span class="proposal-state proposal-state--ready">Ready</span>
+                    </div>
+                    <p class="proposal-details">
+                        Allocate 5 ETH from general funds to sponsor educational content about decentralized art ownership and creator economics for onboarding new artists
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 178</span>
+                            <span class="votes-no">No: 8</span>
+                        </div>
+                        <span class="proposal-timestamp">6 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 5 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#038</span>
+                        <span class="proposal-state proposal-state--processed">Processed</span>
+                    </div>
+                    <p class="proposal-details">
+                        Register UltraSound.Money vault as alignment target for projects committed to Ethereum monetary policy and ETH deflationary mechanisms
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 234</span>
+                            <span class="votes-no">No: 3</span>
+                        </div>
+                        <span class="proposal-timestamp">8 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 6 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#037</span>
+                        <span class="proposal-state proposal-state--processed">Processed</span>
+                    </div>
+                    <p class="proposal-details">
+                        Add new ERC1155 edition factory supporting unlimited supply with per-token metadata for photography and digital print editions
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 167</span>
+                            <span class="votes-no">No: 18</span>
+                        </div>
+                        <span class="proposal-timestamp">12 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 7 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#036</span>
+                        <span class="proposal-state proposal-state--defeated">Defeated</span>
+                    </div>
+                    <p class="proposal-details">
+                        Reduce voting period from 72 hours to 48 hours to accelerate governance decisions and improve protocol responsiveness
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 45</span>
+                            <span class="votes-no">No: 123</span>
+                        </div>
+                        <span class="proposal-timestamp">15 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 8 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#035</span>
+                        <span class="proposal-state proposal-state--processed">Processed</span>
+                    </div>
+                    <p class="proposal-details">
+                        Mint 100 shares to core protocol contributors for sustained development work on smart contract infrastructure and security audits
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 189</span>
+                            <span class="votes-no">No: 12</span>
+                        </div>
+                        <span class="proposal-timestamp">18 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 9 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#034</span>
+                        <span class="proposal-state proposal-state--cancelled">Cancelled</span>
+                    </div>
+                    <p class="proposal-details">
+                        Implement automatic share buyback mechanism using 10% of protocol revenue to support share price floor and reward long-term holders
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 23</span>
+                            <span class="votes-no">No: 8</span>
+                        </div>
+                        <span class="proposal-timestamp">21 days ago</span>
+                    </div>
+                </a>
+
+                <!-- Proposal 10 -->
+                <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                    <div class="proposal-card-header">
+                        <span class="proposal-id">#033</span>
+                        <span class="proposal-state proposal-state--processed">Processed</span>
+                    </div>
+                    <p class="proposal-details">
+                        Register Protocol Guild vault as alignment target for projects supporting Ethereum core development and public goods funding
+                    </p>
+                    <div class="proposal-meta">
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 256</span>
+                            <span class="votes-no">No: 4</span>
+                        </div>
+                        <span class="proposal-timestamp">24 days ago</span>
+                    </div>
+                </a>
+            </div>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Filter functionality
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+            });
+        });
+    </script>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

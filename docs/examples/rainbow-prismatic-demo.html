@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainbow Prismatic Effects Demo</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+            padding: var(--space-10);
+        }
+
+        .demo-section {
+            margin-bottom: var(--space-12);
+            padding-bottom: var(--space-8);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .demo-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-6);
+        }
+
+        .demo-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-6);
+            margin-bottom: var(--space-4);
+        }
+
+        .demo-label {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .display-text {
+            font-size: var(--font-size-display);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+        }
+
+        .heading-text {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div style="max-width: var(--container-xl); margin: 0 auto;">
+        <header style="margin-bottom: var(--space-10); text-align: center;">
+            <h1 class="demo-title text-rainbow-gradient" style="font-size: var(--font-size-display); margin-bottom: var(--space-3);">
+                Rainbow Prismatic
+            </h1>
+            <p style="font-size: var(--font-size-body); color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+                Light through a prism. Crepuscular rays. Ethereal spectrum effects that add sophistication without disorientation.
+            </p>
+        </header>
+
+        <!-- Rainbow Gradient -->
+        <section class="demo-section">
+            <h2 class="demo-title">Option 1: Rainbow Gradient Text</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Smooth spectrum gradient across text. Full ROYGBIV.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-rainbow-gradient">
+                    GrandCentral DAO
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-rainbow-gradient">
+                    Create Your Project
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Button with Rainbow Gradient Text</div>
+                <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); padding: 0 var(--space-4);">
+                    <span class="text-rainbow-gradient" style="-webkit-text-fill-color: var(--bg-primary); background-clip: unset;">Vote Yes</span>
+                </button>
+                <p style="margin-top: var(--space-2); font-size: var(--font-size-caption); color: var(--text-tertiary);">
+                    Note: Gradient on text inside button
+                </p>
+            </div>
+        </section>
+
+        <!-- Rainbow Multi-Shadow -->
+        <section class="demo-section">
+            <h2 class="demo-title">Option 2: Rainbow Multi-Shadow</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Layered text shadows in spectrum colors. Creates diffuse rainbow aura.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-rainbow-shadow">
+                    GrandCentral DAO
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-rainbow-shadow">
+                    Create Your Project
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Button with Rainbow Shadow</div>
+                <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary);">
+                    <span class="text-rainbow-shadow">Vote Yes</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Rainbow Glow -->
+        <section class="demo-section">
+            <h2 class="demo-title">Option 3: Rainbow Glow (Subtle)</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Soft, ethereal rainbow aura. Magenta, cyan, yellow — like crepuscular rays.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-rainbow-glow">
+                    GrandCentral DAO
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-rainbow-glow">
+                    Create Your Project
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Button with Rainbow Glow (Current Default)</div>
+                <button class="btn btn-primary">Vote Yes</button>
+                <p style="margin-top: var(--space-2); font-size: var(--font-size-caption); color: var(--text-tertiary);">
+                    This is what buttons use now
+                </p>
+            </div>
+        </section>
+
+        <!-- Prism Shimmer -->
+        <section class="demo-section">
+            <h2 class="demo-title">Option 4: Prism Shimmer</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Subtle spectrum on edges (corners). Pink, yellow, cyan, purple.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-prism-shimmer">
+                    GrandCentral DAO
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-prism-shimmer">
+                    Create Your Project
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Button with Prism Shimmer</div>
+                <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary);">
+                    <span class="text-prism-shimmer">Vote Yes</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Button Comparison -->
+        <section class="demo-section">
+            <h2 class="demo-title">Button Comparison</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Which prismatic effect feels best for CTAs?
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                    <button class="btn btn-secondary">Plain (No Effect)</button>
+                    <span style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">Baseline</span>
+                </div>
+
+                <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                    <button class="btn btn-primary">Rainbow Glow</button>
+                    <span style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">Current default — subtle aura</span>
+                </div>
+
+                <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary);">
+                        <span class="text-rainbow-shadow">Rainbow Multi-Shadow</span>
+                    </button>
+                    <span style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">Layered spectrum</span>
+                </div>
+
+                <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary);">
+                        <span class="text-prism-shimmer">Prism Shimmer</span>
+                    </button>
+                    <span style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">Edge spectrum</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dark Mode Test -->
+        <section class="demo-section">
+            <h2 class="demo-title">Dark Mode Test</h2>
+            <div class="demo-item">
+                <div class="demo-label">Toggle to see rainbow effects in dark mode</div>
+                <button class="btn btn-secondary" onclick="toggleTheme()">
+                    Switch to <span id="theme-name">Dark</span> Mode
+                </button>
+                <div style="margin-top: var(--space-6); padding: var(--space-6); background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary);">
+                    <div class="text-rainbow-gradient" style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-align: center; margin-bottom: var(--space-4);">
+                        Rainbow Gradient
+                    </div>
+                    <div class="text-rainbow-glow" style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-align: center;">
+                        Rainbow Glow
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('theme-name').textContent = newTheme === 'dark' ? 'Light' : 'Dark';
+        }
+    </script>
+</body>
+</html>

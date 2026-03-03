@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gallery Brutalism - Design System Demo</title>
+  <link rel="stylesheet" href="../../src/core/global-v2.css">
+  <link rel="stylesheet" href="../../src/core/components-v2.css">
+  <style>
+    /* Demo-specific styles */
+    .demo-section {
+      padding: var(--section-spacing-md) 0;
+      border-bottom: 1px solid var(--border-secondary);
+    }
+
+    .demo-section:last-child {
+      border-bottom: none;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: var(--space-4);
+      right: var(--space-4);
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Theme Toggle -->
+  <button class="btn btn-secondary theme-toggle" onclick="toggleTheme()">
+    Toggle Theme
+  </button>
+
+  <div class="container">
+
+    <!-- Hero Section -->
+    <section class="demo-section" style="padding-top: var(--space-16);">
+      <h1 style="font-size: var(--font-size-display); margin-bottom: var(--space-2);">
+        GALLERY BRUTALISM
+      </h1>
+      <p class="text-secondary" style="font-size: var(--font-size-body-lg); margin-bottom: var(--space-6);">
+        Pure monochrome. Maximum clarity. Zero decoration.
+      </p>
+
+      <div style="display: flex; gap: var(--space-2);">
+        <button class="btn btn-primary">Primary Action</button>
+        <button class="btn btn-secondary">Secondary Action</button>
+        <button class="btn btn-ghost">Ghost Action</button>
+      </div>
+    </section>
+
+    <!-- Typography Section -->
+    <section class="demo-section">
+      <h2>Typography System</h2>
+      <p class="text-secondary text-uppercase">Helvetica Neue. Strict hierarchy. Maximum contrast.</p>
+
+      <div style="margin-top: var(--space-6);">
+        <h1>Heading 1 - 48px Bold</h1>
+        <h2>Heading 2 - 36px Bold</h2>
+        <h3>Heading 3 - 24px Bold</h3>
+        <h4>Heading 4 - 18px Medium</h4>
+
+        <p style="margin-top: var(--space-4);">
+          Body text at 16px regular weight. Line height 1.5 for comfortable reading.
+          No decoration, no color, just pure black on white.
+          Maximum contrast ensures readability and accessibility.
+        </p>
+
+        <p class="text-mono">
+          0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb - Monospace for data
+        </p>
+
+        <p class="text-secondary">Secondary text in medium gray for hierarchy.</p>
+        <p class="text-tertiary">Tertiary text in light gray for less important info.</p>
+      </div>
+    </section>
+
+    <!-- Cards Section -->
+    <section class="demo-section">
+      <h2>Cards</h2>
+      <p class="text-secondary">Sharp corners. Minimal shadows. Content first.</p>
+
+      <div class="demo-grid">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Project Name</h3>
+            <div class="card-subtitle">ERC404 • Bonding Curve</div>
+          </div>
+          <div class="card-body">
+            <div class="stat">
+              <div class="stat-value">1,234.56</div>
+              <div class="stat-label">Total Value Locked</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <button class="btn btn-primary btn-full">View Project</button>
+          </div>
+        </div>
+
+        <div class="card card-interactive">
+          <div class="card-header">
+            <h3 class="card-title">Interactive Card</h3>
+            <div class="card-subtitle">Hover to see effect</div>
+          </div>
+          <div class="card-body">
+            <p>Cards can be interactive with subtle hover states.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Data Card</h3>
+            <div class="card-subtitle">Metrics Display</div>
+          </div>
+          <div class="card-body">
+            <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+              <div style="display: flex; justify-content: space-between;">
+                <span class="text-secondary">Price</span>
+                <span class="text-mono">0.042 ETH</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span class="text-secondary">Supply</span>
+                <span class="text-mono">10,000</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span class="text-secondary">Holders</span>
+                <span class="text-mono">342</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Forms Section -->
+    <section class="demo-section">
+      <h2>Forms</h2>
+      <p class="text-secondary">Clean inputs. Clear labels. Accessible.</p>
+
+      <div style="max-width: 500px; margin-top: var(--space-6);">
+        <div class="form-group">
+          <label class="form-label form-label-required">Project Name</label>
+          <input
+            type="text"
+            class="form-input"
+            placeholder="Enter project name"
+            value="My Brutalist Project"
+          >
+          <div class="form-help">This will be visible to all users</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea
+            class="form-input form-textarea"
+            placeholder="Describe your project"
+          >A demonstration of Gallery Brutalism design system.</textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Token Type</label>
+          <select class="form-select">
+            <option>ERC404</option>
+            <option>ERC1155</option>
+            <option>ERC721</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Error State Example</label>
+          <input
+            type="text"
+            class="form-input form-input-error"
+            placeholder="Invalid input"
+          >
+          <div class="form-error">This field is required</div>
+        </div>
+
+        <button class="btn btn-primary btn-full">Submit</button>
+      </div>
+    </section>
+
+    <!-- Buttons Section -->
+    <section class="demo-section">
+      <h2>Buttons</h2>
+      <p class="text-secondary">All caps. Sharp corners. Clear hierarchy.</p>
+
+      <div style="margin-top: var(--space-6);">
+        <h4 style="margin-bottom: var(--space-2);">Variants</h4>
+        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+          <button class="btn btn-primary">Primary</button>
+          <button class="btn btn-secondary">Secondary</button>
+          <button class="btn btn-ghost">Ghost</button>
+          <button class="btn btn-primary" disabled>Disabled</button>
+        </div>
+
+        <h4 style="margin-top: var(--space-6); margin-bottom: var(--space-2);">Sizes</h4>
+        <div style="display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap;">
+          <button class="btn btn-primary btn-sm">Small</button>
+          <button class="btn btn-primary">Medium</button>
+          <button class="btn btn-primary btn-lg">Large</button>
+        </div>
+
+        <h4 style="margin-top: var(--space-6); margin-bottom: var(--space-2);">Full Width</h4>
+        <button class="btn btn-primary btn-full">Full Width Button</button>
+      </div>
+    </section>
+
+    <!-- Table Section -->
+    <section class="demo-section">
+      <h2>Data Tables</h2>
+      <p class="text-secondary">Monospace numbers. Clear alignment. Readable hierarchy.</p>
+
+      <table class="table" style="margin-top: var(--space-6);">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Type</th>
+            <th class="col-numeric">TVL (ETH)</th>
+            <th class="col-numeric">Holders</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Art Collection Alpha</td>
+            <td>ERC404</td>
+            <td class="col-numeric">1,234.56</td>
+            <td class="col-numeric">342</td>
+          </tr>
+          <tr>
+            <td>Music DAO Beta</td>
+            <td>ERC1155</td>
+            <td class="col-numeric">892.10</td>
+            <td class="col-numeric">128</td>
+          </tr>
+          <tr>
+            <td>Collector's Edition</td>
+            <td>ERC721</td>
+            <td class="col-numeric">456.78</td>
+            <td class="col-numeric">89</td>
+          </tr>
+          <tr>
+            <td>Community Vault</td>
+            <td>ERC404</td>
+            <td class="col-numeric">2,100.00</td>
+            <td class="col-numeric">567</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="demo-section">
+      <h2>Statistics</h2>
+      <p class="text-secondary">Large numbers. Monospace. Clear labels.</p>
+
+      <div class="grid grid-4" style="margin-top: var(--space-6);">
+        <div class="stat">
+          <div class="stat-value">1,234</div>
+          <div class="stat-label">Total Projects</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">42.5K</div>
+          <div class="stat-label">Active Users</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">$8.2M</div>
+          <div class="stat-label">Total Volume</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">99.9%</div>
+          <div class="stat-label">Uptime</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Alerts Section -->
+    <section class="demo-section">
+      <h2>Alerts</h2>
+      <p class="text-secondary">Monochrome messaging. No color coding.</p>
+
+      <div style="margin-top: var(--space-6);">
+        <div class="alert alert-info">
+          <div class="alert-title">Information</div>
+          <div>This is an informational message. All alerts use the same styling.</div>
+        </div>
+
+        <div class="alert alert-success">
+          <div class="alert-title">Success</div>
+          <div>Transaction completed successfully. Hash: 0x742d35Cc...</div>
+        </div>
+
+        <div class="alert alert-warning">
+          <div class="alert-title">Warning</div>
+          <div>Please review the transaction details carefully before proceeding.</div>
+        </div>
+
+        <div class="alert alert-error">
+          <div class="alert-title">Error</div>
+          <div>Transaction failed. Please try again or contact support.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Badges Section -->
+    <section class="demo-section">
+      <h2>Badges</h2>
+      <p class="text-secondary">Small labels. Uppercase. Minimal.</p>
+
+      <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-6);">
+        <span class="badge">ERC404</span>
+        <span class="badge">Bonding Curve</span>
+        <span class="badge">Active</span>
+        <span class="badge badge-outline">Featured</span>
+        <span class="badge badge-outline">New</span>
+      </div>
+    </section>
+
+    <!-- Empty State Section -->
+    <section class="demo-section" style="border-bottom: none; padding-bottom: var(--space-16);">
+      <h2>Empty States</h2>
+      <p class="text-secondary">Clear messaging when content is unavailable.</p>
+
+      <div class="empty-state" style="margin-top: var(--space-6); border: 1px solid var(--border-secondary);">
+        <div class="empty-state-title">No Projects Found</div>
+        <div class="empty-state-description">
+          There are no projects matching your criteria.<br>
+          Try adjusting your filters or create a new project.
+        </div>
+        <button class="btn btn-primary">Create Project</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // Theme toggle functionality
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    }
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  </script>
+
+</body>
+</html>

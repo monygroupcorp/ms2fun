@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chromatic Aberration Demo</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+            padding: var(--space-10);
+        }
+
+        .demo-section {
+            margin-bottom: var(--space-12);
+            padding-bottom: var(--space-8);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .demo-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-6);
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-6);
+        }
+
+        .demo-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-6);
+        }
+
+        .demo-label {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .large-text {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-6);
+        }
+    </style>
+</head>
+<body>
+    <div style="max-width: var(--container-xl); margin: 0 auto;">
+        <header style="margin-bottom: var(--space-10); text-align: center;">
+            <h1 class="demo-title text-chromatic-strong" style="font-size: var(--font-size-display); margin-bottom: var(--space-3);">
+                Chromatic Aberration
+            </h1>
+            <p style="font-size: var(--font-size-body); color: var(--text-secondary); max-width: 600px; margin: 0 auto;">
+                Light peaking through the brutal system. RGB split effect adds prismatic sophistication to key CTAs and accents.
+            </p>
+        </header>
+
+        <!-- Primary Buttons -->
+        <section class="demo-section">
+            <h2 class="demo-title">Primary Buttons (Auto-Applied)</h2>
+            <div class="demo-grid">
+                <div class="demo-item">
+                    <div class="demo-label">Default Size</div>
+                    <button class="btn btn-primary">Create Project</button>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">Large</div>
+                    <button class="btn btn-primary btn-lg">Acquire Shares</button>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">Small</div>
+                    <button class="btn btn-primary btn-sm">Vote Yes</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Strength Spectrum -->
+        <section class="demo-section">
+            <h2 class="demo-title">Strength Spectrum</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6); max-width: 800px;">
+                Theory: More exaggeration = easier to read. Bold prismatic statement vs. subtle disorienting distortion.
+            </p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div class="demo-item">
+                    <div class="demo-label">Subtle (0.5px, 30% opacity) — Too thin?</div>
+                    <div class="text-chromatic-subtle" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        BRUTALISM
+                    </div>
+                </div>
+
+                <div class="demo-item">
+                    <div class="demo-label">Standard (1px, 50% opacity) — Current default</div>
+                    <div class="text-chromatic" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        BRUTALISM
+                    </div>
+                </div>
+
+                <div class="demo-item">
+                    <div class="demo-label">Medium (2px, 60% opacity)</div>
+                    <div class="text-chromatic-medium" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        BRUTALISM
+                    </div>
+                </div>
+
+                <div class="demo-item">
+                    <div class="demo-label">Strong (3px, 70% opacity) — Getting trippy</div>
+                    <div class="text-chromatic-strong" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        BRUTALISM
+                    </div>
+                </div>
+
+                <div class="demo-item">
+                    <div class="demo-label">Extreme (4px, 80% opacity) — Bold statement</div>
+                    <div class="text-chromatic-extreme" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        BRUTALISM
+                    </div>
+                </div>
+
+                <div class="demo-item">
+                    <div class="demo-label">Ultra (6px, 90% opacity) — Full prism</div>
+                    <div class="text-chromatic-ultra" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        BRUTALISM
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Button: Text vs. Shape Chromatic -->
+        <section class="demo-section">
+            <h2 class="demo-title">Button Chromatic: Text vs. Shape (Inset)</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Chromatic aberration on small text = disorienting. Solution: Apply effect INSIDE button edges (inset), keep text crisp. Light peaking from within.
+            </p>
+
+            <div class="comparison-grid" style="margin-bottom: var(--space-6);">
+                <div class="demo-item">
+                    <div class="demo-label">❌ Chromatic on Text (uncomfortable)</div>
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); text-shadow: -3px 0 0 rgba(255, 0, 128, 0.7), 3px 0 0 rgba(0, 255, 255, 0.7);">
+                        Create Project
+                    </button>
+                    <p style="margin-top: var(--space-2); font-size: var(--font-size-caption); color: var(--text-tertiary);">
+                        Hard to read, visually jarring
+                    </p>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">✅ Chromatic INSIDE Button (clean + prismatic)</div>
+                    <button class="btn btn-primary">
+                        Create Project
+                    </button>
+                    <p style="margin-top: var(--space-2); font-size: var(--font-size-caption); color: var(--text-tertiary);">
+                        Crisp text, light peaking from within
+                    </p>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div class="demo-label">Button Shape Chromatic Strength Test</div>
+                <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -2px 0 0 rgba(255, 0, 128, 0.6), 2px 0 0 rgba(0, 255, 255, 0.6);">
+                        Medium (2px)
+                    </button>
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -3px 0 0 rgba(255, 0, 128, 0.7), 3px 0 0 rgba(0, 255, 255, 0.7);">
+                        Strong (3px) — Default
+                    </button>
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -4px 0 0 rgba(255, 0, 128, 0.8), 4px 0 0 rgba(0, 255, 255, 0.8);">
+                        Extreme (4px)
+                    </button>
+                    <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -6px 0 0 rgba(255, 0, 128, 0.9), 6px 0 0 rgba(0, 255, 255, 0.9);">
+                        Ultra (6px)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Scale Test -->
+        <section class="demo-section">
+            <h2 class="demo-title">Size vs. Strength Test</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Same strength (3px strong) at different font sizes — does it need adjustment per size?
+            </p>
+            <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <div class="demo-item">
+                    <div class="demo-label">Display Size (96px)</div>
+                    <div class="text-chromatic-strong" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        GRAND CENTRAL DAO
+                    </div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">H1 Size (48px)</div>
+                    <div class="text-chromatic-strong" style="font-size: var(--font-size-h1); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        Create Your Project
+                    </div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">H2 Size (36px)</div>
+                    <div class="text-chromatic-strong" style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        Active Proposals
+                    </div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">H3 Size (28px)</div>
+                    <div class="text-chromatic-strong" style="font-size: var(--font-size-h3); font-weight: var(--font-weight-bold); text-transform: uppercase;">
+                        Treasury Stats
+                    </div>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">Button Size (16px)</div>
+                    <button class="btn btn-primary" style="text-shadow: -3px 0 0 rgba(255, 0, 128, 0.7), 3px 0 0 rgba(0, 255, 255, 0.7);">Vote Yes</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Before/After Comparison -->
+        <section class="demo-section">
+            <h2 class="demo-title">Before / After</h2>
+            <div class="comparison-grid">
+                <div class="demo-item">
+                    <div class="demo-label">Without Chromatic</div>
+                    <div class="large-text" style="margin-bottom: var(--space-4);">
+                        BRUTALISM
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: var(--font-size-body-sm);">
+                        Pure monochrome, no effects
+                    </p>
+                </div>
+                <div class="demo-item">
+                    <div class="demo-label">With Chromatic (Strong)</div>
+                    <div class="large-text text-chromatic-strong" style="margin-bottom: var(--space-4);">
+                        BRUTALISM
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: var(--font-size-body-sm);">
+                        Light peaking through
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Usage Examples -->
+        <section class="demo-section">
+            <h2 class="demo-title">Strategic Usage Examples</h2>
+            <div style="display: flex; flex-direction: column; gap: var(--space-6);">
+                <!-- Page Title -->
+                <div class="demo-item">
+                    <div class="demo-label">Hero Title</div>
+                    <h1 class="text-chromatic-strong" style="font-size: var(--font-size-display); font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: var(--letter-spacing-tight);">
+                        GrandCentral DAO
+                    </h1>
+                </div>
+
+                <!-- Stat Value -->
+                <div class="demo-item">
+                    <div class="demo-label">Stat Highlight</div>
+                    <div style="text-align: center;">
+                        <div style="font-size: var(--font-size-caption); color: var(--text-secondary); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); margin-bottom: var(--space-2);">
+                            Total Value Locked
+                        </div>
+                        <div class="text-chromatic-strong" style="font-size: var(--font-size-h1); font-weight: var(--font-weight-bold); font-family: var(--font-mono);">
+                            42.8901 ETH
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CTA Block -->
+                <div class="demo-item">
+                    <div class="demo-label">Call to Action</div>
+                    <div style="text-align: center; padding: var(--space-8);">
+                        <h2 class="text-chromatic" style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-transform: uppercase; margin-bottom: var(--space-4);">
+                            Ready to Launch?
+                        </h2>
+                        <button class="btn btn-primary btn-lg">Create Your Project</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Color Inverse Options -->
+        <section class="demo-section">
+            <h2 class="demo-title">Inverse Color Options</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                What does "inverse" mean? Here are all the options:
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+                <!-- Current -->
+                <div class="demo-item">
+                    <div class="demo-label">Current: Pink Left, Cyan Right</div>
+                    <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-shadow: -3px 0 0 rgba(255, 0, 128, 0.7), 3px 0 0 rgba(0, 255, 255, 0.7);">
+                            BRUTALISM
+                        </div>
+                        <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -3px 0 0 rgba(255, 0, 128, 0.7), 3px 0 0 rgba(0, 255, 255, 0.7);">
+                            Button
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Swapped Direction -->
+                <div class="demo-item">
+                    <div class="demo-label">Option 1: Swapped Direction (Cyan Left, Pink Right)</div>
+                    <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-shadow: -3px 0 0 rgba(0, 255, 255, 0.7), 3px 0 0 rgba(255, 0, 128, 0.7);">
+                            BRUTALISM
+                        </div>
+                        <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -3px 0 0 rgba(0, 255, 255, 0.7), 3px 0 0 rgba(255, 0, 128, 0.7);">
+                            Button
+                        </button>
+                    </div>
+                </div>
+
+                <!-- RGB Inverted -->
+                <div class="demo-item">
+                    <div class="demo-label">Option 2: RGB Inverted (Red Left, Teal Right)</div>
+                    <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-shadow: -3px 0 0 rgba(255, 0, 0, 0.7), 3px 0 0 rgba(0, 255, 127, 0.7);">
+                            BRUTALISM
+                        </div>
+                        <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -3px 0 0 rgba(255, 0, 0, 0.7), 3px 0 0 rgba(0, 255, 127, 0.7);">
+                            Button
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Complementary -->
+                <div class="demo-item">
+                    <div class="demo-label">Option 3: Complementary (Green Left, Orange Right)</div>
+                    <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-shadow: -3px 0 0 rgba(0, 255, 128, 0.7), 3px 0 0 rgba(255, 128, 0, 0.7);">
+                            BRUTALISM
+                        </div>
+                        <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -3px 0 0 rgba(0, 255, 128, 0.7), 3px 0 0 rgba(255, 128, 0, 0.7);">
+                            Button
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Yellow/Blue -->
+                <div class="demo-item">
+                    <div class="demo-label">Option 4: Yellow/Blue (Warmer Alternative)</div>
+                    <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+                        <div style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-shadow: -3px 0 0 rgba(255, 255, 0, 0.7), 3px 0 0 rgba(0, 100, 255, 0.7);">
+                            BRUTALISM
+                        </div>
+                        <button class="btn" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: inset -3px 0 0 rgba(255, 255, 0, 0.7), 3px 0 0 rgba(0, 100, 255, 0.7);">
+                            Button
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dark Mode Toggle -->
+        <section class="demo-section">
+            <h2 class="demo-title">Dark Mode Test</h2>
+            <div class="demo-item">
+                <div class="demo-label">Toggle theme to test all color options in dark mode</div>
+                <button class="btn btn-secondary" onclick="toggleTheme()">
+                    Switch to <span id="theme-name">Dark</span> Mode
+                </button>
+                <div style="margin-top: var(--space-6); padding: var(--space-6); background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary);">
+                    <div class="text-chromatic-strong" style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); text-align: center;">
+                        Current: Pink/Cyan
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('theme-name').textContent = newTheme === 'dark' ? 'Light' : 'Dark';
+        }
+    </script>
+</body>
+</html>

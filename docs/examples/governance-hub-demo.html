@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GrandCentral DAO — ms2.fun</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        /* ========================================
+           GOVERNANCE PAGE STYLES
+           ======================================== */
+
+        .governance-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* ========================================
+           GOVERNANCE NAVIGATION
+           ======================================== */
+
+        .governance-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .governance-nav-home {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .governance-nav-home:hover {
+            opacity: 0.7;
+        }
+
+        .governance-nav-links {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .governance-nav-link {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-base);
+        }
+
+        .governance-nav-link:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .governance-nav-link.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        /* ========================================
+           GOVERNANCE CONTENT
+           ======================================== */
+
+        .governance-content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        /* ========================================
+           GOVERNANCE HEADER
+           ======================================== */
+
+        .governance-header {
+            padding: var(--space-12) 0 var(--space-8) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-8);
+        }
+
+        .governance-title {
+            font-size: var(--font-size-display);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-3);
+        }
+
+        .governance-subtitle {
+            font-size: var(--font-size-h4);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* ========================================
+           STATS GRID
+           ======================================== */
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-3);
+            margin-bottom: var(--space-10);
+        }
+
+        .stat-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            transition: var(--transition-base);
+        }
+
+        .stat-card:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .stat-label {
+            display: block;
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .stat-value {
+            display: block;
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        /* ========================================
+           GOVERNANCE SECTION
+           ======================================== */
+
+        .governance-section {
+            margin-bottom: var(--space-10);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-4);
+        }
+
+        .section-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .section-link {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .section-link:hover {
+            opacity: 0.7;
+        }
+
+        /* ========================================
+           PROPOSALS LIST
+           ======================================== */
+
+        .proposals-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .proposal-card {
+            display: block;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            text-decoration: none;
+            transition: var(--transition-base);
+        }
+
+        .proposal-card:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .proposal-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-3);
+        }
+
+        .proposal-id {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        .proposal-state {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding: var(--space-1) var(--space-2);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .proposal-state--voting {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .proposal-state--submitted {
+            background-color: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        .proposal-state--grace {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .proposal-details {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .proposal-votes {
+            display: flex;
+            gap: var(--space-4);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .votes-yes {
+            color: var(--text-primary);
+        }
+
+        .votes-no {
+            color: var(--text-secondary);
+        }
+
+        /* ========================================
+           ACTION CARDS GRID
+           ======================================== */
+
+        .action-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-3);
+        }
+
+        .action-card {
+            display: block;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-6);
+            text-decoration: none;
+            transition: var(--transition-base);
+        }
+
+        .action-card:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .action-card:active {
+            transform: translateY(1px);
+        }
+
+        .action-card-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .action-card-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+        }
+
+        /* ========================================
+           EMPTY STATE
+           ======================================== */
+
+        .empty-state {
+            padding: var(--space-8) 0;
+            text-align: center;
+            font-size: var(--font-size-body);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* ========================================
+           RESPONSIVE
+           ======================================== */
+
+        @media (max-width: 1024px) {
+            .governance-content {
+                padding: 0 var(--space-6);
+            }
+
+            .governance-nav {
+                padding: var(--space-4) var(--space-6);
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .action-cards-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .governance-content {
+                padding: 0 var(--space-4);
+            }
+
+            .governance-nav {
+                padding: var(--space-3) var(--space-4);
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .governance-nav-links {
+                width: 100%;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .governance-nav-links::-webkit-scrollbar {
+                display: none;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .action-cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .governance-title {
+                font-size: var(--font-size-h1);
+            }
+
+            .governance-subtitle {
+                font-size: var(--font-size-body);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .governance-nav {
+                padding: var(--space-3);
+            }
+
+            /* Hide secondary nav items at small screens */
+            .governance-nav-link:not(.active) {
+                display: none;
+            }
+
+            .governance-content {
+                padding: 0 var(--space-3);
+            }
+
+            .governance-header {
+                padding: var(--space-8) 0 var(--space-6) 0;
+            }
+
+            /* Proposal cards: tighter padding */
+            .proposal-card {
+                padding: var(--space-3);
+            }
+
+            /* Proposal header wraps properly */
+            .proposal-card-header {
+                flex-wrap: wrap;
+                gap: var(--space-2);
+            }
+
+            /* Vote progress bars remain readable */
+            .proposal-votes {
+                flex-wrap: wrap;
+                gap: var(--space-2);
+                font-size: var(--font-size-caption);
+            }
+
+            /* Proposal meta info wraps */
+            .proposal-details {
+                -webkit-line-clamp: 3;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="governance-page">
+        <!-- Navigation -->
+        <nav class="governance-nav">
+            <a href="homepage-v2-demo.html" class="governance-nav-home">← ms2<span class="logo-tld">.fun</span></a>
+            <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+                <span class="hamburger-bar"></span>
+            </button>
+            <div class="governance-nav-links nav-links">
+                <a href="governance-hub-demo.html" class="governance-nav-link active">Overview</a>
+                <a href="governance-proposals-demo.html" class="governance-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="governance-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="governance-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="governance-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="governance-nav-link">Shares</a>
+            </div>
+            <div class="mobile-nav-panel" id="mobile-nav">
+                <a href="governance-hub-demo.html" class="mobile-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="mobile-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="mobile-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="mobile-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="mobile-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="mobile-nav-link">Shares</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="governance-content">
+            <!-- Header -->
+            <header class="governance-header">
+                <h1 class="governance-title">GrandCentral DAO</h1>
+                <p class="governance-subtitle">Governing the ms2.fun protocol</p>
+            </header>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Total Proposals</span>
+                    <span class="stat-value">42</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Ragequit Pool</span>
+                    <span class="stat-value text-mono">12.4567 ETH</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Claims Pool</span>
+                    <span class="stat-value text-mono">8.2341 ETH</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Voting Period</span>
+                    <span class="stat-value">72h</span>
+                </div>
+            </div>
+
+            <!-- Active Proposals Section -->
+            <section class="governance-section">
+                <div class="section-header">
+                    <h2 class="section-title">Active Proposals</h2>
+                    <a href="governance-proposals-demo.html" class="section-link">View All →</a>
+                </div>
+                <div class="proposals-list">
+                    <!-- Proposal 1 -->
+                    <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                        <div class="proposal-card-header">
+                            <span class="proposal-id">#042</span>
+                            <span class="proposal-state proposal-state--voting">Voting</span>
+                        </div>
+                        <p class="proposal-details">
+                            Register new ERC721 auction factory for generative art collections with Dutch auction mechanics and embedded royalty distribution
+                        </p>
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 145</span>
+                            <span class="votes-no">No: 12</span>
+                        </div>
+                    </a>
+
+                    <!-- Proposal 2 -->
+                    <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                        <div class="proposal-card-header">
+                            <span class="proposal-id">#041</span>
+                            <span class="proposal-state proposal-state--voting">Voting</span>
+                        </div>
+                        <p class="proposal-details">
+                            Update quorum threshold from 30% to 25% to increase governance participation and reduce friction for smaller decisions
+                        </p>
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 89</span>
+                            <span class="votes-no">No: 34</span>
+                        </div>
+                    </a>
+
+                    <!-- Proposal 3 -->
+                    <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                        <div class="proposal-card-header">
+                            <span class="proposal-id">#040</span>
+                            <span class="proposal-state proposal-state--grace">Grace</span>
+                        </div>
+                        <p class="proposal-details">
+                            Register Ethereum Foundation Climate Initiatives vault as alignment target for climate-positive art projects
+                        </p>
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 201</span>
+                            <span class="votes-no">No: 5</span>
+                        </div>
+                    </a>
+
+                    <!-- Proposal 4 -->
+                    <a href="governance-proposal-detail-demo.html" class="proposal-card">
+                        <div class="proposal-card-header">
+                            <span class="proposal-id">#039</span>
+                            <span class="proposal-state proposal-state--submitted">Submitted</span>
+                        </div>
+                        <p class="proposal-details">
+                            Allocate 5 ETH from general funds to sponsor educational content about decentralized art ownership and creator economics
+                        </p>
+                        <div class="proposal-votes">
+                            <span class="votes-yes">Yes: 0</span>
+                            <span class="votes-no">No: 0</span>
+                        </div>
+                    </a>
+                </div>
+            </section>
+
+            <!-- Get Involved Section -->
+            <section class="governance-section">
+                <div class="section-header">
+                    <h2 class="section-title">Get Involved</h2>
+                </div>
+                <div class="action-cards-grid">
+                    <!-- Apply Card -->
+                    <a href="governance-apply-demo.html" class="action-card">
+                        <h3 class="action-card-title">Apply</h3>
+                        <p class="action-card-description">Submit a factory or vault for registration through the governance process</p>
+                    </a>
+
+                    <!-- Acquire Shares Card -->
+                    <a href="governance-shares-demo.html" class="action-card">
+                        <h3 class="action-card-title">Acquire Shares</h3>
+                        <p class="action-card-description">Participate in share offerings to gain voting power in protocol decisions</p>
+                    </a>
+
+                    <!-- My Governance Card -->
+                    <a href="governance-member-demo.html" class="action-card">
+                        <h3 class="action-card-title">My Governance</h3>
+                        <p class="action-card-description">View your shares, voting history, and claimable rewards from the treasury</p>
+                    </a>
+
+                    <!-- Treasury Card -->
+                    <a href="governance-treasury-demo.html" class="action-card">
+                        <h3 class="action-card-title">Treasury</h3>
+                        <p class="action-card-description">Protocol revenue allocation, fund management, and transparency reporting</p>
+                    </a>
+                </div>
+            </section>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

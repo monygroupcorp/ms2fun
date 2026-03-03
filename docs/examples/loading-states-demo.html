@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading States — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Content */
+        .content {
+            max-width: var(--container-2xl);
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-10);
+        }
+
+        /* Page Header */
+        .page-title {
+            font-size: var(--font-size-display);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-3);
+            line-height: var(--line-height-tight);
+        }
+
+        .page-description {
+            font-size: var(--font-size-body-lg);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--space-8);
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: var(--space-10);
+        }
+
+        .section-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .section-description {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-4);
+            line-height: var(--line-height-normal);
+        }
+
+        /* Demo Grid */
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-6);
+        }
+
+        .demo-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+        }
+
+        .demo-label {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+            color: var(--text-secondary);
+        }
+
+        /* ===== LOADING STATES ===== */
+
+        /* 1. Skeleton Loaders */
+        .skeleton {
+            background: linear-gradient(
+                90deg,
+                var(--bg-tertiary) 0%,
+                var(--bg-secondary) 50%,
+                var(--bg-tertiary) 100%
+            );
+            background-size: 200% 100%;
+            animation: skeleton-loading 2s ease-in-out infinite;
+        }
+
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-text {
+            height: 1em;
+            margin-bottom: var(--space-2);
+        }
+
+        .skeleton-text.title {
+            height: 1.5em;
+            width: 60%;
+        }
+
+        .skeleton-text.short {
+            width: 40%;
+        }
+
+        .skeleton-text.medium {
+            width: 70%;
+        }
+
+        .skeleton-text.long {
+            width: 90%;
+        }
+
+        .skeleton-box {
+            height: 100px;
+            margin-bottom: var(--space-3);
+        }
+
+        .skeleton-square {
+            aspect-ratio: 1;
+            width: 100%;
+        }
+
+        .skeleton-avatar {
+            width: 64px;
+            height: 64px;
+        }
+
+        /* Skeleton Card */
+        .skeleton-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+        }
+
+        .skeleton-card-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-3);
+        }
+
+        /* Skeleton Table Row */
+        .skeleton-table-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: var(--space-3);
+            padding: var(--space-3);
+            border-bottom: 1px solid var(--border-tertiary);
+        }
+
+        /* Skeleton Grid */
+        .skeleton-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-4);
+        }
+
+        /* 2. Spinner */
+        .spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 2px solid var(--border-secondary);
+            border-top-color: var(--text-primary);
+            border-radius: 50%;
+            animation: spinner-rotate 0.8s linear infinite;
+        }
+
+        @keyframes spinner-rotate {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner.large {
+            width: 64px;
+            height: 64px;
+            border-width: 3px;
+        }
+
+        .spinner.small {
+            width: 16px;
+            height: 16px;
+            border-width: 2px;
+        }
+
+        /* Spinner Container */
+        .spinner-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-8);
+            gap: var(--space-3);
+        }
+
+        .spinner-text {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* 3. Progress Bar */
+        .progress-bar-wrapper {
+            margin-bottom: var(--space-3);
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: var(--text-primary);
+            transition: width 0.3s ease;
+        }
+
+        .progress-bar-fill.indeterminate {
+            width: 30%;
+            animation: progress-indeterminate 1.5s ease-in-out infinite;
+        }
+
+        @keyframes progress-indeterminate {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+        }
+
+        /* 4. Dots Loader */
+        .dots-loader {
+            display: flex;
+            gap: var(--space-2);
+            align-items: center;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--text-primary);
+            animation: dot-pulse 1.4s ease-in-out infinite;
+        }
+
+        .dot:nth-child(1) { animation-delay: 0s; }
+        .dot:nth-child(2) { animation-delay: 0.2s; }
+        .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes dot-pulse {
+            0%, 80%, 100% { opacity: 0.3; }
+            40% { opacity: 1; }
+        }
+
+        .dots-loader-text {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* 5. Pulse */
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 6. Loading Overlay */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .loading-overlay-content {
+            text-align: center;
+        }
+
+        /* 7. Button Loading States */
+        .btn-loading-wrap {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .btn-loading-wrap .btn {
+            pointer-events: none;
+            color: transparent;
+        }
+
+        .btn-loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 18px;
+            height: 18px;
+            margin-top: -9px;
+            margin-left: -9px;
+            border: 2px solid rgba(128, 128, 128, 0.4);
+            border-top-color: #000;
+            border-radius: 50%;
+            animation: spinner-rotate 0.8s linear infinite;
+            z-index: 2;
+            box-sizing: border-box;
+        }
+
+        .btn-loading-wrap .btn-primary + .btn-loading-spinner {
+            border-color: rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+        }
+
+        /* 8. Scanning Line Effect */
+        .scanning-container {
+            position: relative;
+            height: 200px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            overflow: hidden;
+        }
+
+        .scanning-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                var(--text-primary),
+                transparent
+            );
+            animation: scan 2s ease-in-out infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: calc(100% - 2px); }
+            100% { top: 0; }
+        }
+
+        .scanning-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* 9. Loading Message States */
+        .loading-message {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-4);
+            text-align: center;
+        }
+
+        .loading-message-title {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .loading-message-text {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+        }
+
+        /* 10. Shimmer Effect */
+        .shimmer {
+            background: linear-gradient(
+                90deg,
+                var(--bg-tertiary) 0%,
+                var(--bg-secondary) 20%,
+                var(--bg-tertiary) 40%,
+                var(--bg-tertiary) 100%
+            );
+            background-size: 200% 100%;
+            animation: shimmer 2s ease-in-out infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Demo-specific styles */
+        .relative {
+            position: relative;
+        }
+
+        .demo-buttons {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .skeleton-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: var(--space-4);
+            }
+
+            .skeleton-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .demo-item {
+                padding: var(--space-3);
+            }
+
+            .skeleton-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .skeleton-card {
+                padding: var(--space-3);
+            }
+
+            .spinner-container {
+                padding: var(--space-5);
+            }
+
+            .loading-message {
+                padding: var(--space-3);
+            }
+
+            .scanning-container {
+                height: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <a href="homepage-v2-demo.html" class="logo">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+        <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+            <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+        </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <h1 class="page-title">Loading States</h1>
+        <p class="page-description">
+            Intentional loading patterns for chain data, indexes, and async operations. Consistent, beautiful states that maintain the Gallery Brutalism aesthetic while content loads.
+        </p>
+
+        <!-- 1. Skeleton Loaders -->
+        <div class="section">
+            <h2 class="section-title">1. Skeleton Loaders</h2>
+            <p class="section-description">
+                Best for: Initial page loads, tables, lists, cards. Shows content structure while data loads.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Card Skeleton -->
+                <div class="demo-item">
+                    <div class="demo-label">Card Skeleton</div>
+                    <div class="skeleton-card">
+                        <div class="skeleton-card-header">
+                            <div class="skeleton skeleton-avatar"></div>
+                            <div style="flex: 1;">
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text short"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton skeleton-text long"></div>
+                        <div class="skeleton skeleton-text medium"></div>
+                        <div class="skeleton skeleton-text short"></div>
+                    </div>
+                </div>
+
+                <!-- Table Skeleton -->
+                <div class="demo-item">
+                    <div class="demo-label">Table Rows</div>
+                    <div>
+                        <div class="skeleton-table-row">
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                        </div>
+                        <div class="skeleton-table-row">
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                        </div>
+                        <div class="skeleton-table-row">
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NFT Grid Skeleton -->
+                <div class="demo-item" style="grid-column: 1 / -1;">
+                    <div class="demo-label">NFT Grid Skeleton</div>
+                    <div class="skeleton-grid">
+                        <div class="skeleton-card">
+                            <div class="skeleton skeleton-square"></div>
+                            <div style="padding: var(--space-3);">
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text short"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-card">
+                            <div class="skeleton skeleton-square"></div>
+                            <div style="padding: var(--space-3);">
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text short"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-card">
+                            <div class="skeleton skeleton-square"></div>
+                            <div style="padding: var(--space-3);">
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text short"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-card">
+                            <div class="skeleton skeleton-square"></div>
+                            <div style="padding: var(--space-3);">
+                                <div class="skeleton skeleton-text title"></div>
+                                <div class="skeleton skeleton-text short"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Spinners -->
+        <div class="section">
+            <h2 class="section-title">2. Spinners</h2>
+            <p class="section-description">
+                Best for: General loading, modal overlays, wallet connections, transaction pending states.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Centered Spinner -->
+                <div class="demo-item">
+                    <div class="demo-label">Centered with Text</div>
+                    <div class="spinner-container">
+                        <div class="spinner large"></div>
+                        <div class="spinner-text">Loading Projects</div>
+                    </div>
+                </div>
+
+                <!-- Inline Spinner -->
+                <div class="demo-item">
+                    <div class="demo-label">Inline Sizes</div>
+                    <div style="display: flex; flex-direction: column; gap: var(--space-4); align-items: center; padding: var(--space-6);">
+                        <div class="spinner large"></div>
+                        <div class="spinner"></div>
+                        <div class="spinner small"></div>
+                    </div>
+                </div>
+
+                <!-- Spinner with Message -->
+                <div class="demo-item">
+                    <div class="demo-label">With Message Box</div>
+                    <div class="loading-message">
+                        <div class="spinner" style="margin: 0 auto var(--space-3);"></div>
+                        <div class="loading-message-title">Confirming Transaction</div>
+                        <div class="loading-message-text">
+                            Please confirm the transaction in your wallet
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overlay Spinner -->
+                <div class="demo-item relative" style="height: 200px;">
+                    <div class="demo-label">Loading Overlay</div>
+                    <div style="padding: var(--space-3);">
+                        <div class="skeleton skeleton-text title"></div>
+                        <div class="skeleton skeleton-text long"></div>
+                        <div class="skeleton skeleton-text medium"></div>
+                    </div>
+                    <div class="loading-overlay">
+                        <div class="loading-overlay-content">
+                            <div class="spinner large"></div>
+                            <div class="spinner-text" style="margin-top: var(--space-3);">Loading Data</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Progress Bars -->
+        <div class="section">
+            <h2 class="section-title">3. Progress Bars</h2>
+            <p class="section-description">
+                Best for: Multi-step processes, upload progress, transaction confirmations, indexing status.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Determinate Progress -->
+                <div class="demo-item">
+                    <div class="demo-label">Determinate (Known Progress)</div>
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-label">
+                            <span>Uploading to IPFS</span>
+                            <span>67%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill" style="width: 67%;"></div>
+                        </div>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-label">
+                            <span>Indexing Blocks</span>
+                            <span>42%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill" style="width: 42%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Indeterminate Progress -->
+                <div class="demo-item">
+                    <div class="demo-label">Indeterminate (Unknown Duration)</div>
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-label">
+                            <span>Fetching Chain Data</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill indeterminate"></div>
+                        </div>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-label">
+                            <span>Syncing Vault Positions</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill indeterminate"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Dots Loader -->
+        <div class="section">
+            <h2 class="section-title">4. Dots Loader</h2>
+            <p class="section-description">
+                Best for: Inline loading, waiting for responses, subtle ongoing operations.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Dots Only -->
+                <div class="demo-item">
+                    <div class="demo-label">Dots Only</div>
+                    <div style="display: flex; justify-content: center; padding: var(--space-6);">
+                        <div class="dots-loader">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dots with Text -->
+                <div class="demo-item">
+                    <div class="demo-label">Dots with Text</div>
+                    <div style="display: flex; justify-content: center; align-items: center; gap: var(--space-3); padding: var(--space-6);">
+                        <div class="dots-loader">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                        <div class="dots-loader-text">Loading</div>
+                    </div>
+                </div>
+
+                <!-- Inline Usage -->
+                <div class="demo-item">
+                    <div class="demo-label">Inline in Message</div>
+                    <div style="padding: var(--space-4); background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary);">
+                        <div style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-body-sm);">
+                            <span>Fetching vault data</span>
+                            <div class="dots-loader">
+                                <div class="dot"></div>
+                                <div class="dot"></div>
+                                <div class="dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Pulse Effect -->
+        <div class="section">
+            <h2 class="section-title">5. Pulse Effect</h2>
+            <p class="section-description">
+                Best for: Live data indicators, real-time updates, polling status.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Pulsing Box -->
+                <div class="demo-item">
+                    <div class="demo-label">Pulsing Container</div>
+                    <div class="pulse" style="padding: var(--space-4); background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary); text-align: center;">
+                        <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                            Live Data Updating
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pulsing Badge -->
+                <div class="demo-item">
+                    <div class="demo-label">Live Indicator</div>
+                    <div style="display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4);">
+                        <div class="pulse" style="width: 8px; height: 8px; background-color: var(--text-primary);"></div>
+                        <span style="font-size: var(--font-size-body-sm); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide);">
+                            Live
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Button Loading States -->
+        <div class="section">
+            <h2 class="section-title">6. Button Loading States</h2>
+            <p class="section-description">
+                Best for: Form submissions, transaction confirmations, any button-triggered async operation.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Primary Button -->
+                <div class="demo-item">
+                    <div class="demo-label">Primary Button Loading</div>
+                    <div class="demo-buttons">
+                        <div class="btn-loading-wrap">
+                            <button class="btn btn-primary">Confirm Transaction</button>
+                            <div class="btn-loading-spinner"></div>
+                        </div>
+                        <button class="btn btn-primary">Confirm Transaction</button>
+                    </div>
+                </div>
+
+                <!-- Secondary Button -->
+                <div class="demo-item">
+                    <div class="demo-label">Secondary Button Loading</div>
+                    <div class="demo-buttons">
+                        <div class="btn-loading-wrap">
+                            <button class="btn btn-secondary">Fetching Data</button>
+                            <div class="btn-loading-spinner"></div>
+                        </div>
+                        <button class="btn btn-secondary">Fetching Data</button>
+                    </div>
+                </div>
+
+                <!-- Full Width Button -->
+                <div class="demo-item">
+                    <div class="demo-label">Full Width Loading</div>
+                    <div class="btn-loading-wrap" style="width: 100%;">
+                        <button class="btn btn-primary btn-full">Claiming Yield</button>
+                        <div class="btn-loading-spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. Scanning Effect -->
+        <div class="section">
+            <h2 class="section-title">7. Scanning Effect</h2>
+            <p class="section-description">
+                Best for: Blockchain scanning, event indexing, searching operations.
+            </p>
+
+            <div class="demo-grid">
+                <div class="demo-item" style="grid-column: 1 / -1;">
+                    <div class="demo-label">Scanning Blockchain</div>
+                    <div class="scanning-container">
+                        <div class="scanning-line"></div>
+                        <div class="scanning-text">Scanning Blocks 18,234,567 - 18,456,789</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. Shimmer Effect -->
+        <div class="section">
+            <h2 class="section-title">8. Shimmer Effect</h2>
+            <p class="section-description">
+                Best for: Alternative to skeleton, premium feel for loading images or content blocks.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Shimmer Box -->
+                <div class="demo-item">
+                    <div class="demo-label">Shimmer Block</div>
+                    <div class="shimmer" style="height: 150px; border: 1px solid var(--border-secondary);"></div>
+                </div>
+
+                <!-- Shimmer Card -->
+                <div class="demo-item">
+                    <div class="demo-label">Shimmer Card</div>
+                    <div class="shimmer" style="aspect-ratio: 1; border: 1px solid var(--border-secondary);"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 9. Contextual Loading Messages -->
+        <div class="section">
+            <h2 class="section-title">9. Contextual Loading Messages</h2>
+            <p class="section-description">
+                Best for: First-time loads, empty states that transition to loading, user education.
+            </p>
+
+            <div class="demo-grid">
+                <!-- Wallet Connection -->
+                <div class="demo-item">
+                    <div class="demo-label">Wallet Connection</div>
+                    <div class="loading-message">
+                        <div class="spinner" style="margin: 0 auto var(--space-3);"></div>
+                        <div class="loading-message-title">Connecting Wallet</div>
+                        <div class="loading-message-text">
+                            Please approve the connection request in your wallet extension
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transaction Pending -->
+                <div class="demo-item">
+                    <div class="demo-label">Transaction Pending</div>
+                    <div class="loading-message">
+                        <div class="spinner" style="margin: 0 auto var(--space-3);"></div>
+                        <div class="loading-message-title">Transaction Pending</div>
+                        <div class="loading-message-text">
+                            Waiting for transaction to be confirmed on-chain. This may take 15-30 seconds.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Indexing -->
+                <div class="demo-item">
+                    <div class="demo-label">Indexing Data</div>
+                    <div class="loading-message">
+                        <div class="dots-loader" style="margin: 0 auto var(--space-3); justify-content: center;">
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                            <div class="dot"></div>
+                        </div>
+                        <div class="loading-message-title">Indexing Vault Positions</div>
+                        <div class="loading-message-text">
+                            Syncing on-chain data. This usually takes a few seconds.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- IPFS Upload -->
+                <div class="demo-item">
+                    <div class="demo-label">IPFS Upload</div>
+                    <div class="loading-message">
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-label">
+                                <span>Uploading Metadata</span>
+                                <span>73%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-bar-fill" style="width: 73%;"></div>
+                            </div>
+                        </div>
+                        <div class="loading-message-text" style="margin-top: var(--space-3);">
+                            Uploading 12 files to IPFS
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 10. Usage Guidelines -->
+        <div class="section">
+            <h2 class="section-title">10. Usage Guidelines</h2>
+            <p class="section-description">
+                When to use each loading pattern:
+            </p>
+
+            <div style="background-color: var(--bg-secondary); border: 2px solid var(--border-primary); padding: var(--space-5);">
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); margin-bottom: var(--space-3);">
+                    <div style="font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); font-size: var(--font-size-body-sm);">Pattern</div>
+                    <div style="font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); font-size: var(--font-size-body-sm);">Use Cases</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Skeleton</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Initial page load, discovery grids, project lists, portfolio tables, activity feeds
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Spinner</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Wallet connection, transaction confirmation, modal loading, general async operations
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Progress Bar</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        IPFS uploads, multi-step forms, file processing, known-duration operations
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Dots</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Inline loading, subtle ongoing operations, waiting for API responses
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Pulse</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Live data indicators, real-time price updates, active polling status
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Button Loading</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Any button that triggers async operations (mint, stake, claim, trade)
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Scanning</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Blockchain event indexing, large-scale data scanning, search operations
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Shimmer</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        Image loading, premium content blocks, alternative to skeleton for featured content
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: var(--space-4); padding: var(--space-3); border-top: 1px solid var(--border-tertiary);">
+                    <div style="font-family: var(--font-mono); font-size: var(--font-size-body-sm);">Messages</div>
+                    <div style="font-size: var(--font-size-body-sm); color: var(--text-secondary);">
+                        First-time experiences, user education during loading, setting expectations
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="height: 80px;"></div>
+    </div>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

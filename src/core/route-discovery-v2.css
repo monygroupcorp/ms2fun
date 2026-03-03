@@ -1,0 +1,247 @@
+   PROJECT DISCOVERY PAGE
+   ======================================== */
+
+.discovery-page {
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+}
+
+.discovery-content {
+  max-width: var(--container-xl);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-10);
+}
+
+.page-title {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-tight);
+  margin-bottom: var(--space-6);
+}
+
+/* Search Bar */
+.search-section {
+  margin-bottom: var(--space-6);
+}
+
+.search-bar {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.search-input {
+  flex: 1;
+  height: 3rem;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-body);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-none);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: var(--transition-base);
+}
+
+.search-input:focus {
+  outline: 2px solid var(--border-primary);
+  border-color: var(--border-primary);
+}
+
+.search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Filter Panel */
+.filter-panel {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filter-label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+}
+
+.filter-select {
+  height: 2.5rem;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-body);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-none);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.filter-select:hover {
+  border-color: var(--border-primary);
+}
+
+.filter-select:focus {
+  outline: 2px solid var(--border-primary);
+}
+
+.filter-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-tertiary);
+}
+
+/* Results */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.results-count {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Project Card in Discovery */
+.project-card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.project-card:hover {
+  background-color: var(--state-hover-bg);
+}
+
+.project-card-image {
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-tertiary);
+}
+
+.project-card-content {
+  padding: var(--space-3);
+}
+
+.project-card-title {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-caption);
+}
+
+.project-card-description {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-card-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-body-sm);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-tertiary);
+}
+
+.project-card-state {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  margin-top: var(--space-2);
+}
+
+/* Project Grid */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+}
+
+/* Load More */
+.load-more-section {
+  text-align: center;
+  padding: var(--space-6) 0;
+}
+
+/* Responsive - Discovery */
+@media (max-width: 1024px) {
+  .discovery-content {
+    padding: var(--space-6);
+  }
+  .projects-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .discovery-content {
+    padding: var(--space-4);
+  }
+  .projects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+}

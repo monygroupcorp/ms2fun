@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MS2.FUN - Home (Gallery Brutalism)</title>
+  <link rel="stylesheet" href="../../src/core/global-v2.css">
+  <link rel="stylesheet" href="../../src/core/components-v2.css">
+  <style>
+    /* Inline the home page styles for demo */
+    .home-page {
+      min-height: 100vh;
+      background-color: var(--bg-primary);
+    }
+
+    /* TOP BAR */
+    .home-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-4) var(--space-10);
+      border-bottom: 1px solid var(--border-secondary);
+    }
+
+    .home-logo {
+      font-size: var(--font-size-h3);
+      font-weight: var(--font-weight-bold);
+      color: var(--text-primary);
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      transition: var(--transition-opacity);
+    }
+
+    .home-logo:hover { opacity: 0.7; }
+
+    /* CONTENT */
+    .home-content {
+      max-width: var(--container-xl);
+      margin: 0 auto;
+      padding: 0 var(--space-10);
+    }
+
+    /* FEATURED BANNER */
+    .featured-banner {
+      position: relative;
+      width: 100%;
+      min-height: 400px;
+      margin-top: var(--space-8);
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+      cursor: pointer;
+      transition: var(--transition-base);
+      overflow: hidden;
+    }
+
+    .featured-banner:hover { background-color: var(--state-hover-bg); }
+
+    .featured-banner-image {
+      width: 100%;
+      height: 400px;
+      background-color: var(--bg-tertiary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-display);
+      font-weight: var(--font-weight-bold);
+      color: var(--text-tertiary);
+    }
+
+    .featured-banner-content {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: var(--space-6);
+      background: linear-gradient(to top, var(--bg-primary) 0%, rgba(255, 255, 255, 0.95) 80%, transparent 100%);
+    }
+
+    [data-theme="dark"] .featured-banner-content {
+      background: linear-gradient(to top, var(--bg-primary) 0%, rgba(0, 0, 0, 0.95) 80%, transparent 100%);
+    }
+
+    .featured-banner-label {
+      font-size: var(--font-size-caption);
+      font-weight: var(--font-weight-medium);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-1);
+    }
+
+    .featured-banner-title {
+      font-size: var(--font-size-h1);
+      font-weight: var(--font-weight-bold);
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+
+    .featured-banner-meta {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
+      font-size: var(--font-size-body-sm);
+    }
+
+    /* STATS BAR */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) 0;
+      margin-top: var(--space-8);
+      border-top: 1px solid var(--border-secondary);
+      border-bottom: 1px solid var(--border-secondary);
+      font-size: var(--font-size-body-sm);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .stats-bar-label {
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      color: var(--text-primary);
+    }
+
+    .stats-bar-item { color: var(--text-secondary); }
+    .stats-bar-item .text-mono {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
+    }
+    .stats-bar-separator { color: var(--border-secondary); }
+
+    /* ACTIVITY */
+    .activity-section {
+      margin-top: var(--space-8);
+      padding: var(--space-6);
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+    }
+
+    .activity-title {
+      font-size: var(--font-size-h4);
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      margin-bottom: var(--space-4);
+    }
+
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      margin-bottom: var(--space-4);
+    }
+
+    .activity-item {
+      display: flex;
+      gap: var(--space-2);
+      font-size: var(--font-size-body);
+      color: var(--text-secondary);
+    }
+
+    .activity-bullet { color: var(--text-primary); font-weight: var(--font-weight-bold); }
+    .activity-text { flex: 1; }
+
+    /* PROJECTS */
+    .projects-section {
+      margin-top: var(--space-8);
+      margin-bottom: var(--space-12);
+    }
+
+    .projects-title {
+      font-size: var(--font-size-h4);
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      margin-bottom: var(--space-4);
+    }
+
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-3);
+      margin-bottom: var(--space-6);
+    }
+
+    /* PROJECT CARD */
+    .project-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+      cursor: pointer;
+      transition: var(--transition-base);
+    }
+
+    .project-card:hover { background-color: var(--state-hover-bg); }
+    .project-card:active { transform: translateY(1px); }
+
+    .project-card-image {
+      width: 100%;
+      aspect-ratio: 1;
+      background-color: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-display);
+      font-weight: var(--font-weight-bold);
+      color: var(--text-tertiary);
+    }
+
+    .project-card-content { padding: var(--space-3); }
+
+    .project-card-title {
+      font-size: var(--font-size-h4);
+      font-weight: var(--font-weight-bold);
+      margin-bottom: var(--space-2);
+    }
+
+    .project-card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-2);
+      font-size: var(--font-size-caption);
+    }
+
+    .project-card-description {
+      font-size: var(--font-size-body-sm);
+      color: var(--text-secondary);
+      line-height: var(--line-height-relaxed);
+      margin-bottom: var(--space-2);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .project-card-tvl {
+      display: flex;
+      justify-content: space-between;
+      font-size: var(--font-size-body-sm);
+      padding-top: var(--space-2);
+      border-top: 1px solid var(--border-tertiary);
+    }
+
+    /* WALLET BUTTON (floating) */
+    .wallet-button {
+      position: fixed;
+      bottom: var(--space-4);
+      right: var(--space-4);
+      width: 3rem;
+      height: 3rem;
+      border-radius: 50%;
+      background-color: var(--text-primary);
+      color: var(--bg-primary);
+      border: none;
+      font-size: var(--font-size-body);
+      font-weight: var(--font-weight-bold);
+      cursor: pointer;
+      transition: var(--transition-opacity);
+      z-index: 100;
+    }
+
+    .wallet-button:hover { opacity: 0.7; }
+
+    /* RESPONSIVE */
+    @media (max-width: 1024px) {
+      .projects-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+      .projects-grid { grid-template-columns: repeat(2, 1fr); }
+      .home-content { padding: 0 var(--space-4); }
+      .home-top-bar { padding: var(--space-3) var(--space-4); }
+    }
+
+    @media (max-width: 640px) {
+      .projects-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="home-page">
+    <!-- Top Bar -->
+    <div class="home-top-bar">
+      <a href="homepage-v2-demo.html" class="home-logo">MS2<span class="logo-tld">.fun</span></a>
+      <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+          <span class="hamburger-bar"></span>
+      </button>
+      <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+          <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+      </div>
+      <div class="mobile-nav-panel" id="mobile-nav">
+          <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+          <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+          <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+          <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+          <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+      </div>
+    </div>
+
+    <!-- Home Content -->
+    <div class="home-content">
+
+      <!-- Featured Banner -->
+      <div class="featured-banner">
+        <div class="featured-banner-image">
+          F
+        </div>
+        <div class="featured-banner-content">
+          <div class="featured-banner-label">FEATURED</div>
+          <h2 class="featured-banner-title">Art Collection Alpha</h2>
+          <div class="featured-banner-meta">
+            <span class="text-mono text-secondary">0x742d35Cc...</span>
+            <span class="badge">ERC404</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats Bar -->
+      <div class="stats-bar">
+        <span class="stats-bar-label">TOP VAULTS:</span>
+        <span class="stats-bar-item">Alpha Vault <span class="text-mono">$1.2M</span></span>
+        <span class="stats-bar-separator">|</span>
+        <span class="stats-bar-item">Beta Vault <span class="text-mono">$800K</span></span>
+        <span class="stats-bar-separator">|</span>
+        <span class="stats-bar-item">Gamma Vault <span class="text-mono">$650K</span></span>
+      </div>
+
+      <!-- Activity Section -->
+      <div class="activity-section">
+        <h3 class="activity-title">RECENT ACTIVITY</h3>
+        <div class="activity-list">
+          <div class="activity-item">
+            <span class="activity-bullet">•</span>
+            <span class="activity-text">User minted NFT #42 in Project Alpha</span>
+          </div>
+          <div class="activity-item">
+            <span class="activity-bullet">•</span>
+            <span class="activity-text">Creator launched Music Collection</span>
+          </div>
+          <div class="activity-item">
+            <span class="activity-bullet">•</span>
+            <span class="activity-text">Collector bought Edition #7</span>
+          </div>
+          <div class="activity-item">
+            <span class="activity-bullet">•</span>
+            <span class="activity-text">Artist updated Generative Series</span>
+          </div>
+        </div>
+        <button class="btn btn-ghost">View All Activity →</button>
+      </div>
+
+      <!-- Projects Grid -->
+      <div class="projects-section">
+        <h3 class="projects-title">PROJECTS</h3>
+        <div class="projects-grid">
+          <!-- Project Card 1 -->
+          <div class="project-card">
+            <div class="project-card-image">A</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Alpha</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x742d...</span>
+                <span class="badge">ERC404</span>
+              </div>
+              <p class="project-card-description">
+                Bonding curve token with dual NFT representation. Price discovery through algorithmic curves.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$1.2M</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 2 -->
+          <div class="project-card">
+            <div class="project-card-image">B</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Beta</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x8b5c...</span>
+                <span class="badge">ERC1155</span>
+              </div>
+              <p class="project-card-description">
+                Open edition gallery featuring minimalist geometric compositions and digital abstractions.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$800K</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 3 -->
+          <div class="project-card">
+            <div class="project-card-image">G</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Gamma</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x3f2a...</span>
+                <span class="badge">ERC404</span>
+              </div>
+              <p class="project-card-description">
+                Community-driven experiment combining fungible tokens with unique NFT mechanics and visual identity.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$650K</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 4 -->
+          <div class="project-card">
+            <div class="project-card-image">D</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Delta</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x9c1e...</span>
+                <span class="badge">ERC721</span>
+              </div>
+              <p class="project-card-description">
+                Generative art collection exploring computational creativity through algorithmic composition.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$450K</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 5 -->
+          <div class="project-card">
+            <div class="project-card-image">E</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Epsilon</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x4d7f...</span>
+                <span class="badge">ERC404</span>
+              </div>
+              <p class="project-card-description">
+                Hybrid token enabling dynamic pricing and NFT ownership through bonding curve mechanics.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$320K</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 6 -->
+          <div class="project-card">
+            <div class="project-card-image">Z</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Zeta</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x7e3b...</span>
+                <span class="badge">ERC1155</span>
+              </div>
+              <p class="project-card-description">
+                Multi-edition series capturing brutalist architecture through high-contrast photography.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$280K</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 7 -->
+          <div class="project-card">
+            <div class="project-card-image">H</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Eta</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x2a9c...</span>
+                <span class="badge">ERC404</span>
+              </div>
+              <p class="project-card-description">
+                Experimental token design combining traditional NFT mechanics with novel pricing algorithms.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$150K</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Project Card 8 -->
+          <div class="project-card">
+            <div class="project-card-image">T</div>
+            <div class="project-card-content">
+              <h4 class="project-card-title">Project Theta</h4>
+              <div class="project-card-meta">
+                <span class="text-mono text-secondary">0x6f8d...</span>
+                <span class="badge">ERC721</span>
+              </div>
+              <p class="project-card-description">
+                Digital artwork series exploring abstract forms through parametric design and procedural generation.
+              </p>
+              <div class="project-card-tvl">
+                <span class="text-secondary">TVL:</span>
+                <span class="text-mono">$120K</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary" style="width: 100%;">View All Projects →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Floating Wallet Button -->
+  <button class="wallet-button" title="Connect Wallet">W</button>
+
+  <script>
+    // Theme toggle (for testing)
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 't') {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+      }
+    });
+  </script>
+
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

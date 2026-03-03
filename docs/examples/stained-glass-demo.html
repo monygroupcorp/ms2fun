@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stained Glass Light Demo</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+            padding: var(--space-10);
+        }
+
+        .demo-section {
+            margin-bottom: var(--space-12);
+            padding-bottom: var(--space-8);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .demo-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-6);
+        }
+
+        .demo-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-8);
+            margin-bottom: var(--space-4);
+        }
+
+        .demo-label {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-4);
+        }
+
+        .display-text {
+            font-size: var(--font-size-display);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            text-align: center;
+        }
+
+        .heading-text {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .color-legend {
+            display: flex;
+            gap: var(--space-3);
+            justify-content: center;
+            margin-top: var(--space-3);
+            font-size: var(--font-size-caption);
+            color: var(--text-tertiary);
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            display: flex;
+            align-items: center;
+            gap: var(--space-1);
+        }
+
+        .swatch {
+            width: 12px;
+            height: 12px;
+            border: 1px solid var(--border-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div style="max-width: var(--container-xl); margin: 0 auto;">
+        <header style="margin-bottom: var(--space-10); text-align: center;">
+            <h1 class="demo-title text-cathedral" style="font-size: var(--font-size-display); margin-bottom: var(--space-3);">
+                Crepuscular Rays
+            </h1>
+            <p style="font-size: var(--font-size-body); color: var(--text-secondary); max-width: 700px; margin: 0 auto; line-height: var(--line-height-relaxed);">
+                Light falling through stained glass. Warm, reverent, atmospheric. Cathedral light with soft colored beams — amber, ruby, sapphire, emerald.
+            </p>
+        </header>
+
+        <!-- Stained Glass Glow -->
+        <section class="demo-section">
+            <h2 class="demo-title">Stained Glass Glow</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Soft colored glow using drop-shadow filter. Amber core, ruby and sapphire halos.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-stained-glass">
+                    GrandCentral DAO
+                </div>
+                <div class="color-legend">
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 191, 0, 0.8);"></div>
+                        <span>Amber</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(220, 20, 60, 0.8);"></div>
+                        <span>Ruby</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(15, 82, 186, 0.8);"></div>
+                        <span>Sapphire</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-stained-glass">
+                    Create Your Project
+                </div>
+            </div>
+
+            <div class="demo-item" style="text-align: center;">
+                <div class="demo-label">Button (Current Default)</div>
+                <button class="btn btn-primary btn-lg">Vote Yes</button>
+                <p style="margin-top: var(--space-3); font-size: var(--font-size-caption); color: var(--text-tertiary);">
+                    Soft amber, ruby, sapphire glow around button
+                </p>
+            </div>
+        </section>
+
+        <!-- Cathedral Light -->
+        <section class="demo-section">
+            <h2 class="demo-title">Cathedral Light</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Directional beams from above. Golden light streaming down like god rays.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-cathedral">
+                    GrandCentral DAO
+                </div>
+                <div class="color-legend">
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 215, 100, 0.8);"></div>
+                        <span>Golden Beam</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 191, 0, 0.8);"></div>
+                        <span>Amber Halo</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 245, 200, 0.8);"></div>
+                        <span>Ivory Glow</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-cathedral">
+                    Create Your Project
+                </div>
+            </div>
+        </section>
+
+        <!-- Sacred Aura -->
+        <section class="demo-section">
+            <h2 class="demo-title">Sacred Aura</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Soft golden halo. Omnidirectional warm glow — reverent and calm.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-sacred-aura">
+                    GrandCentral DAO
+                </div>
+                <div class="color-legend">
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 215, 100, 0.8);"></div>
+                        <span>Golden Core</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 191, 0, 0.8);"></div>
+                        <span>Amber Mid</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 245, 200, 0.8);"></div>
+                        <span>Ivory Outer</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-sacred-aura">
+                    Create Your Project
+                </div>
+            </div>
+        </section>
+
+        <!-- Light Rays -->
+        <section class="demo-section">
+            <h2 class="demo-title">Light Rays (Multi-Directional)</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Colored rays radiating from corners. Amber, ruby, sapphire, emerald — like multiple stained glass windows.
+            </p>
+
+            <div class="demo-item">
+                <div class="demo-label">Display Size</div>
+                <div class="display-text text-light-rays">
+                    GrandCentral DAO
+                </div>
+                <div class="color-legend">
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(255, 191, 0, 0.8);"></div>
+                        <span>Amber (TL)</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(220, 20, 60, 0.8);"></div>
+                        <span>Ruby (TR)</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(15, 82, 186, 0.8);"></div>
+                        <span>Sapphire (BL)</span>
+                    </div>
+                    <div class="color-swatch">
+                        <div class="swatch" style="background-color: rgba(5, 160, 60, 0.8);"></div>
+                        <span>Emerald (BR)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="demo-item">
+                <div class="demo-label">Heading Size</div>
+                <div class="heading-text text-light-rays">
+                    Create Your Project
+                </div>
+            </div>
+        </section>
+
+        <!-- Button Comparison -->
+        <section class="demo-section">
+            <h2 class="demo-title">Button Stained Glass Glow</h2>
+            <p style="font-size: var(--font-size-body-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
+                Soft colored light emanating from buttons. Which intensity feels right?
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: var(--space-4); align-items: center;">
+                <div>
+                    <div class="demo-label" style="text-align: center;">No Glow (Baseline)</div>
+                    <button class="btn btn-secondary btn-lg">Create Project</button>
+                </div>
+
+                <div>
+                    <div class="demo-label" style="text-align: center;">Subtle Glow</div>
+                    <button class="btn btn-lg" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: 0 0 8px rgba(255, 191, 0, 0.15), 0 0 16px rgba(220, 20, 60, 0.1), 0 0 24px rgba(15, 82, 186, 0.08);">
+                        Create Project
+                    </button>
+                </div>
+
+                <div>
+                    <div class="demo-label" style="text-align: center;">Default Glow (Current)</div>
+                    <button class="btn btn-primary btn-lg">Create Project</button>
+                </div>
+
+                <div>
+                    <div class="demo-label" style="text-align: center;">Strong Glow</div>
+                    <button class="btn btn-lg" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: 0 0 16px rgba(255, 191, 0, 0.3), 0 0 32px rgba(220, 20, 60, 0.2), 0 0 48px rgba(15, 82, 186, 0.15);">
+                        Create Project
+                    </button>
+                </div>
+
+                <div>
+                    <div class="demo-label" style="text-align: center;">Intense Glow</div>
+                    <button class="btn btn-lg" style="background-color: var(--text-primary); color: var(--bg-primary); box-shadow: 0 0 24px rgba(255, 191, 0, 0.4), 0 0 48px rgba(220, 20, 60, 0.3), 0 0 72px rgba(15, 82, 186, 0.2);">
+                        Create Project
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dark Mode Test -->
+        <section class="demo-section">
+            <h2 class="demo-title">Dark Mode Test</h2>
+            <div class="demo-item">
+                <div class="demo-label">Toggle to see stained glass effects on dark background</div>
+                <button class="btn btn-secondary" onclick="toggleTheme()">
+                    Switch to <span id="theme-name">Dark</span> Mode
+                </button>
+                <div style="margin-top: var(--space-6); padding: var(--space-8); background-color: var(--bg-tertiary); border: 1px solid var(--border-secondary); text-align: center;">
+                    <div class="text-stained-glass" style="font-size: var(--font-size-h1); font-weight: var(--font-weight-bold); margin-bottom: var(--space-4);">
+                        STAINED GLASS
+                    </div>
+                    <button class="btn btn-primary btn-lg">Create Project</button>
+                </div>
+            </div>
+        </section>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('theme-name').textContent = newTheme === 'dark' ? 'Light' : 'Dark';
+        }
+    </script>
+</body>
+</html>

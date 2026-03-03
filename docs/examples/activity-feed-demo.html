@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Feed — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        .activity-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .activity-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .activity-logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .activity-logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Content */
+        .activity-content {
+            max-width: var(--container-lg);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        /* Page Header */
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: var(--space-2);
+            padding-bottom: var(--space-4);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .filter-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-pill {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+            white-space: nowrap;
+        }
+
+        .filter-pill:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .filter-pill.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        /* Feed */
+        .activity-feed {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            margin-bottom: var(--space-8);
+        }
+
+        /* Activity Item */
+        .activity-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            transition: var(--transition-base);
+        }
+
+        .activity-item:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        /* Activity Header */
+        .activity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-2);
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        .activity-user {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .activity-avatar {
+            width: 32px;
+            height: 32px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            flex-shrink: 0;
+        }
+
+        .activity-address {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-caption);
+            color: var(--text-primary);
+            font-weight: var(--font-weight-medium);
+        }
+
+        .activity-timestamp {
+            font-size: var(--font-size-caption);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .activity-header-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            flex-wrap: wrap;
+        }
+
+        .activity-header-meta-item {
+            white-space: nowrap;
+        }
+
+        .activity-action-badge {
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            border: 1px solid var(--border-secondary);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .activity-action-badge--mint {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .activity-action-badge--buy {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .activity-action-badge--sell {
+            background-color: transparent;
+            color: var(--text-secondary);
+        }
+
+        /* Activity Project */
+        .activity-project {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .activity-project-link {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: var(--font-weight-medium);
+            transition: var(--transition-opacity);
+        }
+
+        .activity-project-link:hover {
+            opacity: 0.7;
+        }
+
+        /* Activity Message */
+        .activity-message {
+            font-size: var(--font-size-body-sm);
+            line-height: var(--line-height-normal);
+            color: var(--text-primary);
+            margin-bottom: var(--space-3);
+        }
+
+        /* Activity Image */
+        .activity-image {
+            width: 100%;
+            max-width: 300px;
+            aspect-ratio: 1;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-tertiary);
+        }
+
+        /* Reactions */
+        .activity-reactions {
+            display: flex;
+            gap: var(--space-1);
+            margin-bottom: var(--space-2);
+        }
+
+        .reaction-button {
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .reaction-button:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .reaction-button.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        /* Replies */
+        .replies-toggle {
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+            transition: var(--transition-opacity);
+        }
+
+        .replies-toggle:hover {
+            opacity: 0.7;
+        }
+
+        .replies-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-2);
+            margin-top: var(--space-2);
+        }
+
+        .reply-item {
+            padding: var(--space-2);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-tertiary);
+        }
+
+        .reply-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-1);
+        }
+
+        .reply-address {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+        }
+
+        .reply-timestamp {
+            font-size: var(--font-size-caption);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .reply-message {
+            font-size: var(--font-size-caption);
+            line-height: var(--line-height-normal);
+            color: var(--text-primary);
+        }
+
+        /* Reply Form */
+        .reply-form {
+            margin-top: var(--space-2);
+            padding: var(--space-2);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-tertiary);
+        }
+
+        .reply-input {
+            width: 100%;
+            padding: var(--space-2);
+            font-size: var(--font-size-body-sm);
+            font-family: var(--font-primary);
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-secondary);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .reply-input:focus {
+            outline: none;
+            border-color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .activity-content {
+                padding: 0 var(--space-6);
+            }
+
+            .activity-top-bar {
+                padding: var(--space-4) var(--space-6);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .activity-content {
+                padding: 0 var(--space-4);
+            }
+
+            .activity-top-bar {
+                padding: var(--space-3) var(--space-4);
+            }
+
+            .activity-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .activity-top-bar {
+                padding: var(--space-3);
+            }
+
+            .activity-content {
+                padding: 0 var(--space-3);
+            }
+
+            .activity-item {
+                padding: var(--space-4);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="activity-page">
+        <!-- Top Bar -->
+        <div class="activity-top-bar">
+            <a href="homepage-v2-demo.html" class="activity-logo">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+            <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+                <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+            </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+        </div>
+
+        <!-- Content -->
+        <div class="activity-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">Activity Feed</h1>
+            </header>
+
+            <!-- Filter Bar -->
+            <div class="filter-bar">
+                <button class="filter-pill active">All</button>
+                <button class="filter-pill">Mints</button>
+                <button class="filter-pill">Buys</button>
+                <button class="filter-pill">Sells</button>
+                <button class="filter-pill">By Project</button>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="activity-feed">
+                <!-- Activity Item 1: Mint with Image -->
+                <div class="activity-item">
+                    <div class="activity-header">
+                        <div class="activity-user">
+                            <div class="activity-avatar">0x</div>
+                            <div class="activity-address">0x742d...35c9</div>
+                        </div>
+                        <div class="activity-header-meta">
+                            <div class="activity-header-meta-item activity-timestamp">2 minutes ago</div>
+                            <div class="activity-header-meta-item">Price: <span class="text-mono">0.08 ETH</span></div>
+                            <div class="activity-header-meta-item">Token #1847</div>
+                        </div>
+                        <div class="activity-action-badge activity-action-badge--mint">Mint</div>
+                    </div>
+
+                    <div class="activity-project">
+                        From <a href="#" class="activity-project-link">Generative Landscapes #404</a>
+                    </div>
+
+                    <div class="activity-message">
+                        Just minted this incredible piece! The algorithm perfectly captured that liminal space between urban decay and natural reclamation. Love how the color palette shifts based on Ethereum block data.
+                    </div>
+
+                    <div class="activity-image">IMG</div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        <div class="activity-reactions">
+                            <button class="reaction-button active">👍 12</button>
+                            <button class="reaction-button">🔥 5</button>
+                            <button class="reaction-button">✨ 3</button>
+                            <button class="reaction-button">+</button>
+                        </div>
+                        <button class="replies-toggle" onclick="toggleReplies(this)">
+                            View 3 replies ↓
+                        </button>
+                    </div>
+
+                    <div class="replies-list" style="display: none; margin-top: var(--space-2);">
+                        <div class="reply-item">
+                            <div class="reply-header">
+                                <div class="reply-address">0x8a3f...7b2e</div>
+                                <div class="reply-timestamp">1 min ago</div>
+                            </div>
+                            <div class="reply-message">
+                                Beautiful piece! The block data integration is so clever.
+                            </div>
+                        </div>
+
+                        <div class="reply-item">
+                            <div class="reply-header">
+                                <div class="reply-address">0x5c12...9d4a</div>
+                                <div class="reply-timestamp">30 sec ago</div>
+                            </div>
+                            <div class="reply-message">
+                                Minted from the same collection yesterday. The variation is incredible.
+                            </div>
+                        </div>
+
+                        <div class="reply-form">
+                            <textarea class="reply-input" placeholder="Write a reply..." rows="2"></textarea>
+                            <button class="btn btn-primary btn-sm">Post Reply</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Item 2: Buy -->
+                <div class="activity-item">
+                    <div class="activity-header">
+                        <div class="activity-user">
+                            <div class="activity-avatar">0x</div>
+                            <div class="activity-address">0x2e9b...4f1c</div>
+                        </div>
+                        <div class="activity-header-meta">
+                            <div class="activity-header-meta-item activity-timestamp">15 minutes ago</div>
+                            <div class="activity-header-meta-item">Price: <span class="text-mono">0.15 ETH</span></div>
+                            <div class="activity-header-meta-item">Edition 45/100</div>
+                            <div class="activity-header-meta-item">Vault: Climate Initiatives</div>
+                        </div>
+                        <div class="activity-action-badge activity-action-badge--buy">Buy</div>
+                    </div>
+
+                    <div class="activity-project">
+                        From <a href="#" class="activity-project-link">Climate Action Editions</a>
+                    </div>
+
+                    <div class="activity-message">
+                        Bought edition #45. Proceeds go directly to the EF Climate Initiatives vault. Putting my money where my values are — every trade supports the cause.
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        <div class="activity-reactions">
+                            <button class="reaction-button active">🌱 18</button>
+                            <button class="reaction-button">💚 7</button>
+                            <button class="reaction-button">+</button>
+                        </div>
+                        <button class="replies-toggle" onclick="toggleReplies(this)">
+                            View 1 reply ↓
+                        </button>
+                    </div>
+
+                    <div class="replies-list" style="display: none; margin-top: var(--space-2);">
+                        <div class="reply-item">
+                            <div class="reply-header">
+                                <div class="reply-address">0x9f23...8c6d</div>
+                                <div class="reply-timestamp">10 min ago</div>
+                            </div>
+                            <div class="reply-message">
+                                Love this! Just aligned my project to the same vault.
+                            </div>
+                        </div>
+
+                        <div class="reply-form">
+                            <textarea class="reply-input" placeholder="Write a reply..." rows="2"></textarea>
+                            <button class="btn btn-primary btn-sm">Post Reply</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Item 3: Sell -->
+                <div class="activity-item">
+                    <div class="activity-header">
+                        <div class="activity-user">
+                            <div class="activity-avatar">0x</div>
+                            <div class="activity-address">0x6d78...3a5b</div>
+                        </div>
+                        <div class="activity-header-meta">
+                            <div class="activity-header-meta-item activity-timestamp">1 hour ago</div>
+                            <div class="activity-header-meta-item">Price: <span class="text-mono">1.2 ETH</span></div>
+                            <div class="activity-header-meta-item">Token #89</div>
+                        </div>
+                        <div class="activity-action-badge activity-action-badge--sell">Sell</div>
+                    </div>
+
+                    <div class="activity-project">
+                        From <a href="#" class="activity-project-link">Abstract Geometries Auction</a>
+                    </div>
+
+                    <div class="activity-message">
+                        Letting this one go to fund the next mint. Incredible project but making room in the collection.
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        <div class="activity-reactions">
+                            <button class="reaction-button">🤝 4</button>
+                            <button class="reaction-button">+</button>
+                        </div>
+                        <button class="replies-toggle" onclick="toggleReplies(this)">
+                            Reply
+                        </button>
+                    </div>
+
+                    <div class="replies-list" style="display: none; margin-top: var(--space-2);">
+                        <div class="reply-form">
+                            <textarea class="reply-input" placeholder="Write a reply..." rows="2"></textarea>
+                            <button class="btn btn-primary btn-sm">Post Reply</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Item 4: Mint without Image -->
+                <div class="activity-item">
+                    <div class="activity-header">
+                        <div class="activity-user">
+                            <div class="activity-avatar">0x</div>
+                            <div class="activity-address">0x1a45...2b7e</div>
+                        </div>
+                        <div class="activity-header-meta">
+                            <div class="activity-header-meta-item activity-timestamp">3 hours ago</div>
+                            <div class="activity-header-meta-item">Price: <span class="text-mono">0.25 ETH</span></div>
+                            <div class="activity-header-meta-item">Vault: Protocol Guild</div>
+                        </div>
+                        <div class="activity-action-badge activity-action-badge--mint">Mint</div>
+                    </div>
+
+                    <div class="activity-project">
+                        From <a href="#" class="activity-project-link">Protocol Guild Support NFT</a>
+                    </div>
+
+                    <div class="activity-message">
+                        Minted to support core Ethereum developers. 100% of proceeds go to Protocol Guild. This is what real alignment looks like.
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); flex-wrap: wrap;">
+                        <div class="activity-reactions">
+                            <button class="reaction-button active">⚡ 24</button>
+                            <button class="reaction-button">🙏 11</button>
+                            <button class="reaction-button">+</button>
+                        </div>
+                        <button class="replies-toggle" onclick="toggleReplies(this)">
+                            Reply
+                        </button>
+                    </div>
+
+                    <div class="replies-list" style="display: none; margin-top: var(--space-2);">
+                        <div class="reply-form">
+                            <textarea class="reply-input" placeholder="Write a reply..." rows="2"></textarea>
+                            <button class="btn btn-primary btn-sm">Post Reply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; padding: var(--space-6) 0;">
+                <button class="btn btn-secondary">Load More</button>
+            </div>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+
+    <script>
+        function toggleReplies(button) {
+            const repliesList = button.nextElementSibling;
+            const isVisible = repliesList.style.display !== 'none';
+
+            if (isVisible) {
+                repliesList.style.display = 'none';
+                button.textContent = button.textContent.includes('View')
+                    ? button.textContent
+                    : button.textContent.replace('Hide', 'View').replace('↑', '↓');
+            } else {
+                repliesList.style.display = 'flex';
+                button.textContent = button.textContent.includes('Reply')
+                    ? 'Hide reply form ↑'
+                    : button.textContent.replace('View', 'Hide').replace('↓', '↑');
+            }
+        }
+
+        // Filter functionality
+        document.querySelectorAll('.filter-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+            });
+        });
+    </script>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treasury — GrandCentral DAO</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        .governance-page {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        .governance-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .governance-nav-home {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .governance-nav-home:hover {
+            opacity: 0.7;
+        }
+
+        .governance-nav-links {
+            display: flex;
+            gap: var(--space-1);
+        }
+
+        .governance-nav-link {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-base);
+        }
+
+        .governance-nav-link:hover {
+            background-color: var(--bg-secondary);
+        }
+
+        .governance-nav-link.active {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .governance-content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        .page-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .page-title {
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .treasury-pools-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-10);
+        }
+
+        .pool-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-6);
+        }
+
+        .pool-card-title {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-3);
+        }
+
+        .pool-card-value {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+            margin-bottom: var(--space-2);
+        }
+
+        .pool-card-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-tertiary);
+            line-height: var(--line-height-relaxed);
+        }
+
+        .section-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-4);
+        }
+
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-3);
+        }
+
+        .activity-item {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+        }
+
+        .activity-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-2);
+        }
+
+        .activity-type {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            padding: var(--space-1) var(--space-2);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .activity-type--funded {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border-color: var(--text-primary);
+        }
+
+        .activity-type--claimed {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .activity-type--ragequit {
+            background-color: transparent;
+            color: var(--text-secondary);
+        }
+
+        .activity-amount {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            font-family: var(--font-mono);
+        }
+
+        .activity-detail {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-2);
+        }
+
+        .activity-time {
+            font-size: var(--font-size-caption);
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        @media (max-width: 1024px) {
+            .governance-content {
+                padding: 0 var(--space-6);
+            }
+
+            .governance-nav {
+                padding: var(--space-4) var(--space-6);
+            }
+
+            .treasury-pools-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .governance-content {
+                padding: 0 var(--space-4);
+            }
+
+            .governance-nav {
+                padding: var(--space-3) var(--space-4);
+                flex-direction: column;
+                align-items: flex-start;
+                gap: var(--space-3);
+            }
+
+            .governance-nav-links {
+                width: 100%;
+                overflow-x: auto;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .governance-nav {
+                padding: var(--space-3);
+            }
+
+            .governance-content {
+                padding: 0 var(--space-3);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="governance-page">
+        <!-- Navigation -->
+        <nav class="governance-nav">
+            <a href="homepage-v2-demo.html" class="governance-nav-home">← ms2<span class="logo-tld">.fun</span></a>
+            <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+                <span class="hamburger-bar"></span>
+            </button>
+            <div class="governance-nav-links">
+                <a href="governance-hub-demo.html" class="governance-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="governance-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="governance-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="governance-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="governance-nav-link active">Treasury</a>
+                <a href="governance-shares-demo.html" class="governance-nav-link">Shares</a>
+            </div>
+            <div class="mobile-nav-panel" id="mobile-nav">
+                <a href="governance-hub-demo.html" class="mobile-nav-link">Overview</a>
+                <a href="governance-proposals-demo.html" class="mobile-nav-link">Proposals</a>
+                <a href="governance-apply-demo.html" class="mobile-nav-link">Apply</a>
+                <a href="governance-member-demo.html" class="mobile-nav-link">Member</a>
+                <a href="governance-treasury-demo.html" class="mobile-nav-link">Treasury</a>
+                <a href="governance-shares-demo.html" class="mobile-nav-link">Shares</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="governance-content">
+            <!-- Header -->
+            <header class="page-header">
+                <h1 class="page-title">Treasury</h1>
+            </header>
+
+            <!-- Treasury Pools Grid -->
+            <div class="treasury-pools-grid">
+                <div class="pool-card">
+                    <div class="pool-card-title">Ragequit Pool</div>
+                    <div class="pool-card-value">12.4567 ETH</div>
+                    <div class="pool-card-description">
+                        Reserved for members who choose to exit the DAO by burning their shares and loot
+                    </div>
+                </div>
+
+                <div class="pool-card">
+                    <div class="pool-card-title">Claims Pool</div>
+                    <div class="pool-card-value">8.2341 ETH</div>
+                    <div class="pool-card-description">
+                        Protocol revenue distributed proportionally to all members based on share ownership
+                    </div>
+                </div>
+
+                <div class="pool-card">
+                    <div class="pool-card-title">General Funds</div>
+                    <div class="pool-card-value">24.8923 ETH</div>
+                    <div class="pool-card-description">
+                        Controlled by governance for strategic initiatives, grants, and protocol development
+                    </div>
+                </div>
+            </div>
+
+            <!-- Revenue Breakdown Section -->
+            <section style="margin-bottom: var(--space-8);">
+                <h2 class="section-title">Revenue Breakdown (Last 30 Days)</h2>
+                <div class="treasury-pools-grid">
+                    <div class="pool-card">
+                        <div class="pool-card-title">Factory Fees</div>
+                        <div class="pool-card-value">3.2145 ETH</div>
+                        <div class="pool-card-description">
+                            Deployment fees from new project instances
+                        </div>
+                    </div>
+
+                    <div class="pool-card">
+                        <div class="pool-card-title">Featured Queue</div>
+                        <div class="pool-card-value">2.8900 ETH</div>
+                        <div class="pool-card-description">
+                            Revenue from featured project placements
+                        </div>
+                    </div>
+
+                    <div class="pool-card">
+                        <div class="pool-card-title">Bonding Curves</div>
+                        <div class="pool-card-value">1.5623 ETH</div>
+                        <div class="pool-card-description">
+                            Protocol fees from ERC404 trading activity
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Recent Activity Section -->
+            <section style="margin-bottom: var(--space-8);">
+                <h2 class="section-title">Recent Activity</h2>
+                <div class="activity-list">
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--funded">Ragequit Pool Funded</span>
+                            <span class="activity-amount">+2.5000 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Protocol treasury allocation via governance proposal #039
+                        </div>
+                        <div class="activity-time">2 days ago</div>
+                    </div>
+
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--claimed">Claim Withdrawn</span>
+                            <span class="activity-amount">-0.4523 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Member 0x742d...35c9 claimed proportional share
+                        </div>
+                        <div class="activity-time">3 days ago</div>
+                    </div>
+
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--funded">Claims Pool Funded</span>
+                            <span class="activity-amount">+3.2145 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Monthly revenue distribution from factory fees
+                        </div>
+                        <div class="activity-time">5 days ago</div>
+                    </div>
+
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--ragequit">Ragequit</span>
+                            <span class="activity-amount">-1.2340 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Member 0x8a3f...7b2e exited by burning 20 shares and 5 loot
+                        </div>
+                        <div class="activity-time">7 days ago</div>
+                    </div>
+
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--funded">Claims Pool Funded</span>
+                            <span class="activity-amount">+2.8900 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Revenue from featured queue placements
+                        </div>
+                        <div class="activity-time">8 days ago</div>
+                    </div>
+
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--claimed">Claim Withdrawn</span>
+                            <span class="activity-amount">-0.8921 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Member 0x5c12...9d4a claimed proportional share
+                        </div>
+                        <div class="activity-time">10 days ago</div>
+                    </div>
+
+                    <div class="activity-item">
+                        <div class="activity-header">
+                            <span class="activity-type activity-type--funded">Ragequit Pool Funded</span>
+                            <span class="activity-amount">+1.5000 ETH</span>
+                        </div>
+                        <div class="activity-detail">
+                            Protocol treasury allocation via governance proposal #035
+                        </div>
+                        <div class="activity-time">12 days ago</div>
+                    </div>
+                </div>
+            </section>
+
+            <div style="height: 80px;"></div>
+        </div>
+    </div>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climate Action Editions — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Admin Notice */
+        .admin-notice {
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            padding: var(--space-3) var(--space-10);
+            border-bottom: 1px solid var(--border-primary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .admin-notice-text {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .admin-toggle {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background: none;
+            border: 1px solid var(--bg-primary);
+            color: var(--bg-primary);
+            padding: var(--space-1) var(--space-2);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .admin-toggle:hover {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        /* Content */
+        .content {
+            max-width: var(--container-xl);
+            margin: 0 auto;
+            padding: 0 var(--space-10);
+        }
+
+        /* Project Header */
+        .project-header {
+            padding: var(--space-8) 0 var(--space-6) 0;
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .project-type-badge {
+            display: inline-block;
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            border: 1px solid var(--text-primary);
+            margin-bottom: var(--space-3);
+        }
+
+        .project-title {
+            font-size: var(--font-size-display);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-3);
+            line-height: var(--line-height-tight);
+        }
+
+        .project-description {
+            font-size: var(--font-size-body-lg);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            max-width: 800px;
+            margin-bottom: var(--space-4);
+        }
+
+        .project-meta {
+            display: flex;
+            gap: var(--space-4);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            flex-wrap: wrap;
+        }
+
+        .project-meta-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-1);
+        }
+
+        .project-meta-label {
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-4);
+            padding: var(--space-4);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: var(--space-1);
+        }
+
+        .stat-label {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        /* Admin Controls Panel */
+        .admin-panel {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .admin-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-3);
+            padding-bottom: var(--space-3);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .admin-panel-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .admin-panel-actions {
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: var(--space-2);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .tab {
+            padding: var(--space-2) var(--space-3);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-medium);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--text-primary);
+            border-bottom-color: var(--border-primary);
+        }
+
+        /* Vault Alignment */
+        .vault-alignment {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .vault-alignment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-3);
+        }
+
+        .vault-alignment-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .vault-alignment-badge {
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .vault-alignment-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+            margin-bottom: var(--space-3);
+        }
+
+        .vault-alignment-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-3);
+            padding-top: var(--space-3);
+            border-top: 1px solid var(--border-tertiary);
+        }
+
+        .vault-stat {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
+        }
+
+        .vault-stat-label {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .vault-stat-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        /* Gallery Grid */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-3);
+            margin-bottom: var(--space-8);
+        }
+
+        /* Edition Card */
+        .edition-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            transition: var(--transition-base);
+            position: relative;
+        }
+
+        .edition-card:hover {
+            background-color: var(--state-hover-bg);
+        }
+
+        .edition-image {
+            width: 100%;
+            aspect-ratio: 1;
+            background-color: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-h1);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-tertiary);
+        }
+
+        .edition-info {
+            padding: var(--space-3);
+        }
+
+        .edition-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-2);
+            gap: var(--space-2);
+        }
+
+        .edition-name {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .edition-id {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            padding: var(--space-1) var(--space-2);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-tertiary);
+        }
+
+        .edition-stats {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--space-2) 0;
+            margin-bottom: var(--space-2);
+            border-top: 1px solid var(--border-tertiary);
+            border-bottom: 1px solid var(--border-tertiary);
+            font-size: var(--font-size-caption);
+        }
+
+        .edition-stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
+        }
+
+        .edition-stat-label {
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .edition-stat-value {
+            font-family: var(--font-mono);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+        }
+
+        .edition-mint {
+            display: flex;
+            gap: var(--space-2);
+            align-items: center;
+        }
+
+        .edition-quantity {
+            width: 60px;
+            height: var(--input-height);
+            padding: var(--space-2);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body);
+            text-align: center;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-secondary);
+            color: var(--text-primary);
+        }
+
+        .edition-quantity:focus {
+            outline: none;
+            border-color: var(--text-primary);
+        }
+
+        /* Admin Edition Controls */
+        .edition-admin-controls {
+            padding: var(--space-3);
+            padding-top: 0;
+            display: flex;
+            gap: var(--space-2);
+            flex-wrap: wrap;
+        }
+
+        /* About Section */
+        .about-section {
+            max-width: 800px;
+        }
+
+        .about-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+        }
+
+        .about-text {
+            font-size: var(--font-size-body);
+            color: var(--text-primary);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--space-4);
+        }
+
+        .about-details {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+        }
+
+        .about-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--space-2) 0;
+            border-bottom: 1px solid var(--border-tertiary);
+        }
+
+        .about-detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .about-detail-label {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .about-detail-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .content, .admin-notice {
+                padding-left: var(--space-6);
+                padding-right: var(--space-6);
+            }
+
+            .gallery-grid {
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content, .admin-notice {
+                padding-left: var(--space-4);
+                padding-right: var(--space-4);
+            }
+
+            .project-title {
+                font-size: var(--font-size-h1);
+            }
+
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .gallery-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .admin-panel-actions {
+                width: 100%;
+            }
+
+            .admin-panel-actions button {
+                flex: 1;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .project-meta {
+                flex-direction: column;
+                gap: var(--space-2);
+            }
+
+            .admin-notice {
+                flex-direction: column;
+                gap: var(--space-2);
+                align-items: flex-start;
+            }
+
+            .modal {
+                width: calc(100% - var(--space-4));
+                max-width: none;
+                max-height: 90vh;
+                margin: var(--space-2);
+            }
+        }
+
+        /* Hidden state for admin controls */
+        .admin-hidden .admin-panel,
+        .admin-hidden .edition-admin-controls {
+            display: none;
+        }
+
+        /* Alert */
+        .alert-warning {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-3);
+        }
+
+        .alert-title {
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-1);
+            font-size: var(--font-size-body-sm);
+        }
+
+        .alert-text {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+        }
+    </style>
+</head>
+<body id="main-body">
+    <!-- Admin Notice Bar -->
+    <div class="admin-notice">
+        <div class="admin-notice-text">⚙ You are viewing this as the project creator — Admin controls enabled</div>
+        <button class="admin-toggle">Hide Admin Controls</button>
+    </div>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <a href="homepage-v2-demo.html" class="logo site-title">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+        <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+            <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+        </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <!-- Project Header -->
+        <header class="project-header">
+            <div class="project-type-badge">ERC1155 Gallery</div>
+
+            <h1 class="project-title">Climate Action Editions</h1>
+
+            <p class="project-description">
+                Limited edition artwork supporting climate initiatives. Each edition funds carbon credit purchases and environmental projects. 100% of mint proceeds go to the Climate Initiatives vault.
+            </p>
+
+            <div class="project-meta">
+                <div class="project-meta-item">
+                    <span class="project-meta-label">Created by:</span>
+                    <span class="text-mono">0x2e9b...4f1c (You)</span>
+                </div>
+                <div class="project-meta-item">
+                    <span class="project-meta-label">Contract:</span>
+                    <span class="text-mono">0x7a3d...8e2f</span>
+                </div>
+                <div class="project-meta-item">
+                    <span class="project-meta-label">Deployed:</span>
+                    <span>Dec 15, 2025</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Admin Controls Panel -->
+        <div class="admin-panel">
+            <div class="admin-panel-header">
+                <div class="admin-panel-title">Project Settings</div>
+                <div class="admin-panel-actions">
+                    <button class="btn btn-secondary btn-sm">Pause All Minting</button>
+                    <button class="btn btn-secondary btn-sm">Update Metadata URI</button>
+                    <button class="btn btn-primary btn-sm">Create New Edition</button>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3);">
+                <div>
+                    <div class="stat-label">Minting Status</div>
+                    <div style="font-family: var(--font-mono); font-weight: var(--font-weight-bold); margin-top: var(--space-1);">Active</div>
+                </div>
+                <div>
+                    <div class="stat-label">Total Revenue</div>
+                    <div style="font-family: var(--font-mono); font-weight: var(--font-weight-bold); margin-top: var(--space-1);">42.3 ETH</div>
+                </div>
+                <div>
+                    <div class="stat-label">Creator Earnings</div>
+                    <div style="font-family: var(--font-mono); font-weight: var(--font-weight-bold); margin-top: var(--space-1);">0 ETH (0%)</div>
+                </div>
+                <div>
+                    <div class="stat-label">Vault Contributed</div>
+                    <div style="font-family: var(--font-mono); font-weight: var(--font-weight-bold); margin-top: var(--space-1);">42.3 ETH (100%)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value">12</div>
+                <div class="stat-label">Editions</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">847</div>
+                <div class="stat-label">Total Minted</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">42.3 ETH</div>
+                <div class="stat-label">Total Volume</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">387</div>
+                <div class="stat-label">Collectors</div>
+            </div>
+        </div>
+
+        <!-- Vault Alignment -->
+        <div class="vault-alignment">
+            <div class="vault-alignment-header">
+                <div class="vault-alignment-title">Vault Alignment</div>
+                <div class="vault-alignment-badge">Climate Initiatives</div>
+            </div>
+            <div class="vault-alignment-description">
+                This project contributes 100% of mint proceeds to the Climate Initiatives vault. Funds support carbon credit purchases, renewable energy projects, and climate research.
+            </div>
+            <div class="vault-alignment-stats">
+                <div class="vault-stat">
+                    <div class="vault-stat-label">Total Contributed</div>
+                    <div class="vault-stat-value">42.3 ETH</div>
+                </div>
+                <div class="vault-stat">
+                    <div class="vault-stat-label">Vault TVL</div>
+                    <div class="vault-stat-value">67.8 ETH</div>
+                </div>
+                <div class="vault-stat">
+                    <div class="vault-stat-label">Current APY</div>
+                    <div class="vault-stat-value">9.8%</div>
+                </div>
+                <div class="vault-stat">
+                    <div class="vault-stat-label">Projects Aligned</div>
+                    <div class="vault-stat-value">8</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('gallery')">Gallery</button>
+            <button class="tab" onclick="showTab('about')">About</button>
+            <button class="tab" onclick="showTab('activity')">Activity</button>
+        </div>
+
+        <!-- Gallery Tab -->
+        <div id="gallery-tab">
+            <div class="gallery-grid">
+                <!-- Edition 1 -->
+                <div class="edition-card">
+                    <div class="edition-image">IMG</div>
+                    <div class="edition-info">
+                        <div class="edition-header">
+                            <div class="edition-name">Ocean Currents</div>
+                            <div class="edition-id">#1</div>
+                        </div>
+                        <div class="edition-stats">
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Price</div>
+                                <div class="edition-stat-value">0.15 ETH</div>
+                            </div>
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Minted</div>
+                                <div class="edition-stat-value">45/100</div>
+                            </div>
+                        </div>
+                        <div class="edition-mint">
+                            <input type="number" class="edition-quantity" value="1" min="1" max="10">
+                            <button class="btn btn-primary" style="flex: 1;">Mint</button>
+                        </div>
+                    </div>
+                    <!-- Admin Controls for Edition -->
+                    <div class="edition-admin-controls">
+                        <button class="btn btn-secondary btn-sm">Edit Price</button>
+                        <button class="btn btn-secondary btn-sm">Edit Supply</button>
+                        <button class="btn btn-secondary btn-sm">Pause</button>
+                    </div>
+                </div>
+
+                <!-- Edition 2 -->
+                <div class="edition-card">
+                    <div class="edition-image">IMG</div>
+                    <div class="edition-info">
+                        <div class="edition-header">
+                            <div class="edition-name">Forest Carbon</div>
+                            <div class="edition-id">#2</div>
+                        </div>
+                        <div class="edition-stats">
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Price</div>
+                                <div class="edition-stat-value">0.15 ETH</div>
+                            </div>
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Minted</div>
+                                <div class="edition-stat-value">82/100</div>
+                            </div>
+                        </div>
+                        <div class="edition-mint">
+                            <input type="number" class="edition-quantity" value="1" min="1" max="10">
+                            <button class="btn btn-primary" style="flex: 1;">Mint</button>
+                        </div>
+                    </div>
+                    <div class="edition-admin-controls">
+                        <button class="btn btn-secondary btn-sm">Edit Price</button>
+                        <button class="btn btn-secondary btn-sm">Edit Supply</button>
+                        <button class="btn btn-secondary btn-sm">Pause</button>
+                    </div>
+                </div>
+
+                <!-- Edition 3 (Sold Out) -->
+                <div class="edition-card">
+                    <div class="edition-image">IMG</div>
+                    <div class="edition-info">
+                        <div class="edition-header">
+                            <div class="edition-name">Solar Arrays</div>
+                            <div class="edition-id">#3</div>
+                        </div>
+                        <div class="edition-stats">
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Price</div>
+                                <div class="edition-stat-value">0.15 ETH</div>
+                            </div>
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Minted</div>
+                                <div class="edition-stat-value">100/100</div>
+                            </div>
+                        </div>
+                        <div class="edition-mint">
+                            <button class="btn btn-secondary" style="width: 100%;" disabled>Sold Out</button>
+                        </div>
+                    </div>
+                    <div class="edition-admin-controls">
+                        <button class="btn btn-secondary btn-sm">Edit Price</button>
+                        <button class="btn btn-primary btn-sm">Increase Supply</button>
+                    </div>
+                </div>
+
+                <!-- Edition 4 -->
+                <div class="edition-card">
+                    <div class="edition-image">IMG</div>
+                    <div class="edition-info">
+                        <div class="edition-header">
+                            <div class="edition-name">Wind Patterns</div>
+                            <div class="edition-id">#4</div>
+                        </div>
+                        <div class="edition-stats">
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Price</div>
+                                <div class="edition-stat-value">0.15 ETH</div>
+                            </div>
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Minted</div>
+                                <div class="edition-stat-value">67/100</div>
+                            </div>
+                        </div>
+                        <div class="edition-mint">
+                            <input type="number" class="edition-quantity" value="1" min="1" max="10">
+                            <button class="btn btn-primary" style="flex: 1;">Mint</button>
+                        </div>
+                    </div>
+                    <div class="edition-admin-controls">
+                        <button class="btn btn-secondary btn-sm">Edit Price</button>
+                        <button class="btn btn-secondary btn-sm">Edit Supply</button>
+                        <button class="btn btn-secondary btn-sm">Pause</button>
+                    </div>
+                </div>
+
+                <!-- Edition 5 -->
+                <div class="edition-card">
+                    <div class="edition-image">IMG</div>
+                    <div class="edition-info">
+                        <div class="edition-header">
+                            <div class="edition-name">Reef Systems</div>
+                            <div class="edition-id">#5</div>
+                        </div>
+                        <div class="edition-stats">
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Price</div>
+                                <div class="edition-stat-value">0.15 ETH</div>
+                            </div>
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Minted</div>
+                                <div class="edition-stat-value">34/100</div>
+                            </div>
+                        </div>
+                        <div class="edition-mint">
+                            <input type="number" class="edition-quantity" value="1" min="1" max="10">
+                            <button class="btn btn-primary" style="flex: 1;">Mint</button>
+                        </div>
+                    </div>
+                    <div class="edition-admin-controls">
+                        <button class="btn btn-secondary btn-sm">Edit Price</button>
+                        <button class="btn btn-secondary btn-sm">Edit Supply</button>
+                        <button class="btn btn-secondary btn-sm">Pause</button>
+                    </div>
+                </div>
+
+                <!-- Edition 6 -->
+                <div class="edition-card">
+                    <div class="edition-image">IMG</div>
+                    <div class="edition-info">
+                        <div class="edition-header">
+                            <div class="edition-name">Ice Sheets</div>
+                            <div class="edition-id">#6</div>
+                        </div>
+                        <div class="edition-stats">
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Price</div>
+                                <div class="edition-stat-value">0.15 ETH</div>
+                            </div>
+                            <div class="edition-stat-item">
+                                <div class="edition-stat-label">Minted</div>
+                                <div class="edition-stat-value">91/100</div>
+                            </div>
+                        </div>
+                        <div class="edition-mint">
+                            <input type="number" class="edition-quantity" value="1" min="1" max="10">
+                            <button class="btn btn-primary" style="flex: 1;">Mint</button>
+                        </div>
+                    </div>
+                    <div class="edition-admin-controls">
+                        <button class="btn btn-secondary btn-sm">Edit Price</button>
+                        <button class="btn btn-secondary btn-sm">Edit Supply</button>
+                        <button class="btn btn-secondary btn-sm">Pause</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Tab -->
+        <div id="about-tab" style="display: none;">
+            <div class="about-section">
+                <h2 class="about-title">About This Project</h2>
+
+                <p class="about-text">
+                    Climate Action Editions is a limited series of environmental artwork where every mint directly supports climate initiatives. Each edition represents a different aspect of Earth's climate system — oceans, forests, solar energy, wind patterns, coral reefs, and polar ice.
+                </p>
+
+                <p class="about-text">
+                    100% of mint proceeds flow to the Climate Initiatives vault, which builds liquidity positions and distributes yield to fund carbon credit purchases, renewable energy infrastructure, and climate research. This is direct action through art.
+                </p>
+
+                <h3 class="about-title" style="font-size: var(--font-size-h4); margin-top: var(--space-6);">Project Details</h3>
+
+                <div class="about-details">
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Contract Type</div>
+                        <div class="about-detail-value">ERC1155 Gallery</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Total Editions</div>
+                        <div class="about-detail-value">12</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Supply Per Edition</div>
+                        <div class="about-detail-value">100 (editable)</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Mint Price</div>
+                        <div class="about-detail-value">0.15 ETH (editable)</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Creator Fee</div>
+                        <div class="about-detail-value">0%</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Vault Contribution</div>
+                        <div class="about-detail-value">100%</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Contract Address</div>
+                        <div class="about-detail-value">0x7a3d...8e2f</div>
+                    </div>
+                    <div class="about-detail-row">
+                        <div class="about-detail-label">Deployed</div>
+                        <div class="about-detail-value">Dec 15, 2025</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Tab -->
+        <div id="activity-tab" style="display: none;">
+            <div style="background-color: var(--bg-secondary); border: 1px solid var(--border-secondary); padding: var(--space-8); text-align: center;">
+                <div style="font-size: var(--font-size-h3); font-weight: var(--font-weight-bold); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); margin-bottom: var(--space-2);">
+                    Project Activity
+                </div>
+                <div style="font-size: var(--font-size-body); color: var(--text-secondary);">
+                    Mint, buy, and sell events for this project would appear here. Integration with activity feed system.
+                </div>
+            </div>
+        </div>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-backdrop" class="modal-backdrop" style="display: none;">
+        <div class="modal" id="modal-content">
+            <!-- Modal content will be injected here -->
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            document.getElementById('gallery-tab').style.display = 'none';
+            document.getElementById('about-tab').style.display = 'none';
+            document.getElementById('activity-tab').style.display = 'none';
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').style.display = 'block';
+
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Toggle admin controls visibility
+        document.querySelector('.admin-toggle').addEventListener('click', function() {
+            const body = document.getElementById('main-body');
+            const isHidden = body.classList.toggle('admin-hidden');
+            this.textContent = isHidden ? 'Show Admin Controls' : 'Hide Admin Controls';
+        });
+
+        // Modal functions
+        function showModal(content) {
+            document.getElementById('modal-content').innerHTML = content;
+            document.getElementById('modal-backdrop').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('modal-backdrop').style.display = 'none';
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('modal-backdrop').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // Pause all minting
+        function pauseAllMinting() {
+            const mintingStatus = document.querySelector('.admin-panel .stat-label + div');
+            if (mintingStatus.textContent === 'Active') {
+                if (confirm('Are you sure you want to pause all minting? Users will not be able to mint any editions.')) {
+                    mintingStatus.textContent = 'Paused';
+                    event.target.textContent = 'Resume All Minting';
+                    event.target.classList.remove('btn-secondary');
+                    event.target.classList.add('btn-primary');
+
+                    // Also update all edition controls
+                    document.querySelectorAll('.edition-admin-controls button:last-child').forEach(btn => {
+                        if (btn.textContent === 'Pause') {
+                            btn.textContent = 'Resume';
+                            btn.classList.remove('btn-secondary');
+                            btn.classList.add('btn-primary');
+                        }
+                    });
+                }
+            } else {
+                mintingStatus.textContent = 'Active';
+                event.target.textContent = 'Pause All Minting';
+                event.target.classList.remove('btn-primary');
+                event.target.classList.add('btn-secondary');
+
+                // Also update all edition controls
+                document.querySelectorAll('.edition-admin-controls button:last-child').forEach(btn => {
+                    if (btn.textContent === 'Resume') {
+                        btn.textContent = 'Pause';
+                        btn.classList.remove('btn-primary');
+                        btn.classList.add('btn-secondary');
+                    }
+                });
+            }
+        }
+
+        // Update metadata URI
+        function updateMetadataURI() {
+            showModal(`
+                <div class="modal-header">
+                    <div class="modal-title">Update Metadata URI</div>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Base URI</label>
+                        <input type="text" class="form-input" placeholder="ipfs://..." value="ipfs://QmX...">
+                        <div class="form-help">This will update the metadata endpoint for all tokens in this collection.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmMetadataUpdate()">Update URI</button>
+                </div>
+            `);
+        }
+
+        function confirmMetadataUpdate() {
+            alert('Metadata URI updated successfully!');
+            closeModal();
+        }
+
+        // Create new edition
+        function createNewEdition() {
+            showModal(`
+                <div class="modal-header">
+                    <div class="modal-title">Create New Edition</div>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert-warning" style="margin-bottom: var(--space-4);">
+                        <div class="alert-title">⚠ New Edition</div>
+                        <div class="alert-text">New edition will be assigned token ID #13. This cannot be changed.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Edition Name</label>
+                        <input type="text" class="form-input" placeholder="e.g., Ocean Currents">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Max Supply</label>
+                        <input type="number" class="form-input" placeholder="e.g., 100" value="100">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Mint Price (ETH)</label>
+                        <input type="text" class="form-input" placeholder="e.g., 0.15" value="0.15">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Metadata URI</label>
+                        <input type="text" class="form-input" placeholder="ipfs://...">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmCreateEdition()">Create Edition</button>
+                </div>
+            `);
+        }
+
+        function confirmCreateEdition() {
+            alert('New edition created successfully! Token ID #13');
+            closeModal();
+        }
+
+        // Edit price for specific edition
+        function editPrice(editionName, editionId, currentPrice) {
+            showModal(`
+                <div class="modal-header">
+                    <div class="modal-title">Edit Price — ${editionName}</div>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Mint Price (ETH)</label>
+                        <input type="text" class="form-input" id="new-price" value="${currentPrice}">
+                        <div class="form-help">New price will take effect immediately for all future mints.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmPriceUpdate('${editionId}')">Update Price</button>
+                </div>
+            `);
+        }
+
+        function confirmPriceUpdate(editionId) {
+            const newPrice = document.getElementById('new-price').value;
+            alert(`Price updated to ${newPrice} ETH for edition ${editionId}`);
+            closeModal();
+        }
+
+        // Edit supply for specific edition
+        function editSupply(editionName, editionId, currentSupply) {
+            showModal(`
+                <div class="modal-header">
+                    <div class="modal-title">Edit Supply — ${editionName}</div>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert-warning" style="margin-bottom: var(--space-4);">
+                        <div class="alert-title">⚠ Supply Adjustment</div>
+                        <div class="alert-text">You can only increase supply, not decrease it. Current supply cannot be reduced below already minted amount.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label form-label-required">Max Supply</label>
+                        <input type="number" class="form-input" id="new-supply" value="${currentSupply}" min="${currentSupply}">
+                        <div class="form-help">Current max supply: ${currentSupply}</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmSupplyUpdate('${editionId}')">Update Supply</button>
+                </div>
+            `);
+        }
+
+        function confirmSupplyUpdate(editionId) {
+            const newSupply = document.getElementById('new-supply').value;
+            alert(`Supply updated to ${newSupply} for edition ${editionId}`);
+            closeModal();
+        }
+
+        // Pause/Resume individual edition
+        function toggleEditionPause(editionName, editionId, button) {
+            const isPaused = button.textContent === 'Resume';
+
+            if (isPaused) {
+                button.textContent = 'Pause';
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-secondary');
+                alert(`Minting resumed for ${editionName}`);
+            } else {
+                if (confirm(`Pause minting for ${editionName}?`)) {
+                    button.textContent = 'Resume';
+                    button.classList.remove('btn-secondary');
+                    button.classList.add('btn-primary');
+                    alert(`Minting paused for ${editionName}`);
+                }
+            }
+        }
+
+        // Wire up buttons
+        document.addEventListener('DOMContentLoaded', function() {
+            // Global controls
+            document.querySelectorAll('.admin-panel-actions button')[0].onclick = pauseAllMinting;
+            document.querySelectorAll('.admin-panel-actions button')[1].onclick = updateMetadataURI;
+            document.querySelectorAll('.admin-panel-actions button')[2].onclick = createNewEdition;
+
+            // Edition-specific controls
+            const editions = [
+                { name: 'Ocean Currents', id: '#1', price: '0.15', supply: 100 },
+                { name: 'Forest Carbon', id: '#2', price: '0.15', supply: 100 },
+                { name: 'Solar Arrays', id: '#3', price: '0.15', supply: 100 },
+                { name: 'Wind Patterns', id: '#4', price: '0.15', supply: 100 },
+                { name: 'Reef Systems', id: '#5', price: '0.15', supply: 100 },
+                { name: 'Ice Sheets', id: '#6', price: '0.15', supply: 100 }
+            ];
+
+            document.querySelectorAll('.edition-admin-controls').forEach((controls, index) => {
+                const edition = editions[index];
+                const buttons = controls.querySelectorAll('button');
+
+                // Edit Price button
+                buttons[0].onclick = () => editPrice(edition.name, edition.id, edition.price);
+
+                // Edit Supply button (or Increase Supply)
+                buttons[1].onclick = () => editSupply(edition.name, edition.id, edition.supply);
+
+                // Pause/Resume button (if exists)
+                if (buttons[2]) {
+                    buttons[2].onclick = function() {
+                        toggleEditionPause(edition.name, edition.id, this);
+                    };
+                }
+            });
+        });
+    </script>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Project - MS2.FUN</title>
+  <link rel="stylesheet" href="../../src/core/global-v2.css">
+  <link rel="stylesheet" href="../../src/core/components-v2.css">
+  <style>
+    /* Create Flow Specific Styles */
+    .create-page {
+      min-height: 100vh;
+      background-color: var(--bg-primary);
+      padding: var(--space-8) var(--space-4);
+    }
+
+    .create-container {
+      max-width: var(--container-lg);
+      margin: 0 auto;
+    }
+
+    /* Top Bar */
+    .create-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--space-8);
+      padding-bottom: var(--space-4);
+      border-bottom: 2px solid var(--border-primary);
+    }
+
+    .create-title {
+      font-size: var(--font-size-h1);
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-tight);
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+      display: flex;
+      gap: var(--space-2);
+      align-items: center;
+      margin-bottom: var(--space-6);
+      font-size: var(--font-size-body-sm);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+    }
+
+    .breadcrumb-item {
+      color: var(--text-tertiary);
+    }
+
+    .breadcrumb-item.active {
+      color: var(--text-primary);
+      font-weight: var(--font-weight-bold);
+    }
+
+    .breadcrumb-separator {
+      color: var(--border-secondary);
+    }
+
+    /* Step Content */
+    .step-content {
+      display: none;
+    }
+
+    .step-content.active {
+      display: block;
+    }
+
+    /* Type Cards */
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+
+    .type-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+      padding: var(--space-6);
+      cursor: pointer;
+      transition: var(--transition-base);
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .type-card:hover {
+      background-color: var(--state-hover-bg);
+    }
+
+    .type-card-title {
+      font-size: var(--font-size-h3);
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      margin-bottom: var(--space-2);
+    }
+
+    .type-card-description {
+      color: var(--text-secondary);
+      flex: 1;
+      margin-bottom: var(--space-3);
+    }
+
+    .type-card-action {
+      font-size: var(--font-size-body-sm);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      color: var(--text-primary);
+    }
+
+    /* Form Sections */
+    .form-section {
+      margin-bottom: var(--space-8);
+      padding: var(--space-6);
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+    }
+
+    .form-section-title {
+      font-size: var(--font-size-h3);
+      font-weight: var(--font-weight-bold);
+      text-transform: uppercase;
+      letter-spacing: var(--letter-spacing-wide);
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-3);
+      border-bottom: 1px solid var(--border-secondary);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-4);
+    }
+
+    /* Preview */
+    .preview-section {
+      padding: var(--space-6);
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+      margin-bottom: var(--space-6);
+    }
+
+    .preview-title {
+      font-size: var(--font-size-h3);
+      font-weight: var(--font-weight-bold);
+      margin-bottom: var(--space-4);
+    }
+
+    .preview-data {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .preview-row {
+      display: flex;
+      justify-content: space-between;
+      padding: var(--space-2) 0;
+      border-bottom: 1px solid var(--border-tertiary);
+    }
+
+    .preview-label {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      font-size: var(--font-size-body-sm);
+      letter-spacing: var(--letter-spacing-wide);
+    }
+
+    .preview-value {
+      font-family: var(--font-mono);
+      font-weight: var(--font-weight-medium);
+    }
+
+    /* Vault Selection */
+    .vault-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+    }
+
+    .vault-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-secondary);
+      padding: var(--space-4);
+      cursor: pointer;
+      transition: var(--transition-base);
+    }
+
+    .vault-card:hover {
+      background-color: var(--state-hover-bg);
+    }
+
+    .vault-card.selected {
+      border-color: var(--border-primary);
+      border-width: 2px;
+    }
+
+    .vault-name {
+      font-size: var(--font-size-h4);
+      font-weight: var(--font-weight-bold);
+      margin-bottom: var(--space-1);
+    }
+
+    .vault-tvl {
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+    }
+
+    /* Navigation Buttons */
+    .step-nav {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-2);
+      margin-top: var(--space-8);
+    }
+
+    /* Success State */
+    .success-state {
+      text-align: center;
+      padding: var(--space-12) var(--space-6);
+    }
+
+    .success-icon {
+      font-size: 4rem;
+      margin-bottom: var(--space-4);
+    }
+
+    .success-title {
+      font-size: var(--font-size-h1);
+      font-weight: var(--font-weight-bold);
+      margin-bottom: var(--space-3);
+    }
+
+    .success-address {
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-6);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="create-page">
+    <div class="create-container">
+
+      <!-- Header -->
+      <div class="create-header">
+        <h1 class="create-title">Create Project</h1>
+        <a href="/" class="btn btn-ghost">← Home</a>
+      </div>
+
+      <!-- Breadcrumb -->
+      <div class="breadcrumb">
+        <span class="breadcrumb-item" id="breadcrumb-1">1. Standard</span>
+        <span class="breadcrumb-separator">→</span>
+        <span class="breadcrumb-item" id="breadcrumb-2">2. Type</span>
+        <span class="breadcrumb-separator">→</span>
+        <span class="breadcrumb-item" id="breadcrumb-3">3. Configure</span>
+        <span class="breadcrumb-separator">→</span>
+        <span class="breadcrumb-item" id="breadcrumb-4">4. Preview</span>
+        <span class="breadcrumb-separator">→</span>
+        <span class="breadcrumb-item" id="breadcrumb-5">5. Vault</span>
+        <span class="breadcrumb-separator">→</span>
+        <span class="breadcrumb-item" id="breadcrumb-6">6. Deploy</span>
+      </div>
+
+      <!-- STEP 1: ERC STANDARD SELECTION -->
+      <div class="step-content active" id="step-1">
+        <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
+          Select Token Standard
+        </h2>
+
+        <div class="type-grid">
+          <div class="type-card" onclick="selectERC('721')">
+            <h3 class="type-card-title">ERC721</h3>
+            <p class="type-card-description">
+              Non-fungible tokens. Each token is unique and indivisible. Standard for NFT collections and individual artworks.
+            </p>
+            <div class="type-card-action">Select →</div>
+          </div>
+
+          <div class="type-card" onclick="selectERC('1155')">
+            <h3 class="type-card-title">ERC1155</h3>
+            <p class="type-card-description">
+              Multi-token standard. Supports both fungible and non-fungible tokens in a single contract. Ideal for open editions and galleries.
+            </p>
+            <div class="type-card-action">Select →</div>
+          </div>
+
+          <div class="type-card" onclick="selectERC('404')">
+            <h3 class="type-card-title">ERC404</h3>
+            <p class="type-card-description">
+              Hybrid token standard. Combines fungible tokens with NFT ownership. Enables bonding curve mechanics and dual-nature assets.
+            </p>
+            <div class="type-card-action">Select →</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 2: VARIANT SELECTION -->
+      <div class="step-content" id="step-2">
+        <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
+          Select Project Type
+        </h2>
+
+        <!-- ERC721 Variants -->
+        <div class="variant-group" id="variants-721" style="display: none;">
+          <div class="type-grid">
+            <div class="type-card" onclick="selectVariant('721-collection')">
+              <h3 class="type-card-title">Collection</h3>
+              <p class="type-card-description">
+                Standard NFT collection with minting functionality. Fixed or unlimited supply. Ideal for generative art, PFPs, and traditional NFT drops.
+              </p>
+              <div class="type-card-action">Select →</div>
+            </div>
+
+            <div class="type-card" onclick="selectVariant('721-auction')">
+              <h3 class="type-card-title">Auction</h3>
+              <p class="type-card-description">
+                English auction mechanism. Single item auctioned to highest bidder. Time-based bidding with automatic settlement.
+              </p>
+              <div class="type-card-action">Select →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ERC1155 Variants -->
+        <div class="variant-group" id="variants-1155" style="display: none;">
+          <div class="type-grid">
+            <div class="type-card" onclick="selectVariant('1155-gallery')">
+              <h3 class="type-card-title">Open Edition Gallery</h3>
+              <p class="type-card-description">
+                Artist gallery with multiple 1/1 artworks. Each piece has unlimited minting availability. Perfect for digital art collections and open editions.
+              </p>
+              <div class="type-card-action">Select →</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ERC404 Variants -->
+        <div class="variant-group" id="variants-404" style="display: none;">
+          <div class="type-grid">
+            <div class="type-card" onclick="selectVariant('404-bonding')">
+              <h3 class="type-card-title">Bonding Curve</h3>
+              <p class="type-card-description">
+                Pump.fun style bonding curve. Price increases with supply. Dual nature token + NFT. Enables trading and price discovery.
+              </p>
+              <div class="type-card-action">Select →</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="previousStep()">← Back</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: CONFIGURATION -->
+      <div class="step-content" id="step-3">
+        <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
+          Configure Project
+        </h2>
+
+        <!-- ERC721 Collection Config -->
+        <div class="config-form" id="config-721-collection" style="display: none;">
+          <div class="form-section">
+            <h3 class="form-section-title">Project Details</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">Project Name</label>
+              <input type="text" class="form-input" placeholder="My NFT Collection" value="Example Collection">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-input form-textarea" placeholder="Describe your project">A collection of unique digital artworks.</textarea>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Collection Parameters</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label form-label-required">Max Supply</label>
+                <input type="number" class="form-input" placeholder="10000" value="10000">
+                <div class="form-help">Maximum number of NFTs (0 = unlimited)</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label form-label-required">Mint Price</label>
+                <input type="text" class="form-input" placeholder="0.01" value="0.01">
+                <div class="form-help">Price per NFT in ETH</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Media</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">IPFS Metadata URI</label>
+              <input type="text" class="form-input" placeholder="ipfs://..." value="ipfs://QmExample123...">
+              <div class="form-help">
+                <a href="#" style="text-decoration: underline;">View documentation</a> for metadata format requirements
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ERC721 Auction Config -->
+        <div class="config-form" id="config-721-auction" style="display: none;">
+          <div class="form-section">
+            <h3 class="form-section-title">Project Details</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">Artwork Title</label>
+              <input type="text" class="form-input" placeholder="Artwork Title" value="Digital Masterpiece">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-input form-textarea" placeholder="Describe your artwork">A unique 1/1 digital artwork.</textarea>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Auction Parameters</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label form-label-required">Starting Bid</label>
+                <input type="text" class="form-input" placeholder="0.1" value="0.1">
+                <div class="form-help">Minimum starting bid in ETH</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label form-label-required">Duration</label>
+                <input type="number" class="form-input" placeholder="7" value="7">
+                <div class="form-help">Auction duration in days</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Media</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">IPFS Metadata URI</label>
+              <input type="text" class="form-input" placeholder="ipfs://..." value="ipfs://QmExample456...">
+              <div class="form-help">
+                <a href="#" style="text-decoration: underline;">View documentation</a> for metadata format
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ERC1155 Gallery Config -->
+        <div class="config-form" id="config-1155-gallery" style="display: none;">
+          <div class="form-section">
+            <h3 class="form-section-title">Gallery Details</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">Gallery Name</label>
+              <input type="text" class="form-input" placeholder="Artist Gallery" value="Digital Art Gallery">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-input form-textarea" placeholder="Describe your gallery">An open edition gallery of 1/1 digital artworks.</textarea>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Edition Parameters</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">Mint Price per Piece</label>
+              <input type="text" class="form-input" placeholder="0.005" value="0.005">
+              <div class="form-help">Price per edition in ETH</div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Media</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">IPFS Base URI</label>
+              <input type="text" class="form-input" placeholder="ipfs://..." value="ipfs://QmExample789...">
+              <div class="form-help">
+                <a href="#" style="text-decoration: underline;">View documentation</a> for gallery metadata structure
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ERC404 Bonding Config -->
+        <div class="config-form" id="config-404-bonding" style="display: none;">
+          <div class="form-section">
+            <h3 class="form-section-title">Token Details</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">Token Name</label>
+              <input type="text" class="form-input" placeholder="My Token" value="PUMP">
+            </div>
+            <div class="form-group">
+              <label class="form-label form-label-required">Token Symbol</label>
+              <input type="text" class="form-input" placeholder="TKN" value="PUMP">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-input form-textarea" placeholder="Describe your token">A bonding curve token with NFT representation.</textarea>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Bonding Curve Parameters</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label form-label-required">Initial Price</label>
+                <input type="text" class="form-input" placeholder="0.0001" value="0.0001">
+                <div class="form-help">Starting price in ETH</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label form-label-required">Max Supply</label>
+                <input type="number" class="form-input" placeholder="1000000" value="1000000">
+                <div class="form-help">Total token supply</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h3 class="form-section-title">Media</h3>
+            <div class="form-group">
+              <label class="form-label form-label-required">IPFS Metadata URI</label>
+              <input type="text" class="form-input" placeholder="ipfs://..." value="ipfs://QmExample000...">
+              <div class="form-help">
+                <a href="#" style="text-decoration: underline;">View documentation</a> for bonding curve metadata
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="previousStep()">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+        </div>
+      </div>
+
+      <!-- STEP 4: PREVIEW -->
+      <div class="step-content" id="step-4">
+        <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
+          Preview Project
+        </h2>
+
+        <div class="preview-section">
+          <h3 class="preview-title">Project Configuration</h3>
+          <div class="preview-data">
+            <div class="preview-row">
+              <span class="preview-label">Standard</span>
+              <span class="preview-value" id="preview-standard">ERC721</span>
+            </div>
+            <div class="preview-row">
+              <span class="preview-label">Type</span>
+              <span class="preview-value" id="preview-type">Collection</span>
+            </div>
+            <div class="preview-row">
+              <span class="preview-label">Name</span>
+              <span class="preview-value">Example Collection</span>
+            </div>
+            <div class="preview-row">
+              <span class="preview-label">Supply</span>
+              <span class="preview-value">10,000</span>
+            </div>
+            <div class="preview-row">
+              <span class="preview-label">Price</span>
+              <span class="preview-value">0.01 ETH</span>
+            </div>
+            <div class="preview-row">
+              <span class="preview-label">Metadata</span>
+              <span class="preview-value">ipfs://QmExample123...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info">
+          <div class="alert-title">Review Configuration</div>
+          <div>Please verify all settings before proceeding to vault alignment.</div>
+        </div>
+
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="previousStep()">← Edit</button>
+          <button class="btn btn-primary" onclick="nextStep()">Continue →</button>
+        </div>
+      </div>
+
+      <!-- STEP 5: VAULT ALIGNMENT -->
+      <div class="step-content" id="step-5">
+        <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
+          Align to Vault
+        </h2>
+
+        <div class="alert alert-info" style="margin-bottom: var(--space-6);">
+          <div class="alert-title">Vault Requirement</div>
+          <div>Every project must align to a vault. Select an existing vault or create a new one.</div>
+        </div>
+
+        <div class="vault-grid">
+          <div class="vault-card" onclick="selectVault('alpha')">
+            <h3 class="vault-name">Alpha Vault</h3>
+            <div class="vault-tvl">TVL: $1.2M</div>
+          </div>
+
+          <div class="vault-card" onclick="selectVault('beta')">
+            <h3 class="vault-name">Beta Vault</h3>
+            <div class="vault-tvl">TVL: $800K</div>
+          </div>
+
+          <div class="vault-card" onclick="selectVault('gamma')">
+            <h3 class="vault-name">Gamma Vault</h3>
+            <div class="vault-tvl">TVL: $650K</div>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary btn-full" style="margin-bottom: var(--space-6);">
+          Create New Vault
+        </button>
+
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="previousStep()">← Back</button>
+          <button class="btn btn-primary" onclick="nextStep()" id="vault-continue" disabled>Continue →</button>
+        </div>
+      </div>
+
+      <!-- STEP 6: DEPLOY -->
+      <div class="step-content" id="step-6">
+        <div class="success-state">
+          <div class="success-icon">✓</div>
+          <h2 class="success-title">Project Created</h2>
+          <p class="text-secondary" style="margin-bottom: var(--space-2);">Your project has been deployed successfully.</p>
+          <div class="success-address">0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb</div>
+
+          <button class="btn btn-primary" onclick="window.location.href='homepage-v2-demo.html'">
+            View Project →
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let selectedERC = null;
+    let selectedVariant = null;
+    let selectedVault = null;
+
+    function updateBreadcrumb() {
+      for (let i = 1; i <= 6; i++) {
+        const breadcrumb = document.getElementById(`breadcrumb-${i}`);
+        if (i === currentStep) {
+          breadcrumb.classList.add('active');
+        } else {
+          breadcrumb.classList.remove('active');
+        }
+      }
+    }
+
+    function showStep(step) {
+      // Hide all steps
+      document.querySelectorAll('.step-content').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      // Show current step
+      document.getElementById(`step-${step}`).classList.add('active');
+
+      currentStep = step;
+      updateBreadcrumb();
+    }
+
+    function nextStep() {
+      if (currentStep < 6) {
+        showStep(currentStep + 1);
+      }
+    }
+
+    function previousStep() {
+      if (currentStep > 1) {
+        showStep(currentStep - 1);
+      }
+    }
+
+    function selectERC(erc) {
+      selectedERC = erc;
+
+      // Hide all variant groups
+      document.querySelectorAll('.variant-group').forEach(el => {
+        el.style.display = 'none';
+      });
+
+      // Show selected ERC variants
+      document.getElementById(`variants-${erc}`).style.display = 'block';
+
+      nextStep();
+    }
+
+    function selectVariant(variant) {
+      selectedVariant = variant;
+
+      // Hide all config forms
+      document.querySelectorAll('.config-form').forEach(el => {
+        el.style.display = 'none';
+      });
+
+      // Show selected config form
+      document.getElementById(`config-${variant}`).style.display = 'block';
+
+      // Update preview
+      const [erc, type] = variant.split('-');
+      document.getElementById('preview-standard').textContent = `ERC${erc}`;
+      document.getElementById('preview-type').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+
+      nextStep();
+    }
+
+    function selectVault(vault) {
+      selectedVault = vault;
+
+      // Remove selected class from all vault cards
+      document.querySelectorAll('.vault-card').forEach(el => {
+        el.classList.remove('selected');
+      });
+
+      // Add selected class to clicked vault
+      event.currentTarget.classList.add('selected');
+
+      // Enable continue button
+      document.getElementById('vault-continue').disabled = false;
+    }
+
+    // Initialize
+    updateBreadcrumb();
+  </script>
+
+</body>
+</html>

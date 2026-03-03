@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Content */
+        .content {
+            max-width: var(--container-2xl);
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-10);
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: var(--space-8);
+        }
+
+        .page-title {
+            font-size: var(--font-size-display);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-3);
+            line-height: var(--line-height-tight);
+        }
+
+        .page-description {
+            font-size: var(--font-size-body-lg);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            max-width: 800px;
+        }
+
+        /* Two-column layout */
+        .docs-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: var(--space-10);
+        }
+
+        /* Sidebar Navigation */
+        .docs-sidebar {
+            position: sticky;
+            top: var(--space-6);
+            height: fit-content;
+        }
+
+        .docs-nav-section {
+            margin-bottom: var(--space-6);
+        }
+
+        .docs-nav-title {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+            color: var(--text-primary);
+        }
+
+        .docs-nav-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
+        }
+
+        .docs-nav-link {
+            padding: var(--space-2);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: var(--transition-opacity);
+            display: block;
+        }
+
+        .docs-nav-link:hover {
+            color: var(--text-primary);
+            opacity: 0.7;
+        }
+
+        .docs-nav-link.active {
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
+        }
+
+        /* Main Content */
+        .docs-main {
+            min-width: 0;
+        }
+
+        /* Section */
+        .docs-section {
+            display: none;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .docs-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .section-title {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-4);
+            padding-bottom: var(--space-3);
+            border-bottom: 2px solid var(--border-primary);
+        }
+
+        .section-intro {
+            font-size: var(--font-size-body-lg);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--space-6);
+        }
+
+        /* Article Card */
+        .article-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .article-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            transition: var(--transition-opacity);
+            cursor: pointer;
+        }
+
+        .article-card:hover {
+            opacity: 0.7;
+        }
+
+        .article-title {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .article-description {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+        }
+
+        /* Content blocks */
+        .content-block {
+            margin-bottom: var(--space-6);
+        }
+
+        .content-block-title {
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+        }
+
+        .content-block p {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--space-3);
+        }
+
+        .content-block p:last-child {
+            margin-bottom: 0;
+        }
+
+        .content-block ul,
+        .content-block ol {
+            margin-left: var(--space-5);
+            margin-bottom: var(--space-3);
+        }
+
+        .content-block li {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            margin-bottom: var(--space-2);
+        }
+
+        .content-block li:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Code block */
+        .code-block {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-3);
+            margin-bottom: var(--space-4);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-primary);
+            overflow-x: auto;
+        }
+
+        /* Info box */
+        .info-box {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+        }
+
+        .info-box-title {
+            font-size: var(--font-size-body);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .info-box p {
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            line-height: var(--line-height-normal);
+            margin-bottom: var(--space-2);
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Table */
+        .docs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--space-4);
+        }
+
+        .docs-table th {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-2);
+            text-align: left;
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .docs-table td {
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-2);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .docs-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .docs-sidebar {
+                position: relative;
+                top: 0;
+                margin-bottom: var(--space-6);
+            }
+
+            .article-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: var(--space-4);
+            }
+
+            /* Sidebar becomes non-sticky at tablet */
+            .docs-sidebar {
+                position: relative;
+                top: 0;
+            }
+        }
+
+        @media (max-width: 640px) {
+            /* Hide sidebar at mobile */
+            .docs-sidebar {
+                display: none;
+            }
+
+            /* Full-width main content */
+            .docs-layout {
+                grid-template-columns: 1fr;
+            }
+
+            /* Code blocks: horizontal scroll */
+            .code-block,
+            pre,
+            code {
+                overflow-x: auto;
+                max-width: 100%;
+            }
+
+            /* Tables: horizontal scroll wrapper */
+            .docs-table {
+                display: block;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <a href="homepage-v2-demo.html" class="logo">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+        <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+            <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+        </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1 class="page-title">Documentation</h1>
+            <p class="page-description">
+                Comprehensive guides and references for collectors, creators, developers, and DAO members. Learn how to use MS2.FUN, understand the alignment vault system, integrate with our contracts, and participate in governance.
+            </p>
+        </div>
+
+        <!-- Docs Layout -->
+        <div class="docs-layout">
+            <!-- Sidebar Navigation -->
+            <nav class="docs-sidebar">
+                <div class="docs-nav-section">
+                    <div class="docs-nav-title">Getting Started</div>
+                    <div class="docs-nav-list">
+                        <a href="#overview" class="docs-nav-link active" onclick="showSection('overview')">Overview</a>
+                        <a href="#for-collectors" class="docs-nav-link" onclick="showSection('for-collectors')">For Collectors</a>
+                        <a href="#for-creators" class="docs-nav-link" onclick="showSection('for-creators')">For Creators</a>
+                    </div>
+                </div>
+
+                <div class="docs-nav-section">
+                    <div class="docs-nav-title">Core Concepts</div>
+                    <div class="docs-nav-list">
+                        <a href="#alignment-vaults" class="docs-nav-link" onclick="showSection('alignment-vaults')">Alignment Vaults</a>
+                        <a href="#project-types" class="docs-nav-link" onclick="showSection('project-types')">Project Types</a>
+                        <a href="#revenue-model" class="docs-nav-link" onclick="showSection('revenue-model')">Revenue Model</a>
+                    </div>
+                </div>
+
+                <div class="docs-nav-section">
+                    <div class="docs-nav-title">For Developers</div>
+                    <div class="docs-nav-list">
+                        <a href="#contract-architecture" class="docs-nav-link" onclick="showSection('contract-architecture')">Contract Architecture</a>
+                        <a href="#integration-guide" class="docs-nav-link" onclick="showSection('integration-guide')">Integration Guide</a>
+                        <a href="#api-reference" class="docs-nav-link" onclick="showSection('api-reference')">API Reference</a>
+                    </div>
+                </div>
+
+                <div class="docs-nav-section">
+                    <div class="docs-nav-title">Governance</div>
+                    <div class="docs-nav-list">
+                        <a href="#dao-overview" class="docs-nav-link" onclick="showSection('dao-overview')">DAO Overview</a>
+                        <a href="#becoming-member" class="docs-nav-link" onclick="showSection('becoming-member')">Becoming a Member</a>
+                        <a href="#proposals" class="docs-nav-link" onclick="showSection('proposals')">Proposals</a>
+                        <a href="#treasury" class="docs-nav-link" onclick="showSection('treasury')">Treasury</a>
+                    </div>
+                </div>
+
+                <div class="docs-nav-section">
+                    <div class="docs-nav-title">Advanced</div>
+                    <div class="docs-nav-list">
+                        <a href="#security" class="docs-nav-link" onclick="showSection('security')">Security</a>
+                        <a href="#faq" class="docs-nav-link" onclick="showSection('faq')">FAQ</a>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="docs-main">
+                <!-- Overview Section -->
+                <section class="docs-section active" id="overview">
+                    <h2 class="section-title">Overview</h2>
+                    <p class="section-intro">
+                        MS2.FUN is a curated launchpad for derivative art and tokens aligned to established crypto communities. Artists create projects bound to alignment vaults that automatically buy and provide liquidity for the target community's token.
+                    </p>
+
+                    <div class="article-grid">
+                        <div class="article-card" onclick="showSection('for-collectors')">
+                            <div class="article-title">For Collectors</div>
+                            <p class="article-description">
+                                Mint tokens, collect NFTs, and participate in aligned community projects.
+                            </p>
+                        </div>
+
+                        <div class="article-card" onclick="showSection('for-creators')">
+                            <div class="article-title">For Creators</div>
+                            <p class="article-description">
+                                Launch ERC404, ERC1155, or ERC721 projects with built-in alignment mechanisms.
+                            </p>
+                        </div>
+
+                        <div class="article-card" onclick="showSection('contract-architecture')">
+                            <div class="article-title">For Developers</div>
+                            <p class="article-description">
+                                Integrate with our contracts, query on-chain data, and build on MS2.FUN.
+                            </p>
+                        </div>
+
+                        <div class="article-card" onclick="showSection('dao-overview')">
+                            <div class="article-title">For DAO Members</div>
+                            <p class="article-description">
+                                Participate in governance, vote on proposals, and manage the treasury.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">What is MS2.FUN?</h3>
+                        <p>
+                            MS2.FUN combines a curated art launchpad with a novel alignment mechanism. Every project created on the platform is bound to an alignment vault that uses project revenue to buy and provide liquidity for an established community's token.
+                        </p>
+                        <p>
+                            This creates a symbiotic relationship: artists gain access to established communities and distribution channels, while those communities benefit from increased liquidity and fresh derivative work that expands their cultural footprint.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Key Features</h3>
+                        <ul>
+                            <li><strong>Alignment Vaults:</strong> Automated mechanisms that buy and LP target community tokens</li>
+                            <li><strong>Multiple Token Standards:</strong> Support for ERC404, ERC1155, and ERC721</li>
+                            <li><strong>Bonding Curves:</strong> Fair launch mechanics for ERC404 projects</li>
+                            <li><strong>DAO Governance:</strong> Community-driven curation and parameter management</li>
+                            <li><strong>Revenue Sharing:</strong> Transparent fee distribution to vaults and protocol</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Quick Start</div>
+                        <p>
+                            <strong>Collectors:</strong> Browse the discovery page, connect your wallet, and start minting.
+                        </p>
+                        <p>
+                            <strong>Creators:</strong> Review the project types guide, then submit a creation application.
+                        </p>
+                        <p>
+                            <strong>Developers:</strong> Check the contract architecture and integration guide.
+                        </p>
+                        <p>
+                            <strong>DAO Members:</strong> Read the governance overview and proposal process.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- For Collectors Section -->
+                <section class="docs-section" id="for-collectors">
+                    <h2 class="section-title">For Collectors</h2>
+                    <p class="section-intro">
+                        Learn how to discover projects, mint tokens and NFTs, stake for rewards, and participate in aligned communities.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Discovering Projects</h3>
+                        <p>
+                            The discovery page shows all active projects across different token standards. Use filters to find projects aligned to specific communities or sort by activity, volume, or creation date.
+                        </p>
+                        <p>
+                            Featured projects appear at the top and rotate based on rental auctions managed by the DAO.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Minting Tokens</h3>
+                        <p>
+                            Each project type has a different minting mechanism:
+                        </p>
+                        <ul>
+                            <li><strong>ERC404 (Bonding):</strong> Buy tokens on a bonding curve. When you hold 1 full token unit (e.g., 1M tokens), you automatically receive an NFT. Sell tokens to burn your NFT and recover funds.</li>
+                            <li><strong>ERC1155 (Editions):</strong> Fixed-price mints for semi-fungible editions. Each edition has a limited supply and can be collected independently.</li>
+                            <li><strong>ERC721 (Auctions):</strong> Participate in timed auctions to win unique 1/1 NFTs.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Staking for Vault Rewards</h3>
+                        <p>
+                            If a project has staking enabled, you can stake your tokens to earn a share of vault LP yield. Staking works on a share-based system where earlier stakers receive proportionally more shares per token.
+                        </p>
+                        <p>
+                            Vault fees accumulate from post-graduation Uniswap V4 hook taxes (for ERC404) or artist withdrawal tithes (for ERC1155). The protocol takes a 5% cut, and the remaining 95% is distributed to stakers and benefactors.
+                        </p>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Gas Optimization Tips</div>
+                        <p>
+                            Batch transactions when possible. For ERC1155, minting multiple editions in one transaction saves gas.
+                        </p>
+                        <p>
+                            Monitor gas prices and consider using services like Flashbots Protect for high-demand mints.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- For Creators Section -->
+                <section class="docs-section" id="for-creators">
+                    <h2 class="section-title">For Creators</h2>
+                    <p class="section-intro">
+                        Comprehensive guide to launching projects on MS2.FUN, from concept to deployment.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Choosing a Project Type</h3>
+                        <p>
+                            Select the token standard that best fits your creative vision:
+                        </p>
+                    </div>
+
+                    <div class="article-grid">
+                        <div class="article-card">
+                            <div class="article-title">ERC404 Bonding</div>
+                            <p class="article-description">
+                                Hybrid tokens + NFTs. Fair launch via bonding curve. Automatic NFT minting at threshold. Best for community-driven projects with tradeable NFTs.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">ERC1155 Editions</div>
+                            <p class="article-description">
+                                Multiple editions with limited supplies. Fixed-price mints. 20% tithe on withdrawals. Best for serialized artwork or thematic collections.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">ERC721 Auctions</div>
+                            <p class="article-description">
+                                Unique 1/1 NFTs. Timed auction mechanism. Best for high-value individual pieces with collector competition.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Creating a Project</h3>
+                        <p>
+                            The creation flow guides you through these steps:
+                        </p>
+                        <ol>
+                            <li><strong>Choose Factory:</strong> Select ERC404, ERC1155, or ERC721</li>
+                            <li><strong>Select Vault:</strong> Choose an existing vault aligned to your target community</li>
+                            <li><strong>Configure Parameters:</strong> Set supply, pricing, bonding curve parameters, etc.</li>
+                            <li><strong>Upload Metadata:</strong> Provide artwork and metadata (IPFS recommended)</li>
+                            <li><strong>Deploy Contract:</strong> Execute deployment transaction</li>
+                            <li><strong>Configure Advanced Settings:</strong> Set V4 hook (ERC404), enable staking, manage tiers</li>
+                        </ol>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Revenue and Fees</h3>
+                        <p>
+                            Fee structures vary by project type:
+                        </p>
+                        <ul>
+                            <li><strong>ERC404:</strong> 1% bonding fee to treasury, 2% graduation fee split between protocol and factory creator. Post-graduation V4 hook tax goes to vault.</li>
+                            <li><strong>ERC1155:</strong> 20% tithe on creator withdrawals goes to vault. Creators receive 80% of mint revenue.</li>
+                            <li><strong>ERC721:</strong> Auction settlement fee split between protocol and vault.</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Creator Best Practices</div>
+                        <p>
+                            Choose a vault that genuinely aligns with your work. Authentic alignment drives better community engagement.
+                        </p>
+                        <p>
+                            For ERC404, set bonding maturity time strategically. Too short and you miss price discovery; too long and you lose momentum.
+                        </p>
+                        <p>
+                            Engage with your collectors. Active creators see higher secondary volume and stronger community retention.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Alignment Vaults Section -->
+                <section class="docs-section" id="alignment-vaults">
+                    <h2 class="section-title">Alignment Vaults</h2>
+                    <p class="section-intro">
+                        Vaults are the core alignment mechanism. They automatically use project revenue to buy and provide liquidity for target community tokens.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">How Vaults Work</h3>
+                        <p>
+                            When a project generates revenue (from bonding fees, edition sales, or auction settlements), a portion flows to its designated vault. The vault uses these funds to:
+                        </p>
+                        <ol>
+                            <li>Buy the target community's token on the open market</li>
+                            <li>Add the tokens to a Uniswap V4 liquidity position</li>
+                            <li>Generate LP fees from trading activity</li>
+                            <li>Distribute LP yield back to project benefactors and stakers</li>
+                        </ol>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Vault Lifecycle</h3>
+                        <p>
+                            Vaults are created through DAO governance. The process:
+                        </p>
+                        <ol>
+                            <li><strong>Target Approval:</strong> DAO approves a new alignment target (e.g., "Milady" or "Pudgy Penguins")</li>
+                            <li><strong>Vault Factory Selection:</strong> DAO chooses a vault strategy (currently UltraAlignmentVault)</li>
+                            <li><strong>Vault Deployment:</strong> Vault is deployed and bound to the approved target</li>
+                            <li><strong>Project Binding:</strong> Creators select this vault when launching projects</li>
+                        </ol>
+                        <p>
+                            Each target can only have one active vault to prevent fragmentation.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Benefactor System</h3>
+                        <p>
+                            Projects that contribute fees to a vault are called "benefactors." Each benefactor earns a proportional share of the vault's LP yield based on their total fee contributions.
+                        </p>
+                        <p>
+                            The protocol takes a 5% cut of all vault yield, with a sub-cut going to factory creators. The remaining 95% is distributed to benefactors and stakers.
+                        </p>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Vault TVL and APY</div>
+                        <p>
+                            Browse active vaults on the vault explorer page to see total value locked (TVL), estimated APY, number of aligned projects, and total benefactors.
+                        </p>
+                        <p>
+                            Higher TVL generally means more stable liquidity but potentially lower percentage yields. Newer vaults may offer higher APY with more volatility.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Project Types Section -->
+                <section class="docs-section" id="project-types">
+                    <h2 class="section-title">Project Types</h2>
+                    <p class="section-intro">
+                        Deep dive into each token standard and project type supported on MS2.FUN.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">ERC404 (Bonding Curve Projects)</h3>
+                        <p>
+                            ERC404 uses the DN404 standard to create hybrid tokens that automatically mint NFTs when you hold a full unit (typically 1M tokens = 1 NFT).
+                        </p>
+                        <p>
+                            Projects launch on a bonding curve with several phases:
+                        </p>
+                        <ul>
+                            <li><strong>Pre-open:</strong> Configuration period before minting begins</li>
+                            <li><strong>Bonding:</strong> Active bonding curve, price increases with supply</li>
+                            <li><strong>Full:</strong> Max bonding supply reached, awaiting maturity</li>
+                            <li><strong>Matured:</strong> Bonding period complete, ready for liquidity deployment</li>
+                            <li><strong>Deployed:</strong> Liquidity deployed to Uniswap V4 with custom hook</li>
+                        </ul>
+                        <p>
+                            After graduation to Uniswap V4, a custom hook taxes all swaps and routes fees to the alignment vault.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Staking and Rerolls</h3>
+                        <p>
+                            ERC404 projects can enable staking, allowing token holders to stake for a share of vault fees. Staking uses a share-based system with early-staker advantage.
+                        </p>
+                        <p>
+                            NFTs can be "rerolled" by sending them to an escrow contract and minting a new one. This allows collectors to refresh metadata or randomize traits without selling tokens.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">ERC1155 (Edition Projects)</h3>
+                        <p>
+                            ERC1155 projects consist of multiple editions, each with:
+                        </p>
+                        <ul>
+                            <li>Unique artwork and metadata</li>
+                            <li>Fixed mint price (can be updated by creator)</li>
+                            <li>Maximum supply (can be increased by creator)</li>
+                            <li>Independent minting status (can be paused per edition)</li>
+                        </ul>
+                        <p>
+                            Mint revenue accumulates in the contract. Creators can withdraw at any time, but 20% is automatically sent to the alignment vault.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">ERC721 (Auction Projects)</h3>
+                        <p>
+                            ERC721 projects use a timed auction mechanism for 1/1 NFTs. Features include:
+                        </p>
+                        <ul>
+                            <li>Reserve price set by creator</li>
+                            <li>Auction duration and extension logic</li>
+                            <li>Anti-snipe mechanisms (time extensions on late bids)</li>
+                            <li>Settlement fee distributed between protocol and vault</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Revenue Model Section -->
+                <section class="docs-section" id="revenue-model">
+                    <h2 class="section-title">Revenue Model</h2>
+                    <p class="section-intro">
+                        Transparent breakdown of fees, distribution, and economic flows across the platform.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Fee Structure by Project Type</h3>
+                    </div>
+
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Project Type</th>
+                                <th>Fee Event</th>
+                                <th>Rate</th>
+                                <th>Destination</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>ERC404</td>
+                                <td>Bonding Fee</td>
+                                <td>1%</td>
+                                <td>Protocol Treasury</td>
+                            </tr>
+                            <tr>
+                                <td>ERC404</td>
+                                <td>Graduation Fee</td>
+                                <td>2%</td>
+                                <td>Protocol + Factory Creator</td>
+                            </tr>
+                            <tr>
+                                <td>ERC404</td>
+                                <td>V4 Swap Tax</td>
+                                <td>Variable</td>
+                                <td>Alignment Vault</td>
+                            </tr>
+                            <tr>
+                                <td>ERC1155</td>
+                                <td>Withdrawal Tithe</td>
+                                <td>20%</td>
+                                <td>Alignment Vault</td>
+                            </tr>
+                            <tr>
+                                <td>ERC721</td>
+                                <td>Settlement Fee</td>
+                                <td>Variable</td>
+                                <td>Protocol + Vault</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Vault LP Yield Distribution</h3>
+                        <p>
+                            When vaults generate LP fees from Uniswap V4 positions:
+                        </p>
+                        <ul>
+                            <li><strong>5% Protocol Cut:</strong> Goes to protocol treasury, with a sub-allocation to factory creators</li>
+                            <li><strong>95% to Benefactors/Stakers:</strong> Distributed proportionally based on fee contributions and stake shares</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Creator Economics</h3>
+                        <p>
+                            Creators retain the majority of project revenue but contribute to vault alignment:
+                        </p>
+                        <ul>
+                            <li><strong>ERC404:</strong> Creators don't extract revenue directly. Value comes from token/NFT ownership and trading.</li>
+                            <li><strong>ERC1155:</strong> Creators receive 80% of mint revenue. 20% tithe goes to vault.</li>
+                            <li><strong>ERC721:</strong> Creators receive auction proceeds minus settlement fees.</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Fee Transparency</div>
+                        <p>
+                            All fees are enforced at the contract level and fully auditable on-chain. The DAO can adjust certain parameters through governance proposals.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Contract Architecture Section -->
+                <section class="docs-section" id="contract-architecture">
+                    <h2 class="section-title">Contract Architecture</h2>
+                    <p class="section-intro">
+                        Technical overview of the smart contract system, deployment addresses, and architecture patterns.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">System Overview</h3>
+                        <p>
+                            The MS2.FUN contract system follows a registry-factory-instance pattern:
+                        </p>
+                        <ul>
+                            <li><strong>MasterRegistryV1 (UUPS):</strong> Central registry managing targets, vaults, factories, and instances</li>
+                            <li><strong>Factories:</strong> Template contracts that deploy new project instances</li>
+                            <li><strong>Instances:</strong> Individual project contracts created by factories</li>
+                            <li><strong>Vaults:</strong> Alignment vault contracts that manage LP positions</li>
+                            <li><strong>DAO (GrandCentral + Safe):</strong> Governance layer controlling registry upgrades and parameters</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Core Contracts</h3>
+                    </div>
+
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Contract</th>
+                                <th>Address</th>
+                                <th>Purpose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>MasterRegistryV1</td>
+                                <td>0x1234...5678</td>
+                                <td>Central registry and access control</td>
+                            </tr>
+                            <tr>
+                                <td>ERC404Factory</td>
+                                <td>0x2345...6789</td>
+                                <td>Deploys ERC404 bonding instances</td>
+                            </tr>
+                            <tr>
+                                <td>ERC1155Factory</td>
+                                <td>0x3456...789a</td>
+                                <td>Deploys ERC1155 edition instances</td>
+                            </tr>
+                            <tr>
+                                <td>ERC721AuctionFactory</td>
+                                <td>0x4567...89ab</td>
+                                <td>Deploys ERC721 auction instances</td>
+                            </tr>
+                            <tr>
+                                <td>ProtocolTreasuryV1</td>
+                                <td>0x5678...9abc</td>
+                                <td>Holds protocol fees</td>
+                            </tr>
+                            <tr>
+                                <td>GrandCentral (DAO)</td>
+                                <td>0x6789...abcd</td>
+                                <td>Governance contract</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Upgradeability</h3>
+                        <p>
+                            MasterRegistryV1 uses the UUPS (Universal Upgradeable Proxy Standard) pattern. Only the DAO can authorize upgrades.
+                        </p>
+                        <p>
+                            Factories and instances are non-upgradeable for security. New factories can be registered via DAO proposals.
+                        </p>
+                    </div>
+
+                    <div class="code-block">
+// Query alignment targets
+MasterRegistry.getApprovedTargets() → AlignmentTarget[]
+
+// Query vaults for a target
+MasterRegistry.getVaultForTarget(targetId) → address
+
+// Query factory instances
+Factory.getInstancesByCreator(creator) → address[]
+
+// Check if vault is approved
+MasterRegistry.isVaultApproved(vaultAddress) → bool
+                    </div>
+                </section>
+
+                <!-- Integration Guide Section -->
+                <section class="docs-section" id="integration-guide">
+                    <h2 class="section-title">Integration Guide</h2>
+                    <p class="section-intro">
+                        Step-by-step guide for developers building on top of MS2.FUN contracts.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Reading Project Data</h3>
+                        <p>
+                            To display project information in your application:
+                        </p>
+                    </div>
+
+                    <div class="code-block">
+// Connect to factory
+const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+
+// Get all instances
+const instances = await factory.getAllInstances();
+
+// For each instance, query details
+const instance = new ethers.Contract(instanceAddress, INSTANCE_ABI, provider);
+const name = await instance.name();
+const vault = await instance.vault();
+const bondingStatus = await instance.getBondingStatus();
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Minting Tokens</h3>
+                        <p>
+                            Example of minting from an ERC404 bonding instance:
+                        </p>
+                    </div>
+
+                    <div class="code-block">
+// Calculate amount out for ETH in
+const amountOut = await instance.getBuyQuote(ethers.parseEther("0.1"));
+
+// Execute buy with slippage protection
+const tx = await instance.buy(
+  minAmountOut,  // Minimum tokens expected
+  [], // Tier proofs (if applicable)
+  { value: ethers.parseEther("0.1") }
+);
+
+await tx.wait();
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Querying Vault Data</h3>
+                    </div>
+
+                    <div class="code-block">
+const vault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, provider);
+
+// Get vault stats
+const tvl = await vault.getTotalValueLocked();
+const benefactors = await vault.getBenefactorCount();
+
+// Get LP position details
+const position = await vault.getLPPosition();
+
+// Query benefactor share
+const benefactorInfo = await vault.getBenefactor(projectAddress);
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Best Practices</div>
+                        <p>
+                            Always query current state before executing transactions. Bonding curves and vaults are dynamic.
+                        </p>
+                        <p>
+                            Use multicall patterns to batch reads and reduce RPC calls.
+                        </p>
+                        <p>
+                            Cache static data (names, symbols, vault addresses) but refresh dynamic data (prices, supplies, TVL) frequently.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- API Reference Section -->
+                <section class="docs-section" id="api-reference">
+                    <h2 class="section-title">API Reference</h2>
+                    <p class="section-intro">
+                        Complete reference for contract interfaces and query methods.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">MasterRegistryV1</h3>
+                    </div>
+
+                    <div class="code-block">
+// Alignment Targets
+getApprovedTargets() → AlignmentTarget[]
+getTarget(uint256 targetId) → AlignmentTarget
+isTargetApproved(uint256 targetId) → bool
+
+// Vaults
+getVaultForTarget(uint256 targetId) → address
+isVaultApproved(address vault) → bool
+getVaultRegistry() → address
+
+// Factories
+getApprovedFactories(FactoryType factoryType) → address[]
+isFactoryApproved(address factory) → bool
+
+// Instances
+isInstanceValid(address instance) → bool
+getInstanceVault(address instance) → address
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">ERC404BondingInstance</h3>
+                    </div>
+
+                    <div class="code-block">
+// Bonding Status
+getBondingStatus() → BondingStatus
+  - isConfigured: bool
+  - isActive: bool
+  - isEnded: bool
+  - currentSupply: uint256
+  - maxBondingSupply: uint256
+  - currentReserve: uint256
+
+// Trading
+buy(uint256 minAmountOut, bytes32[] proofs) payable
+sell(uint256 tokenAmount, uint256 minEthOut)
+getBuyQuote(uint256 ethIn) → uint256 tokensOut
+getSellQuote(uint256 tokensIn) → uint256 ethOut
+
+// Staking
+enableStaking() // Owner only
+stake(uint256 amount)
+unstake(uint256 shares)
+claimYield()
+
+// Configuration
+setV4Hook(address hook) // Owner only, one-time
+setVault(address vault) // Owner only, one-time
+setBondingOpenTime(uint256 timestamp) // Owner only
+setBondingActive(bool active) // Owner only
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">ERC1155Instance</h3>
+                    </div>
+
+                    <div class="code-block">
+// Edition Management
+createEdition(uint256 price, uint256 maxSupply, string uri) // Owner only
+updateEditionPrice(uint256 editionId, uint256 newPrice) // Owner only
+updateEditionSupply(uint256 editionId, uint256 newMax) // Owner only
+pauseEdition(uint256 editionId) // Owner only
+resumeEdition(uint256 editionId) // Owner only
+
+// Minting
+mint(uint256 editionId, uint256 quantity) payable
+mintBatch(uint256[] editionIds, uint256[] quantities) payable
+
+// Creator Revenue
+getCreatorBalance() → uint256
+withdraw() // Sends 80% to creator, 20% to vault
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">UltraAlignmentVault</h3>
+                    </div>
+
+                    <div class="code-block">
+// Vault Info
+getTarget() → AlignmentTarget
+getTotalValueLocked() → uint256
+getBenefactorCount() → uint256
+
+// Benefactor Queries
+getBenefactor(address instance) → Benefactor
+  - totalFeesContributed: uint256
+  - shareOfYield: uint256
+  - yieldClaimed: uint256
+
+// LP Position
+getLPPosition() → LPPosition
+  - poolAddress: address
+  - liquidity: uint128
+  - feesAccrued: uint256
+
+// Fee Distribution
+distributeYield() // Anyone can call
+claimYield(address benefactor)
+                    </div>
+                </section>
+
+                <!-- DAO Overview Section -->
+                <section class="docs-section" id="dao-overview">
+                    <h2 class="section-title">DAO Overview</h2>
+                    <p class="section-intro">
+                        The MS2.FUN DAO governs the protocol using a Moloch-inspired structure with Gnosis Safe execution.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Governance Structure</h3>
+                        <p>
+                            The DAO uses GrandCentral, a Moloch-pattern governance contract with:
+                        </p>
+                        <ul>
+                            <li><strong>Shares:</strong> Voting power in governance proposals</li>
+                            <li><strong>Loot:</strong> Economic rights to treasury without voting power</li>
+                            <li><strong>Proposals:</strong> Submitted by members, voted on by shareholders</li>
+                            <li><strong>Safe Execution:</strong> Approved proposals execute via Gnosis Safe multisig</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Conductor System</h3>
+                        <p>
+                            The DAO can delegate specific permissions to conductors:
+                        </p>
+                        <ul>
+                            <li><strong>Admin Conductor:</strong> Can register factories and vaults</li>
+                            <li><strong>Manager Conductor:</strong> Can manage featured queue</li>
+                            <li><strong>Governor Conductor:</strong> Can execute certain parameter changes</li>
+                        </ul>
+                        <p>
+                            Conductors enable operational flexibility without requiring full DAO votes for routine actions.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">What the DAO Controls</h3>
+                        <ul>
+                            <li>Approval of new alignment targets</li>
+                            <li>Registration of vault factories and vault instances</li>
+                            <li>Registration of project factories (ERC404, ERC1155, ERC721)</li>
+                            <li>MasterRegistry upgrades (UUPS pattern)</li>
+                            <li>Protocol fee parameters</li>
+                            <li>Treasury management</li>
+                            <li>Featured queue pricing and parameters</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Becoming a Member Section -->
+                <section class="docs-section" id="becoming-member">
+                    <h2 class="section-title">Becoming a Member</h2>
+                    <p class="section-intro">
+                        Learn how to join the MS2.FUN DAO and participate in governance.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Membership Process</h3>
+                        <p>
+                            To become a DAO member:
+                        </p>
+                        <ol>
+                            <li><strong>Submit Application:</strong> Provide your background, contribution history, and desired shares/loot amounts</li>
+                            <li><strong>Sponsorship:</strong> An existing member must sponsor your application</li>
+                            <li><strong>Voting Period:</strong> Members vote on your application during the proposal period</li>
+                            <li><strong>Approval:</strong> If approved, you receive shares/loot and gain member status</li>
+                        </ol>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Shares vs. Loot</h3>
+                        <p>
+                            <strong>Shares:</strong> Grant voting power and proportional claims on treasury. Non-transferable.
+                        </p>
+                        <p>
+                            <strong>Loot:</strong> Grant proportional claims on treasury without voting power. Non-transferable but can be rage-quit.
+                        </p>
+                        <p>
+                            Most contributors receive a mix of shares and loot based on their expected participation level.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Rage Quit</h3>
+                        <p>
+                            Members can "rage quit" at any time to burn their shares/loot in exchange for a proportional share of the treasury. This ensures members are never locked in and provides an exit mechanism.
+                        </p>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Contribution Ideas</div>
+                        <p>
+                            Active contributors who help with development, design, community management, or ecosystem growth are strong membership candidates.
+                        </p>
+                        <p>
+                            Factory creators who build new project types automatically receive economic participation through the protocol's revenue share.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Proposals Section -->
+                <section class="docs-section" id="proposals">
+                    <h2 class="section-title">Proposals</h2>
+                    <p class="section-intro">
+                        How to create, vote on, and execute governance proposals.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Proposal Types</h3>
+                    </div>
+
+                    <div class="article-grid">
+                        <div class="article-card">
+                            <div class="article-title">Alignment Target</div>
+                            <p class="article-description">
+                                Approve a new community/token as an alignment target. Requires target details and token address.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">Vault Approval</div>
+                            <p class="article-description">
+                                Deploy and approve a new vault for an approved target. Specifies vault factory and configuration.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">Factory Registration</div>
+                            <p class="article-description">
+                                Register a new project factory (ERC404, ERC1155, ERC721) to enable new project creation patterns.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">Treasury Action</div>
+                            <p class="article-description">
+                                Execute arbitrary transactions from treasury. Used for investments, grants, or other treasury operations.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">Parameter Change</div>
+                            <p class="article-description">
+                                Update protocol parameters like fee rates, featured queue pricing, or conductor permissions.
+                            </p>
+                        </div>
+
+                        <div class="article-card">
+                            <div class="article-title">Membership</div>
+                            <p class="article-description">
+                                Grant shares/loot to new members or adjust existing member allocations.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Proposal Lifecycle</h3>
+                        <ol>
+                            <li><strong>Submission:</strong> Member submits proposal with details and execution payload</li>
+                            <li><strong>Sponsorship:</strong> Another member sponsors to move to voting</li>
+                            <li><strong>Voting Period:</strong> 7-day voting window where shareholders vote yes/no</li>
+                            <li><strong>Grace Period:</strong> 3-day grace period for members to rage quit if they disagree</li>
+                            <li><strong>Execution:</strong> If approved, proposal is queued in Gnosis Safe for execution</li>
+                            <li><strong>Safe Approval:</strong> Safe signers approve and execute the transaction</li>
+                        </ol>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Voting Power</h3>
+                        <p>
+                            Voting power is proportional to shares held. One share = one vote. Loot does not grant voting power.
+                        </p>
+                        <p>
+                            Quorum and approval thresholds are configurable per proposal type. Most proposals require simple majority (>50%) approval.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Treasury Section -->
+                <section class="docs-section" id="treasury">
+                    <h2 class="section-title">Treasury</h2>
+                    <p class="section-intro">
+                        How protocol fees accumulate and are managed by the DAO.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Revenue Sources</h3>
+                        <ul>
+                            <li>ERC404 bonding fees (1%)</li>
+                            <li>ERC404 graduation fees (2%, shared with factory creator)</li>
+                            <li>Vault LP yield protocol cut (5%)</li>
+                            <li>ERC1155 and ERC721 settlement fees</li>
+                            <li>Featured queue rental fees</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Treasury Usage</h3>
+                        <p>
+                            The DAO can use treasury funds for:
+                        </p>
+                        <ul>
+                            <li>Protocol development and audits</li>
+                            <li>Ecosystem grants and incentives</li>
+                            <li>Strategic investments in aligned projects</li>
+                            <li>Liquidity provisioning for protocol-owned liquidity</li>
+                            <li>Contributor compensation</li>
+                            <li>Marketing and community initiatives</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Transparency</h3>
+                        <p>
+                            All treasury transactions are on-chain and auditable. The treasury dashboard shows:
+                        </p>
+                        <ul>
+                            <li>Total assets under management</li>
+                            <li>Asset breakdown (ETH, tokens, LP positions)</li>
+                            <li>Revenue over time</li>
+                            <li>Recent transactions</li>
+                            <li>Approved but unexecuted proposals</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Security Section -->
+                <section class="docs-section" id="security">
+                    <h2 class="section-title">Security</h2>
+                    <p class="section-intro">
+                        Security practices, audit status, and risk disclosures.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Audit Status</h3>
+                        <p>
+                            The MS2.FUN contract system has undergone audits by [Audit Firm]. Full audit reports are available in the repository.
+                        </p>
+                        <p>
+                            Key findings and mitigations:
+                        </p>
+                        <ul>
+                            <li>Critical: None</li>
+                            <li>High: Addressed in v1.1</li>
+                            <li>Medium: Documented with mitigations</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Known Risks</h3>
+                        <ul>
+                            <li><strong>Smart Contract Risk:</strong> Despite audits, bugs may exist. Use at your own risk.</li>
+                            <li><strong>Economic Risk:</strong> Bonding curves can be volatile. NFT floor prices may fluctuate.</li>
+                            <li><strong>Liquidity Risk:</strong> Vaults depend on Uniswap V4 liquidity depth for target tokens.</li>
+                            <li><strong>Governance Risk:</strong> The DAO controls critical protocol parameters and upgrades.</li>
+                        </ul>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Best Practices</h3>
+                        <ul>
+                            <li>Start with small amounts to familiarize yourself with mechanics</li>
+                            <li>Verify contract addresses before interacting</li>
+                            <li>Use hardware wallets for significant holdings</li>
+                            <li>Understand bonding curve dynamics before buying</li>
+                            <li>Monitor vault TVL and liquidity before staking</li>
+                        </ul>
+                    </div>
+
+                    <div class="info-box">
+                        <div class="info-box-title">Bug Bounty</div>
+                        <p>
+                            MS2.FUN offers a bug bounty program for responsible disclosure of vulnerabilities. Rewards up to $50,000 for critical findings.
+                        </p>
+                        <p>
+                            Report vulnerabilities to security@ms2.fun with detailed reproduction steps.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- FAQ Section -->
+                <section class="docs-section" id="faq">
+                    <h2 class="section-title">FAQ</h2>
+                    <p class="section-intro">
+                        Frequently asked questions about MS2.FUN.
+                    </p>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">General Questions</h3>
+
+                        <p><strong>What blockchains does MS2.FUN support?</strong></p>
+                        <p>
+                            Currently Ethereum mainnet. Future support for L2s is planned.
+                        </p>
+
+                        <p><strong>Do I need to be a DAO member to create projects?</strong></p>
+                        <p>
+                            No. Anyone can create projects without DAO membership. The DAO curates which factories and vaults are available, but project creation is permissionless within approved factories.
+                        </p>
+
+                        <p><strong>Can I change my project's vault after deployment?</strong></p>
+                        <p>
+                            No. Vault binding is immutable to ensure authentic alignment.
+                        </p>
+
+                        <p><strong>What happens if my vault's target token goes to zero?</strong></p>
+                        <p>
+                            The vault will continue to operate but LP positions will lose value. Benefactors can still claim their proportional share of whatever remains.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Technical Questions</h3>
+
+                        <p><strong>What is the ERC404 standard?</strong></p>
+                        <p>
+                            ERC404 uses DN404, a hybrid token standard that combines fungible ERC20-like tokens with NFT ownership. Holding a full token unit (e.g., 1M tokens) automatically mints an NFT.
+                        </p>
+
+                        <p><strong>How do bonding curves work?</strong></p>
+                        <p>
+                            Bonding curves use mathematical formulas to set prices based on supply. As more tokens are minted, the price increases. When tokens are sold back, the price decreases. This creates continuous liquidity and price discovery.
+                        </p>
+
+                        <p><strong>Why use Uniswap V4 hooks?</strong></p>
+                        <p>
+                            V4 hooks allow custom logic on every swap. We use this to tax trades and route fees to alignment vaults, creating a sustainable revenue stream.
+                        </p>
+
+                        <p><strong>Are contracts upgradeable?</strong></p>
+                        <p>
+                            Only MasterRegistry uses UUPS upgradeability (DAO-controlled). Factories and instances are immutable.
+                        </p>
+                    </div>
+
+                    <div class="content-block">
+                        <h3 class="content-block-title">Economic Questions</h3>
+
+                        <p><strong>How is vault APY calculated?</strong></p>
+                        <p>
+                            APY estimates are based on recent LP fee generation extrapolated over a year. Actual yields vary with trading volume and liquidity depth.
+                        </p>
+
+                        <p><strong>What's the difference between benefactors and stakers?</strong></p>
+                        <p>
+                            Benefactors are projects that contribute fees to a vault. Stakers are token holders who lock tokens to earn vault yield. Both share in the 95% yield pool.
+                        </p>
+
+                        <p><strong>Can creators earn from secondary sales?</strong></p>
+                        <p>
+                            ERC404 and ERC1155 don't have built-in royalties on secondary. Creators can implement this at the marketplace level or through custom hooks.
+                        </p>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        function showSection(sectionId) {
+            // Update nav links
+            document.querySelectorAll('.docs-nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update sections
+            document.querySelectorAll('.docs-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(sectionId).classList.add('active');
+
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            // Update URL hash
+            window.location.hash = sectionId;
+        }
+
+        // Handle direct links to sections
+        window.addEventListener('load', function() {
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                const link = document.querySelector(`a[href="#${hash}"]`);
+                if (link) {
+                    link.click();
+                }
+            }
+        });
+    </script>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>

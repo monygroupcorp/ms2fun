@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solitude Studies — ERC721 Auction — MS2.FUN</title>
+    <link rel="stylesheet" href="../../src/core/global-v2.css">
+    <link rel="stylesheet" href="../../src/core/components-v2.css">
+    <style>
+        body {
+            min-height: 100vh;
+            background-color: var(--bg-primary);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) var(--space-10);
+            border-bottom: 1px solid var(--border-secondary);
+        }
+
+        .logo {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            transition: var(--transition-opacity);
+        }
+
+        .logo:hover {
+            opacity: 0.7;
+        }
+
+        /* Content */
+        .content {
+            max-width: var(--container-2xl);
+            margin: 0 auto;
+            padding: var(--space-6) var(--space-10);
+        }
+
+        /* Project Header */
+        .project-header {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .project-icon {
+            width: 80px;
+            height: 80px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: var(--font-weight-bold);
+            flex-shrink: 0;
+        }
+
+        .project-header-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .project-title {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-2);
+            line-height: var(--line-height-tight);
+        }
+
+        .project-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            margin-bottom: var(--space-2);
+            font-size: var(--font-size-body-sm);
+            color: var(--text-secondary);
+        }
+
+        .project-description {
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+            line-height: var(--line-height-relaxed);
+            max-width: 700px;
+            margin-bottom: var(--space-3);
+        }
+
+        .project-actions {
+            display: flex;
+            gap: var(--space-2);
+        }
+
+        .action-btn {
+            padding: var(--space-2);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition-opacity);
+            font-size: var(--font-size-body-sm);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .action-btn:hover {
+            opacity: 0.7;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            gap: var(--space-6);
+            padding: var(--space-4) 0;
+            border-top: 1px solid var(--border-secondary);
+            border-bottom: 1px solid var(--border-secondary);
+            margin-bottom: var(--space-6);
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
+        }
+
+        .stat-label {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-h4);
+            font-weight: var(--font-weight-bold);
+        }
+
+        /* Config Badges */
+        .auction-config {
+            display: flex;
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .config-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding: var(--space-2) var(--space-3);
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            font-size: var(--font-size-body-sm);
+        }
+
+        .config-badge-label {
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .config-badge-value {
+            font-family: var(--font-mono);
+            font-weight: var(--font-weight-bold);
+        }
+
+        /* Live Auction Hero */
+        .live-auction {
+            background-color: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            margin-bottom: var(--space-8);
+        }
+
+        .live-label {
+            padding: var(--space-2) var(--space-4);
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--bg-primary);
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .live-auction-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .live-auction-image {
+            aspect-ratio: 1;
+            background-color: var(--bg-tertiary);
+            border-right: 2px solid var(--border-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-tertiary);
+        }
+
+        .live-auction-body {
+            padding: var(--space-6);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .live-piece-name {
+            font-size: var(--font-size-h2);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-tight);
+            margin-bottom: var(--space-1);
+            line-height: var(--line-height-tight);
+        }
+
+        .live-piece-id {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            font-size: var(--font-size-body);
+            margin-bottom: var(--space-4);
+        }
+
+        .live-bid-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-3);
+            margin-bottom: var(--space-4);
+            padding: var(--space-4);
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .live-bid-item {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-1);
+        }
+
+        .live-bid-label {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .live-bid-value {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .live-countdown {
+            font-family: var(--font-mono);
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .live-countdown.urgent {
+            animation: pulse-dot 1s ease-in-out infinite;
+        }
+
+        .live-bid-input {
+            display: flex;
+            gap: var(--space-2);
+            margin-bottom: var(--space-3);
+        }
+
+        .live-bid-input input {
+            flex: 1;
+            height: 52px;
+            padding: var(--space-3);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-h4);
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-secondary);
+            color: var(--text-primary);
+        }
+
+        .live-bid-input input:focus {
+            outline: none;
+            border-color: var(--text-primary);
+        }
+
+        .live-bid-input .bid-unit {
+            display: flex;
+            align-items: center;
+            padding: 0 var(--space-3);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border-secondary);
+            font-family: var(--font-mono);
+            font-size: var(--font-size-body);
+            color: var(--text-secondary);
+        }
+
+        .live-bid-history {
+            margin-top: var(--space-4);
+            padding-top: var(--space-4);
+            border-top: 1px solid var(--border-secondary);
+        }
+
+        .bid-history-title {
+            font-size: var(--font-size-caption);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .bid-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-2) 0;
+            border-bottom: 1px solid var(--border-tertiary);
+            font-size: var(--font-size-body-sm);
+        }
+
+        .bid-entry:last-child {
+            border-bottom: none;
+        }
+
+        .bid-entry-address {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+        }
+
+        .bid-entry-amount {
+            font-family: var(--font-mono);
+            font-weight: var(--font-weight-bold);
+        }
+
+        .bid-entry-time {
+            font-family: var(--font-mono);
+            color: var(--text-tertiary);
+            font-size: var(--font-size-caption);
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: var(--font-size-h3);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-4);
+        }
+
+        /* Previous Works Gallery */
+        .works-gallery {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .work-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            cursor: pointer;
+            transition: var(--transition-opacity);
+        }
+
+        .work-card:hover {
+            opacity: 0.7;
+        }
+
+        .work-image {
+            width: 100%;
+            aspect-ratio: 1;
+            background-color: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: var(--font-weight-bold);
+            color: var(--text-tertiary);
+            position: relative;
+        }
+
+        .work-badge {
+            position: absolute;
+            top: var(--space-2);
+            right: var(--space-2);
+            padding: var(--space-1) var(--space-2);
+            font-size: var(--font-size-caption);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            background-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .work-badge.unsold {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-secondary);
+        }
+
+        .work-info {
+            padding: var(--space-3);
+        }
+
+        .work-name {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-2);
+        }
+
+        .work-detail-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--font-size-caption);
+            margin-bottom: var(--space-1);
+        }
+
+        .work-detail-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .work-detail-label {
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .work-detail-value {
+            font-family: var(--font-mono);
+        }
+
+        /* Vault Info */
+        .vault-info {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            padding: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+
+        .vault-info-title {
+            font-size: var(--font-size-body-sm);
+            font-weight: var(--font-weight-bold);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+            margin-bottom: var(--space-3);
+        }
+
+        .vault-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: var(--space-2) 0;
+            border-bottom: 1px solid var(--border-tertiary);
+            font-size: var(--font-size-body-sm);
+        }
+
+        .vault-info-row:last-child {
+            border-bottom: none;
+        }
+
+        .vault-info-label {
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: var(--letter-spacing-wide);
+        }
+
+        .vault-info-value {
+            font-family: var(--font-mono);
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .live-auction-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .live-auction-image {
+                border-right: none;
+                border-bottom: 2px solid var(--border-primary);
+                aspect-ratio: 4/3;
+            }
+
+            .works-gallery {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: var(--space-4);
+            }
+
+            .project-header {
+                flex-direction: column;
+            }
+
+            .stats-bar {
+                flex-wrap: wrap;
+                gap: var(--space-3);
+            }
+
+            .auction-config {
+                flex-wrap: wrap;
+            }
+
+            .live-auction-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .live-auction-image {
+                border-right: none;
+                border-bottom: 2px solid var(--border-primary);
+                aspect-ratio: 4/3;
+            }
+
+            .works-gallery {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .live-bid-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .works-gallery {
+                grid-template-columns: 1fr;
+            }
+
+            .live-auction-body {
+                padding: var(--space-4);
+            }
+
+            .stats-bar {
+                gap: var(--space-2);
+                padding: var(--space-3) 0;
+            }
+
+            .stat-item {
+                padding: var(--space-1);
+            }
+
+            .auction-config {
+                gap: var(--space-2);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <a href="homepage-v2-demo.html" class="logo">MS2<span class="logo-tld">.fun</span></a>
+        <button class="mobile-menu-toggle" aria-label="Menu" aria-expanded="false">
+            <span class="hamburger-bar"></span>
+        </button>
+        <div class="nav-links" style="display: flex; gap: var(--space-2); align-items: center;">
+            <a href="create-project-v2-demo.html" class="btn btn-primary">Create</a>
+        </div>
+        <div class="mobile-nav-panel" id="mobile-nav">
+            <a href="project-discovery-demo.html" class="mobile-nav-link">Discover</a>
+            <a href="portfolio-demo.html" class="mobile-nav-link">Portfolio</a>
+            <a href="governance-hub-demo.html" class="mobile-nav-link">Governance</a>
+            <a href="documentation-demo.html" class="mobile-nav-link">Docs</a>
+            <a href="create-project-v2-demo.html" class="mobile-nav-link mobile-nav-link-primary">Create</a>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <!-- Project Header -->
+        <div class="project-header">
+            <div class="project-icon">SS</div>
+            <div class="project-header-content">
+                <h1 class="project-title">Solitude Studies</h1>
+                <div class="project-meta">
+                    <span>By <a href="#" style="color: var(--text-primary); text-decoration: none;">quietlight.eth</a></span>
+                    <span>•</span>
+                    <span>ERC721 Auction</span>
+                    <span>•</span>
+                    <span>Created Dec 8, 2024</span>
+                </div>
+                <p class="project-description">
+                    A slowly unfolding series of meditative landscapes. Each piece is released by the artist when the work is ready, not on a schedule. Single-line auctions give each new piece the full stage.
+                </p>
+                <div class="project-actions">
+                    <button class="action-btn">Share</button>
+                    <button class="action-btn">Copy Contract</button>
+                    <button class="action-btn">Star</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">Released</div>
+                <div class="stat-value">9</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Sold</div>
+                <div class="stat-value">7</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Volume</div>
+                <div class="stat-value">11.35 ETH</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Avg Sale</div>
+                <div class="stat-value">1.62 ETH</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Collectors</div>
+                <div class="stat-value">6</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Vault Contributed</div>
+                <div class="stat-value">2.27 ETH</div>
+            </div>
+        </div>
+
+        <!-- Auction Config -->
+        <div class="auction-config">
+            <div class="config-badge">
+                <span class="config-badge-label">Lines</span>
+                <span class="config-badge-value">1</span>
+            </div>
+            <div class="config-badge">
+                <span class="config-badge-label">Duration</span>
+                <span class="config-badge-value">48h</span>
+            </div>
+            <div class="config-badge">
+                <span class="config-badge-label">Anti-snipe</span>
+                <span class="config-badge-value">15m</span>
+            </div>
+            <div class="config-badge">
+                <span class="config-badge-label">Min Increment</span>
+                <span class="config-badge-value">0.05 ETH</span>
+            </div>
+            <div class="config-badge">
+                <span class="config-badge-label">Release Mode</span>
+                <span class="config-badge-value">Drip</span>
+            </div>
+        </div>
+
+        <!-- Live Auction Hero -->
+        <div class="live-auction">
+            <div class="live-label">
+                <div class="live-dot"></div>
+                Live Auction
+            </div>
+            <div class="live-auction-layout">
+                <div class="live-auction-image">#9</div>
+                <div class="live-auction-body">
+                    <div class="live-piece-name">Morning Vapor</div>
+                    <div class="live-piece-id">Piece #9</div>
+
+                    <div class="live-bid-grid">
+                        <div class="live-bid-item">
+                            <div class="live-bid-label">Current Bid</div>
+                            <div class="live-bid-value">1.85 ETH</div>
+                        </div>
+                        <div class="live-bid-item">
+                            <div class="live-bid-label">Time Remaining</div>
+                            <div class="live-bid-value live-countdown" id="countdown">6h 42m 18s</div>
+                        </div>
+                        <div class="live-bid-item">
+                            <div class="live-bid-label">Min Bid (Deposit)</div>
+                            <div class="live-bid-value">0.30 ETH</div>
+                        </div>
+                        <div class="live-bid-item">
+                            <div class="live-bid-label">Total Bids</div>
+                            <div class="live-bid-value">8</div>
+                        </div>
+                    </div>
+
+                    <div class="live-bid-input">
+                        <input type="text" placeholder="1.90">
+                        <span class="bid-unit">ETH</span>
+                    </div>
+
+                    <button class="btn btn-primary btn-full" style="height: 52px; font-size: var(--font-size-body);">Place Bid</button>
+
+                    <div class="live-bid-history">
+                        <div class="bid-history-title">Bid History</div>
+                        <div class="bid-entry">
+                            <span class="bid-entry-address">0x8a3f...2e1d</span>
+                            <span class="bid-entry-amount">1.85 ETH</span>
+                            <span class="bid-entry-time">14m ago</span>
+                        </div>
+                        <div class="bid-entry">
+                            <span class="bid-entry-address">0x4b2c...9f7a</span>
+                            <span class="bid-entry-amount">1.70 ETH</span>
+                            <span class="bid-entry-time">1h ago</span>
+                        </div>
+                        <div class="bid-entry">
+                            <span class="bid-entry-address">0x8a3f...2e1d</span>
+                            <span class="bid-entry-amount">1.50 ETH</span>
+                            <span class="bid-entry-time">3h ago</span>
+                        </div>
+                        <div class="bid-entry">
+                            <span class="bid-entry-address">0x1c4e...5b8f</span>
+                            <span class="bid-entry-amount">1.20 ETH</span>
+                            <span class="bid-entry-time">5h ago</span>
+                        </div>
+                        <div class="bid-entry">
+                            <span class="bid-entry-address">0x7d2a...3e6c</span>
+                            <span class="bid-entry-amount">0.90 ETH</span>
+                            <span class="bid-entry-time">8h ago</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Previous Works -->
+        <div class="section-title">Previous Works</div>
+
+        <div class="works-gallery">
+            <!-- #8 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #8
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Dusk Over Glacier</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">2.40 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x8a3f...2e1d</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">11</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Feb 10</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #7 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #7
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Still Creek</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">1.95 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x4b2c...9f7a</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">9</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Jan 28</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #6 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #6
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Fog Line</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">2.10 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x1c4e...5b8f</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">7</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Jan 15</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #5 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #5
+                    <div class="work-badge unsold">Unsold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Empty Field</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Result</span>
+                        <span class="work-detail-value">No Bids</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Deposit</span>
+                        <span class="work-detail-value">0.20 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Forfeited To</span>
+                        <span class="work-detail-value">Treasury</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Expired</span>
+                        <span class="work-detail-value">Jan 5</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #4 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #4
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Salt Flat Dawn</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">1.40 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x9e5f...1a4b</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">6</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Dec 28</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #3 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #3
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Winter Passage</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">1.30 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x7d2a...3e6c</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">5</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Dec 20</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #2 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #2
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">Quiet Shore</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">0.85 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x3c8d...7e2f</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">3</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Dec 14</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- #1 -->
+            <div class="work-card">
+                <div class="work-image">
+                    #1
+                    <div class="work-badge">Sold</div>
+                </div>
+                <div class="work-info">
+                    <div class="work-name">First Light</div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winning Bid</span>
+                        <span class="work-detail-value">1.35 ETH</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Winner</span>
+                        <span class="work-detail-value">0x8a3f...2e1d</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Bids</span>
+                        <span class="work-detail-value">4</span>
+                    </div>
+                    <div class="work-detail-row">
+                        <span class="work-detail-label">Settled</span>
+                        <span class="work-detail-value">Dec 10</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vault Info -->
+        <div class="vault-info">
+            <div class="vault-info-title">Vault Alignment</div>
+            <div class="vault-info-row">
+                <span class="vault-info-label">Aligned To</span>
+                <span class="vault-info-value">Climate Initiatives Vault</span>
+            </div>
+            <div class="vault-info-row">
+                <span class="vault-info-label">Creator</span>
+                <span class="vault-info-value">quietlight.eth</span>
+            </div>
+            <div class="vault-info-row">
+                <span class="vault-info-label">Revenue Split</span>
+                <span class="vault-info-value">80% Creator / 20% Vault</span>
+            </div>
+            <div class="vault-info-row">
+                <span class="vault-info-label">Total to Vault</span>
+                <span class="vault-info-value">2.27 ETH</span>
+            </div>
+        </div>
+
+        <div style="height: 80px;"></div>
+    </div>
+
+    <script>
+        // Countdown timer
+        let remaining = 6 * 3600 + 42 * 60 + 18;
+
+        function formatCountdown(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+        }
+
+        setInterval(function() {
+            if (remaining > 0) {
+                remaining--;
+                const el = document.getElementById('countdown');
+                el.textContent = formatCountdown(remaining);
+                if (remaining < 900) {
+                    el.classList.add('urgent');
+                }
+            }
+        }, 1000);
+    </script>
+    <footer class="site-footer">
+        <a href="documentation-demo.html" class="site-footer-icon" aria-label="Docs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 4H3a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1zM4 6h7v12H4V6zm9 12V6h7v12h-7z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg></a>
+        <a href="#" class="site-footer-icon" aria-label="X"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
+    </footer>
+    <script>
+    document.querySelector('.mobile-menu-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('mobile-nav');
+        var isOpen = panel.classList.toggle('is-open');
+        this.setAttribute('aria-expanded', isOpen);
+    });
+    </script>
+</body>
+</html>
