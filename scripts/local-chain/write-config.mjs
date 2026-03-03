@@ -49,12 +49,14 @@ export async function writeConfig({
     deployer: testAccounts.owner,
     contracts: {
       MasterRegistryV1: core.masterRegistry,
+      AlignmentRegistryV1: core.alignmentRegistry,
       GlobalMessageRegistry: core.globalMessageRegistry,
       FeaturedQueueManager: core.featuredQueueManager,
       QueryAggregator: core.queryAggregator,
       ERC404Factory: factories.erc404,
       ERC1155Factory: factories.erc1155,
       UltraAlignmentHookFactory: core.hookFactory,
+      ComponentRegistry: core.componentRegistry ?? '0x0000000000000000000000000000000000000000',
       GrandCentral: grandCentral ?? '0x0000000000000000000000000000000000000000',
     },
     factories: [

@@ -2,13 +2,13 @@
 //
 // Deploys all core contracts for the local dev chain.
 // - Uses `forge script` (via execSync) for: DeployMaster, DeployERC1155Factory, DeployERC404Factory
-// - Uses ethers.js v5 for everything else: GlobalMessageRegistry, FeaturedQueueManager,
-//   UltraAlignmentHookFactory, UltraAlignmentVault instances, QueryAggregator
+// - Uses ethers.js v5 for everything else: AlignmentRegistryV1, GlobalMessageRegistry,
+//   FeaturedQueueManager, UltraAlignmentHookFactory, UltraAlignmentVault instances, QueryAggregator
 //
 // Returns { core, factories, vaults, provider, deployer }
 
 import { execSync } from 'child_process'
-import { promises as fs } from 'fs'
+import { promises as fs, readFileSync } from 'fs'
 import { ethers } from 'ethers'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -44,19 +44,58 @@ export const MAINNET_ADDRESSES = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Validate that all vm.env*("VAR") calls in a forge script are satisfied by the provided envVars.
+ * Throws with a clear message listing missing or extra vars before forge is invoked.
+ *
+ * @param {string} scriptPath - Path relative to the contracts/ directory
+ * @param {object} envVars - Env vars being passed to the forge script
+ */
+function validateForgeEnvVars(scriptPath, envVars) {
+  const scriptFullPath = path.join(CONTRACTS_DIR, scriptPath)
+  let content
+  try {
+    content = readFileSync(scriptFullPath, 'utf8')
+  } catch (e) {
+    throw new Error(`Pre-flight: cannot read forge script at ${scriptFullPath}`)
+  }
+
+  const pattern = /vm\.env\w+\("([^"]+)"\)/g
+  const required = []
+  let match
+  while ((match = pattern.exec(content)) !== null) {
+    required.push(match[1])
+  }
+
+  // PRIVATE_KEY is always injected by runForgeScript
+  const provided = new Set([...Object.keys(envVars), 'PRIVATE_KEY'])
+  const missing = required.filter(v => !provided.has(v))
+  const extra = [...provided].filter(v => v !== 'PRIVATE_KEY' && !required.includes(v))
+
+  if (missing.length > 0 || extra.length > 0) {
+    const lines = [`\n✗ Pre-flight failed: ${scriptPath}`]
+    if (missing.length > 0) lines.push(`  Missing (required by script, not provided): ${missing.join(', ')}`)
+    if (extra.length > 0) lines.push(`  Extra (provided but script doesn't use): ${extra.join(', ')}`)
+    throw new Error(lines.join('\n'))
+  }
+}
+
+/**
  * Run a forge script with the given env vars.
- * The private key is passed via --private-key (Anvil default account 0).
+ * Forge scripts use vm.envUint("PRIVATE_KEY") internally, so we pass it as env var.
  *
  * @param {string} scriptPath - Path relative to the contracts/ directory
  * @param {object} envVars - Extra environment variables to set for the forge process
  */
 function runForgeScript(scriptPath, envVars = {}) {
+  validateForgeEnvVars(scriptPath, envVars)
   const env = {
     ...process.env,
+    PRIVATE_KEY: ANVIL_KEY,
+    FOUNDRY_VIA_IR: 'false', // override via_ir=true in foundry.toml for local dev speed
     ...envVars,
   }
   execSync(
-    `forge script ${scriptPath} --rpc-url ${RPC} --private-key ${ANVIL_KEY} --broadcast --chain-id ${CHAIN_ID}`,
+    `forge script ${scriptPath} --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID}`,
     { cwd: CONTRACTS_DIR, stdio: 'inherit', env }
   )
 }
@@ -135,12 +174,11 @@ async function loadBytecode(contractName, solFile) {
 /**
  * Deploy all protocol contracts.
  *
- * Phase 1  — MasterRegistry (forge script)
+ * Phase 1  — MasterRegistry (forge script) + AlignmentRegistry (ethers.js)
  * Phase 2  — GlobalMessageRegistry + FeaturedQueueManager (ethers.js)
- * Phase 3  — UltraAlignmentHookFactory (ethers.js)
- *            Vault deployment — TODO (Task 5)
+ * Phase 3  — UltraAlignmentHookFactory + Vaults (ethers.js)
  * Phase 4  — ERC1155Factory + ERC404Factory (forge scripts)
- *            QueryAggregator + factory registration — TODO (Task 5)
+ *            QueryAggregator + factory registration
  *
  * @returns {Promise<{core: object, factories: object, provider: object, deployer: object}>}
  */
@@ -171,11 +209,66 @@ export async function deployContracts() {
 
   // The outer MasterRegistry is a factory/wrapper that deploys an inner ERC1967 proxy via LibClone.
   // All actual registry calls must go to the INNER proxy (it holds the state).
-  // Call getProxyAddress() on the outer contract to discover the inner proxy address.
   const outerAbi = await loadAbi('MasterRegistry')
   const outerContract = new ethers.Contract(masterRegistryOuterProxy, outerAbi, deployer)
   const innerProxyAddress = await outerContract.getProxyAddress()
   console.log('   MasterRegistry inner proxy:', innerProxyAddress)
+
+  // Get MasterRegistryV1 ABI for all subsequent registry calls
+  const registryAbi = await loadAbi('MasterRegistryV1')
+  const registry = new ethers.Contract(innerProxyAddress, registryAbi, deployer)
+
+  // Foundry nightly has a bug where vm.startBroadcast(key) encodes the wrong
+  // msg.sender in the MasterRegistry wrapper's initialize(msg.sender) call,
+  // resulting in the inner proxy being owned by an unexpected address.
+  // Fix: use Anvil impersonation to transfer ownership to the deployer.
+  const actualOwner = await registry.owner()
+  if (actualOwner.toLowerCase() !== DEPLOYER_ADDRESS.toLowerCase()) {
+    console.log(`   Owner mismatch: ${actualOwner} (expected ${DEPLOYER_ADDRESS})`)
+    console.log('   Fixing via Anvil impersonation...')
+    await provider.send('anvil_impersonateAccount', [actualOwner])
+    await provider.send('anvil_setBalance', [actualOwner, '0x56BC75E2D63100000'])
+    const registryAsOwner = new ethers.Contract(innerProxyAddress, registryAbi, provider.getSigner(actualOwner))
+    await (await registryAsOwner.transferOwnership(DEPLOYER_ADDRESS)).wait()
+    await provider.send('anvil_stopImpersonatingAccount', [actualOwner])
+    console.log('   Ownership transferred to deployer')
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // PHASE 1b: ALIGNMENT REGISTRY (ethers.js)
+  // ───────────────────────────────────────────────────────────────────────────
+  console.log('\n════════════════════════════════════════════════════')
+  console.log('PHASE 1b: ALIGNMENT REGISTRY (ethers.js)')
+  console.log('════════════════════════════════════════════════════')
+
+  // AlignmentRegistryV1 is UUPS upgradeable. Deploy impl, then use MasterRegistry-style
+  // LibClone ERC1967 proxy wrapper to create a proxy, then initialize.
+  const alignRegAbi = await loadAbi('AlignmentRegistryV1')
+  const alignRegBytecode = await loadBytecode('AlignmentRegistryV1')
+  const alignRegFactory = new ethers.ContractFactory(alignRegAbi, alignRegBytecode, deployer)
+  const alignRegImpl = await alignRegFactory.deploy()
+  await alignRegImpl.deployed()
+  console.log('   AlignmentRegistryV1 impl:', alignRegImpl.address)
+
+  // Reuse the MasterRegistry wrapper pattern (LibClone.deployERC1967) to create ERC1967 proxy.
+  // The MasterRegistry wrapper constructor takes (implementation, initData) and deploys an
+  // inner ERC1967 proxy. We reuse it as a generic proxy factory.
+  const proxyWrapperAbi = await loadAbi('MasterRegistry')
+  const proxyWrapperBytecode = await loadBytecode('MasterRegistry')
+  const proxyWrapperFactory = new ethers.ContractFactory(proxyWrapperAbi, proxyWrapperBytecode, deployer)
+
+  const alignRegInitData = alignRegImpl.interface.encodeFunctionData('initialize', [DEPLOYER_ADDRESS])
+  const alignRegProxy = await proxyWrapperFactory.deploy(alignRegImpl.address, alignRegInitData)
+  await alignRegProxy.deployed()
+  const alignRegInnerProxy = await alignRegProxy.getProxyAddress()
+  console.log('   AlignmentRegistry proxy: ', alignRegInnerProxy)
+
+  const alignmentRegistry = new ethers.Contract(alignRegInnerProxy, alignRegAbi, deployer)
+
+  // Wire AlignmentRegistry into MasterRegistry
+  const setAlignRegTx = await registry.setAlignmentRegistry(alignRegInnerProxy)
+  await setAlignRegTx.wait()
+  console.log('   AlignmentRegistry wired to MasterRegistry')
 
   // ───────────────────────────────────────────────────────────────────────────
   // PHASE 2: SUPPORTING REGISTRIES (ethers.js)
@@ -185,7 +278,6 @@ export async function deployContracts() {
   console.log('════════════════════════════════════════════════════')
 
   // GlobalMessageRegistry — constructor(address _owner, address _masterRegistry)
-  // Note: constructor takes BOTH owner and masterRegistry; it is NOT zero-arg.
   const gmrAbi = await loadAbi('GlobalMessageRegistry')
   const gmrBytecode = await loadBytecode('GlobalMessageRegistry')
   const gmrFactory = new ethers.ContractFactory(gmrAbi, gmrBytecode, deployer)
@@ -207,42 +299,38 @@ export async function deployContracts() {
   await initTx.wait()
   console.log('   FeaturedQueueManager initialized')
 
-  // Register GlobalMessageRegistry in MasterRegistry (inner proxy).
-  // Method: setGlobalMessageRegistry(address _globalMessageRegistry) onlyOwner
-  const registryAbi = await loadAbi('MasterRegistryV1')
-  const registry = new ethers.Contract(innerProxyAddress, registryAbi, deployer)
+  // ───────────────────────────────────────────────────────────────────────────
+  // PHASE 2b: COMPONENT REGISTRY (ethers.js)
+  // ───────────────────────────────────────────────────────────────────────────
+  console.log('\n════════════════════════════════════════════════════')
+  console.log('PHASE 2b: COMPONENT REGISTRY (ethers.js)')
+  console.log('════════════════════════════════════════════════════')
 
-  const setGmrTx = await registry.setGlobalMessageRegistry(gmr.address)
-  await setGmrTx.wait()
-  console.log('   GlobalMessageRegistry registered in MasterRegistry')
+  // ComponentRegistry is UUPS upgradeable. Deploy impl, proxy, initialize.
+  const compRegAbi = await loadAbi('ComponentRegistry')
+  const compRegBytecode = await loadBytecode('ComponentRegistry')
+  const compRegContractFactory = new ethers.ContractFactory(compRegAbi, compRegBytecode, deployer)
+  const compRegImpl = await compRegContractFactory.deploy()
+  await compRegImpl.deployed()
+  console.log('   ComponentRegistry impl:  ', compRegImpl.address)
 
-  // Register FeaturedQueueManager in MasterRegistry.
-  // Method: setFeaturedQueueManager(address _featuredQueueManager) onlyOwner
-  const setFqmTx = await registry.setFeaturedQueueManager(fqm.address)
-  await setFqmTx.wait()
-  console.log('   FeaturedQueueManager registered in MasterRegistry')
+  const compRegInitData = compRegImpl.interface.encodeFunctionData('initialize', [DEPLOYER_ADDRESS])
+  const compRegProxy = await proxyWrapperFactory.deploy(compRegImpl.address, compRegInitData)
+  await compRegProxy.deployed()
+  const compRegInnerProxy = await compRegProxy.getProxyAddress()
+  console.log('   ComponentRegistry proxy: ', compRegInnerProxy)
+
+  const componentRegistry = new ethers.Contract(compRegInnerProxy, compRegAbi, deployer)
 
   // ───────────────────────────────────────────────────────────────────────────
-  // PHASE 3: HOOK FACTORY (ethers.js) + VAULT DEPLOYMENT (TODO)
+  // PHASE 3: HOOK FACTORY (ethers.js) + VAULT DEPLOYMENT
   // ───────────────────────────────────────────────────────────────────────────
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 3: HOOK FACTORY & VAULTS (ethers.js)')
   console.log('════════════════════════════════════════════════════')
 
   // UltraAlignmentHookFactory — constructor(address _hookTemplate)
-  //
-  // UltraAlignmentHookFactory.createHook() deploys hooks directly via:
-  //   new UltraAlignmentV4Hook{salt: salt}(...)
-  // The _hookTemplate address is stored in hookTemplate storage but is NOT used
-  // for cloning (no LibClone). It exists as a reference/upgrade mechanism only.
-  //
-  // We cannot deploy UltraAlignmentV4Hook with plain `new` because its constructor
-  // calls Hooks.validateHookPermissions(IHooks(address(this)), ...), which requires
-  // specific bits set in the deployed address (Uniswap V4 hook address encoding).
-  // A random address from plain `new` fails this check.
-  //
-  // Since _hookTemplate is never dereferenced for bytecode during createHook(),
-  // we pass DEPLOYER_ADDRESS as a harmless placeholder.
+  // We pass DEPLOYER_ADDRESS as a harmless placeholder (see original comments).
   const hookFactoryAbi = await loadAbi('UltraAlignmentHookFactory')
   const hookFactoryBytecode = await loadBytecode('UltraAlignmentHookFactory')
   const hookFactoryContractFactory = new ethers.ContractFactory(hookFactoryAbi, hookFactoryBytecode, deployer)
@@ -281,11 +369,9 @@ export async function deployContracts() {
     return result.salt
   }
 
-  // Register alignment targets so vaults can be registered against them.
-  // UltraAlignmentVault constructor requires alignmentToken() to be present,
-  // so we register targets first then register vaults against them.
+  // Register alignment targets on AlignmentRegistryV1 (previously on MasterRegistry).
   console.log('   Registering MS2 alignment target...')
-  const registerMS2TargetTx = await registry.registerAlignmentTarget(
+  const registerMS2TargetTx = await alignmentRegistry.registerAlignmentTarget(
     'MS2',
     'Milady Station 2 community alignment target',
     'https://ms2.fun/metadata/target/ms2',
@@ -297,7 +383,7 @@ export async function deployContracts() {
   console.log(`   MS2 alignment target registered (targetId=${ms2TargetId})`)
 
   console.log('   Registering CULT alignment target...')
-  const registerCULTTargetTx = await registry.registerAlignmentTarget(
+  const registerCULTTargetTx = await alignmentRegistry.registerAlignmentTarget(
     'CULT',
     'Cult DAO community alignment target',
     'https://ms2.fun/metadata/target/cult',
@@ -347,9 +433,10 @@ export async function deployContracts() {
   console.log('   MS2 vault hook:', ms2HookAddress)
 
   // Register MS2 vault in MasterRegistry
-  // registerVault(vault, name, metadataURI, targetId) — requires owner, vault has fee
+  // registerVault(vault, creator, name, metadataURI, targetId)
   const registerMS2VaultTx = await registry.registerVault(
     ms2Vault.address,
+    DEPLOYER_ADDRESS,
     'UltraAlignmentVault-MS2',
     'https://ms2.fun/metadata/vault/ultra-alignment-ms2',
     ms2TargetId
@@ -395,6 +482,7 @@ export async function deployContracts() {
   // Register CULT vault in MasterRegistry
   const registerCULTVaultTx = await registry.registerVault(
     cultVault.address,
+    DEPLOYER_ADDRESS,
     'UltraAlignmentVault-CULT',
     'https://ms2.fun/metadata/vault/ultra-alignment-cult',
     cultTargetId
@@ -409,9 +497,8 @@ export async function deployContracts() {
   console.log('PHASE 4: PROJECT FACTORIES (forge scripts)')
   console.log('════════════════════════════════════════════════════')
 
-  // ERC1155Instance template — constructor has required args but the factory only
-  // uses this address for LibClone.clone() (it never calls the constructor again).
-  // We deploy a minimal template instance with placeholder addresses.
+  // ERC1155Instance template — constructor signature changed:
+  //   constructor(name, metadataURI, creator, factory, vault, styleUri, globalMessageRegistry, protocolTreasury)
   const erc1155InstanceAbi = await loadAbi('ERC1155Instance')
   const erc1155InstanceBytecode = await loadBytecode('ERC1155Instance')
   const erc1155InstanceContractFactory = new ethers.ContractFactory(erc1155InstanceAbi, erc1155InstanceBytecode, deployer)
@@ -422,65 +509,35 @@ export async function deployContracts() {
     DEPLOYER_ADDRESS,              // _factory (placeholder)
     DEPLOYER_ADDRESS,              // _vault (placeholder — must be non-zero)
     '',                            // _styleUri
-    innerProxyAddress,             // _masterRegistry
+    gmr.address,                   // _globalMessageRegistry
     DEPLOYER_ADDRESS               // _protocolTreasury (placeholder)
   )
   await erc1155Template.deployed()
   console.log('   ERC1155Instance template:   ', erc1155Template.address)
 
+  // ERC1155Factory — constructor now takes globalMessageRegistry
   runForgeScript('script/DeployERC1155Factory.s.sol', {
     MASTER_REGISTRY: innerProxyAddress,
     INSTANCE_TEMPLATE: erc1155Template.address,
     CREATOR: DEPLOYER_ADDRESS,
     CREATOR_FEE_BPS: '250',
+    GLOBAL_MESSAGE_REGISTRY: gmr.address,
   })
   const erc1155FactoryAddress = await readBroadcastAddress('DeployERC1155Factory')
   console.log('   ERC1155Factory:            ', erc1155FactoryAddress)
 
-  // ERC404BondingInstance template — similarly deployed with placeholder args.
-  // The factory uses LibClone to clone this; the constructor runs once for the template
-  // but cloned instances are initialized separately.
+  // ERC404Factory — forge script now deploys ALL modules internally:
+  //   ERC404BondingInstance impl, ERC404StakingModule, LiquidityDeployerModule,
+  //   LaunchManager, CurveParamsComputer, then the factory itself.
+  // No more ethers.js template deployment needed.
+  // The INSTANCE_TEMPLATE env var is still used by the forge script for the Solady clone template.
+  //
+  // Deploy a minimal ERC404BondingInstance as clone template for LibClone.
+  // The new constructor is zero-arg (just locks implementation).
   const erc404InstanceAbi = await loadAbi('ERC404BondingInstance')
   const erc404InstanceBytecode = await loadBytecode('ERC404BondingInstance')
   const erc404InstanceContractFactory = new ethers.ContractFactory(erc404InstanceAbi, erc404InstanceBytecode, deployer)
-  const erc404Template = await erc404InstanceContractFactory.deploy(
-    'TEMPLATE',                                 // name_
-    'TMPL',                                     // symbol_
-    ethers.utils.parseEther('1000000'),         // _maxSupply
-    10,                                         // _liquidityReservePercent
-    // BondingCurveParams struct
-    {
-      initialPrice: ethers.utils.parseEther('0.0001'),
-      quarticCoeff: ethers.utils.parseEther('0.00000001'),
-      cubicCoeff: ethers.utils.parseEther('0.0000001'),
-      quadraticCoeff: ethers.utils.parseEther('0.000001'),
-      normalizationFactor: ethers.utils.parseEther('1000000'),
-    },
-    // TierConfig struct
-    {
-      tierType: 0,
-      passwordHashes: [ethers.utils.keccak256(ethers.utils.toUtf8Bytes('PUBLIC'))],
-      volumeCaps: [ethers.utils.parseEther('1000000')],
-      tierUnlockTimes: [],
-    },
-    MAINNET_ADDRESSES.uniswapV4PoolManager,     // _v4PoolManager
-    ethers.constants.AddressZero,               // _v4Hook (can be zero initially)
-    MAINNET_ADDRESSES.weth,                     // _weth
-    DEPLOYER_ADDRESS,                           // _factory (placeholder)
-    innerProxyAddress,                          // _masterRegistry
-    DEPLOYER_ADDRESS,                           // _vault (placeholder — must be non-zero)
-    DEPLOYER_ADDRESS,                           // _owner
-    '',                                         // _styleUri
-    DEPLOYER_ADDRESS,                           // _protocolTreasury (placeholder)
-    100,                                        // _bondingFeeBps
-    200,                                        // _graduationFeeBps
-    100,                                        // _polBps
-    DEPLOYER_ADDRESS,                           // _factoryCreator
-    200,                                        // _creatorGraduationFeeBps
-    3000,                                       // _poolFee
-    60,                                         // _tickSpacing
-    ethers.utils.parseEther('1000000'),         // _unit
-  )
+  const erc404Template = await erc404InstanceContractFactory.deploy()
   await erc404Template.deployed()
   console.log('   ERC404BondingInstance template:', erc404Template.address)
 
@@ -493,9 +550,22 @@ export async function deployContracts() {
     CREATOR: DEPLOYER_ADDRESS,
     CREATOR_FEE_BPS: '100',
     CREATOR_GRADUATION_FEE_BPS: '200',
+    GLOBAL_MESSAGE_REGISTRY: gmr.address,
   })
-  const erc404FactoryAddress = await readBroadcastAddress('DeployERC404Factory')
+
+  // The forge script deploys multiple contracts; the ERC404Factory is the last CREATE.
+  const erc404Deployments = await readAllBroadcastAddresses('DeployERC404Factory')
+  const erc404FactoryDeployment = erc404Deployments.find(d => d.contractName === 'ERC404Factory')
+  if (!erc404FactoryDeployment) throw new Error('ERC404Factory deployment not found in broadcast')
+  const erc404FactoryAddress = erc404FactoryDeployment.address
   console.log('   ERC404Factory:             ', erc404FactoryAddress)
+
+  // Log all ERC404 module addresses from broadcast
+  for (const d of erc404Deployments) {
+    if (d.contractName !== 'ERC404Factory') {
+      console.log(`   ${d.contractName}:`, ' '.repeat(Math.max(0, 25 - d.contractName.length)), d.address)
+    }
+  }
 
   // Deploy QueryAggregator
   // constructor() — zero-arg, then initialize(masterRegistry, featuredQueueManager, globalMessageRegistry, owner)
@@ -517,13 +587,14 @@ export async function deployContracts() {
   console.log('   QueryAggregator initialized')
 
   // Register ERC404Factory in MasterRegistry (factoryId=1)
-  // registerFactory(factoryAddress, contractType, title, displayTitle, metadataURI)
+  // registerFactory(factoryAddress, contractType, title, displayTitle, metadataURI, features)
   const registerERC404Tx = await registry.registerFactory(
     erc404FactoryAddress,
     'ERC404',
     'ERC404-Bonding-Curve-Factory',
     'ERC404 Bonding Curve',
-    'https://ms2.fun/metadata/factory/erc404'
+    'https://ms2.fun/metadata/factory/erc404',
+    []  // features (empty for now)
   )
   await registerERC404Tx.wait()
   console.log('   ERC404Factory registered (factoryId=1)')
@@ -534,7 +605,8 @@ export async function deployContracts() {
     'ERC1155',
     'ERC1155-Edition-Factory',
     'ERC1155 Editions',
-    'https://ms2.fun/metadata/factory/erc1155'
+    'https://ms2.fun/metadata/factory/erc1155',
+    []  // features (empty for now)
   )
   await registerERC1155Tx.wait()
   console.log('   ERC1155Factory registered (factoryId=2)')
@@ -554,6 +626,8 @@ export async function deployContracts() {
   console.log('DEPLOYMENT COMPLETE')
   console.log('════════════════════════════════════════════════════')
   console.log('   masterRegistry (inner):  ', innerProxyAddress)
+  console.log('   alignmentRegistry:       ', alignRegInnerProxy)
+  console.log('   componentRegistry:       ', compRegInnerProxy)
   console.log('   globalMessageRegistry:   ', gmr.address)
   console.log('   featuredQueueManager:    ', fqm.address)
   console.log('   queryAggregator:         ', queryAgg.address)
@@ -567,6 +641,8 @@ export async function deployContracts() {
     core: {
       masterRegistry: innerProxyAddress,        // all calls use inner proxy
       masterRegistryOuter: masterRegistryOuterProxy, // kept for reference
+      alignmentRegistry: alignRegInnerProxy,
+      componentRegistry: compRegInnerProxy,
       globalMessageRegistry: gmr.address,
       featuredQueueManager: fqm.address,
       queryAggregator: queryAgg.address,

@@ -18,8 +18,11 @@ import {
   createERC1155Instance,
   buyOnBondingCurve,
   activateBondingCurve,
+  setupPortfolioTestData,
   loadAbi,
   getRandomMessage,
+  getRandomMessageData,
+  seedComponentRegistry,
 } from '../seed-common.mjs'
 
 /**
@@ -47,6 +50,13 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   // Primary vault (MS2-aligned, index 0) and secondary vault (CULT-aligned, index 1)
   const primaryVault = vaults[0]
   const secondaryVault = vaults[1] || vaults[0]
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Seed ComponentRegistry (if deployed)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (addresses.core?.componentRegistry) {
+    await seedComponentRegistry(addresses.core.componentRegistry, deployer)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fund accounts
@@ -110,7 +120,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   // Mint Edition 1: 3x to deployer
   await (await demoGallery.mint(
     1, 3,
-    getRandomMessage(MINT_MESSAGES),
+    getRandomMessageData(MINT_MESSAGES),
     0, // maxCost=0 means no cap check
     { value: ethers.utils.parseEther('0.03') }
   )).wait()
@@ -121,7 +131,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const demoGalleryAsTrader = demoGallery.connect(traderSigner)
   await (await demoGalleryAsTrader.mint(
     2, 2,
-    getRandomMessage(MINT_MESSAGES),
+    getRandomMessageData(MINT_MESSAGES),
     0,
     { value: ethers.utils.parseEther('0.04') }
   )).wait()
@@ -133,13 +143,13 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
 
   await (await demoGalleryAsCollector.mint(
     1, 2,
-    getRandomMessage(MINT_MESSAGES),
+    getRandomMessageData(MINT_MESSAGES),
     0,
     { value: ethers.utils.parseEther('0.02') }
   )).wait()
   await (await demoGalleryAsCollector.mint(
     2, 1,
-    getRandomMessage(MINT_MESSAGES),
+    getRandomMessageData(MINT_MESSAGES),
     0,
     { value: ethers.utils.parseEther('0.02') }
   )).wait()
@@ -358,7 +368,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const signer = provider.getSigner(buyer)
     const asUser = dynamicInstance.connect(signer)
     const currentPrice = await dynamicInstance.getCurrentPrice(1)
-    await (await asUser.mint(1, 1, getRandomMessage(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    await (await asUser.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
   }
   console.log('   Minted 10x Edition 1 (dynamic pricing)')
 
@@ -366,7 +376,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const dynamicAsCollector = dynamicInstance.connect(provider.getSigner(TEST_ACCOUNTS.collector.address))
   for (let i = 0; i < 3; i++) {
     const currentPrice = await dynamicInstance.getCurrentPrice(1)
-    await (await dynamicAsCollector.mint(1, 1, getRandomMessage(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    await (await dynamicAsCollector.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
   }
   await (await dynamicAsCollector.safeTransferFrom(
     TEST_ACCOUNTS.collector.address, userAddress, 1, 3, '0x'
@@ -379,7 +389,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
     const asUser = dynamicInstance.connect(signer)
     const currentPrice = await dynamicInstance.getCurrentPrice(2)
-    await (await asUser.mint(2, 1, getRandomMessage(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    await (await asUser.mint(2, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
   }
   console.log('   Minted 8x Edition 2 (dynamic pricing)')
 
@@ -428,14 +438,14 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const buyer = buyers[i % buyers.length]
     const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
     const asUser = mixedInstance.connect(signer)
-    await (await asUser.mint(1, 1, getRandomMessage(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
+    await (await asUser.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
   }
   console.log('   Minted 40x Edition 1 (40% sold out)')
 
   // Mint 5x Edition 1 for user via collector, transfer
   const mixedAsCollector = mixedInstance.connect(provider.getSigner(TEST_ACCOUNTS.collector.address))
   for (let i = 0; i < 5; i++) {
-    await (await mixedAsCollector.mint(1, 1, getRandomMessage(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
+    await (await mixedAsCollector.mint(1, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
   }
   await (await mixedAsCollector.safeTransferFrom(
     TEST_ACCOUNTS.collector.address, userAddress, 1, 5, '0x'
@@ -453,13 +463,13 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     const buyer = buyers[i % buyers.length]
     const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
     const asUser = mixedInstance.connect(signer)
-    await (await asUser.mint(2, 1, getRandomMessage(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
+    await (await asUser.mint(2, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
   }
   console.log('   Minted 55x Edition 2')
 
   // Mint 5x Edition 2 for user via collector, transfer
   for (let i = 0; i < 5; i++) {
-    await (await mixedAsCollector.mint(2, 1, getRandomMessage(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
+    await (await mixedAsCollector.mint(2, 1, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
   }
   await (await mixedAsCollector.safeTransferFrom(
     TEST_ACCOUNTS.collector.address, userAddress, 2, 5, '0x'
@@ -548,10 +558,30 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // PHASE 11: OWNERSHIP TRANSFERS
+  // PHASE 11: PORTFOLIO TEST DATA SETUP
+  // ─────────────────────────────────────────────────────────────────────────
+  // Set up USER_ADDRESS with complete portfolio data for testing:
+  // - ERC404 holdings with buy history (for P&L calculation)
+  // - ERC1155 editions
+  // - Vault staking position with claimable yield
+  // - NFTs (if buy crossed threshold)
+  // - Activity history (buys, mints, stakes, messages)
+
+  await setupPortfolioTestData({
+    userAddress,
+    erc404Instances: [earlyLaunchAddress, activeProjectAddress],
+    erc1155Instances: [demoGalleryAddress],
+    vaultAddress: primaryVault.address,
+    messageRegistryAddress: addresses.core.globalMessageRegistry,
+    provider,
+    deployer,
+  })
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // PHASE 12: OWNERSHIP TRANSFERS
   // ─────────────────────────────────────────────────────────────────────────
   console.log('\n════════════════════════════════════════════════════')
-  console.log('PHASE 11: OWNERSHIP TRANSFERS')
+  console.log('PHASE 12: OWNERSHIP TRANSFERS')
   console.log('════════════════════════════════════════════════════')
 
   // Transfer Demo-Gallery (ERC1155) ownership to userAddress

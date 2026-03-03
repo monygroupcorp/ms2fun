@@ -103,6 +103,33 @@ export function getRandomMessage(messages) {
 }
 
 /**
+ * Encode a message string into the messageData bytes format expected by
+ * ERC1155Instance.mint() and ERC404BondingInstance.buyBonding().
+ *
+ * The GlobalMessageRegistry.postForAction expects:
+ *   abi.encode(uint8 messageType, uint256 refId, bytes32 actionRef, bytes32 metadata, string content)
+ *
+ * @param {string} content - Message text
+ * @returns {string} ABI-encoded messageData hex string
+ */
+export function encodeMessageData(content) {
+  return ethers.utils.defaultAbiCoder.encode(
+    ['uint8', 'uint256', 'bytes32', 'bytes32', 'string'],
+    [0, 0, ethers.constants.HashZero, ethers.constants.HashZero, content]
+  )
+}
+
+/**
+ * Returns random encoded messageData bytes from the given message array.
+ *
+ * @param {string[]} messages
+ * @returns {string} ABI-encoded messageData hex string
+ */
+export function getRandomMessageData(messages) {
+  return encodeMessageData(getRandomMessage(messages))
+}
+
+/**
  * Fund all test accounts (and userAddress if provided) via anvil_setBalance.
  * Sets each account to 100 ETH. Skips any address that matches deployer.address.
  *
@@ -300,17 +327,18 @@ export async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, t
   const instance = new ethers.Contract(instanceAddress, instanceAbi, buyerSigner)
 
   const amount = ethers.utils.parseEther(tokenAmount)
-  const cost = await instance.calculateCost(amount)
 
-  // Add 10% buffer for slippage
-  const maxCost = cost.mul(110).div(100)
+  // calculateCost was moved to CurveParamsComputer (external module).
+  // For local seeding, send a generous ETH amount — the contract refunds excess.
+  // Use 10 ETH as a safe upper bound for local dev token purchases.
+  const maxCost = ethers.utils.parseEther('10')
 
   const buyTx = await instance.buyBonding(
     amount,
     maxCost,
     true,                          // mintNFT
     ethers.constants.HashZero,     // public tier (no password)
-    getRandomMessage(BUY_MESSAGES),
+    getRandomMessageData(BUY_MESSAGES),
     0,                             // deadline (0 = no deadline)
     { value: maxCost }
   )
@@ -347,4 +375,276 @@ export async function activateBondingCurve({ instanceAddress, instanceAbi, deplo
   // Set maturity time far in the future so bonding doesn't auto-mature during seeding
   const maturityTimeTx = await instance.setBondingMaturityTime(blockTimestamp + 365 * 24 * 3600)
   await maturityTimeTx.wait()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Portfolio Testing Setup
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Set up complete portfolio test data for userAddress.
+ * Creates all necessary on-chain state to test every Portfolio page section:
+ * - Holdings (ERC404 + ERC1155) with position P&L
+ * - Staking positions with share of pool and claimable yield
+ * - NFT ownership
+ * - Transaction activity history
+ *
+ * @param {object} params
+ * @param {string} params.userAddress - User wallet to set up portfolio for
+ * @param {string[]} params.erc404Instances - Array of ERC404 instance addresses (need at least 2)
+ * @param {string[]} params.erc1155Instances - Array of ERC1155 instance addresses (need at least 1)
+ * @param {string} params.vaultAddress - Vault address for staking
+ * @param {string} params.messageRegistryAddress - GlobalMessageRegistry address
+ * @param {object} params.provider - ethers JsonRpcProvider
+ * @returns {Promise<void>}
+ */
+export async function setupPortfolioTestData({
+  userAddress,
+  erc404Instances,
+  erc1155Instances,
+  vaultAddress,
+  messageRegistryAddress,
+  provider,
+  deployer,
+}) {
+  console.log('\n════════════════════════════════════════════════════')
+  console.log('PORTFOLIO TEST DATA SETUP')
+  console.log('════════════════════════════════════════════════════')
+  console.log(`\n   Setting up portfolio for: ${userAddress}`)
+
+  // Load ABIs
+  const erc404Abi = await loadAbi('ERC404BondingInstance')
+  const erc1155Abi = await loadAbi('ERC1155Instance')
+  const vaultAbi = await loadAbi('UltraAlignmentVault')
+  const gmrAbi = await loadAbi('GlobalMessageRegistry')
+
+  // Impersonate userAddress so Anvil will sign transactions on their behalf.
+  // userAddress is an external wallet (not an Anvil test account), so we must
+  // impersonate it before calling provider.getSigner().
+  await provider.send('anvil_impersonateAccount', [userAddress])
+  await provider.send('anvil_setBalance', [userAddress, '0x56BC75E2D63100000']) // 100 ETH
+  const userSigner = provider.getSigner(userAddress)
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 1. USER BUYS ERC404 TOKENS (creates transaction history for P&L)
+  // ───────────────────────────────────────────────────────────────────────
+  console.log('\n   1. User buying ERC404 tokens (for P&L calculation)...')
+
+  for (let i = 0; i < Math.min(erc404Instances.length, 2); i++) {
+    const instanceAddress = erc404Instances[i]
+    const instance = new ethers.Contract(instanceAddress, erc404Abi, userSigner)
+
+    let name = 'Project'
+    try { name = await instance.name() } catch (e) {}
+
+    const buyAmount = ethers.utils.parseEther(i === 0 ? '500' : '300')
+    const maxCost = ethers.utils.parseEther('10')
+
+    const buyTx = await instance.buyBonding(
+      buyAmount,
+      maxCost,
+      true,
+      ethers.constants.HashZero,
+      getRandomMessageData(BUY_MESSAGES),
+      0,
+      { value: maxCost }
+    )
+    await buyTx.wait()
+    console.log(`      ✓ Bought ${ethers.utils.formatEther(buyAmount)} tokens from ${name}`)
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 2. USER MINTS ERC1155 EDITIONS
+  // ───────────────────────────────────────────────────────────────────────
+  console.log('\n   2. User minting ERC1155 editions...')
+
+  for (const instanceAddress of erc1155Instances.slice(0, 1)) {
+    const instance = new ethers.Contract(instanceAddress, erc1155Abi, userSigner)
+
+    let name = 'Editions'
+    try { name = await instance.name() } catch (e) {}
+
+    try {
+      // mint(editionId, quantity, messageData, maxCost) — maxCost=0 means no cap check
+      const mintTx = await instance.mint(
+        1,
+        5,
+        getRandomMessageData(MINT_MESSAGES),
+        0, // maxCost
+        { value: ethers.utils.parseEther('0.05') }
+      )
+      await mintTx.wait()
+      console.log(`      ✓ Minted 5 editions from ${name}`)
+    } catch (e) {
+      console.log(`      ⚠ Failed to mint from ${name}: ${e.message}`)
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 3. VAULT BENEFACTOR SETUP
+  //
+  // Full benefactor flow:
+  //   a) receiveInstance() — tracks user as benefactor with pendingETH
+  //   b) convertAndAddLiquidity() — converts pending ETH to LP shares
+  //      (likely fails on local fork without a live V4 pool; fall through
+  //      to direct storage injection as dev-chain workaround)
+  //   c) recordAccumulatedFees() — adds claimable yield (owner-only)
+  //   d) Fund vault ETH balance so claimFees() can pay out
+  // ───────────────────────────────────────────────────────────────────────
+  console.log('\n   3. Setting up vault benefactor position...')
+
+  const deployerVault = new ethers.Contract(vaultAddress, vaultAbi, deployer)
+
+  // a) Track user as benefactor via receiveInstance.
+  //    Simulates vault fees arriving from the user's ERC404 instance (Early-Launch hook tax).
+  //    receiveInstance() has no access control — anyone can attribute a contribution.
+  const contributionAmount = ethers.utils.parseEther('0.5')
+  const receiveInstanceTx = await deployerVault.receiveInstance(
+    ethers.constants.AddressZero, // native ETH (Currency = address)
+    contributionAmount,
+    userAddress,
+    { value: contributionAmount }
+  )
+  await receiveInstanceTx.wait()
+  console.log(`      ✓ Recorded 0.5 ETH vault contribution for user (via receiveInstance)`)
+
+  // b) Try to convert pending ETH to LP shares via convertAndAddLiquidity.
+  //    This requires a live V4 pool for the alignment token, which likely
+  //    doesn't exist on the local fork. If it fails, inject shares directly.
+  let sharesInjected = false
+  try {
+    await (await deployerVault.convertAndAddLiquidity(0, { gasLimit: 5_000_000 })).wait()
+    console.log(`      ✓ Converted pending ETH to benefactor shares`)
+    sharesInjected = true
+  } catch (err) {
+    console.log(`      ⚠ convertAndAddLiquidity failed (${err.reason || err.message.slice(0, 50)})`)
+    console.log(`        Injecting shares directly via anvil_setStorageAt...`)
+
+    // Storage layout (from forge inspect UltraAlignmentVault storage):
+    //   slot 1 — benefactorShares: mapping(address => uint256)
+    //   slot 5 — totalShares: uint256
+    //   slot 9 — totalEthLocked: uint256
+    //
+    // Mapping slot: keccak256(abi.encode(key, mappingSlot))
+    const sharesAmount = ethers.utils.parseEther('1000')
+
+    const userSharesSlot = ethers.utils.keccak256(
+      ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [userAddress, 1])
+    )
+    await provider.send('anvil_setStorageAt', [
+      vaultAddress,
+      userSharesSlot,
+      ethers.utils.hexZeroPad(sharesAmount.toHexString(), 32),
+    ])
+
+    await provider.send('anvil_setStorageAt', [
+      vaultAddress,
+      '0x0000000000000000000000000000000000000000000000000000000000000005',
+      ethers.utils.hexZeroPad(sharesAmount.toHexString(), 32),
+    ])
+
+    await provider.send('anvil_setStorageAt', [
+      vaultAddress,
+      '0x0000000000000000000000000000000000000000000000000000000000000009',
+      ethers.utils.hexZeroPad(contributionAmount.toHexString(), 32),
+    ])
+
+    sharesInjected = true
+    console.log(`        ✓ Injected ${ethers.utils.formatEther(sharesAmount)} shares for user`)
+  }
+
+  // c) Accumulate fees the owner-controlled way (simulates LP yield).
+  //    claimFees() will try _claimVaultFees() first, but since totalLPUnits==0
+  //    it safely returns (0,0), then falls through to distribute accumulatedFees.
+  if (sharesInjected) {
+    const feeAmount = ethers.utils.parseEther('0.05')
+    await (await deployerVault.recordAccumulatedFees(feeAmount)).wait()
+    console.log(`      ✓ Accumulated 0.05 ETH in vault fees (claimable by user)`)
+
+    // d) Ensure vault has enough ETH to pay out on claimFees()
+    await provider.send('anvil_setBalance', [
+      vaultAddress,
+      ethers.utils.hexZeroPad(ethers.utils.parseEther('1').toHexString(), 32),
+    ])
+    console.log(`      ✓ Vault funded with 1 ETH for fee payouts`)
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 4. USER POSTS MESSAGES (creates activity)
+  // ───────────────────────────────────────────────────────────────────────
+  console.log('\n   4. User posting messages...')
+
+  const gmr = new ethers.Contract(messageRegistryAddress, gmrAbi, userSigner)
+
+  const messages = [
+    'gm frens!',
+    'Excited about this project',
+    'LFG! 🚀',
+  ]
+
+  for (let i = 0; i < messages.length; i++) {
+    const postTx = await gmr.post(
+      erc404Instances[i % erc404Instances.length],
+      0,
+      0,
+      ethers.constants.HashZero,
+      ethers.constants.HashZero,
+      messages[i]
+    )
+    await postTx.wait()
+  }
+  console.log(`      ✓ Posted ${messages.length} messages`)
+
+  await provider.send('anvil_stopImpersonatingAccount', [userAddress])
+
+  console.log('\n   ✅ Portfolio test data setup complete!')
+  console.log('      User now has:')
+  console.log('      - ERC404 holdings with buy history (for P&L)')
+  console.log('      - ERC1155 editions (minted directly)')
+  console.log('      - Vault benefactor position with claimable yield')
+  console.log('      - NFTs (if buy crossed threshold)')
+  console.log('      - Activity history (buys, mints, messages)')
+}
+
+/**
+ * Seed ComponentRegistry with test components for the creation wizard.
+ *
+ * Registers mock gating and liquidity deployer components so the wizard
+ * can query them via getApprovedComponentsByTag().
+ *
+ * @param {string} componentRegistryAddress - ComponentRegistry proxy address
+ * @param {object} deployer - ethers Wallet
+ */
+export async function seedComponentRegistry(componentRegistryAddress, deployer) {
+  if (!componentRegistryAddress || componentRegistryAddress === '0x0000000000000000000000000000000000000000') {
+    console.log('   ⚠ ComponentRegistry not deployed, skipping seed')
+    return
+  }
+
+  console.log('\n   Seeding ComponentRegistry...')
+  const abi = await loadAbi('ComponentRegistry')
+  const registry = new ethers.Contract(componentRegistryAddress, abi, deployer)
+
+  const gatingTag = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('gating'))
+  const liqTag = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('liquidity'))
+
+  // Use deterministic placeholder addresses for test components
+  const mockGating1 = '0x0000000000000000000000000000000000C0DE01'
+  const mockGating2 = '0x0000000000000000000000000000000000C0DE02'
+  const mockLiq1 = '0x0000000000000000000000000000000000C0DE03'
+  const mockLiq2 = '0x0000000000000000000000000000000000C0DE04'
+
+  await (await registry.approveComponent(mockGating1, gatingTag, 'Password Tier Gating')).wait()
+  console.log('      ✓ Registered: Password Tier Gating')
+
+  await (await registry.approveComponent(mockGating2, gatingTag, 'Merkle Allowlist Gating')).wait()
+  console.log('      ✓ Registered: Merkle Allowlist Gating')
+
+  await (await registry.approveComponent(mockLiq1, liqTag, 'Uniswap V4 Deployer')).wait()
+  console.log('      ✓ Registered: Uniswap V4 Deployer')
+
+  await (await registry.approveComponent(mockLiq2, liqTag, 'ZAMM Deployer')).wait()
+  console.log('      ✓ Registered: ZAMM Deployer')
+
+  console.log('   ✅ ComponentRegistry seeded with 4 test components')
 }
