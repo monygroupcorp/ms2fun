@@ -95,6 +95,18 @@ export function detectNetwork() {
     };
   }
 
+  // MAINNET_DEV: dev server on localhost but targeting mainnet contracts/RPCs
+  const forcedMode = import.meta.env.VITE_FORCE_MODE;
+  if (forcedMode === 'MAINNET_DEV' || forcedMode === 'PRODUCTION_DEPLOYED') {
+    return {
+      mode: 'mainnet',
+      rpcUrl: 'https://ethereum.publicnode.com',
+      chainId: 1,
+      contracts: '/src/config/contracts.mainnet.json',
+      abiPath: 'contracts/abi'
+    };
+  }
+
   // Local development (Anvil fork)
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return {

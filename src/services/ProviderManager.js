@@ -108,8 +108,14 @@ class ProviderManager {
      */
     setupPublicRpcUrls(network) {
         if (network.mode === 'local') {
-            // Local Anvil
-            this.publicRpcUrls = ['http://127.0.0.1:8545'];
+            // Local Anvil first, then fall back to mainnet public RPCs
+            this.publicRpcUrls = [
+                'http://127.0.0.1:8545',
+                'https://ethereum.publicnode.com',
+                'https://rpc.ankr.com/eth',
+                'https://eth.llamarpc.com',
+                'https://cloudflare-eth.com'
+            ];
         } else if (network.chainId === 1) {
             // Mainnet - multiple public RPCs for reliability
             this.publicRpcUrls = [
@@ -199,7 +205,9 @@ class ProviderManager {
             const rpcUrl = this.publicRpcUrls[this.currentRpcIndex];
 
             try {
-                const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+                // Use StaticJsonRpcProvider for public RPCs to avoid deprecated eth_accounts call
+                const chainId = this.network?.chainId || 1;
+                const provider = new ethers.providers.StaticJsonRpcProvider(rpcUrl, chainId);
                 // Test the connection
                 await provider.getBlockNumber();
                 console.log(`[ProviderManager] Connected to ${rpcUrl}`);

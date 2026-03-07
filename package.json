@@ -6,6 +6,7 @@
   "scripts": {
     "start": "vite preview",
     "dev": "vite",
+    "dev:mainnet": "VITE_FORCE_MODE=MAINNET_DEV vite",
     "dev:coming-soon": "VITE_FORCE_MODE=COMING_SOON vite",
     "build": "vite build",
     "server:legacy": "nodemon server.js",

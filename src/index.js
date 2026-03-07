@@ -6,7 +6,7 @@ import { HomePage } from './routes/HomePage.js';
 import { ProjectDiscovery } from './routes/ProjectDiscovery.js';
 import { Activity } from './routes/Activity.js';
 import { Portfolio } from './routes/Portfolio.js';
-import { renderCultExecsPage } from './routes/CultExecsPage.js';
+import { CultExecsPage } from './routes/CultExecsPage.microact.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
 import { FloatingWalletButton } from './components/FloatingWalletButton/FloatingWalletButton.microact.js';
@@ -43,8 +43,12 @@ async function initializeApp() {
             }
         });
         
-        // Initialize wallet service
-        await initializeServices();
+        // Initialize wallet service (non-fatal — app renders in degraded mode on failure)
+        try {
+            await initializeServices();
+        } catch (error) {
+            console.warn('[initializeApp] Service initialization failed, continuing in degraded mode:', error);
+        }
         
         // Initialize router
         const router = new Router();
@@ -63,14 +67,27 @@ async function initializeApp() {
         async function ensureWeb3Ready() {
             if (web3Context) return web3Context;
 
-            const EnvironmentDetector = (await import('./services/EnvironmentDetector.js')).EnvironmentDetector;
-            const providerManager = (await import('./services/ProviderManager.js')).default;
+            try {
+                const EnvironmentDetector = (await import('./services/EnvironmentDetector.js')).EnvironmentDetector;
+                const providerManager = (await import('./services/ProviderManager.js')).default;
 
-            const { provider, type: providerType } = await providerManager.initialize();
-            const detector = new EnvironmentDetector();
-            const { mode, config } = await detector.detect();
+                const { provider, type: providerType } = await providerManager.initialize();
+                const detector = new EnvironmentDetector();
+                const { mode, config } = await detector.detect();
 
-            web3Context = { provider, providerType, mode, config, web3Ready: true };
+                web3Context = { provider, providerType, mode, config, web3Ready: true };
+            } catch (error) {
+                console.error('[ensureWeb3Ready] Web3 initialization failed, using degraded mode:', error);
+                web3Context = {
+                    provider: null,
+                    providerType: null,
+                    mode: 'PLACEHOLDER_MOCK',
+                    config: null,
+                    web3Ready: false,
+                    web3InitError: error.message
+                };
+            }
+
             return web3Context;
         }
 
@@ -171,7 +188,24 @@ async function initializeApp() {
             };
         });
 
-        router.on('/cultexecs', renderCultExecsPage);
+        router.on('/cultexecs', async () => {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            document.body.classList.add('cultexecs-active');
+
+            const web3 = await ensureWeb3Ready();
+            render(h(CultExecsPage, web3), appContainer);
+
+            return {
+                cleanup: () => {
+                    document.body.classList.remove('v2-route', 'cultexecs-active');
+                    stylesheetLoader.unload('cultexecs-v2-styles');
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
         router.on('/about', async () => {
             const { renderDocumentation } = await import('./routes/Documentation.js');
             return renderDocumentation();
@@ -415,29 +449,32 @@ async function initializeApp() {
  * Initialize services
  */
 async function initializeServices() {
+    // Initialize service factory (checks RPC availability, falls back to mock)
     try {
-        // Initialize service factory (checks RPC availability, falls back to mock)
         await serviceFactory.initialize();
+    } catch (error) {
+        console.warn('[initializeServices] ServiceFactory initialization failed (non-fatal):', error);
+    }
 
-        // Check if wallet service is already initialized
-        if (!walletService.isInitialized) {
-            // Initialize wallet service
+    // Wallet initialization is non-fatal — a crashed/missing extension must not block the page
+    if (!walletService.isInitialized) {
+        try {
             await walletService.initialize();
+        } catch (error) {
+            console.warn('[initializeServices] Wallet initialization failed (non-fatal):', error);
         }
+    }
 
-        // Start contract reload service (local dev only - skip in mock mode)
+    // Start contract reload service (local dev only - skip in mock mode)
+    try {
         if (!serviceFactory.isUsingMock()) {
             contractReloadService.start();
         }
-
-        // Read-only mode is now lazy-loaded only when user clicks "Continue" on splash screen
-        // No auto-initialization here
-
-        return true;
     } catch (error) {
-        console.error('Service initialization error:', error);
-        throw error;
+        console.warn('[initializeServices] ContractReloadService start failed (non-fatal):', error);
     }
+
+    return true;
 }
 
 /**

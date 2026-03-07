@@ -276,6 +276,14 @@ body::before {
   background-image: none !important;
 }
 
+/* Kill v1 marble SVG filters — takes up layout space at bottom of page */
+body.v2-route .marble-svg-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 /* ========================================
    TYPOGRAPHY ELEMENTS
    ======================================== */

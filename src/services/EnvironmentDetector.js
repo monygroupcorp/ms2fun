@@ -26,11 +26,31 @@ export class EnvironmentDetector {
 
         // Allow forcing a specific mode via env var (useful for previewing production states locally)
         const forcedMode = import.meta.env.VITE_FORCE_MODE;
-        if (forcedMode && ['LOCAL_BLOCKCHAIN', 'PLACEHOLDER_MOCK', 'PRODUCTION_DEPLOYED', 'COMING_SOON'].includes(forcedMode)) {
+        const validModes = ['LOCAL_BLOCKCHAIN', 'PLACEHOLDER_MOCK', 'PRODUCTION_DEPLOYED', 'COMING_SOON', 'MAINNET_DEV'];
+        if (forcedMode && validModes.includes(forcedMode)) {
+            // Load appropriate config instead of returning null
+            const useMainnetConfig = ['PRODUCTION_DEPLOYED', 'MAINNET_DEV'].includes(forcedMode);
+            const useLocalConfig = forcedMode === 'LOCAL_BLOCKCHAIN';
+            let configData = null;
+
+            if (useMainnetConfig || useLocalConfig) {
+                const configPath = useMainnetConfig
+                    ? '/src/config/contracts.mainnet.json'
+                    : '/src/config/contracts.local.json';
+                // For forced modes, return raw config even if MasterRegistryV1 isn't deployed.
+                // Standalone contracts (e.g. CULT EXEC) don't need the registry.
+                try {
+                    const response = await fetch(configPath);
+                    if (response.ok) configData = await response.json();
+                } catch (e) {
+                    console.warn(`[EnvironmentDetector] Failed to load config from ${configPath}:`, e);
+                }
+            }
+
             this.cachedMode = forcedMode;
-            this.cachedConfig = null;
-            console.log(`[EnvironmentDetector] Forced mode: ${forcedMode}`);
-            return { mode: forcedMode, config: null };
+            this.cachedConfig = configData;
+            console.log(`[EnvironmentDetector] Forced mode: ${forcedMode}`, configData ? '(with config)' : '(no config)');
+            return { mode: forcedMode, config: configData };
         }
 
         const isDev = import.meta.env.DEV;
@@ -95,11 +115,11 @@ export class EnvironmentDetector {
      * Load contract configuration
      * @returns {Promise<{hasContracts: boolean, data: object|null}>}
      */
-    async loadContractConfig() {
+    async loadContractConfig(overridePath = null) {
         const isDev = import.meta.env.DEV;
-        const configPath = isDev
+        const configPath = overridePath || (isDev
             ? '/src/config/contracts.local.json'
-            : '/src/config/contracts.mainnet.json';
+            : '/src/config/contracts.mainnet.json');
 
         try {
             const response = await fetch(configPath);
