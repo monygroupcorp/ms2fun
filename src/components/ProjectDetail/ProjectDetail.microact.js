@@ -7,6 +7,7 @@
 
 import { Component, h } from '../../core/microact-setup.js';
 import serviceFactory from '../../services/ServiceFactory.js';
+import { ContractTypeRouter } from './ContractTypeRouter.microact.js';
 
 export class ProjectDetail extends Component {
     constructor(props = {}) {
@@ -126,8 +127,11 @@ export class ProjectDetail extends Component {
 
         const contractType = project.contractType?.toUpperCase() || '';
         const isERC404 = contractType === 'ERC404' || contractType === 'ERC404BONDING';
+        const isERC1155 = contractType === 'ERC1155';
+        const isERC721 = contractType === 'ERC721' || contractType === 'ERC721AUCTION';
+        const hasOwnHeader = isERC404 || isERC1155 || isERC721;
 
-        return h('div', { className: 'project-detail marble-bg' },
+        return h('div', { className: 'project-detail content' },
             h('div', { className: 'detail-navigation' },
                 h('button', {
                     className: 'back-button',
@@ -135,9 +139,9 @@ export class ProjectDetail extends Component {
                 }, '\u2190 Back to Launchpad')
             ),
 
-            // ProjectHeader placeholder (skip for ERC404 which has its own compact header)
-            !isERC404 && h('div', { className: 'detail-header-container' },
-                h('div', { className: 'project-header marble-bg' },
+            // Generic header for types that don't have their own page component
+            !hasOwnHeader && h('div', { className: 'detail-header-container' },
+                h('div', { className: 'project-header' },
                     h('div', { className: 'header-top' },
                         h('div', { className: 'header-title-group' },
                             h('h1', { className: 'project-name' }, this.escapeHtml(project.name)),
@@ -152,11 +156,13 @@ export class ProjectDetail extends Component {
                 )
             ),
 
-            // Content container placeholder for ContractTypeRouter
+            // Content container with ContractTypeRouter
             h('div', { className: 'detail-content-container' },
-                h('div', { className: 'contract-router-placeholder' },
-                    h('p', null, `Contract interface for ${contractType} will be mounted here`)
-                )
+                h(ContractTypeRouter, {
+                    projectId: this.projectId,
+                    contractType: contractType,
+                    project: project
+                })
             )
         );
     }

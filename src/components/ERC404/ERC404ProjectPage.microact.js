@@ -1,14 +1,18 @@
 /**
  * ERC404ProjectPage - Microact Version
  *
- * Main two-column layout with trading sidebar and tabbed content for ERC404 projects.
+ * Two-column layout with trading sidebar and tabbed content (Token/NFT).
+ * Matches docs/examples/project-erc404-demo.html
  */
 
 import { Component, h } from '../../core/microact-setup.js';
 import stylesheetLoader from '../../utils/stylesheetLoader.js';
-
-// Note: Child components would be imported as microact versions when they exist
-// For now, this is a stub that renders the structure
+import { ProjectHeaderCompact } from './ProjectHeaderCompact.microact.js';
+import { ERC404TradingSidebar } from './ERC404TradingSidebar.microact.js';
+import { BondingProgressSection } from './BondingProgressSection.microact.js';
+import { StakingSection } from './StakingSection.microact.js';
+import { NFTGalleryPreview } from './NFTGalleryPreview.microact.js';
+import { ProjectCommentFeed } from '../ProjectCommentFeed/ProjectCommentFeed.microact.js';
 
 export class ERC404ProjectPage extends Component {
     constructor(props = {}) {
@@ -28,7 +32,7 @@ export class ERC404ProjectPage extends Component {
     }
 
     get projectData() {
-        return this.props.projectData || {};
+        return this.props.project || this.props.projectData || {};
     }
 
     async didMount() {
@@ -48,10 +52,9 @@ export class ERC404ProjectPage extends Component {
     }
 
     shouldUpdate(oldState, newState) {
-        // Only re-render for structural changes
         if (oldState.loading !== newState.loading) return true;
 
-        // Handle tab switch via DOM manipulation for perf
+        // Handle tab switch via DOM manipulation to preserve child components
         if (oldState.activeTab !== newState.activeTab) {
             this.updateTabDisplay(newState.activeTab);
             return false;
@@ -63,100 +66,87 @@ export class ERC404ProjectPage extends Component {
     updateTabDisplay(activeTab) {
         if (!this._element) return;
 
-        // Update tab buttons
         const tabBtns = this._element.querySelectorAll('[data-tab]');
         tabBtns.forEach(btn => {
-            if (btn.dataset.tab === activeTab) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            btn.classList.toggle('active', btn.dataset.tab === activeTab);
         });
 
-        // Update tab content visibility
         const tokenContent = this._element.querySelector('[data-tab-content="token"]');
         const nftContent = this._element.querySelector('[data-tab-content="nft"]');
 
-        if (tokenContent) {
-            tokenContent.style.display = activeTab === 'token' ? 'block' : 'none';
-        }
-        if (nftContent) {
-            nftContent.style.display = activeTab === 'nft' ? 'block' : 'none';
-        }
+        if (tokenContent) tokenContent.style.display = activeTab === 'token' ? 'block' : 'none';
+        if (nftContent) nftContent.style.display = activeTab === 'nft' ? 'block' : 'none';
     }
 
     render() {
         const { activeTab } = this.state;
         const projectData = this.projectData;
+        const projectAddress = projectData.contractAddress || projectData.address || this.projectId;
 
         return h('div', { className: 'erc404-project-page' },
-            h('div', { className: 'two-column-layout' },
-                h('div', { className: 'page-main' },
-                    // Header placeholder - would mount ProjectHeaderCompact
-                    h('div', { className: 'project-header-compact' },
-                        h('h1', { className: 'project-title' }, projectData.name || 'Project'),
-                        h('p', { className: 'project-symbol' }, `$${projectData.symbol || 'TOKEN'}`)
-                    ),
+            h('div', { className: 'project-layout' },
+                // Main content column
+                h('div', { className: 'main-content' },
+                    // Project header
+                    h(ProjectHeaderCompact, {
+                        projectData: projectData
+                    }),
 
-                    // Admin button placeholder
-                    h('div', { className: 'admin-button-container' }),
-
-                    // Tab bar
-                    h('div', { className: 'tab-bar' },
+                    // Tabs
+                    h('div', { className: 'tabs' },
                         h('button', {
-                            className: `tab-btn ${activeTab === 'token' ? 'active' : ''}`,
+                            className: `tab ${activeTab === 'token' ? 'active' : ''}`,
                             'data-tab': 'token',
                             onClick: () => this.handleTabClick('token')
                         }, 'Token'),
                         h('button', {
-                            className: `tab-btn ${activeTab === 'nft' ? 'active' : ''}`,
+                            className: `tab ${activeTab === 'nft' ? 'active' : ''}`,
                             'data-tab': 'nft',
                             onClick: () => this.handleTabClick('nft')
                         }, 'NFT')
                     ),
 
-                    // Tab content
-                    h('div', { className: 'tab-content' },
-                        h('div', {
-                            'data-tab-content': 'token',
-                            style: { display: activeTab === 'token' ? 'block' : 'none' }
-                        },
-                            // Bonding progress section placeholder
-                            h('div', { className: 'bonding-section-placeholder' },
-                                h('p', null, 'Bonding Progress Section')
-                            ),
-                            // Staking section placeholder
-                            h('div', { className: 'staking-section-placeholder' },
-                                h('p', null, 'Staking Section')
-                            )
-                        ),
-                        h('div', {
-                            'data-tab-content': 'nft',
-                            style: { display: activeTab === 'nft' ? 'block' : 'none' }
-                        },
-                            // NFT gallery placeholder
-                            h('div', { className: 'gallery-preview-placeholder' },
-                                h('p', null, 'NFT Gallery Preview')
-                            )
-                        )
+                    // Token tab content
+                    h('div', {
+                        'data-tab-content': 'token',
+                        style: { display: activeTab === 'token' ? 'block' : 'none' }
+                    },
+                        h(BondingProgressSection, {
+                            adapter: this.adapter
+                        }),
+                        h(StakingSection, {
+                            adapter: this.adapter
+                        })
+                    ),
+
+                    // NFT tab content
+                    h('div', {
+                        'data-tab-content': 'nft',
+                        style: { display: activeTab === 'nft' ? 'block' : 'none' }
+                    },
+                        h(NFTGalleryPreview, {
+                            adapter: this.adapter,
+                            projectId: this.projectId
+                        })
                     )
                 ),
 
                 // Sidebar
-                h('div', { className: 'page-sidebar' },
-                    // Trading sidebar placeholder - would mount ERC404TradingSidebar
-                    h('div', { className: 'trading-sidebar-placeholder' },
-                        h('p', null, 'Trading Sidebar')
-                    )
+                h('div', { className: 'sidebar' },
+                    h(ERC404TradingSidebar, {
+                        adapter: this.adapter,
+                        projectData: projectData
+                    })
                 )
             ),
 
-            // Comments section
+            // Comments section below the two-column layout
             h('div', { className: 'comments-section' },
-                // Comments placeholder - would mount ProjectCommentFeed
-                h('div', { className: 'comments-placeholder' },
-                    h('p', null, 'Project Comments')
-                )
+                h('div', { className: 'section-title' }, 'Comments'),
+                h(ProjectCommentFeed, {
+                    projectAddress: projectAddress,
+                    adapter: this.adapter
+                })
             )
         );
     }

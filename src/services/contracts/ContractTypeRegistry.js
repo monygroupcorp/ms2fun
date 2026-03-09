@@ -246,6 +246,13 @@ class ContractTypeRegistry {
             return hasCreateBid && hasSettleAuction && hasQueuePiece;
         });
 
+        // ERC721 alias — same detection as ERC721Auction, used by ProjectRegistry
+        this.registerType('ERC721', null, (abi, functions) => {
+            const hasCreateBid = functions.includes('createBid');
+            const hasSettleAuction = functions.includes('settleAuction');
+            return hasCreateBid && hasSettleAuction;
+        });
+
         // ERC1155Factory detection: has createInstance, addEdition
         this.registerType('ERC1155Factory', null, (abi, functions) => {
             const hasCreateInstance = functions.includes('createInstance');

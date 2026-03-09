@@ -1,0 +1,629 @@
+/* ============================================================
+   ERC721 Auction Project Page - v2 Gallery Brutalism
+   Matches docs/examples/project-erc721-drip-demo.html
+   ============================================================ */
+
+/* Project Header */
+.erc721-project-page .project-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.erc721-project-page .project-icon {
+    width: 80px;
+    height: 80px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: var(--font-weight-bold);
+    flex-shrink: 0;
+}
+
+.erc721-project-page .project-header-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.erc721-project-page .project-title {
+    font-size: var(--font-size-h2);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-tight);
+    margin-bottom: var(--space-2);
+    line-height: var(--line-height-tight);
+}
+
+.erc721-project-page .project-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+}
+
+.erc721-project-page .project-description {
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    max-width: 700px;
+    margin-bottom: var(--space-3);
+}
+
+.erc721-project-page .project-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.erc721-project-page .action-btn {
+    padding: var(--space-2);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-opacity);
+    font-size: var(--font-size-body-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc721-project-page .action-btn:hover {
+    opacity: 0.7;
+}
+
+/* Stats Bar */
+.erc721-project-page .stats-bar {
+    display: flex;
+    gap: var(--space-6);
+    padding: var(--space-4) 0;
+    border-top: 1px solid var(--border-secondary);
+    border-bottom: 1px solid var(--border-secondary);
+    margin-bottom: var(--space-6);
+}
+
+.erc721-project-page .stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.erc721-project-page .stat-label {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc721-project-page .stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+}
+
+/* Config Badges */
+.erc721-project-page .auction-config {
+    display: flex;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.erc721-project-page .config-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    font-size: var(--font-size-body-sm);
+}
+
+.erc721-project-page .config-badge-label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc721-project-page .config-badge-value {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-bold);
+}
+
+/* Live Auction Hero */
+.erc721-project-page .live-auction {
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-primary);
+    margin-bottom: var(--space-8);
+}
+
+.erc721-project-page .live-label {
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.erc721-project-page .live-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--bg-primary);
+    animation: erc721-pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes erc721-pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.erc721-project-page .live-auction-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.erc721-project-page .live-auction-image {
+    aspect-ratio: 1;
+    background-color: var(--bg-tertiary);
+    border-right: 2px solid var(--border-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--text-tertiary);
+    overflow: hidden;
+}
+
+.erc721-project-page .live-auction-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.erc721-project-page .live-auction-body {
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.erc721-project-page .live-piece-name {
+    font-size: var(--font-size-h2);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-tight);
+    margin-bottom: var(--space-1);
+    line-height: var(--line-height-tight);
+}
+
+.erc721-project-page .live-piece-id {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    font-size: var(--font-size-body);
+    margin-bottom: var(--space-4);
+}
+
+.erc721-project-page .live-bid-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+}
+
+.erc721-project-page .live-bid-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.erc721-project-page .live-bid-label {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc721-project-page .live-bid-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+}
+
+.erc721-project-page .live-countdown {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+}
+
+.erc721-project-page .live-countdown.urgent {
+    animation: erc721-pulse-dot 1s ease-in-out infinite;
+}
+
+.erc721-project-page .live-bid-input {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.erc721-project-page .live-bid-input input {
+    flex: 1;
+    height: 52px;
+    padding: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h4);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.erc721-project-page .live-bid-input input:focus {
+    outline: none;
+    border-color: var(--text-primary);
+}
+
+.erc721-project-page .live-bid-input .bid-unit {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--space-3);
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+}
+
+.erc721-project-page .bid-btn {
+    height: 52px;
+    font-size: var(--font-size-body);
+    width: 100%;
+}
+
+/* Bid History */
+.erc721-project-page .live-bid-history {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-secondary);
+}
+
+.erc721-project-page .bid-history-title {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-2);
+}
+
+.erc721-project-page .bid-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-tertiary);
+    font-size: var(--font-size-body-sm);
+}
+
+.erc721-project-page .bid-entry:last-child {
+    border-bottom: none;
+}
+
+.erc721-project-page .bid-entry-address {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+}
+
+.erc721-project-page .bid-entry-amount {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-bold);
+}
+
+.erc721-project-page .bid-entry-time {
+    font-family: var(--font-mono);
+    color: var(--text-tertiary);
+    font-size: var(--font-size-caption);
+}
+
+/* Settled / Expired Auction Banner */
+.erc721-project-page .auction-ended-banner {
+    padding: var(--space-2) var(--space-4);
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.erc721-project-page .settle-btn {
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-caption);
+}
+
+/* No Active Auction */
+.erc721-project-page .no-auction {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-8);
+    margin-bottom: var(--space-8);
+    text-align: center;
+}
+
+.erc721-project-page .no-auction-text {
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    color: var(--text-secondary);
+}
+
+/* Section Title */
+.erc721-project-page .section-title {
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-4);
+}
+
+/* Previous Works Gallery */
+.erc721-project-page .works-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.erc721-project-page .work-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    cursor: pointer;
+    transition: var(--transition-opacity);
+}
+
+.erc721-project-page .work-card:hover {
+    opacity: 0.7;
+}
+
+.erc721-project-page .work-image {
+    width: 100%;
+    aspect-ratio: 1;
+    background-color: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--text-tertiary);
+    position: relative;
+    overflow: hidden;
+}
+
+.erc721-project-page .work-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.erc721-project-page .work-badge {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+}
+
+.erc721-project-page .work-badge.unsold {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-secondary);
+}
+
+.erc721-project-page .work-info {
+    padding: var(--space-3);
+}
+
+.erc721-project-page .work-name {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-2);
+}
+
+.erc721-project-page .work-detail-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-caption);
+    margin-bottom: var(--space-1);
+}
+
+.erc721-project-page .work-detail-row:last-child {
+    margin-bottom: 0;
+}
+
+.erc721-project-page .work-detail-label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc721-project-page .work-detail-value {
+    font-family: var(--font-mono);
+}
+
+/* Vault Info */
+.erc721-project-page .vault-info {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.erc721-project-page .vault-info-title {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-3);
+}
+
+.erc721-project-page .vault-info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-tertiary);
+    font-size: var(--font-size-body-sm);
+}
+
+.erc721-project-page .vault-info-row:last-child {
+    border-bottom: none;
+}
+
+.erc721-project-page .vault-info-label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc721-project-page .vault-info-value {
+    font-family: var(--font-mono);
+}
+
+/* Comment Feed Section */
+.erc721-project-page .activity-section {
+    margin-bottom: var(--space-6);
+}
+
+/* Bid Status Messages */
+.erc721-project-page .bid-status {
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    font-size: var(--font-size-body-sm);
+    text-align: center;
+}
+
+.erc721-project-page .bid-status.success {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.erc721-project-page .bid-status.error {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--text-primary);
+    color: var(--text-primary);
+}
+
+/* Loading States */
+.erc721-project-page .loading-state {
+    padding: var(--space-8);
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.erc721-project-page .loading-placeholder {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    animation: erc721-skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes erc721-skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ============ Responsive ============ */
+
+@media (max-width: 1024px) {
+    .erc721-project-page .live-auction-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .erc721-project-page .live-auction-image {
+        border-right: none;
+        border-bottom: 2px solid var(--border-primary);
+        aspect-ratio: 4/3;
+    }
+
+    .erc721-project-page .works-gallery {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .erc721-project-page .project-header {
+        flex-direction: column;
+    }
+
+    .erc721-project-page .stats-bar {
+        flex-wrap: wrap;
+        gap: var(--space-3);
+    }
+
+    .erc721-project-page .auction-config {
+        flex-wrap: wrap;
+    }
+
+    .erc721-project-page .live-auction-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .erc721-project-page .live-auction-image {
+        border-right: none;
+        border-bottom: 2px solid var(--border-primary);
+        aspect-ratio: 4/3;
+    }
+
+    .erc721-project-page .works-gallery {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .erc721-project-page .live-bid-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .erc721-project-page .works-gallery {
+        grid-template-columns: 1fr;
+    }
+
+    .erc721-project-page .live-auction-body {
+        padding: var(--space-4);
+    }
+
+    .erc721-project-page .stats-bar {
+        gap: var(--space-2);
+        padding: var(--space-3) 0;
+    }
+
+    .erc721-project-page .stat-item {
+        padding: var(--space-1);
+    }
+
+    .erc721-project-page .auction-config {
+        gap: var(--space-2);
+    }
+}

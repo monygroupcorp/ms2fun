@@ -33,10 +33,6 @@ export class ProjectCommentFeed extends Component {
         return this.props.projectAddress;
     }
 
-    get adapter() {
-        return this.props.adapter;
-    }
-
     async didMount() {
         stylesheetLoader.load('src/components/ProjectCommentFeed/ProjectCommentFeed.css', 'project-comment-feed-styles');
 

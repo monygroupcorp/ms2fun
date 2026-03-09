@@ -6,6 +6,9 @@
 
 import { Component, h } from '../../core/microact-setup.js';
 import serviceFactory from '../../services/ServiceFactory.js';
+import { ERC1155ProjectPage } from '../ERC1155/ERC1155ProjectPage.microact.js';
+import { ERC721ProjectPage } from '../ERC721/ERC721ProjectPage.microact.js';
+import { ERC404ProjectPage } from '../ERC404/ERC404ProjectPage.microact.js';
 
 export class ContractTypeRouter extends Component {
     constructor(props = {}) {
@@ -91,14 +94,14 @@ export class ContractTypeRouter extends Component {
         const { loading, adapter, project } = this.state;
 
         if (loading) {
-            return h('div', { className: 'contract-type-router loading marble-bg' },
+            return h('div', { className: 'contract-type-router loading' },
                 h('div', { className: 'loading-spinner' }),
                 h('p', null, 'Loading interface...')
             );
         }
 
         if (!this.contractType) {
-            return h('div', { className: 'contract-type-router marble-bg' },
+            return h('div', { className: 'contract-type-router' },
                 h('div', { className: 'placeholder-message' },
                     h('p', null, 'Contract type not specified')
                 )
@@ -109,42 +112,53 @@ export class ContractTypeRouter extends Component {
 
         if (type === 'ERC404' || type === 'ERC404BONDING') {
             if (!adapter) {
-                return h('div', { className: 'contract-type-router erc404 error marble-bg' },
+                return h('div', { className: 'contract-type-router erc404 error' },
                     h('p', null, 'Failed to load contract adapter')
                 );
             }
 
-            // ERC404 page placeholder - actual component would be mounted
             return h('div', { className: 'contract-type-router erc404' },
-                h('div', { className: 'erc404-page-placeholder' },
-                    h('p', null, 'ERC404 Project Page - mount ERC404ProjectPage here'),
-                    h('p', { className: 'debug-info' },
-                        `Project: ${project?.name || 'Unknown'} | Address: ${this.projectId}`
-                    )
-                )
+                h(ERC404ProjectPage, {
+                    projectId: this.projectId,
+                    adapter: adapter,
+                    project: project
+                })
             );
         }
 
         if (type === 'ERC1155') {
             if (!adapter) {
-                return h('div', { className: 'contract-type-router erc1155 error marble-bg' },
+                return h('div', { className: 'contract-type-router erc1155 error' },
                     h('p', null, 'Failed to load contract adapter')
                 );
             }
 
-            // ERC1155 layout placeholder
-            return h('div', { className: 'contract-type-router erc1155 marble-bg' },
-                h('div', { className: 'erc1155-gallery' },
-                    h('p', null, 'Edition Gallery - mount EditionGallery here')
-                ),
-                h('div', { className: 'erc1155-comments' },
-                    h('p', null, 'Comment Feed - mount ProjectCommentFeed here')
-                ),
-                h('div', { className: 'erc1155-admin-button-float' })
+            return h('div', { className: 'contract-type-router erc1155' },
+                h(ERC1155ProjectPage, {
+                    projectId: this.projectId,
+                    adapter: adapter,
+                    project: project
+                })
             );
         }
 
-        return h('div', { className: 'contract-type-router unknown marble-bg' },
+        if (type === 'ERC721' || type === 'ERC721AUCTION') {
+            if (!adapter) {
+                return h('div', { className: 'contract-type-router erc721 error' },
+                    h('p', null, 'Failed to load contract adapter')
+                );
+            }
+
+            return h('div', { className: 'contract-type-router erc721' },
+                h(ERC721ProjectPage, {
+                    projectId: this.projectId,
+                    adapter: adapter,
+                    project: project
+                })
+            );
+        }
+
+        return h('div', { className: 'contract-type-router unknown' },
             h('div', { className: 'placeholder-message' },
                 h('p', null, `Unknown contract type: ${this.escapeHtml(this.contractType)}`)
             )

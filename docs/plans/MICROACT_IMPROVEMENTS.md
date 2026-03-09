@@ -273,6 +273,7 @@ willUnmount() {}    // Before removal
 | 2026-01-22 | microact | Visual flash on tab/dropdown state changes | ERC1155AdminModal | CSS fade animation on content | Efficient DOM Diffing |
 | 2026-02-19 | microact | SVG elements invisible — createElement lacks namespace | Footer.js | Static HTML in index.html | SVG Namespace Support |
 | 2026-02-19 | microact | SVG viewBox lowercased to viewbox in 0.2.3 | Footer.js | Static HTML in index.html | SVG Attribute Casing |
+| 2026-03-04 | microact | shouldUpdate receives same object ref for old/new state | CultExecsPage | Avoid shouldUpdate; use setState once + DOM manipulation | State Snapshot in shouldUpdate |
 | | | | | | |
 
 ---

@@ -639,7 +639,7 @@ class ERC404Adapter extends ContractAdapter {
      * @param {number} limit - Maximum number of messages to retrieve
      * @returns {Promise<Array>} Array of messages
      */
-    async getMessages(limit = 10) {
+    async getMessages(limit = 20) {
         // Check if contract supports getMessagesBatch
         if (!this.contract || typeof this.contract.getMessagesBatch !== 'function') {
             return [];
@@ -648,18 +648,35 @@ class ERC404Adapter extends ContractAdapter {
         try {
             const totalMessages = await this.executeContractCall('totalMessages');
             const total = parseInt(totalMessages.toString());
-            
+
             if (total === 0) {
                 return [];
             }
 
             const startIndex = Math.max(0, total - limit);
             const endIndex = total;
-            
-            const messages = await this.executeContractCall('getMessagesBatch', [startIndex, endIndex]);
-            return messages.map(msg => msg.toString());
+
+            // getMessagesBatch returns 5 parallel arrays:
+            // [senders[], timestamps[], amounts[], isBuys[], messages[]]
+            const result = await this.executeContractCall('getMessagesBatch', [startIndex, endIndex]);
+            const [senders, timestamps, amounts, isBuys, messages] = result;
+
+            // Zip into structured objects matching ProjectCommentFeed.transformMessage format
+            const structured = [];
+            for (let i = 0; i < senders.length; i++) {
+                structured.push({
+                    sender: senders[i],
+                    message: messages[i] || '',
+                    timestamp: parseInt(timestamps[i]?.toString() || '0'),
+                    amount: amounts[i]?.toString() || '0',
+                    isBuy: isBuys[i]
+                });
+            }
+
+            // Return newest first
+            return structured.reverse();
         } catch (error) {
-            console.error('Error getting messages:', error);
+            console.error('[ERC404Adapter] Error getting messages:', error);
             return [];
         }
     }

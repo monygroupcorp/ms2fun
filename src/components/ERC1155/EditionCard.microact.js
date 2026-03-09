@@ -9,6 +9,7 @@ import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { generateProjectURL } from '../../utils/navigation.js';
 import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
+import { EditionMintInterface } from './EditionMintInterface.microact.js';
 
 export class EditionCard extends Component {
     constructor(props = {}) {
@@ -245,14 +246,14 @@ export class EditionCard extends Component {
     render() {
         const edition = this.edition;
         const name = edition.metadata?.name || `Edition #${edition.id}`;
-        const description = edition.metadata?.description || '';
-        const supply = `${edition.currentSupply} / ${edition.maxSupply === '0' ? '∞' : edition.maxSupply}`;
+        const supply = `${edition.currentSupply}/${edition.maxSupply === '0' ? '∞' : edition.maxSupply}`;
         const pricingDisplay = this.getPricingDisplay();
 
         return h('div', {
-            className: 'edition-card marble-bg',
+            className: 'edition-card',
             'data-edition-id': edition.id
         },
+            // Clickable area for navigation
             h('a', {
                 href: this.state.editionUrl || '#',
                 className: 'edition-link',
@@ -261,26 +262,33 @@ export class EditionCard extends Component {
             },
                 this.renderImage(),
                 h('div', { className: 'edition-info' },
-                    h('h3', { className: 'edition-name' }, name),
-                    description && h('p', { className: 'edition-description' }, description),
+                    h('div', { className: 'edition-header' },
+                        h('div', { className: 'edition-name' }, name),
+                        h('div', { className: 'edition-id' }, `#${edition.id}`)
+                    ),
                     h('div', { className: 'edition-stats' },
-                        h('div', { className: 'stat' },
-                            h('span', { className: 'stat-label' }, 'Price:'),
-                            h('span', { className: 'stat-value' },
+                        h('div', { className: 'edition-stat-item' },
+                            h('div', { className: 'edition-stat-label' }, 'Price'),
+                            h('div', { className: 'edition-stat-value' },
                                 typeof pricingDisplay === 'string' ? pricingDisplay : pricingDisplay
                             )
                         ),
-                        h('div', { className: 'stat' },
-                            h('span', { className: 'stat-label' }, 'Supply:'),
-                            h('span', { className: 'stat-value' }, supply)
-                        ),
-                        this.state.userBalance !== '0' && h('div', { className: 'stat' },
-                            h('span', { className: 'stat-label' }, 'You own:'),
-                            h('span', { className: 'stat-value' }, this.state.userBalance)
+                        h('div', { className: 'edition-stat-item' },
+                            h('div', { className: 'edition-stat-label' }, 'Minted'),
+                            h('div', { className: 'edition-stat-value' }, supply)
                         )
+                    ),
+                    this.state.userBalance !== '0' && h('div', { className: 'edition-user-balance' },
+                        h('span', { className: 'edition-stat-label' }, 'You own: '),
+                        h('span', { className: 'edition-stat-value' }, this.state.userBalance)
                     )
                 )
-            )
+            ),
+            // Mint interface — full component with quantity, cost, message, and actual tx
+            h(EditionMintInterface, {
+                edition: edition,
+                adapter: this.adapter
+            })
         );
     }
 }

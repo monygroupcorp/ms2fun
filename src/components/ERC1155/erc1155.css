@@ -45,7 +45,7 @@ body.has-project-style.project-style-loaded .contract-type-router {
 
 /* ============================================================================ */
 
-/* Use engraved serif font from global styles */
+/* Use body font from global styles */
 .edition-gallery,
 .edition-card,
 .edition-mint-interface,
@@ -54,6 +54,631 @@ body.has-project-style.project-style-loaded .contract-type-router {
 .contract-type-router.erc1155 {
     font-family: var(--font-body);
 }
+
+/* ============================================================================
+   V2 GALLERY BRUTALISM OVERRIDES
+   Matches docs/examples/project-erc1155-demo.html
+   ============================================================================ */
+
+/* ERC1155 Project Page */
+.erc1155-project-page {
+    max-width: var(--container-xl);
+    margin: 0 auto;
+}
+
+/* Project Header (v2) */
+.erc1155-project-page .project-header {
+    padding: var(--space-8) 0;
+    border-bottom: 1px solid var(--border-secondary);
+    margin-bottom: var(--space-6);
+}
+
+.erc1155-project-page .project-type-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    border: 1px solid var(--text-primary);
+    margin-bottom: var(--space-3);
+}
+
+.erc1155-project-page .project-title {
+    font-size: var(--font-size-display);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-tight);
+    margin-bottom: var(--space-3);
+    line-height: var(--line-height-tight);
+}
+
+.erc1155-project-page .project-description {
+    font-size: var(--font-size-body-lg);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    max-width: 800px;
+    margin-bottom: var(--space-4);
+}
+
+.erc1155-project-page .project-meta {
+    display: flex;
+    gap: var(--space-4);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    flex-wrap: wrap;
+}
+
+.erc1155-project-page .project-meta-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.erc1155-project-page .project-meta-label {
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Gallery Grid (v2) */
+.erc1155-project-page .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+}
+
+/* Edition Card (v2) */
+.erc1155-project-page .edition-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    transition: var(--transition-base);
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+}
+
+.erc1155-project-page .edition-card:hover {
+    background-color: var(--state-hover-bg);
+    transform: none;
+    box-shadow: none;
+    border-color: var(--border-secondary);
+}
+
+.erc1155-project-page .edition-image {
+    width: 100%;
+    aspect-ratio: 1;
+    background-color: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding-top: 0;
+}
+
+.erc1155-project-page .edition-info {
+    padding: var(--space-3);
+}
+
+.erc1155-project-page .edition-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--space-2);
+    gap: var(--space-2);
+}
+
+.erc1155-project-page .edition-name {
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin: 0;
+}
+
+.erc1155-project-page .edition-id {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    padding: var(--space-1) var(--space-2);
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-tertiary);
+}
+
+.erc1155-project-page .edition-stats {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    margin-bottom: var(--space-2);
+    border-top: 1px solid var(--border-tertiary);
+    border-bottom: 1px solid var(--border-tertiary);
+    font-size: var(--font-size-caption);
+    flex-direction: row;
+    gap: 0;
+}
+
+.erc1155-project-page .edition-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.erc1155-project-page .edition-stat-label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    font-size: var(--font-size-caption);
+}
+
+.erc1155-project-page .edition-stat-value {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+.erc1155-project-page .edition-user-balance {
+    padding-top: var(--space-2);
+    font-size: var(--font-size-caption);
+}
+
+/* Stats Bar (v2) */
+.erc1155-project-page .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    margin-bottom: var(--space-6);
+}
+
+.erc1155-project-page .stats-bar .stat {
+    text-align: center;
+    display: block;
+    padding: 0;
+    border-bottom: none;
+}
+
+.erc1155-project-page .stats-bar .stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h2);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: var(--space-1);
+}
+
+.erc1155-project-page .stats-bar .stat-label {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+/* Vault Alignment (v2) */
+.erc1155-project-page .vault-alignment {
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-primary);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.erc1155-project-page .vault-alignment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.erc1155-project-page .vault-alignment-title {
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc1155-project-page .vault-alignment-badge {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    font-family: var(--font-mono);
+}
+
+.erc1155-project-page .vault-alignment-description {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+    margin-bottom: var(--space-3);
+}
+
+.erc1155-project-page .vault-alignment-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-tertiary);
+}
+
+.erc1155-project-page .vault-stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.erc1155-project-page .vault-stat-label {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc1155-project-page .vault-stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+/* Tabs (v2) */
+.erc1155-project-page .tabs {
+    display: flex;
+    gap: var(--space-2);
+    border-bottom: 1px solid var(--border-secondary);
+    margin-bottom: var(--space-6);
+}
+
+.erc1155-project-page .tab {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.erc1155-project-page .tab:hover {
+    color: var(--text-primary);
+}
+
+.erc1155-project-page .tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--border-primary);
+}
+
+/* About Section (v2) */
+.erc1155-project-page .about-section {
+    max-width: 800px;
+}
+
+.erc1155-project-page .about-title {
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-3);
+}
+
+.erc1155-project-page .about-title-sm {
+    font-size: var(--font-size-h4);
+    margin-top: var(--space-6);
+}
+
+.erc1155-project-page .about-text {
+    font-size: var(--font-size-body);
+    color: var(--text-primary);
+    line-height: var(--line-height-relaxed);
+    margin-bottom: var(--space-4);
+}
+
+.erc1155-project-page .about-details {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-4);
+}
+
+.erc1155-project-page .about-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-tertiary);
+}
+
+.erc1155-project-page .about-detail-row:last-child {
+    border-bottom: none;
+}
+
+.erc1155-project-page .about-detail-label {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc1155-project-page .about-detail-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-primary);
+}
+
+/* Activity Placeholder (v2) */
+.erc1155-project-page .activity-placeholder {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-8);
+    text-align: center;
+}
+
+.erc1155-project-page .activity-placeholder-title {
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-2);
+}
+
+.erc1155-project-page .activity-placeholder-text {
+    font-size: var(--font-size-body);
+    color: var(--text-secondary);
+}
+
+/* Edition Mint Controls (v2) */
+.erc1155-project-page .edition-mint {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-3);
+    padding-top: 0;
+}
+
+.erc1155-project-page .edition-quantity {
+    width: 60px;
+    height: var(--input-height);
+    padding: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body);
+    text-align: center;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.erc1155-project-page .edition-quantity:focus {
+    outline: none;
+    border-color: var(--text-primary);
+}
+
+/* Responsive (v2) */
+@media (max-width: 1024px) {
+    .erc1155-project-page .gallery-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .erc1155-project-page .project-title {
+        font-size: var(--font-size-h1);
+    }
+
+    .erc1155-project-page .stats-bar {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .erc1155-project-page .gallery-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .erc1155-project-page .project-meta {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+
+    .erc1155-project-page .edition-mint {
+        flex-direction: column;
+    }
+
+    .erc1155-project-page .edition-mint .btn {
+        width: 100%;
+    }
+
+    .erc1155-project-page .edition-quantity {
+        width: 100%;
+    }
+}
+
+/* Free Mint Placeholder (v2) */
+.erc1155-project-page .free-mint-placeholder {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-4);
+    margin-bottom: var(--space-6);
+    opacity: 0.6;
+}
+
+.erc1155-project-page .free-mint-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.erc1155-project-page .free-mint-title {
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc1155-project-page .free-mint-badge {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc1155-project-page .free-mint-badge-disabled {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-tertiary);
+}
+
+.erc1155-project-page .free-mint-description {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+}
+
+/* EditionMintInterface v2 overrides (inside edition-card) */
+.erc1155-project-page .edition-mint-interface {
+    padding: var(--space-3) !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border-top: 1px solid var(--border-tertiary);
+}
+
+.erc1155-project-page .edition-mint-interface .quantity-selector {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.erc1155-project-page .edition-mint-interface .quantity-selector label {
+    font-size: var(--font-size-caption);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    color: var(--text-secondary);
+}
+
+.erc1155-project-page .edition-mint-interface .quantity-selector input {
+    width: 60px;
+    padding: var(--space-1) var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    text-align: center;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.erc1155-project-page .edition-mint-interface .cost-display {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+}
+
+.erc1155-project-page .edition-mint-interface .cost-display .value {
+    font-family: var(--font-mono);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+.erc1155-project-page .edition-mint-interface .cost-display .live-indicator {
+    font-size: var(--font-size-caption);
+    color: var(--text-tertiary);
+}
+
+.erc1155-project-page .edition-mint-interface .message-option {
+    font-size: var(--font-size-caption);
+}
+
+.erc1155-project-page .edition-mint-interface .message-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.erc1155-project-page .edition-mint-interface .message-input {
+    width: 100%;
+    min-height: 60px;
+    padding: var(--space-2);
+    font-family: var(--font-body);
+    font-size: var(--font-size-body-sm);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+    resize: vertical;
+}
+
+.erc1155-project-page .edition-mint-interface .message-input:focus {
+    outline: none;
+    border-color: var(--text-primary);
+}
+
+.erc1155-project-page .edition-mint-interface .message-char-count {
+    font-size: var(--font-size-caption);
+    color: var(--text-tertiary);
+    text-align: right;
+}
+
+.erc1155-project-page .edition-mint-interface .message-char-count.warning {
+    color: var(--text-secondary);
+}
+
+.erc1155-project-page .edition-mint-interface .message-char-count.error {
+    color: var(--text-primary);
+}
+
+.erc1155-project-page .edition-mint-interface .mint-button {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+    border: 1px solid var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.erc1155-project-page .edition-mint-interface .mint-button:hover:not(:disabled) {
+    opacity: 0.8;
+}
+
+.erc1155-project-page .edition-mint-interface .mint-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.erc1155-project-page .edition-mint-interface .error-message {
+    padding: var(--space-2);
+    font-size: var(--font-size-caption);
+    color: var(--text-primary);
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+}
+
+.erc1155-project-page .edition-mint-interface .success-message {
+    padding: var(--space-2);
+    font-size: var(--font-size-caption);
+    color: var(--text-primary);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+}
+
+/* ============================================================================
+   END V2 OVERRIDES
+   ============================================================================ */
 
 /* Floating Admin Button - positioned in top right of contract router */
 .contract-type-router.erc1155 {

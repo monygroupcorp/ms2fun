@@ -15,6 +15,7 @@ import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.j
 import GovernanceAdapter from './contracts/GovernanceAdapter.js';
 import ERC404FactoryAdapter from './contracts/ERC404FactoryAdapter.js';
 import ERC1155FactoryAdapter from './contracts/ERC1155FactoryAdapter.js';
+import ERC721AuctionInstanceAdapter from './contracts/ERC721AuctionInstanceAdapter.js';
 import walletService from './WalletService.js';
 import { eventBus } from '../core/EventBus.js';
 import serviceFactory from './ServiceFactory.js';
@@ -50,6 +51,8 @@ class ProjectService {
         contractTypeRegistry.setAdapterClass('VaultGovernance', GovernanceAdapter);
         contractTypeRegistry.setAdapterClass('ERC404Factory', ERC404FactoryAdapter);
         contractTypeRegistry.setAdapterClass('ERC1155Factory', ERC1155FactoryAdapter);
+        contractTypeRegistry.setAdapterClass('ERC721Auction', ERC721AuctionInstanceAdapter);
+        contractTypeRegistry.setAdapterClass('ERC721', ERC721AuctionInstanceAdapter); // alias
     }
 
     /**
