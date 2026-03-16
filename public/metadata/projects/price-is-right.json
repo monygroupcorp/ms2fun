@@ -1,0 +1,8 @@
+{
+  "name": "Price Is Right",
+  "description": "Editions with escalating prices — each mint pushes the cost higher. Early collectors get the best deal. The market decides the art's value.",
+  "image": "/metadata/images/erc1155/price-is-right/collection.png",
+  "category": "Experimental",
+  "tags": ["dynamic-pricing", "experimental", "game-theory"],
+  "external_url": ""
+}

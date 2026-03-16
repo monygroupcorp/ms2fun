@@ -1,0 +1,361 @@
+{
+  "$schema": "./seed-collections.schema.json",
+  "_comment": "Seed collection definitions. Scenario files read from here instead of inline data. Images go in public/metadata/images/ — use relative paths from site root.",
+
+  "erc404": [
+    {
+      "id": "neon-prophets",
+      "name": "Neon-Prophets",
+      "symbol": "NEON",
+      "displayName": "Neon Prophets",
+      "description": "Cyberpunk oracles rendered in neon wireframe. Each prophet channels a different frequency of the machine consciousness. Dual-nature: token and totem.",
+      "image": "/metadata/images/erc404/neon-prophets/collection.png",
+      "category": "Generative",
+      "tags": ["cyberpunk", "generative", "neon", "dual-nature"],
+      "nftCount": 10,
+      "presetId": 1,
+      "bondingTarget": "10%",
+      "vault": "primary",
+      "buyers": [
+        { "account": "trader", "tokens": "200" },
+        { "account": "collector", "tokens": "350" },
+        { "account": "governance", "tokens": "200" },
+        { "account": "deployer", "tokens": "200" },
+        { "account": "trader", "tokens": "50" }
+      ],
+      "userTransfer": { "from": "collector", "amount": "150" },
+      "ownershipTransfer": true
+    },
+    {
+      "id": "concrete-dreams",
+      "name": "Concrete-Dreams",
+      "symbol": "CNCRT",
+      "displayName": "Concrete Dreams",
+      "description": "Brutalist architecture meets fever dream. Impossible buildings that could only exist on-chain. The curve is climbing — concrete never felt so liquid.",
+      "image": "/metadata/images/erc404/concrete-dreams/collection.png",
+      "category": "Architecture",
+      "tags": ["brutalist", "architecture", "surreal", "active"],
+      "nftCount": 10,
+      "presetId": 1,
+      "bondingTarget": "60%",
+      "vault": "primary",
+      "buyers": [
+        { "account": "trader", "tokens": "400" },
+        { "account": "collector", "tokens": "1200" },
+        { "account": "governance", "tokens": "400" },
+        { "account": "deployer", "tokens": "400" },
+        { "account": "trader", "tokens": "400" },
+        { "account": "governance", "tokens": "400" },
+        { "account": "trader", "tokens": "400" },
+        { "account": "governance", "tokens": "400" },
+        { "account": "deployer", "tokens": "200" }
+      ],
+      "userTransfer": { "from": "collector", "amount": "800" }
+    },
+    {
+      "id": "exit-velocity",
+      "name": "Exit-Velocity",
+      "symbol": "EXIT",
+      "displayName": "Exit Velocity",
+      "description": "Graduated. The bonding curve is complete — 100% filled. These tokens now trade freely. A collection of kinetic abstractions capturing the moment of escape.",
+      "image": "/metadata/images/erc404/exit-velocity/collection.png",
+      "category": "Abstract",
+      "tags": ["graduated", "kinetic", "abstract", "trading"],
+      "nftCount": 10,
+      "presetId": 1,
+      "bondingTarget": "100%",
+      "vault": "primary",
+      "buyers": [
+        { "account": "trader", "tokens": "1500" },
+        { "account": "collector", "tokens": "2500" },
+        { "account": "governance", "tokens": "2000" },
+        { "account": "deployer", "tokens": "2000" }
+      ],
+      "userTransfer": { "from": "collector", "amount": "1000" }
+    }
+  ],
+
+  "erc1155": [
+    {
+      "id": "signal-and-noise",
+      "name": "Signal-and-Noise",
+      "displayName": "Signal & Noise",
+      "description": "Open editions exploring the boundary between meaning and static. Two pieces: one unlimited signal, one limited noise.",
+      "image": "/metadata/images/erc1155/signal-and-noise/collection.png",
+      "category": "Photography",
+      "tags": ["open-edition", "photography", "conceptual"],
+      "vault": "primary",
+      "editions": [
+        {
+          "name": "The-Signal",
+          "displayName": "The Signal",
+          "description": "An unlimited open edition — the signal that cuts through. Collect as many as you want.",
+          "image": "/metadata/images/erc1155/signal-and-noise/the-signal.png",
+          "price": "0.01",
+          "maxSupply": 0,
+          "pricingModel": 0
+        },
+        {
+          "name": "The-Noise",
+          "displayName": "The Noise",
+          "description": "Limited to 100 — the noise that makes the signal matter. Fixed price, first come first served.",
+          "image": "/metadata/images/erc1155/signal-and-noise/the-noise.png",
+          "price": "0.02",
+          "maxSupply": 100,
+          "pricingModel": 1
+        }
+      ],
+      "seedMints": [
+        { "edition": 1, "account": "deployer", "quantity": 3 },
+        { "edition": 2, "account": "trader", "quantity": 2 }
+      ],
+      "userMints": [
+        { "edition": 1, "from": "collector", "mintQuantity": 2, "transferQuantity": 2 },
+        { "edition": 2, "from": "collector", "mintQuantity": 1, "transferQuantity": 1 }
+      ],
+      "ownershipTransfer": true
+    },
+    {
+      "id": "price-is-right",
+      "name": "Price-Is-Right",
+      "displayName": "Price Is Right",
+      "description": "Editions with escalating prices — each mint pushes the cost higher. Early collectors get the best deal. The market decides the art's value.",
+      "image": "/metadata/images/erc1155/price-is-right/collection.png",
+      "category": "Experimental",
+      "tags": ["dynamic-pricing", "experimental", "game-theory"],
+      "vault": "secondary",
+      "editions": [
+        {
+          "name": "Slow-Burn",
+          "displayName": "Slow Burn",
+          "description": "Price increases 5% with each mint. Max 50. A gentle climb.",
+          "image": "/metadata/images/erc1155/price-is-right/slow-burn.png",
+          "price": "0.005",
+          "maxSupply": 50,
+          "pricingModel": 2,
+          "priceIncreaseRate": 500
+        },
+        {
+          "name": "Rocket-Fuel",
+          "displayName": "Rocket Fuel",
+          "description": "Price increases 10% with each mint. Max 30. Things get expensive fast.",
+          "image": "/metadata/images/erc1155/price-is-right/rocket-fuel.png",
+          "price": "0.01",
+          "maxSupply": 30,
+          "pricingModel": 2,
+          "priceIncreaseRate": 1000
+        }
+      ],
+      "seedMints": [
+        { "edition": 1, "rotating": ["collector", "trader"], "count": 10 },
+        { "edition": 2, "rotating": ["governance", "deployer"], "count": 8 }
+      ],
+      "userMints": [
+        { "edition": 1, "from": "collector", "mintQuantity": 3, "transferQuantity": 3 }
+      ]
+    },
+    {
+      "id": "common-rare",
+      "name": "Common-Rare",
+      "displayName": "Common / Rare",
+      "description": "Two sides of the same coin. One rare limited edition and one unlimited common. Both matter — the question is which one matters more to you.",
+      "image": "/metadata/images/erc1155/common-rare/collection.png",
+      "category": "Art",
+      "tags": ["limited", "unlimited", "duality", "collectible"],
+      "vault": "secondary",
+      "editions": [
+        {
+          "name": "Rare-One",
+          "displayName": "Rare One",
+          "description": "100 exist. Fixed price. When they're gone, they're gone.",
+          "image": "/metadata/images/erc1155/common-rare/rare-one.png",
+          "price": "0.02",
+          "maxSupply": 100,
+          "pricingModel": 1
+        },
+        {
+          "name": "Common-One",
+          "displayName": "Common One",
+          "description": "Unlimited. Always available. The people's edition.",
+          "image": "/metadata/images/erc1155/common-rare/common-one.png",
+          "price": "0.005",
+          "maxSupply": 0,
+          "pricingModel": 0
+        }
+      ],
+      "seedMints": [
+        { "edition": 1, "rotating": ["trader", "collector", "governance", "deployer"], "count": 40 },
+        { "edition": 2, "rotating": ["trader", "collector", "governance", "deployer"], "count": 55 }
+      ],
+      "userMints": [
+        { "edition": 1, "from": "collector", "mintQuantity": 5, "transferQuantity": 5 },
+        { "edition": 2, "from": "collector", "mintQuantity": 5, "transferQuantity": 5 }
+      ]
+    }
+  ],
+
+  "erc721": [
+    {
+      "id": "the-solo-show",
+      "name": "The-Solo-Show",
+      "symbol": "SOLO",
+      "displayName": "The Solo Show",
+      "description": "One artist. One line. Three pieces. A timed auction for unique 1-of-1 works — one settled, one live, one waiting in the wings.",
+      "image": "/metadata/images/erc721/the-solo-show/collection.png",
+      "category": "Photography",
+      "tags": ["auction", "1-of-1", "solo-show", "photography"],
+      "vault": "primary",
+      "lines": 1,
+      "baseDuration": 600,
+      "timeBuffer": 30,
+      "bidIncrement": "0.01",
+      "pieces": [
+        {
+          "name": "Opening Act",
+          "description": "The first piece — a bold opening statement. Already settled.",
+          "image": "/metadata/images/erc721/the-solo-show/opening-act.png"
+        },
+        {
+          "name": "Main Piece",
+          "description": "The centerpiece — the artist's defining work. Live auction.",
+          "image": "/metadata/images/erc721/the-solo-show/main-piece.png"
+        },
+        {
+          "name": "Encore",
+          "description": "The surprise encore — waiting for its moment.",
+          "image": "/metadata/images/erc721/the-solo-show/encore.png"
+        }
+      ],
+      "queueDeposit": "0.05",
+      "auctionScript": [
+        {
+          "piece": 1,
+          "bids": [
+            { "account": "trader", "amount": "0.06" },
+            { "account": "collector", "amount": "0.08" },
+            { "account": "governance", "amount": "0.1" }
+          ],
+          "settle": true,
+          "advanceTime": 660,
+          "transferToUser": true
+        },
+        {
+          "piece": 2,
+          "bids": [
+            { "account": "trader", "amount": "0.06" },
+            { "account": "collector", "amount": "0.07" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dual-frequency",
+      "name": "Dual-Frequency",
+      "symbol": "FREQ",
+      "displayName": "Dual Frequency",
+      "description": "Two auction lines running simultaneously — two frequencies, one show. Collectors bid on both channels at once. Curated chaos.",
+      "image": "/metadata/images/erc721/dual-frequency/collection.png",
+      "category": "Art",
+      "tags": ["auction", "1-of-1", "multi-line", "curated"],
+      "vault": "secondary",
+      "lines": 2,
+      "baseDuration": 600,
+      "timeBuffer": 30,
+      "bidIncrement": "0.005",
+      "pieces": [
+        {
+          "name": "Channel-A Open",
+          "description": "First piece on channel A — opens the frequency.",
+          "image": "/metadata/images/erc721/dual-frequency/channel-a-open.png"
+        },
+        {
+          "name": "Channel-B Open",
+          "description": "First piece on channel B — a parallel signal.",
+          "image": "/metadata/images/erc721/dual-frequency/channel-b-open.png"
+        },
+        {
+          "name": "Channel-A Next",
+          "description": "Second piece on channel A — waiting in the queue.",
+          "image": "/metadata/images/erc721/dual-frequency/channel-a-next.png"
+        },
+        {
+          "name": "Channel-B Next",
+          "description": "Second piece on channel B — next up.",
+          "image": "/metadata/images/erc721/dual-frequency/channel-b-next.png"
+        }
+      ],
+      "queueDeposit": "0.03",
+      "auctionScript": [
+        {
+          "piece": 1,
+          "bids": [
+            { "account": "trader", "amount": "0.04" },
+            { "account": "collector", "amount": "0.06" },
+            { "account": "governance", "amount": "0.08" }
+          ]
+        },
+        {
+          "piece": 2,
+          "bids": [
+            { "account": "trader", "amount": "0.04" },
+            { "account": "collector", "amount": "0.05" }
+          ]
+        },
+        {
+          "_settleGroup": true,
+          "settle": [1],
+          "advanceTime": 660
+        }
+      ]
+    }
+  ],
+
+  "activityMessages": {
+    "buy": [
+      "LFG!",
+      "Early and often",
+      "This project is going places",
+      "Adding to my position",
+      "Bullish on this one",
+      "Great team, great vision",
+      "Diamond hands",
+      "WAGMI",
+      "In it for the long haul",
+      "Love the art direction",
+      "Community is everything",
+      "Building something special here",
+      "First time buyer, excited!",
+      "Increasing my stack",
+      "Can't stop, won't stop"
+    ],
+    "bid": [
+      "Going for it!",
+      "My bid is in",
+      "Want this piece",
+      "Outbid alert!",
+      "Beautiful work",
+      "Raising the stakes",
+      "This is the one",
+      "Higher we go",
+      "Not letting this one slip",
+      "Bidding war!"
+    ],
+    "mint": [
+      "Beautiful piece!",
+      "Added to my collection",
+      "Love this artist's work",
+      "Supporting creators",
+      "This one speaks to me",
+      "Instant classic",
+      "Had to grab one",
+      "The details are incredible",
+      "Been waiting for this drop",
+      "My favorite so far",
+      "Art that matters",
+      "Proud to own this",
+      "Supporting the vision",
+      "This is the one",
+      "Collector's item for sure"
+    ]
+  }
+}
