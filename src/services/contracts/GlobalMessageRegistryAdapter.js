@@ -54,7 +54,7 @@ class GlobalMessageRegistryAdapter extends ContractAdapter {
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             this.initialized = true;
@@ -79,104 +79,131 @@ class GlobalMessageRegistryAdapter extends ContractAdapter {
      */
     async getMessageCount() {
         return await this.getCachedOrFetch('getMessageCount', [], async () => {
-            const count = await this.executeContractCall('getMessageCount');
+            // Contract function is named `messageCount`, not `getMessageCount`
+            const count = await this.executeContractCall('messageCount');
             return parseInt(count.toString());
         }, CACHE_TTL.MESSAGE_COUNT);
     }
 
     /**
-     * Get recent messages (protocol-wide)
+     * Get recent messages (protocol-wide) via event logs
      * @param {number} count - Number of recent messages to retrieve
      * @returns {Promise<Array>} Array of message objects
      */
     async getRecentMessages(count) {
-        const totalMessages = await this.getMessageCount();
-        const messages = await this.executeContractCall('getRecentMessages', [count]);
-
-        // Add message IDs based on their position in the array
-        // Recent messages are: [totalMessages - count, ..., totalMessages - 1]
-        const returnCount = Math.min(count, totalMessages);
-        const startId = totalMessages - returnCount;
-
-        return messages.map((msg, index) => ({
-            ...this._parseMessage(msg),
-            id: startId + index
-        }));
+        const events = await this._queryMessageEvents(null, null, count);
+        return events;
     }
 
     /**
-     * Get recent messages (paginated)
-     * @param {number} offset - Offset from most recent
-     * @param {number} limit - Number of messages to retrieve
-     * @returns {Promise<Array>} Array of message objects
+     * Get recent messages (paginated) via event logs
      */
     async getRecentMessagesPaginated(offset, limit) {
-        const messages = await this.executeContractCall('getRecentMessagesPaginated', [offset, limit]);
-        return messages.map(msg => this._parseMessage(msg));
+        const all = await this._queryMessageEvents(null, null, offset + limit);
+        return all.slice(offset, offset + limit);
     }
 
     /**
-     * Get a single message by ID
-     * @param {number} messageId - Message ID
-     * @returns {Promise<Object>} Message object
+     * Get a single message by ID via event log filter
      */
     async getMessage(messageId) {
-        return await this.getCachedOrFetch('getMessage', [messageId], async () => {
-            const msg = await this.executeContractCall('getMessage', [messageId]);
-            return this._parseMessage(msg);
-        }, CACHE_TTL.NO_CACHE); // Messages don't change, but keep fresh for now
+        if (!this.contract) return null;
+        try {
+            const filter = this.contract.filters.MessagePosted(messageId);
+            const events = await this.contract.queryFilter(filter);
+            if (events.length === 0) return null;
+            return this._parseEvent(events[0]);
+        } catch (e) {
+            return null;
+        }
     }
 
     // =========================
-    // Instance Messaging
+    // Instance Messaging (event-based — contract has no per-instance getters)
     // =========================
 
     /**
-     * Get message count for specific instance
+     * Get message count for specific instance via event logs
      * @param {string} instanceAddress - Instance contract address
      * @returns {Promise<number>} Number of messages for this instance
      */
     async getMessageCountForInstance(instanceAddress) {
-        return await this.getCachedOrFetch('getMessageCountForInstance', [instanceAddress], async () => {
-            const count = await this.executeContractCall('getMessageCountForInstance', [instanceAddress]);
-            return parseInt(count.toString());
-        }, CACHE_TTL.MESSAGE_COUNT);
+        const messages = await this._queryMessageEvents(null, instanceAddress, null);
+        return messages.length;
     }
 
     /**
-     * Get messages for specific instance
+     * Get messages for specific instance via event logs
      * @param {string} instanceAddress - Instance contract address
      * @param {number} count - Number of recent messages to retrieve
      * @returns {Promise<Array>} Array of message objects
      */
     async getInstanceMessages(instanceAddress, count) {
-        const messages = await this.executeContractCall('getInstanceMessages', [instanceAddress, count]);
-        return messages.map(msg => this._parseMessage(msg));
+        return this._queryMessageEvents(null, instanceAddress, count);
     }
 
     /**
-     * Get instance messages (paginated)
-     * @param {string} instanceAddress - Instance contract address
-     * @param {number} offset - Offset from most recent
-     * @param {number} limit - Number of messages to retrieve
-     * @returns {Promise<Array>} Array of message objects
+     * Get instance messages paginated via event logs
      */
     async getInstanceMessagesPaginated(instanceAddress, offset, limit) {
-        const messages = await this.executeContractCall(
-            'getInstanceMessagesPaginated',
-            [instanceAddress, offset, limit]
-        );
-        return messages.map(msg => this._parseMessage(msg));
+        const all = await this._queryMessageEvents(null, instanceAddress, offset + limit);
+        return all.slice(offset, offset + limit);
     }
 
     /**
-     * Get message IDs for instance
-     * @param {string} instanceAddress - Instance contract address
-     * @returns {Promise<Array<number>>} Array of message IDs
+     * Get message IDs for instance via event logs
      */
     async getInstanceMessageIds(instanceAddress) {
-        const ids = await this.executeContractCall('getInstanceMessageIds', [instanceAddress]);
-        return ids.map(id => parseInt(id.toString()));
+        const messages = await this._queryMessageEvents(null, instanceAddress, null);
+        return messages.map(m => parseInt(m.id));
+    }
+
+    /**
+     * Query MessagePosted events with optional filters.
+     * Uses deployBlock from contracts config as fromBlock so we get all events
+     * without exceeding the RPC node's block range limit.
+     * @private
+     */
+    async _queryMessageEvents(messageId = null, instanceAddress = null, limit = null) {
+        if (!this.contract) return [];
+        try {
+            const fromBlock = await this._getDeployBlock();
+            const filter = this.contract.filters.MessagePosted(messageId, instanceAddress, null);
+            const events = await this.contract.queryFilter(filter, fromBlock, 'latest');
+            const parsed = events.map(e => this._parseEvent(e));
+            if (limit !== null) return parsed.slice(-limit).reverse();
+            return parsed.reverse();
+        } catch (e) {
+            console.warn('[GlobalMessageRegistryAdapter] Event query failed:', e.message);
+            return [];
+        }
+    }
+
+    /**
+     * Get the block at which contracts were deployed, from config.
+     * Falls back to current block - 1000 if config is unavailable.
+     * @private
+     */
+    async _getDeployBlock() {
+        if (this._deployBlock !== undefined) return this._deployBlock;
+        try {
+            const { detectNetwork } = await import('../../config/network.js');
+            const network = detectNetwork();
+            if (network.contracts) {
+                const response = await fetch(network.contracts);
+                if (response.ok) {
+                    const config = await response.json();
+                    if (config.deployBlock) {
+                        this._deployBlock = config.deployBlock;
+                        return this._deployBlock;
+                    }
+                }
+            }
+        } catch (e) { /* fall through */ }
+        // Fallback: use a recent window
+        const current = await this.provider.getBlockNumber();
+        this._deployBlock = Math.max(0, current - 10000);
+        return this._deployBlock;
     }
 
     // =========================
@@ -256,6 +283,25 @@ class GlobalMessageRegistryAdapter extends ContractAdapter {
             sender: msg.sender || msg[1],
             packedData: msg.packedData || msg[2] || '0',
             message: msg.message || msg[3] || ''
+        };
+    }
+
+    /**
+     * Parse an ethers event log into the same shape as _parseMessage
+     * MessagePosted(messageId, instance, sender, messageType, refId, actionRef, metadata, content)
+     * @private
+     */
+    _parseEvent(event) {
+        const args = event.args || {};
+        return {
+            id: args.messageId?.toString() || '0',
+            instance: args.instance || '',
+            sender: args.sender || '',
+            messageType: args.messageType ?? 0,
+            refId: args.refId?.toString() || '0',
+            actionRef: args.actionRef || '0x0',
+            packedData: args.metadata || '0',
+            message: args.content || ''
         };
     }
 

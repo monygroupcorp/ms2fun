@@ -276,7 +276,7 @@ export class RecentActivityWidget extends Component {
     async handleMessageClick(msg) {
         // Navigate to the project that generated this message using modern URL
         const { navigateToProject } = await import('../../utils/navigation.js');
-        await navigateToProject(msg.instance);
+        await navigateToProject(msg.instance, null, { from: 'activity' });
     }
 
     handleViewAllClick() {

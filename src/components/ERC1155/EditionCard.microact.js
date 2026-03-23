@@ -4,7 +4,7 @@
  * Displays individual edition with image, price, supply, and mint button.
  */
 
-import { Component, h } from '../../core/microact-setup.js';
+import { Component, h, eventBus } from '../../core/microact-setup.js';
 import walletService from '../../services/WalletService.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { generateProjectURL } from '../../utils/navigation.js';
@@ -49,9 +49,119 @@ export class EditionCard extends Component {
             this.loadCurrentPrice()
         ]);
 
-        if (this.element) {
-            enhanceAllIpfsImages(this.element);
+        // Update price display now that async data is loaded
+        this.updatePriceDOM();
+
+        if (this._el) {
+            enhanceAllIpfsImages(this._el);
         }
+
+        // Listen for mint success to refresh stats without re-rendering
+        const unsub = eventBus.on('erc1155:mint:success', (data) => {
+            // Invalidate cache so we get fresh data
+            this.refreshAfterMint();
+        });
+        this.registerCleanup(() => unsub());
+
+        // Listen for admin enabled to inject per-edition controls
+        if (EditionCard._adminEnabled) {
+            this.injectAdminControls();
+        }
+        const unsub2 = eventBus.on('erc1155:admin:enabled', () => {
+            EditionCard._adminEnabled = true;
+            this.injectAdminControls();
+        });
+        const unsub3 = eventBus.on('erc1155:admin:disabled', () => {
+            EditionCard._adminEnabled = false;
+            this.removeAdminControls();
+        });
+        this.registerCleanup(() => { unsub2(); unsub3(); });
+    }
+
+    shouldUpdate() {
+        // Never re-render — EditionMintInterface is a child that must be preserved
+        return false;
+    }
+
+    updatePriceDOM() {
+        if (!this._el) return;
+        const priceStatItems = this._el.querySelectorAll('.edition-stat-item');
+        for (const item of priceStatItems) {
+            const label = item.querySelector('.edition-stat-label');
+            if (label && label.textContent === 'Price') {
+                const valueEl = item.querySelector('.edition-stat-value');
+                if (!valueEl) break;
+
+                const currentPrice = this.state.currentPrice;
+                const pricingModel = this.state.pricingInfo?.pricingModel;
+
+                if (currentPrice && pricingModel && pricingModel !== 0 && pricingModel !== '0') {
+                    const current = this.formatPrice(currentPrice);
+                    const base = this.formatPrice(this.edition.price);
+                    if (current !== base) {
+                        valueEl.innerHTML = `${base} ETH <span class="price-arrow">\u2192</span> ${current} ETH`;
+                    } else {
+                        valueEl.textContent = `${current} ETH (dynamic)`;
+                    }
+                } else if (currentPrice) {
+                    valueEl.textContent = `${this.formatPrice(currentPrice)} ETH`;
+                }
+                break;
+            }
+        }
+    }
+
+    async refreshAfterMint() {
+        if (!this._el) return;
+        const el = this._el;
+
+        // Refresh balance
+        const address = walletService.getAddress();
+        if (address) {
+            try {
+                const balance = await this.adapter.getBalanceForEdition(address, this.edition.id);
+                this.state.userBalance = balance;
+
+                let balanceEl = el.querySelector('.edition-user-balance');
+                if (balance !== '0') {
+                    if (!balanceEl) {
+                        // Create the balance element
+                        balanceEl = document.createElement('div');
+                        balanceEl.className = 'edition-user-balance';
+                        balanceEl.innerHTML = `<span class="edition-stat-label">You own: </span><span class="edition-stat-value">${balance}</span>`;
+                        const infoEl = el.querySelector('.edition-info');
+                        if (infoEl) infoEl.appendChild(balanceEl);
+                    } else {
+                        const valueEl = balanceEl.querySelector('.edition-stat-value');
+                        if (valueEl) valueEl.textContent = balance;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        // Refresh mint stats
+        try {
+            const stats = await this.adapter.getMintStats(this.edition.id);
+            this.state.mintStats = stats;
+
+            // Update the "Minted" display
+            const mintedStatItems = el.querySelectorAll('.edition-stat-item');
+            for (const item of mintedStatItems) {
+                const label = item.querySelector('.edition-stat-label');
+                if (label && label.textContent === 'Minted') {
+                    const valueEl = item.querySelector('.edition-stat-value');
+                    const maxSupply = this.edition.maxSupply === '0' ? '∞' : this.edition.maxSupply;
+                    if (valueEl) valueEl.textContent = `${stats.minted || stats.totalMinted || '0'}/${maxSupply}`;
+                }
+            }
+        } catch (e) { /* ignore */ }
+
+        // Refresh price for dynamic pricing
+        try {
+            const currentPrice = await this.adapter.getCurrentPrice(this.edition.id);
+            this.state.currentPrice = currentPrice;
+            this.updatePriceDOM();
+        } catch (e) { /* ignore */ }
     }
 
     async generateEditionURL() {
@@ -134,12 +244,47 @@ export class EditionCard extends Component {
         }
     }
 
+    injectAdminControls() {
+        if (!this._el || this._el.querySelector('.edition-admin-controls')) return;
+
+        const controls = document.createElement('div');
+        controls.className = 'edition-admin-controls';
+
+        const updateBtn = document.createElement('button');
+        updateBtn.className = 'btn btn-secondary btn-sm';
+        updateBtn.textContent = 'Update Metadata';
+        updateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            eventBus.emit('erc1155:admin:update-metadata', { editionId: this.edition.id });
+        });
+
+        const styleBtn = document.createElement('button');
+        styleBtn.className = 'btn btn-secondary btn-sm';
+        styleBtn.textContent = 'Set Edition Style';
+        styleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            eventBus.emit('erc1155:admin:set-edition-style', { editionId: this.edition.id });
+        });
+
+        controls.appendChild(updateBtn);
+        controls.appendChild(styleBtn);
+        this._el.appendChild(controls);
+    }
+
+    removeAdminControls() {
+        if (!this._el) return;
+        const controls = this._el.querySelector('.edition-admin-controls');
+        if (controls) controls.remove();
+    }
+
     handleCardClick(e) {
         e.preventDefault();
         const url = this.state.editionUrl;
         if (url && url !== '#') {
+            // Carry forward the navigation source so the edition breadcrumb knows the full path
+            const from = window.history.state?.from || null;
             if (window.router) {
-                window.router.navigate(url);
+                window.router.navigate(url, { state: { from, projectName: this.project?.name || '' } });
             } else {
                 window.location.href = url;
             }
@@ -292,5 +437,12 @@ export class EditionCard extends Component {
         );
     }
 }
+
+// Module-level flag for admin state (handles timing race with event).
+// This listener runs at module scope so it catches the event even if
+// no EditionCard instances have mounted yet.
+EditionCard._adminEnabled = false;
+eventBus.on('erc1155:admin:enabled', () => { EditionCard._adminEnabled = true; });
+eventBus.on('erc1155:admin:disabled', () => { EditionCard._adminEnabled = false; });
 
 export default EditionCard;

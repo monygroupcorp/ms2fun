@@ -295,7 +295,7 @@ export class GlobalActivityFeed extends Component {
     async handleMessageClick(msg) {
         // Navigate to the project using modern URL format
         const { navigateToProject } = await import('../../utils/navigation.js');
-        await navigateToProject(msg.instance);
+        await navigateToProject(msg.instance, null, { from: 'activity' });
     }
 
     handleBackClick() {
@@ -451,7 +451,7 @@ export class GlobalActivityFeed extends Component {
                     <span class="message-text">${this.escapeHtml(displayText) || '-'}</span>
                 </td>
                 <td class="col-project">
-                    <span class="project-link">${this.escapeHtml(msg.instanceName)}</span>
+                    <a class="project-link" href="/project/${this.escapeHtml(msg.instance)}" data-instance="${this.escapeHtml(msg.instance)}" data-ref="project-link">${this.escapeHtml(msg.instanceName)}</a>
                 </td>
                 <td class="col-time">
                     <span class="time-relative" title="${this.escapeHtml(msg.formattedDate)}">
@@ -501,10 +501,26 @@ export class GlobalActivityFeed extends Component {
         // Message row click handlers
         const messageRows = this.getRefs('.message-row');
         messageRows.forEach((row, index) => {
-            row.addEventListener('click', () => {
+            row.addEventListener('click', (e) => {
+                // Don't navigate row if clicking the project link directly
+                if (e.target.closest('.project-link')) return;
                 const msg = this.state.messages[index];
                 if (msg) {
                     this.handleMessageClick(msg);
+                }
+            });
+        });
+
+        // Project link click handlers
+        const projectLinks = this.getRefs('.project-link');
+        projectLinks.forEach(link => {
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const instance = link.getAttribute('data-instance');
+                if (instance) {
+                    const { navigateToProject } = await import('../../utils/navigation.js');
+                    await navigateToProject(instance, null, { from: 'activity' });
                 }
             });
         });

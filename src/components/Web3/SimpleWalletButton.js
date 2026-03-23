@@ -29,15 +29,12 @@ export class SimpleWalletButton extends Component {
     }
 
     async didMount() {
-        // Initialize wallet service
+        // Initialize wallet service (includes auto-reconnect)
         if (!this.walletService.isInitialized) {
             await this.walletService.initialize();
         }
 
-        // Get wallet service (already set in constructor)
-        await this.walletService.initialize();
-
-        // Check if already connected
+        // Check if already connected (either from prior navigation or auto-reconnect)
         if (this.walletService.connected) {
             this.setState({
                 connected: true,

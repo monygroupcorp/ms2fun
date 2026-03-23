@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-03-16T00:00:00Z",
+  "chainId": 11155111,
+  "mode": "sepolia",
+  "contracts": {
+    "MasterRegistryV1": "0x0000000000000000000000000000000000000000",
+    "AlignmentRegistryV1": "0x0000000000000000000000000000000000000000",
+    "GlobalMessageRegistry": "0x0000000000000000000000000000000000000000",
+    "FeaturedQueueManager": "0x0000000000000000000000000000000000000000",
+    "QueryAggregator": "0x0000000000000000000000000000000000000000",
+    "ERC404Factory": "0x0000000000000000000000000000000000000000",
+    "ERC1155Factory": "0x0000000000000000000000000000000000000000",
+    "ERC721AuctionFactory": "0x0000000000000000000000000000000000000000",
+    "ComponentRegistry": "0x0000000000000000000000000000000000000000",
+    "GrandCentral": "0x0000000000000000000000000000000000000000",
+    "GnosisSafe": "0x0000000000000000000000000000000000000000",
+    "ShareOffering": "0x0000000000000000000000000000000000000000",
+    "RevenueConductor": "0x0000000000000000000000000000000000000000",
+    "OTCShareEscrow": "0x0000000000000000000000000000000000000000"
+  },
+  "factories": [],
+  "vaults": [],
+  "instances": {
+    "erc404": [],
+    "erc1155": [],
+    "erc721": []
+  },
+  "uniswap": {},
+  "tokens": {},
+  "governance": {},
+  "_comment": "Sepolia testnet contract addresses. Populate after deploying contracts to Sepolia."
+}

@@ -7,6 +7,7 @@
 
 import { ethers } from 'ethers'
 import { promises as fs } from 'fs'
+import { randomBytes } from 'crypto'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -54,6 +55,30 @@ export const BUY_MESSAGES = [
   'First time buyer, excited!',
   'Increasing my stack',
   "Can't stop, won't stop",
+]
+
+export const SELL_MESSAGES = [
+  'Taking some profits',
+  'Rebalancing my portfolio',
+  'Need liquidity for another play',
+  'Locking in gains',
+  'Trimming my position',
+  'Good run, time to de-risk',
+  'Selling half, keeping half',
+  'Paper hands? Nah, smart hands',
+]
+
+export const BID_MESSAGES = [
+  'Going for it!',
+  'My bid is in',
+  'Want this piece',
+  'Outbid alert!',
+  'Beautiful work',
+  'Raising the stakes',
+  'This is the one',
+  'Higher we go',
+  'Not letting this one slip',
+  'Bidding war!',
 ]
 
 export const MINT_MESSAGES = [
@@ -224,11 +249,14 @@ export async function createERC404Instance({
   creator,
   vault,
   factory,
+  metadataURI,
+  liquidityDeployer,
 }) {
   const instanceFee = ethers.utils.parseEther('0.01')
 
-  // IdentityParams struct
-  const identity = {
+  // CreateParams struct
+  const params = {
+    salt: '0x' + randomBytes(32).toString('hex'),
     name,
     symbol,
     styleUri: '',
@@ -236,7 +264,7 @@ export async function createERC404Instance({
     vault,
     nftCount,
     presetId,
-    creationTier: 0, // CreationTier.STANDARD
+    stakingModule: ethers.constants.AddressZero, // no staking
   }
 
   // FreeMintParams struct (no free mint)
@@ -246,13 +274,17 @@ export async function createERC404Instance({
   }
 
   // liquidityDeployer must be an approved component in ComponentRegistry.
-  // Use mock Uniswap V4 Deployer (seeded in seedComponentRegistry).
-  const liquidityDeployer = '0x0000000000000000000000000000000000C0DE03'
+  // Passed in from the scenario after seedComponentRegistry returns deployed addresses.
+  if (!liquidityDeployer) throw new Error('createERC404Instance: liquidityDeployer is required')
+
+  const resolvedMetadataURI = metadataURI
+    || `data:application/json,${encodeURIComponent(JSON.stringify({ name }))}`
 
   // Use full signature to disambiguate overloaded createInstance (ethers v5 requirement)
-  const createTx = await factory['createInstance((string,string,string,address,address,uint256,uint8,uint8),string,address,address,(uint256,uint8))'](
-    identity,
-    `https://ms2.fun/metadata/${name.toLowerCase()}/`,
+  // CreateParams = (bytes32,string,string,string,address,address,uint256,uint8,address)
+  const createTx = await factory['createInstance((bytes32,string,string,string,address,address,uint256,uint8,address),string,address,address,(uint256,uint8))'](
+    params,
+    resolvedMetadataURI,
     liquidityDeployer,
     ethers.constants.AddressZero, // gatingModule (none)
     freeMint,
@@ -273,8 +305,9 @@ export async function createERC404Instance({
 /**
  * Create an ERC1155 editions instance via ERC1155Factory.
  *
- * Signature (unchanged from old deploy-local.mjs):
- *   createInstance(name, metadataURI, creator, vault, styleUri)
+ * Signature: createInstance(bytes32 salt, CreateParams params)
+ *   CreateParams = (string name, string metadataURI, address creator, address vault,
+ *                   string styleUri, address gatingModule, FreeMintParams freeMint)
  *
  * @param {object} params
  * @param {string} params.name - Instance name (no spaces)
@@ -288,16 +321,29 @@ export async function createERC1155Instance({
   creator,
   vault,
   factory,
+  metadataURI,
 }) {
   const instanceFee = ethers.utils.parseEther('0.01')
 
-  // Use full signature to disambiguate overloaded createInstance (ethers v5 requirement)
-  const createTx = await factory['createInstance(string,string,address,address,string)'](
+  const resolvedMetadataURI = metadataURI
+    || `data:application/json,${encodeURIComponent(JSON.stringify({ name }))}`
+
+  // CreateParams struct
+  const createParams = {
     name,
-    `https://ms2.fun/metadata/${name.toLowerCase()}/`,
+    metadataURI: resolvedMetadataURI,
     creator,
     vault,
-    '', // styleUri
+    styleUri: '',
+    gatingModule: ethers.constants.AddressZero,
+    freeMint: { allocation: 0, scope: 0 },
+  }
+
+  // createInstance(bytes32 salt, CreateParams params)
+  // CreateParams = (string,string,address,address,string,address,(uint256,uint8))
+  const createTx = await factory['createInstance(bytes32,(string,string,address,address,string,address,(uint256,uint8)))'](
+    '0x' + randomBytes(32).toString('hex'), // salt
+    createParams,
     { value: instanceFee }
   )
 
@@ -311,6 +357,81 @@ export async function createERC1155Instance({
 
   return instance
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ERC721 Auction helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Create an ERC721 Auction instance via ERC721AuctionFactory.
+ *
+ * Signature (struct-based):
+ *   createInstance(bytes32 salt, CreateParams params)
+ *   CreateParams = (string name, string metadataURI, address creator, address vault,
+ *                   string symbol, uint8 lines, uint40 baseDuration, uint40 timeBuffer,
+ *                   uint256 bidIncrement)
+ *
+ * @param {object} params
+ * @param {string} params.name - Instance name
+ * @param {string} params.symbol - Token symbol
+ * @param {number} params.lines - Number of auction lines (concurrent auctions)
+ * @param {number} params.baseDuration - Base auction duration in seconds
+ * @param {number} params.timeBuffer - Anti-snipe time buffer in seconds
+ * @param {string} params.bidIncrement - Minimum bid increment in ETH (e.g. '0.01')
+ * @param {string} params.creator - Creator address
+ * @param {string} params.vault - Vault address
+ * @param {object} params.factory - ERC721AuctionFactory ethers Contract instance
+ * @param {string} [params.metadataURI] - Optional metadata URI
+ * @returns {Promise<string>} Deployed instance address
+ */
+export async function createERC721AuctionInstance({
+  name,
+  symbol,
+  lines,
+  baseDuration,
+  timeBuffer,
+  bidIncrement,
+  creator,
+  vault,
+  factory,
+  metadataURI,
+}) {
+  const salt = '0x' + randomBytes(32).toString('hex')
+  const resolvedMetadataURI = metadataURI
+    || `data:application/json,${encodeURIComponent(JSON.stringify({ name }))}`
+
+  const createParams = {
+    name,
+    metadataURI: resolvedMetadataURI,
+    creator,
+    vault,
+    symbol,
+    lines,
+    baseDuration,
+    timeBuffer,
+    bidIncrement: ethers.utils.parseEther(bidIncrement),
+  }
+
+  // CreateParams = (string,string,address,address,string,uint8,uint40,uint40,uint256)
+  const createTx = await factory['createInstance(bytes32,(string,string,address,address,string,uint8,uint40,uint40,uint256))'](
+    salt,
+    createParams,
+    { value: ethers.utils.parseEther('0.01') }
+  )
+  const receipt = await createTx.wait()
+  const event = receipt.events?.find(e => e.event === 'InstanceCreated')
+  const instance = event?.args?.instance
+
+  if (!instance) {
+    throw new Error(`createERC721AuctionInstance: InstanceCreated event not found for ${name}`)
+  }
+
+  return instance
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ERC404 helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Buy tokens on an ERC404 bonding curve.
@@ -352,6 +473,31 @@ export async function buyOnBondingCurve({ instanceAddress, instanceAbi, buyer, t
     { value: maxCost }
   )
   await buyTx.wait()
+}
+
+/**
+ * Sell tokens back to the bonding curve.
+ *
+ * @param {object} params
+ * @param {string} params.instanceAddress - ERC404BondingInstance address
+ * @param {Array} params.instanceAbi - ERC404BondingInstance ABI
+ * @param {string} params.seller - Seller address (must hold tokens)
+ * @param {string} params.tokenAmount - Token amount to sell (in whole units, e.g. '100')
+ * @param {object} params.provider - ethers JsonRpcProvider
+ */
+export async function sellOnBondingCurve({ instanceAddress, instanceAbi, seller, tokenAmount, provider }) {
+  const sellerSigner = provider.getSigner(seller)
+  const instance = new ethers.Contract(instanceAddress, instanceAbi, sellerSigner)
+  const amount = ethers.utils.parseEther(tokenAmount)
+
+  const sellTx = await instance.sellBonding(
+    amount,
+    0,                             // minRefund (accept any refund for local dev)
+    ethers.constants.HashZero,     // public tier
+    getRandomMessageData(SELL_MESSAGES),
+    0,                             // deadline
+  )
+  await sellTx.wait()
 }
 
 /**
@@ -424,7 +570,7 @@ export async function setupPortfolioTestData({
   // Load ABIs
   const erc404Abi = await loadAbi('ERC404BondingInstance')
   const erc1155Abi = await loadAbi('ERC1155Instance')
-  const vaultAbi = await loadAbi('UltraAlignmentVault')
+  const vaultAbi = await loadAbi('UniAlignmentVault')
   const gmrAbi = await loadAbi('GlobalMessageRegistry')
 
   // Impersonate userAddress so Anvil will sign transactions on their behalf.
@@ -505,18 +651,17 @@ export async function setupPortfolioTestData({
 
   const deployerVault = new ethers.Contract(vaultAddress, vaultAbi, deployer)
 
-  // a) Track user as benefactor via receiveInstance.
+  // a) Track user as benefactor via receiveContribution.
   //    Simulates vault fees arriving from the user's ERC404 instance (Early-Launch hook tax).
-  //    receiveInstance() has no access control — anyone can attribute a contribution.
   const contributionAmount = ethers.utils.parseEther('0.5')
-  const receiveInstanceTx = await deployerVault.receiveInstance(
-    ethers.constants.AddressZero, // native ETH (Currency = address)
+  const receiveInstanceTx = await deployerVault.receiveContribution(
+    ethers.constants.AddressZero, // native ETH (Currency = address(0))
     contributionAmount,
     userAddress,
     { value: contributionAmount }
   )
   await receiveInstanceTx.wait()
-  console.log(`      ✓ Recorded 0.5 ETH vault contribution for user (via receiveInstance)`)
+  console.log(`      ✓ Recorded 0.5 ETH vault contribution for user (via receiveContribution)`)
 
   // b) Try to convert pending ETH to LP shares via convertAndAddLiquidity.
   //    This requires a live V4 pool for the alignment token, which likely
@@ -530,13 +675,15 @@ export async function setupPortfolioTestData({
     console.log(`      ⚠ convertAndAddLiquidity failed (${err.reason || err.message.slice(0, 50)})`)
     console.log(`        Injecting shares directly via anvil_setStorageAt...`)
 
-    // Storage layout (from forge inspect UltraAlignmentVault storage):
-    //   slot 1 — benefactorShares: mapping(address => uint256)
-    //   slot 5 — totalShares: uint256
-    //   slot 9 — totalEthLocked: uint256
+    // Storage layout (from forge inspect UniAlignmentVault storage):
+    //   slot 1  — benefactorShares: mapping(address => uint256)
+    //   slot 6  — totalShares: uint256
+    //   slot 8  — accumulatedFees: uint256
+    //   slot 10 — totalEthLocked: uint256
     //
     // Mapping slot: keccak256(abi.encode(key, mappingSlot))
     const sharesAmount = ethers.utils.parseEther('1000')
+    const feeAmount = ethers.utils.parseEther('0.05')
 
     const userSharesSlot = ethers.utils.keccak256(
       ethers.utils.defaultAbiCoder.encode(['address', 'uint256'], [userAddress, 1])
@@ -547,15 +694,24 @@ export async function setupPortfolioTestData({
       ethers.utils.hexZeroPad(sharesAmount.toHexString(), 32),
     ])
 
+    // totalShares = slot 6
     await provider.send('anvil_setStorageAt', [
       vaultAddress,
-      '0x0000000000000000000000000000000000000000000000000000000000000005',
+      '0x0000000000000000000000000000000000000000000000000000000000000006',
       ethers.utils.hexZeroPad(sharesAmount.toHexString(), 32),
     ])
 
+    // accumulatedFees = slot 8
     await provider.send('anvil_setStorageAt', [
       vaultAddress,
-      '0x0000000000000000000000000000000000000000000000000000000000000009',
+      '0x0000000000000000000000000000000000000000000000000000000000000008',
+      ethers.utils.hexZeroPad(feeAmount.toHexString(), 32),
+    ])
+
+    // totalEthLocked = slot 10
+    await provider.send('anvil_setStorageAt', [
+      vaultAddress,
+      '0x000000000000000000000000000000000000000000000000000000000000000a',
       ethers.utils.hexZeroPad(contributionAmount.toHexString(), 32),
     ])
 
@@ -563,13 +719,9 @@ export async function setupPortfolioTestData({
     console.log(`        ✓ Injected ${ethers.utils.formatEther(sharesAmount)} shares for user`)
   }
 
-  // c) Accumulate fees the owner-controlled way (simulates LP yield).
-  //    claimFees() will try _claimVaultFees() first, but since totalLPUnits==0
-  //    it safely returns (0,0), then falls through to distribute accumulatedFees.
+  // c) Fund vault ETH balance so claimFees() can pay out accumulated fees.
   if (sharesInjected) {
-    const feeAmount = ethers.utils.parseEther('0.05')
-    await (await deployerVault.recordAccumulatedFees(feeAmount)).wait()
-    console.log(`      ✓ Accumulated 0.05 ETH in vault fees (claimable by user)`)
+    console.log(`      ✓ Injected 0.05 ETH accumulatedFees slot (claimable by user)`)
 
     // d) Ensure vault has enough ETH to pay out on claimFees()
     await provider.send('anvil_setBalance', [
@@ -632,34 +784,178 @@ export async function seedComponentRegistry(componentRegistryAddress, deployer) 
   }
 
   console.log('\n   Seeding ComponentRegistry...')
-  const abi = await loadAbi('ComponentRegistry')
-  const registry = new ethers.Contract(componentRegistryAddress, abi, deployer)
+  const registryAbi = await loadAbi('ComponentRegistry')
+  const registry = new ethers.Contract(componentRegistryAddress, registryAbi, deployer)
+
+  const artifactPath = path.join(CONTRACTS_DIR, 'out', 'MockComponentModule.sol', 'MockComponentModule.json')
+  const artifact = JSON.parse(await fs.readFile(artifactPath, 'utf8'))
+  const MockModule = new ethers.ContractFactory(artifact.abi, artifact.bytecode.object, deployer)
 
   const gatingTag = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('gating'))
   const liqTag = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('liquidity'))
 
-  // Use deterministic placeholder addresses for test components
-  const mockGating1 = '0x0000000000000000000000000000000000C0DE01'
-  const mockGating2 = '0x0000000000000000000000000000000000C0DE02'
-  const mockLiq1 = '0x0000000000000000000000000000000000C0DE03'
-  const mockLiq2 = '0x0000000000000000000000000000000000C0DE04'
+  const enc = s => encodeURIComponent(JSON.stringify(s))
 
   const components = [
-    { addr: mockGating1, tag: gatingTag, name: 'Password Tier Gating' },
-    { addr: mockGating2, tag: gatingTag, name: 'Merkle Allowlist Gating' },
-    { addr: mockLiq1,    tag: liqTag,    name: 'Uniswap V4 Deployer' },
-    { addr: mockLiq2,    tag: liqTag,    name: 'ZAMM Deployer' },
+    {
+      tag: gatingTag, name: 'Password Tier Gating',
+      metadata: { name: 'Password Tier Gating', subtitle: 'Password · Tiered Access', description: 'Set one or more passwords, each unlocking a different tier of access or pricing. Share codes with your community however you like — Discord, email, or word of mouth.', configType: 'password-tier-gating' },
+    },
+    {
+      tag: gatingTag, name: 'Merkle Allowlist Gating',
+      metadata: { name: 'Merkle Allowlist Gating', subtitle: 'Allowlist · Merkle Tree', description: 'Upload a list of wallet addresses. Only wallets on the list can participate. Uses a Merkle tree so the full list never needs to go on-chain — just a single root hash.' },
+    },
+    {
+      tag: liqTag, name: 'Uniswap V4 Deployer',
+      metadata: { name: 'Uniswap V4 Deployer', subtitle: 'Uniswap V4 · Concentrated Liquidity', description: 'Deploy liquidity to a Uniswap V4 pool. Swap fees compound directly into the pool, deepening liquidity over time.', configType: 'launch-profile' },
+    },
+    {
+      tag: liqTag, name: 'ZAMM Deployer',
+      metadata: { name: 'ZAMM Deployer', subtitle: 'ZAMM · Constant Product', description: 'Deploy liquidity to ZAMM, a gas-efficient constant-product AMM. Simple and battle-tested.', configType: 'launch-profile' },
+    },
+    {
+      tag: liqTag, name: 'Cypher Deployer',
+      metadata: { name: 'Cypher Deployer', subtitle: 'Cypher · Concentrated Liquidity', description: 'Deploy liquidity to Cypher, a concentrated liquidity DEX. Capital-efficient ranges and deep liquidity with tighter spreads.', configType: 'launch-profile' },
+    },
   ]
-  let registered = 0
-  for (const { addr, tag, name } of components) {
-    if (await registry.isApprovedComponent(addr)) {
-      console.log(`      ⏭ Already registered: ${name}`)
-    } else {
-      await (await registry.approveComponent(addr, tag, name)).wait()
-      console.log(`      ✓ Registered: ${name}`)
-      registered++
+
+  const addresses = {}
+  for (const { tag, name, metadata } of components) {
+    const uri = `data:application/json,${enc(metadata)}`
+    const module = await MockModule.deploy(deployer.address, uri)
+    await module.deployed()
+    await (await registry.approveComponent(module.address, tag, name)).wait()
+    console.log(`      ✓ Deployed + registered: ${name} (${module.address})`)
+    addresses[name] = module.address
+  }
+
+  console.log(`   ✅ ComponentRegistry seeded (${components.length} components)`)
+  return addresses
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Governance helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Submit a proposal, vote yes, advance time, and process it.
+ * For single-owner (dictator mode) governance bootstrapping.
+ *
+ * @param {Object} params
+ * @param {Object} params.grandCentral - GrandCentral ethers Contract instance
+ * @param {Object} params.provider - ethers JsonRpcProvider
+ * @param {string[]} params.targets - Call targets
+ * @param {number[]} params.values - ETH values for each call
+ * @param {string[]} params.calldatas - Encoded function calls
+ * @param {string} params.details - Human-readable proposal description
+ * @param {number} params.votingPeriod - Voting period in seconds (to advance time)
+ * @param {number} params.gracePeriod - Grace period in seconds (to advance time)
+ * @returns {Promise<number>} Proposal ID
+ */
+export async function submitAndProcessProposal({
+  grandCentral,
+  provider,
+  targets,
+  values,
+  calldatas,
+  details,
+  votingPeriod,
+  gracePeriod,
+}) {
+  // Submit (auto-sponsors if caller has enough shares)
+  const submitTx = await grandCentral.submitProposal(
+    targets, values, calldatas,
+    0, // expiration (0 = no expiration)
+    details
+  )
+  const submitReceipt = await submitTx.wait()
+  const submitEvent = submitReceipt.events?.find(e => e.event === 'ProposalSubmitted')
+  const proposalId = submitEvent.args.proposalId.toNumber()
+
+  // Vote yes
+  await (await grandCentral.submitVote(proposalId, true)).wait()
+
+  // Advance time past voting + grace period
+  await provider.send('evm_increaseTime', [votingPeriod + gracePeriod + 1])
+  await provider.send('evm_mine', [])
+
+  // Process (self-calls execute directly, external calls route through Safe)
+  const processReceipt = await (await grandCentral.processProposal(proposalId, targets, values, calldatas)).wait()
+
+  // Check for action failure (proposal passed but execution failed)
+  const processEvent = processReceipt.events?.find(e => e.event === 'ProposalProcessed')
+  if (processEvent) {
+    const [, passed, actionFailed] = processEvent.args
+    if (actionFailed) {
+      console.warn(`   ⚠ Proposal #${proposalId} passed but action FAILED (execution reverted silently)`)
     }
   }
 
-  console.log(`   ✅ ComponentRegistry seeded (${registered} new, ${components.length - registered} already approved)`)
+  return proposalId
+}
+
+/**
+ * Create a proposal to register a factory in MasterRegistry.
+ *
+ * @param {Object} params
+ * @param {Object} params.grandCentral - GrandCentral contract
+ * @param {Object} params.provider - ethers provider
+ * @param {string} params.registryAddress - MasterRegistry address
+ * @param {Array} params.registryAbi - MasterRegistry ABI
+ * @param {string} params.factoryAddress - Factory to register
+ * @param {string} params.contractType - e.g. 'ERC404'
+ * @param {string} params.title - Registry title
+ * @param {string} params.displayTitle - Display title
+ * @param {string} params.metadataURI - Metadata URI
+ * @param {string[]} params.features - Feature list
+ * @param {number} params.votingPeriod
+ * @param {number} params.gracePeriod
+ */
+export async function registerFactoryViaProposal({
+  grandCentral, provider, registryAddress, registryAbi,
+  factoryAddress, contractType, title, displayTitle, metadataURI, features,
+  votingPeriod, gracePeriod,
+}) {
+  const registryIface = new ethers.utils.Interface(registryAbi)
+  const calldata = registryIface.encodeFunctionData('registerFactory', [
+    factoryAddress, contractType, title, displayTitle, metadataURI, features
+  ])
+
+  const proposalId = await submitAndProcessProposal({
+    grandCentral, provider,
+    targets: [registryAddress],
+    values: [0],
+    calldatas: [calldata],
+    details: `Register ${displayTitle} factory (${factoryAddress})`,
+    votingPeriod, gracePeriod,
+  })
+
+  console.log(`   Proposal #${proposalId}: Registered ${displayTitle} factory`)
+  return proposalId
+}
+
+/**
+ * Create a proposal to register a vault in MasterRegistry.
+ */
+export async function registerVaultViaProposal({
+  grandCentral, provider, registryAddress, registryAbi,
+  vaultAddress, creator, name, metadataURI, targetId,
+  votingPeriod, gracePeriod,
+}) {
+  const registryIface = new ethers.utils.Interface(registryAbi)
+  const calldata = registryIface.encodeFunctionData('registerVault', [
+    vaultAddress, creator, name, metadataURI, targetId
+  ])
+
+  const proposalId = await submitAndProcessProposal({
+    grandCentral, provider,
+    targets: [registryAddress],
+    values: [0],
+    calldatas: [calldata],
+    details: `Register vault: ${name} (${vaultAddress})`,
+    votingPeriod, gracePeriod,
+  })
+
+  console.log(`   Proposal #${proposalId}: Registered vault ${name}`)
+  return proposalId
 }

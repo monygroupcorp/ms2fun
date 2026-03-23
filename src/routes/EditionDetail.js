@@ -97,10 +97,52 @@ export async function renderEditionDetail(params) {
 
     // Load stylesheets
     stylesheetLoader.load('src/components/ERC1155/erc1155.css', 'erc1155-styles');
-    stylesheetLoader.load('src/routes/project-detail.css', 'project-detail-styles');
 
     stylesheetLoader.unload('cultexecs-styles');
     stylesheetLoader.unload('home-styles');
+
+    // Add v2-route class so marble-svg-filters SVG gets hidden
+    document.body.classList.add('v2-route');
+
+    // Handle project style - must happen BEFORE clearing content so the speculative
+    // has-project-style class (added by inline script in index.html) gets resolved.
+    const cachedStyleUri = localStorage.getItem(`projectStyle:${projectId}`);
+    if (cachedStyleUri) {
+        document.documentElement.classList.add('has-project-style');
+        document.body.classList.add('has-project-style');
+        document.body.setAttribute('data-project-style', projectId);
+
+        const styleId = `project-style-${projectId}`;
+        const existingLink = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
+        if (!existingLink) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = cachedStyleUri.startsWith('/') || cachedStyleUri.startsWith('http')
+                ? cachedStyleUri : '/' + cachedStyleUri;
+            link.setAttribute('data-stylesheet-id', styleId);
+            link.onload = () => {
+                document.documentElement.classList.add('project-style-loaded', 'project-style-resolved');
+                document.body.classList.add('project-style-loaded', 'project-style-resolved');
+            };
+            link.onerror = () => {
+                document.documentElement.classList.remove('has-project-style');
+                document.documentElement.classList.add('project-style-resolved');
+                document.body.classList.remove('has-project-style');
+                document.body.classList.add('project-style-resolved');
+            };
+            document.head.appendChild(link);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        } else {
+            document.documentElement.classList.add('project-style-loaded', 'project-style-resolved');
+            document.body.classList.add('project-style-loaded', 'project-style-resolved');
+        }
+    } else {
+        // No cached style - remove speculative classes and reveal page immediately
+        document.documentElement.classList.remove('has-project-style', 'project-style-speculative', 'project-style-pending');
+        document.documentElement.classList.add('project-style-resolved');
+        document.body.classList.remove('has-project-style', 'project-style-pending');
+        document.body.classList.add('project-style-resolved');
+    }
 
     // Clear existing content
     appTopContainer.innerHTML = '';
@@ -108,15 +150,20 @@ export async function renderEditionDetail(params) {
     appBottomContainer.innerHTML = '';
 
     // Load project
+    let projectName = null;
     if (!projectService.isProjectLoaded(projectId)) {
         const project = await projectRegistry.getProject(projectId);
         if (project) {
+            projectName = project.name || project.instanceName || null;
             await projectService.loadProject(
                 projectId,
                 project.address || projectId,
                 project.contractType || 'ERC1155'
             );
         }
+    } else {
+        const project = await projectRegistry.getProject(projectId);
+        projectName = project?.name || project?.instanceName || null;
     }
 
     const adapter = projectService.getAdapter(projectId);
@@ -137,13 +184,22 @@ export async function renderEditionDetail(params) {
     appContainer.appendChild(detailContainer);
 
     // Render EditionDetail
-    render(h(EditionDetail, { projectId, editionId, adapter }), detailContainer);
+    render(h(EditionDetail, { projectId, editionId, adapter, projectName }), detailContainer);
 
     return {
         cleanup: () => {
             unmountRoot(detailContainer);
             stylesheetLoader.unload('erc1155-styles');
-            stylesheetLoader.unload('project-detail-styles');
+            document.body.classList.remove('v2-route');
+
+            // Clean up project style classes
+            document.documentElement.classList.remove('has-project-style', 'project-style-loaded', 'project-style-resolved', 'project-style-pending', 'project-style-speculative');
+            document.body.classList.remove('has-project-style', 'project-style-loaded', 'project-style-resolved', 'project-style-pending');
+            document.body.removeAttribute('data-project-style');
+
+            const styleId = `project-style-${projectId}`;
+            const link = document.querySelector(`link[data-stylesheet-id="${styleId}"]`);
+            if (link) link.remove();
         }
     };
 }

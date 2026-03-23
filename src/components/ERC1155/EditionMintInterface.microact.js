@@ -85,7 +85,7 @@ export class EditionMintInterface extends Component {
         // Update message directly without re-render
         this.state.message = e.target.value;
         // Update char count manually
-        const charCount = this.element?.querySelector('.message-char-count');
+        const charCount = this._el?.querySelector('.message-char-count');
         if (charCount) {
             const count = this.state.message.length;
             charCount.textContent = `${count}/200`;
@@ -171,7 +171,7 @@ export class EditionMintInterface extends Component {
                BigInt(this.edition.currentSupply) >= BigInt(this.edition.maxSupply);
     }
 
-    shouldUpdate(oldState, newState) {
+    shouldUpdate(oldProps, newProps, oldState, newState) {
         if (!oldState || !newState) return true;
         if (oldState === newState) return false;
 

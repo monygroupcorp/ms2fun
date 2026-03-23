@@ -12,7 +12,6 @@ import MasterRegistryAdapter from './contracts/MasterRegistryAdapter.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
 import ERC404BondingInstanceAdapter from './contracts/ERC404BondingInstanceAdapter.js';
 import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
-import GovernanceAdapter from './contracts/GovernanceAdapter.js';
 import ERC404FactoryAdapter from './contracts/ERC404FactoryAdapter.js';
 import ERC1155FactoryAdapter from './contracts/ERC1155FactoryAdapter.js';
 import ERC721AuctionInstanceAdapter from './contracts/ERC721AuctionInstanceAdapter.js';
@@ -47,8 +46,6 @@ class ProjectService {
 
         // Phase 3 adapters (complete)
         contractTypeRegistry.setAdapterClass('UltraAlignmentVault', UltraAlignmentVaultAdapter);
-        contractTypeRegistry.setAdapterClass('FactoryGovernance', GovernanceAdapter);
-        contractTypeRegistry.setAdapterClass('VaultGovernance', GovernanceAdapter);
         contractTypeRegistry.setAdapterClass('ERC404Factory', ERC404FactoryAdapter);
         contractTypeRegistry.setAdapterClass('ERC1155Factory', ERC1155FactoryAdapter);
         contractTypeRegistry.setAdapterClass('ERC721Auction', ERC721AuctionInstanceAdapter);

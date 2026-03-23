@@ -41,12 +41,11 @@ class ERC721AuctionInstanceAdapter extends ContractAdapter {
             }
 
             const abi = await loadABI('ERC721AuctionInstance');
-            const providerToUse = this.signer || this.provider;
 
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                providerToUse
+                this.provider
             );
 
             this.initialized = true;
@@ -179,11 +178,18 @@ class ERC721AuctionInstanceAdapter extends ContractAdapter {
     async getAllActiveAuctions() {
         const lines = await this.getLines();
         const results = [];
+        const now = Math.floor(Date.now() / 1000);
 
         for (let i = 0; i < lines; i++) {
             const tokenId = await this.getActiveAuction(i);
             if (tokenId > 0) {
                 const auction = await this.getAuction(tokenId);
+                const hasBids = auction.highBidder && auction.highBidder !== '0x0000000000000000000000000000000000000000';
+                const isEnded = now >= auction.endTime;
+
+                // Skip ended auctions with no bids — they belong in past works
+                if (isEnded && !hasBids) continue;
+
                 results.push({ line: i, tokenId, auction });
             }
         }
@@ -206,13 +212,20 @@ class ERC721AuctionInstanceAdapter extends ContractAdapter {
             if (activeId > 0) activeIds.add(activeId);
         }
 
+        const now = Math.floor(Date.now() / 1000);
         const past = [];
         for (let id = nextId - 1; id >= 1; id--) {
-            if (activeIds.has(id)) continue;
             try {
                 const auction = await this.getAuction(id);
-                if (auction.settled) {
+                const hasBids = auction.highBidder && auction.highBidder !== '0x0000000000000000000000000000000000000000';
+                const isEnded = now >= auction.endTime;
+
+                // Include settled auctions and ended-no-bid auctions
+                if (auction.settled || (isEnded && !hasBids && !activeIds.has(id))) {
                     past.push(auction);
+                } else if (activeIds.has(id)) {
+                    // Skip truly active auctions (still live or ended with bids pending settle)
+                    continue;
                 }
             } catch (e) {
                 // Token may not exist
@@ -326,8 +339,9 @@ class ERC721AuctionInstanceAdapter extends ContractAdapter {
         if (!this.contract) return [];
 
         try {
+            const fromBlock = await this._getDeployBlock();
             const filter = this.contract.filters.BidPlaced(tokenId);
-            const events = await this.contract.queryFilter(filter);
+            const events = await this.contract.queryFilter(filter, fromBlock, 'latest');
 
             const bids = await Promise.all(events.map(async (e) => {
                 let timestamp = null;
@@ -363,8 +377,9 @@ class ERC721AuctionInstanceAdapter extends ContractAdapter {
         if (!this.contract) return [];
 
         try {
+            const fromBlock = await this._getDeployBlock();
             const filter = this.contract.filters.AuctionSettled();
-            const events = await this.contract.queryFilter(filter);
+            const events = await this.contract.queryFilter(filter, fromBlock, 'latest');
 
             return events.map(e => ({
                 tokenId: parseInt(e.args.tokenId.toString()),
@@ -380,6 +395,31 @@ class ERC721AuctionInstanceAdapter extends ContractAdapter {
     }
 
     // ============ Helpers ============
+
+    /**
+     * Get the deploy block from config to avoid querying from block 0 on mainnet forks.
+     * @private
+     */
+    async _getDeployBlock() {
+        if (this._deployBlock !== undefined) return this._deployBlock;
+        try {
+            const { detectNetwork } = await import('../../config/network.js');
+            const network = detectNetwork();
+            if (network.contracts) {
+                const response = await fetch(network.contracts);
+                if (response.ok) {
+                    const config = await response.json();
+                    if (config.deployBlock) {
+                        this._deployBlock = config.deployBlock;
+                        return this._deployBlock;
+                    }
+                }
+            }
+        } catch (e) { /* fall through */ }
+        const current = await this.provider.getBlockNumber();
+        this._deployBlock = Math.max(0, current - 10000);
+        return this._deployBlock;
+    }
 
     _parseAuction(auction) {
         // Handle both tuple and struct return formats

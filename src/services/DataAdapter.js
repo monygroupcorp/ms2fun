@@ -32,6 +32,19 @@ export class DataAdapter {
         this.provider = provider;
     }
 
+    _parseDataUri(uri) {
+        if (!uri) return null;
+        try {
+            if (uri.startsWith('data:application/json,')) {
+                return JSON.parse(decodeURIComponent(uri.replace('data:application/json,', '')));
+            }
+            if (uri.startsWith('data:application/json;base64,')) {
+                return JSON.parse(atob(uri.replace('data:application/json;base64,', '')));
+            }
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
     /**
      * Get critical data (featured + projects) - fast, priority load
      * @returns {Promise<object>}
@@ -130,7 +143,8 @@ export class DataAdapter {
 
                     // Sync project index (indexes InstanceRegistered events)
                     console.log('[DataAdapter] Syncing ProjectIndex...');
-                    const syncResult = await projectIndex.sync(MasterRegistry, this.provider);
+                    const deployBlock = this.config.deployBlock ?? 0;
+                    const syncResult = await projectIndex.sync(MasterRegistry, this.provider, deployBlock);
                     console.log(`[DataAdapter] ✓ ProjectIndex synced: ${syncResult.added} new, ${syncResult.updated} updated`);
 
                     // Sync lifecycle states (StateChanged events + instanceType)
@@ -181,25 +195,28 @@ export class DataAdapter {
                     const featuredCard = projects.find(p => p.featuredRank === 1);
 
                     if (featuredCard) {
+                        const featMeta = this._parseDataUri(featuredCard.metadataURI);
                         featured = {
                             address: featuredCard.instance,
                             name: featuredCard.name || 'Featured Project',
-                            symbol: '', // Not in ProjectCard
+                            symbol: '',
                             type: featuredCard.contractType,
-                            description: '', // Not available in ProjectCard yet
+                            description: featMeta?.description || '',
+                            image: featMeta?.image || '',
                             creator: featuredCard.creator,
                             isFeatured: true
                         };
                         debug.log(`[DataAdapter] ✓ Featured project: "${featured.name}" (${featured.type})`);
                     } else if (projects.length > 0) {
-                        // Use first project if no featured
                         const firstCard = projects[0];
+                        const firstMeta = this._parseDataUri(firstCard.metadataURI);
                         featured = {
                             address: firstCard.instance,
                             name: firstCard.name || 'Project',
                             symbol: '',
                             type: firstCard.contractType,
-                            description: '',
+                            description: firstMeta?.description || '',
+                            image: firstMeta?.image || '',
                             creator: firstCard.creator,
                             isFeatured: false
                         };
@@ -211,31 +228,49 @@ export class DataAdapter {
                     }
 
                     // Convert ProjectCard format to internal format (match existing structure)
-                    const allProjects = projects.map(card => ({
-                        address: card.instance,
-                        name: card.name,
-                        symbol: '', // Not in ProjectCard
-                        type: card.contractType, // String type (deprecated)
-                        instanceType: card.instanceType, // bytes32 type (from IInstanceLifecycle)
-                        currentState: card.currentState, // bytes32 state (from StateChanged events)
-                        description: '', // Not available yet
-                        creator: card.creator,
-                        factory: card.factory,
-                        vault: card.vault,
-                        currentPrice: card.currentPrice,
-                        totalSupply: card.totalSupply,
-                        maxSupply: card.maxSupply,
-                        isActive: card.isActive,
-                        featuredRank: card.featuredRank,
-                        featuredExpires: card.featuredExpires
-                    }));
+                    const allProjects = projects.map(card => {
+                        // Parse metadataURI for description, image, etc.
+                        const onChainMeta = this._parseDataUri(card.metadataURI);
+                        return {
+                            address: card.instance,
+                            name: card.name,
+                            symbol: '', // Not in ProjectCard
+                            type: card.contractType,
+                            instanceType: card.instanceType,
+                            currentState: card.currentState,
+                            description: onChainMeta?.description || '',
+                            image: onChainMeta?.image || '',
+                            category: onChainMeta?.category || '',
+                            tags: onChainMeta?.tags || [],
+                            creator: card.creator,
+                            factory: card.factory,
+                            vault: card.vault,
+                            currentPrice: card.currentPrice,
+                            totalSupply: card.totalSupply,
+                            maxSupply: card.maxSupply,
+                            isActive: card.isActive,
+                            featuredRank: card.featuredRank,
+                            featuredExpires: card.featuredExpires
+                        };
+                    });
 
-                    // Format vault data (from config for now - QueryAggregator doesn't have vault list yet)
-                    const vaultData = (vaults || []).map(v => ({
-                        address: v.address,
-                        name: v.name || 'Alignment Vault',
-                        tvl: v.tvl || '0.00',
-                        type: 'vault'
+                    // Fetch vault TVL by querying on-chain ETH balance
+                    const vaultData = await Promise.all((vaults || []).map(async (v) => {
+                        let tvl = '0.00';
+                        try {
+                            if (v.address && this.provider) {
+                                const balance = await this.provider.getBalance(v.address);
+                                tvl = ethers.utils.formatEther(balance);
+                            }
+                        } catch (e) {
+                            debug.warn(`[DataAdapter] Failed to fetch vault balance for ${v.name}:`, e.message);
+                        }
+                        return {
+                            address: v.address,
+                            name: v.name || 'Alignment Vault',
+                            tvl,
+                            type: 'vault'
+                        };
                     }));
 
                     return {

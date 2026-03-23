@@ -862,7 +862,7 @@ export class ProjectDiscovery extends Component {
         const cards = projects.map((project, index) => {
             const card = new ProjectCard(project, (path) => {
                 if (window.router) {
-                    window.router.navigate(path);
+                    window.router.navigate(path, { state: { from: 'projects' } });
                 } else {
                     window.location.href = path;
                 }

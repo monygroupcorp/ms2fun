@@ -242,13 +242,7 @@ export class StakingSection extends Component {
         }
 
         if (!stakingEnabled) {
-            return h('div', { className: 'staking-section disabled' },
-                h('div', { className: 'panel-header' },
-                    h('h3', null, 'Staking'),
-                    h('span', { className: 'status-badge disabled' }, 'Not Available')
-                ),
-                h('p', { className: 'disabled-message' }, 'Staking not yet enabled')
-            );
+            return null;
         }
 
         const stakedAmount = parseFloat(userStaked || '0');

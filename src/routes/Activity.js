@@ -569,6 +569,13 @@ export class Activity extends Component {
         });
     }
 
+    handleNavigateToProject = async (item) => {
+        const address = item.projectAddress || item.instance;
+        if (!address) return;
+        const { navigateToProject } = await import('../utils/navigation.js');
+        await navigateToProject(address, null, { from: 'activity' });
+    }
+
     renderMessageItem(item, index) {
         // Extract first letter for avatar
         const firstLetter = item.userAddress ? item.userAddress[2].toUpperCase() : '?';
@@ -610,7 +617,15 @@ export class Activity extends Component {
                             // Project context inline with address
                             item.project ? [
                                 h('span', { className: 'activity-separator' }, '·'),
-                                h('span', { className: 'activity-project' },
+                                h('a', {
+                                    className: 'activity-project',
+                                    href: '#',
+                                    onclick: (e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        this.handleNavigateToProject(item);
+                                    }
+                                },
                                     'on ', h('span', { className: 'activity-project-name' }, item.project)
                                 )
                             ] : null
@@ -699,12 +714,28 @@ export class Activity extends Component {
 
         return h('div', {
             key: index,
-            className: 'activity-item'
+            className: 'activity-item',
+            style: { cursor: item.projectAddress ? 'pointer' : 'default' },
+            onclick: item.projectAddress ? () => this.handleNavigateToProject(item) : null
         },
             h('div', { className: 'activity-header' },
                 h('div', { className: 'activity-user' },
                     h('div', { className: 'activity-avatar' }, firstLetter),
-                    h('span', { className: 'activity-address' }, item.user)
+                    h('span', { className: 'activity-address' }, item.user),
+                    item.project ? [
+                        h('span', { className: 'activity-separator' }, '·'),
+                        h('a', {
+                            className: 'activity-project',
+                            href: '#',
+                            onclick: (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                this.handleNavigateToProject(item);
+                            }
+                        },
+                            'on ', h('span', { className: 'activity-project-name' }, item.project)
+                        )
+                    ] : null
                 ),
                 h('div', { className: 'activity-header-meta' },
                     h('span', { className: 'activity-action-badge' }, this.getActivityTypeLabel(item.type)),

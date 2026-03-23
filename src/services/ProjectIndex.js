@@ -121,7 +121,7 @@ class ProjectIndex {
      * @param {Object} provider - Ethers provider
      * @returns {Promise<Object>} Sync result { added, updated, fromBlock, toBlock }
      */
-    async sync(registry, provider) {
+    async sync(registry, provider, fromBlock = 0) {
         if (!this.isSupported) {
             return { added: 0, updated: 0, fromBlock: 0, toBlock: 0, skipped: true };
         }
@@ -144,14 +144,41 @@ class ProjectIndex {
             const lastBlock = await this.getLastIndexedBlock();
             const currentBlock = await provider.getBlockNumber();
 
-            let result;
-            if (lastBlock === 0) {
-                result = await this._fullSync(registry, currentBlock);
-            } else if (currentBlock > lastBlock) {
-                result = await this._incrementalSync(registry, lastBlock, currentBlock);
-            } else {
-                result = { added: 0, updated: 0, fromBlock: lastBlock, toBlock: currentBlock };
+            // Detect stale index: chain ID changed, block regression, or registry address changed.
+            // Any of these means the index contains data from a different chain/deployment.
+            const network = await provider.getNetwork();
+            const currentChainId = network.chainId;
+            const currentRegistryAddress = registry.address.toLowerCase();
+            const lastChainId = await this._getMetaValue('chainId');
+            const lastRegistryAddress = await this._getMetaValue('registryAddress');
+
+            const chainChanged = lastChainId !== null && lastChainId !== currentChainId;
+            const registryChanged = lastRegistryAddress !== null && lastRegistryAddress !== currentRegistryAddress;
+            const blockRegression = lastBlock > 0 && currentBlock < lastBlock;
+
+            if (chainChanged || registryChanged || blockRegression) {
+                const reason = chainChanged ? `chain ID ${lastChainId}→${currentChainId}`
+                    : registryChanged ? `registry ${lastRegistryAddress}→${currentRegistryAddress}`
+                    : `block regression ${lastBlock}→${currentBlock}`;
+                console.log(`[ProjectIndex] Stale index detected (${reason}), clearing`);
+                eventBus.emit('chain:reset', { reason });
+                await this.clearIndex();
             }
+
+            // Re-read lastBlock in case we just cleared
+            const syncFromBlock = await this.getLastIndexedBlock();
+
+            let result;
+            if (syncFromBlock === 0) {
+                result = await this._fullSync(registry, fromBlock, currentBlock);
+            } else if (currentBlock > syncFromBlock) {
+                result = await this._incrementalSync(registry, syncFromBlock, currentBlock);
+            } else {
+                result = { added: 0, updated: 0, fromBlock: syncFromBlock, toBlock: currentBlock };
+            }
+
+            await this._setMetaValue('chainId', currentChainId);
+            await this._setMetaValue('registryAddress', currentRegistryAddress);
 
             this.lastSyncBlock = currentBlock;
             eventBus.emit('index:sync:complete', result);
@@ -169,28 +196,34 @@ class ProjectIndex {
      * Full sync - index all historical projects
      * @private
      */
-    async _fullSync(registry, toBlock) {
-        console.log('[ProjectIndex] Starting full sync to block', toBlock);
+    async _fullSync(registry, startBlock, toBlock) {
+        console.log(`[ProjectIndex] Starting full sync from block ${startBlock} to ${toBlock}`);
 
-        // Query all InstanceRegistered events from genesis
+        // Query in chunks to respect RPC block range limits (e.g. Alchemy/forked nodes cap at 50k)
+        const CHUNK_SIZE = 10000;
         const filter = registry.filters.InstanceRegistered();
-        const events = await registry.queryFilter(filter, 0, toBlock);
+        const allEvents = [];
 
-        console.log(`[ProjectIndex] Found ${events.length} projects to index`);
+        for (let from = startBlock; from <= toBlock; from += CHUNK_SIZE) {
+            const to = Math.min(from + CHUNK_SIZE - 1, toBlock);
+            const chunk = await registry.queryFilter(filter, from, to);
+            allEvents.push(...chunk);
+        }
+
+        console.log(`[ProjectIndex] Found ${allEvents.length} projects to index`);
 
         const db = await this._getDB();
         const tx = db.transaction('projects', 'readwrite');
         const store = tx.objectStore('projects');
 
         let added = 0;
-        for (const event of events) {
+        for (const event of allEvents) {
             const project = this._parseEvent(event);
             store.put(project);
             added++;
 
-            // Emit progress every 100 projects
             if (added % 100 === 0) {
-                eventBus.emit('index:sync:progress', { added, total: events.length });
+                eventBus.emit('index:sync:progress', { added, total: allEvents.length });
             }
         }
 
@@ -198,7 +231,7 @@ class ProjectIndex {
         await this.setLastIndexedBlock(toBlock);
 
         console.log(`[ProjectIndex] Full sync complete: ${added} projects indexed`);
-        return { added, updated: 0, fromBlock: 0, toBlock };
+        return { added, updated: 0, fromBlock: startBlock, toBlock };
     }
 
     /**
@@ -620,6 +653,27 @@ class ProjectIndex {
         await this._waitForTransaction(tx);
     }
 
+    async _getMetaValue(key) {
+        if (!this.isSupported) return null;
+        const db = await this._getDB();
+        if (!db) return null;
+        return new Promise((resolve) => {
+            const tx = db.transaction('meta', 'readonly');
+            const request = tx.objectStore('meta').get(key);
+            request.onsuccess = () => resolve(request.result?.value ?? null);
+            request.onerror = () => resolve(null);
+        });
+    }
+
+    async _setMetaValue(key, value) {
+        if (!this.isSupported) return;
+        const db = await this._getDB();
+        if (!db) return;
+        const tx = db.transaction('meta', 'readwrite');
+        tx.objectStore('meta').put({ key, value });
+        await this._waitForTransaction(tx);
+    }
+
     /**
      * Get current index mode
      * @returns {Promise<string>} One of INDEX_MODE values
@@ -712,9 +766,11 @@ class ProjectIndex {
         const tx = db.transaction(['projects', 'meta'], 'readwrite');
         tx.objectStore('projects').clear();
 
-        // Reset last indexed block but keep mode
+        // Reset sync state but keep mode
         const metaStore = tx.objectStore('meta');
         metaStore.put({ key: 'lastIndexedBlock', value: 0 });
+        metaStore.delete('chainId');
+        metaStore.delete('registryAddress');
 
         await this._waitForTransaction(tx);
 

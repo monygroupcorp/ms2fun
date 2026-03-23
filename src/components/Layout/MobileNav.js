@@ -43,12 +43,6 @@ export class MobileNav extends Component {
             }, 'Portfolio'),
 
             h('a', {
-                href: '/governance',
-                className: 'mobile-nav-link',
-                onclick: this.handleNavClick('/governance')
-            }, 'Governance'),
-
-            h('a', {
                 href: '/docs',
                 className: 'mobile-nav-link',
                 onclick: this.handleNavClick('/docs')

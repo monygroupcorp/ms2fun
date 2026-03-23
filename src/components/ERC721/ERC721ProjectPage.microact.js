@@ -7,8 +7,9 @@
  * Matches docs/examples/project-erc721-drip-demo.html
  */
 
-import { Component, h } from '../../core/microact-setup.js';
+import { Component, h, render, eventBus } from '../../core/microact-setup.js';
 import { ProjectCommentFeed } from '../ProjectCommentFeed/ProjectCommentFeed.microact.js';
+import { ERC721PortfolioModal } from './ERC721PortfolioModal.microact.js';
 import stylesheetLoader from '../../utils/stylesheetLoader.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
@@ -64,19 +65,28 @@ export class ERC721ProjectPage extends Component {
             this._countdownIntervals.forEach(id => clearInterval(id));
         });
 
+        // Load all data before the single render transition (loading → loaded)
         await this.loadProjectData();
-        this.loadAuctionConfig();
-        this.loadActiveAuctions();
-        this.loadPastAuctions();
-        this.loadVaultData();
+        await Promise.all([
+            this.loadAuctionConfig(),
+            this.loadActiveAuctionsQuiet(),
+            this.loadPastAuctionsQuiet(),
+            this.loadVaultData()
+        ]);
+
+        // Single render with all data ready
+        this.setState({ loading: false });
+
+        // Start countdowns after DOM exists
+        this.startCountdowns();
+        if (this._el) enhanceAllIpfsImages(this._el);
     }
 
     async loadProjectData() {
         try {
             const project = this.project || {};
-
-            this.setState({
-                loading: false,
+            // Set project info on state directly — no setState to avoid premature re-render
+            Object.assign(this.state, {
                 projectName: project.name || project.displayName || 'Untitled Project',
                 projectDescription: project.description || '',
                 creator: project.creator || project.creatorAddress || '',
@@ -85,7 +95,6 @@ export class ERC721ProjectPage extends Component {
             });
         } catch (error) {
             console.error('[ERC721ProjectPage] Failed to load project data:', error);
-            this.setState({ loading: false });
         }
     }
 
@@ -99,12 +108,10 @@ export class ERC721ProjectPage extends Component {
         }
     }
 
-    async loadActiveAuctions() {
+    async loadActiveAuctionsQuiet() {
         if (!this.adapter) return;
         try {
             const activeAuctions = await this.adapter.getAllActiveAuctions();
-
-            // Load bid history for each active auction
             const bidHistories = {};
             for (const { tokenId } of activeAuctions) {
                 try {
@@ -113,19 +120,70 @@ export class ERC721ProjectPage extends Component {
                     bidHistories[tokenId] = [];
                 }
             }
-
-            // Direct DOM update for auctions
-            this.setState({ activeAuctions, bidHistories });
-
-            // Start countdown timers
-            this.startCountdowns();
-
-            // Enhance IPFS images
-            if (this._element) {
-                enhanceAllIpfsImages(this._element);
-            }
+            // Populate state directly — no setState, no re-render
+            Object.assign(this.state, { activeAuctions, bidHistories });
         } catch (error) {
             console.warn('[ERC721ProjectPage] Failed to load active auctions:', error);
+        }
+    }
+
+    async loadActiveAuctions() {
+        if (!this.adapter) return;
+        try {
+            const activeAuctions = await this.adapter.getAllActiveAuctions();
+            const bidHistories = {};
+            for (const { tokenId } of activeAuctions) {
+                try {
+                    bidHistories[tokenId] = await this.adapter.getBidHistory(tokenId);
+                } catch (e) {
+                    bidHistories[tokenId] = [];
+                }
+            }
+            this.setState({ activeAuctions, bidHistories });
+            this.startCountdowns();
+            if (this._el) enhanceAllIpfsImages(this._el);
+        } catch (error) {
+            console.warn('[ERC721ProjectPage] Failed to load active auctions:', error);
+        }
+    }
+
+    async computeStats(pastAuctions) {
+        const settlements = await this.adapter.getSettlementHistory();
+        const sold = settlements.length;
+        const nextId = await this.adapter.getNextTokenId();
+        const released = nextId - 1;
+
+        let totalVolume = BigInt(0);
+        const collectorsSet = new Set();
+        let vaultContributed = BigInt(0);
+
+        for (const s of settlements) {
+            totalVolume += BigInt(s.amount.toString());
+            collectorsSet.add(s.winner.toLowerCase());
+            vaultContributed += (BigInt(s.amount.toString()) * BigInt(19)) / BigInt(100);
+        }
+
+        const volumeEth = Number(totalVolume) / 1e18;
+        const avgSale = sold > 0 ? (volumeEth / sold) : 0;
+        const vaultEth = Number(vaultContributed) / 1e18;
+
+        return {
+            released, sold,
+            volume: volumeEth.toFixed(2),
+            avgSale: avgSale.toFixed(2),
+            collectors: collectorsSet.size,
+            vaultContributed: vaultEth.toFixed(2)
+        };
+    }
+
+    async loadPastAuctionsQuiet() {
+        if (!this.adapter) return;
+        try {
+            const pastAuctions = await this.adapter.getPastAuctions();
+            const stats = await this.computeStats(pastAuctions);
+            Object.assign(this.state, { pastAuctions, ...stats });
+        } catch (error) {
+            console.warn('[ERC721ProjectPage] Failed to load past auctions:', error);
         }
     }
 
@@ -133,42 +191,10 @@ export class ERC721ProjectPage extends Component {
         if (!this.adapter) return;
         try {
             const pastAuctions = await this.adapter.getPastAuctions();
-
-            // Compute stats from past + active auctions
-            const settlements = await this.adapter.getSettlementHistory();
-            const sold = settlements.length;
-            const nextId = await this.adapter.getNextTokenId();
-            const released = nextId - 1;
-
-            let totalVolume = BigInt(0);
-            const collectorsSet = new Set();
-            let vaultContributed = BigInt(0);
-
-            for (const s of settlements) {
-                totalVolume += BigInt(s.amount.toString());
-                collectorsSet.add(s.winner.toLowerCase());
-                // 19% goes to vault
-                vaultContributed += (BigInt(s.amount.toString()) * BigInt(19)) / BigInt(100);
-            }
-
-            const volumeEth = Number(totalVolume) / 1e18;
-            const avgSale = sold > 0 ? (volumeEth / sold) : 0;
-            const vaultEth = Number(vaultContributed) / 1e18;
-
-            this.updateStatsDOM({
-                released,
-                sold,
-                volume: volumeEth.toFixed(2),
-                avgSale: avgSale.toFixed(2),
-                collectors: collectorsSet.size,
-                vaultContributed: vaultEth.toFixed(2)
-            });
-
+            const stats = await this.computeStats(pastAuctions);
+            this.updateStatsDOM(stats);
             this.setState({ pastAuctions });
-
-            if (this._element) {
-                enhanceAllIpfsImages(this._element);
-            }
+            if (this._el) enhanceAllIpfsImages(this._el);
         } catch (error) {
             console.warn('[ERC721ProjectPage] Failed to load past auctions:', error);
         }
@@ -182,16 +208,33 @@ export class ERC721ProjectPage extends Component {
             const { loadABI } = await import('../../utils/abiLoader.js');
             const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
 
-            const abi = await loadABI('UltraAlignmentVault');
+            const abi = await loadABI('UniAlignmentVault');
             const provider = this.adapter?.provider || this.adapter?.contract?.provider;
             if (!provider) return;
 
             const vaultContract = new ethers.Contract(vaultAddress, abi, provider);
 
-            const [description, ownerAddr] = await Promise.allSettled([
-                vaultContract.description().catch(() => ''),
+            const [alignmentTokenAddr, ownerAddr] = await Promise.allSettled([
+                vaultContract.alignmentToken().catch(() => null),
                 this.adapter.getOwner()
             ]);
+
+            // Fetch alignment token name + symbol
+            let vaultName = '';
+            const tokenAddress = alignmentTokenAddr.status === 'fulfilled' ? alignmentTokenAddr.value : null;
+            if (tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000') {
+                try {
+                    const erc20Abi = ['function name() view returns (string)', 'function symbol() view returns (string)'];
+                    const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, provider);
+                    const [tokenName, tokenSymbol] = await Promise.allSettled([
+                        tokenContract.name().catch(() => ''),
+                        tokenContract.symbol().catch(() => '')
+                    ]);
+                    const name = tokenName.status === 'fulfilled' ? tokenName.value : '';
+                    const symbol = tokenSymbol.status === 'fulfilled' ? tokenSymbol.value : '';
+                    vaultName = name && symbol ? `${name} (${symbol})` : name || symbol || '';
+                } catch (e) { /* ignore */ }
+            }
 
             let contributed = '0';
             try {
@@ -200,7 +243,7 @@ export class ERC721ProjectPage extends Component {
             } catch (e) { /* may not exist */ }
 
             this.updateVaultDOM({
-                vaultName: description.status === 'fulfilled' ? description.value : '',
+                vaultName,
                 vaultTotalContributed: contributed,
                 creator: ownerAddr.status === 'fulfilled' ? ownerAddr.value : this.state.creator
             });
@@ -216,8 +259,8 @@ export class ERC721ProjectPage extends Component {
         this._countdownIntervals = [];
 
         const interval = setInterval(() => {
-            if (!this._element) return;
-            const countdownEls = this._element.querySelectorAll('[data-countdown]');
+            if (!this._el) return;
+            const countdownEls = this._el.querySelectorAll('[data-countdown]');
             const now = Math.floor(Date.now() / 1000);
 
             countdownEls.forEach(el => {
@@ -252,11 +295,11 @@ export class ERC721ProjectPage extends Component {
     // ── DOM Updates ──
 
     updateConfigDOM(config) {
-        if (!this._element) {
+        if (!this._el) {
             this.setState(config);
             return;
         }
-        const el = this._element;
+        const el = this._el;
         const setValue = (sel, val) => {
             const node = el.querySelector(sel);
             if (node) node.textContent = val;
@@ -271,11 +314,11 @@ export class ERC721ProjectPage extends Component {
     }
 
     updateStatsDOM(stats) {
-        if (!this._element) {
+        if (!this._el) {
             this.setState(stats);
             return;
         }
-        const el = this._element;
+        const el = this._el;
         const setValue = (sel, val) => {
             const node = el.querySelector(sel);
             if (node) node.textContent = val;
@@ -289,11 +332,11 @@ export class ERC721ProjectPage extends Component {
     }
 
     updateVaultDOM(data) {
-        if (!this._element) {
+        if (!this._el) {
             this.setState(data);
             return;
         }
-        const el = this._element;
+        const el = this._el;
         const setValue = (sel, val) => {
             const node = el.querySelector(sel);
             if (node) node.textContent = val;
@@ -303,22 +346,47 @@ export class ERC721ProjectPage extends Component {
         setValue('[data-vault="contributed"]', `${data.vaultTotalContributed} ETH`);
     }
 
-    shouldUpdate(oldState, newState) {
-        if (oldState.loading !== newState.loading) return true;
-        if (oldState.activeAuctions !== newState.activeAuctions) return true;
-        if (oldState.pastAuctions !== newState.pastAuctions) return true;
+    shouldUpdate(oldProps, newProps, oldState, newState) {
+        // Only re-render on the initial loading → loaded transition.
+        // After that, update auction sections via DOM to preserve the comment feed child.
+        if (oldState.loading && !newState.loading) return true;
+        if (oldState.activeAuctions !== newState.activeAuctions) {
+            this.rebuildAuctionsDOM(newState);
+            return false;
+        }
+        if (oldState.pastAuctions !== newState.pastAuctions) {
+            this.rebuildPastWorksDOM(newState);
+            return false;
+        }
         return false;
     }
 
     // ── Bid Actions ──
 
     handleBidInputChange(tokenId, value) {
-        const inputs = { ...this.state.bidInputs, [tokenId]: value };
-        this.setState({ bidInputs: inputs });
+        // Update state directly to avoid re-render destroying child components
+        this.state.bidInputs = { ...this.state.bidInputs, [tokenId]: value };
+    }
+
+    handleBidStep(tokenId, direction, minNextBid) {
+        const increment = this.state.bidIncrement ? Number(this.state.bidIncrement) / 1e18 : 0.01;
+        const current = parseFloat(this.state.bidInputs[tokenId] || minNextBid) || 0;
+        const min = parseFloat(minNextBid) || 0;
+        const newVal = direction === 'up' ? current + increment : current - increment;
+        const clamped = Math.max(min, newVal);
+        const formatted = clamped.toFixed(4);
+
+        this.state.bidInputs = { ...this.state.bidInputs, [tokenId]: formatted };
+
+        // Update DOM directly
+        const input = this._el?.querySelector(`[data-bid-input="${tokenId}"]`);
+        if (input) input.value = formatted;
     }
 
     async handlePlaceBid(tokenId) {
-        const bidValue = this.state.bidInputs[tokenId];
+        // Read from DOM (uncontrolled) since default value may not be in state
+        const input = this._el?.querySelector(`[data-bid-input="${tokenId}"]`);
+        const bidValue = input?.value?.trim() || this.state.bidInputs[tokenId];
         if (!bidValue || isNaN(parseFloat(bidValue))) {
             this.setBidStatus(tokenId, 'error', 'Enter a valid bid amount');
             return;
@@ -330,11 +398,28 @@ export class ERC721ProjectPage extends Component {
             const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
             const bidAmountWei = ethers.utils.parseEther(bidValue).toString();
 
-            await this.adapter.createBid(tokenId, bidAmountWei);
+            // Check for message
+            const msgInput = this._el?.querySelector(`[data-bid-message="${tokenId}"]`);
+            const messageText = msgInput?.value?.trim() || '';
+            let messageData = '0x';
+            if (messageText) {
+                messageData = ethers.utils.defaultAbiCoder.encode(
+                    ['uint8', 'uint256', 'bytes32', 'bytes32', 'string'],
+                    [0, 0, ethers.constants.HashZero, ethers.constants.HashZero, messageText]
+                );
+            }
+
+            await this.adapter.createBid(tokenId, bidAmountWei, messageData);
             this.setBidStatus(tokenId, 'success', 'Bid placed!');
 
-            // Refresh auctions
-            setTimeout(() => this.loadActiveAuctions(), 2000);
+            // Clear inputs
+            if (msgInput) msgInput.value = '';
+            this.state.bidInputs = { ...this.state.bidInputs, [tokenId]: '' };
+            const bidInput = this._el?.querySelector(`.live-bid-input input[type="text"]`);
+            if (bidInput) bidInput.value = '';
+
+            // Refresh page data
+            await this.loadActiveAuctions();
         } catch (error) {
             const msg = error.message || 'Bid failed';
             this.setBidStatus(tokenId, 'error', msg);
@@ -346,10 +431,12 @@ export class ERC721ProjectPage extends Component {
             this.setBidStatus(tokenId, 'pending', 'Settling auction...');
             await this.adapter.settleAuction(tokenId);
             this.setBidStatus(tokenId, 'success', 'Auction settled!');
-            setTimeout(() => {
-                this.loadActiveAuctions();
-                this.loadPastAuctions();
-            }, 2000);
+
+            // Refresh page data
+            await Promise.all([
+                this.loadActiveAuctions(),
+                this.loadPastAuctions()
+            ]);
         } catch (error) {
             this.setBidStatus(tokenId, 'error', error.message || 'Settlement failed');
         }
@@ -357,8 +444,8 @@ export class ERC721ProjectPage extends Component {
 
     setBidStatus(tokenId, type, message) {
         // Direct DOM update for bid status
-        if (this._element) {
-            const statusEl = this._element.querySelector(`[data-bid-status="${tokenId}"]`);
+        if (this._el) {
+            const statusEl = this._el.querySelector(`[data-bid-status="${tokenId}"]`);
             if (statusEl) {
                 statusEl.textContent = message;
                 statusEl.className = `bid-status ${type}`;
@@ -368,6 +455,29 @@ export class ERC721ProjectPage extends Component {
                 }
             }
         }
+    }
+
+    rebuildAuctionsDOM(newState) {
+        const container = this._el?.querySelector('[data-section="live-auctions"]');
+        if (!container) return;
+        container.innerHTML = '';
+        const auctionVnodes = this.renderLiveAuctions(newState.activeAuctions);
+        for (const vnode of auctionVnodes) {
+            render(vnode, container);
+        }
+        this.startCountdowns();
+        enhanceAllIpfsImages(container);
+    }
+
+    rebuildPastWorksDOM(newState) {
+        const container = this._el?.querySelector('[data-section="past-works"]');
+        if (!container) return;
+        container.innerHTML = '';
+        if (newState.pastAuctions.length > 0) {
+            render(this.renderPreviousWorks(newState.pastAuctions), container);
+            enhanceAllIpfsImages(container);
+        }
+        this.updateStatsDOM(newState);
     }
 
     // ── Helpers ──
@@ -433,10 +543,14 @@ export class ERC721ProjectPage extends Component {
             this.renderAuctionConfig(),
 
             // ── Live Auction Hero(s) ──
-            ...this.renderLiveAuctions(activeAuctions),
+            h('div', { 'data-section': 'live-auctions' },
+                ...this.renderLiveAuctions(activeAuctions)
+            ),
 
             // ── Previous Works ──
-            pastAuctions.length > 0 && this.renderPreviousWorks(pastAuctions),
+            h('div', { 'data-section': 'past-works' },
+                pastAuctions.length > 0 ? this.renderPreviousWorks(pastAuctions) : null
+            ),
 
             // ── Vault Info ──
             vaultAddress && this.renderVaultInfo(),
@@ -449,7 +563,10 @@ export class ERC721ProjectPage extends Component {
                 })
             ),
 
-            h('div', { style: { height: '80px' } })
+            h('div', { style: { height: '80px' } }),
+
+            // Portfolio modal (hidden until opened via event)
+            h(ERC721PortfolioModal, { adapter: this.adapter })
         );
     }
 
@@ -469,6 +586,10 @@ export class ERC721ProjectPage extends Component {
                     this.escapeHtml(projectDescription)
                 ),
                 h('div', { className: 'project-actions' },
+                    h('button', {
+                        className: 'action-btn',
+                        onClick: () => eventBus.emit('erc721:portfolio:open')
+                    }, 'My Portfolio'),
                     h('button', {
                         className: 'action-btn',
                         onClick: () => navigator.clipboard?.writeText(contractAddress)
@@ -632,13 +753,31 @@ export class ERC721ProjectPage extends Component {
 
                     // Bid input (only if auction still active)
                     !isEnded && h('div', { className: 'live-bid-input' },
+                        h('button', {
+                            className: 'bid-step-btn',
+                            onClick: () => this.handleBidStep(tokenId, 'down', minNextBid)
+                        }, '\u2212'),
                         h('input', {
                             type: 'text',
-                            placeholder: minNextBid,
-                            value: currentBidInput,
+                            value: currentBidInput || minNextBid,
+                            'data-bid-input': tokenId,
                             onInput: (e) => this.handleBidInputChange(tokenId, e.target.value)
                         }),
+                        h('button', {
+                            className: 'bid-step-btn',
+                            onClick: () => this.handleBidStep(tokenId, 'up', minNextBid)
+                        }, '+'),
                         h('span', { className: 'bid-unit' }, 'ETH')
+                    ),
+
+                    !isEnded && h('div', { className: 'bid-message-input' },
+                        h('input', {
+                            type: 'text',
+                            className: 'bid-message-field',
+                            placeholder: 'Add a message (optional)',
+                            maxLength: '200',
+                            'data-bid-message': tokenId
+                        })
                     ),
 
                     !isEnded && h('button', {

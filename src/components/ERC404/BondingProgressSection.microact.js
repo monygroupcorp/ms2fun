@@ -6,6 +6,8 @@
  */
 
 import { Component, h } from '../../core/microact-setup.js';
+import { createTradeEventCache } from '../../utils/tradeEventCache.js';
+import { aggregateCandles } from '../../utils/candleAggregator.js';
 
 export class BondingProgressSection extends Component {
     constructor(props = {}) {
@@ -28,6 +30,8 @@ export class BondingProgressSection extends Component {
         this.canvas = null;
         this.resizeHandler = null;
         this.refreshInterval = null;
+        this.tradeCache = null;
+        this.candles = [];
     }
 
     get adapter() {
@@ -37,8 +41,14 @@ export class BondingProgressSection extends Component {
     async didMount() {
         await this.loadData();
 
-        // Setup canvas after mount
-        setTimeout(() => this.setupCanvas(), 100);
+        // Setup canvas after re-render settles
+        // Use requestAnimationFrame to ensure DOM is painted
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => this.setupCanvas());
+        });
+
+        // Initialize trade event cache for candle chart
+        this.initTradeCache();
 
         // Refresh data periodically
         this.refreshInterval = setInterval(() => this.loadData(), 30000);
@@ -46,6 +56,33 @@ export class BondingProgressSection extends Component {
             if (this.refreshInterval) clearInterval(this.refreshInterval);
             if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
         });
+    }
+
+    async initTradeCache() {
+        try {
+            const provider = this.adapter.provider;
+            const address = this.adapter.contractAddress;
+            if (!provider || !address || provider.isMock) return;
+
+            this.tradeCache = await createTradeEventCache(address, provider);
+            const events = await this.tradeCache.fetchNewest();
+            if (events.length) {
+                this.candles = aggregateCandles(events);
+                this.canvas = this._el?.querySelector('.bonding-canvas');
+                if (this.canvas) this.drawChart();
+            }
+
+            // Background backfill one older chunk
+            this.tradeCache.fetchOlderChunk().then(events => {
+                if (events.length) {
+                    this.candles = aggregateCandles(events);
+                    this.canvas = this._el?.querySelector('.bonding-canvas');
+                    if (this.canvas) this.drawChart();
+                }
+            });
+        } catch (e) {
+            console.warn('[BondingProgressSection] Trade cache init failed:', e);
+        }
     }
 
     async loadData() {
@@ -102,8 +139,19 @@ export class BondingProgressSection extends Component {
                 timeUntilMaturity
             });
 
-            if (!hasLiquidity && this.canvas) {
-                this.drawCurve();
+            if (!hasLiquidity) {
+                // Refresh trade events if cache exists
+                if (this.tradeCache) {
+                    this.tradeCache.fetchNewest().then(events => {
+                        if (events.length) this.candles = aggregateCandles(events);
+                    }).catch(() => {});
+                }
+
+                // Re-acquire canvas after state update triggers re-render
+                requestAnimationFrame(() => {
+                    this.canvas = this._el?.querySelector('.bonding-canvas');
+                    if (this.canvas) this.drawChart();
+                });
             }
         } catch (error) {
             console.error('[BondingProgressSection] Error loading data:', error);
@@ -122,22 +170,34 @@ export class BondingProgressSection extends Component {
     setupCanvas() {
         if (this.state.hasLiquidity) return;
 
-        this.canvas = this.element?.querySelector('.bonding-canvas');
+        this.canvas = this._el?.querySelector('.bonding-canvas');
         if (this.canvas) {
-            this.drawCurve();
+            this.drawChart();
 
-            this.resizeHandler = () => {
-                requestAnimationFrame(() => this.drawCurve());
-            };
-            window.addEventListener('resize', this.resizeHandler);
+            if (!this.resizeHandler) {
+                this.resizeHandler = () => {
+                    this.canvas = this._el?.querySelector('.bonding-canvas');
+                    if (this.canvas) requestAnimationFrame(() => this.drawChart());
+                };
+                window.addEventListener('resize', this.resizeHandler);
+            }
         }
     }
 
-    drawCurve() {
+    drawChart() {
+        if (this.candles.length > 0) {
+            this.drawCandleChart();
+        }
+    }
+
+    drawCandleChart() {
         if (!this.canvas) return;
 
         const ctx = this.canvas.getContext('2d');
         const rect = this.canvas.getBoundingClientRect();
+
+        // Skip drawing if canvas is hidden (e.g. inactive tab) — prevents wiping to 0x0
+        if (rect.width === 0 || rect.height === 0) return;
 
         const dpr = window.devicePixelRatio || 1;
         this.canvas.width = rect.width * dpr;
@@ -146,22 +206,27 @@ export class BondingProgressSection extends Component {
 
         const width = rect.width;
         const height = rect.height;
-        const padding = { top: 20, right: 20, bottom: 30, left: 50 };
+        const padding = { top: 15, right: 75, bottom: 20, left: 10 };
         const chartWidth = width - padding.left - padding.right;
         const chartHeight = height - padding.top - padding.bottom;
+        const candles = this.candles;
 
         ctx.clearRect(0, 0, width, height);
 
-        this.drawGrid(ctx, padding, chartWidth, chartHeight);
-        this.drawBondingCurve(ctx, padding, chartWidth, chartHeight);
-        this.drawCurrentPosition(ctx, padding, chartWidth, chartHeight);
-        this.drawAxesLabels(ctx, padding, chartWidth, chartHeight);
-    }
+        // Price range with padding
+        const allPrices = candles.flatMap(c => [c.high, c.low]);
+        let minPrice = Math.min(...allPrices);
+        let maxPrice = Math.max(...allPrices);
+        const priceRange = maxPrice - minPrice || maxPrice * 0.1 || 0.001;
+        minPrice -= priceRange * 0.1;
+        maxPrice += priceRange * 0.1;
 
-    drawGrid(ctx, padding, chartWidth, chartHeight) {
+        const scaleY = (price) =>
+            padding.top + chartHeight - ((price - minPrice) / (maxPrice - minPrice)) * chartHeight;
+
+        // Grid lines
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
         ctx.lineWidth = 1;
-
         for (let i = 0; i <= 4; i++) {
             const y = padding.top + (chartHeight * i) / 4;
             ctx.beginPath();
@@ -170,119 +235,68 @@ export class BondingProgressSection extends Component {
             ctx.stroke();
         }
 
-        for (let i = 0; i <= 4; i++) {
-            const x = padding.left + (chartWidth * i) / 4;
+        // Candles
+        const slotWidth = chartWidth / candles.length;
+        const bodyWidth = Math.max(1, slotWidth * 0.6);
+
+        candles.forEach((candle, i) => {
+            const cx = padding.left + (i + 0.5) * slotWidth;
+            const isGreen = candle.close >= candle.open;
+            const color = isGreen ? '#34c759' : '#ff3b30';
+
+            // Wick
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(x, padding.top);
-            ctx.lineTo(x, padding.top + chartHeight);
+            ctx.moveTo(cx, scaleY(candle.high));
+            ctx.lineTo(cx, scaleY(candle.low));
             ctx.stroke();
-        }
-    }
 
-    drawBondingCurve(ctx, padding, chartWidth, chartHeight) {
-        const curve = (x) => Math.pow(x, 2.5);
+            // Body — minimum 4px so single-trade candles are visible
+            const bodyTop = scaleY(Math.max(candle.open, candle.close));
+            const bodyBot = scaleY(Math.min(candle.open, candle.close));
+            const bodyH = Math.max(bodyBot - bodyTop, 4);
+            const bodyY = bodyBot - bodyTop < 4
+                ? bodyTop - 2  // center the minimum-height body on the price
+                : bodyTop;
 
-        const gradient = ctx.createLinearGradient(
-            padding.left, padding.top + chartHeight,
-            padding.left, padding.top
-        );
-        gradient.addColorStop(0, 'rgba(99, 102, 241, 0.0)');
-        gradient.addColorStop(1, 'rgba(99, 102, 241, 0.2)');
-
-        ctx.beginPath();
-        ctx.moveTo(padding.left, padding.top + chartHeight);
-
-        const steps = 100;
-        for (let i = 0; i <= steps; i++) {
-            const x = i / steps;
-            const y = curve(x);
-            const canvasX = padding.left + x * chartWidth;
-            const canvasY = padding.top + chartHeight - y * chartHeight;
-            ctx.lineTo(canvasX, canvasY);
-        }
-
-        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
-        ctx.closePath();
-        ctx.fillStyle = gradient;
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.strokeStyle = '#6366f1';
-        ctx.lineWidth = 2;
-
-        for (let i = 0; i <= steps; i++) {
-            const x = i / steps;
-            const y = curve(x);
-            const canvasX = padding.left + x * chartWidth;
-            const canvasY = padding.top + chartHeight - y * chartHeight;
-
-            if (i === 0) {
-                ctx.moveTo(canvasX, canvasY);
+            if (candle.trades === 0) {
+                // Empty interval — faint narrow bar at carry-forward price
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.fillRect(cx - bodyWidth / 4, bodyY, bodyWidth / 2, bodyH);
             } else {
-                ctx.lineTo(canvasX, canvasY);
+                ctx.fillStyle = color;
+                ctx.fillRect(cx - bodyWidth / 2, bodyY, bodyWidth, bodyH);
             }
-        }
-        ctx.stroke();
-    }
+        });
 
-    drawCurrentPosition(ctx, padding, chartWidth, chartHeight) {
-        const { progress } = this.state;
-        const x = progress / 100;
-        const y = Math.pow(x, 2.5);
-
-        const canvasX = padding.left + x * chartWidth;
-        const canvasY = padding.top + chartHeight - y * chartHeight;
-
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(52, 199, 89, 0.5)';
+        // Current price dashed line
+        const currentPrice = candles[candles.length - 1].close;
+        const priceY = scaleY(currentPrice);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 4]);
-        ctx.moveTo(canvasX, padding.top + chartHeight);
-        ctx.lineTo(canvasX, canvasY);
+        ctx.beginPath();
+        ctx.moveTo(padding.left, priceY);
+        ctx.lineTo(padding.left + chartWidth, priceY);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.beginPath();
-        ctx.moveTo(padding.left, canvasY);
-        ctx.lineTo(canvasX, canvasY);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(canvasX, canvasY, 8, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(52, 199, 89, 0.3)';
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(canvasX, canvasY, 5, 0, Math.PI * 2);
-        ctx.fillStyle = '#34c759';
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(canvasX, canvasY, 2, 0, Math.PI * 2);
-        ctx.fillStyle = '#fff';
-        ctx.fill();
-    }
-
-    drawAxesLabels(ctx, padding, chartWidth, chartHeight) {
+        // Price axis labels
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.font = '10px system-ui, sans-serif';
+        ctx.font = '9px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        const labelX = padding.left + chartWidth + 4;
 
-        ctx.textAlign = 'center';
-        ctx.fillText('Supply', padding.left + chartWidth / 2, padding.top + chartHeight + 20);
-
-        ctx.save();
-        ctx.translate(12, padding.top + chartHeight / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.fillText('Price', 0, 0);
-        ctx.restore();
-
-        const { progress } = this.state;
-        if (progress > 0) {
-            const x = padding.left + (progress / 100) * chartWidth;
-            ctx.textAlign = 'center';
-            ctx.fillStyle = '#34c759';
-            ctx.fillText(`${progress.toFixed(1)}%`, x, padding.top + chartHeight + 12);
+        for (let i = 0; i <= 4; i++) {
+            const price = minPrice + (maxPrice - minPrice) * ((4 - i) / 4);
+            const y = padding.top + (chartHeight * i) / 4;
+            ctx.fillText(this.formatPrice(price), labelX, y + 3);
         }
+
+        // Current price label (highlighted)
+        ctx.fillStyle = '#34c759';
+        ctx.fillText(this.formatPrice(currentPrice), labelX, priceY + 3);
     }
 
     formatNumber(num) {

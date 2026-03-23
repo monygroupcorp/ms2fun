@@ -50,21 +50,11 @@ class ERC1155Adapter extends ContractAdapter {
             // Load ERC1155Instance ABI from centralized location
             const abi = await loadABI('ERC1155Instance');
 
-            // Debug: Log provider info
-            const providerToUse = this.signer || this.provider;
-            console.log('[ERC1155Adapter] Initializing contract:', {
-                address: this.contractAddress,
-                providerType: providerToUse.constructor.name,
-                network: providerToUse._network,
-                hasOwner: abi.some(item => item.name === 'owner'),
-                hasGetEditionCount: abi.some(item => item.name === 'getEditionCount')
-            });
-
             // Initialize contract
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                providerToUse
+                this.provider
             );
 
             this.initialized = true;
@@ -474,21 +464,16 @@ class ERC1155Adapter extends ContractAdapter {
             // Update adapter's signer so executeContractCall can use it
             this.signer = signer;
 
-            const editionInfo = await this.getEditionInfo(editionId);
-            const priceWei = BigInt(editionInfo.price);
-            const totalCost = priceWei * BigInt(quantity);
-
-            if (BigInt(payment) < totalCost) {
-                throw new Error('Insufficient payment');
-            }
-
             if (this._isMockContract()) {
                 // For mock contracts, update mock data
+                const editionInfo = await this.getEditionInfo(editionId);
+                const totalCost = BigInt(editionInfo.price) * BigInt(quantity);
+
                 const mockData = loadMockData();
                 const instance = mockData?.instances?.[this.contractAddress];
                 if (instance && instance.pieces) {
-                    const piece = instance.pieces.find(p => 
-                        p.editionId === editionId || 
+                    const piece = instance.pieces.find(p =>
+                        p.editionId === editionId ||
                         (p.editionId === undefined && instance.pieces.indexOf(p) === editionId)
                     );
                     if (piece) {
@@ -510,37 +495,22 @@ class ERC1155Adapter extends ContractAdapter {
                 return { transactionHash: '0xMOCK' + Date.now().toString(16) };
             }
 
-            // For real contracts, call mint function
-            // Note: executeContractCall already waits for the transaction and returns the receipt
-            let receipt;
-            try {
-                // Try mint method first (pass empty string for message)
-                receipt = await this.executeContractCall(
-                    'mint',
-                    [editionId, quantity, ""],  // Empty message saves gas
-                    {
-                        requiresSigner: true,
-                        txOptions: { value: totalCost.toString() }
-                    }
-                );
-            } catch (error) {
-                // Fallback to safeTransferFrom from zero address (if contract supports it)
-                const userAddress = await signer.getAddress();
-                receipt = await this.executeContractCall(
-                    'safeTransferFrom',
-                    [
-                        ethers.constants.AddressZero, // From zero address (mint)
-                        userAddress, // To user
-                        editionId,
-                        quantity,
-                        '0x' // No data
-                    ],
-                    {
-                        requiresSigner: true,
-                        txOptions: { value: totalCost.toString() }
-                    }
-                );
-            }
+            // For real contracts, use contract's calculateMintCost for authoritative pricing
+            const totalCost = await this.executeContractCall('calculateMintCost', [editionId, quantity]);
+            const totalCostStr = totalCost.toString();
+
+            // Contract signature: mint(uint256 editionId, uint256 amount, bytes32 gatingData, bytes messageData, uint256 maxCost)
+            const gatingData = ethers.constants.HashZero; // No gating
+            const messageData = '0x'; // No message
+
+            const receipt = await this.executeContractCall(
+                'mint',
+                [editionId, quantity, gatingData, messageData, 0], // maxCost=0 means no limit
+                {
+                    requiresSigner: true,
+                    txOptions: { value: totalCostStr }
+                }
+            );
 
             eventBus.emit('erc1155:edition:minted', {
                 editionId,
@@ -549,8 +519,8 @@ class ERC1155Adapter extends ContractAdapter {
                 txHash: receipt.transactionHash
             });
 
-            // Invalidate cache
-            contractCache.invalidateByPattern('edition', 'balance');
+            // Invalidate all pricing/supply caches so post-mint reads are fresh
+            contractCache.invalidateByPattern('edition', 'balance', 'mint', 'price', 'supply', 'calculateMintCost', 'getCurrentPrice', 'getMintStats', 'getEdition', 'getPricingInfo');
 
             return receipt;
         } catch (error) {
@@ -715,11 +685,8 @@ class ERC1155Adapter extends ContractAdapter {
             // Update adapter's signer so executeContractCall can use it
             this.signer = signer;
 
-            // Use calculateMintCost to get accurate cost (handles bonding curves)
-            const totalCost = await this.calculateMintCost(editionId, amount);
-
             if (this._isMockContract()) {
-                // Mock implementation - use regular mint
+                const totalCost = await this.calculateMintCost(editionId, amount);
                 const receipt = await this.mintEdition(editionId, amount, totalCost.toString());
 
                 eventBus.emit('erc1155:mint:message', {
@@ -733,18 +700,30 @@ class ERC1155Adapter extends ContractAdapter {
                 return receipt;
             }
 
+            // For real contracts, use contract's calculateMintCost for authoritative pricing
+            const totalCost = await this.executeContractCall('calculateMintCost', [editionId, amount]);
+            const totalCostStr = totalCost.toString();
+
             eventBus.emit('transaction:pending', {
                 type: 'mintWithMessage',
                 contractAddress: this.contractAddress,
                 editionId
             });
 
+            // Contract signature: mint(uint256 editionId, uint256 amount, bytes32 gatingData, bytes messageData, uint256 maxCost)
+            // messageData must be ABI-encoded as (uint8 messageType, uint256 refId, bytes32 actionRef, bytes32 metadata, string content)
+            const gatingData = ethers.constants.HashZero; // No gating
+            const messageData = ethers.utils.defaultAbiCoder.encode(
+                ['uint8', 'uint256', 'bytes32', 'bytes32', 'string'],
+                [0, 0, ethers.constants.HashZero, ethers.constants.HashZero, message]
+            );
+
             const receipt = await this.executeContractCall(
-                'mint',  // Unified mint function now accepts message parameter
-                [editionId, amount, message],
+                'mint',
+                [editionId, amount, gatingData, messageData, 0], // maxCost=0 means no limit
                 {
                     requiresSigner: true,
-                    txOptions: { value: totalCost }
+                    txOptions: { value: totalCostStr }
                 }
             );
 
@@ -756,7 +735,7 @@ class ERC1155Adapter extends ContractAdapter {
             });
 
             // Invalidate cache
-            contractCache.invalidateByPattern('edition', 'mint');
+            contractCache.invalidateByPattern('edition', 'balance', 'mint', 'price', 'supply', 'calculateMintCost', 'getCurrentPrice', 'getMintStats', 'getEdition', 'getPricingInfo');
 
             return receipt;
         } catch (error) {
@@ -1021,6 +1000,32 @@ class ERC1155Adapter extends ContractAdapter {
                 return metadata.name || 'ERC1155 Collection';
             }
         }, CACHE_TTL.STATIC);
+    }
+
+    /**
+     * Get withdrawable balance (contract balance minus pending vault cut)
+     * @returns {Promise<string>} Withdrawable amount in wei
+     */
+    async getWithdrawableBalance() {
+        if (this._isMockContract()) {
+            return '0';
+        }
+
+        try {
+            const balance = await this.provider.getBalance(this.contractAddress);
+            let pendingVault = BigInt(0);
+            try {
+                const pv = await this.executeContractCall('pendingVaultCut', []);
+                pendingVault = BigInt(pv.toString());
+            } catch (e) {
+                // pendingVaultCut may not exist
+            }
+            const withdrawable = BigInt(balance.toString()) - pendingVault;
+            return (withdrawable > 0n ? withdrawable : 0n).toString();
+        } catch (error) {
+            console.warn('[ERC1155Adapter] Failed to get withdrawable balance:', error);
+            return '0';
+        }
     }
 
     /**

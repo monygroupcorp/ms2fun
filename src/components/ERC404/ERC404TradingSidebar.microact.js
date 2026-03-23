@@ -16,12 +16,16 @@ export class ERC404TradingSidebar extends Component {
             isBuying: true,
             isBondingActive: true,
             price: '0',
+            tokensPerNFT: 0,
             userBalance: '0',
             userNFTCount: 0,
             txPending: false,
             error: null,
             amount: '',
-            message: ''
+            message: '',
+            vaultAlignmentTokenName: '',
+            vaultAlignmentTokenSymbol: '',
+            vaultContributed: '0'
         };
     }
 
@@ -35,6 +39,7 @@ export class ERC404TradingSidebar extends Component {
 
     async didMount() {
         await this.loadData();
+        this.loadVaultData();
 
         const unsub1 = eventBus.on('wallet:connected', () => this.loadData());
         const unsub2 = eventBus.on('wallet:changed', () => this.loadData());
@@ -69,6 +74,15 @@ export class ERC404TradingSidebar extends Component {
                 console.warn('[ERC404TradingSidebar] Error getting bonding status:', e);
             }
 
+            let tokensPerNFT = 0;
+            try {
+                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                const unitBN = await this.adapter.executeContractCall('unit');
+                tokensPerNFT = parseFloat(ethers.utils.formatUnits(unitBN, 18));
+            } catch (e) {
+                console.warn('[ERC404TradingSidebar] Error getting unit:', e);
+            }
+
             const userAddress = walletService.getAddress();
             let userBalance = '0';
             let userNFTCount = 0;
@@ -93,6 +107,7 @@ export class ERC404TradingSidebar extends Component {
             this.setState({
                 loading: false,
                 price,
+                tokensPerNFT,
                 isBondingActive,
                 userBalance,
                 userNFTCount
@@ -100,6 +115,58 @@ export class ERC404TradingSidebar extends Component {
         } catch (error) {
             console.error('[ERC404TradingSidebar] Error:', error);
             this.setState({ loading: false, error: error.message });
+        }
+    }
+
+    async loadVaultData() {
+        const vaultAddress = this.projectData.vault;
+        if (!vaultAddress) return;
+
+        try {
+            const { loadABI } = await import('../../utils/abiLoader.js');
+            const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+
+            const abi = await loadABI('UniAlignmentVault');
+            const provider = this.adapter?.provider || this.adapter?.contract?.provider;
+            if (!provider) return;
+
+            const vaultContract = new ethers.Contract(vaultAddress, abi, provider);
+
+            const [alignmentTokenAddr] = await Promise.allSettled([
+                vaultContract.alignmentToken().catch(() => null)
+            ]);
+
+            let alignmentTokenName = '';
+            let alignmentTokenSymbol = '';
+            const tokenAddress = alignmentTokenAddr.status === 'fulfilled' ? alignmentTokenAddr.value : null;
+            if (tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000') {
+                try {
+                    const erc20Abi = ['function name() view returns (string)', 'function symbol() view returns (string)'];
+                    const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, provider);
+                    const [tokenName, tokenSymbol] = await Promise.allSettled([
+                        tokenContract.name().catch(() => ''),
+                        tokenContract.symbol().catch(() => '')
+                    ]);
+                    alignmentTokenName = tokenName.status === 'fulfilled' ? tokenName.value : '';
+                    alignmentTokenSymbol = tokenSymbol.status === 'fulfilled' ? tokenSymbol.value : '';
+                } catch (e) {
+                    console.warn('[ERC404TradingSidebar] Failed to load alignment token metadata:', e);
+                }
+            }
+
+            let contributed = '0';
+            try {
+                const contrib = await vaultContract.benefactorTotalETH(this.projectData.contractAddress || this.projectData.address);
+                contributed = (Number(contrib) / 1e18).toFixed(4);
+            } catch (e) { /* benefactorTotalETH may not exist */ }
+
+            this.setState({
+                vaultAlignmentTokenName: alignmentTokenName,
+                vaultAlignmentTokenSymbol: alignmentTokenSymbol,
+                vaultContributed: contributed
+            });
+        } catch (error) {
+            console.warn('[ERC404TradingSidebar] Failed to load vault data:', error);
         }
     }
 
@@ -228,7 +295,7 @@ export class ERC404TradingSidebar extends Component {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     }
 
-    shouldUpdate(oldState, newState) {
+    shouldUpdate(oldProps, newProps, oldState, newState) {
         // Always update for most state changes
         if (oldState.loading !== newState.loading) return true;
         if (oldState.isBuying !== newState.isBuying) return true;
@@ -238,10 +305,14 @@ export class ERC404TradingSidebar extends Component {
         if (oldState.userBalance !== newState.userBalance) return true;
         if (oldState.userNFTCount !== newState.userNFTCount) return true;
         if (oldState.isBondingActive !== newState.isBondingActive) return true;
+        if (oldState.tokensPerNFT !== newState.tokensPerNFT) return true;
+        if (oldState.vaultAlignmentTokenName !== newState.vaultAlignmentTokenName) return true;
+        if (oldState.vaultContributed !== newState.vaultContributed) return true;
 
         // Skip re-render for input changes to preserve focus
         if (oldState.amount !== newState.amount) {
             this.updateAmountDisplay(newState.amount);
+            this.updateQuoteDisplay(newState.amount);
             return false;
         }
         if (oldState.message !== newState.message) {
@@ -253,21 +324,48 @@ export class ERC404TradingSidebar extends Component {
     }
 
     updateAmountDisplay(value) {
-        const input = this._element?.querySelector('input[name="amount"]');
+        const input = this._el?.querySelector('input[name="amount"]');
         if (input && input.value !== value) {
             input.value = value;
         }
     }
 
     updateMessageDisplay(value) {
-        const input = this._element?.querySelector('input[name="message"]');
+        const input = this._el?.querySelector('input[name="message"]');
         if (input && input.value !== value) {
             input.value = value;
         }
     }
 
+    updateQuoteDisplay(amountStr) {
+        const quoteEl = this._el?.querySelector('.trade-quote');
+        if (!quoteEl) return;
+
+        const amt = parseFloat(amountStr);
+        if (!amt || amt <= 0) {
+            quoteEl.textContent = '';
+            return;
+        }
+
+        const { isBuying, price, tokensPerNFT } = this.state;
+        const priceFloat = parseFloat(price) || 0;
+
+        if (isBuying && priceFloat > 0) {
+            const tokens = amt / priceFloat;
+            const nfts = tokensPerNFT > 0 ? tokens / tokensPerNFT : 0;
+            const tokenStr = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : tokens.toFixed(0);
+            const nftStr = nfts >= 0.01 ? `~${nfts.toFixed(2)} NFTs` : '';
+            quoteEl.textContent = `≈ ${tokenStr} tokens${nftStr ? ` (${nftStr})` : ''}`;
+        } else if (!isBuying && priceFloat > 0) {
+            const ethOut = amt * priceFloat;
+            quoteEl.textContent = `≈ ${ethOut.toFixed(6)} ETH`;
+        } else {
+            quoteEl.textContent = '';
+        }
+    }
+
     render() {
-        const { loading, isBuying, isBondingActive, price, userBalance, userNFTCount, txPending, error, amount, message } = this.state;
+        const { loading, isBuying, isBondingActive, price, tokensPerNFT, userBalance, userNFTCount, txPending, error, amount, message, vaultAlignmentTokenName, vaultAlignmentTokenSymbol, vaultContributed } = this.state;
         const connected = this.isConnected();
         const symbol = this.projectData.symbol || 'TOKEN';
 
@@ -326,6 +424,8 @@ export class ERC404TradingSidebar extends Component {
                     )
                 ),
 
+                h('div', { className: 'trade-quote' }),
+
                 isBondingActive && h('div', { className: 'message-input-container' },
                     h('input', {
                         type: 'text',
@@ -355,8 +455,16 @@ export class ERC404TradingSidebar extends Component {
 
             h('div', { className: 'token-info-section' },
                 h('div', { className: 'info-row' },
-                    h('span', { className: 'info-label' }, 'Price'),
+                    h('span', { className: 'info-label' }, 'Token Price'),
                     h('span', { className: 'info-value' }, `${loading ? '...' : parseFloat(price).toFixed(6)} ETH`)
+                ),
+                tokensPerNFT > 0 && h('div', { className: 'info-row' },
+                    h('span', { className: 'info-label' }, 'NFT Price'),
+                    h('span', { className: 'info-value' }, `${loading ? '...' : (parseFloat(price) * tokensPerNFT).toFixed(4)} ETH`)
+                ),
+                tokensPerNFT > 0 && h('div', { className: 'info-row info-row--subtle' },
+                    h('span', { className: 'info-label' }, '1 NFT'),
+                    h('span', { className: 'info-value' }, `= ${tokensPerNFT.toLocaleString()} tokens`)
                 ),
                 connected && [
                     h('div', { key: 'balance', className: 'info-row' },
@@ -382,15 +490,29 @@ export class ERC404TradingSidebar extends Component {
                     href: `https://etherscan.io/address/${this.projectData.creator}`,
                     target: '_blank',
                     rel: 'noopener'
-                }, this.truncateAddress(this.projectData.creator)),
-                this.projectData.vault && h('div', { className: 'vault-info' },
-                    h('span', { className: 'vault-label' }, 'Vault:'),
-                    h('a', {
-                        className: 'vault-link',
-                        href: `https://etherscan.io/address/${this.projectData.vault}`,
-                        target: '_blank',
-                        rel: 'noopener'
-                    }, this.truncateAddress(this.projectData.vault))
+                }, this.truncateAddress(this.projectData.creator))
+            ),
+
+            this.projectData.vault && h('div', { className: 'vault-alignment' },
+                h('div', { className: 'vault-alignment-label' }, 'Aligned with'),
+                (() => {
+                    const tokenDisplay = vaultAlignmentTokenName && vaultAlignmentTokenSymbol
+                        ? `${vaultAlignmentTokenName} (${vaultAlignmentTokenSymbol})`
+                        : vaultAlignmentTokenName || vaultAlignmentTokenSymbol || null;
+                    return tokenDisplay
+                        ? h('div', { className: 'vault-alignment-description' }, tokenDisplay)
+                        : h('div', { className: 'vault-alignment-description vault-alignment-description--loading' }, '—');
+                })(),
+                h('div', { className: 'vault-alignment-stats' },
+                    h('div', { className: 'vault-stat' },
+                        h('div', { className: 'vault-stat-label' }, 'Contributed'),
+                        h('div', { className: 'vault-stat-value' },
+                            vaultContributed !== '0' ? `${vaultContributed} ETH` : '—'
+                        )
+                    )
+                ),
+                h('div', { className: 'vault-alignment-address' },
+                    this.truncateAddress(this.projectData.vault)
                 )
             )
         );

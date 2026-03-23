@@ -3,6 +3,14 @@
    Matches docs/examples/project-erc721-drip-demo.html
    ============================================================ */
 
+/* Container */
+.erc721-project-page {
+    width: 100%;
+    max-width: var(--container-2xl);
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-10);
+}
+
 /* Project Header */
 .erc721-project-page .project-header {
     display: flex;
@@ -253,8 +261,33 @@
 
 .erc721-project-page .live-bid-input {
     display: flex;
-    gap: var(--space-2);
+    gap: 0;
     margin-bottom: var(--space-3);
+    align-items: stretch;
+}
+
+.erc721-project-page .live-bid-input .bid-step-btn {
+    width: 44px;
+    height: 52px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-h4);
+    font-family: var(--font-mono);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.erc721-project-page .live-bid-input .bid-step-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.erc721-project-page .live-bid-input .bid-step-btn:first-child {
+    border-right: none;
 }
 
 .erc721-project-page .live-bid-input input {
@@ -266,6 +299,8 @@
     background-color: var(--bg-primary);
     border: 1px solid var(--border-secondary);
     color: var(--text-primary);
+    text-align: center;
+    min-width: 0;
 }
 
 .erc721-project-page .live-bid-input input:focus {
@@ -279,6 +314,7 @@
     padding: 0 var(--space-3);
     background-color: var(--bg-tertiary);
     border: 1px solid var(--border-secondary);
+    border-left: none;
     font-family: var(--font-mono);
     font-size: var(--font-size-body);
     color: var(--text-secondary);
@@ -509,9 +545,43 @@
     font-family: var(--font-mono);
 }
 
-/* Comment Feed Section */
+/* Activity Section */
 .erc721-project-page .activity-section {
-    margin-bottom: var(--space-6);
+    margin-top: var(--space-8);
+    border-top: 1px solid var(--border-secondary);
+    padding-top: var(--space-6);
+}
+
+/* Remove double border from nested comment feed */
+.erc721-project-page .activity-section .project-comment-feed {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+/* Bid Message Input */
+.erc721-project-page .bid-message-input {
+    margin-top: var(--space-2);
+}
+
+.erc721-project-page .bid-message-field {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-body-sm);
+    font-family: var(--font-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+    box-sizing: border-box;
+    outline: none;
+}
+
+.erc721-project-page .bid-message-field:focus {
+    border-color: var(--border-primary);
+}
+
+.erc721-project-page .bid-message-field::placeholder {
+    color: var(--text-tertiary);
 }
 
 /* Bid Status Messages */
@@ -573,6 +643,10 @@
 }
 
 @media (max-width: 768px) {
+    .erc721-project-page {
+        padding: var(--space-4);
+    }
+
     .erc721-project-page .project-header {
         flex-direction: column;
     }
@@ -606,6 +680,10 @@
 }
 
 @media (max-width: 640px) {
+    .erc721-project-page {
+        padding: var(--space-3);
+    }
+
     .erc721-project-page .works-gallery {
         grid-template-columns: 1fr;
     }
@@ -625,5 +703,309 @@
 
     .erc721-project-page .auction-config {
         gap: var(--space-2);
+    }
+}
+
+/* =================================
+   Portfolio Modal — Gallery Brutalism v2
+   Shared classes reusable by ERC1155
+   ================================= */
+
+.portfolio-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3);
+    overflow-y: auto;
+}
+
+.portfolio-modal {
+    position: relative;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    width: 100%;
+    max-width: 720px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.portfolio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.portfolio-header h2 {
+    margin: 0;
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.portfolio-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: var(--font-size-h3);
+    cursor: pointer;
+    padding: 0 var(--space-1);
+    line-height: 1;
+}
+
+.portfolio-close:hover { color: var(--text-primary); }
+
+.portfolio-back {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: var(--font-size-body);
+    font-family: var(--font-primary);
+    cursor: pointer;
+    padding: 0;
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.portfolio-back:hover { color: var(--text-primary); }
+
+.portfolio-body {
+    padding: var(--space-4);
+}
+
+.portfolio-loading,
+.portfolio-error {
+    text-align: center;
+    padding: var(--space-8) 0;
+    color: var(--text-secondary);
+    font-size: var(--font-size-body-sm);
+}
+
+.portfolio-empty {
+    text-align: center;
+    padding: var(--space-8) 0;
+}
+
+.portfolio-empty .empty-title {
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    margin: 0 0 var(--space-1) 0;
+}
+
+.portfolio-empty .empty-hint {
+    color: var(--text-tertiary);
+    font-size: var(--font-size-caption);
+    margin: 0;
+}
+
+/* NFT Grid */
+.portfolio-nft-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-3);
+}
+
+.portfolio-nft-card {
+    border: 1px solid var(--border-secondary);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.portfolio-nft-card:hover {
+    border-color: var(--border-primary);
+}
+
+.portfolio-nft-image {
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.portfolio-nft-image img,
+.portfolio-nft-image .portfolio-nft-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nft-placeholder {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h3);
+    color: var(--text-tertiary);
+}
+
+.portfolio-nft-info {
+    padding: var(--space-2) var(--space-3);
+    border-top: 1px solid var(--border-secondary);
+}
+
+.portfolio-nft-info .nft-name {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.portfolio-nft-info .nft-id {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    color: var(--text-tertiary);
+}
+
+.portfolio-nft-info .nft-bid {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    margin-top: var(--space-1);
+}
+
+/* Detail View */
+.portfolio-detail {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    padding: var(--space-4);
+}
+
+.portfolio-detail-image {
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.portfolio-detail-image img,
+.portfolio-detail-image .portfolio-detail-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nft-placeholder-lg {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h1);
+    color: var(--text-tertiary);
+}
+
+.portfolio-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.detail-name {
+    margin: 0;
+    font-size: var(--font-size-h3);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.detail-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid var(--border-tertiary);
+}
+
+.detail-label {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.detail-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-primary);
+}
+
+.detail-description {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    margin: 0;
+}
+
+/* Send Section */
+.send-section {
+    margin-top: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-secondary);
+}
+
+.send-title {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-2);
+}
+
+.send-address-input {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+    box-sizing: border-box;
+    margin-bottom: var(--space-2);
+    outline: none;
+}
+
+.send-address-input:focus {
+    border-color: var(--border-primary);
+}
+
+.send-btn {
+    width: 100%;
+}
+
+.send-error {
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    font-size: var(--font-size-body-sm);
+    color: var(--color-error, #ff4444);
+    border: 1px solid var(--color-error, #ff4444);
+}
+
+.send-success {
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    font-size: var(--font-size-body-sm);
+    color: var(--color-success, #00cc66);
+    border: 1px solid var(--color-success, #00cc66);
+}
+
+@media (max-width: 640px) {
+    .portfolio-detail {
+        grid-template-columns: 1fr;
+    }
+
+    .portfolio-nft-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     }
 }

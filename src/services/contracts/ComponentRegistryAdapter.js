@@ -41,7 +41,7 @@ class ComponentRegistryAdapter extends ContractAdapter {
 
         const abi = await loadABI('ComponentRegistry');
         this.contract = new this.ethers.Contract(
-            this.contractAddress, abi, this.signer || this.provider
+            this.contractAddress, abi, this.provider
         );
         this.initialized = true;
         eventBus.emit('contract:adapter:initialized', {
@@ -54,7 +54,7 @@ class ComponentRegistryAdapter extends ContractAdapter {
     /**
      * Get all approved components for a given tag hash.
      * @param {string} tagHash - bytes32 keccak256 tag (use TAGS constant)
-     * @returns {Promise<Array<{address: string, name: string, tag: string}>>}
+     * @returns {Promise<Array<{address: string, name: string, tag: string, metadata: object|null}>>}
      */
     async getComponentsByTag(tagHash) {
         return this.getCachedOrFetch('getComponentsByTag', [tagHash], async () => {
@@ -64,13 +64,37 @@ class ComponentRegistryAdapter extends ContractAdapter {
                 'getApprovedComponentsByTag', [tagHash]
             );
 
+            const metadataAbi = ['function metadataURI() external view returns (string)'];
+
             const components = [];
             for (const addr of addresses) {
                 const name = await this.executeContractCall('componentName', [addr]);
-                components.push({ address: addr, name, tag: tagHash });
+
+                let metadata = null;
+                try {
+                    const moduleContract = new this.ethers.Contract(addr, metadataAbi, this.provider);
+                    const uri = await moduleContract.metadataURI();
+                    if (uri) metadata = this._parseMetadataURI(uri);
+                } catch (_) {
+                    // module doesn't implement IComponentModule yet — graceful degradation
+                }
+
+                components.push({ address: addr, name, tag: tagHash, metadata });
             }
             return components;
         }, CACHE_TTL.COMPONENTS);
+    }
+
+    _parseMetadataURI(uri) {
+        try {
+            if (uri.startsWith('data:application/json,')) {
+                return JSON.parse(decodeURIComponent(uri.slice('data:application/json,'.length)));
+            }
+            if (uri.startsWith('data:application/json;base64,')) {
+                return JSON.parse(atob(uri.slice('data:application/json;base64,'.length)));
+            }
+        } catch (_) {}
+        return null;
     }
 
     /**
@@ -107,15 +131,30 @@ class ComponentRegistryAdapter extends ContractAdapter {
     _getMockComponentsByTag(tagHash) {
         if (tagHash === TAGS.GATING) {
             return [
-                { address: '0xMOCK_GATING_001', name: 'Password Tier Gating', tag: tagHash },
-                { address: '0xMOCK_GATING_002', name: 'Merkle Allowlist Gating', tag: tagHash },
+                {
+                    address: '0xMOCK_GATING_001', name: 'Password Tier Gating', tag: tagHash,
+                    metadata: { subtitle: 'Password · Tiered Access', description: 'Set one or more passwords, each unlocking a different tier of access or pricing. Share codes with your community however you like — Discord, email, or word of mouth.', configType: 'password-tier-gating' },
+                },
+                {
+                    address: '0xMOCK_GATING_002', name: 'Merkle Allowlist Gating', tag: tagHash,
+                    metadata: { subtitle: 'Allowlist · Merkle Tree', description: 'Upload a list of wallet addresses. Only wallets on the list can participate. Uses a Merkle tree so the full list never needs to go on-chain — just a single root hash.' },
+                },
             ];
         }
         if (tagHash === TAGS.LIQUIDITY_DEPLOYER) {
             return [
-                { address: '0xMOCK_LIQ_UNI', name: 'Uniswap V4 Deployer', tag: tagHash },
-                { address: '0xMOCK_LIQ_ZAMM', name: 'ZAMM Deployer', tag: tagHash },
-                { address: '0xMOCK_LIQ_CYPHER', name: 'Algebra V2 Deployer', tag: tagHash },
+                {
+                    address: '0xMOCK_LIQ_UNI', name: 'Uniswap V4 Deployer', tag: tagHash,
+                    metadata: { subtitle: 'Uniswap V4 · Concentrated Liquidity', description: 'Deploy liquidity to a Uniswap V4 pool. Swap fees compound directly into the pool, deepening liquidity over time.', configType: 'launch-profile' },
+                },
+                {
+                    address: '0xMOCK_LIQ_ZAMM', name: 'ZAMM Deployer', tag: tagHash,
+                    metadata: { subtitle: 'ZAMM · Constant Product', description: 'Deploy liquidity to ZAMM, a gas-efficient constant-product AMM. Simple and battle-tested.', configType: 'launch-profile' },
+                },
+                {
+                    address: '0xMOCK_LIQ_CYPHER', name: 'Cypher Deployer', tag: tagHash,
+                    metadata: { subtitle: 'Cypher · Concentrated Liquidity', description: 'Deploy liquidity to Cypher, a concentrated liquidity DEX. Capital-efficient ranges and deep liquidity with tighter spreads.', configType: 'launch-profile' },
+                },
             ];
         }
         return [];

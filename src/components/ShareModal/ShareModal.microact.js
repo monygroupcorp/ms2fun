@@ -5,7 +5,10 @@
  * Pure UI component - no contract interactions.
  */
 
-import { Component, h } from '../../core/microact-setup.js';
+import { Component, h, eventBus } from '../../core/microact-setup.js';
+import { generateProjectURL } from '../../utils/navigation.js';
+import { detectNetwork } from '../../config/network.js';
+import stylesheetLoader from '../../utils/stylesheetLoader.js';
 
 export class ShareModal extends Component {
     constructor(props = {}) {
@@ -18,7 +21,8 @@ export class ShareModal extends Component {
     }
 
     didMount() {
-        // Handle Escape key to close modal
+        stylesheetLoader.load('src/components/ShareModal/ShareModal.css', 'share-modal-styles');
+
         this._escapeHandler = (e) => {
             if (e.key === 'Escape' && this.state.isOpen) {
                 this.close();
@@ -26,8 +30,18 @@ export class ShareModal extends Component {
         };
         document.addEventListener('keydown', this._escapeHandler);
 
+        const unsub = eventBus.on('share:open', (data) => {
+            // Update projectData if passed via event
+            if (data?.projectData) {
+                this.props.projectData = data.projectData;
+            }
+            this.open();
+        });
+
         this.registerCleanup(() => {
             document.removeEventListener('keydown', this._escapeHandler);
+            unsub();
+            stylesheetLoader.unload('share-modal-styles');
             document.body.style.overflow = '';
         });
     }
@@ -44,14 +58,16 @@ export class ShareModal extends Component {
 
     getShareUrl() {
         const { projectData } = this.props;
-        return `${window.location.origin}/project/${projectData?.address || ''}`;
+        const { chainId } = detectNetwork();
+        const path = generateProjectURL(null, projectData, null, chainId);
+        return `${window.location.origin}${path || `/project/${projectData?.address || ''}`}`;
     }
 
     getShareText() {
         const { projectData } = this.props;
         const name = projectData?.name || 'Project';
         const symbol = projectData?.symbol || '';
-        return `Check out ${name}${symbol ? ` ($${symbol})` : ''} on MS2`;
+        return `Check out ${name}${symbol ? ` ($${symbol})` : ''} on MS2fun`;
     }
 
     async handleCopyLink() {
@@ -67,7 +83,7 @@ export class ShareModal extends Component {
     handleShareX() {
         const text = encodeURIComponent(this.getShareText());
         const url = encodeURIComponent(this.getShareUrl());
-        window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+        window.open(`https://x.com/intent/tweet?text=${text}&url=${url}`, '_blank');
     }
 
     handleOverlayClick(e) {

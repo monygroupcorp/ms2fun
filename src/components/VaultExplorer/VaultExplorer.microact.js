@@ -1,39 +1,33 @@
 /**
- * VaultExplorer - Microact Version
+ * VaultExplorer - V2 Gallery Brutalism vault discovery page
  *
- * Full-page vault discovery with pagination, TVL/popularity toggle.
- * Migrated from template literals to h() hyperscript.
+ * Source of truth: docs/examples/vault-explorer-demo.html
  *
- * NOTE: This component uses QueryService.getVaultLeaderboard() which
- * fetches from MasterRegistry's vault enumeration. This is a candidate
- * for EventIndexer migration.
- * See: docs/plans/2026-02-04-contract-event-migration.md
+ * Displays active vaults with on-chain TVL data loaded via
+ * provider.getBalance(). Vault metadata comes from contracts config.
+ *
+ * Props (from Layout/route): { mode, config, provider, web3Ready, web3InitError }
  */
 
 import { Component, h } from '../../core/microact-setup.js';
-import { getAssetIcon } from '../../utils/assetMetadata.js';
-import queryService from '../../services/QueryService.js';
-import { detectNetwork } from '../../config/network.js';
-import { isPreLaunch } from '../../config/contractConfig.js';
+import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
+import stylesheetLoader from '../../utils/stylesheetLoader.js';
 
 export class VaultExplorer extends Component {
     constructor(props = {}) {
         super(props);
         this.state = {
-            mode: 'tvl',
-            vaults: [],
-            totalVaults: 0,
-            currentPage: 0,
-            pageSize: 10,
             loading: true,
-            error: null
+            error: null,
+            vaults: [],
+            activeFilter: 'all'
         };
-        this.vaultMetadata = null;
     }
 
     async didMount() {
+        await stylesheetLoader.load('/src/core/route-vaults-v2.css', 'route:vaults');
+
         try {
-            await this.loadVaultMetadata();
             await this.loadVaults();
         } catch (error) {
             console.error('[VaultExplorer] Error initializing:', error);
@@ -41,84 +35,71 @@ export class VaultExplorer extends Component {
         }
     }
 
-    async loadVaultMetadata() {
-        try {
-            const network = detectNetwork();
-            if (network.contracts) {
-                const response = await fetch(network.contracts);
-                const config = await response.json();
-                this.vaultMetadata = {};
-                if (config.vaults) {
-                    for (const vault of config.vaults) {
-                        this.vaultMetadata[vault.address.toLowerCase()] = vault;
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn('[VaultExplorer] Could not load vault metadata:', error);
-            this.vaultMetadata = {};
-        }
-    }
-
     async loadVaults() {
-        try {
-            this.setState({ loading: true, error: null });
+        const { config, provider } = this.props;
 
-            const preLaunch = await isPreLaunch();
-            if (preLaunch) {
-                this.setState({ vaults: [], totalVaults: 0, loading: false });
-                return;
-            }
-
-            const { mode, currentPage, pageSize } = this.state;
-            const sortBy = mode === 'tvl' ? 0 : 1;
-            const rawVaults = await queryService.getVaultLeaderboard(sortBy, 100);
-
-            const startIndex = currentPage * pageSize;
-            const endIndex = startIndex + pageSize;
-            const paginatedVaults = rawVaults.slice(startIndex, endIndex);
-
-            const vaults = paginatedVaults.map((vault, index) =>
-                this.transformVault(vault, startIndex + index)
-            );
-
-            this.setState({ vaults, totalVaults: rawVaults.length, loading: false });
-        } catch (error) {
-            console.error('[VaultExplorer] Error loading vaults:', error);
-            this.setState({ loading: false, error: 'Failed to load vaults' });
+        if (!config || !config.vaults || config.vaults.length === 0) {
+            this.setState({ loading: false, vaults: [] });
+            return;
         }
+
+        const vaults = [];
+        for (const vaultConfig of config.vaults) {
+            const vault = await this.loadVaultData(vaultConfig, provider);
+            vaults.push(vault);
+        }
+
+        this.setState({ loading: false, vaults });
     }
 
-    transformVault(vault, index) {
-        const vaultAddress = vault.vault || vault.vaultAddress || vault.address;
-        const metadata = this.vaultMetadata?.[vaultAddress?.toLowerCase()] || {};
-        const tvlEth = parseFloat(vault.tvl || '0');
-        const tvlWei = (tvlEth * 1e18).toString();
+    async loadVaultData(vaultConfig, provider) {
+        let tvlWei = ethers.BigNumber.from(0);
+        let tvlFormatted = '0 ETH';
+
+        // Fetch on-chain ETH balance as TVL
+        if (provider && vaultConfig.address) {
+            try {
+                tvlWei = await provider.getBalance(vaultConfig.address);
+                const eth = parseFloat(ethers.utils.formatEther(tvlWei));
+                if (eth >= 1000) {
+                    tvlFormatted = `${(eth).toLocaleString(undefined, { maximumFractionDigits: 1 })} ETH`;
+                } else {
+                    tvlFormatted = `${eth.toFixed(2)} ETH`;
+                }
+            } catch (err) {
+                console.warn('[VaultExplorer] Could not fetch balance for', vaultConfig.address, err);
+                tvlFormatted = '-- ETH';
+            }
+        }
+
+        // Count aligned projects from config instances
+        let alignedProjects = 0;
+        const { config } = this.props;
+        if (config && config.instances) {
+            const allInstances = [
+                ...(config.instances.erc404 || []),
+                ...(config.instances.erc1155 || []),
+                ...(config.instances.erc721 || [])
+            ];
+            alignedProjects = allInstances.filter(
+                inst => inst.vault && inst.vault.toLowerCase() === vaultConfig.address.toLowerCase()
+            ).length;
+        }
+
+        // Derive a display name from the vault config
+        const name = vaultConfig.name || vaultConfig.tag || this.truncateAddress(vaultConfig.address);
 
         return {
-            rank: index + 1,
-            address: vaultAddress,
-            name: metadata.tag || vault.name || 'Unnamed Vault',
-            type: 'Ultra Alignment',
-            targetAsset: metadata.alignmentTokenSymbol || 'ETH',
-            tvl: this.formatTVL(tvlWei),
-            tvlRaw: tvlWei,
-            popularity: vault.instanceCount || 0,
-            instanceCount: vault.instanceCount || 0,
-            description: metadata.description || '',
-            isActive: true
+            address: vaultConfig.address,
+            name,
+            vaultType: vaultConfig.vaultType || 'Ultra Alignment',
+            alignmentToken: vaultConfig.alignmentToken,
+            hookAddress: vaultConfig.hookAddress,
+            tvl: tvlFormatted,
+            tvlWei,
+            alignedProjects,
+            description: vaultConfig.description || ''
         };
-    }
-
-    formatTVL(value) {
-        try {
-            const eth = parseFloat(value) / 1e18;
-            if (eth >= 1000000) return `$${(eth / 1000000).toFixed(2)}M`;
-            if (eth >= 1000) return `$${(eth / 1000).toFixed(2)}K`;
-            return `$${eth.toFixed(2)}`;
-        } catch (error) {
-            return '$0';
-        }
     }
 
     truncateAddress(address) {
@@ -126,27 +107,9 @@ export class VaultExplorer extends Component {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     }
 
-    handleModeToggleTvl() {
-        if (this.state.mode !== 'tvl') {
-            this.setState({ mode: 'tvl', currentPage: 0 });
-            this.loadVaults();
-        }
-    }
-
-    handleModeTogglePopularity() {
-        if (this.state.mode !== 'popularity') {
-            this.setState({ mode: 'popularity', currentPage: 0 });
-            this.loadVaults();
-        }
-    }
-
-    handlePageChange(newPage) {
-        const { currentPage, totalVaults, pageSize } = this.state;
-        const maxPage = Math.ceil(totalVaults / pageSize) - 1;
-
-        if (newPage !== currentPage && newPage >= 0 && newPage <= maxPage) {
-            this.setState({ currentPage: newPage });
-            this.loadVaults();
+    handleFilterClick(filter) {
+        if (this.state.activeFilter !== filter) {
+            this.setState({ activeFilter: filter });
         }
     }
 
@@ -158,172 +121,136 @@ export class VaultExplorer extends Component {
         }
     }
 
-    handleBackClick() {
-        if (window.router) {
-            window.router.navigate('/');
-        } else {
-            window.location.href = '/';
+    getFilteredVaults() {
+        const { vaults, activeFilter } = this.state;
+        if (activeFilter === 'all') return vaults;
+        if (activeFilter === 'tvl') {
+            return [...vaults].sort((a, b) => {
+                const aBn = a.tvlWei || ethers.BigNumber.from(0);
+                const bBn = b.tvlWei || ethers.BigNumber.from(0);
+                if (bBn.gt(aBn)) return 1;
+                if (aBn.gt(bBn)) return -1;
+                return 0;
+            });
         }
+        if (activeFilter === 'projects') {
+            return [...vaults].sort((a, b) => b.alignedProjects - a.alignedProjects);
+        }
+        return vaults;
+    }
+
+    renderLoading() {
+        return h('div', { className: 'vault-explorer-loading' },
+            h('p', null, 'Loading vaults...')
+        );
+    }
+
+    renderError() {
+        return h('div', { className: 'vault-explorer-error' },
+            h('p', null, this.state.error),
+            h('button', {
+                className: 'btn btn-primary',
+                onClick: this.bind(this.loadVaults)
+            }, 'Try Again')
+        );
+    }
+
+    renderEmpty() {
+        return h('div', { className: 'empty-state' },
+            h('div', { className: 'empty-state-title' }, 'No Vaults Found'),
+            h('div', { className: 'empty-state-description' },
+                'No vaults have been deployed yet.'
+            )
+        );
+    }
+
+    renderVaultCard(vault) {
+        return h('a', {
+            className: 'vault-card',
+            key: vault.address,
+            href: `/vaults/${vault.address}`,
+            onClick: (e) => {
+                e.preventDefault();
+                this.handleVaultClick(vault.address);
+            }
+        },
+            h('div', { className: 'vault-header' },
+                h('div', { className: 'vault-target' }, vault.name),
+                h('div', { className: 'vault-badge' }, vault.vaultType)
+            ),
+
+            vault.description
+                ? h('div', { className: 'vault-description' }, vault.description)
+                : null,
+
+            h('div', { className: 'vault-stats' },
+                h('div', { className: 'vault-stat' },
+                    h('div', { className: 'vault-stat-label' }, 'TVL'),
+                    h('div', { className: 'vault-stat-value' }, vault.tvl)
+                ),
+                h('div', { className: 'vault-stat' },
+                    h('div', { className: 'vault-stat-label' }, 'Aligned Projects'),
+                    h('div', { className: 'vault-stat-value' }, String(vault.alignedProjects))
+                )
+            ),
+
+            h('div', { className: 'vault-meta' },
+                h('div', null, `Target: ${this.truncateAddress(vault.alignmentToken)}`),
+                h('div', null, 'Pool: v4')
+            )
+        );
     }
 
     render() {
-        const { mode, vaults, totalVaults, currentPage, pageSize, loading, error } = this.state;
-        const totalPages = Math.ceil(totalVaults / pageSize);
+        const { loading, error, vaults, activeFilter } = this.state;
+        const filteredVaults = this.getFilteredVaults();
 
-        return h('div', { className: 'vault-explorer' },
-            // Header
-            h('div', { className: 'vault-explorer-header' },
-                h('button', {
-                    className: 'back-btn',
-                    onClick: this.bind(this.handleBackClick)
-                }, '← Back to Home'),
+        return h('div', { className: 'vault-explorer-content' },
+            // Page Header
+            h('header', { className: 'page-header' },
                 h('h1', { className: 'page-title' }, 'Vault Explorer'),
-                h('p', { className: 'page-subtitle' }, 'Discover and explore all registered vaults')
-            ),
-
-            // Controls
-            h('div', { className: 'vault-explorer-controls' },
-                h('div', { className: 'mode-toggle' },
-                    h('button', {
-                        className: `mode-btn ${mode === 'tvl' ? 'active' : ''}`,
-                        onClick: this.bind(this.handleModeToggleTvl)
-                    }, 'TVL'),
-                    h('button', {
-                        className: `mode-btn ${mode === 'popularity' ? 'active' : ''}`,
-                        onClick: this.bind(this.handleModeTogglePopularity)
-                    }, 'Popularity')
-                ),
-                h('div', { className: 'vault-count' },
-                    'Total Vaults: ',
-                    h('strong', null, totalVaults)
+                h('p', { className: 'page-description' },
+                    'Vaults funnel project tithes into target assets, building Uniswap v4 liquidity positions and providing yield to benefactors. Each DAO-approved target can have one vault.'
                 )
             ),
 
-            // Content
-            h('div', { className: 'vault-explorer-content' },
-                this.renderContent(vaults, loading, error, mode)
-            ),
-
-            // Pagination
-            !loading && !error && totalPages > 1 &&
-                this.renderPagination(currentPage, totalPages)
-        );
-    }
-
-    renderContent(vaults, loading, error, mode) {
-        if (loading) {
-            return h('div', { className: 'explorer-loading' },
-                h('div', { className: 'loading-spinner' }),
-                h('p', null, 'Loading vaults...')
-            );
-        }
-
-        if (error) {
-            return h('div', { className: 'explorer-error' },
-                h('p', null, error),
+            // Filter Bar
+            h('div', { className: 'filter-bar' },
                 h('button', {
-                    className: 'retry-btn',
-                    onClick: this.bind(this.loadVaults)
-                }, 'Try Again')
-            );
-        }
+                    className: `filter-pill ${activeFilter === 'all' ? 'active' : ''}`,
+                    onClick: () => this.handleFilterClick('all')
+                }, 'All Vaults'),
+                h('button', {
+                    className: `filter-pill ${activeFilter === 'tvl' ? 'active' : ''}`,
+                    onClick: () => this.handleFilterClick('tvl')
+                }, 'By TVL'),
+                h('button', {
+                    className: `filter-pill ${activeFilter === 'projects' ? 'active' : ''}`,
+                    onClick: () => this.handleFilterClick('projects')
+                }, 'By Projects')
+            ),
 
-        if (vaults.length === 0) {
-            return h('div', { className: 'explorer-empty' },
-                h('p', null, 'No vaults found')
-            );
-        }
-
-        return h('div', { className: 'vault-table-container' },
-            h('table', { className: 'vault-table' },
-                h('thead', null,
-                    h('tr', null,
-                        h('th', { className: 'col-rank' }, '#'),
-                        h('th', { className: 'col-name' }, 'Vault'),
-                        h('th', { className: 'col-type' }, 'Type'),
-                        h('th', { className: 'col-asset' }, 'Asset'),
-                        h('th', { className: 'col-metric' }, mode === 'tvl' ? 'TVL' : 'Popularity'),
-                        h('th', { className: 'col-projects' }, 'Projects'),
-                        h('th', { className: 'col-status' }, 'Status')
-                    )
+            // Active Vaults Section
+            h('section', { style: 'margin-bottom: var(--space-8);' },
+                h('div', { className: 'section-header' },
+                    h('h2', { className: 'section-title' }, 'Active Vaults'),
+                    h('div', { className: 'section-count' },
+                        loading ? '...' : `${filteredVaults.length} Vault${filteredVaults.length !== 1 ? 's' : ''}`)
                 ),
-                h('tbody', null,
-                    ...vaults.map(vault => this.renderVaultRow(vault, mode))
-                )
-            )
-        );
-    }
 
-    renderVaultRow(vault, mode) {
-        const assetIcon = vault.targetAsset ? getAssetIcon(vault.targetAsset) : '💰';
-        const statusClass = vault.isActive ? 'status-active' : 'status-inactive';
-        const statusText = vault.isActive ? 'Active' : 'Inactive';
-
-        return h('tr', {
-            className: 'vault-row',
-            key: vault.address,
-            onClick: () => this.handleVaultClick(vault.address)
-        },
-            h('td', { className: 'col-rank' },
-                h('span', { className: 'rank-badge' }, vault.rank)
-            ),
-            h('td', { className: 'col-name' },
-                h('div', { className: 'vault-name-cell' },
-                    h('span', { className: 'vault-name' }, vault.name),
-                    h('span', { className: 'vault-address' }, this.truncateAddress(vault.address))
-                )
-            ),
-            h('td', { className: 'col-type' }, vault.type),
-            h('td', { className: 'col-asset' },
-                h('span', { className: 'asset-icon' }, assetIcon),
-                h('span', { className: 'asset-symbol' }, vault.targetAsset)
-            ),
-            h('td', { className: 'col-metric' },
-                h('span', { className: 'metric-value' }, mode === 'tvl' ? vault.tvl : vault.popularity)
-            ),
-            h('td', { className: 'col-projects' }, vault.instanceCount),
-            h('td', { className: 'col-status' },
-                h('span', { className: `status-badge ${statusClass}` }, statusText)
-            )
-        );
-    }
-
-    renderPagination(currentPage, totalPages) {
-        const maxVisiblePages = 5;
-        let startPage = Math.max(0, currentPage - Math.floor(maxVisiblePages / 2));
-        let endPage = Math.min(totalPages - 1, startPage + maxVisiblePages - 1);
-
-        if (endPage - startPage < maxVisiblePages - 1) {
-            startPage = Math.max(0, endPage - maxVisiblePages + 1);
-        }
-
-        const pages = [];
-        for (let i = startPage; i <= endPage; i++) {
-            pages.push(i);
-        }
-
-        return h('div', { className: 'pagination' },
-            h('button', {
-                className: `page-btn prev-btn ${currentPage === 0 ? 'disabled' : ''}`,
-                disabled: currentPage === 0,
-                onClick: () => this.handlePageChange(currentPage - 1)
-            }, '← Prev'),
-
-            h('div', { className: 'page-numbers' },
-                ...pages.map(page =>
-                    h('button', {
-                        className: `page-btn page-num ${page === currentPage ? 'active' : ''}`,
-                        key: page,
-                        onClick: () => this.handlePageChange(page)
-                    }, page + 1)
-                )
+                loading
+                    ? this.renderLoading()
+                    : error
+                        ? this.renderError()
+                        : filteredVaults.length === 0
+                            ? this.renderEmpty()
+                            : h('div', { className: 'vault-grid' },
+                                ...filteredVaults.map(vault => this.renderVaultCard(vault))
+                            )
             ),
 
-            h('button', {
-                className: `page-btn next-btn ${currentPage >= totalPages - 1 ? 'disabled' : ''}`,
-                disabled: currentPage >= totalPages - 1,
-                onClick: () => this.handlePageChange(currentPage + 1)
-            }, 'Next →')
+            // Bottom spacer (matches demo)
+            h('div', { style: 'height: 80px;' })
         );
     }
 }

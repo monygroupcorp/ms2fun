@@ -60,7 +60,7 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
             this.contract = new this.ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             // Initialize mirror contract (from parent)
@@ -72,7 +72,7 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
                     this.mirrorContract = new this.ethers.Contract(
                         mirrorAddress,
                         mirrorABI,
-                        this.signer || this.provider
+                        this.provider
                     );
                 }
             } catch (error) {
@@ -387,49 +387,48 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async getBondingStatus() {
         return await this.getCachedOrFetch('getBondingStatus', [], async () => {
-            const [status, maturityTime] = await Promise.all([
-                this.executeContractCall('getBondingStatus'),
-                this.executeContractCall('bondingMaturityTime').catch(() => 0)
+            // Use individual contract getters (no aggregate getBondingStatus on contract)
+            const [isActive, openTime, maturityTime, reserveWei, currentSupplyWei, maxSupplyWei, isGraduated] = await Promise.all([
+                this.executeContractCall('bondingActive').catch(() => false),
+                this.executeContractCall('bondingOpenTime').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('bondingMaturityTime').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('reserve').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalBondingSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('maxSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('graduated').catch(() => false)
             ]);
 
-            // Contract returns: isConfigured[0], isActive[1], isEnded[2], openTime[3],
-            // currentSupply[4], maxBondingSupply[5], availableSupply[6], currentReserve[7]
-            const isConfigured = status.isConfigured !== undefined ? status.isConfigured : status[0];
-            const isActive = status.isActive !== undefined ? status.isActive : status[1];
-            const isEnded = status.isEnded !== undefined ? status.isEnded : status[2];
-            const openTime = parseInt((status.openTime || status[3]).toString());
-            const currentSupply = status.currentSupply || status[4];
-            const maxBondingSupply = status.maxBondingSupply || status[5];
-            const availableSupply = status.availableSupply || status[6];
-            const currentReserve = status.currentReserve || status[7];
+            const openTimeValue = parseInt(openTime.toString());
             const maturityTimeValue = parseInt(maturityTime.toString());
+            const currentReserve = this.ethers.utils.formatEther(reserveWei);
+            const currentSupply = this.ethers.utils.formatUnits(currentSupplyWei, 18);
+            const maxBondingSupply = this.ethers.utils.formatUnits(maxSupplyWei, 18);
 
             // Compute currentPhase for component compatibility
-            // 0 = Not Started, 1 = Early Bonding, 2 = Active Bonding, 3 = Matured, 4 = Liquidity Deployed
             let currentPhase = 0;
             const now = Math.floor(Date.now() / 1000);
-            if (isEnded) {
+            if (isGraduated) {
                 currentPhase = 4; // Liquidity Deployed
             } else if (maturityTimeValue > 0 && now >= maturityTimeValue) {
                 currentPhase = 3; // Matured
-            } else if (isActive && openTime > 0 && now >= openTime) {
+            } else if (isActive && openTimeValue > 0 && now >= openTimeValue) {
                 currentPhase = 2; // Active Bonding
             } else if (isActive) {
                 currentPhase = 1; // Early Bonding (configured but not yet open)
             }
 
             return {
-                isConfigured,
+                isConfigured: isActive,
                 isActive,
-                isEnded,
-                hasLiquidity: isEnded, // isEnded means liquidity has been deployed
-                openTime,
+                isEnded: isGraduated,
+                hasLiquidity: isGraduated,
+                openTime: openTimeValue,
                 maturityTime: maturityTimeValue,
                 currentPhase,
-                currentSupply: this.ethers.utils.formatUnits(currentSupply, 18),
-                maxBondingSupply: this.ethers.utils.formatUnits(maxBondingSupply, 18),
-                availableSupply: this.ethers.utils.formatUnits(availableSupply, 18),
-                currentReserve: this.ethers.utils.formatEther(currentReserve)
+                currentSupply,
+                maxBondingSupply,
+                availableSupply: (parseFloat(maxBondingSupply) - parseFloat(currentSupply)).toString(),
+                currentReserve
             };
         });
     }
@@ -476,25 +475,29 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async getSupplyInfo() {
         return await this.getCachedOrFetch('getSupplyInfo', [], async () => {
-            const info = await this.executeContractCall('getSupplyInfo');
-            // Contract returns: maxSupply[0], liquidityReserve[1], maxBondingSupply[2],
-            // currentBondingSupply[3], availableBondingSupply[4], totalERC20Supply[5]
-            const maxSupply = this.ethers.utils.formatUnits(info.maxSupply || info[0], 18);
-            const liquidityReserve = this.ethers.utils.formatUnits(info.liquidityReserve || info[1], 18);
-            const maxBondingSupply = this.ethers.utils.formatUnits(info.maxBondingSupply || info[2], 18);
-            const currentBondingSupply = this.ethers.utils.formatUnits(info.currentBondingSupply || info[3], 18);
-            const availableBondingSupply = this.ethers.utils.formatUnits(info.availableBondingSupply || info[4], 18);
-            const totalERC20Supply = this.ethers.utils.formatUnits(info.totalERC20Supply || info[5], 18);
+            // Use individual contract getters (no aggregate getSupplyInfo on contract)
+            const [maxSupplyWei, totalBondingWei, totalSupplyWei, liquidityReserveWei] = await Promise.all([
+                this.executeContractCall('maxSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalBondingSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('liquidityReserve').catch(() => this.ethers.BigNumber.from(0))
+            ]);
+
+            const maxSupply = this.ethers.utils.formatUnits(maxSupplyWei, 18);
+            const liquidityReserve = this.ethers.utils.formatUnits(liquidityReserveWei, 18);
+            const currentBondingSupply = this.ethers.utils.formatUnits(totalBondingWei, 18);
+            const totalERC20Supply = this.ethers.utils.formatUnits(totalSupplyWei, 18);
+            // maxBondingSupply = maxSupply - liquidityReserve
+            const maxBondingSupply = (parseFloat(maxSupply) - parseFloat(liquidityReserve)).toString();
+            const availableBondingSupply = (parseFloat(maxBondingSupply) - parseFloat(currentBondingSupply)).toString();
 
             return {
-                // Canonical names (match contract)
                 maxSupply,
                 liquidityReserve,
                 maxBondingSupply,
                 currentBondingSupply,
                 availableBondingSupply,
                 totalERC20Supply,
-                // Legacy aliases (for component compatibility)
                 totalSupply: totalERC20Supply,
                 bondingSupply: currentBondingSupply
             };
@@ -669,34 +672,14 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
     }
 
     /**
-     * Set Uniswap V4 hook address (owner only)
-     * @param {string} hookAddress - Hook contract address
+     * Migrate vault to a new address (owner only)
+     * @param {string} vaultAddress - New vault contract address
      * @returns {Promise<Object>} Transaction receipt
      */
-    async setV4Hook(hookAddress) {
+    async migrateVault(vaultAddress) {
         try {
             const receipt = await this.executeContractCall(
-                'setV4Hook',
-                [hookAddress],
-                { requiresSigner: true }
-            );
-
-            contractCache.invalidateByPattern('hook');
-            return receipt;
-        } catch (error) {
-            throw this.wrapError(error, 'Failed to set V4 hook');
-        }
-    }
-
-    /**
-     * Set vault address (owner only)
-     * @param {string} vaultAddress - Vault contract address
-     * @returns {Promise<Object>} Transaction receipt
-     */
-    async setVault(vaultAddress) {
-        try {
-            const receipt = await this.executeContractCall(
-                'setVault',
+                'migrateVault',
                 [vaultAddress],
                 { requiresSigner: true }
             );
@@ -704,18 +687,18 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
             contractCache.invalidateByPattern('vault');
             return receipt;
         } catch (error) {
-            throw this.wrapError(error, 'Failed to set vault');
+            throw this.wrapError(error, 'Failed to migrate vault');
         }
     }
 
     /**
-     * Enable staking (owner only)
+     * Activate staking (owner only, irreversible)
      * @returns {Promise<Object>} Transaction receipt
      */
-    async enableStaking() {
+    async activateStaking() {
         try {
             const receipt = await this.executeContractCall(
-                'enableStaking',
+                'activateStaking',
                 [],
                 { requiresSigner: true }
             );
@@ -723,26 +706,26 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
             contractCache.invalidateByPattern('staking');
             return receipt;
         } catch (error) {
-            throw this.wrapError(error, 'Failed to enable staking');
+            throw this.wrapError(error, 'Failed to activate staking');
         }
     }
 
     /**
-     * Withdraw dust/small amounts (owner only)
-     * @param {string} amount - Amount to withdraw
+     * Claim all accumulated fees from vaults (owner only)
+     * If staking is active, fees are routed to the staking module.
      * @returns {Promise<Object>} Transaction receipt
      */
-    async withdrawDust(amount) {
+    async claimAllFees() {
         try {
             const receipt = await this.executeContractCall(
-                'withdrawDust',
-                [amount],
+                'claimAllFees',
+                [],
                 { requiresSigner: true }
             );
 
             return receipt;
         } catch (error) {
-            throw this.wrapError(error, 'Failed to withdraw dust');
+            throw this.wrapError(error, 'Failed to claim fees');
         }
     }
 
@@ -877,7 +860,13 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async liquidityPool() {
         return await this.getCachedOrFetch('liquidityPool', [], async () => {
-            return await this.executeContractCall('liquidityPool');
+            // Contract doesn't have liquidityPool(); use graduated status
+            const isGraduated = await this.executeContractCall('graduated').catch(() => false);
+            if (isGraduated) {
+                // Return a non-zero address to indicate liquidity is deployed
+                return this.contractAddress;
+            }
+            return '0x0000000000000000000000000000000000000000';
         });
     }
 
@@ -964,7 +953,7 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async stakingEnabled() {
         return await this.getCachedOrFetch('stakingEnabled', [], async () => {
-            return await this.executeContractCall('stakingEnabled');
+            return await this.executeContractCall('stakingActive');
         });
     }
 
@@ -1145,6 +1134,18 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
         });
     }
 
+    async transferOwnership(newOwner) {
+        const receipt = await this.executeContractCall('transferOwnership', [newOwner], { requiresSigner: true });
+        contractCache.invalidateByPattern('owner');
+        return receipt;
+    }
+
+    async renounceOwnership() {
+        const receipt = await this.executeContractCall('renounceOwnership', [], { requiresSigner: true });
+        contractCache.invalidateByPattern('owner');
+        return receipt;
+    }
+
     // =========================
     // Additional Query Functions
     // =========================
@@ -1154,9 +1155,38 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      * @param {string} amount - Amount to buy in wei
      * @returns {Promise<string>} Cost in ETH (wei)
      */
+    /**
+     * Get current price per token in ETH
+     * Overrides parent which calls non-existent calculateCost on contract
+     */
+    async getCurrentPrice() {
+        if (this.isMock) return 0.1;
+        return await this.getCachedOrFetch('getCurrentPrice', [], async () => {
+            const [reserveWei, totalBondingWei] = await Promise.all([
+                this.executeContractCall('reserve').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalBondingSupply').catch(() => this.ethers.BigNumber.from(0))
+            ]);
+            if (totalBondingWei.isZero()) return 0;
+            // Average price = reserve / totalBondingSupply
+            const priceWei = reserveWei.mul(this.ethers.constants.WeiPerEther).div(totalBondingWei);
+            return parseFloat(this.ethers.utils.formatEther(priceWei));
+        });
+    }
+
+    /**
+     * Calculate cost to buy tokens
+     * @param {string} amount - Amount to buy in wei
+     * @returns {Promise<string>} Cost in ETH (wei)
+     */
     async calculateCost(amount) {
         return await this.getCachedOrFetch('calculateCost', [amount], async () => {
-            const cost = await this.executeContractCall('calculateCost', [amount]);
+            // Approximate: use reserve / totalBondingSupply as average price
+            const [reserveWei, totalBondingWei] = await Promise.all([
+                this.executeContractCall('reserve').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalBondingSupply').catch(() => this.ethers.BigNumber.from(0))
+            ]);
+            if (totalBondingWei.isZero()) return '0';
+            const cost = reserveWei.mul(this.ethers.BigNumber.from(amount)).div(totalBondingWei);
             return cost.toString();
         });
     }
@@ -1168,7 +1198,13 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async calculateRefund(amount) {
         return await this.getCachedOrFetch('calculateRefund', [amount], async () => {
-            const refund = await this.executeContractCall('calculateRefund', [amount]);
+            // Approximate: use reserve / totalBondingSupply as average price
+            const [reserveWei, totalBondingWei] = await Promise.all([
+                this.executeContractCall('reserve').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalBondingSupply').catch(() => this.ethers.BigNumber.from(0))
+            ]);
+            if (totalBondingWei.isZero()) return '0';
+            const refund = reserveWei.mul(this.ethers.BigNumber.from(amount)).div(totalBondingWei);
             return refund.toString();
         });
     }
@@ -1182,21 +1218,32 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async getProjectMetadata() {
         return await this.getCachedOrFetch('getProjectMetadata', [], async () => {
-            const m = await this.executeContractCall('getProjectMetadata');
+            const [name, symbol, maxSupply, liquidityReserve, totalBondingSupply,
+                   reserve, bondingOpenTime, bondingActive, graduated] = await Promise.all([
+                this.executeContractCall('name').catch(() => ''),
+                this.executeContractCall('symbol').catch(() => ''),
+                this.executeContractCall('maxSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('liquidityReserve').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('totalBondingSupply').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('reserve').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('bondingOpenTime').catch(() => this.ethers.BigNumber.from(0)),
+                this.executeContractCall('bondingActive').catch(() => false),
+                this.executeContractCall('graduated').catch(() => false)
+            ]);
             return {
-                name: m.projectName || m[0],
-                symbol: m.projectSymbol || m[1],
-                maxSupply: m.maxSupply || m[2],
-                liquidityReserve: m.liquidityReserve || m[3],
-                totalBondingSupply: m.totalBondingSupply || m[4],
-                reserve: m.reserve || m[5],  // ETH collected (volume)
-                bondingOpenTime: m.bondingOpenTime || m[6],
-                bondingActive: m.bondingActive !== undefined ? m.bondingActive : m[7],
-                liquidityPool: m.liquidityPoolAddress || m[8],
-                factory: m.factoryAddress || m[9],
-                v4Hook: m.v4HookAddress || m[10],
-                weth: m.wethAddress || m[11],
-                styleUri: m.projectStyleUri || m[12]
+                name,
+                symbol,
+                maxSupply,
+                liquidityReserve,
+                totalBondingSupply,
+                reserve,
+                bondingOpenTime,
+                bondingActive,
+                liquidityPool: graduated ? this.contractAddress : '0x0000000000000000000000000000000000000000',
+                factory: '',
+                v4Hook: '',
+                weth: '',
+                styleUri: ''
             };
         }, CACHE_TTL.CONTRACT_DATA);
     }
@@ -1247,20 +1294,29 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
      */
     async buyBonding(amount, maxCost, mintNFT = false, passwordHash = '0x0000000000000000000000000000000000000000000000000000000000000000', message = '') {
         try {
-            // Calculate actual cost
-            const cost = await this.calculateCost(amount);
-
             eventBus.emit('transaction:pending', {
                 type: 'buyBonding',
                 contractAddress: this.contractAddress
             });
 
+            // Encode message as ABI-encoded tuple matching GlobalMessageRegistry._post:
+            // (uint8 messageType, uint256 refId, bytes32 actionRef, bytes32 metadata, string content)
+            // messageType 0 = POST, refId 0, actionRef/metadata zeroed
+            const messageBytes = message
+                ? this.ethers.utils.defaultAbiCoder.encode(
+                    ['uint8', 'uint256', 'bytes32', 'bytes32', 'string'],
+                    [0, 0, '0x' + '0'.repeat(64), '0x' + '0'.repeat(64), message]
+                  )
+                : '0x';
+            // Deadline: 24h from now (large buffer for local chain timestamp drift)
+            const deadline = Math.floor(Date.now() / 1000) + 86400;
+
             const receipt = await this.executeContractCall(
                 'buyBonding',
-                [amount, maxCost, mintNFT, passwordHash, message],
+                [amount, maxCost, mintNFT, passwordHash, messageBytes, deadline],
                 {
                     requiresSigner: true,
-                    txOptions: { value: cost }
+                    txOptions: { value: maxCost }
                 }
             );
 
@@ -1268,7 +1324,7 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
                 type: 'buyBonding',
                 receipt,
                 amount,
-                cost: cost.toString()
+                cost: maxCost
             });
 
             // Invalidate cache
@@ -1299,9 +1355,19 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
                 contractAddress: this.contractAddress
             });
 
+            // Encode message as ABI-encoded tuple matching GlobalMessageRegistry._post
+            const messageBytes = message
+                ? this.ethers.utils.defaultAbiCoder.encode(
+                    ['uint8', 'uint256', 'bytes32', 'bytes32', 'string'],
+                    [0, 0, '0x' + '0'.repeat(64), '0x' + '0'.repeat(64), message]
+                  )
+                : '0x';
+            // Deadline: 24h from now (large buffer for local chain timestamp drift)
+            const deadline = Math.floor(Date.now() / 1000) + 86400;
+
             const receipt = await this.executeContractCall(
                 'sellBonding',
-                [amount, minRefund, passwordHash, message],
+                [amount, minRefund, passwordHash, messageBytes, deadline],
                 { requiresSigner: true }
             );
 
@@ -1325,37 +1391,43 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
     }
 
     /**
-     * Mint NFTs from token balance
-     * @param {string} amount - Amount of tokens to convert to NFTs (in wei)
+     * Transfer an NFT to another address via mirror contract
+     * @param {string|number} tokenId - NFT token ID
+     * @param {string} toAddress - Recipient address
      * @returns {Promise<Object>} Transaction receipt
      */
-    async balanceMint(amount) {
+    async transferNFT(tokenId, toAddress) {
+        if (!this.mirrorContract) {
+            throw new Error('Mirror contract not available');
+        }
+
         try {
             eventBus.emit('transaction:pending', {
-                type: 'balanceMint',
+                type: 'transferNFT',
                 contractAddress: this.contractAddress
             });
 
-            const receipt = await this.executeContractCall(
-                'balanceMint',
-                [amount],
-                { requiresSigner: true }
-            );
+            const signerInstance = this.signer || this.provider.getSigner();
+            const mirrorWithSigner = this.mirrorContract.connect(signerInstance);
+            const fromAddress = await signerInstance.getAddress();
+
+            const tx = await mirrorWithSigner['safeTransferFrom(address,address,uint256)'](fromAddress, toAddress, tokenId);
+            const receipt = await tx.wait();
 
             eventBus.emit('transaction:success', {
-                type: 'balanceMint',
+                type: 'transferNFT',
                 receipt,
-                amount
+                tokenId,
+                toAddress,
+                contractAddress: this.contractAddress
             });
 
-            // Invalidate cache
             contractCache.invalidateByPattern('balance', 'nft');
-
             return receipt;
         } catch (error) {
             eventBus.emit('transaction:error', {
-                type: 'balanceMint',
-                error: this.wrapError(error, 'Failed to mint NFTs from balance')
+                type: 'transferNFT',
+                error: this.wrapError(error, 'NFT transfer failed')
             });
             throw error;
         }

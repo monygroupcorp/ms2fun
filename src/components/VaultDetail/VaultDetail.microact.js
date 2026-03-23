@@ -34,6 +34,9 @@ export class VaultDetail extends Component {
 
     async didMount() {
         try {
+            const stylesheetLoader = (await import('../../utils/stylesheetLoader.js')).default;
+            await stylesheetLoader.load('/src/components/VaultDetail/VaultDetail.css', 'vault-detail-styles');
+
             await this.loadVaultMetadata();
             await this.initializeAdapter();
             await this.loadVaultData();
@@ -74,18 +77,17 @@ export class VaultDetail extends Component {
         try {
             this.setState({ loading: true, error: null });
 
-            const [vaultInfo, benefactors, projects] = await Promise.all([
+            const [vaultInfo, projects] = await Promise.all([
                 this.loadVaultInfo(),
-                this.loadBenefactors(),
                 this.loadProjectsUsingVault()
             ]);
 
             let userPosition = null;
             if (walletService.isConnected()) {
-                userPosition = await this.loadUserPosition();
+                try { userPosition = await this.loadUserPosition(); } catch { /* non-fatal */ }
             }
 
-            this.setState({ vaultInfo, benefactors, projectsUsingVault: projects, userPosition, loading: false });
+            this.setState({ vaultInfo, benefactors: [], projectsUsingVault: projects, userPosition, loading: false });
         } catch (error) {
             console.error('[VaultDetail] Error loading vault data:', error);
             this.setState({ loading: false, error: 'Failed to load vault details' });
@@ -93,16 +95,35 @@ export class VaultDetail extends Component {
     }
 
     async loadVaultInfo() {
-        const info = await this.vaultAdapter.getVaultInfo();
+        // Try adapter first, fall back to basic provider data
+        let adapterInfo = {};
+        try {
+            adapterInfo = await this.vaultAdapter.getVaultInfo();
+        } catch (e) {
+            console.warn('[VaultDetail] Vault adapter getVaultInfo failed, using basic data:', e.message);
+        }
+
+        // Get TVL from ETH balance as fallback
+        let tvl = '0';
+        try {
+            const { provider } = this.props;
+            if (provider) {
+                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
+                const balance = await provider.getBalance(this.vaultAddress);
+                const eth = parseFloat(ethers.utils.formatEther(balance));
+                tvl = eth >= 1 ? `${eth.toFixed(2)} ETH` : `${eth.toFixed(4)} ETH`;
+            }
+        } catch { /* fallback to 0 */ }
+
         return {
             address: this.vaultAddress,
-            name: this.vaultMetadata?.tag || this.vaultMetadata?.name || 'Vault',
-            type: this.formatVaultType(info.vaultType),
-            description: info.description || this.vaultMetadata?.description || '',
-            tvl: this.formatTVL(info.accumulatedFees),
-            tvlRaw: info.accumulatedFees,
-            totalShares: info.totalShares,
-            benefactorCount: info.benefactorCount,
+            name: this.vaultMetadata?.name || 'Vault',
+            type: this.vaultMetadata?.vaultType || adapterInfo.vaultType || 'Alignment Vault',
+            description: adapterInfo.description || '',
+            tvl,
+            tvlRaw: adapterInfo.accumulatedFees || '0',
+            totalShares: adapterInfo.totalShares || '0',
+            benefactorCount: adapterInfo.benefactorCount || 0,
             targetAsset: this.vaultMetadata?.alignmentTokenSymbol || 'ETH'
         };
     }
@@ -114,8 +135,17 @@ export class VaultDetail extends Component {
 
     async loadProjectsUsingVault() {
         try {
-            const masterService = serviceFactory.getMasterService();
-            return await masterService.getInstancesByVault(this.vaultAddress) || [];
+            // No on-chain method for vault→instance lookup; use config
+            const { config } = this.props;
+            if (!config?.instances) return [];
+            const allInstances = [
+                ...(config.instances.erc404 || []).map(i => ({ ...i, type: 'ERC404' })),
+                ...(config.instances.erc1155 || []).map(i => ({ ...i, type: 'ERC1155' })),
+                ...(config.instances.erc721 || []).map(i => ({ ...i, type: 'ERC721' })),
+            ];
+            return allInstances
+                .filter(i => i.vault && i.vault.toLowerCase() === this.vaultAddress.toLowerCase())
+                .map(i => i.address);
         } catch (error) {
             return [];
         }
@@ -344,10 +374,19 @@ export class VaultDetail extends Component {
     }
 
     renderBenefactorsSection() {
+        const { userPosition } = this.state;
+        const connected = walletService.isConnected();
+
+        // If wallet connected and user has position, don't show the empty benefactors prompt
+        if (connected && userPosition) return null;
+
         return h('div', { className: 'benefactors-section' },
             h('h2', { className: 'section-title' }, 'Benefactors'),
             h('div', { className: 'empty-section' },
-                h('p', null, 'Benefactor list not available on-chain. Connect your wallet to view your position.')
+                h('p', null, connected
+                    ? 'You are not a benefactor of this vault.'
+                    : 'Connect your wallet to view your position.'
+                )
             )
         );
     }

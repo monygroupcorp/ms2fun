@@ -5,7 +5,7 @@
  * Uses direct state mutation for form inputs to preserve focus.
  */
 
-import { Component, h } from '../../core/microact-setup.js';
+import { Component, h, eventBus } from '../../core/microact-setup.js';
 
 export class CreateEditionModal extends Component {
     constructor(props = {}) {
@@ -36,6 +36,10 @@ export class CreateEditionModal extends Component {
         };
         document.addEventListener('keydown', escHandler);
         this.registerCleanup(() => document.removeEventListener('keydown', escHandler));
+
+        // Open via event bus (from admin panel)
+        const unsub = eventBus.on('erc1155:admin:create-edition', () => this.open());
+        this.registerCleanup(() => unsub());
     }
 
     open() {
@@ -101,6 +105,7 @@ export class CreateEditionModal extends Component {
                 await onCreated();
             }
 
+            eventBus.emit('erc1155:edition:created');
             this.close();
             this.setState({
                 loading: false,
@@ -120,7 +125,7 @@ export class CreateEditionModal extends Component {
         }
     }
 
-    shouldUpdate(oldState, newState) {
+    shouldUpdate(oldProps, newProps, oldState, newState) {
         if (!oldState || !newState) return true;
         if (oldState === newState) return false;
 

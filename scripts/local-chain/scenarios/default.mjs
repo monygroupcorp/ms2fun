@@ -1,62 +1,90 @@
 // scripts/local-chain/scenarios/default.mjs
 //
-// Default seeding scenario: mirrors what the old deploy-local.mjs seeded.
-// Creates 3 ERC1155 instances (Demo-Gallery, Dynamic-Pricing, Mixed-Supply) and
-// 3 ERC404 instances (Early-Launch, Active-Project, Graduated) at different stages.
+// Default seeding scenario — reads collection definitions from seed-collections.json.
+// Creates ERC1155, ERC404, and ERC721 instances at different lifecycle stages.
 // Does buys, mints, vault contributions, and ownership transfers to userAddress.
-//
-// Ported from deploy-local.mjs phases 6-11.
 
 import { ethers } from 'ethers'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import {
   TEST_ACCOUNTS,
-  BUY_MESSAGES,
-  MINT_MESSAGES,
   fundAccounts,
   refundAccounts,
   createERC404Instance,
   createERC1155Instance,
+  createERC721AuctionInstance,
   buyOnBondingCurve,
+  sellOnBondingCurve,
   activateBondingCurve,
   setupPortfolioTestData,
   loadAbi,
-  getRandomMessage,
   getRandomMessageData,
+  getRandomMessage,
+  encodeMessageData,
   seedComponentRegistry,
+  submitAndProcessProposal,
+  BUY_MESSAGES,
+  SELL_MESSAGES,
+  BID_MESSAGES,
+  MINT_MESSAGES,
 } from '../seed-common.mjs'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Load collection config
+// ─────────────────────────────────────────────────────────────────────────────
+
+const collectionsPath = path.resolve(__dirname, '..', 'seed-collections.json')
+const COLLECTIONS = JSON.parse(await fs.readFile(collectionsPath, 'utf8'))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Build a data:application/json URI from an object */
+function dataUri(obj) {
+  return `data:application/json,${encodeURIComponent(JSON.stringify(obj))}`
+}
+
+/** Resolve "primary"/"secondary" vault string to actual vault object */
+function resolveVault(vaultKey, primaryVault, secondaryVault) {
+  return vaultKey === 'secondary' ? secondaryVault : primaryVault
+}
+
+/** Resolve account name to address */
+function resolveAccount(accountName, deployer) {
+  if (accountName === 'deployer') return deployer.address
+  return TEST_ACCOUNTS[accountName]?.address || accountName
+}
+
+/** Get a signer for an account name */
+function resolveSigner(accountName, deployer, provider) {
+  if (accountName === 'deployer') return deployer
+  return provider.getSigner(TEST_ACCOUNTS[accountName].address)
+}
 
 /**
  * Default scenario seed function.
- *
- * @param {object} addresses
- * @param {object} addresses.core - Core contract addresses
- * @param {string} addresses.core.masterRegistry
- * @param {string} addresses.core.globalMessageRegistry
- * @param {string} addresses.core.featuredQueueManager
- * @param {string} addresses.core.queryAggregator
- * @param {string} addresses.core.hookFactory
- * @param {object} addresses.factories - Factory addresses
- * @param {string} addresses.factories.erc1155
- * @param {string} addresses.factories.erc404
- * @param {object[]} addresses.vaults - Array of { address, alignmentToken, hookAddress }
- * @param {object} provider - ethers JsonRpcProvider
- * @param {object} deployer - ethers Wallet (deployer / anvil account 0)
- * @param {string} userAddress - External user wallet to receive tokens/ownership
- * @returns {Promise<object>} Seed result for write-config
  */
 export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const { factories } = addresses
 
-  // Primary vault (MS2-aligned, index 0) and secondary vault (CULT-aligned, index 1)
   const primaryVault = vaults[0]
   const secondaryVault = vaults[1] || vaults[0]
 
   // ─────────────────────────────────────────────────────────────────────────
   // Seed ComponentRegistry (if deployed)
   // ─────────────────────────────────────────────────────────────────────────
+  let componentAddresses = {}
   if (addresses.core?.componentRegistry) {
-    await seedComponentRegistry(addresses.core.componentRegistry, deployer)
+    componentAddresses = await seedComponentRegistry(addresses.core.componentRegistry, deployer) || {}
   }
+  const uniswapDeployerAddress = componentAddresses['Uniswap V4 Deployer']
+  if (!uniswapDeployerAddress) throw new Error('Uniswap V4 Deployer not seeded — cannot create ERC404 instances')
 
   // ─────────────────────────────────────────────────────────────────────────
   // Fund accounts
@@ -71,259 +99,186 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   const erc1155InstanceAbi = await loadAbi('ERC1155Instance')
   const erc404FactoryAbi = await loadAbi('ERC404Factory')
   const erc404InstanceAbi = await loadAbi('ERC404BondingInstance')
-  const vaultAbi = await loadAbi('UltraAlignmentVault')
+  const vaultAbi = await loadAbi('UniAlignmentVault')
   const gmrAbi = await loadAbi('GlobalMessageRegistry')
 
   const erc1155Factory = new ethers.Contract(factories.erc1155, erc1155FactoryAbi, deployer)
   const erc404Factory = new ethers.Contract(factories.erc404, erc404FactoryAbi, deployer)
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // PHASE 6: ERC1155 INSTANCE — Demo-Gallery (primary vault, MS2-aligned)
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 6: ERC1155 INSTANCES (first one — primary vault)
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 6: ERC1155 INSTANCES')
   console.log('════════════════════════════════════════════════════')
 
-  console.log('\n   Creating ERC1155 Demo-Gallery...')
-  const demoGalleryAddress = await createERC1155Instance({
-    name: 'Demo-Gallery',
+  const erc1155Results = []
+
+  // --- First ERC1155: primary vault, simple editions ---
+  const firstEditions = COLLECTIONS.erc1155[0]
+  console.log(`\n   Creating ERC1155 ${firstEditions.displayName}...`)
+
+  const firstEditionsVault = resolveVault(firstEditions.vault, primaryVault, secondaryVault)
+  const firstEditionsAddress = await createERC1155Instance({
+    name: firstEditions.name,
     creator: deployer.address,
-    vault: primaryVault.address,
+    vault: firstEditionsVault.address,
     factory: erc1155Factory,
+    metadataURI: dataUri({
+      name: firstEditions.displayName,
+      description: firstEditions.description,
+      image: firstEditions.image,
+      category: firstEditions.category,
+      tags: firstEditions.tags,
+    }),
   })
-  console.log(`   Demo-Gallery: ${demoGalleryAddress}`)
+  console.log(`   ${firstEditions.displayName}: ${firstEditionsAddress}`)
 
-  const demoGallery = new ethers.Contract(demoGalleryAddress, erc1155InstanceAbi, deployer)
+  const firstEditionsContract = new ethers.Contract(firstEditionsAddress, erc1155InstanceAbi, deployer)
 
-  // Edition 1: Genesis-Piece (unlimited, 0.01 ETH fixed)
-  await (await demoGallery.addEdition(
-    'Genesis-Piece',
-    ethers.utils.parseEther('0.01'),
-    0,       // supply=0 means unlimited
-    'https://ms2.fun/metadata/demo-gallery/1.json',
-    0,       // PricingModel.UNLIMITED
-    0,       // priceIncreaseRate (unused for fixed)
-    0        // openTime (0 = open immediately)
-  )).wait()
-  console.log('   Added Edition 1: Genesis-Piece (0.01 ETH, unlimited)')
+  // Add editions from config
+  for (const edition of firstEditions.editions) {
+    await (await firstEditionsContract.addEdition(
+      edition.name,
+      ethers.utils.parseEther(edition.price),
+      edition.maxSupply,
+      dataUri({ name: edition.displayName, description: edition.description, image: edition.image }),
+      edition.pricingModel,
+      edition.priceIncreaseRate || 0,
+      0 // openTime
+    )).wait()
+    console.log(`   Added Edition: ${edition.displayName} (${edition.price} ETH, ${edition.maxSupply === 0 ? 'unlimited' : `max ${edition.maxSupply}`})`)
+  }
 
-  // Edition 2: Limited-Drop (max 100, 0.02 ETH fixed)
-  await (await demoGallery.addEdition(
-    'Limited-Drop',
-    ethers.utils.parseEther('0.02'),
-    100,     // max supply
-    'https://ms2.fun/metadata/demo-gallery/2.json',
-    1,       // PricingModel.LIMITED_FIXED
-    0,
-    0        // openTime
-  )).wait()
-  console.log('   Added Edition 2: Limited-Drop (0.02 ETH, max 100)')
+  // Seed mints from config
+  for (const mint of firstEditions.seedMints) {
+    const signer = resolveSigner(mint.account, deployer, provider)
+    const asUser = firstEditionsContract.connect(signer)
+    const price = firstEditions.editions[mint.edition - 1].price
+    await (await asUser.mint(
+      mint.edition, mint.quantity,
+      ethers.constants.HashZero,
+      getRandomMessageData(MINT_MESSAGES),
+      0,
+      { value: ethers.utils.parseEther(String(Number(price) * mint.quantity)) }
+    )).wait()
+    console.log(`   Minted ${mint.quantity}x Edition ${mint.edition} to ${mint.account}`)
+  }
 
-  // Mint Edition 1: 3x to deployer
-  await (await demoGallery.mint(
-    1, 3,
-    ethers.constants.HashZero, // gatingData
-    getRandomMessageData(MINT_MESSAGES),
-    0, // maxCost=0 means no cap check
-    { value: ethers.utils.parseEther('0.03') }
-  )).wait()
-  console.log('   Minted 3x Edition 1 to deployer')
+  // User mints (mint via collector, transfer to user)
+  for (const userMint of firstEditions.userMints) {
+    const signer = resolveSigner(userMint.from, deployer, provider)
+    const fromAddress = resolveAccount(userMint.from, deployer)
+    const asFrom = firstEditionsContract.connect(signer)
+    const price = firstEditions.editions[userMint.edition - 1].price
 
-  // Mint Edition 2: 2x to trader
-  const traderSigner = provider.getSigner(TEST_ACCOUNTS.trader.address)
-  const demoGalleryAsTrader = demoGallery.connect(traderSigner)
-  await (await demoGalleryAsTrader.mint(
-    2, 2,
-    ethers.constants.HashZero,
-    getRandomMessageData(MINT_MESSAGES),
-    0,
-    { value: ethers.utils.parseEther('0.04') }
-  )).wait()
-  console.log('   Minted 2x Edition 2 to trader')
+    for (let i = 0; i < userMint.mintQuantity; i++) {
+      await (await asFrom.mint(
+        userMint.edition, 1,
+        ethers.constants.HashZero,
+        getRandomMessageData(MINT_MESSAGES),
+        0,
+        { value: ethers.utils.parseEther(price) }
+      )).wait()
+    }
+    await (await asFrom.safeTransferFrom(
+      fromAddress, userAddress, userMint.edition, userMint.transferQuantity, '0x'
+    )).wait()
+    console.log(`   Transferred ${userMint.transferQuantity}x Edition ${userMint.edition} to user`)
+  }
 
-  // Mint for user via collector then transfer
-  const collectorSigner = provider.getSigner(TEST_ACCOUNTS.collector.address)
-  const demoGalleryAsCollector = demoGallery.connect(collectorSigner)
+  erc1155Results.push({
+    config: firstEditions,
+    address: firstEditionsAddress,
+    contract: firstEditionsContract,
+    vault: firstEditionsVault,
+  })
 
-  await (await demoGalleryAsCollector.mint(
-    1, 2,
-    ethers.constants.HashZero,
-    getRandomMessageData(MINT_MESSAGES),
-    0,
-    { value: ethers.utils.parseEther('0.02') }
-  )).wait()
-  await (await demoGalleryAsCollector.mint(
-    2, 1,
-    ethers.constants.HashZero,
-    getRandomMessageData(MINT_MESSAGES),
-    0,
-    { value: ethers.utils.parseEther('0.02') }
-  )).wait()
-
-  // Transfer to user
-  await (await demoGalleryAsCollector.safeTransferFrom(
-    TEST_ACCOUNTS.collector.address, userAddress, 1, 2, '0x'
-  )).wait()
-  await (await demoGalleryAsCollector.safeTransferFrom(
-    TEST_ACCOUNTS.collector.address, userAddress, 2, 1, '0x'
-  )).wait()
-  console.log('   Transferred 2x Edition 1 + 1x Edition 2 to user')
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // PHASE 7: ERC404 INSTANCE SEEDING
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 7: ERC404 INSTANCES
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 7: ERC404 INSTANCES')
   console.log('════════════════════════════════════════════════════')
 
-  // Instance 1: Early-Launch (~10% bonding progress)
-  console.log('\n   Creating ERC404 Early-Launch...')
-  const earlyLaunchAddress = await createERC404Instance({
-    name: 'Early-Launch',
-    symbol: 'EARLY',
-    nftCount: 10,       // presetId=1: unitPerNFT=1,000,000 => maxSupply=10,000,000 tokens
-    presetId: 1,
-    creator: deployer.address,
-    vault: primaryVault.address,
-    factory: erc404Factory,
-  })
-  console.log(`   Early-Launch: ${earlyLaunchAddress}`)
+  const erc404Results = []
 
-  await activateBondingCurve({
-    instanceAddress: earlyLaunchAddress,
-    instanceAbi: erc404InstanceAbi,
-    deployer,
-    provider,
-  })
-  console.log('   Bonding curve activated')
+  for (const collection of COLLECTIONS.erc404) {
+    console.log(`\n   Creating ERC404 ${collection.displayName}...`)
 
-  // Seed ~10% progress (1,000 tokens out of ~9,000,000 bonding supply)
-  // Profile gives maxSupply = 10 * 1,000,000 * 1e18, liquidity reserve = 10%
-  // bonding supply = 90% of maxSupply = 9,000,000; 10% = 900,000 tokens
-  const earlyBuyers = [
-    { address: TEST_ACCOUNTS.trader.address, tokens: '200' },
-    { address: TEST_ACCOUNTS.collector.address, tokens: '350' },  // 150 extra to transfer to user
-    { address: TEST_ACCOUNTS.governance.address, tokens: '200' },
-    { address: deployer.address, tokens: '200' },
-    { address: TEST_ACCOUNTS.trader.address, tokens: '50' },
-  ]
+    const vault = resolveVault(collection.vault, primaryVault, secondaryVault)
+    const instanceAddress = await createERC404Instance({
+      name: collection.name,
+      symbol: collection.symbol,
+      nftCount: collection.nftCount,
+      presetId: collection.presetId,
+      creator: deployer.address,
+      vault: vault.address,
+      factory: erc404Factory,
+      metadataURI: dataUri({
+        name: collection.displayName,
+        description: collection.description,
+        image: collection.image,
+        category: collection.category,
+        tags: collection.tags,
+      }),
+      liquidityDeployer: uniswapDeployerAddress,
+    })
+    console.log(`   ${collection.displayName}: ${instanceAddress}`)
 
-  for (const buyer of earlyBuyers) {
-    await buyOnBondingCurve({
-      instanceAddress: earlyLaunchAddress,
+    await activateBondingCurve({
+      instanceAddress,
       instanceAbi: erc404InstanceAbi,
-      buyer: buyer.address,
-      tokenAmount: buyer.tokens,
+      deployer,
       provider,
+    })
+    console.log('   Bonding curve activated')
+
+    // Seed trades from config (buys and sells)
+    for (const trade of collection.buyers) {
+      if (trade.type === 'sell') {
+        await sellOnBondingCurve({
+          instanceAddress,
+          instanceAbi: erc404InstanceAbi,
+          seller: resolveAccount(trade.account, deployer),
+          tokenAmount: trade.tokens,
+          provider,
+        })
+      } else {
+        await buyOnBondingCurve({
+          instanceAddress,
+          instanceAbi: erc404InstanceAbi,
+          buyer: resolveAccount(trade.account, deployer),
+          tokenAmount: trade.tokens,
+          provider,
+        })
+      }
+    }
+
+    // Transfer to user
+    if (collection.userTransfer) {
+      const fromAddress = resolveAccount(collection.userTransfer.from, deployer)
+      const instance = new ethers.Contract(
+        instanceAddress, erc404InstanceAbi, provider.getSigner(fromAddress)
+      )
+      await (await instance.transfer(userAddress, ethers.utils.parseEther(collection.userTransfer.amount))).wait()
+      console.log(`   Seeded purchases & transferred ${collection.userTransfer.amount} ${collection.symbol} to user (~${collection.bondingTarget} bonding)`)
+    }
+
+    if (collection.bondingTarget === '100%') {
+      console.log('   V4 liquidity deployment stubbed (complex integration)')
+    }
+
+    erc404Results.push({
+      config: collection,
+      address: instanceAddress,
+      vault,
     })
   }
 
-  // Transfer 150 tokens from collector to user
-  const earlyInstance = new ethers.Contract(
-    earlyLaunchAddress, erc404InstanceAbi, provider.getSigner(TEST_ACCOUNTS.collector.address)
-  )
-  await (await earlyInstance.transfer(userAddress, ethers.utils.parseEther('150'))).wait()
-  console.log('   Seeded purchases & transferred 150 EARLY to user (~10% bonding)')
-
-  // Instance 2: Active-Project (~60% bonding progress)
-  console.log('\n   Creating ERC404 Active-Project...')
-
-  const activeProjectAddress = await createERC404Instance({
-    name: 'Active-Project',
-    symbol: 'ACTIVE',
-    nftCount: 10,
-    presetId: 1,
-    creator: deployer.address,
-    vault: primaryVault.address,
-    factory: erc404Factory,
-  })
-  console.log(`   Active-Project: ${activeProjectAddress}`)
-
-  await activateBondingCurve({
-    instanceAddress: activeProjectAddress,
-    instanceAbi: erc404InstanceAbi,
-    deployer,
-    provider,
-  })
-
-  // Seed ~60% progress
-  const activeBuyers = [
-    { address: TEST_ACCOUNTS.trader.address, tokens: '400' },
-    { address: TEST_ACCOUNTS.collector.address, tokens: '1200' },  // 800 extra to transfer to user
-    { address: TEST_ACCOUNTS.governance.address, tokens: '400' },
-    { address: deployer.address, tokens: '400' },
-    { address: TEST_ACCOUNTS.trader.address, tokens: '400' },
-    { address: TEST_ACCOUNTS.governance.address, tokens: '400' },
-    { address: TEST_ACCOUNTS.trader.address, tokens: '400' },
-    { address: TEST_ACCOUNTS.governance.address, tokens: '400' },
-    { address: deployer.address, tokens: '200' },
-  ]
-
-  for (const buyer of activeBuyers) {
-    await buyOnBondingCurve({
-      instanceAddress: activeProjectAddress,
-      instanceAbi: erc404InstanceAbi,
-      buyer: buyer.address,
-      tokenAmount: buyer.tokens,
-      provider,
-    })
-  }
-
-  const activeInstance = new ethers.Contract(
-    activeProjectAddress, erc404InstanceAbi, provider.getSigner(TEST_ACCOUNTS.collector.address)
-  )
-  await (await activeInstance.transfer(userAddress, ethers.utils.parseEther('800'))).wait()
-  console.log('   Seeded purchases & transferred 800 ACTIVE to user (~60% bonding)')
-
-  // Instance 3: Graduated (100% bonding)
-  console.log('\n   Creating ERC404 Graduated...')
-
-  const graduatedAddress = await createERC404Instance({
-    name: 'Graduated',
-    symbol: 'GRAD',
-    nftCount: 10,
-    presetId: 1,
-    creator: deployer.address,
-    vault: primaryVault.address,
-    factory: erc404Factory,
-  })
-  console.log(`   Graduated: ${graduatedAddress}`)
-
-  await activateBondingCurve({
-    instanceAddress: graduatedAddress,
-    instanceAbi: erc404InstanceAbi,
-    deployer,
-    provider,
-  })
-
-  // Buy to 100% to trigger graduation
-  const graduatedBuyers = [
-    { address: TEST_ACCOUNTS.trader.address, tokens: '1500' },
-    { address: TEST_ACCOUNTS.collector.address, tokens: '2500' },  // 1000 extra to transfer to user
-    { address: TEST_ACCOUNTS.governance.address, tokens: '2000' },
-    { address: deployer.address, tokens: '2000' },
-  ]
-
-  for (const buyer of graduatedBuyers) {
-    await buyOnBondingCurve({
-      instanceAddress: graduatedAddress,
-      instanceAbi: erc404InstanceAbi,
-      buyer: buyer.address,
-      tokenAmount: buyer.tokens,
-      provider,
-    })
-  }
-
-  const graduatedAsCollector = new ethers.Contract(
-    graduatedAddress, erc404InstanceAbi, provider.getSigner(TEST_ACCOUNTS.collector.address)
-  )
-  await (await graduatedAsCollector.transfer(userAddress, ethers.utils.parseEther('1000'))).wait()
-  console.log('   Seeded purchases & transferred 1000 GRAD to user (100% bonding)')
-  console.log('   V4 liquidity deployment stubbed (complex integration)')
-
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 8: ADDITIONAL ERC1155 INSTANCES
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 8: ADDITIONAL ERC1155 INSTANCES')
   console.log('════════════════════════════════════════════════════')
@@ -331,161 +286,127 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
   // Re-fund accounts after expensive bonding curve buys
   await refundAccounts(provider, deployer, userAddress)
 
-  // Instance 2: Dynamic-Pricing (secondary/CULT vault)
-  console.log('\n   Creating ERC1155 Dynamic-Pricing...')
-  const dynamicPricingAddress = await createERC1155Instance({
-    name: 'Dynamic-Pricing',
-    creator: deployer.address,
-    vault: secondaryVault.address,
-    factory: erc1155Factory,
-  })
-  console.log(`   Dynamic-Pricing: ${dynamicPricingAddress}`)
+  // Process remaining ERC1155 collections (index 1+)
+  for (let idx = 1; idx < COLLECTIONS.erc1155.length; idx++) {
+    const collection = COLLECTIONS.erc1155[idx]
+    console.log(`\n   Creating ERC1155 ${collection.displayName}...`)
 
-  const dynamicInstance = new ethers.Contract(dynamicPricingAddress, erc1155InstanceAbi, deployer)
+    const vault = resolveVault(collection.vault, primaryVault, secondaryVault)
+    const instanceAddress = await createERC1155Instance({
+      name: collection.name,
+      creator: deployer.address,
+      vault: vault.address,
+      factory: erc1155Factory,
+      metadataURI: dataUri({
+        name: collection.displayName,
+        description: collection.description,
+        image: collection.image,
+        category: collection.category,
+        tags: collection.tags,
+      }),
+    })
+    console.log(`   ${collection.displayName}: ${instanceAddress}`)
 
-  // Edition 1: Evolving-Piece-1 (max 50, 0.005 ETH, 5% dynamic increase)
-  await (await dynamicInstance.addEdition(
-    'Evolving-Piece-1',
-    ethers.utils.parseEther('0.005'),
-    50,
-    'https://ms2.fun/metadata/dynamic-pricing/1.json',
-    2,    // PricingModel.LIMITED_DYNAMIC
-    500,  // 5% increase per mint (basis points)
-    0     // openTime
-  )).wait()
-  console.log('   Added Edition 1: Evolving-Piece-1 (5% increase per mint, max 50)')
+    const instanceContract = new ethers.Contract(instanceAddress, erc1155InstanceAbi, deployer)
 
-  // Edition 2: Evolving-Piece-2 (max 30, 0.01 ETH, 10% dynamic increase)
-  await (await dynamicInstance.addEdition(
-    'Evolving-Piece-2',
-    ethers.utils.parseEther('0.01'),
-    30,
-    'https://ms2.fun/metadata/dynamic-pricing/2.json',
-    2,     // LIMITED_DYNAMIC
-    1000,  // 10% increase per mint
-    0      // openTime
-  )).wait()
-  console.log('   Added Edition 2: Evolving-Piece-2 (10% increase per mint, max 30)')
+    // Add editions
+    for (const edition of collection.editions) {
+      await (await instanceContract.addEdition(
+        edition.name,
+        ethers.utils.parseEther(edition.price),
+        edition.maxSupply,
+        dataUri({ name: edition.displayName, description: edition.description, image: edition.image }),
+        edition.pricingModel,
+        edition.priceIncreaseRate || 0,
+        0
+      )).wait()
+      const supplyLabel = edition.maxSupply === 0 ? 'unlimited' : `max ${edition.maxSupply}`
+      const rateLabel = edition.priceIncreaseRate ? `, ${edition.priceIncreaseRate / 100}% increase` : ''
+      console.log(`   Added Edition: ${edition.displayName} (${edition.price} ETH, ${supplyLabel}${rateLabel})`)
+    }
 
-  // Mint 10x Edition 1 via collector/trader alternating
-  for (let i = 0; i < 10; i++) {
-    const buyer = i % 2 === 0 ? TEST_ACCOUNTS.collector.address : TEST_ACCOUNTS.trader.address
-    const signer = provider.getSigner(buyer)
-    const asUser = dynamicInstance.connect(signer)
-    const currentPrice = await dynamicInstance.getCurrentPrice(1)
-    await (await asUser.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
+    // Seed mints
+    for (const mint of collection.seedMints) {
+      if (mint.rotating) {
+        // Rotating buyers pattern
+        for (let i = 0; i < mint.count; i++) {
+          const accountName = mint.rotating[i % mint.rotating.length]
+          const signer = resolveSigner(accountName, deployer, provider)
+          const asUser = instanceContract.connect(signer)
+
+          // For dynamic pricing, read current price from contract
+          const isDynamic = collection.editions[mint.edition - 1].pricingModel === 2
+          let value
+          if (isDynamic) {
+            value = await instanceContract.getCurrentPrice(mint.edition)
+          } else {
+            value = ethers.utils.parseEther(collection.editions[mint.edition - 1].price)
+          }
+
+          await (await asUser.mint(
+            mint.edition, 1,
+            ethers.constants.HashZero,
+            getRandomMessageData(MINT_MESSAGES),
+            0,
+            { value }
+          )).wait()
+        }
+        console.log(`   Minted ${mint.count}x Edition ${mint.edition}`)
+      } else {
+        // Single account mint
+        const signer = resolveSigner(mint.account, deployer, provider)
+        const asUser = instanceContract.connect(signer)
+        const price = collection.editions[mint.edition - 1].price
+        await (await asUser.mint(
+          mint.edition, mint.quantity,
+          ethers.constants.HashZero,
+          getRandomMessageData(MINT_MESSAGES),
+          0,
+          { value: ethers.utils.parseEther(String(Number(price) * mint.quantity)) }
+        )).wait()
+        console.log(`   Minted ${mint.quantity}x Edition ${mint.edition} to ${mint.account}`)
+      }
+    }
+
+    // User mints (mint via account, transfer to user)
+    for (const userMint of (collection.userMints || [])) {
+      const fromAddress = resolveAccount(userMint.from, deployer)
+      const signer = resolveSigner(userMint.from, deployer, provider)
+      const asFrom = instanceContract.connect(signer)
+
+      const isDynamic = collection.editions[userMint.edition - 1].pricingModel === 2
+      for (let i = 0; i < userMint.mintQuantity; i++) {
+        let value
+        if (isDynamic) {
+          value = await instanceContract.getCurrentPrice(userMint.edition)
+        } else {
+          value = ethers.utils.parseEther(collection.editions[userMint.edition - 1].price)
+        }
+        await (await asFrom.mint(
+          userMint.edition, 1,
+          ethers.constants.HashZero,
+          getRandomMessageData(MINT_MESSAGES),
+          0,
+          { value }
+        )).wait()
+      }
+      await (await asFrom.safeTransferFrom(
+        fromAddress, userAddress, userMint.edition, userMint.transferQuantity, '0x'
+      )).wait()
+      console.log(`   Transferred ${userMint.transferQuantity}x Edition ${userMint.edition} to user`)
+    }
+
+    erc1155Results.push({
+      config: collection,
+      address: instanceAddress,
+      contract: instanceContract,
+      vault,
+    })
   }
-  console.log('   Minted 10x Edition 1 (dynamic pricing)')
 
-  // Mint 3x for user via collector, then transfer
-  const dynamicAsCollector = dynamicInstance.connect(provider.getSigner(TEST_ACCOUNTS.collector.address))
-  for (let i = 0; i < 3; i++) {
-    const currentPrice = await dynamicInstance.getCurrentPrice(1)
-    await (await dynamicAsCollector.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
-  }
-  await (await dynamicAsCollector.safeTransferFrom(
-    TEST_ACCOUNTS.collector.address, userAddress, 1, 3, '0x'
-  )).wait()
-  console.log('   Minted & transferred 3x Edition 1 to user (dynamic pricing)')
-
-  // Mint 8x Edition 2 via governance/deployer alternating
-  for (let i = 0; i < 8; i++) {
-    const buyer = i % 2 === 0 ? TEST_ACCOUNTS.governance.address : deployer.address
-    const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
-    const asUser = dynamicInstance.connect(signer)
-    const currentPrice = await dynamicInstance.getCurrentPrice(2)
-    await (await asUser.mint(2, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: currentPrice })).wait()
-  }
-  console.log('   Minted 8x Edition 2 (dynamic pricing)')
-
-  // Instance 3: Mixed-Supply (secondary vault)
-  console.log('\n   Creating ERC1155 Mixed-Supply...')
-  const mixedSupplyAddress = await createERC1155Instance({
-    name: 'Mixed-Supply',
-    creator: deployer.address,
-    vault: secondaryVault.address,
-    factory: erc1155Factory,
-  })
-  console.log(`   Mixed-Supply: ${mixedSupplyAddress}`)
-
-  const mixedInstance = new ethers.Contract(mixedSupplyAddress, erc1155InstanceAbi, deployer)
-
-  // Edition 1: Rare-Limited (max 100, 0.02 ETH fixed)
-  await (await mixedInstance.addEdition(
-    'Rare-Limited',
-    ethers.utils.parseEther('0.02'),
-    100,
-    'https://ms2.fun/metadata/mixed-supply/1.json',
-    1,  // LIMITED_FIXED
-    0,
-    0   // openTime
-  )).wait()
-  console.log('   Added Edition 1: Rare-Limited (0.02 ETH, max 100)')
-
-  // Edition 2: Common-Unlimited (0.005 ETH, unlimited)
-  await (await mixedInstance.addEdition(
-    'Common-Unlimited',
-    ethers.utils.parseEther('0.005'),
-    0,  // unlimited
-    'https://ms2.fun/metadata/mixed-supply/2.json',
-    0,  // UNLIMITED
-    0,
-    0   // openTime
-  )).wait()
-  console.log('   Added Edition 2: Common-Unlimited (0.005 ETH, unlimited)')
-
-  // Mint 40x Edition 1 via rotating buyers
-  for (let i = 0; i < 40; i++) {
-    const buyers = [
-      TEST_ACCOUNTS.trader.address,
-      TEST_ACCOUNTS.collector.address,
-      TEST_ACCOUNTS.governance.address,
-      deployer.address,
-    ]
-    const buyer = buyers[i % buyers.length]
-    const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
-    const asUser = mixedInstance.connect(signer)
-    await (await asUser.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
-  }
-  console.log('   Minted 40x Edition 1 (40% sold out)')
-
-  // Mint 5x Edition 1 for user via collector, transfer
-  const mixedAsCollector = mixedInstance.connect(provider.getSigner(TEST_ACCOUNTS.collector.address))
-  for (let i = 0; i < 5; i++) {
-    await (await mixedAsCollector.mint(1, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.02') })).wait()
-  }
-  await (await mixedAsCollector.safeTransferFrom(
-    TEST_ACCOUNTS.collector.address, userAddress, 1, 5, '0x'
-  )).wait()
-  console.log('   Minted & transferred 5x Edition 1 to user (limited)')
-
-  // Mint 55x Edition 2 via rotating buyers
-  for (let i = 0; i < 55; i++) {
-    const buyers = [
-      TEST_ACCOUNTS.trader.address,
-      TEST_ACCOUNTS.collector.address,
-      TEST_ACCOUNTS.governance.address,
-      deployer.address,
-    ]
-    const buyer = buyers[i % buyers.length]
-    const signer = buyer === deployer.address ? deployer : provider.getSigner(buyer)
-    const asUser = mixedInstance.connect(signer)
-    await (await asUser.mint(2, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
-  }
-  console.log('   Minted 55x Edition 2')
-
-  // Mint 5x Edition 2 for user via collector, transfer
-  for (let i = 0; i < 5; i++) {
-    await (await mixedAsCollector.mint(2, 1, ethers.constants.HashZero, getRandomMessageData(MINT_MESSAGES), 0, { value: ethers.utils.parseEther('0.005') })).wait()
-  }
-  await (await mixedAsCollector.safeTransferFrom(
-    TEST_ACCOUNTS.collector.address, userAddress, 2, 5, '0x'
-  )).wait()
-  console.log('   Minted & transferred 5x Edition 2 to user (unlimited)')
-
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 9: GLOBAL MESSAGE VERIFICATION
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 9: GLOBAL MESSAGE VERIFICATION')
   console.log('════════════════════════════════════════════════════')
@@ -503,19 +424,19 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     console.log(`   Could not query message count: ${err.message}`)
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 10: VAULT CONTRIBUTION SEEDING
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 10: VAULT CONTRIBUTION SEEDING')
   console.log('════════════════════════════════════════════════════')
 
   // Artist withdrawals from ERC1155 instances (triggers vault tithe)
-  const instancesForWithdrawal = [
-    { name: 'Demo-Gallery', address: demoGalleryAddress, contract: demoGallery },
-    { name: 'Dynamic-Pricing', address: dynamicPricingAddress, contract: dynamicInstance.connect(deployer) },
-    { name: 'Mixed-Supply', address: mixedSupplyAddress, contract: mixedInstance.connect(deployer) },
-  ]
+  const instancesForWithdrawal = erc1155Results.map(r => ({
+    name: r.config.displayName,
+    address: r.address,
+    contract: r.contract.connect(deployer),
+  }))
 
   for (const inst of instancesForWithdrawal) {
     const balance = await provider.getBalance(inst.address)
@@ -550,7 +471,7 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     }
   }
 
-  // Try convertAndAddLiquidity on each vault (may fail on fresh fork — expected)
+  // Try convertAndAddLiquidity on each vault
   for (const vault of vaults) {
     const vaultContract = new ethers.Contract(vault.address, vaultAbi, deployer)
     try {
@@ -564,149 +485,404 @@ export async function seed(addresses, provider, deployer, userAddress, vaults) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 11: PORTFOLIO TEST DATA SETUP
-  // ─────────────────────────────────────────────────────────────────────────
-  // Set up USER_ADDRESS with complete portfolio data for testing:
-  // - ERC404 holdings with buy history (for P&L calculation)
-  // - ERC1155 editions
-  // - Vault staking position with claimable yield
-  // - NFTs (if buy crossed threshold)
-  // - Activity history (buys, mints, stakes, messages)
-
+  // ═══════════════════════════════════════════════════════════════════════════
   await setupPortfolioTestData({
     userAddress,
-    erc404Instances: [earlyLaunchAddress, activeProjectAddress],
-    erc1155Instances: [demoGalleryAddress],
+    erc404Instances: erc404Results.slice(0, 2).map(r => r.address),
+    erc1155Instances: [erc1155Results[0].address],
     vaultAddress: primaryVault.address,
     messageRegistryAddress: addresses.core.globalMessageRegistry,
     provider,
     deployer,
   })
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 13: ERC721 AUCTION INSTANCES
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n════════════════════════════════════════════════════')
+  console.log('PHASE 13: ERC721 AUCTION INSTANCES')
+  console.log('════════════════════════════════════════════════════')
+
+  await refundAccounts(provider, deployer, userAddress)
+
+  const erc721FactoryAbi = await loadAbi('ERC721AuctionFactory')
+  const erc721InstanceAbi = await loadAbi('ERC721AuctionInstance')
+  const erc721Factory = new ethers.Contract(factories.erc721, erc721FactoryAbi, deployer)
+
+  const erc721Results = []
+
+  // Signers for auction bids
+  const traderSigner = provider.getSigner(TEST_ACCOUNTS.trader.address)
+  const collectorSigner = provider.getSigner(TEST_ACCOUNTS.collector.address)
+  const govSigner = provider.getSigner(TEST_ACCOUNTS.governance.address)
+
+  for (const collection of COLLECTIONS.erc721) {
+    console.log(`\n   Creating ERC721 ${collection.displayName}...`)
+
+    const vault = resolveVault(collection.vault, primaryVault, secondaryVault)
+    const instanceAddress = await createERC721AuctionInstance({
+      name: collection.name,
+      symbol: collection.symbol,
+      lines: collection.lines,
+      baseDuration: collection.baseDuration,
+      timeBuffer: collection.timeBuffer,
+      bidIncrement: collection.bidIncrement,
+      creator: deployer.address,
+      vault: vault.address,
+      factory: erc721Factory,
+      metadataURI: dataUri({
+        name: collection.displayName,
+        description: collection.description,
+        image: collection.image,
+        category: collection.category,
+        tags: collection.tags,
+      }),
+    })
+    console.log(`   ${collection.displayName}: ${instanceAddress}`)
+
+    const instanceContract = new ethers.Contract(instanceAddress, erc721InstanceAbi, deployer)
+
+    // Queue pieces
+    for (const piece of collection.pieces) {
+      const tokenURI = dataUri({
+        name: piece.name,
+        description: piece.description,
+        image: piece.image,
+      })
+      await (await instanceContract.queuePiece(tokenURI, { value: ethers.utils.parseEther(collection.queueDeposit) })).wait()
+      console.log(`   Queued piece: ${piece.name}`)
+    }
+
+    // Execute auction script
+    const pieceResults = collection.pieces.map((p, i) => ({
+      tokenId: i + 1,
+      name: p.name,
+      status: 'queued',
+    }))
+
+    for (const step of collection.auctionScript) {
+      if (step._settleGroup) {
+        // Advance time and settle multiple pieces
+        if (step.advanceTime) {
+          await provider.send('evm_increaseTime', [step.advanceTime])
+          await provider.send('evm_mine', [])
+        }
+        for (const pieceId of step.settle) {
+          await (await instanceContract.settleAuction(pieceId)).wait()
+          pieceResults[pieceId - 1].status = 'settled'
+          console.log(`   Piece ${pieceId} settled`)
+        }
+        continue
+      }
+
+      // Place bids
+      if (step.bids) {
+        for (const bid of step.bids) {
+          const signer = resolveSigner(bid.account, deployer, provider)
+          const asUser = instanceContract.connect(signer)
+          await (await asUser.createBid(
+            step.piece,
+            encodeMessageData(getRandomMessage(BID_MESSAGES)),
+            { value: ethers.utils.parseEther(bid.amount) }
+          )).wait()
+          console.log(`   Bid on piece ${step.piece}: ${bid.account} ${bid.amount} ETH`)
+        }
+
+        // Track highest bid
+        const lastBid = step.bids[step.bids.length - 1]
+        pieceResults[step.piece - 1].status = 'active'
+        pieceResults[step.piece - 1].highestBid = lastBid.amount
+        pieceResults[step.piece - 1].highestBidder = resolveAccount(lastBid.account, deployer)
+      }
+
+      // Settle this piece
+      if (step.settle) {
+        if (step.advanceTime) {
+          await provider.send('evm_increaseTime', [step.advanceTime])
+          await provider.send('evm_mine', [])
+        }
+        await (await instanceContract.settleAuction(step.piece)).wait()
+        const winner = pieceResults[step.piece - 1].highestBidder
+        pieceResults[step.piece - 1].status = 'settled'
+        pieceResults[step.piece - 1].winner = winner
+        console.log(`   Piece ${step.piece} settled — NFT to ${winner.slice(0, 8)}...`)
+
+        // Transfer to user if requested
+        if (step.transferToUser) {
+          const winnerSigner = provider.getSigner(winner)
+          const asWinner = new ethers.Contract(instanceAddress, erc721InstanceAbi, winnerSigner)
+          await (await asWinner.transferFrom(winner, userAddress, step.piece)).wait()
+          pieceResults[step.piece - 1].transferredTo = userAddress
+          console.log(`   Transferred NFT #${step.piece} to user`)
+        }
+      }
+    }
+
+    erc721Results.push({
+      config: collection,
+      address: instanceAddress,
+      vault,
+      pieceResults,
+    })
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // PHASE 12: OWNERSHIP TRANSFERS
-  // ─────────────────────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n════════════════════════════════════════════════════')
   console.log('PHASE 12: OWNERSHIP TRANSFERS')
   console.log('════════════════════════════════════════════════════')
 
-  // Transfer Demo-Gallery (ERC1155) ownership to userAddress
-  await (await demoGallery.transferOwnership(userAddress)).wait()
-  console.log(`   Demo-Gallery owner transferred to user: ${userAddress}`)
+  // Transfer ownership of collections flagged in config
+  for (const result of erc1155Results) {
+    if (result.config.ownershipTransfer) {
+      await (await result.contract.transferOwnership(userAddress)).wait()
+      console.log(`   ${result.config.displayName} owner transferred to user: ${userAddress}`)
+    }
+  }
 
-  // Transfer Early-Launch (ERC404) ownership to userAddress
-  const earlyLaunchInstance = new ethers.Contract(earlyLaunchAddress, erc404InstanceAbi, deployer)
-  await (await earlyLaunchInstance.transferOwnership(userAddress)).wait()
-  console.log(`   Early-Launch owner transferred to user: ${userAddress}`)
+  for (const result of erc404Results) {
+    if (result.config.ownershipTransfer) {
+      const instance = new ethers.Contract(result.address, erc404InstanceAbi, deployer)
+      await (await instance.transferOwnership(userAddress)).wait()
+      console.log(`   ${result.config.displayName} owner transferred to user: ${userAddress}`)
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 14: GOVERNANCE SEEDING
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n════════════════════════════════════════════════════')
+  console.log('PHASE 14: GOVERNANCE SEEDING')
+  console.log('════════════════════════════════════════════════════')
+
+  const { governance } = addresses
+  if (!governance || !governance.grandCentral || governance.grandCentral === ethers.constants.AddressZero) {
+    console.log('   ⚠ GrandCentral not deployed, skipping governance seeding')
+  } else {
+    const grandCentralAbi = await loadAbi('GrandCentral')
+    const grandCentral = new ethers.Contract(governance.grandCentral, grandCentralAbi, deployer)
+    const shareOfferingAbi = await loadAbi('ShareOffering', 'ShareOffering.sol')
+
+    // Read governance config for time advances
+    const votingPeriod = (await grandCentral.votingPeriod())
+    const gracePeriod = (await grandCentral.gracePeriod())
+    const vp = typeof votingPeriod === 'number' ? votingPeriod : parseInt(votingPeriod.toString())
+    const gp = typeof gracePeriod === 'number' ? gracePeriod : parseInt(gracePeriod.toString())
+
+    console.log(`   Voting period: ${vp}s, Grace period: ${gp}s`)
+
+    // --- Phase A: Fund Treasury ---
+    console.log('\n   Phase A: Fund DAO Treasury...')
+
+    // Send ETH to the Safe
+    const treasuryAmount = ethers.utils.parseEther('10')
+    await (await deployer.sendTransaction({
+      to: governance.safe,
+      value: treasuryAmount,
+    })).wait()
+    console.log(`   Sent ${ethers.utils.formatEther(treasuryAmount)} ETH to Safe`)
+
+    // Fund DAO pools via proposals
+    // fundClaimsPool/fundRagequitPool are daoOrManager and check safe.balance
+    // The 10 ETH sent to Safe above satisfies the balance check
+
+    // Fund claims pool (5 ETH)
+    const claimsAmount = ethers.utils.parseEther('5')
+    const fundClaimsCalldata = grandCentral.interface.encodeFunctionData('fundClaimsPool', [claimsAmount])
+    await submitAndProcessProposal({
+      grandCentral, provider,
+      targets: [governance.grandCentral],
+      values: [0],
+      calldatas: [fundClaimsCalldata],
+      details: 'Fund claims pool with 5 ETH',
+      votingPeriod: vp, gracePeriod: gp,
+    })
+    console.log('   Claims pool funded with 5 ETH')
+
+    // Fund ragequit pool (3 ETH)
+    const ragequitAmount = ethers.utils.parseEther('3')
+    const fundRagequitCalldata = grandCentral.interface.encodeFunctionData('fundRagequitPool', [ragequitAmount])
+    await submitAndProcessProposal({
+      grandCentral, provider,
+      targets: [governance.grandCentral],
+      values: [0],
+      calldatas: [fundRagequitCalldata],
+      details: 'Fund ragequit pool with 3 ETH',
+      votingPeriod: vp, gracePeriod: gp,
+    })
+    console.log('   Ragequit pool funded with 3 ETH')
+
+    // --- Phase B: Demonstrate Proposal Flow ---
+    console.log('\n   Phase B: Governance proposal demonstrations...')
+
+    // Create a "set governance config" proposal (demonstrating parameter changes)
+    // Pass 0 for votingPeriod/gracePeriod to keep current values (contract enforces min 1 day)
+    const setConfigCalldata = grandCentral.interface.encodeFunctionData('setGovernanceConfig', [
+      0,    // votingPeriod: 0 = no change (keep local dev value)
+      0,    // gracePeriod: 0 = no change (keep local dev value)
+      1,    // quorumPercent (keep at 1%)
+      ethers.utils.parseEther('1'), // sponsorThreshold (keep at 1 share)
+      50,   // minRetentionPercent (keep at 50%)
+    ])
+
+    const configProposalId = await submitAndProcessProposal({
+      grandCentral, provider,
+      targets: [governance.grandCentral],
+      values: [0],
+      calldatas: [setConfigCalldata],
+      details: 'Confirm initial governance parameters',
+      votingPeriod: vp, gracePeriod: gp,
+    })
+    console.log(`   Proposal #${configProposalId}: Governance config confirmed`)
+
+    // --- Phase C: Create Share Offering Tranche ---
+    console.log('\n   Phase C: Share Offering...')
+
+    // Create tranche via Safe impersonation (local dev shortcut).
+    // In production this would go through a DAO proposal, but execTransactionFromModule
+    // on the canonical mainnet-fork Safe has gas/guard issues in Anvil.
+    await provider.send('anvil_impersonateAccount', [governance.safe])
+    const safeSigner = provider.getSigner(governance.safe)
+    const soAsSafe = new ethers.Contract(governance.shareOffering, shareOfferingAbi, safeSigner)
+    await (await soAsSafe.createTranche(
+      ethers.utils.parseEther('0.01'),    // pricePerShare: 0.01 ETH
+      500,                                 // totalShares: 500 available (raw count)
+      86400,                               // duration: 24 hours
+      1,                                   // minShares: 1 (raw count)
+      100,                                 // maxSharesPerAddress: 100 (raw count)
+      ethers.constants.HashZero,          // whitelistRoot (open to all)
+    )).wait()
+    await provider.send('anvil_stopImpersonatingAccount', [governance.safe])
+    console.log('   Share offering tranche created (500 shares @ 0.01 ETH)')
+
+    // Have a test account buy shares
+    const traderSigner = provider.getSigner(TEST_ACCOUNTS.trader.address)
+    const shareOfferingContract = new ethers.Contract(governance.shareOffering, shareOfferingAbi, traderSigner)
+
+    try {
+      await (await shareOfferingContract.commit(
+        1, // trancheId (first tranche)
+        10, // 10 shares (raw count)
+        [], // no proof (open whitelist)
+        { value: ethers.utils.parseEther('0.1') } // 10 × 0.01 ETH
+      )).wait()
+      console.log('   Trader committed to buy 10 shares')
+    } catch (err) {
+      console.log(`   ⚠ Share commitment failed: ${err.message.slice(0, 100)}`)
+    }
+
+    // --- Phase D: One Active (Unprocessed) Proposal ---
+    console.log('\n   Phase D: Create pending proposal for UI...')
+
+    // Submit a proposal but DON'T process it — so the UI has an active proposal to display
+    const pendingDetails = 'Proposal to update quorum to 5% (pending)'
+    const pendingCalldata = grandCentral.interface.encodeFunctionData('setGovernanceConfig', [
+      0,  // votingPeriod: no change
+      0,  // gracePeriod: no change
+      5,  // quorumPercent: increase to 5%
+      ethers.utils.parseEther('1'), 50
+    ])
+
+    const pendingTx = await grandCentral.submitProposal(
+      [governance.grandCentral], [0], [pendingCalldata],
+      0, pendingDetails
+    )
+    const pendingReceipt = await pendingTx.wait()
+    const pendingEvent = pendingReceipt.events?.find(e => e.event === 'ProposalSubmitted')
+    const pendingId = pendingEvent.args.proposalId.toNumber()
+
+    // Vote yes but don't advance time or process
+    await (await grandCentral.submitVote(pendingId, true)).wait()
+    console.log(`   Proposal #${pendingId}: Active (voting in progress)`)
+
+    console.log('\n   ✅ Governance seeding complete!')
+    console.log(`      - ${configProposalId + 1} processed proposals`)
+    console.log(`      - 1 active proposal (#${pendingId})`)
+    console.log(`      - Share offering tranche active`)
+    console.log(`      - Treasury funded and swept`)
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Build and return result
   // ─────────────────────────────────────────────────────────────────────────
   return {
     instances: {
-      erc404: [
-        {
-          address: earlyLaunchAddress,
-          name: 'Early-Launch',
-          symbol: 'EARLY',
-          creator: deployer.address,
-          owner: userAddress,
-          vault: primaryVault.address,
-          hook: primaryVault.hookAddress,
-          state: 'early-bonding',
-          bondingProgress: '~10%',
-          note: 'Owned by userAddress for owner view testing',
-        },
-        {
-          address: activeProjectAddress,
-          name: 'Active-Project',
-          symbol: 'ACTIVE',
-          creator: deployer.address,
-          vault: primaryVault.address,
-          hook: primaryVault.hookAddress,
-          state: 'active-bonding',
-          bondingProgress: '~60%',
-        },
-        {
-          address: graduatedAddress,
-          name: 'Graduated',
-          symbol: 'GRAD',
-          creator: deployer.address,
-          vault: primaryVault.address,
-          hook: primaryVault.hookAddress,
-          state: 'graduated',
-          bondingProgress: '100%',
-          liquidityDeployed: false,
-        },
-      ],
-      erc1155: [
-        {
-          address: demoGalleryAddress,
-          name: 'Demo-Gallery',
-          creator: deployer.address,
-          owner: userAddress,
-          vault: primaryVault.address,
-          editions: [
-            { id: 1, name: 'Genesis-Piece', price: '0.01', maxSupply: 0, minted: 5 },
-            { id: 2, name: 'Limited-Drop', price: '0.02', maxSupply: 100, minted: 3 },
-          ],
-          note: 'Owned by userAddress for owner view testing',
-        },
-        {
-          address: dynamicPricingAddress,
-          name: 'Dynamic-Pricing',
-          creator: deployer.address,
-          vault: secondaryVault.address,
-          pricingModel: 'exponential-increase',
-          editions: [
-            { id: 1, name: 'Evolving-Piece-1', basePrice: '0.005', priceIncreaseRate: 500, maxSupply: 50, minted: 13 },
-            { id: 2, name: 'Evolving-Piece-2', basePrice: '0.01', priceIncreaseRate: 1000, maxSupply: 30, minted: 8 },
-          ],
-        },
-        {
-          address: mixedSupplyAddress,
-          name: 'Mixed-Supply',
-          creator: deployer.address,
-          vault: secondaryVault.address,
-          pricingModel: 'mixed',
-          editions: [
-            { id: 1, name: 'Rare-Limited', price: '0.02', maxSupply: 100, minted: 45, percentSold: 45 },
-            { id: 2, name: 'Common-Unlimited', price: '0.005', maxSupply: 0, minted: 60 },
-          ],
-        },
-      ],
+      erc404: erc404Results.map((r, i) => ({
+        address: r.address,
+        name: r.config.name,
+        symbol: r.config.symbol,
+        creator: deployer.address,
+        owner: r.config.ownershipTransfer ? userAddress : deployer.address,
+        vault: r.vault.address,
+        state: r.config.bondingTarget === '100%' ? 'graduated' : r.config.bondingTarget === '10%' ? 'early-bonding' : 'active-bonding',
+        bondingProgress: `~${r.config.bondingTarget}`,
+        ...(r.config.ownershipTransfer && { note: 'Owned by userAddress for owner view testing' }),
+        ...(r.config.bondingTarget === '100%' && { liquidityDeployed: false }),
+      })),
+      erc1155: erc1155Results.map(r => ({
+        address: r.address,
+        name: r.config.name,
+        creator: deployer.address,
+        owner: r.config.ownershipTransfer ? userAddress : deployer.address,
+        vault: r.vault.address,
+        ...(r.config.ownershipTransfer && { note: 'Owned by userAddress for owner view testing' }),
+        editions: r.config.editions.map((ed, i) => ({
+          id: i + 1,
+          name: ed.name,
+          price: ed.price,
+          maxSupply: ed.maxSupply,
+          ...(ed.priceIncreaseRate && { priceIncreaseRate: ed.priceIncreaseRate }),
+        })),
+      })),
+      erc721: erc721Results.map(r => ({
+        address: r.address,
+        name: r.config.name,
+        symbol: r.config.symbol,
+        creator: deployer.address,
+        vault: r.vault.address,
+        lines: r.config.lines,
+        baseDuration: r.config.baseDuration,
+        timeBuffer: r.config.timeBuffer,
+        bidIncrement: r.config.bidIncrement,
+        pieces: r.pieceResults,
+      })),
     },
     userHoldings: {
-      erc404: [
-        { instance: 'Early-Launch', tokens: '150' },
-        { instance: 'Active-Project', tokens: '800' },
-        { instance: 'Graduated', tokens: '1000' },
-      ],
-      erc1155: [
-        {
-          instance: 'Demo-Gallery',
-          holdings: [
-            { editionId: 1, quantity: 2 },
-            { editionId: 2, quantity: 1 },
-          ],
-        },
-        {
-          instance: 'Dynamic-Pricing',
-          holdings: [{ editionId: 1, quantity: 3 }],
-        },
-        {
-          instance: 'Mixed-Supply',
-          holdings: [
-            { editionId: 1, quantity: 5 },
-            { editionId: 2, quantity: 5 },
-          ],
-        },
-      ],
+      erc404: erc404Results
+        .filter(r => r.config.userTransfer)
+        .map(r => ({
+          instance: r.config.name,
+          tokens: r.config.userTransfer.amount,
+        })),
+      erc1155: erc1155Results
+        .filter(r => r.config.userMints?.length > 0)
+        .map(r => ({
+          instance: r.config.name,
+          holdings: r.config.userMints.map(m => ({
+            editionId: m.edition,
+            quantity: m.transferQuantity,
+          })),
+        })),
+      erc721: erc721Results
+        .filter(r => r.pieceResults.some(p => p.transferredTo))
+        .map(r => ({
+          instance: r.config.name,
+          holdings: r.pieceResults
+            .filter(p => p.transferredTo)
+            .map(p => ({ tokenId: p.tokenId, name: p.name })),
+        })),
     },
     messages: {
       total: messageCount,
       note: 'Messages posted automatically during transactions',
     },
+    governance: addresses.governance ? {
+      proposalsCreated: true,
+      shareOfferingActive: true,
+      treasuryFunded: true,
+    } : null,
   }
 }

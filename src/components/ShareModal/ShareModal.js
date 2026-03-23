@@ -5,6 +5,8 @@
 
 import { Component } from '../../core/Component.js';
 import stylesheetLoader from '../../utils/stylesheetLoader.js';
+import { generateProjectURL } from '../../utils/navigation.js';
+import { detectNetwork } from '../../config/network.js';
 
 export class ShareModal extends Component {
     constructor(projectData) {
@@ -27,7 +29,9 @@ export class ShareModal extends Component {
     }
 
     getShareUrl() {
-        return `${window.location.origin}/project/${this.projectData.address}`;
+        const { chainId } = detectNetwork();
+        const path = generateProjectURL(null, this.projectData, null, chainId);
+        return `${window.location.origin}${path || `/project/${this.projectData.address}`}`;
     }
 
     getShareText() {

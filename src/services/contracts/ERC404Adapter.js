@@ -55,7 +55,7 @@ class ERC404Adapter extends ContractAdapter {
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 contractABI,
-                this.signer || this.provider
+                this.provider
             );
 
             // Initialize mirror contract if available
@@ -68,7 +68,7 @@ class ERC404Adapter extends ContractAdapter {
                     this.mirrorContract = new ethers.Contract(
                         mirrorAddress,
                         mirrorABI,
-                        this.signer || this.provider
+                        this.provider
                     );
                 }
             } catch (error) {

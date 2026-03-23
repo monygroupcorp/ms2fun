@@ -1,9 +1,14 @@
 /**
  * ERC404AdminModal - Tabbed admin settings modal
  *
- * Three tabs: Overview, Configuration, Advanced.
+ * Two tabs: Project Controls, Advanced.
  * Opens via erc404:admin:open event.
- * Matches docs/examples/project-erc404-admin-demo.html admin modal.
+ *
+ * Maps 1:1 to ERC404BondingInstance.sol onlyOwner functions:
+ *   - setBondingOpenTime, setBondingMaturityTime, setStyle,
+ *     migrateVault, activateStaking, claimAllFees,
+ *     transferOwnership, renounceOwnership
+ * Plus permissionless: deployLiquidity
  */
 
 import { Component, h, eventBus } from '../../core/microact-setup.js';
@@ -69,22 +74,20 @@ export class ERC404AdminModal extends Component {
         if (!this.adapter) return;
 
         try {
-            const [bondingStatus, stakingEnabled, canDeploy, hook, vault] = await Promise.all([
+            const [bondingStatus, stakingEnabled, canDeploy] = await Promise.all([
                 this.adapter.getBondingStatus(),
                 this.adapter.stakingEnabled(),
-                this.adapter.canDeployPermissionless().catch(() => false),
-                this.adapter.v4Hook().catch(() => ''),
-                this.adapter.vault().catch(() => '')
+                this.adapter.canDeployPermissionless().catch(() => false)
             ]);
 
-            this.updateOverviewDOM(bondingStatus, stakingEnabled, canDeploy);
-            this.updateConfigDOM(bondingStatus, stakingEnabled, hook, vault);
+            this.updateControlsDOM(bondingStatus, stakingEnabled, canDeploy);
+            this.updateAdvancedDOM(bondingStatus, stakingEnabled);
         } catch (error) {
             console.warn('[ERC404AdminModal] Failed to load data:', error);
         }
     }
 
-    updateOverviewDOM(bondingStatus, stakingEnabled, canDeploy) {
+    updateControlsDOM(bondingStatus, stakingEnabled, canDeploy) {
         if (!this._el) return;
 
         // Phase badge
@@ -135,102 +138,71 @@ export class ERC404AdminModal extends Component {
         setValue('open', fmtDate(bondingStatus.openTime));
         setValue('maturity', fmtDate(bondingStatus.maturityTime));
 
-        // Staking status
-        const stakingStatusEl = this._el.querySelector('[data-overview-staking-status]');
-        if (stakingStatusEl) stakingStatusEl.textContent = stakingEnabled ? 'Enabled' : 'Disabled';
-
-        const enableStakingBtn = this._el.querySelector('[data-action="overview-enable-staking"]');
-        if (enableStakingBtn) enableStakingBtn.style.display = stakingEnabled ? 'none' : '';
-
-        // Pause/Resume button
-        const pauseBtn = this._el.querySelector('[data-action="toggle-bonding"]');
-        if (pauseBtn) {
-            const isActive = bondingStatus.bondingActive !== false;
-            pauseBtn.textContent = isActive ? 'Pause Bonding' : 'Resume Bonding';
-        }
-
         // Deploy liquidity button
         const deployBtn = this._el.querySelector('[data-action="deploy-liquidity"]');
         if (deployBtn) {
             const phase = bondingStatus.currentPhase || 0;
-            deployBtn.disabled = phase < 3; // Only enable if matured or later
+            deployBtn.disabled = phase < 3;
         }
     }
 
-    updateConfigDOM(bondingStatus, stakingEnabled, hook, vault) {
+    updateAdvancedDOM(bondingStatus, stakingEnabled) {
         if (!this._el) return;
 
-        const ZERO_ADDR = '0x0000000000000000000000000000000000000000';
-
-        // V4 Hook
-        const hookEl = this._el.querySelector('[data-config-value="hook"]');
-        const hookStatusEl = this._el.querySelector('[data-config-status="hook"]');
-        const hookItem = this._el.querySelector('[data-config-item="hook"]');
-        if (hookEl) hookEl.textContent = hook && hook !== ZERO_ADDR ? hook.slice(0, 6) + '...' + hook.slice(-4) : 'Not Set';
-        if (hookStatusEl) hookStatusEl.textContent = hook && hook !== ZERO_ADDR ? 'Locked' : 'Not Set';
-        if (hookItem) hookItem.className = 'config-item' + (hook && hook !== ZERO_ADDR ? ' completed' : ' needs-setup');
-
-        // Vault
-        const vaultEl = this._el.querySelector('[data-config-value="vault"]');
-        const vaultStatusEl = this._el.querySelector('[data-config-status="vault"]');
-        const vaultItem = this._el.querySelector('[data-config-item="vault"]');
-        if (vaultEl) vaultEl.textContent = vault && vault !== ZERO_ADDR ? vault.slice(0, 6) + '...' + vault.slice(-4) : 'Not Set';
-        if (vaultStatusEl) vaultStatusEl.textContent = vault && vault !== ZERO_ADDR ? 'Locked' : 'Not Set';
-        if (vaultItem) vaultItem.className = 'config-item' + (vault && vault !== ZERO_ADDR ? ' completed' : ' needs-setup');
-
-        // Bonding times
         const fmtDate = (ts) => {
             if (!ts || ts === '0') return 'Not Set';
             const d = new Date(parseInt(ts) * 1000);
             return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
         };
 
+        // Open time
         const openEl = this._el.querySelector('[data-config-value="open-time"]');
-        const openStatusEl = this._el.querySelector('[data-config-status="open-time"]');
-        const openItem = this._el.querySelector('[data-config-item="open-time"]');
         if (openEl) openEl.textContent = fmtDate(bondingStatus.openTime);
-        const openSet = bondingStatus.openTime && bondingStatus.openTime !== '0';
-        if (openStatusEl) openStatusEl.textContent = openSet ? 'Locked' : 'Not Set';
-        if (openItem) openItem.className = 'config-item' + (openSet ? ' completed' : '');
+        const openPast = bondingStatus.openTime && bondingStatus.openTime !== '0' && parseInt(bondingStatus.openTime) * 1000 < Date.now();
+        const openInput = this._el.querySelector('[data-input="open-time"]');
+        const openBtn = this._el.querySelector('[data-action="set-open-time"]');
+        if (openPast) {
+            if (openInput) openInput.disabled = true;
+            if (openBtn) { openBtn.disabled = true; openBtn.textContent = 'Already Passed'; }
+        }
 
+        // Maturity time
         const maturityEl = this._el.querySelector('[data-config-value="maturity-time"]');
-        const maturityStatusEl = this._el.querySelector('[data-config-status="maturity-time"]');
         if (maturityEl) maturityEl.textContent = fmtDate(bondingStatus.maturityTime);
-        const maturitySet = bondingStatus.maturityTime && bondingStatus.maturityTime !== '0';
-        if (maturityStatusEl) maturityStatusEl.textContent = maturitySet ? 'Set' : 'Not Set';
+        const maturityPast = bondingStatus.maturityTime && bondingStatus.maturityTime !== '0' && parseInt(bondingStatus.maturityTime) * 1000 < Date.now();
+        const maturityInput = this._el.querySelector('[data-input="maturity-time"]');
+        const maturityBtn = this._el.querySelector('[data-action="set-maturity-time"]');
+        if (maturityPast) {
+            if (maturityInput) maturityInput.disabled = true;
+            if (maturityBtn) { maturityBtn.disabled = true; maturityBtn.textContent = 'Already Passed'; }
+        }
 
         // Staking
         const stakingStatusEl = this._el.querySelector('[data-config-status="staking"]');
-        const stakingItem = this._el.querySelector('[data-config-item="staking"]');
-        if (stakingStatusEl) stakingStatusEl.textContent = stakingEnabled ? 'Enabled' : 'Not Enabled';
-        if (stakingItem) stakingItem.className = 'config-item' + (stakingEnabled ? ' completed' : ' needs-setup');
-
-        const enableBtn = this._el.querySelector('[data-action="config-enable-staking"]');
-        if (enableBtn) enableBtn.style.display = stakingEnabled ? 'none' : '';
-
-        // Style
-        const styleStatusEl = this._el.querySelector('[data-config-status="style"]');
-        if (styleStatusEl) styleStatusEl.textContent = 'Editable';
-
+        if (stakingStatusEl) stakingStatusEl.textContent = stakingEnabled ? 'Active' : 'Not Active';
+        const stakingBtn = this._el.querySelector('[data-action="activate-staking"]');
+        if (stakingBtn) stakingBtn.style.display = stakingEnabled ? 'none' : '';
+        const stakingNote = this._el.querySelector('[data-staking-note]');
+        if (stakingNote) stakingNote.textContent = stakingEnabled
+            ? 'Staking is active. Fees from claimAllFees are routed to stakers.'
+            : 'Once activated, vault fees are distributed to token stakers. This cannot be undone.';
     }
 
     // ── Actions ──
 
-    async handleToggleBonding() {
+    async handleClaimFees() {
         if (!this.adapter) return;
-        const btn = this._el?.querySelector('[data-action="toggle-bonding"]');
+        const btn = this._el?.querySelector('[data-action="claim-fees"]');
 
         try {
-            const bondingStatus = await this.adapter.getBondingStatus();
-            const isActive = bondingStatus.bondingActive !== false;
-            if (btn) btn.textContent = isActive ? 'Pausing...' : 'Resuming...';
-            const tx = await this.adapter.setBondingActive(!isActive);
+            if (btn) btn.textContent = 'Claiming...';
+            const tx = await this.adapter.claimAllFees();
             if (tx && typeof tx.wait === 'function') await tx.wait();
-            await this.loadData();
+            if (btn) btn.textContent = 'Claim Fees';
         } catch (error) {
-            console.error('[ERC404AdminModal] Toggle bonding failed:', error);
+            console.error('[ERC404AdminModal] Claim fees failed:', error);
             if (btn) btn.textContent = 'Failed';
-            setTimeout(() => this.loadData(), 3000);
+            setTimeout(() => { if (btn) btn.textContent = 'Claim Fees'; }, 3000);
         }
     }
 
@@ -240,7 +212,6 @@ export class ERC404AdminModal extends Component {
 
         try {
             if (btn) btn.textContent = 'Deploying...';
-            // Use default parameters — the contract handles defaults
             const tx = await this.adapter.deployLiquidity(3000, 60, 0, 0, 0);
             if (tx && typeof tx.wait === 'function') await tx.wait();
             if (btn) btn.textContent = 'Deploy Liquidity';
@@ -249,83 +220,6 @@ export class ERC404AdminModal extends Component {
             console.error('[ERC404AdminModal] Deploy liquidity failed:', error);
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Deploy Liquidity'; }, 3000);
-        }
-    }
-
-    async handleEnableStaking() {
-        if (!this.adapter) return;
-        const btn = this._el?.querySelector('[data-action="overview-enable-staking"]')
-            || this._el?.querySelector('[data-action="config-enable-staking"]');
-
-        try {
-            if (btn) btn.textContent = 'Enabling...';
-            const tx = await this.adapter.enableStaking();
-            if (tx && typeof tx.wait === 'function') await tx.wait();
-            await this.loadData();
-        } catch (error) {
-            console.error('[ERC404AdminModal] Enable staking failed:', error);
-            if (btn) btn.textContent = 'Failed';
-            setTimeout(() => { if (btn) btn.textContent = 'Enable Staking'; }, 3000);
-        }
-    }
-
-    async handleWithdrawDust() {
-        if (!this.adapter) return;
-        const btn = this._el?.querySelector('[data-action="withdraw-dust"]');
-
-        try {
-            if (btn) btn.textContent = 'Withdrawing...';
-            const tx = await this.adapter.withdrawDust(0);
-            if (tx && typeof tx.wait === 'function') await tx.wait();
-            if (btn) btn.textContent = 'Withdraw Dust';
-        } catch (error) {
-            console.error('[ERC404AdminModal] Withdraw dust failed:', error);
-            if (btn) btn.textContent = 'Failed';
-            setTimeout(() => { if (btn) btn.textContent = 'Withdraw Dust'; }, 3000);
-        }
-    }
-
-    // ── Configuration Actions ──
-
-    async handleSetV4Hook() {
-        if (!this.adapter) return;
-        const input = this._el?.querySelector('[data-input="hook-address"]');
-        const btn = this._el?.querySelector('[data-action="set-hook"]');
-        const addr = input?.value?.trim();
-        if (!addr) return;
-
-        try {
-            if (btn) btn.textContent = 'Setting...';
-            const tx = await this.adapter.setV4Hook(addr);
-            if (tx && typeof tx.wait === 'function') await tx.wait();
-            if (input) input.value = '';
-            if (btn) btn.textContent = 'Set Hook';
-            await this.loadData();
-        } catch (error) {
-            console.error('[ERC404AdminModal] Set V4 Hook failed:', error);
-            if (btn) btn.textContent = 'Failed';
-            setTimeout(() => { if (btn) btn.textContent = 'Set Hook'; }, 3000);
-        }
-    }
-
-    async handleSetVault() {
-        if (!this.adapter) return;
-        const input = this._el?.querySelector('[data-input="vault-address"]');
-        const btn = this._el?.querySelector('[data-action="set-vault"]');
-        const addr = input?.value?.trim();
-        if (!addr) return;
-
-        try {
-            if (btn) btn.textContent = 'Setting...';
-            const tx = await this.adapter.setVault(addr);
-            if (tx && typeof tx.wait === 'function') await tx.wait();
-            if (input) input.value = '';
-            if (btn) btn.textContent = 'Set Vault';
-            await this.loadData();
-        } catch (error) {
-            console.error('[ERC404AdminModal] Set Vault failed:', error);
-            if (btn) btn.textContent = 'Failed';
-            setTimeout(() => { if (btn) btn.textContent = 'Set Vault'; }, 3000);
         }
     }
 
@@ -371,7 +265,42 @@ export class ERC404AdminModal extends Component {
         }
     }
 
-    // ── Advanced Actions ──
+    async handleActivateStaking() {
+        if (!this.adapter) return;
+        const btn = this._el?.querySelector('[data-action="activate-staking"]');
+
+        try {
+            if (btn) btn.textContent = 'Activating...';
+            const tx = await this.adapter.activateStaking();
+            if (tx && typeof tx.wait === 'function') await tx.wait();
+            await this.loadData();
+        } catch (error) {
+            console.error('[ERC404AdminModal] Activate staking failed:', error);
+            if (btn) btn.textContent = 'Failed';
+            setTimeout(() => { if (btn) btn.textContent = 'Activate Staking'; }, 3000);
+        }
+    }
+
+    async handleMigrateVault() {
+        if (!this.adapter) return;
+        const input = this._el?.querySelector('[data-input="vault-address"]');
+        const btn = this._el?.querySelector('[data-action="migrate-vault"]');
+        const addr = input?.value?.trim();
+        if (!addr) return;
+
+        try {
+            if (btn) btn.textContent = 'Migrating...';
+            const tx = await this.adapter.migrateVault(addr);
+            if (tx && typeof tx.wait === 'function') await tx.wait();
+            if (input) input.value = '';
+            if (btn) btn.textContent = 'Migrate Vault';
+            await this.loadData();
+        } catch (error) {
+            console.error('[ERC404AdminModal] Migrate vault failed:', error);
+            if (btn) btn.textContent = 'Failed';
+            setTimeout(() => { if (btn) btn.textContent = 'Migrate Vault'; }, 3000);
+        }
+    }
 
     async handleTransferOwnership() {
         if (!this.adapter) return;
@@ -418,8 +347,6 @@ export class ERC404AdminModal extends Component {
         }
     }
 
-    // ── Render Helpers ──
-
     // ── Render ──
 
     render() {
@@ -436,14 +363,9 @@ export class ERC404AdminModal extends Component {
                     h('div', { className: 'modal-tabs' },
                         h('button', {
                             className: 'modal-tab active',
-                            'data-modal-tab': 'overview',
-                            onClick: () => this.switchTab('overview')
-                        }, 'Overview'),
-                        h('button', {
-                            className: 'modal-tab',
-                            'data-modal-tab': 'configuration',
-                            onClick: () => this.switchTab('configuration')
-                        }, 'Configuration'),
+                            'data-modal-tab': 'controls',
+                            onClick: () => this.switchTab('controls')
+                        }, 'Project Controls'),
                         h('button', {
                             className: 'modal-tab',
                             'data-modal-tab': 'advanced',
@@ -453,8 +375,8 @@ export class ERC404AdminModal extends Component {
 
                     // Body
                     h('div', { className: 'modal-body' },
-                        // ── Overview Tab ──
-                        h('div', { className: 'modal-tab-content active', 'data-modal-content': 'overview' },
+                        // ── Project Controls Tab ──
+                        h('div', { className: 'modal-tab-content active', 'data-modal-content': 'controls' },
                             // Bonding Status
                             h('div', { className: 'modal-section' },
                                 h('div', { className: 'modal-section-title' }, 'Bonding Status'),
@@ -463,7 +385,7 @@ export class ERC404AdminModal extends Component {
                                 h('div', { className: 'progress-bar-container' },
                                     h('div', { className: 'progress-bar-label' },
                                         h('span', null, 'Supply Progress'),
-                                        h('span', { 'data-overview-progress-label': true }, '—')
+                                        h('span', { 'data-overview-progress-label': true }, '\u2014')
                                     ),
                                     h('div', { className: 'progress-bar' },
                                         h('div', { className: 'progress-bar-fill', 'data-overview-progress-fill': true, style: { width: '0%' } })
@@ -473,196 +395,147 @@ export class ERC404AdminModal extends Component {
                                 h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 'var(--space-3)', marginTop: 'var(--space-3)' } },
                                     h('div', null,
                                         h('div', { className: 'admin-stat-label' }, 'Reserve'),
-                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'reserve', style: { fontSize: 'var(--font-size-h4)' } }, '—')
+                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'reserve', style: { fontSize: 'var(--font-size-h4)' } }, '\u2014')
                                     ),
                                     h('div', null,
                                         h('div', { className: 'admin-stat-label' }, 'Tokens Sold'),
-                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'sold', style: { fontSize: 'var(--font-size-h4)' } }, '—')
+                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'sold', style: { fontSize: 'var(--font-size-h4)' } }, '\u2014')
                                     ),
                                     h('div', null,
                                         h('div', { className: 'admin-stat-label' }, 'Open Time'),
-                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'open', style: { fontSize: 'var(--font-size-h4)' } }, '—')
+                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'open', style: { fontSize: 'var(--font-size-h4)' } }, '\u2014')
                                     ),
                                     h('div', null,
                                         h('div', { className: 'admin-stat-label' }, 'Maturity Time'),
-                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'maturity', style: { fontSize: 'var(--font-size-h4)' } }, '—')
+                                        h('div', { className: 'admin-stat-value', 'data-overview-stat': 'maturity', style: { fontSize: 'var(--font-size-h4)' } }, '\u2014')
                                     )
-                                ),
-
-                                h('div', { style: { marginTop: 'var(--space-4)', display: 'flex', gap: 'var(--space-2)' } },
-                                    h('button', {
-                                        className: 'btn btn-secondary',
-                                        'data-action': 'toggle-bonding',
-                                        onClick: this.bind(this.handleToggleBonding)
-                                    }, 'Pause Bonding'),
-                                    h('button', {
-                                        className: 'btn btn-secondary',
-                                        'data-action': 'deploy-liquidity',
-                                        onClick: this.bind(this.handleDeployLiquidity)
-                                    }, 'Deploy Liquidity')
                                 )
                             ),
 
-                            // Staking Status
+                            // Claim Fees
                             h('div', { className: 'modal-section' },
-                                h('div', { className: 'modal-section-title' }, 'Staking Status'),
-                                h('div', { style: { backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-secondary)', padding: 'var(--space-3)', marginBottom: 'var(--space-3)' } },
-                                    h('div', { style: { fontSize: 'var(--font-size-body-sm)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
-                                        'Status: ',
-                                        h('strong', { style: { color: 'var(--text-primary)' }, 'data-overview-staking-status': true }, 'Loading...')
-                                    ),
-                                    h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)' } },
-                                        'Vault fees accrue to contract. Enable staking to distribute fees to stakers.'
-                                    )
+                                h('div', { className: 'modal-section-title' }, 'Fees'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                                    'Claim accumulated fees from alignment vaults. If staking is active, fees are routed to the staking module for distribution to stakers.'
                                 ),
                                 h('button', {
                                     className: 'btn btn-primary',
-                                    'data-action': 'overview-enable-staking',
-                                    onClick: this.bind(this.handleEnableStaking)
-                                }, 'Enable Staking')
+                                    'data-action': 'claim-fees',
+                                    onClick: this.bind(this.handleClaimFees)
+                                }, 'Claim Fees')
                             ),
 
-                            // Withdraw Dust
+                            // Deploy Liquidity
                             h('div', { className: 'modal-section' },
-                                h('div', { className: 'modal-section-title' }, 'Withdraw Dust'),
+                                h('div', { className: 'modal-section-title' }, 'Deploy Liquidity'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                                    'Deploy the bonding curve reserve to Uniswap V4. Available after maturity time passes. Anyone can call this \u2014 it\'s permissionless.'
+                                ),
                                 h('button', {
                                     className: 'btn btn-secondary',
-                                    'data-action': 'withdraw-dust',
-                                    onClick: this.bind(this.handleWithdrawDust)
-                                }, 'Withdraw Dust')
-                            )
-                        ),
+                                    'data-action': 'deploy-liquidity',
+                                    disabled: true,
+                                    onClick: this.bind(this.handleDeployLiquidity)
+                                }, 'Deploy Liquidity')
+                            ),
 
-                        // ── Configuration Tab ──
-                        h('div', { className: 'modal-tab-content', 'data-modal-content': 'configuration' },
+                            // Style
                             h('div', { className: 'modal-section' },
-                                h('div', { className: 'modal-section-title' }, 'Setup & Configuration'),
-
-                                h('div', { className: 'config-items' },
-                                    // V4 Hook
-                                    h('div', { className: 'config-item', 'data-config-item': 'hook' },
-                                        h('div', { className: 'config-item-header' },
-                                            h('div', { className: 'config-item-label' }, 'V4 Hook'),
-                                            h('div', { className: 'config-item-status', 'data-config-status': 'hook' }, '...')
-                                        ),
-                                        h('div', { className: 'config-item-value', 'data-config-value': 'hook' }, 'Loading...'),
-                                        h('div', { style: { marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' } },
-                                            h('input', {
-                                                type: 'text',
-                                                'data-input': 'hook-address',
-                                                placeholder: '0x...',
-                                                className: 'form-input',
-                                                style: { flex: '1' }
-                                            }),
-                                            h('button', {
-                                                className: 'btn btn-secondary',
-                                                'data-action': 'set-hook',
-                                                onClick: this.bind(this.handleSetV4Hook)
-                                            }, 'Set Hook')
-                                        )
-                                    ),
-
-                                    // Vault
-                                    h('div', { className: 'config-item', 'data-config-item': 'vault' },
-                                        h('div', { className: 'config-item-header' },
-                                            h('div', { className: 'config-item-label' }, 'Vault'),
-                                            h('div', { className: 'config-item-status', 'data-config-status': 'vault' }, '...')
-                                        ),
-                                        h('div', { className: 'config-item-value', 'data-config-value': 'vault' }, 'Loading...'),
-                                        h('div', { style: { marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' } },
-                                            h('input', {
-                                                type: 'text',
-                                                'data-input': 'vault-address',
-                                                placeholder: '0x...',
-                                                className: 'form-input',
-                                                style: { flex: '1' }
-                                            }),
-                                            h('button', {
-                                                className: 'btn btn-secondary',
-                                                'data-action': 'set-vault',
-                                                onClick: this.bind(this.handleSetVault)
-                                            }, 'Set Vault')
-                                        )
-                                    ),
-
-                                    // Bonding Open Time
-                                    h('div', { className: 'config-item', 'data-config-item': 'open-time' },
-                                        h('div', { className: 'config-item-header' },
-                                            h('div', { className: 'config-item-label' }, 'Bonding Open Time'),
-                                            h('div', { className: 'config-item-status', 'data-config-status': 'open-time' }, '...')
-                                        ),
-                                        h('div', { className: 'config-item-value', 'data-config-value': 'open-time' }, 'Loading...'),
-                                        h('div', { style: { marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' } },
-                                            h('input', {
-                                                type: 'datetime-local',
-                                                'data-input': 'open-time',
-                                                className: 'form-input',
-                                                style: { flex: '1' }
-                                            }),
-                                            h('button', {
-                                                className: 'btn btn-secondary',
-                                                'data-action': 'set-open-time',
-                                                onClick: this.bind(this.handleSetOpenTime)
-                                            }, 'Set Time')
-                                        )
-                                    ),
-
-                                    // Bonding Maturity Time
-                                    h('div', { className: 'config-item', 'data-config-item': 'maturity-time' },
-                                        h('div', { className: 'config-item-header' },
-                                            h('div', { className: 'config-item-label' }, 'Bonding Maturity Time'),
-                                            h('div', { className: 'config-item-status', 'data-config-status': 'maturity-time' }, '...')
-                                        ),
-                                        h('div', { className: 'config-item-value', 'data-config-value': 'maturity-time' }, 'Loading...'),
-                                        h('div', { style: { marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' } },
-                                            h('input', {
-                                                type: 'datetime-local',
-                                                'data-input': 'maturity-time',
-                                                className: 'form-input',
-                                                style: { flex: '1' }
-                                            }),
-                                            h('button', {
-                                                className: 'btn btn-secondary',
-                                                'data-action': 'set-maturity-time',
-                                                onClick: this.bind(this.handleSetMaturityTime)
-                                            }, 'Set Time')
-                                        )
-                                    ),
-
-                                    // Enable Staking
-                                    h('div', { className: 'config-item needs-setup', 'data-config-item': 'staking' },
-                                        h('div', { className: 'config-item-header' },
-                                            h('div', { className: 'config-item-label' }, 'Enable Staking'),
-                                            h('div', { className: 'config-item-status', 'data-config-status': 'staking' }, '...')
-                                        ),
-                                        h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', margin: 'var(--space-2) 0 var(--space-3)' } },
-                                            'Once enabled, vault fees are distributed to stakers. This action is irreversible.'
-                                        ),
-                                        h('button', {
-                                            className: 'btn btn-primary',
-                                            'data-action': 'config-enable-staking',
-                                            onClick: this.bind(this.handleEnableStaking)
-                                        }, 'Enable Staking')
-                                    ),
-
-                                    // Style URI (with builder)
-                                    h('div', { className: 'config-item', 'data-config-item': 'style' },
-                                        h('div', { className: 'config-item-header' },
-                                            h('div', { className: 'config-item-label' }, 'Style URI'),
-                                            h('div', { className: 'config-item-status', 'data-config-status': 'style' }, 'Editable')
-                                        ),
-                                        h(StyleBuilder, {
-                                            onSetStyle: (uri) => this.adapter.setStyle(uri),
-                                            onGetStyle: () => this.adapter.getStyle(),
-                                            onClearStyle: () => this.adapter.setStyle('')
-                                        })
-                                    )
-                                )
+                                h('div', { className: 'modal-section-title' }, 'Project Style'),
+                                h(StyleBuilder, {
+                                    onSetStyle: (uri) => this.adapter.setStyle(uri),
+                                    onGetStyle: () => this.adapter.getStyle(),
+                                    onClearStyle: () => this.adapter.setStyle('')
+                                })
                             )
                         ),
 
                         // ── Advanced Tab ──
                         h('div', { className: 'modal-tab-content', 'data-modal-content': 'advanced' },
+                            // Bonding Open Time
+                            h('div', { className: 'modal-section' },
+                                h('div', { className: 'modal-section-title' }, 'Bonding Open Time'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
+                                    'When the bonding curve becomes available for trading. Must be in the future.'
+                                ),
+                                h('div', { className: 'config-item-value', 'data-config-value': 'open-time', style: { marginBottom: 'var(--space-2)' } }, 'Loading...'),
+                                h('div', { style: { display: 'flex', gap: 'var(--space-2)' } },
+                                    h('input', {
+                                        type: 'datetime-local',
+                                        'data-input': 'open-time',
+                                        className: 'form-input',
+                                        style: { flex: '1' }
+                                    }),
+                                    h('button', {
+                                        className: 'btn btn-secondary',
+                                        'data-action': 'set-open-time',
+                                        onClick: this.bind(this.handleSetOpenTime)
+                                    }, 'Set Time')
+                                )
+                            ),
+
+                            // Bonding Maturity Time
+                            h('div', { className: 'modal-section' },
+                                h('div', { className: 'modal-section-title' }, 'Bonding Maturity Time'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
+                                    'When the bonding curve matures and deployLiquidity becomes callable. Must be after open time.'
+                                ),
+                                h('div', { className: 'config-item-value', 'data-config-value': 'maturity-time', style: { marginBottom: 'var(--space-2)' } }, 'Loading...'),
+                                h('div', { style: { display: 'flex', gap: 'var(--space-2)' } },
+                                    h('input', {
+                                        type: 'datetime-local',
+                                        'data-input': 'maturity-time',
+                                        className: 'form-input',
+                                        style: { flex: '1' }
+                                    }),
+                                    h('button', {
+                                        className: 'btn btn-secondary',
+                                        'data-action': 'set-maturity-time',
+                                        onClick: this.bind(this.handleSetMaturityTime)
+                                    }, 'Set Time')
+                                )
+                            ),
+
+                            // Activate Staking
+                            h('div', { className: 'modal-section' },
+                                h('div', { className: 'modal-section-title' }, 'Staking'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
+                                    'Status: ',
+                                    h('strong', { 'data-config-status': 'staking' }, 'Loading...')
+                                ),
+                                h('div', {
+                                    'data-staking-note': true,
+                                    style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' }
+                                }, 'Once activated, vault fees are distributed to token stakers. This cannot be undone.'),
+                                h('button', {
+                                    className: 'btn btn-primary',
+                                    'data-action': 'activate-staking',
+                                    onClick: this.bind(this.handleActivateStaking)
+                                }, 'Activate Staking')
+                            ),
+
+                            // Migrate Vault
+                            h('div', { className: 'modal-section' },
+                                h('div', { className: 'modal-section-title' }, 'Migrate Vault'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                                    'Move to a different alignment vault. This updates the vault reference on this contract and in the master registry.'
+                                ),
+                                h('div', { style: { display: 'flex', gap: 'var(--space-2)' } },
+                                    h('input', {
+                                        type: 'text',
+                                        'data-input': 'vault-address',
+                                        placeholder: '0x...',
+                                        className: 'form-input',
+                                        style: { flex: '1' }
+                                    }),
+                                    h('button', {
+                                        className: 'btn btn-secondary',
+                                        'data-action': 'migrate-vault',
+                                        onClick: this.bind(this.handleMigrateVault)
+                                    }, 'Migrate Vault')
+                                )
+                            ),
+
                             // Transfer Ownership
                             h('div', { className: 'modal-section' },
                                 h('div', { className: 'modal-section-title' }, 'Transfer Ownership'),
@@ -703,7 +576,7 @@ export class ERC404AdminModal extends Component {
                                     h('ul', null,
                                         h('li', null, 'You will lose all admin access permanently'),
                                         h('li', null, 'No one will be able to manage this project'),
-                                        h('li', null, 'Configuration items will be locked forever'),
+                                        h('li', null, 'Open time, maturity time, and staking cannot be changed'),
                                         h('li', null, 'This action is irreversible')
                                     )
                                 ),

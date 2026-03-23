@@ -138,6 +138,20 @@ class ContractAdapter {
                 if (!signer) {
                     throw new Error('No wallet connected');
                 }
+
+                // Hard guard: verify wallet is on the expected chain before sending any tx
+                const { detectNetwork } = await import('../../config/network.js');
+                const expectedNetwork = detectNetwork();
+                if (expectedNetwork.chainId) {
+                    const { chainId: walletChainId } = await signer.provider.getNetwork();
+                    if (walletChainId !== expectedNetwork.chainId) {
+                        throw new Error(
+                            `Wrong network: wallet is on chain ${walletChainId}, ` +
+                            `expected ${expectedNetwork.chainId}. Please switch networks before transacting.`
+                        );
+                    }
+                }
+
                 contractInstance = contractInstance.connect(signer);
             }
 
@@ -150,7 +164,20 @@ class ContractAdapter {
             // Only pass txOptions for transactions, not for view functions
             let result;
             if (options.txOptions) {
-                result = await contractInstance[method](...(args || []), options.txOptions);
+                // Try estimateGas first; if it fails (e.g. smart contract wallet
+                // whose delegation target isn't on this chain), fall back to a
+                // generous manual gas limit so the tx can still be submitted.
+                let txOpts = { ...options.txOptions };
+                if (!txOpts.gasLimit) {
+                    try {
+                        const estimated = await contractInstance.estimateGas[method](...(args || []), txOpts);
+                        txOpts.gasLimit = estimated.mul(130).div(100); // 30% buffer
+                    } catch (gasError) {
+                        console.warn(`[ContractAdapter] estimateGas failed for ${method}, using manual limit:`, gasError.message?.slice(0, 100));
+                        txOpts.gasLimit = 500000;
+                    }
+                }
+                result = await contractInstance[method](...(args || []), txOpts);
             } else {
                 result = await contractInstance[method](...(args || []));
             }
@@ -174,6 +201,62 @@ class ContractAdapter {
     }
 
     /**
+     * Try to decode a custom error selector from the error data against the contract ABI.
+     * Returns a human-readable string or null if no match.
+     */
+    tryDecodeCustomError(error) {
+        // Extract hex error data from various error shapes
+        let errorData = null;
+        if (error.data && typeof error.data === 'string' && error.data.startsWith('0x')) {
+            errorData = error.data;
+        } else if (error.error?.data && typeof error.error.data === 'string' && error.error.data.startsWith('0x')) {
+            errorData = error.error.data;
+        } else if (error.error?.data?.data && typeof error.error.data.data === 'string') {
+            errorData = error.error.data.data;
+        }
+        // Also check the message for a hex selector pattern like "custom error 0xabcd1234"
+        if (!errorData) {
+            const selectorMatch = error.message?.match(/custom error (0x[0-9a-fA-F]{8})/);
+            if (selectorMatch) {
+                errorData = selectorMatch[1];
+            }
+        }
+        if (!errorData || errorData.length < 10) return null;
+
+        const selector = errorData.slice(0, 10).toLowerCase();
+
+        // Try matching against contract interface errors
+        if (this.contract?.interface) {
+            try {
+                const errorDesc = this.contract.interface.parseError(errorData);
+                if (errorDesc) {
+                    const name = errorDesc.name.replace(/([A-Z])/g, ' $1').trim();
+                    return name;
+                }
+            } catch (_) { /* selector not in this ABI */ }
+        }
+
+        // Fallback: well-known selectors
+        const knownErrors = {
+            '0xe397952c': 'Transaction Expired',
+            '0xa9bd9cf6': 'ETH amount too low for this purchase',
+            '0xf4d678b8': 'Insufficient Balance',
+            '0xe4455cae': 'Insufficient Token Balance',
+            '0x5fef763a': 'Max Cost Exceeded',
+            '0x83e0fc65': 'Bonding Not Active',
+            '0xdcea46b9': 'Bonding Ended',
+            '0xda7cdff7': 'Amount Exceeds Supply',
+            '0x91e88d61': 'Purchase Too Small',
+            '0x671d94d8': 'Token Amount Must Be Positive',
+            '0xab143c06': 'Reentrancy',
+            '0x82b42900': 'Unauthorized',
+            '0x085de625': 'Too Early',
+        };
+
+        return knownErrors[selector] || null;
+    }
+
+    /**
      * Handle contract errors with context
      * @param {Error} error - Original error
      * @param {string} method - Method name that failed
@@ -181,6 +264,12 @@ class ContractAdapter {
      */
     handleContractError(error, method) {
         let message = error.message;
+
+        // Try to decode custom error from error data (hex selector)
+        const decoded = this.tryDecodeCustomError(error);
+        if (decoded) {
+            return new Error(decoded);
+        }
 
         // Handle common contract errors
         if (error.code === 'INSUFFICIENT_FUNDS') {
@@ -201,6 +290,12 @@ class ContractAdapter {
         if (error.code === -32603 || error.message?.includes('Internal JSON-RPC')) {
             // Try to extract revert reason from error data
             let revertReason = null;
+            const errorHex = error.data?.data;
+            if (typeof errorHex === 'string' && errorHex.startsWith('0x') && errorHex.length >= 10) {
+                // Try to decode custom error from the hex data
+                const decodedFromHex = this.tryDecodeCustomError({ data: errorHex });
+                if (decodedFromHex) return new Error(decodedFromHex);
+            }
             if (error.data?.message) {
                 revertReason = error.data.message;
             } else if (error.data?.data?.message) {

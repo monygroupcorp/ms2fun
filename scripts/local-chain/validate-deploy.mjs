@@ -31,14 +31,18 @@ const CONTRACTS_DIR = path.resolve(__dirname, '../../contracts')
 const FORGE_SCRIPT_CALLS = [
   {
     script: 'script/DeployMaster.s.sol',
-    envVars: {},
+    envVars: {
+      MASTER_REGISTRY_IMPL_SALT: '<bytes32>',
+      MASTER_REGISTRY_PROXY_SALT: '<bytes32>',
+    },
   },
   {
     script: 'script/DeployERC1155Factory.s.sol',
     envVars: {
       MASTER_REGISTRY: '<address>',
-      INSTANCE_TEMPLATE: '<address>',
       GLOBAL_MESSAGE_REGISTRY: '<address>',
+      COMPONENT_REGISTRY: '<address>',
+      WETH: '<address>',
     },
   },
   {
@@ -48,6 +52,7 @@ const FORGE_SCRIPT_CALLS = [
       PROTOCOL: '<address>',
       COMPONENT_REGISTRY: '<address>',
       GLOBAL_MESSAGE_REGISTRY: '<address>',
+      WETH: '<address>',
     },
   },
 ]
@@ -92,15 +97,33 @@ const SEED_FUNCTIONS = [
   {
     contract: 'ERC404Factory',
     functions: [
-      // Full overload signature used in seed-common.mjs createERC404Instance()
-      'createInstance((string,string,string,address,address,uint256,uint8,uint8),string,address,address,(uint256,uint8))',
+      // CreateParams = (bytes32 salt, string name, string symbol, string styleUri, address owner, address vault, uint256 nftCount, uint8 presetId, address stakingModule)
+      'createInstance((bytes32,string,string,string,address,address,uint256,uint8,address),string,address,address,(uint256,uint8))',
     ],
   },
   {
     contract: 'ERC1155Factory',
     functions: [
-      // Full overload signature used in seed-common.mjs createERC1155Instance()
-      'createInstance(string,string,address,address,string)',
+      // createInstance(bytes32 salt, CreateParams params)
+      // CreateParams = (string name, string metadataURI, address creator, address vault, string styleUri, address gatingModule, (uint256,uint8) freeMint)
+      'createInstance(bytes32,(string,string,address,address,string,address,(uint256,uint8)))',
+    ],
+  },
+  {
+    contract: 'ERC721AuctionFactory',
+    functions: [
+      // createInstance(bytes32 salt, CreateParams params)
+      // CreateParams = (string name, string metadataURI, address creator, address vault, string symbol, uint8 lines, uint40 baseDuration, uint40 timeBuffer, uint256 bidIncrement)
+      'createInstance(bytes32,(string,string,address,address,string,uint8,uint40,uint40,uint256))',
+      'setProtocolTreasury(address)',
+    ],
+  },
+  {
+    contract: 'ERC721AuctionInstance',
+    functions: [
+      'queuePiece(string)',
+      'createBid(uint24,bytes)',
+      'settleAuction(uint24)',
     ],
   },
   {
@@ -119,9 +142,9 @@ const SEED_FUNCTIONS = [
     ],
   },
   {
-    contract: 'UltraAlignmentVault',
+    contract: 'UniAlignmentVault',
     functions: [
-      'receiveInstance(address,uint256,address)',
+      'receiveContribution(address,uint256,address)',
       'convertAndAddLiquidity(uint256)',
       'recordAccumulatedFees(uint256)',
       'claimFees()',

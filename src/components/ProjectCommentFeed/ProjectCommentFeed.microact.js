@@ -65,12 +65,13 @@ export class ProjectCommentFeed extends Component {
             const withComments = transformed.filter(msg => msg.message && msg.message.trim());
 
             this._allMessages = messages;
+            this._allComments = withComments;
 
             this.setState({
                 comments: withComments.slice(0, DISPLAY_SIZE),
                 totalCount: withComments.length,
                 loading: false,
-                hasMore: withComments.length > DISPLAY_SIZE || messages.length < totalCount
+                hasMore: withComments.length > DISPLAY_SIZE
             });
         } catch (error) {
             console.error('[ProjectCommentFeed] Failed to load comments:', error);
@@ -81,44 +82,56 @@ export class ProjectCommentFeed extends Component {
         }
     }
 
-    async loadMore() {
-        if (this.state.loadingMore) return;
+    loadMore() {
+        if (!this._allComments) return;
 
-        try {
-            this.setState({ loadingMore: true });
+        const newDisplayCount = this.state.displayCount + DISPLAY_SIZE;
+        const newComments = this._allComments.slice(this.state.displayCount, newDisplayCount);
 
-            const messageAdapter = await serviceFactory.getMessageRegistryAdapter();
-            const currentOffset = this._allMessages.length;
-
-            const newMessages = await messageAdapter.getInstanceMessagesPaginated(
-                this.projectAddress,
-                currentOffset,
-                BATCH_SIZE
-            );
-
-            if (newMessages.length === 0) {
-                this.setState({ loadingMore: false, hasMore: false });
-                return;
-            }
-
-            this._allMessages = [...this._allMessages, ...newMessages];
-
-            const transformed = this._allMessages.map(msg => this.transformMessage(msg));
-            const withComments = transformed.filter(msg => msg.message && msg.message.trim());
-
-            const newDisplayCount = this.state.displayCount + DISPLAY_SIZE;
-
-            this.setState({
-                comments: withComments.slice(0, newDisplayCount),
-                displayCount: newDisplayCount,
-                totalCount: withComments.length,
-                loadingMore: false,
-                hasMore: withComments.length > newDisplayCount || newMessages.length === BATCH_SIZE
-            });
-        } catch (error) {
-            console.error('[ProjectCommentFeed] Failed to load more:', error);
-            this.setState({ loadingMore: false });
+        if (newComments.length === 0) {
+            // Hide the load more button via DOM
+            const btn = this._el?.querySelector('.comment-load-more');
+            if (btn) btn.style.display = 'none';
+            this.state.hasMore = false;
+            return;
         }
+
+        // Append new comments to DOM directly to preserve existing avatars
+        const list = this._el?.querySelector('.comment-list');
+        if (list) {
+            for (const comment of newComments) {
+                const row = document.createElement('div');
+                row.className = 'comment-row';
+                row.innerHTML = `
+                    <div class="comment-avatar">${generateAddressAvatar(comment.sender)}</div>
+                    <div class="comment-content">
+                        <div class="comment-header">
+                            <span class="comment-address">${this.truncateAddress(comment.sender)}</span>
+                            <span class="comment-time">${comment.formattedTime}</span>
+                        </div>
+                        <p class="comment-message">${this.escapeHtml(comment.message)}</p>
+                        <span class="comment-action">${comment.actionText}</span>
+                    </div>
+                `;
+                list.appendChild(row);
+            }
+        }
+
+        this.state.displayCount = newDisplayCount;
+        this.state.hasMore = this._allComments.length > newDisplayCount;
+
+        // Hide button if no more
+        if (!this.state.hasMore) {
+            const btn = this._el?.querySelector('.comment-load-more');
+            if (btn) btn.style.display = 'none';
+        }
+    }
+
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     transformMessage(rawMsg) {
@@ -250,9 +263,8 @@ export class ProjectCommentFeed extends Component {
                     h('h3', null, 'Comments')
                 ),
                 h('div', { className: 'comment-empty-state' },
-                    h('span', { className: 'empty-icon' }, '💬'),
-                    h('p', { className: 'empty-title' }, 'Be the first to leave a comment'),
-                    h('p', { className: 'empty-hint' }, 'Add a message when you mint an edition')
+                    h('p', { className: 'empty-title' }, 'No comments yet'),
+                    h('p', { className: 'empty-hint' }, 'Add a message when you interact')
                 )
             );
         }

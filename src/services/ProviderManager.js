@@ -32,7 +32,31 @@ class ProviderManager {
         // Set up public RPC URLs based on network
         this.setupPublicRpcUrls(network);
 
-        // Passively check if wallet is already connected (no popup)
+        // Local mode: always use StaticJsonRpcProvider pointed at Anvil for reads.
+        // localhost is the most reliable endpoint in this context (no rate limits, no
+        // stale MetaMask block cache). Wallet connectivity is still detected so
+        // providerType reflects signing capability correctly.
+        if (network.mode === 'local') {
+            let walletConnected = false;
+            if (window.ethereum) {
+                try {
+                    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                    walletConnected = accounts && accounts.length > 0;
+                } catch (error) {
+                    // Silent fail — wallet state unknown, treat as disconnected
+                }
+            }
+
+            this.provider = new ethers.providers.StaticJsonRpcProvider(
+                network.rpcUrl,
+                { name: 'anvil', chainId: network.chainId, ensAddress: null }
+            );
+            this.providerType = walletConnected ? 'wallet' : 'public';
+            console.log(`[ProviderManager] Local mode: using StaticJsonRpcProvider (wallet ${walletConnected ? 'connected' : 'not connected'})`);
+            return { provider: this.provider, type: this.providerType };
+        }
+
+        // Production: passively check if wallet is already connected (no popup)
         if (window.ethereum) {
             try {
                 const accounts = await window.ethereum.request({ method: 'eth_accounts' });
@@ -124,6 +148,13 @@ class ProviderManager {
                 'https://eth.llamarpc.com',
                 'https://cloudflare-eth.com'
             ];
+        } else if (network.chainId === 11155111) {
+            // Sepolia testnet
+            this.publicRpcUrls = [
+                'https://ethereum-sepolia.publicnode.com',
+                'https://rpc.ankr.com/eth_sepolia',
+                'https://sepolia.gateway.tenderly.co'
+            ];
         } else {
             // Use configured RPC
             this.publicRpcUrls = [network.rpcUrl];
@@ -155,26 +186,17 @@ class ProviderManager {
                 console.log('[ProviderManager] Network not in wallet, attempting to add...');
 
                 try {
-                    // For local networks, add the chain
-                    if (network.mode === 'local') {
+                    const chainParams = this.getAddChainParams(network);
+                    if (chainParams) {
                         await window.ethereum.request({
                             method: 'wallet_addEthereumChain',
-                            params: [{
-                                chainId: `0x${network.chainId.toString(16)}`,
-                                chainName: `Anvil Local (${network.chainId})`,
-                                rpcUrls: [network.rpcUrl],
-                                nativeCurrency: {
-                                    name: 'Ethereum',
-                                    symbol: 'ETH',
-                                    decimals: 18
-                                }
-                            }]
+                            params: [chainParams]
                         });
 
                         console.log(`[ProviderManager] Added and switched to chain ${network.chainId}`);
                         return true;
                     } else {
-                        console.log('[ProviderManager] Cannot auto-add non-local networks');
+                        console.log('[ProviderManager] Cannot auto-add this network');
                         return false;
                     }
                 } catch (addError) {
@@ -192,6 +214,35 @@ class ProviderManager {
         }
 
         return false;
+    }
+
+    /**
+     * Get wallet_addEthereumChain params for supported networks
+     * @private
+     */
+    getAddChainParams(network) {
+        const chainIdHex = `0x${network.chainId.toString(16)}`;
+
+        if (network.mode === 'local') {
+            return {
+                chainId: chainIdHex,
+                chainName: `Anvil Local (${network.chainId})`,
+                rpcUrls: [network.rpcUrl],
+                nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 }
+            };
+        }
+
+        if (network.chainId === 11155111) {
+            return {
+                chainId: chainIdHex,
+                chainName: 'Sepolia Testnet',
+                rpcUrls: ['https://ethereum-sepolia.publicnode.com'],
+                nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+                blockExplorerUrls: ['https://sepolia.etherscan.io']
+            };
+        }
+
+        return null;
     }
 
     /**

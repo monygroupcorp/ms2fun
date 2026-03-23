@@ -21,6 +21,8 @@ import {
 import DataAdapter from '../services/DataAdapter.js';
 import { debug } from '../utils/debug.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
+import { generateProjectURL } from '../utils/navigation.js';
+import { detectNetwork } from '../config/network.js';
 
 export class ProjectDiscovery extends Component {
     constructor(props) {
@@ -127,9 +129,11 @@ export class ProjectDiscovery extends Component {
     }
 
     handleProjectClick = (project) => {
-        // Navigate to project detail page
-        const route = project.address ? `/project/${project.address}` : `/${project.slug}`;
-        window.router.navigate(route);
+        const { chainId } = detectNetwork();
+        const url = generateProjectURL(null, project, null, chainId);
+        if (url) {
+            window.router ? window.router.navigate(url, { state: { from: 'projects' } }) : (window.location.href = url);
+        }
     }
 
     getFilteredProjects() {

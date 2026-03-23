@@ -67,13 +67,26 @@ class WalletService {
 
                 // Set up event listeners for wallet changes
                 this.setupEventListeners();
+
+                // Auto-reconnect: check for already-authorized accounts (no popup)
+                if (!this.connected) {
+                    try {
+                        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                        if (accounts && accounts.length > 0) {
+                            const lastWallet = localStorage.getItem('ms2fun_lastWallet');
+                            await this.syncWithExistingConnection(accounts[0], lastWallet);
+                        }
+                    } catch (reconnectError) {
+                        console.warn('[WalletService] Auto-reconnect failed (non-fatal):', reconnectError.message);
+                    }
+                }
             } else {
                 eventBus.emit('wallet:notdetected');
             }
-            
+
             // Mark as initialized
             this.isInitialized = true;
-            
+
             return true;
         } catch (error) {
             console.error('Error initializing WalletService:', error);
@@ -396,7 +409,10 @@ class WalletService {
             // Create ethers provider
             this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
             this.signer = this.ethersProvider.getSigner();
-            
+
+            // Enforce correct network before completing connection
+            await this.ensureCorrectNetwork();
+
             eventBus.emit('wallet:connected', {
                 address: this.connectedAddress,
                 walletType: this.selectedWallet,
@@ -404,7 +420,7 @@ class WalletService {
                 ethersProvider: this.ethersProvider,
                 signer: this.signer
             });
-            
+
             return this.connectedAddress;
         } catch (error) {
             console.error('Wallet connection error:', error);
@@ -471,6 +487,14 @@ class WalletService {
             if (this.provider) {
                 this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
                 this.signer = this.ethersProvider.getSigner();
+
+                // Enforce correct network on auto-reconnect too
+                try {
+                    await this.ensureCorrectNetwork();
+                } catch (networkError) {
+                    console.warn('[WalletService] Wrong network on auto-reconnect:', networkError.message);
+                    eventBus.emit('wallet:wrong-network', { error: networkError.message });
+                }
             }
 
             // Emit connected event so other components can react
@@ -669,7 +693,13 @@ class WalletService {
         if (this.provider) {
             this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
             this.signer = this.ethersProvider.getSigner();
-            
+
+            // Check if we're now on the wrong network and warn
+            this.ensureCorrectNetwork().catch(error => {
+                console.warn('[WalletService] Network changed to wrong chain:', error.message);
+                eventBus.emit('wallet:wrong-network', { error: error.message });
+            });
+
             // Don't emit network:changed here - BlockchainService handles it
             // This prevents duplicate messages when both services detect the change
         }

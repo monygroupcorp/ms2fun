@@ -9,6 +9,7 @@ import RealMasterService from './RealMasterService.js';
 import RealFactoryService from './RealFactoryService.js';
 import ERC404BondingInstanceAdapter from './contracts/ERC404BondingInstanceAdapter.js';
 import ERC1155Adapter from './contracts/ERC1155Adapter.js';
+import ERC721AuctionInstanceAdapter from './contracts/ERC721AuctionInstanceAdapter.js';
 import walletService from './WalletService.js';
 import { detectNetwork } from '../config/network.js';
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
@@ -83,7 +84,17 @@ export default class RealProjectRegistry {
                     metadata.factoryAddress = instanceInfo.factoryAddress;
                     metadata.creator = instanceInfo.creator;
                     metadata.vault = instanceInfo.vault;
-                    metadata.owner = instanceInfo.creator; // Use creator as owner
+                    metadata.owner = instanceInfo.creator;
+
+                    // Parse metadataURI for description, image, etc.
+                    const onChainMeta = this._parseDataUri(instanceInfo.metadataURI);
+                    if (onChainMeta) {
+                        metadata.description = metadata.description || onChainMeta.description || '';
+                        metadata.image = metadata.image || onChainMeta.image || '';
+                        metadata.category = metadata.category || onChainMeta.category || '';
+                        metadata.tags = metadata.tags || onChainMeta.tags || [];
+                    }
+
                     this.projectCache.set(instanceAddress, metadata);
                 }
             } catch (error) {
@@ -126,6 +137,19 @@ export default class RealProjectRegistry {
      * @param {string} contractType - Contract type ('ERC404' or 'ERC1155')
      * @returns {Promise<object|null>} Instance metadata with stats
      */
+    _parseDataUri(uri) {
+        if (!uri) return null;
+        try {
+            if (uri.startsWith('data:application/json,')) {
+                return JSON.parse(decodeURIComponent(uri.replace('data:application/json,', '')));
+            }
+            if (uri.startsWith('data:application/json;base64,')) {
+                return JSON.parse(atob(uri.replace('data:application/json;base64,', '')));
+            }
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
     async _fetchInstanceMetadata(instanceAddress, contractType) {
         const { provider, signer } = this._getProvider();
         let adapter;
@@ -134,6 +158,8 @@ export default class RealProjectRegistry {
             adapter = new ERC404BondingInstanceAdapter(instanceAddress, 'ERC404Bonding', provider, signer);
         } else if (contractType === 'ERC1155') {
             adapter = new ERC1155Adapter(instanceAddress, 'ERC1155', provider, signer);
+        } else if (contractType === 'ERC721' || contractType === 'ERC721AUCTION') {
+            adapter = new ERC721AuctionInstanceAdapter(instanceAddress, 'ERC721Auction', provider, signer);
         } else {
             return null;
         }
@@ -178,6 +204,16 @@ export default class RealProjectRegistry {
                     editionCount: instanceStats.editionCount,
                     holders: 0 // Would need event indexing to calculate
                 };
+            } else if (contractType === 'ERC721' || contractType === 'ERC721AUCTION') {
+                name = await adapter.getName();
+
+                const config = await adapter.getConfig();
+                stats = {
+                    volume: '0 ETH',
+                    lines: config.lines,
+                    baseDuration: config.baseDuration,
+                    holders: 0
+                };
             }
         } catch (error) {
             console.error(`[RealProjectRegistry] Error fetching metadata for ${instanceAddress} (${contractType}):`, error);
@@ -218,9 +254,26 @@ export default class RealProjectRegistry {
             return null;
         }
 
+        // Resolve contractType from factory (instance info doesn't include it)
+        const factory = await this.masterService.getFactoryByAddress(instance.factoryAddress);
+        const contractType = factory?.contractType || 'ERC1155';
+
         // Fetch full metadata
-        const metadata = await this._fetchInstanceMetadata(projectAddress, instance.contractType);
+        const metadata = await this._fetchInstanceMetadata(projectAddress, contractType);
         if (metadata) {
+            metadata.factoryAddress = instance.factoryAddress;
+            metadata.creator = instance.creator;
+            metadata.vault = instance.vault;
+
+            // Parse metadataURI for description, image, etc.
+            const onChainMeta = this._parseDataUri(instance.metadataURI);
+            if (onChainMeta) {
+                metadata.description = metadata.description || onChainMeta.description || '';
+                metadata.image = metadata.image || onChainMeta.image || '';
+                metadata.category = metadata.category || onChainMeta.category || '';
+                metadata.tags = metadata.tags || onChainMeta.tags || [];
+            }
+
             this.projectCache.set(projectAddress, metadata);
         }
 
@@ -366,10 +419,6 @@ export default class RealProjectRegistry {
      * @returns {Promise<object|null>} Project data with instance info
      */
     async getProjectByName(instanceName) {
-        if (!this.indexed) {
-            await this.indexFromMaster();
-        }
-
         // Helper to slugify for comparison
         const slugify = (text) => {
             if (!text) return '';
@@ -379,6 +428,49 @@ export default class RealProjectRegistry {
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-+|-+$/g, '');
         };
+
+        // Fast path: resolve address from config file, then fetch just that project
+        try {
+            const network = detectNetwork();
+            const configPath = network.contracts;
+            if (configPath) {
+                const response = await fetch(configPath);
+                if (response.ok) {
+                    const config = await response.json();
+                    const allInstances = [
+                        ...(config.instances?.erc404 || []),
+                        ...(config.instances?.erc1155 || []),
+                        ...(config.instances?.erc721 || [])
+                    ];
+                    const configInstance = allInstances.find(inst =>
+                        slugify(inst.name) === slugify(instanceName)
+                    );
+                    if (configInstance) {
+                        console.log(`[RealProjectRegistry] Fast-path: resolved "${instanceName}" -> ${configInstance.address}`);
+                        const project = await this.getProject(configInstance.address);
+                        if (project) {
+                            let factory = null;
+                            if (project.factoryAddress) {
+                                const factoryConfig = config.factories?.find(f =>
+                                    f.address.toLowerCase() === project.factoryAddress.toLowerCase()
+                                );
+                                if (factoryConfig) {
+                                    factory = { address: factoryConfig.address, title: factoryConfig.title, type: factoryConfig.type };
+                                }
+                            }
+                            return { factory, instance: project };
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('[RealProjectRegistry] Config fast-path failed, falling back to index:', error);
+        }
+
+        // Slow path: full index scan
+        if (!this.indexed) {
+            await this.indexFromMaster();
+        }
 
         // Find project with matching name
         const projects = Array.from(this.projectCache.values());

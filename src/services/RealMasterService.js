@@ -24,22 +24,24 @@ export default class RealMasterService {
      * Get provider (from wallet or create read-only for local mode)
      */
     _getProvider() {
-        const { provider } = walletService.getProviderAndSigner();
+        const { provider, signer } = walletService.getProviderAndSigner();
 
-        // If wallet is connected, use its provider
-        if (provider) {
-            return { provider, signer: walletService.getProviderAndSigner().signer };
-        }
-
-        // For local mode, create a read-only JsonRpcProvider
+        // In local mode, always use StaticJsonRpcProvider for reads regardless of
+        // wallet state. MetaMask caches the block number and sends it as blockTag on
+        // eth_call — after an Anvil restart the cached block is stale and calls revert.
+        // Wallet signer is still passed through for transaction signing.
         const network = detectNetwork();
         if (network.mode === 'local' && network.rpcUrl) {
-            // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
-            const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(
+            const readProvider = new ethers.providers.StaticJsonRpcProvider(
                 network.rpcUrl,
                 { name: 'anvil', chainId: network.chainId, ensAddress: null }
             );
-            return { provider: readOnlyProvider, signer: null };
+            return { provider: readProvider, signer: signer || null };
+        }
+
+        // Production: use wallet provider when connected
+        if (provider) {
+            return { provider, signer };
         }
 
         throw new Error('No provider available. Please connect a wallet or ensure local Anvil is running.');

@@ -54,7 +54,7 @@ class ERC1155FactoryAdapter extends ContractAdapter {
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             this.initialized = true;

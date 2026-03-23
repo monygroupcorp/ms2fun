@@ -26,17 +26,20 @@ export class EnvironmentDetector {
 
         // Allow forcing a specific mode via env var (useful for previewing production states locally)
         const forcedMode = import.meta.env.VITE_FORCE_MODE;
-        const validModes = ['LOCAL_BLOCKCHAIN', 'PLACEHOLDER_MOCK', 'PRODUCTION_DEPLOYED', 'COMING_SOON', 'MAINNET_DEV'];
+        const validModes = ['LOCAL_BLOCKCHAIN', 'PLACEHOLDER_MOCK', 'PRODUCTION_DEPLOYED', 'COMING_SOON', 'MAINNET_DEV', 'SEPOLIA_DEV', 'SEPOLIA'];
         if (forcedMode && validModes.includes(forcedMode)) {
             // Load appropriate config instead of returning null
             const useMainnetConfig = ['PRODUCTION_DEPLOYED', 'MAINNET_DEV'].includes(forcedMode);
+            const useSepoliaConfig = ['SEPOLIA_DEV', 'SEPOLIA'].includes(forcedMode);
             const useLocalConfig = forcedMode === 'LOCAL_BLOCKCHAIN';
             let configData = null;
 
-            if (useMainnetConfig || useLocalConfig) {
-                const configPath = useMainnetConfig
-                    ? '/src/config/contracts.mainnet.json'
-                    : '/src/config/contracts.local.json';
+            if (useMainnetConfig || useSepoliaConfig || useLocalConfig) {
+                const configPath = useSepoliaConfig
+                    ? '/src/config/contracts.sepolia.json'
+                    : useMainnetConfig
+                        ? '/src/config/contracts.mainnet.json'
+                        : '/src/config/contracts.local.json';
                 // For forced modes, return raw config even if MasterRegistryV1 isn't deployed.
                 // Standalone contracts (e.g. CULT EXEC) don't need the registry.
                 try {

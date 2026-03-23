@@ -16,17 +16,17 @@ export const CONFIG_PATH = path.resolve(__dirname, '../../src/config/contracts.l
  * @param {string} params.core.globalMessageRegistry
  * @param {string} params.core.featuredQueueManager
  * @param {string} params.core.queryAggregator
- * @param {string} params.core.hookFactory
- * @param {object} params.factories - Factory addresses { erc1155, erc404 }
+ * @param {object} params.factories - Factory addresses { erc1155, erc404, erc721 }
  * @param {string} params.factories.erc1155
  * @param {string} params.factories.erc404
+ * @param {string} params.factories.erc721
  * @param {object[]} params.vaults - Array of vault info objects
  * @param {object} params.instances - Instance info { erc404: [], erc1155: [] }
  * @param {object} params.testAccounts - Test account addresses
  * @param {object} params.mainnetAddresses - Mainnet fork addresses (uniswap, tokens, etc.)
  * @param {object} params.userHoldings - Summary of what USER_ADDRESS holds
  * @param {string} [params.scenario] - Scenario name (e.g. "default")
- * @param {string} [params.grandCentral] - GrandCentral DAO address (optional, zero address if not deployed)
+ * @param {object} [params.governance] - Governance addresses { grandCentral, safe, shareOffering, revenueConductor, otcShareEscrow }
  * Note: a `messages` field (total global message count etc.) is intentionally NOT written here.
  * It is populated by the seeding scenario after seeding completes, then merged in via run-local.mjs.
  */
@@ -39,10 +39,11 @@ export async function writeConfig({
   mainnetAddresses,
   userHoldings,
   scenario,
-  grandCentral,
+  governance,
 }) {
   const config = {
     generatedAt: new Date().toISOString(),
+    deployBlock: core.deployBlock ?? 0,
     chainId: 1337,
     mode: 'local-fork',
     scenario: scenario ?? 'default',
@@ -55,9 +56,13 @@ export async function writeConfig({
       QueryAggregator: core.queryAggregator,
       ERC404Factory: factories.erc404,
       ERC1155Factory: factories.erc1155,
-      UltraAlignmentHookFactory: core.hookFactory,
+      ERC721AuctionFactory: factories.erc721 ?? '0x0000000000000000000000000000000000000000',
       ComponentRegistry: core.componentRegistry ?? '0x0000000000000000000000000000000000000000',
-      GrandCentral: grandCentral ?? '0x0000000000000000000000000000000000000000',
+      GrandCentral: governance?.grandCentral ?? '0x0000000000000000000000000000000000000000',
+      GnosisSafe: governance?.safe ?? '0x0000000000000000000000000000000000000000',
+      ShareOffering: governance?.shareOffering ?? '0x0000000000000000000000000000000000000000',
+      RevenueConductor: governance?.revenueConductor ?? '0x0000000000000000000000000000000000000000',
+      OTCShareEscrow: governance?.otcShareEscrow ?? '0x0000000000000000000000000000000000000000',
     },
     factories: [
       {
@@ -76,6 +81,14 @@ export async function writeConfig({
         factoryId: 2,
         registered: true,
       },
+      ...(factories.erc721 ? [{
+        address: factories.erc721,
+        type: 'ERC721',
+        title: 'ERC721-Auction-Factory',
+        displayTitle: 'ERC721 Auction',
+        factoryId: 3,
+        registered: true,
+      }] : []),
     ],
     vaults,
     instances,
@@ -98,6 +111,10 @@ export async function writeConfig({
       dictator: testAccounts.owner,
       abdicationInitiated: false,
       mode: 'dictator',
+      safe: governance?.safe ?? null,
+      shareOffering: governance?.shareOffering ?? null,
+      revenueConductor: governance?.revenueConductor ?? null,
+      otcShareEscrow: governance?.otcShareEscrow ?? null,
     },
     userHoldings,
   }

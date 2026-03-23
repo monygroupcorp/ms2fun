@@ -45,7 +45,7 @@ class ShareOfferingAdapter extends ContractAdapter {
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             this.initialized = true;
@@ -86,7 +86,7 @@ class ShareOfferingAdapter extends ContractAdapter {
         return await this.getCachedOrFetch('getCommitment', [trancheId, buyer], async () => {
             const result = await this.executeContractCall('getCommitment', [trancheId, buyer]);
             return {
-                shares: ethers.utils.formatEther(result.shares || result[0]),
+                shares: parseInt((result.shares || result[0]).toString()),
                 ethValue: ethers.utils.formatEther(result.ethValue || result[1])
             };
         }, CACHE_TTL.DYNAMIC);
@@ -144,14 +144,14 @@ class ShareOfferingAdapter extends ContractAdapter {
     _parseTranche(t) {
         return {
             pricePerShare: ethers.utils.formatEther(t.pricePerShare || t[0]),
-            totalShares: ethers.utils.formatEther(t.totalShares || t[1]),
-            committedShares: ethers.utils.formatEther(t.committedShares || t[2]),
+            totalShares: parseInt((t.totalShares || t[1]).toString()),
+            committedShares: parseInt((t.committedShares || t[2]).toString()),
             totalETHCommitted: ethers.utils.formatEther(t.totalETHCommitted || t[3]),
             startTime: parseInt((t.startTime || t[4]).toString()),
             endTime: parseInt((t.endTime || t[5]).toString()),
             finalizeDeadline: parseInt((t.finalizeDeadline || t[6]).toString()),
-            minShares: ethers.utils.formatEther(t.minShares || t[7]),
-            maxSharesPerAddress: ethers.utils.formatEther(t.maxSharesPerAddress || t[8]),
+            minShares: parseInt((t.minShares || t[7]).toString()),
+            maxSharesPerAddress: parseInt((t.maxSharesPerAddress || t[8]).toString()),
             status: parseInt((t.status || t[9]).toString()),
             whitelistRoot: t.whitelistRoot || t[10]
         };

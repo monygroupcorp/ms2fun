@@ -17,7 +17,6 @@ import { h, Component } from '@monygroupcorp/microact';
 import { TopBar } from './TopBar.js';
 import { MobileNav } from './MobileNav.js';
 import { Footer } from './Footer.js';
-import { SimpleWalletButton } from '../Web3/SimpleWalletButton.js';
 
 export class Layout extends Component {
     constructor(props) {
@@ -56,8 +55,6 @@ export class Layout extends Component {
             h('main', { className: 'app-main' },
                 children
             ),
-
-            h(SimpleWalletButton),
 
             h(Footer)
         );

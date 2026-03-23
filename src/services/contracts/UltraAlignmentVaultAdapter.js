@@ -48,13 +48,13 @@ class UltraAlignmentVaultAdapter extends ContractAdapter {
             }
 
             // Load contract ABI
-            const abi = await loadABI('UltraAlignmentVault');
+            const abi = await loadABI('UniAlignmentVault');
 
             // Initialize main contract
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             this.initialized = true;

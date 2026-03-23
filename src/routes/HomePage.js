@@ -17,6 +17,8 @@ import { DataAdapter } from '../services/DataAdapter.js';
 import { ProjectCardSkeleton, ActivityItemSkeleton, FeaturedBannerSkeleton } from '../components/Skeletons/Skeletons.js';
 import { debug } from '../utils/debug.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
+import { generateProjectURL } from '../utils/navigation.js';
+import { detectNetwork } from '../config/network.js';
 
 export class HomePage extends Component {
     constructor(props) {
@@ -117,9 +119,11 @@ export class HomePage extends Component {
 
     handleProjectClick = (project) => (e) => {
         e.preventDefault();
-        const projectSlug = this.formatProjectNameForUrl(project.name);
-        const path = `/${projectSlug}`;
-        window.router.navigate(path);
+        const { chainId } = detectNetwork();
+        const url = generateProjectURL(null, { name: project.name, address: project.address }, null, chainId);
+        if (url) {
+            window.router.navigate(url, { state: { from: 'home' } });
+        }
     }
 
     handleFeaturedClick = () => {
@@ -128,14 +132,15 @@ export class HomePage extends Component {
 
         // CULT EXECS always navigates to /cultexecs
         if (featured.name === 'CULT EXECUTIVES' || featured.name === 'CULT EXEC') {
-            window.router.navigate('/cultexecs');
+            window.router.navigate('/cultexecs', { state: { from: 'home' } });
             return;
         }
 
-        // Other projects navigate to their name slug
-        const projectSlug = this.formatProjectNameForUrl(featured.name);
-        const path = `/${projectSlug}`;
-        window.router.navigate(path);
+        const { chainId } = detectNetwork();
+        const url = generateProjectURL(null, { name: featured.name, address: featured.address }, null, chainId);
+        if (url) {
+            window.router.navigate(url, { state: { from: 'home' } });
+        }
     }
 
     handleViewAllActivity = (e) => {
@@ -144,15 +149,15 @@ export class HomePage extends Component {
     }
 
     formatTVL(tvl) {
-        if (!tvl || tvl === '0') return '$0';
+        if (!tvl || tvl === '0') return '0 ETH';
 
         const num = parseFloat(tvl);
-        if (num >= 1000000) {
-            return `$${(num / 1000000).toFixed(1)}M`;
-        } else if (num >= 1000) {
-            return `$${(num / 1000).toFixed(0)}K`;
+        if (num >= 1000) {
+            return `${(num / 1000).toFixed(1)}K ETH`;
+        } else if (num >= 1) {
+            return `${num.toFixed(2)} ETH`;
         }
-        return `$${num.toFixed(0)}`;
+        return `${num.toFixed(4)} ETH`;
     }
 
     truncateAddress(address) {

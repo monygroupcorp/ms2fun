@@ -39,7 +39,7 @@ export class TransactionOptions extends Component {
     /**
      * Override shouldUpdate to prevent re-render during message typing
      */
-    shouldUpdate(oldState, newState) {
+    shouldUpdate(oldProps, newProps, oldState, newState) {
         // Full re-render needed for structural changes
         if (oldState.isPhase2 !== newState.isPhase2) return true;
         if (oldState.swapDirection !== newState.swapDirection) return true;

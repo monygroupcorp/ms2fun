@@ -28,8 +28,9 @@ class GovernanceEventIndexer {
      * Initialize the indexer: load from cache, then index new events
      * @param {Object} adapter - GrandCentralAdapter instance
      */
-    async initialize(adapter) {
+    async initialize(adapter, deployBlock = 0) {
         this.adapter = adapter;
+        this.deployBlock = deployBlock;
         this._loadFromCache();
 
         try {
@@ -57,7 +58,7 @@ class GovernanceEventIndexer {
 
         if (currentBlock <= this.lastIndexedBlock) return;
 
-        const fromBlock = this.lastIndexedBlock > 0 ? this.lastIndexedBlock + 1 : 0;
+        const fromBlock = this.lastIndexedBlock > 0 ? this.lastIndexedBlock + 1 : this.deployBlock;
         await this._indexRange(fromBlock, currentBlock);
 
         this.lastIndexedBlock = currentBlock;

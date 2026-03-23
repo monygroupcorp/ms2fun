@@ -1,18 +1,14 @@
 /**
  * NFTGalleryPreview - Microact Version
  *
- * Shows limited NFT grid for NFT tab with link to full gallery.
- * Uses adapter pattern for multiple methods of getting NFT data.
- *
- * CANDIDATE FOR EventIndexer migration - see docs/plans/2026-02-04-contract-event-migration.md
- * Current pattern uses multiple fallback getters (totalNFTSupply, tokenByIndex, etc.)
- * Could be replaced by indexing Transfer events.
+ * Paginated NFT grid for the NFT tab with skeleton loading states.
+ * Uses DN404 mirror contract to enumerate minted NFTs.
  */
 
 import { Component, h } from '../../core/microact-setup.js';
-import { renderIpfsImage, enhanceAllIpfsImages } from '../../utils/ipfsImageHelper.js';
+import { NFTDetailModal } from './NFTDetailModal.microact.js';
 
-const PREVIEW_LIMIT = 12;
+const PAGE_SIZE = 24;
 
 export class NFTGalleryPreview extends Component {
     constructor(props = {}) {
@@ -21,7 +17,9 @@ export class NFTGalleryPreview extends Component {
             loading: true,
             nfts: [],
             totalCount: 0,
-            error: null
+            page: 0,
+            error: null,
+            selectedTokenId: null
         };
     }
 
@@ -34,87 +32,53 @@ export class NFTGalleryPreview extends Component {
     }
 
     async didMount() {
-        await this.loadNFTs();
+        await this.loadPage(0);
     }
 
-    async loadNFTs() {
+    async loadPage(page) {
         try {
-            this.setState({ loading: true, error: null });
+            this.setState({ loading: true, error: null, page });
 
             let totalSupply = 0;
 
-            // Try multiple methods to get total NFT count
-            // NOTE: This is a candidate for EventIndexer - could index Transfer events instead
-            if (typeof this.adapter?.totalNFTSupply === 'function') {
-                try {
-                    const supply = await this.adapter.totalNFTSupply();
-                    totalSupply = parseInt(supply?.toString() || '0');
-                } catch (e) {
-                    // Continue to fallbacks
-                }
-            }
-
-            if (totalSupply === 0 && typeof this.adapter?.getTotalNFTsMinted === 'function') {
-                try {
-                    const supply = await this.adapter.getTotalNFTsMinted();
-                    totalSupply = parseInt(supply?.toString() || '0');
-                } catch (e) {
-                    // Continue to fallbacks
-                }
-            }
-
-            if (totalSupply === 0 && this.adapter?.mirrorContract) {
+            // Get total NFT count from mirror contract or adapter
+            if (this.adapter?.mirrorContract) {
                 try {
                     const supply = await this.adapter.mirrorContract.totalSupply();
                     totalSupply = parseInt(supply?.toString() || '0');
-                } catch (e) {
-                    // No fallbacks left
-                }
+                } catch (e) { /* continue */ }
             }
 
-            const nfts = [];
-            const limit = Math.min(PREVIEW_LIMIT, totalSupply);
-
-            for (let i = 0; i < limit; i++) {
+            if (totalSupply === 0 && typeof this.adapter?.totalNFTSupply === 'function') {
                 try {
-                    let tokenId = null;
-
-                    // Try multiple methods to get tokenId by index
-                    // NOTE: Could be replaced by EventIndexer query
-                    if (typeof this.adapter?.tokenByIndex === 'function') {
-                        try {
-                            tokenId = await this.adapter.tokenByIndex(i);
-                        } catch (e) { /* continue */ }
-                    }
-
-                    if (!tokenId && typeof this.adapter?.nftTokenByIndex === 'function') {
-                        try {
-                            tokenId = await this.adapter.nftTokenByIndex(i);
-                        } catch (e) { /* continue */ }
-                    }
-
-                    if (!tokenId && this.adapter?.mirrorContract?.tokenByIndex) {
-                        try {
-                            tokenId = await this.adapter.mirrorContract.tokenByIndex(i);
-                        } catch (e) { /* continue */ }
-                    }
-
-                    if (!tokenId && totalSupply > 0) {
-                        tokenId = i + 1;
-                    }
-
-                    if (tokenId !== null) {
-                        const metadata = await this.fetchTokenMetadata(tokenId);
-                        nfts.push({
-                            tokenId: tokenId.toString(),
-                            image: metadata?.image || null,
-                            name: metadata?.name || `#${tokenId}`
-                        });
-                    }
-                } catch (e) {
-                    console.warn('[NFTGalleryPreview] Error loading NFT at index', i, ':', e);
-                }
+                    const supply = await this.adapter.totalNFTSupply();
+                    totalSupply = parseInt(supply?.toString() || '0');
+                } catch (e) { /* continue */ }
             }
+
+            const start = page * PAGE_SIZE;
+            const end = Math.min(start + PAGE_SIZE, totalSupply);
+            const nfts = [];
+
+            // Fetch page of NFTs in parallel batches
+            const tokenIds = [];
+            for (let i = start; i < end; i++) {
+                tokenIds.push(this.getTokenIdAtIndex(i, totalSupply));
+            }
+            const resolvedIds = await Promise.all(tokenIds);
+
+            // Fetch metadata in parallel
+            const metadataPromises = resolvedIds.map(async (tokenId) => {
+                if (tokenId === null) return null;
+                const metadata = await this.fetchTokenMetadata(tokenId);
+                return {
+                    tokenId: tokenId.toString(),
+                    image: metadata?.image || null,
+                    name: metadata?.name || `#${tokenId}`
+                };
+            });
+            const results = await Promise.all(metadataPromises);
+            results.forEach(r => { if (r) nfts.push(r); });
 
             this.setState({
                 loading: false,
@@ -127,54 +91,49 @@ export class NFTGalleryPreview extends Component {
         }
     }
 
-    async fetchTokenMetadata(tokenId) {
-        let metadata = null;
+    async getTokenIdAtIndex(index, totalSupply) {
+        if (this.adapter?.mirrorContract?.tokenByIndex) {
+            try {
+                return await this.adapter.mirrorContract.tokenByIndex(index);
+            } catch (e) { /* continue */ }
+        }
+        if (typeof this.adapter?.tokenByIndex === 'function') {
+            try {
+                return await this.adapter.tokenByIndex(index);
+            } catch (e) { /* continue */ }
+        }
+        // Fallback: assume sequential IDs
+        return totalSupply > 0 ? index + 1 : null;
+    }
 
+    async fetchTokenMetadata(tokenId) {
+        // Try adapter method first
         if (typeof this.adapter?.getTokenMetadata === 'function') {
             try {
-                metadata = await this.adapter.getTokenMetadata(tokenId);
+                const metadata = await this.adapter.getTokenMetadata(tokenId);
                 if (metadata) return metadata;
             } catch (e) { /* continue */ }
         }
 
+        // Try tokenURI
         let tokenUri = null;
-
         if (typeof this.adapter?.tokenURI === 'function') {
-            try {
-                tokenUri = await this.adapter.tokenURI(tokenId);
-            } catch (e) { /* continue */ }
+            try { tokenUri = await this.adapter.tokenURI(tokenId); } catch (e) { /* continue */ }
         }
-
         if (!tokenUri && typeof this.adapter?.getTokenUri === 'function') {
-            try {
-                tokenUri = await this.adapter.getTokenUri(tokenId);
-            } catch (e) { /* continue */ }
+            try { tokenUri = await this.adapter.getTokenUri(tokenId); } catch (e) { /* continue */ }
         }
-
         if (!tokenUri && this.adapter?.mirrorContract?.tokenURI) {
-            try {
-                tokenUri = await this.adapter.mirrorContract.tokenURI(tokenId);
-            } catch (e) { /* continue */ }
+            try { tokenUri = await this.adapter.mirrorContract.tokenURI(tokenId); } catch (e) { /* continue */ }
         }
 
         if (tokenUri) {
             try {
-                metadata = await this.fetchMetadataFromUri(tokenUri);
-            } catch (e) {
-                console.warn('[NFTGalleryPreview] Failed to fetch metadata from URI:', tokenUri, e);
-            }
+                return await this.fetchMetadataFromUri(tokenUri);
+            } catch (e) { /* continue */ }
         }
 
-        if (!metadata && typeof this.adapter?.getStyle === 'function') {
-            try {
-                const styleUri = await this.adapter.getStyle();
-                if (styleUri) {
-                    metadata = { image: styleUri, name: `#${tokenId}` };
-                }
-            } catch (e) { /* no style */ }
-        }
-
-        return metadata;
+        return null;
     }
 
     async fetchMetadataFromUri(uri) {
@@ -183,11 +142,8 @@ export class NFTGalleryPreview extends Component {
         if (uri.startsWith('data:application/json')) {
             try {
                 const base64Data = uri.split(',')[1];
-                const jsonStr = atob(base64Data);
-                return JSON.parse(jsonStr);
-            } catch (e) {
-                return null;
-            }
+                return JSON.parse(atob(base64Data));
+            } catch (e) { return null; }
         }
 
         let fetchUrl = uri;
@@ -196,39 +152,81 @@ export class NFTGalleryPreview extends Component {
         }
 
         try {
-            const response = await fetch(fetchUrl, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' }
-            });
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const response = await fetch(fetchUrl, { headers: { 'Accept': 'application/json' } });
+            if (!response.ok) return null;
             return await response.json();
-        } catch (e) {
-            return null;
-        }
+        } catch (e) { return null; }
+    }
+
+    handlePageChange(newPage) {
+        this.loadPage(newPage);
     }
 
     handleNFTClick(tokenId) {
-        // Could emit event or navigate to NFT detail
-        console.log('[NFTGalleryPreview] NFT clicked:', tokenId);
+        this.setState({ selectedTokenId: tokenId });
     }
 
-    handleViewGallery() {
-        const { onNavigate } = this.props;
-        if (onNavigate) {
-            onNavigate(`/project/${this.projectId}/gallery`);
-        } else {
-            window.location.href = `/project/${this.projectId}/gallery`;
+    handleCloseModal() {
+        this.setState({ selectedTokenId: null });
+    }
+
+    shouldUpdate(oldProps, newProps, oldState, newState) {
+        if (oldState.loading !== newState.loading) return true;
+        if (oldState.page !== newState.page) return true;
+        if (oldState.nfts !== newState.nfts) return true;
+        if (oldState.error !== newState.error) return true;
+        if (oldState.selectedTokenId !== newState.selectedTokenId) return true;
+        return false;
+    }
+
+    renderSkeleton() {
+        const cards = [];
+        for (let i = 0; i < PAGE_SIZE; i++) {
+            cards.push(
+                h('div', { key: `skel-${i}`, className: 'nft-card nft-card--skeleton' },
+                    h('div', { className: 'nft-image' },
+                        h('div', { className: 'skeleton skeleton-square' })
+                    ),
+                    h('div', { className: 'nft-name' },
+                        h('div', { className: 'skeleton skeleton-text short' })
+                    )
+                )
+            );
         }
+        return h('div', { className: 'nft-grid' }, ...cards);
+    }
+
+    renderPagination() {
+        const { page, totalCount } = this.state;
+        const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+        if (totalPages <= 1) return null;
+
+        return h('div', { className: 'nft-pagination' },
+            h('button', {
+                className: 'pagination-btn',
+                disabled: page === 0,
+                onClick: () => this.handlePageChange(page - 1)
+            }, 'Prev'),
+            h('span', { className: 'pagination-info' },
+                `${page + 1} / ${totalPages}`
+            ),
+            h('button', {
+                className: 'pagination-btn',
+                disabled: page >= totalPages - 1,
+                onClick: () => this.handlePageChange(page + 1)
+            }, 'Next')
+        );
     }
 
     render() {
-        const { loading, nfts, totalCount, error } = this.state;
+        const { loading, nfts, totalCount, error, selectedTokenId } = this.state;
 
         if (loading) {
-            return h('div', { className: 'nft-gallery-preview loading' },
-                h('div', { className: 'spinner' }),
-                h('p', null, 'Loading NFTs...')
+            return h('div', { className: 'nft-gallery-preview' },
+                h('div', { className: 'nft-gallery-header' },
+                    h('span', { className: 'nft-count' }, 'Loading...')
+                ),
+                this.renderSkeleton()
             );
         }
 
@@ -239,7 +237,7 @@ export class NFTGalleryPreview extends Component {
             );
         }
 
-        if (nfts.length === 0) {
+        if (totalCount === 0) {
             return h('div', { className: 'nft-gallery-preview empty' },
                 h('div', { className: 'empty-state' },
                     h('p', { className: 'empty-title' }, 'No NFTs minted yet'),
@@ -249,11 +247,13 @@ export class NFTGalleryPreview extends Component {
         }
 
         return h('div', { className: 'nft-gallery-preview' },
+            h('div', { className: 'nft-gallery-header' },
+                h('span', { className: 'nft-count' }, `${totalCount} NFTs minted`)
+            ),
             h('div', { className: 'nft-grid' },
                 ...nfts.map(nft =>
                     h('div', {
                         className: 'nft-card',
-                        'data-token-id': nft.tokenId,
                         key: nft.tokenId,
                         onClick: () => this.handleNFTClick(nft.tokenId)
                     },
@@ -264,7 +264,8 @@ export class NFTGalleryPreview extends Component {
                                         ? nft.image.replace('ipfs://', 'https://ipfs.io/ipfs/')
                                         : nft.image,
                                     alt: nft.name,
-                                    className: 'nft-img'
+                                    className: 'nft-img',
+                                    loading: 'lazy'
                                 })
                                 : h('div', { className: 'nft-placeholder' })
                         ),
@@ -272,16 +273,13 @@ export class NFTGalleryPreview extends Component {
                     )
                 )
             ),
+            this.renderPagination(),
 
-            totalCount > PREVIEW_LIMIT && h('div', { className: 'gallery-link' },
-                h('a', {
-                    href: `/project/${this.projectId}/gallery`,
-                    onClick: (e) => {
-                        e.preventDefault();
-                        this.handleViewGallery();
-                    }
-                }, `View Full Gallery (${totalCount} NFTs) →`)
-            )
+            selectedTokenId && h(NFTDetailModal, {
+                adapter: this.adapter,
+                tokenId: selectedTokenId,
+                onClose: () => this.handleCloseModal()
+            })
         );
     }
 }

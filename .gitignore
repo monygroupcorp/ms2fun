@@ -1,13 +1,8 @@
-# OS generated files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Environment files
+# Environment
 .env
 .env.local
 .env.development.local
@@ -15,31 +10,59 @@ Thumbs.db
 .env.production.local
 
 # Dependencies
-/node_modules
-/bower_components
+node_modules/
+bower_components/
+
+# Build output
+dist/
+build/
+out/
+
+# Cache
+.npm
+.eslintcache
+.cache
 
 # Logs
-logs
+logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# IDE specific files
+# IDE
 .idea
 .vscode
 *.swp
 *.swo
-.project
-.classpath
-.settings/
 
-# Build output
-/dist
-/build
-/out
+# AI tooling
+.claude/
+.cursor/
+CLAUDE.md
 
-# Cache directories
-.npm
-.eslintcache
-.cache
+# Internal docs (promote to docs/public/ when ready)
+docs/*
+!docs/examples/
+!docs/public/
+
+# Root-level planning docs
+ABI_COVERAGE_REPORT.json
+MISSING_FUNCTIONS_ANALYSIS.json
+CONTRACTS_AGENT_BRIEFING.md
+DATA_LAYER_ARCHITECTURE.md
+FRONTEND_COVERAGE_CHECKLIST.md
+GITHUB_PAGES_ROUTING.md
+LOCAL_DEV_GUIDE.md
+MESSAGE_SYSTEM_FIXES.md
+V2_PROJECT_STRUCTURE.md
+localdeployment.md
+
+# Debug/diagnostic scripts
+diagnose-*.js
+marble-debug.js
+hashtest.js
+test-mock-console.js
+spike-*.js
+example_local_deployment_setup_script.mjs
+scripts/debug-*.mjs
+
+# Misc
+.htaccess

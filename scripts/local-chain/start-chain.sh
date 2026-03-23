@@ -99,14 +99,12 @@ for i in {1..30}; do
 done
 
 # Build contracts
-# FOUNDRY_VIA_IR=false overrides via_ir=true in foundry.toml for local dev.
-# via_ir is required for production (stack-too-deep fixes) but adds 10-20x
-# compile time. Skip it locally — if a contract fails to compile without it,
-# that's a signal to fix the stack depth, not enable IR for dev builds.
+# via_ir is required for ERC404Factory (stack-too-deep without it).
+# Slower compile but necessary for correctness.
 echo ""
-echo "🔨 Building contracts (via_ir disabled for speed)..."
+echo "🔨 Building contracts (via_ir enabled)..."
 cd contracts
-FOUNDRY_VIA_IR=false forge build
+forge build
 if [ $? -ne 0 ]; then
     echo ""
     echo "❌ Contract build failed!"

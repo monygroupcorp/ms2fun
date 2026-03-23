@@ -6,6 +6,8 @@
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 import serviceFactory from '../services/ServiceFactory.js';
 import { renderIpfsImage, enhanceAllIpfsImages } from '../utils/ipfsImageHelper.js';
+import { generateProjectURL } from '../utils/navigation.js';
+import { detectNetwork } from '../config/network.js';
 
 /**
  * Escape HTML to prevent XSS
@@ -278,6 +280,12 @@ export async function renderNFTGalleryPage(params) {
     `;
 
     try {
+        // Compute back URL once project is known (updated after load)
+        const backURL = (proj) => {
+            const { chainId } = detectNetwork();
+            return generateProjectURL(null, proj, null, chainId) || `/project/${projectId}`;
+        };
+
         // Get project from registry
         const projectRegistry = serviceFactory.getProjectRegistry();
         let project = await projectRegistry.getProject(projectId);
@@ -309,7 +317,7 @@ export async function renderNFTGalleryPage(params) {
             appContainer.innerHTML = `
                 <div class="nft-gallery-page">
                     <div class="gallery-header">
-                        <a href="/project/${escapeHtml(projectId)}" class="back-link">&larr; Back to Project</a>
+                        <a href="${backURL(project)}" class="back-link">&larr; Back to Project</a>
                         <h1>${escapeHtml(project.name || 'Unknown Project')}</h1>
                     </div>
                     <div class="gallery-error">
@@ -328,7 +336,7 @@ export async function renderNFTGalleryPage(params) {
             appContainer.innerHTML = `
                 <div class="nft-gallery-page">
                     <div class="gallery-header">
-                        <a href="/project/${escapeHtml(projectId)}" class="back-link">&larr; Back to Project</a>
+                        <a href="${backURL(project)}" class="back-link">&larr; Back to Project</a>
                         <h1>${escapeHtml(project.name || 'Unknown Project')}</h1>
                         <p class="nft-count">0 NFTs</p>
                     </div>
@@ -344,7 +352,7 @@ export async function renderNFTGalleryPage(params) {
             appContainer.innerHTML = `
                 <div class="nft-gallery-page">
                     <div class="gallery-header">
-                        <a href="/project/${escapeHtml(projectId)}" class="back-link">&larr; Back to Project</a>
+                        <a href="${backURL(project)}" class="back-link">&larr; Back to Project</a>
                         <h1>${escapeHtml(project.name || 'Unknown Project')}</h1>
                         <p class="nft-count">${totalCount} NFT${totalCount !== 1 ? 's' : ''}</p>
                     </div>
@@ -371,7 +379,7 @@ export async function renderNFTGalleryPage(params) {
         appContainer.innerHTML = `
             <div class="nft-gallery-page">
                 <div class="gallery-header">
-                    <a href="/project/${escapeHtml(projectId)}" class="back-link">&larr; Back to Project</a>
+                    <a href="${backURL(project)}" class="back-link">&larr; Back to Project</a>
                     <h1>NFT Gallery</h1>
                 </div>
                 <div class="gallery-error">

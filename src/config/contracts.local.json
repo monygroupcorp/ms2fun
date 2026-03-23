@@ -1,24 +1,29 @@
 {
-  "generatedAt": "2026-03-03T11:18:47.764Z",
+  "generatedAt": "2026-03-20T10:11:22.795Z",
+  "deployBlock": 24698087,
   "chainId": 1337,
   "mode": "local-fork",
   "scenario": "default",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "contracts": {
-    "MasterRegistryV1": "0x651B75282fcCF90bB8fB01B8acB2bE7bD1173623",
-    "AlignmentRegistryV1": "0x6D9728f28E0a9D1Add98FB40f2e7C704971193AA",
-    "GlobalMessageRegistry": "0x24e4940caB72Fe42B1e243f5409ff4e56299684f",
-    "FeaturedQueueManager": "0x23b7449875f57117b4df194405e4c775b895CF19",
-    "QueryAggregator": "0x8086F2ab25023CF90d6efA36f8B5943B0e349A9C",
-    "ERC404Factory": "0x4d02ba4e8c554c3a0da03e4971f71bf806abedf8",
-    "ERC1155Factory": "0x8f80853cef490f3094d677ff02e03fc8ed90b6f4",
-    "UltraAlignmentHookFactory": "0xfC110fe90553e5Cad507527E7Ad5445635b68940",
-    "ComponentRegistry": "0x2D8b2b88D082a0e31dC8FeDd7e7955f874581351",
-    "GrandCentral": "0x0000000000000000000000000000000000000000"
+    "MasterRegistryV1": "0x9ea31c29e7e8ab8dc96d43491f3741771ddf9df5",
+    "AlignmentRegistryV1": "0xb227c63a0111daABE7A711C863DEA36007849483",
+    "GlobalMessageRegistry": "0xab9e7F14D4521cc28be6d14bFBa4F8425b0C390A",
+    "FeaturedQueueManager": "0x9AD99854cB4d757a5C684d3951ebCB9edbdA7906",
+    "QueryAggregator": "0x2B18DD5e3f439bF0c7215dEfFC98Fa277fcCdF0F",
+    "ERC404Factory": "0xa288c1a26b6652e37c9627b6321a1428dc0c2430",
+    "ERC1155Factory": "0xc230763588c93f664d43a8d3f583a3a0e5e9ae68",
+    "ERC721AuctionFactory": "0xfe7f04805747b164f9CA13f6751b9aC475FBb422",
+    "ComponentRegistry": "0x8c10725d61adaF3Ddb878D2749f97955c2eDFb6D",
+    "GrandCentral": "0xfdF6D0f026f5E7868095411F5EB37eFC820b3373",
+    "GnosisSafe": "0x78ba4454e816C3C3a4803f9F2f966B6C7e499FF0",
+    "ShareOffering": "0x6221038c5c290C151eDB1608cbC6153a120E49f7",
+    "RevenueConductor": "0xa6b69F1ce87c9511DC762BF195ae7188D196534C",
+    "OTCShareEscrow": "0xf0b6034277b013D2FcC769CC578a6750FFE1E5A0"
   },
   "factories": [
     {
-      "address": "0x4d02ba4e8c554c3a0da03e4971f71bf806abedf8",
+      "address": "0xa288c1a26b6652e37c9627b6321a1428dc0c2430",
       "type": "ERC404",
       "title": "ERC404-Bonding-Curve-Factory",
       "displayTitle": "ERC404 Bonding Curve",
@@ -26,133 +31,232 @@
       "registered": true
     },
     {
-      "address": "0x8f80853cef490f3094d677ff02e03fc8ed90b6f4",
+      "address": "0xc230763588c93f664d43a8d3f583a3a0e5e9ae68",
       "type": "ERC1155",
       "title": "ERC1155-Edition-Factory",
       "displayTitle": "ERC1155 Editions",
       "factoryId": 2,
       "registered": true
+    },
+    {
+      "address": "0xfe7f04805747b164f9CA13f6751b9aC475FBb422",
+      "type": "ERC721",
+      "title": "ERC721-Auction-Factory",
+      "displayTitle": "ERC721 Auction",
+      "factoryId": 3,
+      "registered": true
     }
   ],
   "vaults": [
     {
-      "address": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
+      "address": "0x132d5CB9E1c5606F05263902f5dc1799D78768be",
       "alignmentToken": "0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820",
-      "hookAddress": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4"
+      "name": "MS2 UNIv4",
+      "vaultType": "UNIv4"
     },
     {
-      "address": "0x5370da02E87336736b751c7a1c4e5F81fbAE104e",
+      "address": "0x83f67Cc41d9C7019087404fA5e3a575F6B185f1C",
+      "alignmentToken": "0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820",
+      "name": "MS2 CYPHER",
+      "vaultType": "CYPHER"
+    },
+    {
+      "address": "0xF908572E2A638B80e175aae734b5E9325055dAC0",
+      "alignmentToken": "0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820",
+      "name": "MS2 ZAMM",
+      "vaultType": "ZAMM"
+    },
+    {
+      "address": "0x8D9633e5086086c193AB815e14e9866e84A62ef3",
       "alignmentToken": "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
-      "hookAddress": "0x0B2D46BC8B7344ea83ee4b2202A005120abE00c4"
+      "name": "CULT UNIv4",
+      "vaultType": "UNIv4"
+    },
+    {
+      "address": "0xe347A5014DD04f24EfC604b93554AF0b0C59b4A9",
+      "alignmentToken": "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
+      "name": "CULT CYPHER",
+      "vaultType": "CYPHER"
+    },
+    {
+      "address": "0xCDA6A499CD5f0f247e0A3dE52E77E09f659f2625",
+      "alignmentToken": "0x0000000000c5dc95539589fbD24BE07c6C14eCa4",
+      "name": "CULT ZAMM",
+      "vaultType": "ZAMM"
     }
   ],
   "instances": {
     "erc404": [
       {
-        "address": "0xf882e8932A3E7642C957aF33B7aa86ACF5Fe84cA",
-        "name": "Early-Launch",
-        "symbol": "EARLY",
+        "address": "0x30c4646A01AAd1Cce1eF47e5268E0C378F210F99",
+        "name": "Neon-Prophets",
+        "symbol": "NEON",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "owner": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69",
-        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
-        "hook": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4",
+        "owner": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
+        "vault": "0x132d5CB9E1c5606F05263902f5dc1799D78768be",
         "state": "early-bonding",
         "bondingProgress": "~10%",
         "note": "Owned by userAddress for owner view testing"
       },
       {
-        "address": "0xf0F10A34c0AfF96A521F7d505d8b2c5a322dac14",
-        "name": "Active-Project",
-        "symbol": "ACTIVE",
+        "address": "0xEcd8B467E5Ff4251eeEE02A07a8050bcE7382a13",
+        "name": "Concrete-Dreams",
+        "symbol": "CNCRT",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
-        "hook": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4",
+        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x132d5CB9E1c5606F05263902f5dc1799D78768be",
         "state": "active-bonding",
         "bondingProgress": "~60%"
       },
       {
-        "address": "0xbDA34Eb0e4f0c1A4B791FFed2D907ab3F9b7a458",
-        "name": "Graduated",
-        "symbol": "GRAD",
+        "address": "0xed9933469AFbA348223280e566c3e8B0910964BF",
+        "name": "Exit-Velocity",
+        "symbol": "EXIT",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
-        "hook": "0x5AF574baE9901492EdDaE03d15798666A0Df80c4",
+        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x132d5CB9E1c5606F05263902f5dc1799D78768be",
         "state": "graduated",
-        "bondingProgress": "100%",
+        "bondingProgress": "~100%",
         "liquidityDeployed": false
       }
     ],
     "erc1155": [
       {
-        "address": "0x016d4056B324893A42a6600968094a22067d65Cc",
-        "name": "Demo-Gallery",
+        "address": "0xD4b5Fd2e29A02f7953Ae76cd6888Fd05b843A2af",
+        "name": "Signal-and-Noise",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "owner": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69",
-        "vault": "0xf7150B59283aBa7BC7278Da059B102c894B369C9",
+        "owner": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
+        "vault": "0x132d5CB9E1c5606F05263902f5dc1799D78768be",
+        "note": "Owned by userAddress for owner view testing",
         "editions": [
           {
             "id": 1,
-            "name": "Genesis-Piece",
+            "name": "The-Signal",
             "price": "0.01",
-            "maxSupply": 0,
-            "minted": 5
+            "maxSupply": 0
           },
           {
             "id": 2,
-            "name": "Limited-Drop",
+            "name": "The-Noise",
             "price": "0.02",
-            "maxSupply": 100,
-            "minted": 3
-          }
-        ],
-        "note": "Owned by userAddress for owner view testing"
-      },
-      {
-        "address": "0xb53fA23Fc428b71DF6E5582230A2d77F45B734d6",
-        "name": "Dynamic-Pricing",
-        "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x5370da02E87336736b751c7a1c4e5F81fbAE104e",
-        "pricingModel": "exponential-increase",
-        "editions": [
-          {
-            "id": 1,
-            "name": "Evolving-Piece-1",
-            "basePrice": "0.005",
-            "priceIncreaseRate": 500,
-            "maxSupply": 50,
-            "minted": 13
-          },
-          {
-            "id": 2,
-            "name": "Evolving-Piece-2",
-            "basePrice": "0.01",
-            "priceIncreaseRate": 1000,
-            "maxSupply": 30,
-            "minted": 8
+            "maxSupply": 100
           }
         ]
       },
       {
-        "address": "0x5c420700A0FEf16DA002D2B573B55c9a1205bd4b",
-        "name": "Mixed-Supply",
+        "address": "0xAdd62EB59349074663342809ED54ad754edCe5Ff",
+        "name": "Price-Is-Right",
         "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-        "vault": "0x5370da02E87336736b751c7a1c4e5F81fbAE104e",
-        "pricingModel": "mixed",
+        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x83f67Cc41d9C7019087404fA5e3a575F6B185f1C",
         "editions": [
           {
             "id": 1,
-            "name": "Rare-Limited",
-            "price": "0.02",
-            "maxSupply": 100,
-            "minted": 45,
-            "percentSold": 45
+            "name": "Slow-Burn",
+            "price": "0.005",
+            "maxSupply": 50,
+            "priceIncreaseRate": 500
           },
           {
             "id": 2,
-            "name": "Common-Unlimited",
+            "name": "Rocket-Fuel",
+            "price": "0.01",
+            "maxSupply": 30,
+            "priceIncreaseRate": 1000
+          }
+        ]
+      },
+      {
+        "address": "0x0978957a781758cC5B33f1EA161F4D9B829dBAd6",
+        "name": "Common-Rare",
+        "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x83f67Cc41d9C7019087404fA5e3a575F6B185f1C",
+        "editions": [
+          {
+            "id": 1,
+            "name": "Rare-One",
+            "price": "0.02",
+            "maxSupply": 100
+          },
+          {
+            "id": 2,
+            "name": "Common-One",
             "price": "0.005",
-            "maxSupply": 0,
-            "minted": 60
+            "maxSupply": 0
+          }
+        ]
+      }
+    ],
+    "erc721": [
+      {
+        "address": "0x32E3F2D7ffBeBf5aC2be7A0A324C4E1bE0562EE4",
+        "name": "The-Solo-Show",
+        "symbol": "SOLO",
+        "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x132d5CB9E1c5606F05263902f5dc1799D78768be",
+        "lines": 1,
+        "baseDuration": 600,
+        "timeBuffer": 30,
+        "bidIncrement": "0.01",
+        "pieces": [
+          {
+            "tokenId": 1,
+            "name": "Opening Act",
+            "status": "settled",
+            "highestBid": "0.1",
+            "highestBidder": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+            "winner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+            "transferredTo": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6"
+          },
+          {
+            "tokenId": 2,
+            "name": "Main Piece",
+            "status": "active",
+            "highestBid": "0.07",
+            "highestBidder": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          },
+          {
+            "tokenId": 3,
+            "name": "Encore",
+            "status": "queued"
+          }
+        ]
+      },
+      {
+        "address": "0xd9ae0C5B5cDA865D9Ac6c98857A0E45B046C76ad",
+        "name": "Dual-Frequency",
+        "symbol": "FREQ",
+        "creator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "vault": "0x83f67Cc41d9C7019087404fA5e3a575F6B185f1C",
+        "lines": 2,
+        "baseDuration": 600,
+        "timeBuffer": 30,
+        "bidIncrement": "0.005",
+        "pieces": [
+          {
+            "tokenId": 1,
+            "name": "Channel-A Open",
+            "status": "settled",
+            "highestBid": "0.08",
+            "highestBidder": "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+          },
+          {
+            "tokenId": 2,
+            "name": "Channel-B Open",
+            "status": "active",
+            "highestBid": "0.05",
+            "highestBidder": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+          },
+          {
+            "tokenId": 3,
+            "name": "Channel-A Next",
+            "status": "queued"
+          },
+          {
+            "tokenId": 4,
+            "name": "Channel-B Next",
+            "status": "queued"
           }
         ]
       }
@@ -176,32 +280,36 @@
     "trader": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
     "collector": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
     "governance": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-    "user": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69"
+    "user": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6"
   },
-  "userAddress": "0x14Dc79964Da2c08da15FD353d30d9d7B0DC81C69",
+  "userAddress": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
   "governance": {
     "dictator": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "abdicationInitiated": false,
-    "mode": "dictator"
+    "mode": "dictator",
+    "safe": "0x78ba4454e816C3C3a4803f9F2f966B6C7e499FF0",
+    "shareOffering": "0x6221038c5c290C151eDB1608cbC6153a120E49f7",
+    "revenueConductor": "0xa6b69F1ce87c9511DC762BF195ae7188D196534C",
+    "otcShareEscrow": "0xf0b6034277b013D2FcC769CC578a6750FFE1E5A0"
   },
   "userHoldings": {
     "erc404": [
       {
-        "instance": "Early-Launch",
+        "instance": "Neon-Prophets",
         "tokens": "150"
       },
       {
-        "instance": "Active-Project",
+        "instance": "Concrete-Dreams",
         "tokens": "800"
       },
       {
-        "instance": "Graduated",
+        "instance": "Exit-Velocity",
         "tokens": "1000"
       }
     ],
     "erc1155": [
       {
-        "instance": "Demo-Gallery",
+        "instance": "Signal-and-Noise",
         "holdings": [
           {
             "editionId": 1,
@@ -214,7 +322,7 @@
         ]
       },
       {
-        "instance": "Dynamic-Pricing",
+        "instance": "Price-Is-Right",
         "holdings": [
           {
             "editionId": 1,
@@ -223,7 +331,7 @@
         ]
       },
       {
-        "instance": "Mixed-Supply",
+        "instance": "Common-Rare",
         "holdings": [
           {
             "editionId": 1,
@@ -232,6 +340,17 @@
           {
             "editionId": 2,
             "quantity": 5
+          }
+        ]
+      }
+    ],
+    "erc721": [
+      {
+        "instance": "The-Solo-Show",
+        "holdings": [
+          {
+            "tokenId": 1,
+            "name": "Opening Act"
           }
         ]
       }

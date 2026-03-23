@@ -13,6 +13,7 @@ import createExecVotingService from './ExecVotingService.js';
 import { getContractAddress, isMockMode } from '../config/contractConfig.js';
 import { eventBus } from '../core/EventBus.js';
 import { checkRpcAvailable, detectNetwork } from '../config/network.js';
+import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 
 // Real service implementations
 import RealMasterService from './RealMasterService.js';
@@ -21,11 +22,9 @@ import RealProjectRegistry from './RealProjectRegistry.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
 import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
 import FeaturedQueueManagerAdapter from './contracts/FeaturedQueueManagerAdapter.js';
-import GrandCentralAdapter from './contracts/GrandCentralAdapter.js';
 import walletService from './WalletService.js';
 import queryService from './QueryService.js';
 import projectIndex from './ProjectIndex.js';
-import governanceEventIndexer from './GovernanceEventIndexer.js';
 
 /**
  * Service Factory
@@ -57,6 +56,16 @@ class ServiceFactory {
         // Listen for contract reload events (local dev only)
         eventBus.on('contracts:reloaded', () => {
             this.clearCache();
+        });
+
+        // Listen for chain reset events (Anvil restart detected by ProjectIndex)
+        eventBus.on('chain:reset', () => {
+            console.log('[ServiceFactory] chain:reset received, clearing service cache');
+            this.clearCache();
+            // Also reset RPC availability check so next access re-verifies chain state
+            import('../config/network.js').then(({ resetRpcCheck }) => resetRpcCheck());
+            // Clear contract config cache so addresses are re-fetched after redeploy
+            import('../config/contractConfig.js').then(({ clearConfigCache }) => clearConfigCache());
         });
     }
 
@@ -132,6 +141,33 @@ class ServiceFactory {
         if (!this.initialized) {
             await this.initialize();
         }
+    }
+
+    /**
+     * Get a read provider + signer pair.
+     * In local mode, reads always use StaticJsonRpcProvider (never MetaMask Web3Provider)
+     * to avoid stale block tag errors after Anvil restarts.
+     * The signer (from wallet) is still returned for write operations.
+     * @param {string} [contextName] - Name for error messages
+     * @returns {{ provider: ethers.providers.Provider, signer: ethers.Signer|null }}
+     */
+    _getReadProvider(contextName = 'adapter') {
+        const network = detectNetwork();
+        const { provider: walletProvider, signer } = walletService.getProviderAndSigner();
+
+        if (network.mode === 'local' && network.rpcUrl) {
+            const readProvider = new ethers.providers.StaticJsonRpcProvider(
+                network.rpcUrl,
+                { name: 'anvil', chainId: network.chainId, ensAddress: null }
+            );
+            return { provider: readProvider, signer: signer || null };
+        }
+
+        if (walletProvider) {
+            return { provider: walletProvider, signer };
+        }
+
+        throw new Error(`No provider available for ${contextName}`);
     }
 
     /**
@@ -248,26 +284,7 @@ class ServiceFactory {
                 throw new Error('FeaturedQueueManager address not available');
             }
 
-            // Get provider - use wallet if connected, otherwise create read-only provider
-            let provider, signer;
-            const walletProviderAndSigner = walletService.getProviderAndSigner();
-
-            if (walletProviderAndSigner.provider) {
-                provider = walletProviderAndSigner.provider;
-                signer = walletProviderAndSigner.signer;
-            } else {
-                const network = (await import('../config/network.js')).detectNetwork();
-                if (network.mode === 'local' && network.rpcUrl) {
-                    const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
-                    provider = new ethers.providers.StaticJsonRpcProvider(
-                        network.rpcUrl,
-                        { name: 'anvil', chainId: network.chainId, ensAddress: null }
-                    );
-                    signer = null;
-                } else {
-                    throw new Error('No provider available for FeaturedQueueManager');
-                }
-            }
+            const { provider, signer } = this._getReadProvider('FeaturedQueueManager');
 
             this.featuredQueueAdapter = new FeaturedQueueManagerAdapter(
                 featuredQueueAddress,
@@ -282,45 +299,21 @@ class ServiceFactory {
     }
 
     /**
-     * Get GrandCentral DAO adapter instance (singleton)
-     * @returns {Promise<GrandCentralAdapter>} GrandCentral adapter
+     * Get ShareOffering adapter instance (singleton)
+     * @returns {Promise<ShareOfferingAdapter>} ShareOffering adapter
      */
-    async getGrandCentralAdapter() {
-        if (!this.grandCentralAdapter) {
-            const grandCentralAddress = await getContractAddress('GrandCentral');
-
-            if (!grandCentralAddress || grandCentralAddress === '0x0000000000000000000000000000000000000000') {
-                throw new Error('GrandCentral address not available');
+    async getShareOfferingAdapter() {
+        if (!this._shareOfferingAdapter) {
+            const { default: ShareOfferingAdapter } = await import('./contracts/ShareOfferingAdapter.js');
+            const address = await getContractAddress('ShareOffering');
+            if (!address || address === '0x0000000000000000000000000000000000000000') {
+                throw new Error('ShareOffering address not available');
             }
-
-            let provider, signer;
-            const walletProviderAndSigner = walletService.getProviderAndSigner();
-
-            if (walletProviderAndSigner.provider) {
-                provider = walletProviderAndSigner.provider;
-                signer = walletProviderAndSigner.signer;
-            } else {
-                const network = (await import('../config/network.js')).detectNetwork();
-                if (network.mode === 'local' && network.rpcUrl) {
-                    const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
-                    provider = new ethers.providers.StaticJsonRpcProvider(
-                        network.rpcUrl,
-                        { name: 'anvil', chainId: network.chainId, ensAddress: null }
-                    );
-                    signer = null;
-                } else {
-                    throw new Error('No provider available for GrandCentral');
-                }
-            }
-
-            this.grandCentralAdapter = new GrandCentralAdapter(
-                grandCentralAddress,
-                provider,
-                signer
-            );
-            await this.grandCentralAdapter.initialize();
+            const { provider, signer } = this._getReadProvider('ShareOffering');
+            this._shareOfferingAdapter = new ShareOfferingAdapter(address, provider, signer);
+            await this._shareOfferingAdapter.initialize();
         }
-        return this.grandCentralAdapter;
+        return this._shareOfferingAdapter;
     }
 
     /**
@@ -330,7 +323,6 @@ class ServiceFactory {
     async getComponentRegistryAdapter() {
         if (this.componentRegistryAdapter) return this.componentRegistryAdapter;
 
-        const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
         const { default: ComponentRegistryAdapter } = await import('./contracts/ComponentRegistryAdapter.js');
 
         const address = await getContractAddress('ComponentRegistry');
@@ -340,23 +332,11 @@ class ServiceFactory {
         }
 
         let provider, signer;
-        const walletProviderAndSigner = walletService.getProviderAndSigner();
-
-        if (walletProviderAndSigner.provider) {
-            provider = walletProviderAndSigner.provider;
-            signer = walletProviderAndSigner.signer;
-        } else {
-            const network = (await import('../config/network.js')).detectNetwork();
-            if (network.mode === 'local' && network.rpcUrl) {
-                provider = new ethers.providers.StaticJsonRpcProvider(
-                    network.rpcUrl,
-                    { name: 'anvil', chainId: network.chainId, ensAddress: null }
-                );
-                signer = null;
-            } else {
-                console.warn('[ServiceFactory] No provider available for ComponentRegistry');
-                return null;
-            }
+        try {
+            ({ provider, signer } = this._getReadProvider('ComponentRegistry'));
+        } catch {
+            console.warn('[ServiceFactory] No provider available for ComponentRegistry');
+            return null;
         }
 
         this.componentRegistryAdapter = new ComponentRegistryAdapter(address, 'ComponentRegistry', provider, signer);
@@ -365,60 +345,40 @@ class ServiceFactory {
     }
 
     /**
-     * Get GovernanceEventIndexer (singleton, initializes with GrandCentralAdapter)
-     * @returns {Promise<Object>} Initialized GovernanceEventIndexer
-     */
-    async getGovernanceEventIndexer() {
-        if (!governanceEventIndexer.initialized) {
-            const adapter = await this.getGrandCentralAdapter();
-            await governanceEventIndexer.initialize(adapter);
-        }
-        return governanceEventIndexer;
-    }
-
-    /**
      * Get GlobalMessageRegistry adapter instance (singleton)
      * @returns {Promise<GlobalMessageRegistryAdapter>} Message registry adapter
      */
     async getMessageRegistryAdapter() {
         if (!this.messageRegistryAdapter) {
-            const masterService = this.getMasterService();
-            let messageRegistryAddress = await masterService.getGlobalMessageRegistry();
-
-            // Ensure address is a string (contract may return array or other type)
-            if (Array.isArray(messageRegistryAddress)) {
-                messageRegistryAddress = messageRegistryAddress[0];
+            // Try to get address from local config first (faster, avoids contract call)
+            let messageRegistryAddress = null;
+            const network = detectNetwork();
+            if (network.contracts) {
+                try {
+                    const response = await fetch(network.contracts);
+                    if (response.ok) {
+                        const config = await response.json();
+                        messageRegistryAddress = config.contracts?.GlobalMessageRegistry || config.GlobalMessageRegistry || null;
+                    }
+                } catch (e) { /* fall through to contract lookup */ }
             }
-            if (messageRegistryAddress && typeof messageRegistryAddress !== 'string') {
-                messageRegistryAddress = messageRegistryAddress.toString();
+
+            // Fall back to contract lookup
+            if (!messageRegistryAddress) {
+                try {
+                    const masterService = this.getMasterService();
+                    let addr = await masterService.getGlobalMessageRegistry();
+                    if (Array.isArray(addr)) addr = addr[0];
+                    if (addr && typeof addr !== 'string') addr = addr.toString();
+                    messageRegistryAddress = addr;
+                } catch (e) { /* address stays null */ }
             }
 
             if (!messageRegistryAddress || messageRegistryAddress === '0x0000000000000000000000000000000000000000') {
                 throw new Error('GlobalMessageRegistry address not available');
             }
 
-            // Get provider - use wallet if connected, otherwise create read-only provider
-            let provider, signer;
-            const walletProviderAndSigner = walletService.getProviderAndSigner();
-
-            if (walletProviderAndSigner.provider) {
-                // Wallet connected - use its provider
-                provider = walletProviderAndSigner.provider;
-                signer = walletProviderAndSigner.signer;
-            } else {
-                // No wallet - create read-only provider for local mode
-                const network = (await import('../config/network.js')).detectNetwork();
-                if (network.mode === 'local' && network.rpcUrl) {
-                    const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
-                    provider = new ethers.providers.StaticJsonRpcProvider(
-                        network.rpcUrl,
-                        { name: 'anvil', chainId: network.chainId, ensAddress: null }
-                    );
-                    signer = null;
-                } else {
-                    throw new Error('No provider available for GlobalMessageRegistry');
-                }
-            }
+            const { provider, signer } = this._getReadProvider('GlobalMessageRegistry');
 
             this.messageRegistryAdapter = new GlobalMessageRegistryAdapter(
                 messageRegistryAddress,
@@ -438,28 +398,7 @@ class ServiceFactory {
      * @returns {Promise<UltraAlignmentVaultAdapter>} Vault adapter
      */
     async getVaultAdapter(vaultAddress) {
-        // Get provider - use wallet if connected, otherwise create read-only provider
-        let provider, signer;
-        const walletProviderAndSigner = walletService.getProviderAndSigner();
-
-        if (walletProviderAndSigner.provider) {
-            // Wallet connected - use its provider
-            provider = walletProviderAndSigner.provider;
-            signer = walletProviderAndSigner.signer;
-        } else {
-            // No wallet - create read-only provider for local mode
-            const network = (await import('../config/network.js')).detectNetwork();
-            if (network.mode === 'local' && network.rpcUrl) {
-                const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
-                provider = new ethers.providers.StaticJsonRpcProvider(
-                    network.rpcUrl,
-                    { name: 'anvil', chainId: network.chainId, ensAddress: null }
-                );
-                signer = null;
-            } else {
-                throw new Error('No provider available for UltraAlignmentVault');
-            }
-        }
+        const { provider, signer } = this._getReadProvider('UltraAlignmentVault');
 
         const adapter = new UltraAlignmentVaultAdapter(
             vaultAddress,
@@ -562,8 +501,7 @@ class ServiceFactory {
                 'ERC404Factory': '0xFACTORY404000000000000000000000000000000',
                 'ERC1155Factory': '0xFACTORY1155000000000000000000000000000000',
                 'UltraAlignmentVault': '0xVAULT00000000000000000000000000000000000',
-                'UltraAlignmentHookFactory': '0xHOOKFACTORY0000000000000000000000000000',
-                'GrandCentral': '0xGRANDCENTRAL000000000000000000000000000'
+                'UltraAlignmentHookFactory': '0xHOOKFACTORY0000000000000000000000000000'
             };
             return mockAddresses[contractName] || '0x0000000000000000000000000000000000000000';
         }
@@ -615,6 +553,9 @@ class ServiceFactory {
         }
         if (this.componentRegistryAdapter) {
             this.componentRegistryAdapter = null;
+        }
+        if (this._shareOfferingAdapter) {
+            this._shareOfferingAdapter = null;
         }
 
         // Clear QueryService cache (it listens for contracts:reloaded too,

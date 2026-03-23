@@ -1,5 +1,7 @@
 import { html } from '../core/compose.js';
 import Component from '../core/Component.js';
+import { generateProjectURL } from '../utils/navigation.js';
+import { detectNetwork } from '../config/network.js';
 
 /**
  * HomePage V2 - Gallery Brutalism
@@ -85,8 +87,16 @@ export default class HomePage extends Component {
     window.location.href = '/activity';
   }
 
-  handleProjectClick(projectId) {
-    window.location.href = `/project/${projectId}`;
+  handleProjectClick(project) {
+    const { chainId } = detectNetwork();
+    const url = generateProjectURL(null, { name: project.name }, null, chainId);
+    const target = url || `/project/${project.id}`;
+    if (window.router) {
+      window.router.navigate(target, { state: { from: 'home' } });
+    } else {
+      window.history.pushState({ from: 'home' }, '', target);
+      window.location.href = target;
+    }
   }
 
   renderTopBar() {
@@ -105,7 +115,7 @@ export default class HomePage extends Component {
     if (!featuredProject) return '';
 
     return html`
-      <div class="featured-banner" onclick="${() => this.handleProjectClick(featuredProject.id)}">
+      <div class="featured-banner" onclick="${() => this.handleProjectClick(featuredProject)}">
         <div class="featured-banner-image">
           <img src="${featuredProject.image}" alt="${featuredProject.name}" />
         </div>
@@ -168,7 +178,7 @@ export default class HomePage extends Component {
         <h3 class="projects-title">PROJECTS</h3>
         <div class="projects-grid">
           ${featuredQueue.map(project => html`
-            <div class="project-card" onclick="${() => this.handleProjectClick(project.id)}">
+            <div class="project-card" onclick="${() => this.handleProjectClick(project)}">
               <div class="project-card-image">
                 <div class="project-card-placeholder">${project.name[0]}</div>
               </div>

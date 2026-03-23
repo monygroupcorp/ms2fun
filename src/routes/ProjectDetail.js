@@ -30,19 +30,50 @@ export async function renderProjectDetail(params) {
     } else if (params?.chainId && params?.instanceName) {
         chainId = params.chainId;
 
-        const projectData = params.factoryTitle
-            ? await projectRegistry.getProjectByPath(params.factoryTitle, params.instanceName)
-            : await projectRegistry.getProjectByName(params.instanceName);
+        // If instanceName looks like a contract address, resolve to name-based URL
+        const isAddress = /^0x[0-9a-fA-F]{40}$/.test(params.instanceName);
+        if (isAddress) {
+            try {
+                const project = await projectRegistry.getProject(params.instanceName);
+                if (project && project.name) {
+                    const { generateProjectURL } = await import('../utils/navigation.js');
+                    const url = generateProjectURL(null, { name: project.name }, null, chainId);
+                    if (url && window.router) {
+                        window.router.navigate(url, { replace: true, state: window.history.state || {} });
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('[ProjectDetail] Failed to resolve address to name:', err);
+            }
+        }
+
+        let projectData = null;
+        try {
+            projectData = params.factoryTitle
+                ? await projectRegistry.getProjectByPath(params.factoryTitle, params.instanceName)
+                : await projectRegistry.getProjectByName(params.instanceName);
+        } catch (lookupError) {
+            console.warn('[ProjectDetail] Project lookup failed:', lookupError);
+        }
 
         if (!projectData || !projectData.instance) {
-            const path = params.factoryTitle
+            const safePath = (params.factoryTitle
                 ? `${params.chainId}/${params.factoryTitle}/${params.instanceName}`
-                : `${params.chainId}/${params.instanceName}`;
+                : `${params.chainId}/${params.instanceName}`
+            ).replace(/[<>"'&]/g, '');
+            document.body.classList.add('v2-route', 'hide-wallet');
+            document.body.classList.remove('has-project-style');
+            document.body.classList.remove('project-style-pending');
+            document.documentElement.classList.remove('has-project-style');
+            document.documentElement.classList.add('project-style-resolved');
+            appTopContainer.innerHTML = '';
+            appBottomContainer.innerHTML = '';
             appContainer.innerHTML = `
-                <div class="error-page">
-                    <h1>404 - Project Not Found</h1>
-                    <p>The project "${path}" does not exist.</p>
-                    <a href="/" class="home-link">Go Home</a>
+                <div style="max-width: 600px; margin: 120px auto; padding: 0 var(--space-4); text-align: center;">
+                    <h1 style="font-size: var(--font-size-h1); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); margin-bottom: var(--space-4);">404</h1>
+                    <p style="color: var(--text-secondary); margin-bottom: var(--space-6);">The project <span style="font-family: var(--font-mono);">${safePath}</span> does not exist.</p>
+                    <a href="/" style="color: var(--text-primary); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); font-weight: bold; text-decoration: none; border: 1px solid var(--border-primary); padding: var(--space-2) var(--space-4);">Go Home</a>
                 </div>
             `;
             return;
@@ -66,12 +97,19 @@ export async function renderProjectDetail(params) {
         return;
     }
 
-    // Get project to determine contract type for CSS loading
+    // Get project to determine contract type for CSS loading + pre-load adapter
     let contractType = null;
     try {
         const project = await projectRegistry.getProject(projectId);
         if (project) {
             contractType = project.contractType;
+
+            // Pre-load adapter so component finds it ready on mount (no hang)
+            const projectService = serviceFactory.getProjectService();
+            if (!projectService.isProjectLoaded(projectId)) {
+                const contractAddress = project.contractAddress || project.address || projectId;
+                await projectService.loadProject(projectId, contractAddress, contractType);
+            }
         }
     } catch (error) {
         console.warn('[ProjectDetail route] Could not get project for CSS loading:', error);
@@ -134,6 +172,9 @@ export async function renderProjectDetail(params) {
     stylesheetLoader.unload('cultexecs-styles');
     stylesheetLoader.unload('home-styles');
 
+    // Add v2-route class so marble-svg-filters SVG gets hidden
+    document.body.classList.add('v2-route');
+
     // Clear existing content
     appTopContainer.innerHTML = '';
     appContainer.innerHTML = '';
@@ -145,13 +186,14 @@ export async function renderProjectDetail(params) {
     appContainer.appendChild(detailContainer);
 
     // Render ProjectDetail
-    render(h(ProjectDetail, { projectId }), detailContainer);
+    render(h(ProjectDetail, { projectId, contractType }), detailContainer);
 
     // Return cleanup function
     return {
         cleanup: () => {
             unmountRoot(detailContainer);
             stylesheetLoader.unload('project-detail-styles');
+            document.body.classList.remove('v2-route');
 
             // Clean up project style classes
             document.documentElement.classList.remove('has-project-style');

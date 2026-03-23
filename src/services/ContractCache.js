@@ -89,6 +89,14 @@ class ContractCache {
             }
         });
 
+        // Invalidate on chain reset (Anvil restart detected by ProjectIndex)
+        eventBus.on('chain:reset', () => {
+            this.clear();
+            if (this.debug) {
+                console.log('[ContractCache] Cleared cache due to chain reset');
+            }
+        });
+
         // Invalidate on contract data update
         eventBus.on('contractData:updated', () => {
             this.invalidateByPattern('contractData', 'price', 'supply');

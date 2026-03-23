@@ -305,16 +305,25 @@
   font-size: var(--font-size-caption);
 }
 
-.activity-project {
+a.activity-project {
   font-size: var(--font-size-caption);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+a.activity-project:hover {
+  color: var(--text-primary);
 }
 
 .activity-project-name {
   color: var(--text-primary);
   font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .activity-message {

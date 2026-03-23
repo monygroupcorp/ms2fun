@@ -60,7 +60,7 @@ if (typeof scenario.seed !== 'function') {
 // Deploy contracts
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { core, factories, vaults, provider, deployer } = await deployContracts()
+const { core, factories, vaults, governance, provider, deployer } = await deployContracts()
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Run scenario seed
@@ -71,7 +71,7 @@ console.log(`SEEDING: scenario=${scenarioName}`)
 console.log(`════════════════════════════════════════════════════`)
 
 const seedResult = await scenario.seed(
-  { core, factories },
+  { core, factories, governance },
   provider,
   deployer,
   USER_ADDRESS,
@@ -104,6 +104,7 @@ await writeConfig({
   mainnetAddresses: MAINNET_ADDRESSES,
   userHoldings,
   scenario: scenarioName,
+  governance,
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

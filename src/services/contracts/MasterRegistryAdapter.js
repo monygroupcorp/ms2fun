@@ -51,11 +51,13 @@ class MasterRegistryAdapter extends ContractAdapter {
             // Load contract ABI
             const abi = await loadABI('MasterRegistryV1');
 
-            // Initialize main contract
+            // Initialize contract with provider (not signer) so reads use StaticJsonRpcProvider.
+            // Transactions use signer via executeContractCall(..., { requiresSigner: true })
+            // which calls contractInstance.connect(signer).
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             this.initialized = true;
@@ -743,15 +745,15 @@ class MasterRegistryAdapter extends ContractAdapter {
      * @private
      */
     _parseVaultInfo(info) {
+        // VaultInfo struct: vault(0), creator(1), name(2), metadataURI(3), active(4), registeredAt(5), targetId(6)
         return {
-            vaultAddress: info.vaultAddress || info[0],
-            vaultType: info.vaultType || info[1],
+            vaultAddress: info.vault || info[0],
+            creator: info.creator || info[1],
             name: info.name || info[2],
             metadataURI: info.metadataURI || info[3],
-            isActive: info.isActive !== undefined ? info.isActive : info[4],
+            isActive: info.active !== undefined ? info.active : info[4],
             registeredAt: info.registeredAt ? parseInt(info.registeredAt.toString()) : parseInt((info[5] || 0).toString()),
-            instanceCount: info.instanceCount ? parseInt(info.instanceCount.toString()) : parseInt((info[6] || 0).toString()),
-            tvl: info.tvl ? ethers.utils.formatEther(info.tvl) : '0'
+            targetId: info.targetId ? parseInt(info.targetId.toString()) : parseInt((info[6] || 0).toString()),
         };
     }
 
@@ -804,12 +806,17 @@ class MasterRegistryAdapter extends ContractAdapter {
      * @private
      */
     _parseInstanceInfo(info) {
+        // ABI returns: instance(0), factory(1), creator(2), vaults[](3), name(4), metadataURI(5), nameHash(6), registeredAt(7)
+        const vaultsArray = info.vaults || info[3] || [];
+        const vault = Array.isArray(vaultsArray) ? (vaultsArray[0] || null) : vaultsArray;
         return {
-            instanceAddress: info.instanceAddress || info[0],
-            factoryAddress: info.factoryAddress || info[1],
+            instanceAddress: info.instance || info.instanceAddress || info[0],
+            factoryAddress: info.factory || info.factoryAddress || info[1],
             creator: info.creator || info[2],
-            vault: info.vault || info[3],
-            createdAt: info.createdAt ? parseInt(info.createdAt.toString()) : parseInt((info[4] || 0).toString())
+            vault,
+            name: info.name || info[4] || '',
+            metadataURI: info.metadataURI || info[5] || '',
+            createdAt: info.registeredAt ? parseInt(info.registeredAt.toString()) : parseInt((info[7] || 0).toString())
         };
     }
 
@@ -1908,7 +1915,7 @@ class MasterRegistryAdapter extends ContractAdapter {
             const { loadABI } = await import('../../utils/abiLoader.js');
             const abi = await loadABI('IFactory');
             const factoryContract = new this.ethers.Contract(
-                factoryAddress, abi, this.signer || this.provider
+                factoryAddress, abi, this.provider
             );
             return await factoryContract.features();
         }, 60 * 60 * 1000); // 1 hour — features don't change after deploy
@@ -1923,10 +1930,9 @@ class MasterRegistryAdapter extends ContractAdapter {
         return this.getCachedOrFetch('getFactoryRequiredFeatures', [factoryAddress], async () => {
             if (this.isMock) return this._getMockRequiredFeatures(factoryAddress);
 
-            // IFactory only exposes features() (supported component tags).
-            // There is no on-chain distinction between required and optional features —
-            // all are optional (users can pass AddressZero). Return empty array.
-            return [];
+            const factoryAbi = ['function requiredFeatures() external view returns (bytes32[] memory)'];
+            const factory = new this.ethers.Contract(factoryAddress, factoryAbi, this.provider);
+            return await factory.requiredFeatures();
         }, 60 * 60 * 1000);
     }
 

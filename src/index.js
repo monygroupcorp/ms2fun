@@ -9,7 +9,7 @@ import { Portfolio } from './routes/Portfolio.js';
 import { CultExecsPage } from './routes/CultExecsPage.microact.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
-import { FloatingWalletButton } from './components/FloatingWalletButton/FloatingWalletButton.microact.js';
+import { SimpleWalletButton } from './components/Web3/SimpleWalletButton.js';
 import { h, render, unmountRoot } from './core/microact-setup.js';
 import stylesheetLoader from './utils/stylesheetLoader.js';
 import contractReloadService from './services/ContractReloadService.js';
@@ -64,6 +64,13 @@ async function initializeApp() {
         
         // Initialize web3 infrastructure once (shared across all routes)
         let web3Context = null;
+
+        // Clear cached context on chain restart so next navigation re-initializes cleanly
+        eventBus.on('chain:reset', () => {
+            console.log('[ensureWeb3Ready] chain:reset received, clearing web3 context');
+            web3Context = null;
+        });
+
         async function ensureWeb3Ready() {
             if (web3Context) return web3Context;
 
@@ -77,8 +84,9 @@ async function initializeApp() {
 
                 web3Context = { provider, providerType, mode, config, web3Ready: true };
             } catch (error) {
-                console.error('[ensureWeb3Ready] Web3 initialization failed, using degraded mode:', error);
-                web3Context = {
+                console.error('[ensureWeb3Ready] Web3 initialization failed, will retry on next navigation:', error);
+                // Do not assign web3Context — next navigation retries from scratch
+                return {
                     provider: null,
                     providerType: null,
                     mode: 'PLACEHOLDER_MOCK',
@@ -111,7 +119,7 @@ async function initializeApp() {
             document.body.classList.remove(
                 'marble-bg', 'marble-smooth-render',
                 'marble-pos-a', 'marble-pos-b', 'marble-pos-c', 'marble-pos-d',
-                'cultexecs-active',
+                'cultexecs-active', 'hide-wallet',
                 'has-project-style', 'project-style-loaded',
                 'project-style-resolved', 'project-style-pending'
             );
@@ -137,7 +145,7 @@ async function initializeApp() {
             render(h(HomePage, web3), appContainer);
 
             return {
-                cleanup: () => {
+                cleanup: async () => {
                     document.body.classList.remove('v2-route');
                     // Unload route-specific CSS
                     stylesheetLoader.unload('route:home');
@@ -148,17 +156,19 @@ async function initializeApp() {
             };
         });
 
-        // Discovery page - browse all projects
+        // Discovery page - browse all projects (no wallet actions needed)
         router.on('/discover', async () => {
             const appContainer = prepareV2Route();
             if (!appContainer) return;
+
+            document.body.classList.add('hide-wallet');
 
             const web3 = await ensureWeb3Ready();
             render(h(ProjectDiscovery, web3), appContainer);
 
             return {
-                cleanup: () => {
-                    document.body.classList.remove('v2-route');
+                cleanup: async () => {
+                    document.body.classList.remove('v2-route', 'hide-wallet');
                     // Unload route-specific CSS
                     stylesheetLoader.unload('route:discovery');
                     // Restore marble classes for other routes
@@ -177,7 +187,7 @@ async function initializeApp() {
             render(h(Activity, web3), appContainer);
 
             return {
-                cleanup: () => {
+                cleanup: async () => {
                     document.body.classList.remove('v2-route');
                     // Unload route-specific CSS
                     stylesheetLoader.unload('route:activity');
@@ -192,28 +202,61 @@ async function initializeApp() {
             const appContainer = prepareV2Route();
             if (!appContainer) return;
 
-            document.body.classList.add('cultexecs-active');
+            document.body.classList.add('cultexecs-active', 'hide-wallet');
 
             const web3 = await ensureWeb3Ready();
             render(h(CultExecsPage, web3), appContainer);
 
             return {
-                cleanup: () => {
-                    document.body.classList.remove('v2-route', 'cultexecs-active');
+                cleanup: async () => {
+                    document.body.classList.remove('v2-route', 'cultexecs-active', 'hide-wallet');
                     stylesheetLoader.unload('cultexecs-v2-styles');
                     document.body.classList.add('marble-bg');
                     unmountRoot(appContainer);
                 }
             };
         });
-        router.on('/about', async () => {
+        async function aboutRoute() {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+            document.body.classList.add('hide-wallet');
+
+            // Static top bar (no microact — avoids re-render wiping docs content)
+            const topBar = document.createElement('div');
+            topBar.className = 'home-top-bar';
+            topBar.innerHTML = `
+                <a href="/" class="home-logo">MS2<span class="logo-tld">.fun</span></a>
+                <div class="nav-links"><a href="/create" class="btn btn-primary">Create</a></div>
+            `;
+            topBar.querySelector('.home-logo').addEventListener('click', (e) => {
+                e.preventDefault();
+                window.router.navigate('/');
+            });
+            topBar.querySelector('a[href="/create"]').addEventListener('click', (e) => {
+                e.preventDefault();
+                window.router.navigate('/create');
+            });
+            appContainer.appendChild(topBar);
+
+            // Docs content container
+            const docsRoot = document.createElement('div');
+            appContainer.appendChild(docsRoot);
+
             const { renderDocumentation } = await import('./routes/Documentation.js');
-            return renderDocumentation();
-        });
-        router.on('/docs', async () => {
-            const { renderDocumentation } = await import('./routes/Documentation.js');
-            return renderDocumentation();
-        });
+            const docResult = await renderDocumentation(docsRoot);
+
+            return {
+                cleanup: async () => {
+                    if (docResult?.cleanup) docResult.cleanup();
+                    document.body.classList.remove('v2-route', 'hide-wallet');
+                    document.body.classList.add('marble-bg');
+                    appContainer.innerHTML = '';
+                }
+            };
+        }
+
+        router.on('/about', aboutRoute);
+        router.on('/docs', aboutRoute);
         
         // Register dynamic routes (order matters - more specific first)
 
@@ -291,12 +334,17 @@ async function initializeApp() {
             const appContainer = prepareV2Route();
             if (!appContainer) return;
 
+            // Mount on a child element so Component.unmount() removes the child,
+            // not #app-container itself (v1 Component.unmount() calls this.element.remove())
+            const pageRoot = document.createElement('div');
+            appContainer.appendChild(pageRoot);
+
             const { default: ProjectCreationPage } = await import('./routes/ProjectCreationPage.js');
-            const page = new ProjectCreationPage(appContainer);
-            page.mount(appContainer);
+            const page = new ProjectCreationPage(pageRoot);
+            page.mount(pageRoot);
 
             return {
-                cleanup: () => {
+                cleanup: async () => {
                     page.unmount();
                     document.body.classList.remove('v2-route');
                     document.body.classList.add('marble-bg');
@@ -306,8 +354,23 @@ async function initializeApp() {
         });
         
         router.on('/factories', async () => {
-            const { renderFactoryExploration } = await import('./routes/FactoryExploration.js');
-            return renderFactoryExploration();
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            const { Layout } = await import('./components/Layout/Layout.js');
+            const { FactoryExploration } = await import('./components/FactoryExploration/FactoryExploration.microact.js');
+            render(h(Layout, { currentPath: '/factories', mode: web3.mode,
+                children: h(FactoryExploration, web3)
+            }), appContainer);
+
+            return {
+                cleanup: async () => {
+                    document.body.classList.remove('v2-route');
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
         });
 
         router.on('/factories/apply', async () => {
@@ -332,13 +395,41 @@ async function initializeApp() {
 
         // Vault routes
         router.on('/vaults', async () => {
-            const { renderVaultExplorer } = await import('./routes/VaultExplorer.js');
-            return renderVaultExplorer();
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            const { Layout } = await import('./components/Layout/Layout.js');
+            const { VaultExplorer } = await import('./components/VaultExplorer/VaultExplorer.microact.js');
+            render(h(Layout, { currentPath: '/vaults', mode: web3.mode,
+                children: h(VaultExplorer, web3)
+            }), appContainer);
+
+            return {
+                cleanup: async () => {
+                    document.body.classList.remove('v2-route');
+                    stylesheetLoader.unload('route:vaults');
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
         });
 
         router.on('/vaults/:address', async (params) => {
-            const { renderVaultDetail } = await import('./routes/VaultDetail.js');
-            return renderVaultDetail(params);
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            const { VaultDetail } = await import('./components/VaultDetail/VaultDetail.microact.js');
+            render(h(VaultDetail, { ...web3, vaultAddress: params.address }), appContainer);
+
+            return {
+                cleanup: async () => {
+                    document.body.classList.remove('v2-route');
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
         });
 
         // Global activity feed route
@@ -358,7 +449,7 @@ async function initializeApp() {
             render(h(Portfolio, web3), appContainer);
 
             return {
-                cleanup: () => {
+                cleanup: async () => {
                     document.body.classList.remove('v2-route');
                     // Unload route-specific CSS
                     stylesheetLoader.unload('route:portfolio');
@@ -369,60 +460,23 @@ async function initializeApp() {
             };
         });
 
-        // Governance Hub routes
-        router.on('/governance', async () => {
-            const { renderGovernanceOverview } = await import('./routes/governance/GovernanceOverview.js');
-            return renderGovernanceOverview();
-        });
-
-        router.on('/governance/proposals', async () => {
-            const { renderProposalsList } = await import('./routes/governance/ProposalsList.js');
-            return renderProposalsList();
-        });
-
-        router.on('/governance/proposals/:id', async (params) => {
-            const { renderProposalDetail } = await import('./routes/governance/ProposalDetail.js');
-            return renderProposalDetail(params);
-        });
-
-        router.on('/governance/apply', async () => {
-            const { renderGovernanceApply } = await import('./routes/governance/GovernanceApply.js');
-            return renderGovernanceApply();
-        });
-
-        router.on('/governance/apply/factory', async () => {
-            const { renderFactoryApplicationForm } = await import('./routes/governance/FactoryApplicationForm.js');
-            return renderFactoryApplicationForm();
-        });
-
-        router.on('/governance/apply/vault', async () => {
-            const { renderVaultApplicationForm } = await import('./routes/governance/VaultApplicationForm.js');
-            return renderVaultApplicationForm();
-        });
-
-        router.on('/governance/member', async () => {
-            const { renderMemberDashboard } = await import('./routes/governance/MemberDashboard.js');
-            return renderMemberDashboard();
-        });
-
-        router.on('/governance/treasury', async () => {
-            const { renderTreasuryView } = await import('./routes/governance/TreasuryView.js');
-            return renderTreasuryView();
-        });
-
-        router.on('/governance/shares', async () => {
-            const { renderShareOffering } = await import('./routes/governance/ShareOffering.js');
-            return renderShareOffering();
-        });
-
         // Register 404 handler
         router.notFound((path) => {
             const appContainer = document.getElementById('app-container');
+            const appTopContainer = document.getElementById('app-top-container');
+            const appBottomContainer = document.getElementById('app-bottom-container');
+            document.body.classList.add('v2-route', 'hide-wallet');
+            document.body.classList.remove('has-project-style');
+            document.documentElement.classList.remove('has-project-style');
+            document.documentElement.classList.add('project-style-resolved');
+            if (appTopContainer) appTopContainer.innerHTML = '';
+            if (appBottomContainer) appBottomContainer.innerHTML = '';
             if (appContainer) {
                 appContainer.innerHTML = `
-                    <div class="error-page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
-                        <h1 style="font-size: 4rem; margin-bottom: 2rem;">404</h1>
-                        <img src="/execs/0109_2.gif" alt="404" style="max-width: 100%; height: auto;" />
+                    <div style="max-width: 600px; margin: 120px auto; padding: 0 var(--space-4); text-align: center;">
+                        <h1 style="font-size: var(--font-size-h1); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); margin-bottom: var(--space-4);">404</h1>
+                        <p style="color: var(--text-secondary); margin-bottom: var(--space-6);">Page not found.</p>
+                        <a href="/" style="color: var(--text-primary); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); font-weight: bold; text-decoration: none; border: 1px solid var(--border-primary); padding: var(--space-2) var(--space-4);">Go Home</a>
                     </div>
                 `;
             }
@@ -478,29 +532,24 @@ async function initializeServices() {
 }
 
 /**
- * Initialize FloatingWalletButton globally
- * This button appears on all pages and provides wallet connection + power user menu
+ * Initialize wallet button globally
+ * Uses SimpleWalletButton (brutalist style) on all pages with web3 interactions.
+ * Routes without web3 hide it via body.hide-wallet CSS class.
  */
 function initializeFloatingWalletButton() {
     try {
-        // Load stylesheet
-        stylesheetLoader.load(
-            'src/components/FloatingWalletButton/FloatingWalletButton.css',
-            'floating-wallet-button-styles'
-        );
+        // Create container for wallet button
+        const walletContainer = document.createElement('div');
+        walletContainer.id = 'floating-wallet-container-global';
+        document.body.appendChild(walletContainer);
 
-        // Create container for FloatingWalletButton
-        const floatingWalletContainer = document.createElement('div');
-        floatingWalletContainer.id = 'floating-wallet-container-global';
-        document.body.appendChild(floatingWalletContainer);
-
-        // Mount FloatingWalletButton using microact render
-        render(h(FloatingWalletButton), floatingWalletContainer);
+        // Mount SimpleWalletButton (brutalist style) using microact render
+        render(h(SimpleWalletButton), walletContainer);
 
         // Store container for potential cleanup
-        window.floatingWalletContainer = floatingWalletContainer;
+        window.floatingWalletContainer = walletContainer;
     } catch (error) {
-        console.error('Failed to initialize FloatingWalletButton:', error);
+        console.error('Failed to initialize wallet button:', error);
     }
 }
 

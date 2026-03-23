@@ -93,7 +93,7 @@ export function parseProjectURL(path) {
  * @param {number} [chainId] - Chain ID (defaults to detected network or 1)
  * @returns {Promise<void>}
  */
-export async function navigateToProject(instanceAddress, chainId = null) {
+export async function navigateToProject(instanceAddress, chainId = null, navState = {}) {
     if (!instanceAddress) {
         console.warn('[navigateToProject] No instance address provided');
         return;
@@ -125,7 +125,7 @@ export async function navigateToProject(instanceAddress, chainId = null) {
                 if (projectURL && !projectURL.startsWith('/project/')) {
                     console.log('[navigateToProject] Using modern URL:', projectURL);
                     if (window.router) {
-                        window.router.navigate(projectURL);
+                        window.router.navigate(projectURL, { state: navState });
                     } else {
                         window.location.href = projectURL;
                     }

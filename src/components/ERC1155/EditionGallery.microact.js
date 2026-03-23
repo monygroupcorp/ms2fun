@@ -7,6 +7,7 @@
 
 import { Component, h } from '../../core/microact-setup.js';
 import { EditionCard } from './EditionCard.microact.js';
+import { EditionCardSkeleton } from '../Skeletons/Skeletons.js';
 
 export class EditionGallery extends Component {
     constructor(props = {}) {
@@ -50,8 +51,11 @@ export class EditionGallery extends Component {
 
         if (loading) {
             return h('div', { className: 'edition-gallery' },
-                h('div', { className: 'loading-state' },
-                    h('p', null, 'Loading editions...')
+                h('div', { className: 'gallery-grid' },
+                    EditionCardSkeleton(),
+                    EditionCardSkeleton(),
+                    EditionCardSkeleton(),
+                    EditionCardSkeleton()
                 )
             );
         }

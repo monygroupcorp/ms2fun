@@ -241,3 +241,544 @@
         padding: var(--space-3);
     }
 }
+
+/* ============================================================
+   ERC404 Admin Styles
+   Matches docs/examples/project-erc404-admin-demo.html
+   ============================================================ */
+
+/* Admin Notice Bar */
+.erc404-project-page .admin-notice {
+    background-color: var(--bg-secondary);
+    border-bottom: 2px solid var(--border-primary);
+    padding: var(--space-3) var(--space-5);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-4);
+}
+
+.erc404-project-page .admin-notice-text {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+}
+
+.erc404-project-page .admin-notice-toggle {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    font-weight: var(--font-weight-medium);
+}
+
+.erc404-project-page .admin-notice-toggle:hover {
+    opacity: 0.7;
+}
+
+/* Admin Controls (inline stats section) */
+.erc404-project-page .admin-controls {
+    background-color: var(--bg-secondary);
+    border: 2px solid var(--border-primary);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.erc404-project-page.admin-hidden .admin-controls {
+    display: none;
+}
+
+.erc404-project-page .admin-section-title {
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-4);
+}
+
+/* Phase Badge */
+.erc404-project-page .phase-badge,
+.erc404-admin-modal .phase-badge {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    border: 1px solid var(--border-secondary);
+}
+
+.phase-badge.pre-open {
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.phase-badge.bonding {
+    background-color: #ffd700;
+    color: #000;
+}
+
+.phase-badge.full {
+    background-color: #00ff00;
+    color: #000;
+}
+
+.phase-badge.matured {
+    background-color: #9370db;
+    color: #fff;
+}
+
+.phase-badge.deployed {
+    background-color: #4169e1;
+    color: #fff;
+}
+
+/* Admin Stats Grid */
+.erc404-project-page .admin-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.erc404-project-page .admin-stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.admin-stat-label {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.admin-stat-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+/* Progress Bar */
+.erc404-project-page .progress-bar-container,
+.erc404-admin-modal .progress-bar-container {
+    margin-top: var(--space-3);
+}
+
+.erc404-project-page .progress-bar-label,
+.erc404-admin-modal .progress-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-1);
+}
+
+.erc404-project-page .progress-bar,
+.erc404-admin-modal .progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    position: relative;
+}
+
+.erc404-project-page .progress-bar-fill,
+.erc404-admin-modal .progress-bar-fill {
+    height: 100%;
+    background-color: var(--text-primary);
+    transition: width 0.3s ease;
+}
+
+/* ── Admin Modal ── */
+
+.erc404-admin-modal .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--space-4);
+}
+
+.erc404-admin-modal .modal-overlay.active {
+    display: flex;
+}
+
+.erc404-admin-modal .modal {
+    background-color: var(--bg-primary);
+    border: 2px solid var(--border-primary);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.erc404-admin-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.erc404-admin-modal .modal-title {
+    font-size: var(--font-size-h4);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc404-admin-modal .modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 2rem;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-opacity);
+}
+
+.erc404-admin-modal .modal-close:hover {
+    opacity: 0.7;
+}
+
+.erc404-admin-modal .modal-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-secondary);
+}
+
+.erc404-admin-modal .modal-tab {
+    flex: 1;
+    padding: var(--space-3);
+    background-color: var(--bg-secondary);
+    border: none;
+    border-right: 1px solid var(--border-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    font-weight: var(--font-weight-medium);
+    transition: var(--transition-opacity);
+}
+
+.erc404-admin-modal .modal-tab:last-child {
+    border-right: none;
+}
+
+.erc404-admin-modal .modal-tab:hover {
+    opacity: 0.7;
+}
+
+.erc404-admin-modal .modal-tab.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.erc404-admin-modal .modal-body {
+    padding: var(--space-4);
+}
+
+.erc404-admin-modal .modal-tab-content {
+    display: none;
+}
+
+.erc404-admin-modal .modal-tab-content.active {
+    display: block;
+}
+
+.erc404-admin-modal .modal-section {
+    margin-bottom: var(--space-5);
+}
+
+.erc404-admin-modal .modal-section:last-child {
+    margin-bottom: 0;
+}
+
+.erc404-admin-modal .modal-section-title {
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-3);
+}
+
+/* Configuration Items */
+.erc404-admin-modal .config-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.erc404-admin-modal .config-item {
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-3);
+}
+
+.erc404-admin-modal .config-item.needs-setup {
+    border-color: var(--border-primary);
+}
+
+.erc404-admin-modal .config-item.completed {
+    opacity: 0.5;
+}
+
+.erc404-admin-modal .config-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+.erc404-admin-modal .config-item-label {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc404-admin-modal .config-item-status {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc404-admin-modal .config-item-value {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+}
+
+/* Form Elements */
+.erc404-admin-modal .form-group {
+    margin-bottom: var(--space-3);
+}
+
+.erc404-admin-modal .form-label {
+    display: block;
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-2);
+}
+
+.erc404-admin-modal .form-input {
+    width: 100%;
+    height: var(--input-height);
+    padding: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-body);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.erc404-admin-modal .form-input:focus {
+    outline: none;
+    border-color: var(--text-primary);
+}
+
+.erc404-admin-modal .checkbox-row {
+    display: block;
+    margin-bottom: var(--space-3);
+    padding-left: 28px;
+    position: relative;
+}
+
+.erc404-admin-modal .checkbox-row input[type="checkbox"] {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.erc404-admin-modal .checkbox-row label {
+    display: block;
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    cursor: pointer;
+}
+
+.erc404-admin-modal .warning-list {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.erc404-admin-modal .warning-list ul {
+    margin: 0;
+    padding-left: var(--space-5);
+    list-style-type: disc;
+}
+
+.erc404-admin-modal .warning-list li {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+    line-height: var(--line-height-relaxed);
+    padding-left: var(--space-1);
+}
+
+.erc404-admin-modal .warning-list li:last-child {
+    margin-bottom: 0;
+}
+
+/* Style Builder (shared pattern with ERC1155) */
+.erc404-admin-modal .style-token-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.erc404-admin-modal .style-token-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 1fr;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.erc404-admin-modal .style-token-label {
+    font-size: var(--font-size-caption);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+}
+
+.erc404-admin-modal .style-token-key {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    color: var(--text-tertiary);
+}
+
+.erc404-admin-modal .style-token-input-group {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+}
+
+.erc404-admin-modal .style-token-color {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border-secondary);
+    cursor: pointer;
+}
+
+.erc404-admin-modal .style-token-text {
+    flex: 1;
+    padding: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-caption);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+}
+
+.erc404-admin-modal .style-extended-section {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--border-tertiary);
+}
+
+.erc404-admin-modal .style-extended-title {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    margin-bottom: var(--space-2);
+}
+
+/* Admin Settings Button */
+.erc404-project-page .admin-settings-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.erc404-project-page .admin-settings-btn:hover {
+    background-color: var(--state-hover-bg);
+}
+
+/* ── Admin Responsive ── */
+
+@media (max-width: 1024px) {
+    .erc404-project-page .admin-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .erc404-project-page .admin-notice {
+        padding: var(--space-3) var(--space-4);
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+
+    .erc404-project-page .admin-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .erc404-admin-modal .modal {
+        max-width: 100%;
+        max-height: 100vh;
+        height: 100%;
+    }
+
+    .erc404-admin-modal .modal-tab {
+        padding: var(--space-2);
+        font-size: var(--font-size-caption);
+    }
+
+    .erc404-project-page .admin-controls {
+        padding: var(--space-3);
+    }
+
+    .erc404-project-page .admin-stats-grid {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+    }
+
+    .erc404-admin-modal .config-items {
+        gap: var(--space-2);
+    }
+
+    .erc404-admin-modal .style-token-row {
+        grid-template-columns: 1fr;
+    }
+}

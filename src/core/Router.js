@@ -15,7 +15,17 @@ class Router {
         
         // Listen for browser back/forward
         window.addEventListener('popstate', async (e) => {
-            await this.handleRoute(window.location.pathname);
+            const newPath = window.location.pathname;
+            // Skip if already on this route (hash-only changes, etc.)
+            if (newPath === this.currentRoute && this.currentHandler) return;
+
+            // Save scroll position of the page we're leaving
+            if (this.currentRoute) {
+                try {
+                    sessionStorage.setItem('scroll:' + this.currentRoute, String(window.scrollY));
+                } catch (e) { /* quota exceeded or private mode */ }
+            }
+            await this.handleRoute(newPath);
         });
     }
     
@@ -39,17 +49,33 @@ class Router {
     /**
      * Navigate to a route
      * @param {string} path - Route path
-     * @param {boolean} replace - Whether to replace history entry
+     * @param {boolean|object} replaceOrOptions - boolean for replace, or { replace, state }
      */
-    async navigate(path, replace = false) {
+    async navigate(path, replaceOrOptions = false) {
         if (path === window.location.pathname) {
             return; // Already on this route
         }
-        
-        if (replace) {
-            window.history.replaceState({ path }, '', path);
+
+        // Save scroll position of the page we're leaving
+        try {
+            sessionStorage.setItem('scroll:' + window.location.pathname, String(window.scrollY));
+        } catch (e) { /* quota exceeded or private mode */ }
+
+        let replace = false;
+        let extraState = {};
+        if (typeof replaceOrOptions === 'object' && replaceOrOptions !== null) {
+            replace = replaceOrOptions.replace || false;
+            extraState = replaceOrOptions.state || {};
         } else {
-            window.history.pushState({ path }, '', path);
+            replace = replaceOrOptions;
+        }
+
+        const historyState = { path, ...extraState };
+
+        if (replace) {
+            window.history.replaceState(historyState, '', path);
+        } else {
+            window.history.pushState(historyState, '', path);
         }
         
         await this.handleRoute(path);
@@ -166,21 +192,48 @@ class Router {
      * @param {string} path - Route path
      */
     async handleRoute(path) {
+        // Strip query string for route matching (query params stay in window.location.search)
+        const pathWithoutQuery = path.split('?')[0];
+
         // Clean up current handler if it exists
         if (this.currentHandler && typeof this.currentHandler.cleanup === 'function') {
-            this.currentHandler.cleanup();
+            await this.currentHandler.cleanup();
         }
-        
+
         // Find matching route
-        const match = this._findRoute(path);
+        const match = this._findRoute(pathWithoutQuery);
         
         if (match) {
-            this.currentRoute = path;
+            this.currentRoute = pathWithoutQuery;
             // Call handler with params and store the result (which may include cleanup function)
             // Handle both sync and async handlers
             const result = await Promise.resolve(match.handler(match.params));
             this.currentHandler = result || null;
             
+            // Restore saved scroll position for this path
+            try {
+                const savedScroll = sessionStorage.getItem('scroll:' + path);
+                if (savedScroll !== null) {
+                    const y = parseInt(savedScroll, 10);
+                    sessionStorage.removeItem('scroll:' + path);
+                    // Content loads async, so retry scroll until page is tall enough
+                    const tryScroll = (attempts) => {
+                        if (attempts <= 0) return;
+                        if (document.documentElement.scrollHeight >= y + window.innerHeight * 0.5) {
+                            window.scrollTo(0, y);
+                        } else {
+                            setTimeout(() => tryScroll(attempts - 1), 100);
+                        }
+                    };
+                    // First attempt after a short delay for initial render
+                    setTimeout(() => tryScroll(15), 50);
+                } else {
+                    window.scrollTo(0, 0);
+                }
+            } catch (e) {
+                window.scrollTo(0, 0);
+            }
+
             // Ensure theme toggle exists after route handler completes
             if (window.themeManager && typeof window.themeManager.ensureToggleExists === 'function') {
                 setTimeout(() => {

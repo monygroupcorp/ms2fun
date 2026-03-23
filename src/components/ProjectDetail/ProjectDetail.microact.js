@@ -8,6 +8,7 @@
 import { Component, h } from '../../core/microact-setup.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { ContractTypeRouter } from './ContractTypeRouter.microact.js';
+import { ProjectPageSkeleton } from '../Skeletons/Skeletons.js';
 
 export class ProjectDetail extends Component {
     constructor(props = {}) {
@@ -72,12 +73,45 @@ export class ProjectDetail extends Component {
         }
     }
 
-    handleBack() {
+    getNavSource() {
+        return window.history.state?.from || null;
+    }
+
+    handleHomeClick(e) {
+        if (e) e.preventDefault();
         if (window.router) {
             window.router.navigate('/');
         } else {
             window.location.href = '/';
         }
+    }
+
+    handleSourceClick(e) {
+        if (e) e.preventDefault();
+        const from = this.getNavSource();
+        const path = from === 'projects' ? '/discover' : from === 'activity' ? '/activity' : '/';
+        if (window.router) {
+            window.router.navigate(path);
+        } else {
+            window.location.href = path;
+        }
+    }
+
+    renderBreadcrumb() {
+        const from = this.getNavSource();
+        const sourceLabels = { projects: 'Projects', activity: 'Activity' };
+        const sourceLabel = sourceLabels[from];
+
+        return h('div', { className: 'breadcrumb' },
+            h('a', { href: '/', className: 'breadcrumb-wordmark', onClick: this.bind(this.handleHomeClick) },
+                'MS2', h('span', { className: 'logo-tld' }, '.fun')
+            ),
+            sourceLabel && h('span', { className: 'breadcrumb-separator' }, '/'),
+            sourceLabel && h('a', {
+                href: from === 'projects' ? '/discover' : `/${from}`,
+                onClick: this.bind(this.handleSourceClick)
+            }, sourceLabel)
+        );
     }
 
     escapeHtml(text) {
@@ -91,36 +125,25 @@ export class ProjectDetail extends Component {
         const { project, loading, error } = this.state;
 
         if (loading) {
-            return h('div', { className: 'project-detail' },
-                h('div', { className: 'loading-state' },
-                    h('div', { className: 'spinner' }),
-                    h('p', null, 'Loading project...')
-                )
-            );
+            return ProjectPageSkeleton();
         }
 
         if (error) {
             return h('div', { className: 'project-detail' },
+                h('div', { className: 'detail-navigation' }, this.renderBreadcrumb()),
                 h('div', { className: 'error-state' },
                     h('h2', null, 'Error'),
-                    h('p', { className: 'error-message' }, this.escapeHtml(error)),
-                    h('button', {
-                        className: 'back-button',
-                        onClick: this.bind(this.handleBack)
-                    }, '\u2190 Back to Projects')
+                    h('p', { className: 'error-message' }, this.escapeHtml(error))
                 )
             );
         }
 
         if (!project) {
             return h('div', { className: 'project-detail' },
+                h('div', { className: 'detail-navigation' }, this.renderBreadcrumb()),
                 h('div', { className: 'error-state' },
                     h('h2', null, 'Project Not Found'),
-                    h('p', null, "The project you're looking for doesn't exist."),
-                    h('button', {
-                        className: 'back-button',
-                        onClick: this.bind(this.handleBack)
-                    }, '\u2190 Back to Projects')
+                    h('p', null, "The project you're looking for doesn't exist.")
                 )
             );
         }
@@ -132,12 +155,7 @@ export class ProjectDetail extends Component {
         const hasOwnHeader = isERC404 || isERC1155 || isERC721;
 
         return h('div', { className: 'project-detail content' },
-            h('div', { className: 'detail-navigation' },
-                h('button', {
-                    className: 'back-button',
-                    onClick: this.bind(this.handleBack)
-                }, '\u2190 Back to Launchpad')
-            ),
+            h('div', { className: 'detail-navigation' }, this.renderBreadcrumb()),
 
             // Generic header for types that don't have their own page component
             !hasOwnHeader && h('div', { className: 'detail-header-container' },

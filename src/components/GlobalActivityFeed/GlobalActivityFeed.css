@@ -289,6 +289,13 @@
     font-family: var(--font-mono);
     font-size: var(--font-size-body-xs);
     color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.project-link:hover {
+    color: var(--text-primary);
 }
 
 /* Time */

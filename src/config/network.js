@@ -95,7 +95,7 @@ export function detectNetwork() {
     };
   }
 
-  // MAINNET_DEV: dev server on localhost but targeting mainnet contracts/RPCs
+  // Forced mode overrides via env var
   const forcedMode = import.meta.env.VITE_FORCE_MODE;
   if (forcedMode === 'MAINNET_DEV' || forcedMode === 'PRODUCTION_DEPLOYED') {
     return {
@@ -103,6 +103,16 @@ export function detectNetwork() {
       rpcUrl: 'https://ethereum.publicnode.com',
       chainId: 1,
       contracts: '/src/config/contracts.mainnet.json',
+      abiPath: 'contracts/abi'
+    };
+  }
+
+  if (forcedMode === 'SEPOLIA_DEV' || forcedMode === 'SEPOLIA') {
+    return {
+      mode: 'sepolia',
+      rpcUrl: 'https://ethereum-sepolia.publicnode.com',
+      chainId: 11155111,
+      contracts: '/src/config/contracts.sepolia.json',
       abiPath: 'contracts/abi'
     };
   }
@@ -158,6 +168,14 @@ export function isMockMode() {
  */
 export function isMainnet() {
   return detectNetwork().mode === 'mainnet';
+}
+
+/**
+ * Check if running on Sepolia testnet
+ * @returns {boolean}
+ */
+export function isSepolia() {
+  return detectNetwork().mode === 'sepolia';
 }
 
 /**

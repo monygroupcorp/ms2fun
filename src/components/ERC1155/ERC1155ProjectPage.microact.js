@@ -7,34 +7,43 @@
  * Matches docs/examples/project-erc1155-demo.html
  */
 
-import { Component, h } from '../../core/microact-setup.js';
+import { Component, h, eventBus } from '../../core/microact-setup.js';
 import { EditionGallery } from './EditionGallery.microact.js';
+import { ERC1155PortfolioModal } from './ERC1155PortfolioModal.microact.js';
+import { ERC1155AdminPanel } from './ERC1155AdminPanel.microact.js';
+import { CreateEditionModal } from './CreateEditionModal.microact.js';
+import { UpdateMetadataModal } from './UpdateMetadataModal.microact.js';
+import { SetEditionStyleModal } from './SetEditionStyleModal.microact.js';
 import { ProjectCommentFeed } from '../ProjectCommentFeed/ProjectCommentFeed.microact.js';
+import walletService from '../../services/WalletService.js';
 import stylesheetLoader from '../../utils/stylesheetLoader.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 
 export class ERC1155ProjectPage extends Component {
     constructor(props = {}) {
         super(props);
+        const project = props.project || {};
         this.state = {
-            loading: true,
-            activeTab: 'gallery',
-            // Project info
-            projectName: '',
-            projectDescription: '',
-            creator: '',
-            contractAddress: '',
-            deployedDate: '',
-            // Stats
+            loading: false,
+            // Project info (initialized from props so no async setState needed)
+            projectName: project.name || project.displayName || 'Untitled Project',
+            projectDescription: project.description || '',
+            creator: project.creator || project.creatorAddress || '',
+            contractAddress: project.contractAddress || project.address || '',
+            deployedDate: project.createdAt
+                ? new Date(project.createdAt).toLocaleDateString()
+                : '',
+            // Stats (populated async via DOM updates)
             editionCount: 0,
             totalMinted: 0,
             totalVolume: '0',
             // Vault
-            vaultAddress: null,
+            vaultAddress: project.vault || null,
             vaultName: '',
             vaultDescription: '',
+            vaultAlignmentTokenName: '',
+            vaultAlignmentTokenSymbol: '',
             vaultContributed: '0',
-            vaultTVL: '0',
             vaultBenefactorCount: 0
         };
         this._projectStyleId = null;
@@ -60,31 +69,33 @@ export class ERC1155ProjectPage extends Component {
             this.unloadProjectStyle();
         });
 
-        await this.loadProjectData();
+        // State is initialized from props in constructor, no async load needed.
+        // Stats and vault data update the DOM directly after async contract calls.
         this.loadProjectStyle();
         this.loadStats();
         this.loadVaultData();
-    }
 
-    async loadProjectData() {
-        try {
-            const project = this.project || {};
+        // Refresh stats after a mint
+        const unsub = eventBus.on('erc1155:mint:success', () => {
+            // Invalidate adapter cache so we get fresh data
+            this.loadStats();
+        });
+        this.registerCleanup(() => unsub());
 
-            this.setState({
-                loading: false,
-                projectName: project.name || project.displayName || 'Untitled Project',
-                projectDescription: project.description || '',
-                creator: project.creator || project.creatorAddress || '',
-                contractAddress: project.contractAddress || project.address || this.projectId,
-                deployedDate: project.createdAt
-                    ? new Date(project.createdAt).toLocaleDateString()
-                    : '',
-                vaultAddress: project.vault || null
-            });
-        } catch (error) {
-            console.error('[ERC1155ProjectPage] Failed to load project data:', error);
-            this.setState({ loading: false });
-        }
+        // Refresh editions after creation
+        const unsub2 = eventBus.on('erc1155:edition:created', () => {
+            this.loadStats();
+        });
+        this.registerCleanup(() => unsub2());
+
+        // Check admin ownership
+        this.checkOwnership();
+
+        // Re-check on wallet events
+        const unsub3 = eventBus.on('wallet:connected', () => this.checkOwnership());
+        const unsub4 = eventBus.on('wallet:disconnected', () => this.hideAdmin());
+        const unsub5 = eventBus.on('wallet:changed', () => this.checkOwnership());
+        this.registerCleanup(() => { unsub3(); unsub4(); unsub5(); });
     }
 
     async loadStats() {
@@ -126,17 +137,34 @@ export class ERC1155ProjectPage extends Component {
             const { loadABI } = await import('../../utils/abiLoader.js');
             const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
 
-            const abi = await loadABI('UltraAlignmentVault');
+            const abi = await loadABI('UniAlignmentVault');
             const provider = this.adapter?.provider || this.adapter?.contract?.provider;
             if (!provider) return;
 
             const vaultContract = new ethers.Contract(vaultAddress, abi, provider);
 
-            const [description, accumulatedFees, totalShares] = await Promise.allSettled([
-                vaultContract.description().catch(() => ''),
-                vaultContract.accumulatedFees().catch(() => BigInt(0)),
-                vaultContract.totalShares().catch(() => BigInt(0))
+            const [alignmentTokenAddr] = await Promise.allSettled([
+                vaultContract.alignmentToken().catch(() => null)
             ]);
+
+            // Fetch alignment token name + symbol
+            let alignmentTokenName = '';
+            let alignmentTokenSymbol = '';
+            const tokenAddress = alignmentTokenAddr.status === 'fulfilled' ? alignmentTokenAddr.value : null;
+            if (tokenAddress && tokenAddress !== '0x0000000000000000000000000000000000000000') {
+                try {
+                    const erc20Abi = ['function name() view returns (string)', 'function symbol() view returns (string)'];
+                    const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, provider);
+                    const [tokenName, tokenSymbol] = await Promise.allSettled([
+                        tokenContract.name().catch(() => ''),
+                        tokenContract.symbol().catch(() => '')
+                    ]);
+                    alignmentTokenName = tokenName.status === 'fulfilled' ? tokenName.value : '';
+                    alignmentTokenSymbol = tokenSymbol.status === 'fulfilled' ? tokenSymbol.value : '';
+                } catch (e) {
+                    console.warn('[ERC1155ProjectPage] Failed to load alignment token metadata:', e);
+                }
+            }
 
             // Get this instance's contribution
             let contributed = '0';
@@ -147,14 +175,10 @@ export class ERC1155ProjectPage extends Component {
                 // benefactorTotalETH may not exist
             }
 
-            const feesValue = accumulatedFees.status === 'fulfilled'
-                ? (Number(accumulatedFees.value) / 1e18).toFixed(4)
-                : '0';
-
             this.updateVaultDOM({
-                vaultDescription: description.status === 'fulfilled' ? description.value : '',
-                vaultContributed: contributed,
-                vaultTVL: feesValue
+                vaultAlignmentTokenName: alignmentTokenName,
+                vaultAlignmentTokenSymbol: alignmentTokenSymbol,
+                vaultContributed: contributed
             });
         } catch (error) {
             console.warn('[ERC1155ProjectPage] Failed to load vault data:', error);
@@ -163,11 +187,11 @@ export class ERC1155ProjectPage extends Component {
 
     // Direct DOM updates for data that loads after initial render
     updateStatsDOM(stats) {
-        if (!this._element) {
+        if (!this._el) {
             this.setState(stats);
             return;
         }
-        const el = this._element;
+        const el = this._el;
         const setValue = (selector, value) => {
             const node = el.querySelector(selector);
             if (node) node.textContent = value;
@@ -178,59 +202,26 @@ export class ERC1155ProjectPage extends Component {
     }
 
     updateVaultDOM(data) {
-        if (!this._element) {
+        if (!this._el) {
             this.setState(data);
             return;
         }
-        const el = this._element;
+        const el = this._el;
         const setValue = (selector, value) => {
             const node = el.querySelector(selector);
             if (node) node.textContent = value;
         };
-        if (data.vaultDescription) {
-            setValue('.vault-alignment-description', data.vaultDescription);
+        if (data.vaultAlignmentTokenName !== undefined) {
+            const name = data.vaultAlignmentTokenName;
+            const symbol = data.vaultAlignmentTokenSymbol;
+            const display = name && symbol ? `${name} (${symbol})` : name || symbol || '—';
+            setValue('.vault-alignment-description', display);
         }
         setValue('[data-vault-stat="contributed"]', `${data.vaultContributed} ETH`);
-        setValue('[data-vault-stat="tvl"]', `${data.vaultTVL} ETH`);
     }
 
-    shouldUpdate(oldState, newState) {
-        // Only re-render for structural changes
-        if (oldState.loading !== newState.loading) return true;
-
-        // Handle tab switch via DOM manipulation
-        if (oldState.activeTab !== newState.activeTab) {
-            this.updateTabDisplay(newState.activeTab);
-            return false;
-        }
-
+    shouldUpdate() {
         return false;
-    }
-
-    handleTabClick(tab) {
-        if (tab !== this.state.activeTab) {
-            this.setState({ activeTab: tab });
-        }
-    }
-
-    updateTabDisplay(activeTab) {
-        if (!this._element) return;
-
-        // Update tab buttons
-        const tabs = this._element.querySelectorAll('.tab');
-        tabs.forEach(btn => {
-            if (btn.dataset.tab === activeTab) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-
-        // Update tab content visibility
-        const panels = this._element.querySelectorAll('[data-tab-content]');
-        panels.forEach(panel => {
-            panel.style.display = panel.dataset.tabContent === activeTab ? 'block' : 'none';
-        });
     }
 
     // Project style loading
@@ -320,23 +311,75 @@ export class ERC1155ProjectPage extends Component {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     }
 
+    async checkOwnership() {
+        if (!this.adapter) return;
+
+        try {
+            const userAddress = walletService.getAddress();
+            if (!userAddress) {
+                this.hideAdmin();
+                return;
+            }
+
+            const ownerAddress = await this.adapter.owner();
+            if (ownerAddress && userAddress.toLowerCase() === ownerAddress.toLowerCase()) {
+                this.showAdmin();
+            } else {
+                this.hideAdmin();
+            }
+        } catch (error) {
+            console.warn('[ERC1155ProjectPage] Failed to check ownership:', error);
+            this.hideAdmin();
+        }
+    }
+
+    showAdmin() {
+        if (!this._el) return;
+        const notice = this._el.querySelector('.admin-notice');
+        const panel = this._el.querySelector('.admin-panel');
+        if (notice) notice.style.display = '';
+        if (panel) panel.style.display = '';
+        this._el.classList.remove('admin-hidden');
+        eventBus.emit('erc1155:admin:enabled');
+    }
+
+    hideAdmin() {
+        if (!this._el) return;
+        const notice = this._el.querySelector('.admin-notice');
+        const panel = this._el.querySelector('.admin-panel');
+        if (notice) notice.style.display = 'none';
+        if (panel) panel.style.display = 'none';
+        eventBus.emit('erc1155:admin:disabled');
+    }
+
+    toggleAdmin() {
+        if (!this._el) return;
+        const isHidden = this._el.classList.toggle('admin-hidden');
+        const toggleBtn = this._el.querySelector('.admin-toggle');
+        if (toggleBtn) {
+            toggleBtn.textContent = isHidden ? 'Show Admin Controls' : 'Hide Admin Controls';
+        }
+    }
+
     render() {
         const {
-            loading, activeTab,
             projectName, projectDescription, creator, contractAddress, deployedDate,
             editionCount, totalMinted, totalVolume,
-            vaultAddress, vaultDescription, vaultContributed, vaultTVL
+            vaultAddress, vaultAlignmentTokenName, vaultAlignmentTokenSymbol, vaultContributed
         } = this.state;
 
-        if (loading) {
-            return h('div', { className: 'erc1155-project-page' },
-                h('div', { className: 'loading-state' },
-                    h('p', null, 'Loading project...')
-                )
-            );
-        }
-
         return h('div', { className: 'erc1155-project-page' },
+
+            // ── Admin Notice Bar (hidden until ownership confirmed) ──
+            h('div', { className: 'admin-notice', style: { display: 'none' } },
+                h('div', { className: 'admin-notice-text' },
+                    '\u2699 You are viewing this as the project creator \u2014 Admin controls enabled'
+                ),
+                h('button', {
+                    className: 'admin-toggle',
+                    onClick: this.bind(this.toggleAdmin)
+                }, 'Hide Admin Controls')
+            ),
 
             // ── Project Header ──
             h('header', { className: 'project-header' },
@@ -358,8 +401,17 @@ export class ERC1155ProjectPage extends Component {
                         h('span', { className: 'project-meta-label' }, 'Deployed:'),
                         h('span', null, deployedDate)
                     )
+                ),
+                h('div', { className: 'project-actions' },
+                    h('button', {
+                        className: 'action-btn',
+                        onClick: () => eventBus.emit('erc1155:portfolio:open')
+                    }, 'My Editions')
                 )
             ),
+
+            // ── Admin Panel (hidden until ownership confirmed) ──
+            h(ERC1155AdminPanel, { adapter: this.adapter }),
 
             // ── Stats Bar ──
             h('div', { className: 'stats-bar' },
@@ -379,105 +431,54 @@ export class ERC1155ProjectPage extends Component {
 
             // ── Vault Alignment ──
             vaultAddress && h('div', { className: 'vault-alignment' },
-                h('div', { className: 'vault-alignment-header' },
-                    h('div', { className: 'vault-alignment-title' }, 'Vault Alignment'),
-                    h('div', { className: 'vault-alignment-badge' }, this.formatAddress(vaultAddress))
-                ),
-                vaultDescription && h('div', { className: 'vault-alignment-description' },
-                    this.escapeHtml(vaultDescription)
-                ),
+                h('div', { className: 'vault-alignment-label' }, 'Aligned with'),
+                (() => {
+                    const tokenDisplay = vaultAlignmentTokenName && vaultAlignmentTokenSymbol
+                        ? `${vaultAlignmentTokenName} (${vaultAlignmentTokenSymbol})`
+                        : vaultAlignmentTokenName || vaultAlignmentTokenSymbol || null;
+                    return tokenDisplay
+                        ? h('div', { className: 'vault-alignment-description' }, tokenDisplay)
+                        : h('div', { className: 'vault-alignment-description vault-alignment-description--loading' }, '—');
+                })(),
                 h('div', { className: 'vault-alignment-stats' },
                     h('div', { className: 'vault-stat' },
                         h('div', { className: 'vault-stat-label' }, 'Contributed'),
                         h('div', { className: 'vault-stat-value', 'data-vault-stat': 'contributed' },
                             vaultContributed !== '0' ? `${vaultContributed} ETH` : '—'
                         )
-                    ),
-                    h('div', { className: 'vault-stat' },
-                        h('div', { className: 'vault-stat-label' }, 'Vault Fees'),
-                        h('div', { className: 'vault-stat-value', 'data-vault-stat': 'tvl' },
-                            vaultTVL !== '0' ? `${vaultTVL} ETH` : '—'
-                        )
                     )
-                )
+                ),
+                h('div', { className: 'vault-alignment-address' }, this.formatAddress(vaultAddress))
             ),
 
-            // ── Tabs ──
-            h('div', { className: 'tabs' },
-                h('button', {
-                    className: `tab ${activeTab === 'gallery' ? 'active' : ''}`,
-                    'data-tab': 'gallery',
-                    onClick: () => this.handleTabClick('gallery')
-                }, 'Gallery'),
-                h('button', {
-                    className: `tab ${activeTab === 'about' ? 'active' : ''}`,
-                    'data-tab': 'about',
-                    onClick: () => this.handleTabClick('about')
-                }, 'About'),
-                h('button', {
-                    className: `tab ${activeTab === 'activity' ? 'active' : ''}`,
-                    'data-tab': 'activity',
-                    onClick: () => this.handleTabClick('activity')
-                }, 'Activity')
-            ),
+            // ── Editions ──
+            h(EditionGallery, {
+                projectId: this.projectId,
+                adapter: this.adapter,
+                project: this.project
+            }),
 
-            // ── Gallery Tab ──
-            h('div', { 'data-tab-content': 'gallery', style: { display: activeTab === 'gallery' ? 'block' : 'none' } },
-                h(EditionGallery, {
-                    projectId: this.projectId,
-                    adapter: this.adapter,
-                    project: this.project
-                })
-            ),
-
-            // ── About Tab ──
-            h('div', { 'data-tab-content': 'about', style: { display: activeTab === 'about' ? 'block' : 'none' } },
-                h('div', { className: 'about-section' },
-                    h('h2', { className: 'about-title' }, 'About This Project'),
-                    projectDescription && h('p', { className: 'about-text' },
-                        this.escapeHtml(projectDescription)
-                    ),
-                    h('h3', { className: 'about-title about-title-sm' }, 'Project Details'),
-                    h('div', { className: 'about-details' },
-                        this.renderDetailRow('Contract Type', 'ERC1155 Gallery'),
-                        this.renderDetailRow('Total Editions', editionCount || '—'),
-                        this.renderDetailRow('Contract Address', this.formatAddress(contractAddress)),
-                        deployedDate && this.renderDetailRow('Deployed', deployedDate),
-                        creator && this.renderDetailRow('Creator', this.formatAddress(creator)),
-                        vaultAddress && this.renderDetailRow('Vault', this.formatAddress(vaultAddress))
-                    )
-                )
-            ),
-
-            // ── Activity Tab (Comment Feed) ──
-            h('div', { 'data-tab-content': 'activity', style: { display: activeTab === 'activity' ? 'block' : 'none' } },
+            // ── Activity Feed ──
+            h('div', { className: 'activity-section' },
+                h('h2', { className: 'section-title' }, 'Activity'),
                 h(ProjectCommentFeed, {
                     projectAddress: this.projectId
                 })
             ),
 
-            // ── Free Mint Gating (placeholder — ERC1155 contracts don't support gating yet) ──
-            h('div', { className: 'free-mint-placeholder' },
-                h('div', { className: 'free-mint-header' },
-                    h('div', { className: 'free-mint-title' }, 'Free Mint'),
-                    h('div', { className: 'free-mint-badge free-mint-badge-disabled' }, 'Not Available')
-                ),
-                h('div', { className: 'free-mint-description' },
-                    'Free mint gating is not yet supported for ERC1155 projects. When available, eligible users will be able to claim editions at no cost based on configured gating rules.'
-                )
-            ),
-
             // Bottom spacer
-            h('div', { style: { height: '80px' } })
+            h('div', { style: { height: '80px' } }),
+
+            // Portfolio modal (hidden until opened via event)
+            h(ERC1155PortfolioModal, { adapter: this.adapter }),
+
+            // Admin modals
+            h(CreateEditionModal, { adapter: this.adapter }),
+            h(UpdateMetadataModal, { adapter: this.adapter }),
+            h(SetEditionStyleModal, { adapter: this.adapter })
         );
     }
 
-    renderDetailRow(label, value) {
-        return h('div', { className: 'about-detail-row' },
-            h('div', { className: 'about-detail-label' }, label),
-            h('div', { className: 'about-detail-value' }, String(value))
-        );
-    }
 }
 
 export default ERC1155ProjectPage;

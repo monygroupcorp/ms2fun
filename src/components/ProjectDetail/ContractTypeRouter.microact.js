@@ -9,6 +9,7 @@ import serviceFactory from '../../services/ServiceFactory.js';
 import { ERC1155ProjectPage } from '../ERC1155/ERC1155ProjectPage.microact.js';
 import { ERC721ProjectPage } from '../ERC721/ERC721ProjectPage.microact.js';
 import { ERC404ProjectPage } from '../ERC404/ERC404ProjectPage.microact.js';
+import { ERC1155PageSkeleton } from '../Skeletons/Skeletons.js';
 
 export class ContractTypeRouter extends Component {
     constructor(props = {}) {
@@ -94,10 +95,7 @@ export class ContractTypeRouter extends Component {
         const { loading, adapter, project } = this.state;
 
         if (loading) {
-            return h('div', { className: 'contract-type-router loading' },
-                h('div', { className: 'loading-spinner' }),
-                h('p', null, 'Loading interface...')
-            );
+            return ERC1155PageSkeleton();
         }
 
         if (!this.contractType) {

@@ -1,554 +1,1045 @@
 /**
- * Documentation - Microact Version
+ * Documentation - Microact Version (v2 Gallery Brutalism)
  *
- * Main documentation/about page with scroll spy and mobile menu.
+ * Tab-based documentation page with sidebar navigation.
+ * Shows one section at a time; clicking nav links switches sections.
+ * Source of truth: docs/examples/documentation-demo.html
  */
 
 import { Component, h } from '../../core/microact-setup.js';
+import stylesheetLoader from '../../utils/stylesheetLoader.js';
 
 export class Documentation extends Component {
     constructor(props = {}) {
         super(props);
-        this._scrollObserver = null;
-        this._isScrolling = false;
-        this._scrollTimeout = null;
-        this._navClickHandler = null;
-        this._mobileMenuRetries = 0;
         this.state = {
-            activeSection: 'hero',
-            sidebarOpen: false
+            activeSection: 'overview'
         };
     }
 
     async didMount() {
-        setTimeout(() => {
-            this.setupScrollSpy();
-        }, 100);
-        this.setupSmoothScrolling();
-        setTimeout(() => {
-            this.setupMobileMenu();
-        }, 50);
-        this.setupFAQ();
-    }
+        await stylesheetLoader.load('/src/core/route-documentation-v2.css', 'route:documentation');
 
-    setupScrollSpy() {
-        if (this._scrollObserver) {
-            this._scrollObserver.disconnect();
-            this._scrollObserver = null;
+        // Handle direct links to sections via URL hash
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            this.showSection(hash);
         }
 
+        this.setupNavClicks();
+        this.setupArticleCardClicks();
+    }
+
+    setupNavClicks() {
+        const nav = this._element?.querySelector('.docs-sidebar');
+        if (!nav) return;
+
+        const handler = (e) => {
+            const link = e.target.closest('.docs-nav-link');
+            if (!link) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const href = link.getAttribute('data-section');
+            if (href) {
+                this.showSection(href);
+            }
+        };
+
+        nav.addEventListener('click', handler, true);
+        this.registerCleanup(() => nav.removeEventListener('click', handler, true));
+    }
+
+    setupArticleCardClicks() {
+        const main = this._element?.querySelector('.docs-main');
+        if (!main) return;
+
+        const handler = (e) => {
+            const card = e.target.closest('.article-card[data-section]');
+            if (!card) return;
+            e.preventDefault();
+
+            const section = card.getAttribute('data-section');
+            if (section) {
+                this.showSection(section);
+            }
+        };
+
+        main.addEventListener('click', handler);
+        this.registerCleanup(() => main.removeEventListener('click', handler));
+    }
+
+    showSection(sectionId) {
         if (!this._element) return;
 
-        const sections = this._element.querySelectorAll('.doc-section[id]');
-
-        if (sections.length === 0) return;
-
-        this._scrollObserver = new IntersectionObserver((entries) => {
-            if (this._isScrolling) return;
-
-            const navLinks = this._element.querySelectorAll('.doc-nav-link');
-            if (navLinks.length === 0) return;
-
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const sectionId = entry.target.id;
-                    // Update active state directly via DOM to avoid re-render
-                    navLinks.forEach(link => {
-                        if (link.getAttribute('href') === `#${sectionId}`) {
-                            link.classList.add('active');
-                        } else {
-                            link.classList.remove('active');
-                        }
-                    });
-                }
-            });
-        }, {
-            rootMargin: '-20% 0px -60% 0px',
-            threshold: 0.1
-        });
-
-        sections.forEach(section => this._scrollObserver.observe(section));
-
-        this.registerCleanup(() => {
-            if (this._scrollObserver) {
-                this._scrollObserver.disconnect();
-                this._scrollObserver = null;
-            }
-            if (this._scrollTimeout) {
-                clearTimeout(this._scrollTimeout);
-                this._scrollTimeout = null;
-            }
-        });
-    }
-
-    setupSmoothScrolling() {
-        const navContainer = this._element?.querySelector('.doc-nav');
-        if (!navContainer) return;
-
-        if (this._navClickHandler) {
-            navContainer.removeEventListener('click', this._navClickHandler);
-        }
-
-        this._navClickHandler = (e) => {
-            const link = e.target.closest('.doc-nav-link');
-            if (!link) return;
-
-            e.preventDefault();
-            e.stopPropagation();
-
-            const href = link.getAttribute('href');
-            if (!href || !href.startsWith('#')) return;
-
-            const targetId = href.substring(1);
-            this.scrollToSection(targetId);
-
-            // Close mobile menu if open
-            if (this.state.sidebarOpen) {
-                this.closeSidebar();
-            }
-        };
-
-        navContainer.addEventListener('click', this._navClickHandler, true);
-
-        this.registerCleanup(() => {
-            if (navContainer && this._navClickHandler) {
-                navContainer.removeEventListener('click', this._navClickHandler, true);
-                this._navClickHandler = null;
+        // Update sections via DOM (avoid re-render)
+        const sections = this._element.querySelectorAll('.docs-section');
+        sections.forEach(s => {
+            if (s.id === sectionId) {
+                s.classList.add('active');
+            } else {
+                s.classList.remove('active');
             }
         });
 
-        // Setup CTA button navigation
-        this.setupCTAButtons();
-    }
-
-    setupCTAButtons() {
-        const ctaButtons = this._element?.querySelectorAll('[data-ref="cta-get-started"], [data-ref="footer-cta-home"]');
-        const factoryButtons = this._element?.querySelectorAll('[data-ref="cta-factories"], [data-ref="footer-cta-factories"]');
-
-        ctaButtons?.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/');
-                } else {
-                    window.location.href = '/';
-                }
-            });
-        });
-
-        factoryButtons?.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.router) {
-                    window.router.navigate('/factories');
-                } else {
-                    window.location.href = '/factories';
-                }
-            });
-        });
-    }
-
-    setupMobileMenu() {
-        const menuToggle = this._element?.querySelector('[data-ref="menu-toggle"]');
-        const sidebar = this._element?.querySelector('[data-ref="sidebar"]');
-        const overlay = this._element?.querySelector('[data-ref="sidebar-overlay"]');
-
-        if (!menuToggle || !sidebar || !overlay) {
-            if (this._mobileMenuRetries < 3) {
-                this._mobileMenuRetries++;
-                setTimeout(() => this.setupMobileMenu(), 200);
-            }
-            return;
-        }
-
-        this._mobileMenuRetries = 0;
-
-        menuToggle.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.toggleSidebar();
-        });
-
-        overlay.addEventListener('click', () => {
-            this.closeSidebar();
-        });
-
-        const handleResize = () => {
-            if (window.innerWidth > 968) {
-                this.closeSidebar();
-            }
-        };
-
-        window.addEventListener('resize', handleResize);
-
-        this.registerCleanup(() => {
-            window.removeEventListener('resize', handleResize);
-            document.body.style.overflow = '';
-        });
-    }
-
-    toggleSidebar() {
-        const sidebar = this._element?.querySelector('[data-ref="sidebar"]');
-        const overlay = this._element?.querySelector('[data-ref="sidebar-overlay"]');
-
-        if (sidebar?.classList.contains('active')) {
-            this.closeSidebar();
-        } else {
-            sidebar?.classList.add('active');
-            overlay?.classList.add('active');
-            document.body.style.overflow = 'hidden';
-            this.setState({ sidebarOpen: true });
-        }
-    }
-
-    closeSidebar() {
-        const sidebar = this._element?.querySelector('[data-ref="sidebar"]');
-        const overlay = this._element?.querySelector('[data-ref="sidebar-overlay"]');
-
-        sidebar?.classList.remove('active');
-        overlay?.classList.remove('active');
-        document.body.style.overflow = '';
-        this.setState({ sidebarOpen: false });
-    }
-
-    scrollToSection(sectionId) {
-        const section = document.getElementById(sectionId);
-        if (!section) return;
-
-        if (this._scrollTimeout) {
-            clearTimeout(this._scrollTimeout);
-            this._scrollTimeout = null;
-        }
-
-        this._isScrolling = true;
-
-        if (window.history && window.history.pushState) {
-            window.history.pushState(null, '', `#${sectionId}`);
-        }
-
-        // Update nav link active state
-        const navLinks = this._element?.querySelectorAll('.doc-nav-link');
-        navLinks?.forEach(link => {
-            if (link.getAttribute('href') === `#${sectionId}`) {
+        // Update nav links via DOM
+        const navLinks = this._element.querySelectorAll('.docs-nav-link');
+        navLinks.forEach(link => {
+            if (link.getAttribute('data-section') === sectionId) {
                 link.classList.add('active');
             } else {
                 link.classList.remove('active');
             }
         });
 
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                section.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start',
-                    inline: 'nearest'
-                });
-            });
-        });
-
-        this._scrollTimeout = setTimeout(() => {
-            this._isScrolling = false;
-            this._scrollTimeout = null;
-        }, 1000);
+        // Scroll to top of content
+        const main = this._element?.querySelector('.docs-main');
+        if (main) main.scrollTop = 0;
+        window.scrollTo(0, 0);
     }
 
-    async setupFAQ() {
-        const faqContainer = this._element?.querySelector('[data-ref="faq-container"]');
-        if (!faqContainer) return;
-
-        const { FAQ } = await import('./FAQ.js');
-        const faqs = this.getFAQs();
-        const faqComponent = new FAQ(faqs);
-        faqComponent.mount(faqContainer);
+    // Prevent re-render — all state changes handled via DOM
+    shouldUpdate() {
+        return false;
     }
 
-    getFAQs() {
-        return [
-            {
-                id: 'what-is',
-                question: 'What is ms2.fun?',
-                answer: `<p>ms2.fun is a fully decentralized launchpad for Web3 projects. It's statically hosted (GitHub, soon IPFS), connects to a public master contract, and lets anyone create factories and collections. It's an emergent ecosystem built for the community, especially the cult executives.</p>`
-            },
-            {
-                id: 'how-does-it-work',
-                question: 'How does it work?',
-                answer: `<p>The master contract indexes authorized factories. Anyone can submit a factory (though they need to meet requirements and get approval from cult executives). Once a factory is authorized, anyone can use it to create project instances. It's permissionless creation within a curated ecosystem.</p>`
-            },
-            {
-                id: 'who-controls-master',
-                question: 'Who controls the master contract?',
-                answer: `<p>The cult executives control the master contract. This allows them to curate factories and ensure quality, protecting users from bad actors while maintaining the decentralized nature of the ecosystem.</p>`
-            },
-            {
-                id: 'create-factory',
-                question: 'How do I create a factory?',
-                answer: `<p>Factories need to meet certain requirements (proper indexing, metadata handling, styling, ownership cleanliness) and get approval from cult executives. There's an application fee for factory approval. The goal is to maintain a high-quality gallery of serious creators and protect users from pump and dump schemes.</p>`
-            },
-            {
-                id: 'create-project',
-                question: 'How do I create a project?',
-                answer: `<p>Browse the available factories, pick one that fits your needs, and click "Create Project". Each factory has different capabilities (ERC404 for bonding curves, ERC1155 for multi-edition NFTs, etc.). Follow the creation flow and deploy your project. Note that factories may charge fees for project creation.</p>`
-            },
-            {
-                id: 'factory-requirements',
-                question: 'What are the factory requirements?',
-                answer: `<p>Factories must properly index created instances, handle metadata correctly, meet styling requirements, and follow ownership cleanliness practices (geared towards decentralization). The goal is quality curation and user protection.</p>`
-            },
-            {
-                id: 'who-is-this-for',
-                question: 'Who is this built for?',
-                answer: `<p>Built for the people at stationthisbot and especially for cult executives. It's a community-driven platform that values quality, decentralization, and serious creators.</p>`
-            },
-            {
-                id: 'is-it-free',
-                question: 'What are the fees?',
-                answer: `<p>There's an application fee to submit a factory for approval. Once approved, factories may charge their own fees for project creation. Creating projects also requires gas fees (standard Ethereum transaction costs). The platform itself is free to browse and use.</p>`
-            },
-            {
-                id: 'erc404-vs-erc1155',
-                question: "What's the difference between ERC404 and ERC1155?",
-                answer: `<p>ERC404 combines fungible tokens with NFTs - think bonding curves, automatic NFT minting from balance, and built-in liquidity. ERC1155 is for multi-edition NFT collections where each edition can have its own price and supply. Both have their use cases.</p>`
-            }
-        ];
-    }
-
-    // Prevent re-render for sidebar state changes - handled via DOM
-    shouldUpdate(oldState, newState) {
-        if (oldState.sidebarOpen !== newState.sidebarOpen) {
-            return false;
-        }
-        return true;
-    }
-
-    renderNavLink(href, label) {
+    renderNavLink(sectionId, label, isActive) {
         return h('a', {
-            href,
-            className: `doc-nav-link ${this.state.activeSection === href.substring(1) ? 'active' : ''}`
+            href: `#${sectionId}`,
+            className: `docs-nav-link${isActive ? ' active' : ''}`,
+            'data-section': sectionId
         }, label);
     }
 
     render() {
-        return h('div', { className: 'documentation marble-bg' },
-            h('button', {
-                className: 'doc-menu-toggle',
-                'data-ref': 'menu-toggle',
-                'aria-label': 'Toggle navigation menu'
-            }, '\u2630'),
-            h('div', { className: 'doc-sidebar-overlay', 'data-ref': 'sidebar-overlay' }),
+        return h('div', { className: 'content' },
+            // Page Header
+            h('div', { className: 'page-header' },
+                h('h1', { className: 'page-title' }, 'Documentation'),
+                h('p', { className: 'page-description' },
+                    'Comprehensive guides and references for collectors, creators, developers, and DAO members. Learn how to use MS2.FUN, understand the alignment vault system, integrate with our contracts, and participate in governance.'
+                )
+            ),
 
-            h('div', { className: 'doc-container' },
-                h('aside', { className: 'doc-sidebar', 'data-ref': 'sidebar' },
-                    h('nav', { className: 'doc-nav' },
-                        this.renderNavLink('#hero', 'Introduction'),
-                        this.renderNavLink('#what-is', 'What is ms2.fun?'),
-                        this.renderNavLink('#how-it-works', 'How it Works'),
-                        this.renderNavLink('#contract-types', 'Contract Types'),
-                        this.renderNavLink('#feature-matrix', 'Feature Matrix'),
-                        this.renderNavLink('#factory-requirements', 'Factory Requirements'),
-                        this.renderNavLink('#community', 'Community'),
-                        this.renderNavLink('#faq', 'FAQ')
+            // Docs Layout
+            h('div', { className: 'docs-layout' },
+                // Sidebar Navigation
+                h('nav', { className: 'docs-sidebar' },
+                    h('div', { className: 'docs-nav-section' },
+                        h('div', { className: 'docs-nav-title' }, 'Getting Started'),
+                        h('div', { className: 'docs-nav-list' },
+                            this.renderNavLink('overview', 'Overview', true),
+                            this.renderNavLink('for-collectors', 'For Collectors', false),
+                            this.renderNavLink('for-creators', 'For Creators', false)
+                        )
+                    ),
+                    h('div', { className: 'docs-nav-section' },
+                        h('div', { className: 'docs-nav-title' }, 'Core Concepts'),
+                        h('div', { className: 'docs-nav-list' },
+                            this.renderNavLink('alignment-vaults', 'Alignment Vaults', false),
+                            this.renderNavLink('project-types', 'Project Types', false),
+                            this.renderNavLink('revenue-model', 'Revenue Model', false)
+                        )
+                    ),
+                    h('div', { className: 'docs-nav-section' },
+                        h('div', { className: 'docs-nav-title' }, 'For Developers'),
+                        h('div', { className: 'docs-nav-list' },
+                            this.renderNavLink('contract-architecture', 'Contract Architecture', false),
+                            this.renderNavLink('integration-guide', 'Integration Guide', false),
+                            this.renderNavLink('api-reference', 'API Reference', false)
+                        )
+                    ),
+                    h('div', { className: 'docs-nav-section' },
+                        h('div', { className: 'docs-nav-title' }, 'Governance'),
+                        h('div', { className: 'docs-nav-list' },
+                            this.renderNavLink('dao-overview', 'DAO Overview', false),
+                            this.renderNavLink('becoming-member', 'Becoming a Member', false),
+                            this.renderNavLink('proposals', 'Proposals', false),
+                            this.renderNavLink('treasury', 'Treasury', false)
+                        )
+                    ),
+                    h('div', { className: 'docs-nav-section' },
+                        h('div', { className: 'docs-nav-title' }, 'Advanced'),
+                        h('div', { className: 'docs-nav-list' },
+                            this.renderNavLink('security', 'Security', false),
+                            this.renderNavLink('faq', 'FAQ', false)
+                        )
                     )
                 ),
 
-                h('main', { className: 'doc-content' },
-                    // Hero Section
-                    h('section', { id: 'hero', className: 'doc-section hero-section' },
-                        h('h1', { className: 'hero-title' }, 'MS2.FUN'),
-                        h('p', { className: 'hero-subtitle' },
-                            'An artist enclave established through Ethereum smart contracts. Constructed for the community, dedicated to our cult executives.'
-                        ),
-                        h('div', { className: 'hero-cta' },
-                            h('a', { href: '/', className: 'cta-button', 'data-ref': 'cta-get-started' }, 'Begin'),
-                            h('a', { href: '/factories', className: 'cta-button secondary', 'data-ref': 'cta-factories' }, 'Examine Factories')
-                        )
-                    ),
+                // Main Content
+                h('main', { className: 'docs-main' },
 
-                    // What Is Section
-                    h('section', { id: 'what-is', className: 'doc-section' },
-                        h('h2', null, 'What is MS2.FUN?'),
-                        h('p', null, 'MS2.FUN is an artist enclave established through Ethereum smart contracts. A launchpad connected to a public master contract that maintains the registry of authorized factories.'),
-                        h('p', null, 'Any individual may submit a factory for approval, and any individual may create projects using those factories. The cult executives curate factories to ensure quality and protect users, while maintaining the ecosystem open for creators.'),
-                        h('p', null, 'We progress toward greater decentralization. The objective is to construct a platform where artists and creators may launch their projects with confidence, supported by quality tools and community curation.'),
-                        h('p', null, 'Constructed for the stationthisbot community and dedicated to our cult executives.')
-                    ),
-
-                    // How It Works Section
-                    h('section', { id: 'how-it-works', className: 'doc-section' },
-                        h('h2', null, 'How It Works'),
-                        h('p', null, 'The architecture is straightforward.'),
-                        h('div', { className: 'how-it-works-steps' },
-                            h('div', { className: 'step' },
-                                h('h3', null, 'Master Contract'),
-                                h('p', null, 'The master contract serves as the foundation of the operation. It maintains the registry of all authorized factories. A directory of approved tools.')
-                            ),
-                            h('div', { className: 'step' },
-                                h('h3', null, 'Factories'),
-                                h('p', null, 'Factories function as templates. Each factory may create multiple project instances. To launch an ERC404 token, there exists a factory. To create an ERC1155 collection, there exists a factory.')
-                            ),
-                            h('div', { className: 'step' },
-                                h('h3', null, 'Instances'),
-                                h('p', null, 'When one employs a factory to create a project, one creates an instance. Each instance is its own contract, its own project, its own entity.')
-                            )
+                    // ============ Overview Section ============
+                    h('section', { className: 'docs-section active', id: 'overview' },
+                        h('h2', { className: 'section-title' }, 'Overview'),
+                        h('p', { className: 'section-intro' },
+                            'MS2.FUN is a curated launchpad for derivative art and tokens aligned to established crypto communities. Artists create projects bound to alignment vaults that automatically buy and provide liquidity for the target community\'s token.'
                         ),
-                        h('p', { className: 'flow-description' },
-                            h('strong', null, 'The Process:'), ' Examine factories \u2192 Select one \u2192 Create your project \u2192 Deploy it \u2192 Present it to the world.'
-                        ),
-                        h('p', null, 'All of this occurs on-chain, transparently. The cult executives control the master contract to ensure quality, while maintaining the ecosystem open for creators.')
-                    ),
 
-                    // Contract Types Section
-                    h('section', { id: 'contract-types', className: 'doc-section' },
-                        h('h2', null, 'Supported Contract Types'),
-                        h('p', null, 'MS2.FUN currently supports two contract types, each with distinct capabilities and use cases. Additional contract types shall be added as the ecosystem expands.'),
-                        h('div', { className: 'contract-types-grid' },
-                            h('div', { className: 'contract-type-card erc404 marble-bg' },
-                                h('div', { className: 'contract-type-header' },
-                                    h('span', { className: 'contract-type-icon' }),
-                                    h('h3', null, 'ERC404')
-                                ),
-                                h('p', { className: 'contract-type-description' }, 'Unifies fungible tokens with NFTs. Designed for token launches with integrated liquidity and NFT minting capabilities.'),
-                                h('div', { className: 'contract-type-features' },
-                                    h('h4', null, 'Key Features:'),
-                                    h('ul', null,
-                                        h('li', null, h('strong', null, 'Bonding Curve:'), ' Dynamic pricing mechanism for token trading'),
-                                        h('li', null, h('strong', null, 'Automatic NFT Minting:'), ' NFTs mint automatically upon token holding'),
-                                        h('li', null, h('strong', null, 'Merkle Tree Whitelist:'), ' Support for phased launches with whitelisting'),
-                                        h('li', null, h('strong', null, 'Phase Transitions:'), ' Presale to live trading phases'),
-                                        h('li', null, h('strong', null, 'On-Chain Messaging:'), ' Integrated chat feature for community interaction'),
-                                        h('li', null, h('strong', null, 'Liquidity Pool Integration:'), ' Automatic liquidity pool deployment')
-                                    )
+                        h('div', { className: 'article-grid' },
+                            h('div', { className: 'article-card', 'data-section': 'for-collectors' },
+                                h('div', { className: 'article-title' }, 'For Collectors'),
+                                h('p', { className: 'article-description' },
+                                    'Mint tokens, collect NFTs, and participate in aligned community projects.'
                                 )
                             ),
-                            h('div', { className: 'contract-type-card erc1155 marble-bg' },
-                                h('div', { className: 'contract-type-header' },
-                                    h('span', { className: 'contract-type-icon' }),
-                                    h('h3', null, 'ERC1155')
-                                ),
-                                h('p', { className: 'contract-type-description' }, 'Multi-edition NFT collections where each edition may possess its own price and supply. Designed for artists and creators to monetize their work.'),
-                                h('div', { className: 'contract-type-features' },
-                                    h('h4', null, 'Key Features:'),
-                                    h('ul', null,
-                                        h('li', null, h('strong', null, 'Multiple Editions:'), ' Multiple NFT types within one contract'),
-                                        h('li', null, h('strong', null, 'Per-Edition Pricing:'), ' Each edition may possess its own price'),
-                                        h('li', null, h('strong', null, 'Open Mint:'), ' Public minting functionality'),
-                                        h('li', null, h('strong', null, 'Batch Operations:'), ' Mint or transfer multiple NFTs simultaneously'),
-                                        h('li', null, h('strong', null, 'Metadata URI Support:'), ' IPFS metadata for each edition')
-                                    )
+                            h('div', { className: 'article-card', 'data-section': 'for-creators' },
+                                h('div', { className: 'article-title' }, 'For Creators'),
+                                h('p', { className: 'article-description' },
+                                    'Launch ERC404, ERC1155, or ERC721 projects with built-in alignment mechanisms.'
+                                )
+                            ),
+                            h('div', { className: 'article-card', 'data-section': 'contract-architecture' },
+                                h('div', { className: 'article-title' }, 'For Developers'),
+                                h('p', { className: 'article-description' },
+                                    'Integrate with our contracts, query on-chain data, and build on MS2.FUN.'
+                                )
+                            ),
+                            h('div', { className: 'article-card', 'data-section': 'dao-overview' },
+                                h('div', { className: 'article-title' }, 'For DAO Members'),
+                                h('p', { className: 'article-description' },
+                                    'Participate in governance, vote on proposals, and manage the treasury.'
                                 )
                             )
                         ),
-                        h('p', { className: 'contract-types-note' },
-                            h('strong', null, 'Note:'), ' The platform is designed to be extensible. New contract types may be added through the factory system as the ecosystem evolves.'
-                        )
-                    ),
 
-                    // Feature Matrix Section
-                    h('section', { id: 'feature-matrix', className: 'doc-section' },
-                        h('h2', null, 'Feature Matrix'),
-                        h('p', null, 'Projects on MS2.FUN may support various features. The feature matrix system ensures that contracts declare their required features, and the website renders the appropriate UI components.'),
-                        h('div', { className: 'feature-matrix-explanation' },
-                            h('p', null, 'When a factory creates a project, it specifies which features that project supports. The website then determines how to display and interact with that project. This ensures compatibility between contracts and the frontend.')
-                        ),
-                        h('div', { className: 'features-grid' },
-                            h('div', { className: 'feature-item marble-bg' },
-                                h('h3', null, 'Bonding Curve'),
-                                h('p', null, 'Dynamic pricing mechanism where token price changes based on supply and demand. Common in ERC404 projects.'),
-                                h('span', { className: 'feature-badge erc404' }, 'ERC404')
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'What is MS2.FUN?'),
+                            h('p', null,
+                                'MS2.FUN combines a curated art launchpad with a novel alignment mechanism. Every project created on the platform is bound to an alignment vault that uses project revenue to buy and provide liquidity for an established community\'s token.'
                             ),
-                            h('div', { className: 'feature-item marble-bg' },
-                                h('h3', null, 'Liquidity Pool'),
-                                h('p', null, 'Secondary market liquidity through automated market makers. Enables trading after initial bonding curve phase.'),
-                                h('span', { className: 'feature-badge erc404' }, 'ERC404')
-                            ),
-                            h('div', { className: 'feature-item marble-bg' },
-                                h('h3', null, 'Chat Feature'),
-                                h('p', null, 'On-chain messaging system where users may leave messages linked to their transactions. Facilitates community engagement.'),
-                                h('span', { className: 'feature-badge both' }, 'Both')
-                            ),
-                            h('div', { className: 'feature-item marble-bg' },
-                                h('h3', null, 'Balance Mint Portfolio'),
-                                h('p', null, 'View and manage token balances, NFT holdings, and minting history in one location.'),
-                                h('span', { className: 'feature-badge erc404' }, 'ERC404')
-                            ),
-                            h('div', { className: 'feature-item marble-bg' },
-                                h('h3', null, 'Multi-Edition Support'),
-                                h('p', null, 'Support for multiple NFT editions within a single contract, each with its own pricing and metadata.'),
-                                h('span', { className: 'feature-badge erc1155' }, 'ERC1155')
+                            h('p', null,
+                                'This creates a symbiotic relationship: artists gain access to established communities and distribution channels, while those communities benefit from increased liquidity and fresh derivative work that expands their cultural footprint.'
                             )
                         ),
-                        h('p', { className: 'feature-matrix-note' },
-                            h('strong', null, 'Future Features:'), ' The feature matrix is extensible. As new features are developed, they may be added to the system and supported by factories.'
-                        )
-                    ),
 
-                    // Factory Requirements Section
-                    h('section', { id: 'factory-requirements', className: 'doc-section' },
-                        h('h2', null, 'Factory Requirements'),
-                        h('p', null, 'To submit a factory, one must understand the following requirements.'),
-                        h('p', null, 'To maintain ecosystem quality and protect users, factories must meet certain requirements. The cult executives review all factory applications to ensure quality and safety.'),
-                        h('div', { className: 'requirements-grid' },
-                            h('div', { className: 'requirement-item' },
-                                h('h3', null, 'Proper Indexing'),
-                                h('p', null, "Your factory must properly index all created instances. The master contract needs to know what you've created, and instances must be discoverable through the launchpad.")
-                            ),
-                            h('div', { className: 'requirement-item' },
-                                h('h3', null, 'Metadata Handling'),
-                                h('p', null, 'Metadata matters. Your factory needs to handle metadata correctly so projects can be discovered and displayed properly.')
-                            ),
-                            h('div', { className: 'requirement-item' },
-                                h('h3', null, 'Styling Requirements'),
-                                h('p', null, 'The launchpad requires visual consistency. Factories must meet styling requirements so all elements display properly and consistently.')
-                            ),
-                            h('div', { className: 'requirement-item' },
-                                h('h3', null, 'Ownership Cleanliness'),
-                                h('p', null, 'This concerns decentralization. Factories must follow best practices for ownership and control. No rug pulls, no hidden admin keys.')
-                            ),
-                            h('div', { className: 'requirement-item' },
-                                h('h3', null, 'User Protection'),
-                                h('p', null, "The objective is to protect users from pump and dump schemes and bad actors. One's factory must be designed with user safety in mind.")
-                            ),
-                            h('div', { className: 'requirement-item' },
-                                h('h3', null, 'Quality Curation'),
-                                h('p', null, "We curate a gallery of serious creators. One's factory must enable high-quality projects, not spam or low-effort clones.")
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Key Features'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'Alignment Vaults:'), ' Automated mechanisms that buy and LP target community tokens'),
+                                h('li', null, h('strong', null, 'Multiple Token Standards:'), ' Support for ERC404, ERC1155, and ERC721'),
+                                h('li', null, h('strong', null, 'Bonding Curves:'), ' Fair launch mechanics for ERC404 projects'),
+                                h('li', null, h('strong', null, 'DAO Governance:'), ' Community-driven curation and parameter management'),
+                                h('li', null, h('strong', null, 'Revenue Sharing:'), ' Transparent fee distribution to vaults and protocol')
                             )
                         ),
-                        h('p', { className: 'requirement-note' },
-                            h('strong', null, 'Summary:'), ' To submit a factory, one must ensure it meets these requirements AND obtain approval from the cult executives. There exists an application fee for factory approval (currently 0.1 ETH).'
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Quick Start'),
+                            h('p', null,
+                                h('strong', null, 'Collectors:'), ' Browse the discovery page, connect your wallet, and start minting.'
+                            ),
+                            h('p', null,
+                                h('strong', null, 'Creators:'), ' Review the project types guide, then submit a creation application.'
+                            ),
+                            h('p', null,
+                                h('strong', null, 'Developers:'), ' Check the contract architecture and integration guide.'
+                            ),
+                            h('p', null,
+                                h('strong', null, 'DAO Members:'), ' Read the governance overview and proposal process.'
+                            )
                         )
                     ),
 
-                    // Community Section
-                    h('section', { id: 'community', className: 'doc-section' },
-                        h('h2', null, 'Community'),
-                        h('p', { className: 'community-intro' },
-                            h('strong', null, 'Constructed for the community')
+                    // ============ For Collectors Section ============
+                    h('section', { className: 'docs-section', id: 'for-collectors' },
+                        h('h2', { className: 'section-title' }, 'For Collectors'),
+                        h('p', { className: 'section-intro' },
+                            'Learn how to discover projects, mint tokens and NFTs, stake for rewards, and participate in aligned communities.'
                         ),
-                        h('p', null, 'MS2.FUN was constructed for the people at stationthisbot and especially for our cult executives.'),
-                        h('ul', { className: 'community-values' },
-                            h('li', null, 'Quality matters'),
-                            h('li', null, 'Decentralization is the objective'),
-                            h('li', null, 'Serious creators are welcome'),
-                            h('li', null, 'Users are protected'),
-                            h('li', null, 'The community determines what thrives')
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Discovering Projects'),
+                            h('p', null,
+                                'The discovery page shows all active projects across different token standards. Use filters to find projects aligned to specific communities or sort by activity, volume, or creation date.'
+                            ),
+                            h('p', null,
+                                'Featured projects appear at the top and rotate based on rental auctions managed by the DAO.'
+                            )
                         ),
-                        h('p', { className: 'community-cta' },
-                            h('strong', null, 'This is your launchpad. Make it meaningful.')
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Minting Tokens'),
+                            h('p', null, 'Each project type has a different minting mechanism:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'ERC404 (Bonding):'), ' Buy tokens on a bonding curve. When you hold 1 full token unit (e.g., 1M tokens), you automatically receive an NFT. Sell tokens to burn your NFT and recover funds.'),
+                                h('li', null, h('strong', null, 'ERC1155 (Editions):'), ' Fixed-price mints for semi-fungible editions. Each edition has a limited supply and can be collected independently.'),
+                                h('li', null, h('strong', null, 'ERC721 (Auctions):'), ' Participate in timed auctions to win unique 1/1 NFTs.')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Staking for Vault Rewards'),
+                            h('p', null,
+                                'If a project has staking enabled, you can stake your tokens to earn a share of vault LP yield. Staking works on a share-based system where earlier stakers receive proportionally more shares per token.'
+                            ),
+                            h('p', null,
+                                'Vault fees accumulate from post-graduation Uniswap V4 hook taxes (for ERC404) or artist withdrawal tithes (for ERC1155). The protocol takes a 5% cut, and the remaining 95% is distributed to stakers and benefactors.'
+                            )
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Gas Optimization Tips'),
+                            h('p', null,
+                                'Batch transactions when possible. For ERC1155, minting multiple editions in one transaction saves gas.'
+                            ),
+                            h('p', null,
+                                'Monitor gas prices and consider using services like Flashbots Protect for high-demand mints.'
+                            )
                         )
                     ),
 
-                    // FAQ Section
-                    h('section', { id: 'faq', className: 'doc-section' },
-                        h('div', { 'data-ref': 'faq-container' })
+                    // ============ For Creators Section ============
+                    h('section', { className: 'docs-section', id: 'for-creators' },
+                        h('h2', { className: 'section-title' }, 'For Creators'),
+                        h('p', { className: 'section-intro' },
+                            'Comprehensive guide to launching projects on MS2.FUN, from concept to deployment.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Choosing a Project Type'),
+                            h('p', null, 'Select the token standard that best fits your creative vision:')
+                        ),
+
+                        h('div', { className: 'article-grid' },
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'ERC404 Bonding'),
+                                h('p', { className: 'article-description' },
+                                    'Hybrid tokens + NFTs. Fair launch via bonding curve. Automatic NFT minting at threshold. Best for community-driven projects with tradeable NFTs.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'ERC1155 Editions'),
+                                h('p', { className: 'article-description' },
+                                    'Multiple editions with limited supplies. Fixed-price mints. 20% tithe on withdrawals. Best for serialized artwork or thematic collections.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'ERC721 Auctions'),
+                                h('p', { className: 'article-description' },
+                                    'Unique 1/1 NFTs. Timed auction mechanism. Best for high-value individual pieces with collector competition.'
+                                )
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Creating a Project'),
+                            h('p', null, 'The creation flow guides you through these steps:'),
+                            h('ol', null,
+                                h('li', null, h('strong', null, 'Choose Factory:'), ' Select ERC404, ERC1155, or ERC721'),
+                                h('li', null, h('strong', null, 'Select Vault:'), ' Choose an existing vault aligned to your target community'),
+                                h('li', null, h('strong', null, 'Configure Parameters:'), ' Set supply, pricing, bonding curve parameters, etc.'),
+                                h('li', null, h('strong', null, 'Upload Metadata:'), ' Provide artwork and metadata (IPFS recommended)'),
+                                h('li', null, h('strong', null, 'Deploy Contract:'), ' Execute deployment transaction'),
+                                h('li', null, h('strong', null, 'Configure Advanced Settings:'), ' Set V4 hook (ERC404), enable staking, manage tiers')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Revenue and Fees'),
+                            h('p', null, 'Fee structures vary by project type:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'ERC404:'), ' 1% bonding fee to treasury, 2% graduation fee split between protocol and factory creator. Post-graduation V4 hook tax goes to vault.'),
+                                h('li', null, h('strong', null, 'ERC1155:'), ' 20% tithe on creator withdrawals goes to vault. Creators receive 80% of mint revenue.'),
+                                h('li', null, h('strong', null, 'ERC721:'), ' Auction settlement fee split between protocol and vault.')
+                            )
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Creator Best Practices'),
+                            h('p', null,
+                                'Choose a vault that genuinely aligns with your work. Authentic alignment drives better community engagement.'
+                            ),
+                            h('p', null,
+                                'For ERC404, set bonding maturity time strategically. Too short and you miss price discovery; too long and you lose momentum.'
+                            ),
+                            h('p', null,
+                                'Engage with your collectors. Active creators see higher secondary volume and stronger community retention.'
+                            )
+                        )
                     ),
 
-                    // Footer CTA
-                    h('div', { className: 'doc-footer-cta' },
-                        h('p', null, 'Ready to begin?'),
-                        h('div', { className: 'hero-cta' },
-                            h('a', { href: '/', className: 'cta-button', 'data-ref': 'footer-cta-home' }, 'Return to Home'),
-                            h('a', { href: '/factories', className: 'cta-button secondary', 'data-ref': 'footer-cta-factories' }, 'Examine Factories')
+                    // ============ Alignment Vaults Section ============
+                    h('section', { className: 'docs-section', id: 'alignment-vaults' },
+                        h('h2', { className: 'section-title' }, 'Alignment Vaults'),
+                        h('p', { className: 'section-intro' },
+                            'Vaults are the core alignment mechanism. They automatically use project revenue to buy and provide liquidity for target community tokens.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'How Vaults Work'),
+                            h('p', null,
+                                'When a project generates revenue (from bonding fees, edition sales, or auction settlements), a portion flows to its designated vault. The vault uses these funds to:'
+                            ),
+                            h('ol', null,
+                                h('li', null, 'Buy the target community\'s token on the open market'),
+                                h('li', null, 'Add the tokens to a Uniswap V4 liquidity position'),
+                                h('li', null, 'Generate LP fees from trading activity'),
+                                h('li', null, 'Distribute LP yield back to project benefactors and stakers')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Vault Lifecycle'),
+                            h('p', null, 'Vaults are created through DAO governance. The process:'),
+                            h('ol', null,
+                                h('li', null, h('strong', null, 'Target Approval:'), ' DAO approves a new alignment target (e.g., "Milady" or "Pudgy Penguins")'),
+                                h('li', null, h('strong', null, 'Vault Factory Selection:'), ' DAO chooses a vault strategy (currently UltraAlignmentVault)'),
+                                h('li', null, h('strong', null, 'Vault Deployment:'), ' Vault is deployed and bound to the approved target'),
+                                h('li', null, h('strong', null, 'Project Binding:'), ' Creators select this vault when launching projects')
+                            ),
+                            h('p', null, 'Each target can only have one active vault to prevent fragmentation.')
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Benefactor System'),
+                            h('p', null,
+                                'Projects that contribute fees to a vault are called "benefactors." Each benefactor earns a proportional share of the vault\'s LP yield based on their total fee contributions.'
+                            ),
+                            h('p', null,
+                                'The protocol takes a 5% cut of all vault yield, with a sub-cut going to factory creators. The remaining 95% is distributed to benefactors and stakers.'
+                            )
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Vault TVL and APY'),
+                            h('p', null,
+                                'Browse active vaults on the vault explorer page to see total value locked (TVL), estimated APY, number of aligned projects, and total benefactors.'
+                            ),
+                            h('p', null,
+                                'Higher TVL generally means more stable liquidity but potentially lower percentage yields. Newer vaults may offer higher APY with more volatility.'
+                            )
                         )
-                    )
+                    ),
+
+                    // ============ Project Types Section ============
+                    h('section', { className: 'docs-section', id: 'project-types' },
+                        h('h2', { className: 'section-title' }, 'Project Types'),
+                        h('p', { className: 'section-intro' },
+                            'Deep dive into each token standard and project type supported on MS2.FUN.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'ERC404 (Bonding Curve Projects)'),
+                            h('p', null,
+                                'ERC404 uses the DN404 standard to create hybrid tokens that automatically mint NFTs when you hold a full unit (typically 1M tokens = 1 NFT).'
+                            ),
+                            h('p', null, 'Projects launch on a bonding curve with several phases:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'Pre-open:'), ' Configuration period before minting begins'),
+                                h('li', null, h('strong', null, 'Bonding:'), ' Active bonding curve, price increases with supply'),
+                                h('li', null, h('strong', null, 'Full:'), ' Max bonding supply reached, awaiting maturity'),
+                                h('li', null, h('strong', null, 'Matured:'), ' Bonding period complete, ready for liquidity deployment'),
+                                h('li', null, h('strong', null, 'Deployed:'), ' Liquidity deployed to Uniswap V4 with custom hook')
+                            ),
+                            h('p', null,
+                                'After graduation to Uniswap V4, a custom hook taxes all swaps and routes fees to the alignment vault.'
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Staking and Rerolls'),
+                            h('p', null,
+                                'ERC404 projects can enable staking, allowing token holders to stake for a share of vault fees. Staking uses a share-based system with early-staker advantage.'
+                            ),
+                            h('p', null,
+                                'NFTs can be "rerolled" by sending them to an escrow contract and minting a new one. This allows collectors to refresh metadata or randomize traits without selling tokens.'
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'ERC1155 (Edition Projects)'),
+                            h('p', null, 'ERC1155 projects consist of multiple editions, each with:'),
+                            h('ul', null,
+                                h('li', null, 'Unique artwork and metadata'),
+                                h('li', null, 'Fixed mint price (can be updated by creator)'),
+                                h('li', null, 'Maximum supply (can be increased by creator)'),
+                                h('li', null, 'Independent minting status (can be paused per edition)')
+                            ),
+                            h('p', null,
+                                'Mint revenue accumulates in the contract. Creators can withdraw at any time, but 20% is automatically sent to the alignment vault.'
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'ERC721 (Auction Projects)'),
+                            h('p', null, 'ERC721 projects use a timed auction mechanism for 1/1 NFTs. Features include:'),
+                            h('ul', null,
+                                h('li', null, 'Reserve price set by creator'),
+                                h('li', null, 'Auction duration and extension logic'),
+                                h('li', null, 'Anti-snipe mechanisms (time extensions on late bids)'),
+                                h('li', null, 'Settlement fee distributed between protocol and vault')
+                            )
+                        )
+                    ),
+
+                    // ============ Revenue Model Section ============
+                    h('section', { className: 'docs-section', id: 'revenue-model' },
+                        h('h2', { className: 'section-title' }, 'Revenue Model'),
+                        h('p', { className: 'section-intro' },
+                            'Transparent breakdown of fees, distribution, and economic flows across the platform.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Fee Structure by Project Type')
+                        ),
+
+                        h('table', { className: 'docs-table' },
+                            h('thead', null,
+                                h('tr', null,
+                                    h('th', null, 'Project Type'),
+                                    h('th', null, 'Fee Event'),
+                                    h('th', null, 'Rate'),
+                                    h('th', null, 'Destination')
+                                )
+                            ),
+                            h('tbody', null,
+                                h('tr', null,
+                                    h('td', null, 'ERC404'),
+                                    h('td', null, 'Bonding Fee'),
+                                    h('td', null, '1%'),
+                                    h('td', null, 'Protocol Treasury')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC404'),
+                                    h('td', null, 'Graduation Fee'),
+                                    h('td', null, '2%'),
+                                    h('td', null, 'Protocol + Factory Creator')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC404'),
+                                    h('td', null, 'V4 Swap Tax'),
+                                    h('td', null, 'Variable'),
+                                    h('td', null, 'Alignment Vault')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC1155'),
+                                    h('td', null, 'Withdrawal Tithe'),
+                                    h('td', null, '20%'),
+                                    h('td', null, 'Alignment Vault')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC721'),
+                                    h('td', null, 'Settlement Fee'),
+                                    h('td', null, 'Variable'),
+                                    h('td', null, 'Protocol + Vault')
+                                )
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Vault LP Yield Distribution'),
+                            h('p', null, 'When vaults generate LP fees from Uniswap V4 positions:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, '5% Protocol Cut:'), ' Goes to protocol treasury, with a sub-allocation to factory creators'),
+                                h('li', null, h('strong', null, '95% to Benefactors/Stakers:'), ' Distributed proportionally based on fee contributions and stake shares')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Creator Economics'),
+                            h('p', null, 'Creators retain the majority of project revenue but contribute to vault alignment:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'ERC404:'), ' Creators don\'t extract revenue directly. Value comes from token/NFT ownership and trading.'),
+                                h('li', null, h('strong', null, 'ERC1155:'), ' Creators receive 80% of mint revenue. 20% tithe goes to vault.'),
+                                h('li', null, h('strong', null, 'ERC721:'), ' Creators receive auction proceeds minus settlement fees.')
+                            )
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Fee Transparency'),
+                            h('p', null,
+                                'All fees are enforced at the contract level and fully auditable on-chain. The DAO can adjust certain parameters through governance proposals.'
+                            )
+                        )
+                    ),
+
+                    // ============ Contract Architecture Section ============
+                    h('section', { className: 'docs-section', id: 'contract-architecture' },
+                        h('h2', { className: 'section-title' }, 'Contract Architecture'),
+                        h('p', { className: 'section-intro' },
+                            'Technical overview of the smart contract system, deployment addresses, and architecture patterns.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'System Overview'),
+                            h('p', null, 'The MS2.FUN contract system follows a registry-factory-instance pattern:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'MasterRegistryV1 (UUPS):'), ' Central registry managing targets, vaults, factories, and instances'),
+                                h('li', null, h('strong', null, 'Factories:'), ' Template contracts that deploy new project instances'),
+                                h('li', null, h('strong', null, 'Instances:'), ' Individual project contracts created by factories'),
+                                h('li', null, h('strong', null, 'Vaults:'), ' Alignment vault contracts that manage LP positions'),
+                                h('li', null, h('strong', null, 'DAO (GrandCentral + Safe):'), ' Governance layer controlling registry upgrades and parameters')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Core Contracts')
+                        ),
+
+                        h('table', { className: 'docs-table' },
+                            h('thead', null,
+                                h('tr', null,
+                                    h('th', null, 'Contract'),
+                                    h('th', null, 'Address'),
+                                    h('th', null, 'Purpose')
+                                )
+                            ),
+                            h('tbody', null,
+                                h('tr', null,
+                                    h('td', null, 'MasterRegistryV1'),
+                                    h('td', null, '0x1234...5678'),
+                                    h('td', null, 'Central registry and access control')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC404Factory'),
+                                    h('td', null, '0x2345...6789'),
+                                    h('td', null, 'Deploys ERC404 bonding instances')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC1155Factory'),
+                                    h('td', null, '0x3456...789a'),
+                                    h('td', null, 'Deploys ERC1155 edition instances')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ERC721AuctionFactory'),
+                                    h('td', null, '0x4567...89ab'),
+                                    h('td', null, 'Deploys ERC721 auction instances')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'ProtocolTreasuryV1'),
+                                    h('td', null, '0x5678...9abc'),
+                                    h('td', null, 'Holds protocol fees')
+                                ),
+                                h('tr', null,
+                                    h('td', null, 'GrandCentral (DAO)'),
+                                    h('td', null, '0x6789...abcd'),
+                                    h('td', null, 'Governance contract')
+                                )
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Upgradeability'),
+                            h('p', null,
+                                'MasterRegistryV1 uses the UUPS (Universal Upgradeable Proxy Standard) pattern. Only the DAO can authorize upgrades.'
+                            ),
+                            h('p', null,
+                                'Factories and instances are non-upgradeable for security. New factories can be registered via DAO proposals.'
+                            )
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Query alignment targets\nMasterRegistry.getApprovedTargets() \u2192 AlignmentTarget[]\n\n// Query vaults for a target\nMasterRegistry.getVaultForTarget(targetId) \u2192 address\n\n// Query factory instances\nFactory.getInstancesByCreator(creator) \u2192 address[]\n\n// Check if vault is approved\nMasterRegistry.isVaultApproved(vaultAddress) \u2192 bool'
+                        )
+                    ),
+
+                    // ============ Integration Guide Section ============
+                    h('section', { className: 'docs-section', id: 'integration-guide' },
+                        h('h2', { className: 'section-title' }, 'Integration Guide'),
+                        h('p', { className: 'section-intro' },
+                            'Step-by-step guide for developers building on top of MS2.FUN contracts.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Reading Project Data'),
+                            h('p', null, 'To display project information in your application:')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Connect to factory\nconst factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);\n\n// Get all instances\nconst instances = await factory.getAllInstances();\n\n// For each instance, query details\nconst instance = new ethers.Contract(instanceAddress, INSTANCE_ABI, provider);\nconst name = await instance.name();\nconst vault = await instance.vault();\nconst bondingStatus = await instance.getBondingStatus();'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Minting Tokens'),
+                            h('p', null, 'Example of minting from an ERC404 bonding instance:')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Calculate amount out for ETH in\nconst amountOut = await instance.getBuyQuote(ethers.parseEther("0.1"));\n\n// Execute buy with slippage protection\nconst tx = await instance.buy(\n  minAmountOut,  // Minimum tokens expected\n  [], // Tier proofs (if applicable)\n  { value: ethers.parseEther("0.1") }\n);\n\nawait tx.wait();'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Querying Vault Data')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            'const vault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, provider);\n\n// Get vault stats\nconst tvl = await vault.getTotalValueLocked();\nconst benefactors = await vault.getBenefactorCount();\n\n// Get LP position details\nconst position = await vault.getLPPosition();\n\n// Query benefactor share\nconst benefactorInfo = await vault.getBenefactor(projectAddress);'
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Best Practices'),
+                            h('p', null,
+                                'Always query current state before executing transactions. Bonding curves and vaults are dynamic.'
+                            ),
+                            h('p', null,
+                                'Use multicall patterns to batch reads and reduce RPC calls.'
+                            ),
+                            h('p', null,
+                                'Cache static data (names, symbols, vault addresses) but refresh dynamic data (prices, supplies, TVL) frequently.'
+                            )
+                        )
+                    ),
+
+                    // ============ API Reference Section ============
+                    h('section', { className: 'docs-section', id: 'api-reference' },
+                        h('h2', { className: 'section-title' }, 'API Reference'),
+                        h('p', { className: 'section-intro' },
+                            'Complete reference for contract interfaces and query methods.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'MasterRegistryV1')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Alignment Targets\ngetApprovedTargets() \u2192 AlignmentTarget[]\ngetTarget(uint256 targetId) \u2192 AlignmentTarget\nisTargetApproved(uint256 targetId) \u2192 bool\n\n// Vaults\ngetVaultForTarget(uint256 targetId) \u2192 address\nisVaultApproved(address vault) \u2192 bool\ngetVaultRegistry() \u2192 address\n\n// Factories\ngetApprovedFactories(FactoryType factoryType) \u2192 address[]\nisFactoryApproved(address factory) \u2192 bool\n\n// Instances\nisInstanceValid(address instance) \u2192 bool\ngetInstanceVault(address instance) \u2192 address'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'ERC404BondingInstance')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Bonding Status\ngetBondingStatus() \u2192 BondingStatus\n  - isConfigured: bool\n  - isActive: bool\n  - isEnded: bool\n  - currentSupply: uint256\n  - maxBondingSupply: uint256\n  - currentReserve: uint256\n\n// Trading\nbuy(uint256 minAmountOut, bytes32[] proofs) payable\nsell(uint256 tokenAmount, uint256 minEthOut)\ngetBuyQuote(uint256 ethIn) \u2192 uint256 tokensOut\ngetSellQuote(uint256 tokensIn) \u2192 uint256 ethOut\n\n// Staking\nenableStaking() // Owner only\nstake(uint256 amount)\nunstake(uint256 shares)\nclaimYield()\n\n// Configuration\nsetV4Hook(address hook) // Owner only, one-time\nsetVault(address vault) // Owner only, one-time\nsetBondingOpenTime(uint256 timestamp) // Owner only\nsetBondingActive(bool active) // Owner only'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'ERC1155Instance')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Edition Management\ncreateEdition(uint256 price, uint256 maxSupply, string uri) // Owner only\nupdateEditionPrice(uint256 editionId, uint256 newPrice) // Owner only\nupdateEditionSupply(uint256 editionId, uint256 newMax) // Owner only\npauseEdition(uint256 editionId) // Owner only\nresumeEdition(uint256 editionId) // Owner only\n\n// Minting\nmint(uint256 editionId, uint256 quantity) payable\nmintBatch(uint256[] editionIds, uint256[] quantities) payable\n\n// Creator Revenue\ngetCreatorBalance() \u2192 uint256\nwithdraw() // Sends 80% to creator, 20% to vault'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'UltraAlignmentVault')
+                        ),
+
+                        h('div', { className: 'code-block' },
+                            '// Vault Info\ngetTarget() \u2192 AlignmentTarget\ngetTotalValueLocked() \u2192 uint256\ngetBenefactorCount() \u2192 uint256\n\n// Benefactor Queries\ngetBenefactor(address instance) \u2192 Benefactor\n  - totalFeesContributed: uint256\n  - shareOfYield: uint256\n  - yieldClaimed: uint256\n\n// LP Position\ngetLPPosition() \u2192 LPPosition\n  - poolAddress: address\n  - liquidity: uint128\n  - feesAccrued: uint256\n\n// Fee Distribution\ndistributeYield() // Anyone can call\nclaimYield(address benefactor)'
+                        )
+                    ),
+
+                    // ============ DAO Overview Section ============
+                    h('section', { className: 'docs-section', id: 'dao-overview' },
+                        h('h2', { className: 'section-title' }, 'DAO Overview'),
+                        h('p', { className: 'section-intro' },
+                            'The MS2.FUN DAO governs the protocol using a Moloch-inspired structure with Gnosis Safe execution.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Governance Structure'),
+                            h('p', null, 'The DAO uses GrandCentral, a Moloch-pattern governance contract with:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'Shares:'), ' Voting power in governance proposals'),
+                                h('li', null, h('strong', null, 'Loot:'), ' Economic rights to treasury without voting power'),
+                                h('li', null, h('strong', null, 'Proposals:'), ' Submitted by members, voted on by shareholders'),
+                                h('li', null, h('strong', null, 'Safe Execution:'), ' Approved proposals execute via Gnosis Safe multisig')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Conductor System'),
+                            h('p', null, 'The DAO can delegate specific permissions to conductors:'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'Admin Conductor:'), ' Can register factories and vaults'),
+                                h('li', null, h('strong', null, 'Manager Conductor:'), ' Can manage featured queue'),
+                                h('li', null, h('strong', null, 'Governor Conductor:'), ' Can execute certain parameter changes')
+                            ),
+                            h('p', null,
+                                'Conductors enable operational flexibility without requiring full DAO votes for routine actions.'
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'What the DAO Controls'),
+                            h('ul', null,
+                                h('li', null, 'Approval of new alignment targets'),
+                                h('li', null, 'Registration of vault factories and vault instances'),
+                                h('li', null, 'Registration of project factories (ERC404, ERC1155, ERC721)'),
+                                h('li', null, 'MasterRegistry upgrades (UUPS pattern)'),
+                                h('li', null, 'Protocol fee parameters'),
+                                h('li', null, 'Treasury management'),
+                                h('li', null, 'Featured queue pricing and parameters')
+                            )
+                        )
+                    ),
+
+                    // ============ Becoming a Member Section ============
+                    h('section', { className: 'docs-section', id: 'becoming-member' },
+                        h('h2', { className: 'section-title' }, 'Becoming a Member'),
+                        h('p', { className: 'section-intro' },
+                            'Learn how to join the MS2.FUN DAO and participate in governance.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Membership Process'),
+                            h('p', null, 'To become a DAO member:'),
+                            h('ol', null,
+                                h('li', null, h('strong', null, 'Submit Application:'), ' Provide your background, contribution history, and desired shares/loot amounts'),
+                                h('li', null, h('strong', null, 'Sponsorship:'), ' An existing member must sponsor your application'),
+                                h('li', null, h('strong', null, 'Voting Period:'), ' Members vote on your application during the proposal period'),
+                                h('li', null, h('strong', null, 'Approval:'), ' If approved, you receive shares/loot and gain member status')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Shares vs. Loot'),
+                            h('p', null,
+                                h('strong', null, 'Shares:'), ' Grant voting power and proportional claims on treasury. Non-transferable.'
+                            ),
+                            h('p', null,
+                                h('strong', null, 'Loot:'), ' Grant proportional claims on treasury without voting power. Non-transferable but can be rage-quit.'
+                            ),
+                            h('p', null,
+                                'Most contributors receive a mix of shares and loot based on their expected participation level.'
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Rage Quit'),
+                            h('p', null,
+                                'Members can "rage quit" at any time to burn their shares/loot in exchange for a proportional share of the treasury. This ensures members are never locked in and provides an exit mechanism.'
+                            )
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Contribution Ideas'),
+                            h('p', null,
+                                'Active contributors who help with development, design, community management, or ecosystem growth are strong membership candidates.'
+                            ),
+                            h('p', null,
+                                'Factory creators who build new project types automatically receive economic participation through the protocol\'s revenue share.'
+                            )
+                        )
+                    ),
+
+                    // ============ Proposals Section ============
+                    h('section', { className: 'docs-section', id: 'proposals' },
+                        h('h2', { className: 'section-title' }, 'Proposals'),
+                        h('p', { className: 'section-intro' },
+                            'How to create, vote on, and execute governance proposals.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Proposal Types')
+                        ),
+
+                        h('div', { className: 'article-grid' },
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'Alignment Target'),
+                                h('p', { className: 'article-description' },
+                                    'Approve a new community/token as an alignment target. Requires target details and token address.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'Vault Approval'),
+                                h('p', { className: 'article-description' },
+                                    'Deploy and approve a new vault for an approved target. Specifies vault factory and configuration.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'Factory Registration'),
+                                h('p', { className: 'article-description' },
+                                    'Register a new project factory (ERC404, ERC1155, ERC721) to enable new project creation patterns.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'Treasury Action'),
+                                h('p', { className: 'article-description' },
+                                    'Execute arbitrary transactions from treasury. Used for investments, grants, or other treasury operations.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'Parameter Change'),
+                                h('p', { className: 'article-description' },
+                                    'Update protocol parameters like fee rates, featured queue pricing, or conductor permissions.'
+                                )
+                            ),
+                            h('div', { className: 'article-card' },
+                                h('div', { className: 'article-title' }, 'Membership'),
+                                h('p', { className: 'article-description' },
+                                    'Grant shares/loot to new members or adjust existing member allocations.'
+                                )
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Proposal Lifecycle'),
+                            h('ol', null,
+                                h('li', null, h('strong', null, 'Submission:'), ' Member submits proposal with details and execution payload'),
+                                h('li', null, h('strong', null, 'Sponsorship:'), ' Another member sponsors to move to voting'),
+                                h('li', null, h('strong', null, 'Voting Period:'), ' 7-day voting window where shareholders vote yes/no'),
+                                h('li', null, h('strong', null, 'Grace Period:'), ' 3-day grace period for members to rage quit if they disagree'),
+                                h('li', null, h('strong', null, 'Execution:'), ' If approved, proposal is queued in Gnosis Safe for execution'),
+                                h('li', null, h('strong', null, 'Safe Approval:'), ' Safe signers approve and execute the transaction')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Voting Power'),
+                            h('p', null,
+                                'Voting power is proportional to shares held. One share = one vote. Loot does not grant voting power.'
+                            ),
+                            h('p', null,
+                                'Quorum and approval thresholds are configurable per proposal type. Most proposals require simple majority (>50%) approval.'
+                            )
+                        )
+                    ),
+
+                    // ============ Treasury Section ============
+                    h('section', { className: 'docs-section', id: 'treasury' },
+                        h('h2', { className: 'section-title' }, 'Treasury'),
+                        h('p', { className: 'section-intro' },
+                            'How protocol fees accumulate and are managed by the DAO.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Revenue Sources'),
+                            h('ul', null,
+                                h('li', null, 'ERC404 bonding fees (1%)'),
+                                h('li', null, 'ERC404 graduation fees (2%, shared with factory creator)'),
+                                h('li', null, 'Vault LP yield protocol cut (5%)'),
+                                h('li', null, 'ERC1155 and ERC721 settlement fees'),
+                                h('li', null, 'Featured queue rental fees')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Treasury Usage'),
+                            h('p', null, 'The DAO can use treasury funds for:'),
+                            h('ul', null,
+                                h('li', null, 'Protocol development and audits'),
+                                h('li', null, 'Ecosystem grants and incentives'),
+                                h('li', null, 'Strategic investments in aligned projects'),
+                                h('li', null, 'Liquidity provisioning for protocol-owned liquidity'),
+                                h('li', null, 'Contributor compensation'),
+                                h('li', null, 'Marketing and community initiatives')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Transparency'),
+                            h('p', null, 'All treasury transactions are on-chain and auditable. The treasury dashboard shows:'),
+                            h('ul', null,
+                                h('li', null, 'Total assets under management'),
+                                h('li', null, 'Asset breakdown (ETH, tokens, LP positions)'),
+                                h('li', null, 'Revenue over time'),
+                                h('li', null, 'Recent transactions'),
+                                h('li', null, 'Approved but unexecuted proposals')
+                            )
+                        )
+                    ),
+
+                    // ============ Security Section ============
+                    h('section', { className: 'docs-section', id: 'security' },
+                        h('h2', { className: 'section-title' }, 'Security'),
+                        h('p', { className: 'section-intro' },
+                            'Security practices, audit status, and risk disclosures.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Audit Status'),
+                            h('p', null,
+                                'The MS2.FUN contract system has undergone audits by [Audit Firm]. Full audit reports are available in the repository.'
+                            ),
+                            h('p', null, 'Key findings and mitigations:'),
+                            h('ul', null,
+                                h('li', null, 'Critical: None'),
+                                h('li', null, 'High: Addressed in v1.1'),
+                                h('li', null, 'Medium: Documented with mitigations')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Known Risks'),
+                            h('ul', null,
+                                h('li', null, h('strong', null, 'Smart Contract Risk:'), ' Despite audits, bugs may exist. Use at your own risk.'),
+                                h('li', null, h('strong', null, 'Economic Risk:'), ' Bonding curves can be volatile. NFT floor prices may fluctuate.'),
+                                h('li', null, h('strong', null, 'Liquidity Risk:'), ' Vaults depend on Uniswap V4 liquidity depth for target tokens.'),
+                                h('li', null, h('strong', null, 'Governance Risk:'), ' The DAO controls critical protocol parameters and upgrades.')
+                            )
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Best Practices'),
+                            h('ul', null,
+                                h('li', null, 'Start with small amounts to familiarize yourself with mechanics'),
+                                h('li', null, 'Verify contract addresses before interacting'),
+                                h('li', null, 'Use hardware wallets for significant holdings'),
+                                h('li', null, 'Understand bonding curve dynamics before buying'),
+                                h('li', null, 'Monitor vault TVL and liquidity before staking')
+                            )
+                        ),
+
+                        h('div', { className: 'info-box' },
+                            h('div', { className: 'info-box-title' }, 'Bug Bounty'),
+                            h('p', null,
+                                'MS2.FUN offers a bug bounty program for responsible disclosure of vulnerabilities. Rewards up to $50,000 for critical findings.'
+                            ),
+                            h('p', null,
+                                'Report vulnerabilities to security@ms2.fun with detailed reproduction steps.'
+                            )
+                        )
+                    ),
+
+                    // ============ FAQ Section ============
+                    h('section', { className: 'docs-section', id: 'faq' },
+                        h('h2', { className: 'section-title' }, 'FAQ'),
+                        h('p', { className: 'section-intro' },
+                            'Frequently asked questions about MS2.FUN.'
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'General Questions'),
+
+                            h('p', null, h('strong', null, 'What blockchains does MS2.FUN support?')),
+                            h('p', null, 'Currently Ethereum mainnet. Future support for L2s is planned.'),
+
+                            h('p', null, h('strong', null, 'Do I need to be a DAO member to create projects?')),
+                            h('p', null, 'No. Anyone can create projects without DAO membership. The DAO curates which factories and vaults are available, but project creation is permissionless within approved factories.'),
+
+                            h('p', null, h('strong', null, 'Can I change my project\'s vault after deployment?')),
+                            h('p', null, 'No. Vault binding is immutable to ensure authentic alignment.'),
+
+                            h('p', null, h('strong', null, 'What happens if my vault\'s target token goes to zero?')),
+                            h('p', null, 'The vault will continue to operate but LP positions will lose value. Benefactors can still claim their proportional share of whatever remains.')
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Technical Questions'),
+
+                            h('p', null, h('strong', null, 'What is the ERC404 standard?')),
+                            h('p', null, 'ERC404 uses DN404, a hybrid token standard that combines fungible ERC20-like tokens with NFT ownership. Holding a full token unit (e.g., 1M tokens) automatically mints an NFT.'),
+
+                            h('p', null, h('strong', null, 'How do bonding curves work?')),
+                            h('p', null, 'Bonding curves use mathematical formulas to set prices based on supply. As more tokens are minted, the price increases. When tokens are sold back, the price decreases. This creates continuous liquidity and price discovery.'),
+
+                            h('p', null, h('strong', null, 'Why use Uniswap V4 hooks?')),
+                            h('p', null, 'V4 hooks allow custom logic on every swap. We use this to tax trades and route fees to alignment vaults, creating a sustainable revenue stream.'),
+
+                            h('p', null, h('strong', null, 'Are contracts upgradeable?')),
+                            h('p', null, 'Only MasterRegistry uses UUPS upgradeability (DAO-controlled). Factories and instances are immutable.')
+                        ),
+
+                        h('div', { className: 'content-block' },
+                            h('h3', { className: 'content-block-title' }, 'Economic Questions'),
+
+                            h('p', null, h('strong', null, 'How is vault APY calculated?')),
+                            h('p', null, 'APY estimates are based on recent LP fee generation extrapolated over a year. Actual yields vary with trading volume and liquidity depth.'),
+
+                            h('p', null, h('strong', null, 'What\'s the difference between benefactors and stakers?')),
+                            h('p', null, 'Benefactors are projects that contribute fees to a vault. Stakers are token holders who lock tokens to earn vault yield. Both share in the 95% yield pool.'),
+
+                            h('p', null, h('strong', null, 'Can creators earn from secondary sales?')),
+                            h('p', null, 'ERC404 and ERC1155 don\'t have built-in royalties on secondary. Creators can implement this at the marketplace level or through custom hooks.')
+                        )
+                    ),
+
+                    // Bottom spacer (matches demo)
+                    h('div', { style: 'height: 80px;' })
                 )
             )
         );

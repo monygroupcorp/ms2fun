@@ -59,7 +59,7 @@ class GrandCentralAdapter extends ContractAdapter {
             this.contract = new ethers.Contract(
                 this.contractAddress,
                 abi,
-                this.signer || this.provider
+                this.provider
             );
 
             this.initialized = true;
@@ -423,20 +423,23 @@ class GrandCentralAdapter extends ContractAdapter {
     // ============ Helpers ============
 
     _parseProposal(raw) {
+        // Auto-getter skips bool[4] status — positions are:
+        // 0=id, 1=prevProposalId, 2=votingStarts, 3=votingEnds, 4=graceEnds,
+        // 5=expiration, 6=yesVotes, 7=noVotes, 8=maxTotalSharesAtYesVote,
+        // 9=sponsor, 10=proposalDataHash, 11=details
         return {
-            id: typeof raw.id === 'number' ? raw.id : parseInt((raw.id || raw[0]).toString()),
-            prevProposalId: parseInt((raw.prevProposalId || raw[1]).toString()),
-            votingStarts: parseInt((raw.votingStarts || raw[2]).toString()),
-            votingEnds: parseInt((raw.votingEnds || raw[3]).toString()),
-            graceEnds: parseInt((raw.graceEnds || raw[4]).toString()),
-            expiration: parseInt((raw.expiration || raw[5]).toString()),
-            yesVotes: ethers.utils.formatEther(raw.yesVotes || raw[6]),
-            noVotes: ethers.utils.formatEther(raw.noVotes || raw[7]),
-            maxTotalSharesAtYesVote: ethers.utils.formatEther(raw.maxTotalSharesAtYesVote || raw[8]),
-            status: raw.status || raw[9],
-            sponsor: raw.sponsor || raw[10],
-            proposalDataHash: raw.proposalDataHash || raw[11],
-            details: raw.details || raw[12]
+            id: typeof raw.id === 'number' ? raw.id : parseInt((raw.id ?? raw[0]).toString()),
+            prevProposalId: parseInt((raw.prevProposalId ?? raw[1]).toString()),
+            votingStarts: parseInt((raw.votingStarts ?? raw[2]).toString()),
+            votingEnds: parseInt((raw.votingEnds ?? raw[3]).toString()),
+            graceEnds: parseInt((raw.graceEnds ?? raw[4]).toString()),
+            expiration: parseInt((raw.expiration ?? raw[5]).toString()),
+            yesVotes: ethers.utils.formatEther(raw.yesVotes ?? raw[6]),
+            noVotes: ethers.utils.formatEther(raw.noVotes ?? raw[7]),
+            maxTotalSharesAtYesVote: ethers.utils.formatEther(raw.maxTotalSharesAtYesVote ?? raw[8]),
+            sponsor: raw.sponsor ?? raw[9],
+            proposalDataHash: raw.proposalDataHash ?? raw[10],
+            details: raw.details ?? raw[11] ?? ''
         };
     }
 
