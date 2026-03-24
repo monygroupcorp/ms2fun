@@ -6,6 +6,7 @@ import { HomePage } from './routes/HomePage.js';
 import { ProjectDiscovery } from './routes/ProjectDiscovery.js';
 import { Activity } from './routes/Activity.js';
 import { Portfolio } from './routes/Portfolio.js';
+import { AdminPage } from './routes/AdminPage.js';
 import { CultExecsPage } from './routes/CultExecsPage.microact.js';
 import serviceFactory from './services/ServiceFactory.js';
 import { testMockSystem } from './services/mock/test-mock-system.js';
@@ -454,6 +455,24 @@ async function initializeApp() {
                     // Unload route-specific CSS
                     stylesheetLoader.unload('route:portfolio');
                     // Restore marble classes for other routes
+                    document.body.classList.add('marble-bg');
+                    unmountRoot(appContainer);
+                }
+            };
+        });
+
+        // Admin panel - protocol owner tools
+        router.on('/admin', async () => {
+            const appContainer = prepareV2Route();
+            if (!appContainer) return;
+
+            const web3 = await ensureWeb3Ready();
+            render(h(AdminPage, web3), appContainer);
+
+            return {
+                cleanup: async () => {
+                    document.body.classList.remove('v2-route');
+                    stylesheetLoader.unload('route:admin');
                     document.body.classList.add('marble-bg');
                     unmountRoot(appContainer);
                 }
