@@ -1,6 +1,6 @@
 import ContractAdapter from './ContractAdapter.js';
 import { loadABI } from '../../utils/abiLoader.js';
-import { ethers } from '../../vendor/ethers.esm.js';
+import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import eventBus from '../EventBus.js';
 import { contractCache } from './contractCache.js';
 
