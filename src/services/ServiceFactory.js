@@ -22,6 +22,8 @@ import RealProjectRegistry from './RealProjectRegistry.js';
 import GlobalMessageRegistryAdapter from './contracts/GlobalMessageRegistryAdapter.js';
 import UltraAlignmentVaultAdapter from './contracts/UltraAlignmentVaultAdapter.js';
 import FeaturedQueueManagerAdapter from './contracts/FeaturedQueueManagerAdapter.js';
+import AlignmentRegistryAdapter from './contracts/AlignmentRegistryAdapter.js';
+import ProtocolTreasuryAdapter from './contracts/ProtocolTreasuryAdapter.js';
 import walletService from './WalletService.js';
 import queryService from './QueryService.js';
 import projectIndex from './ProjectIndex.js';
@@ -45,6 +47,8 @@ class ServiceFactory {
         this.featuredQueueAdapter = null;
         this.grandCentralAdapter = null;
         this.componentRegistryAdapter = null;
+        this.alignmentRegistryAdapter = null;
+        this.protocolTreasuryAdapter = null;
         this.initialized = false;
         this.initPromise = null;
 
@@ -314,6 +318,30 @@ class ServiceFactory {
             await this._shareOfferingAdapter.initialize();
         }
         return this._shareOfferingAdapter;
+    }
+
+    async getAlignmentRegistryAdapter() {
+        if (this.alignmentRegistryAdapter) return this.alignmentRegistryAdapter;
+        const address = await getContractAddress('AlignmentRegistryV1');
+        if (!address || address === ethers.constants.AddressZero) {
+            throw new Error('AlignmentRegistryV1 address not configured');
+        }
+        const { provider, signer } = this._getReadProvider('AlignmentRegistryV1');
+        this.alignmentRegistryAdapter = new AlignmentRegistryAdapter(address, provider, signer);
+        await this.alignmentRegistryAdapter.initialize();
+        return this.alignmentRegistryAdapter;
+    }
+
+    async getProtocolTreasuryAdapter() {
+        if (this.protocolTreasuryAdapter) return this.protocolTreasuryAdapter;
+        const address = await getContractAddress('ProtocolTreasuryV1');
+        if (!address || address === ethers.constants.AddressZero) {
+            return null; // Not deployed — caller handles gracefully
+        }
+        const { provider, signer } = this._getReadProvider('ProtocolTreasuryV1');
+        this.protocolTreasuryAdapter = new ProtocolTreasuryAdapter(address, provider, signer);
+        await this.protocolTreasuryAdapter.initialize();
+        return this.protocolTreasuryAdapter;
     }
 
     /**
