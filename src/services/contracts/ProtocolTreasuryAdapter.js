@@ -1,7 +1,7 @@
 import ContractAdapter from './ContractAdapter.js';
 import { loadABI } from '../../utils/abiLoader.js';
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
-import eventBus from '../EventBus.js';
+import { eventBus } from '../../core/EventBus.js';
 
 const REVENUE_SOURCES = [
     { key: 'BONDING_FEE', label: 'Bonding Fees', index: 0 },
