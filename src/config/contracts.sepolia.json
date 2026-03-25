@@ -1,32 +1,60 @@
 {
-  "generatedAt": "2026-03-16T00:00:00Z",
+  "generatedAt": "2026-03-25T00:00:00Z",
   "chainId": 11155111,
   "mode": "sepolia",
+  "deployer": "0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6",
   "contracts": {
-    "MasterRegistryV1": "0x0000000000000000000000000000000000000000",
-    "AlignmentRegistryV1": "0x0000000000000000000000000000000000000000",
-    "GlobalMessageRegistry": "0x0000000000000000000000000000000000000000",
-    "FeaturedQueueManager": "0x0000000000000000000000000000000000000000",
-    "QueryAggregator": "0x0000000000000000000000000000000000000000",
-    "ERC404Factory": "0x0000000000000000000000000000000000000000",
-    "ERC1155Factory": "0x0000000000000000000000000000000000000000",
-    "ERC721AuctionFactory": "0x0000000000000000000000000000000000000000",
-    "ComponentRegistry": "0x0000000000000000000000000000000000000000",
-    "GrandCentral": "0x0000000000000000000000000000000000000000",
-    "GnosisSafe": "0x0000000000000000000000000000000000000000",
-    "ShareOffering": "0x0000000000000000000000000000000000000000",
-    "RevenueConductor": "0x0000000000000000000000000000000000000000",
-    "OTCShareEscrow": "0x0000000000000000000000000000000000000000"
+    "MasterRegistryV1": "0x000011526343950CfC6D74140F48F8fFdD013d61",
+    "AlignmentRegistryV1": "0x000011521939eCfe7F5A05162734CC8Bd9a20B8A",
+    "GlobalMessageRegistry": "0x00001152a764cb67F7E8971d222a54b01B84F578",
+    "FeaturedQueueManager": "0x0000115285007e94F9E959bC6a2DaFdf97423A32",
+    "ComponentRegistry": "0x00001152EC8497A7D8343C38364B9677588e120D",
+    "ProtocolTreasuryV1": "0x000011525D097FB6f344660c999F88bCD0dff0d7",
+    "ERC404Factory": "0x9c7a5892A4B69eEdbE8332f394a0D5ecA1d32617",
+    "ERC1155Factory": "0x3055d15aAc79802c65A6d8f1a13751cd2652b9d4",
+    "ERC721AuctionFactory": "0x1237fbf33c0401084b5f8f7666C9AC50008131A1",
+    "zRouter": "0x0e05f4f236B4955233A018dcC9aFf1173090024b",
+    "UniAlignmentVault": "0x0000115279605DF875Dc71b1D4e940B3b898E6Cb",
+    "PromotionBadges": "0xe7dA0815EF405F3895D7516b3b528d0449101045"
   },
-  "factories": [],
+  "factories": [
+    {
+      "address": "0x9c7a5892A4B69eEdbE8332f394a0D5ecA1d32617",
+      "type": "ERC404",
+      "title": "ERC404-Bonding-Curve-Factory",
+      "displayTitle": "ERC404 Bonding Curve",
+      "factoryId": 1,
+      "registered": true
+    },
+    {
+      "address": "0x3055d15aAc79802c65A6d8f1a13751cd2652b9d4",
+      "type": "ERC1155",
+      "title": "ERC1155-Edition-Factory",
+      "displayTitle": "ERC1155 Editions",
+      "factoryId": 2,
+      "registered": true
+    },
+    {
+      "address": "0x1237fbf33c0401084b5f8f7666C9AC50008131A1",
+      "type": "ERC721",
+      "title": "ERC721-Auction-Factory",
+      "displayTitle": "ERC721 Auction",
+      "factoryId": 3,
+      "registered": true
+    }
+  ],
   "vaults": [],
   "instances": {
     "erc404": [],
     "erc1155": [],
     "erc721": []
   },
-  "uniswap": {},
+  "uniswap": {
+    "v4PoolManager": "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543",
+    "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
+    "alignmentToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
+    "alignmentTokenSymbol": "LINK"
+  },
   "tokens": {},
-  "governance": {},
-  "_comment": "Sepolia testnet contract addresses. Populate after deploying contracts to Sepolia."
+  "governance": {}
 }

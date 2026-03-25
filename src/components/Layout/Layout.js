@@ -38,7 +38,12 @@ export class Layout extends Component {
         const { children, currentPath = '', mode } = this.props;
         const { mobileNavOpen } = this.state;
 
+        const isTestnet = mode === 'SEPOLIA' || mode === 'SEPOLIA_DEV';
+
         return h('div', { className: 'app-layout' },
+            isTestnet && h('div', {
+                style: 'background:#ff6b00;color:#000;text-align:center;padding:6px 16px;font-size:13px;font-weight:700;letter-spacing:0.04em;border-bottom:2px solid #000;'
+            }, 'STAGED TEST VERSION — SEPOLIA TESTNET — NOT REAL MONEY'),
             h(TopBar, {
                 currentPath,
                 mode,
