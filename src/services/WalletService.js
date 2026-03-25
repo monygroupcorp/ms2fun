@@ -488,12 +488,17 @@ class WalletService {
                 this.ethersProvider = new ethers.providers.Web3Provider(this.provider, 'any');
                 this.signer = this.ethersProvider.getSigner();
 
-                // Enforce correct network on auto-reconnect too
+                // On auto-reconnect, silently check network but do NOT prompt to switch.
+                // Wrong network is surfaced via event; user can switch when they take a wallet action.
                 try {
-                    await this.ensureCorrectNetwork();
+                    const walletNetwork = await this.ethersProvider.getNetwork();
+                    const { getExpectedChainId } = await import('../config/network.js');
+                    const expectedChainId = getExpectedChainId();
+                    if (expectedChainId && walletNetwork.chainId !== expectedChainId) {
+                        eventBus.emit('wallet:wrong-network', { chainId: walletNetwork.chainId, expected: expectedChainId });
+                    }
                 } catch (networkError) {
-                    console.warn('[WalletService] Wrong network on auto-reconnect:', networkError.message);
-                    eventBus.emit('wallet:wrong-network', { error: networkError.message });
+                    console.warn('[WalletService] Network check on auto-reconnect failed:', networkError.message);
                 }
             }
 

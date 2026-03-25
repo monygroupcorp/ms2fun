@@ -92,7 +92,7 @@ class ServiceFactory {
             }
 
             // Check contracts for both local and mainnet modes
-            if (network.mode === 'local' || network.mode === 'mainnet') {
+            if (network.mode === 'local' || network.mode === 'mainnet' || network.mode === 'sepolia') {
                 let masterAddress = null;
                 let contractsAvailable = false;
 

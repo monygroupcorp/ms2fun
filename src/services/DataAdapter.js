@@ -53,6 +53,8 @@ export class DataAdapter {
         switch (this.mode) {
             case 'LOCAL_BLOCKCHAIN':
             case 'PRODUCTION_DEPLOYED':
+            case 'SEPOLIA':
+            case 'SEPOLIA_DEV':
                 return this.getBlockchainCriticalData();
 
             case 'PLACEHOLDER_MOCK':
