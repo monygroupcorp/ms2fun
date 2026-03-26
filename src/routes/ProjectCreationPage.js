@@ -437,15 +437,13 @@ export default class ProjectCreationPage extends Component {
             // Load alignment registry adapter for target metadata
             const alignmentAdapter = await serviceFactory.getAlignmentRegistryAdapter?.().catch(() => null);
 
-            // MasterRegistryV1 has no vault enumeration — read from config, fetch info per address
+            // MasterRegistryV1 has no vault enumeration — read from current env config
             let configVaults = [];
             try {
-                const res = await fetch('/src/config/contracts.local.json');
-                if (res.ok) {
-                    const cfg = await res.json();
-                    configVaults = cfg.vaults || [];
-                }
-            } catch { /* not on local chain */ }
+                const { loadContractConfig } = await import('../config/contractConfig.js');
+                const cfg = await loadContractConfig();
+                configVaults = cfg?.vaults || [];
+            } catch { /* config not available */ }
 
             let vaults;
             if (configVaults.length > 0) {
