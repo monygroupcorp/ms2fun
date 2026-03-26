@@ -59,7 +59,7 @@ export async function loadABI(abiName) {
             }
         } else {
             // Production or mock: Read from exported ABI directory
-            path = `/contracts/abi/${abiName}.json`;
+            path = `/src/abi/${abiName}.json`;
 
             const response = await fetch(path);
             if (!response.ok) {
