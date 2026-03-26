@@ -1,5 +1,6 @@
 {
   "generatedAt": "2026-03-26T00:00:00Z",
+  "deployBlock": 10526848,
   "chainId": 11155111,
   "mode": "sepolia",
   "deployer": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
