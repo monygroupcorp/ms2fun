@@ -382,7 +382,19 @@ async function initializeCultExecs() {
         if (!walletService.isInitialized) {
             await walletService.initialize();
         }
-        
+
+        // CULT EXECS is a mainnet contract — if wallet is connected and on wrong chain, switch to mainnet
+        if (walletService.isConnected() && walletService.ethersProvider) {
+            try {
+                const network = await walletService.ethersProvider.getNetwork();
+                if (network.chainId !== 1) {
+                    await walletService.switchNetwork(1);
+                }
+            } catch (e) {
+                console.warn('[CultExecsPage] Could not switch to mainnet:', e.message);
+            }
+        }
+
         // Initialize UI components
         initializeUIComponents(contractInterface);
         

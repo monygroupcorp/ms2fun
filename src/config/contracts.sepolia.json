@@ -1,25 +1,28 @@
 {
-  "generatedAt": "2026-03-25T00:00:00Z",
+  "generatedAt": "2026-03-26T00:00:00Z",
   "chainId": 11155111,
   "mode": "sepolia",
-  "deployer": "0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6",
+  "deployer": "0x1821BD18CBdD267CE4e389f893dDFe7BEB333aB6",
   "contracts": {
-    "MasterRegistryV1": "0x000011526343950CfC6D74140F48F8fFdD013d61",
-    "AlignmentRegistryV1": "0x000011521939eCfe7F5A05162734CC8Bd9a20B8A",
-    "GlobalMessageRegistry": "0x00001152a764cb67F7E8971d222a54b01B84F578",
-    "FeaturedQueueManager": "0x0000115285007e94F9E959bC6a2DaFdf97423A32",
-    "ComponentRegistry": "0x00001152EC8497A7D8343C38364B9677588e120D",
-    "ProtocolTreasuryV1": "0x000011525D097FB6f344660c999F88bCD0dff0d7",
-    "ERC404Factory": "0x9c7a5892A4B69eEdbE8332f394a0D5ecA1d32617",
-    "ERC1155Factory": "0x3055d15aAc79802c65A6d8f1a13751cd2652b9d4",
-    "ERC721AuctionFactory": "0x1237fbf33c0401084b5f8f7666C9AC50008131A1",
-    "zRouter": "0x0e05f4f236B4955233A018dcC9aFf1173090024b",
-    "UniAlignmentVault": "0x0000115279605DF875Dc71b1D4e940B3b898E6Cb",
-    "PromotionBadges": "0xe7dA0815EF405F3895D7516b3b528d0449101045"
+    "MasterRegistryV1": "0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF",
+    "AlignmentRegistryV1": "0x00001152db13C4AFb4d9F4bbA93F364692F372eB",
+    "GlobalMessageRegistry": "0x0000115268C7cB1a508ec18DA1cB2D71c0B2C637",
+    "FeaturedQueueManager": "0x00001152c0715721Ae4D2b0B693862953DCFB99C",
+    "ComponentRegistry": "0x00001152Ed1bD8e76693cB775c79708275bBb2F3",
+    "ProtocolTreasuryV1": "0x00001152e56eb45082De505e9E9be5DC158E4cfC",
+    "QueryAggregator": "0x087179Ff25bD47E72fd45d21a92Efad2B0B103e6",
+    "zRouter": "0x4ABdEaB1A6Dca8CEFB3280cb2843DDbEf0FA1CFB",
+    "ERC404Factory": "0xd84f755AdFac9408ADbde65832F8A1BFf5179bF8",
+    "ERC1155Factory": "0x8b4282aBCE5DeF5ab9f5D4501182503492CD1C4B",
+    "ERC721AuctionFactory": "0x073BBb8DF32b2228B6f08fAFc7d144ef911e2082",
+    "CurveParamsComputer": "0xfc0189E52Df95E1078f7DeC74d8e6849AFf84eaa",
+    "DynamicPricingModule": "0x88B71cbCC6A62d5b76cc16Df35A0c063B6a84EB2",
+    "LaunchManager": "0x354768153a0d3edC314D9f6baa2fd56a6961B449",
+    "UniswapVaultPriceValidator": "0x2d3C9f10671314639FCBD4d85F3DcfbFF2D5610E"
   },
   "factories": [
     {
-      "address": "0x9c7a5892A4B69eEdbE8332f394a0D5ecA1d32617",
+      "address": "0xd84f755AdFac9408ADbde65832F8A1BFf5179bF8",
       "type": "ERC404",
       "title": "ERC404-Bonding-Curve-Factory",
       "displayTitle": "ERC404 Bonding Curve",
@@ -27,7 +30,7 @@
       "registered": true
     },
     {
-      "address": "0x3055d15aAc79802c65A6d8f1a13751cd2652b9d4",
+      "address": "0x8b4282aBCE5DeF5ab9f5D4501182503492CD1C4B",
       "type": "ERC1155",
       "title": "ERC1155-Edition-Factory",
       "displayTitle": "ERC1155 Editions",
@@ -35,7 +38,7 @@
       "registered": true
     },
     {
-      "address": "0x1237fbf33c0401084b5f8f7666C9AC50008131A1",
+      "address": "0x073BBb8DF32b2228B6f08fAFc7d144ef911e2082",
       "type": "ERC721",
       "title": "ERC721-Auction-Factory",
       "displayTitle": "ERC721 Auction",
@@ -43,7 +46,14 @@
       "registered": true
     }
   ],
-  "vaults": [],
+  "vaults": [
+    {
+      "address": "0xf456B56E210924c249db834504a97c4A15D57cd8",
+      "alignmentToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
+      "vaultType": "UNIv4",
+      "name": "LINK UNIv4"
+    }
+  ],
   "instances": {
     "erc404": [],
     "erc1155": [],
@@ -51,6 +61,8 @@
   },
   "uniswap": {
     "v4PoolManager": "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543",
+    "v3Factory": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
+    "v2Factory": "0xF62c03E08ada871A0bEb309762E260a7a6a880E6",
     "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
     "alignmentToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
     "alignmentTokenSymbol": "LINK"

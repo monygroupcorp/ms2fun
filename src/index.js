@@ -199,7 +199,7 @@ async function initializeApp() {
             };
         });
 
-        router.on('/cultexecs', async () => {
+        async function cultExecsRoute() {
             const appContainer = prepareV2Route();
             if (!appContainer) return;
 
@@ -216,7 +216,10 @@ async function initializeApp() {
                     unmountRoot(appContainer);
                 }
             };
-        });
+        }
+
+        router.on('/cultexecs', cultExecsRoute);
+        router.on('/1/cultexecs', cultExecsRoute);
         async function aboutRoute() {
             const appContainer = prepareV2Route();
             if (!appContainer) return;
