@@ -7,6 +7,7 @@
 import { Component, h } from '../../core/microact-setup.js';
 import { eventBus } from '../../core/microact-setup.js';
 import walletService from '../../services/WalletService.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class ERC404TradingSidebar extends Component {
     constructor(props = {}) {
@@ -487,7 +488,7 @@ export class ERC404TradingSidebar extends Component {
                 h('h4', { className: 'section-title' }, 'Creator'),
                 h('a', {
                     className: 'creator-link',
-                    href: `https://etherscan.io/address/${this.projectData.creator}`,
+                    href: getExplorerUrl(this.projectData.creator) || '#',
                     target: '_blank',
                     rel: 'noopener'
                 }, this.truncateAddress(this.projectData.creator))

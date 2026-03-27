@@ -6,6 +6,7 @@
 import { Component } from '../../core/Component.js';
 import { ShareModal } from '../ShareModal/ShareModal.js';
 import favoritesService from '../../services/FavoritesService.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class ProjectHeaderCompact extends Component {
     constructor(projectData) {
@@ -122,7 +123,7 @@ export class ProjectHeaderCompact extends Component {
                         <div class="project-meta">
                             <span class="creator">
                                 Created by
-                                <a href="https://etherscan.io/address/${creator}" target="_blank" rel="noopener">
+                                <a href="${getExplorerUrl(creator) || '#'}" target="_blank" rel="noopener">
                                     ${this.truncateAddress(creator)}
                                 </a>
                             </span>

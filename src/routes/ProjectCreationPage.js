@@ -15,7 +15,7 @@ import { Component } from '../core/Component.js';
 import stylesheetLoader from '../utils/stylesheetLoader.js';
 import serviceFactory from '../services/ServiceFactory.js';
 import walletService from '../services/WalletService.js';
-import { detectNetwork } from '../config/network.js';
+import { detectNetwork, getExplorerUrl } from '../config/network.js';
 
 // Step type constants
 const STEP_COLLECTION_SIZE = 'collection_size';
@@ -1759,7 +1759,7 @@ export default class ProjectCreationPage extends Component {
                 // Vault type is the second word in the name e.g. "MS2 UNIv4" → "UNIv4"
                 const typeKey = v.name?.split(' ').slice(1).join(' ') || '';
                 const vaultType = VAULT_TYPE_LABELS[typeKey] || typeKey || 'Vault';
-                const etherscanUrl = `https://etherscan.io/address/${v.address}`;
+                const etherscanUrl = getExplorerUrl(v.address);
                 const descHtml = v.description
                     ? `<p class="type-card-description" style="margin: var(--space-2) 0 var(--space-3); color: var(--text-secondary); font-size: var(--font-size-small);">${v.description}</p>`
                     : '';
@@ -1768,9 +1768,12 @@ export default class ProjectCreationPage extends Component {
                          data-action="select-vault" data-address="${v.address}">
                         <h3 class="component-card-title">${vaultType}</h3>
                         ${descHtml}
-                        <a href="${etherscanUrl}" target="_blank" rel="noopener" class="type-card-subtitle"
-                           style="font-family: var(--font-mono); color: var(--text-tertiary); text-decoration: none;"
-                           onclick="event.stopPropagation();">${v.address.slice(0, 8)}...${v.address.slice(-4)} ↗</a>
+                        ${etherscanUrl
+                            ? `<a href="${etherscanUrl}" target="_blank" rel="noopener" class="type-card-subtitle"
+                                  style="font-family: var(--font-mono); color: var(--text-tertiary); text-decoration: none;"
+                                  onclick="event.stopPropagation();">${v.address.slice(0, 8)}...${v.address.slice(-4)} ↗</a>`
+                            : `<span class="type-card-subtitle" style="font-family: var(--font-mono); color: var(--text-tertiary);">${v.address.slice(0, 8)}...${v.address.slice(-4)}</span>`
+                        }
                     </div>
                 `;
             }).join('');
@@ -1845,11 +1848,8 @@ export default class ProjectCreationPage extends Component {
         const { deployStatus, deployedAddress } = this.state;
 
         if (deployStatus === 'success' && deployedAddress) {
-            const network = detectNetwork();
             const truncated = `${deployedAddress.slice(0, 6)}...${deployedAddress.slice(-4)}`;
-            const explorerUrl = network.chainId === 1
-                ? `https://etherscan.io/address/${deployedAddress}`
-                : null;
+            const explorerUrl = getExplorerUrl(deployedAddress);
             const addressEl = explorerUrl
                 ? `<a class="success-address" href="${explorerUrl}" target="_blank" rel="noopener noreferrer">${truncated}</a>`
                 : `<div class="success-address">${truncated}</div>`;

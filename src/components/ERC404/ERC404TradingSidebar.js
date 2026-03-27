@@ -7,6 +7,7 @@ import { Component } from '../../core/Component.js';
 import { eventBus } from '../../core/EventBus.js';
 import walletService from '../../services/WalletService.js';
 import { ERC404PortfolioModal } from './ERC404PortfolioModal.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class ERC404TradingSidebar extends Component {
     constructor(adapter, projectData) {
@@ -355,13 +356,13 @@ export class ERC404TradingSidebar extends Component {
 
                 <div class="creator-info-section">
                     <h4 class="section-title">Creator</h4>
-                    <a class="creator-link" href="https://etherscan.io/address/${this.projectData.creator}" target="_blank" rel="noopener">
+                    <a class="creator-link" href="${getExplorerUrl(this.projectData.creator) || '#'}" target="_blank" rel="noopener">
                         ${this.truncateAddress(this.projectData.creator)}
                     </a>
                     ${this.projectData.vault ? `
                         <div class="vault-info">
                             <span class="vault-label">Vault:</span>
-                            <a class="vault-link" href="https://etherscan.io/address/${this.projectData.vault}" target="_blank" rel="noopener">
+                            <a class="vault-link" href="${getExplorerUrl(this.projectData.vault) || '#'}" target="_blank" rel="noopener">
                                 ${this.truncateAddress(this.projectData.vault)}
                             </a>
                         </div>

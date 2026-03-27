@@ -9,6 +9,7 @@
 import { Component, h } from '../../core/microact-setup.js';
 import stylesheetLoader from '../../utils/stylesheetLoader.js';
 import { enrichFactoryData } from '../../utils/factoryMetadata.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class FactoryExploration extends Component {
     constructor(props = {}) {
@@ -122,7 +123,7 @@ export class FactoryExploration extends Component {
             h('div', { className: 'factory-card-meta' },
                 h('a', {
                     className: 'factory-card-address',
-                    href: 'https://etherscan.io/address/' + factory.address,
+                    href: getExplorerUrl(factory.address) || '#',
                     target: '_blank',
                     rel: 'noopener noreferrer',
                     onClick: (e) => e.stopPropagation()

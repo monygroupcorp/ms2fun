@@ -6,6 +6,7 @@
 
 import { Component, h } from '../../core/microact-setup.js';
 import { renderIcon } from '../../core/icons.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class FactoryCard extends Component {
     constructor(props = {}) {
@@ -85,7 +86,7 @@ export class FactoryCard extends Component {
         const color = factory.color || '#6b7280';
         const audited = factory.audited || false;
 
-        const etherscanUrl = factory.etherscanUrl || `https://etherscan.io/address/${address}`;
+        const etherscanUrl = factory.etherscanUrl || getExplorerUrl(address);
         const githubUrl = factory.githubUrl;
         const websiteUrl = factory.websiteUrl;
         const twitterUrl = factory.twitterUrl;

@@ -5,6 +5,7 @@ import { Component } from '../../core/Component.js';
  * Displays a single factory card with information and CTA
  */
 import { renderIcon } from '../../core/icons.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class FactoryCard extends Component {
     constructor(factory) {
@@ -23,7 +24,7 @@ export class FactoryCard extends Component {
         const color = factory.color || '#6b7280';
         
         // Get factory links (if available in factory data)
-        const etherscanUrl = factory.etherscanUrl || `https://etherscan.io/address/${factory.address}`;
+        const etherscanUrl = factory.etherscanUrl || getExplorerUrl(factory.address);
         const githubUrl = factory.githubUrl || null;
         const websiteUrl = factory.websiteUrl || null;
         const twitterUrl = factory.twitterUrl || null;

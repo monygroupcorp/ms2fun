@@ -195,3 +195,16 @@ export function getRpcUrl() {
   const network = detectNetwork();
   return network.rpcUrl;
 }
+
+/**
+ * Get a block explorer URL for an address on the current network.
+ * Returns null for local/mock (no public explorer).
+ * @param {string} address
+ * @returns {string|null}
+ */
+export function getExplorerUrl(address) {
+  const { mode } = detectNetwork();
+  if (mode === 'sepolia') return `https://sepolia.etherscan.io/address/${address}`;
+  if (mode === 'mainnet') return `https://etherscan.io/address/${address}`;
+  return null;
+}

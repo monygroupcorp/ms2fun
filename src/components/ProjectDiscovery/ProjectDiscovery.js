@@ -6,6 +6,7 @@ import serviceFactory from '../../services/ServiceFactory.js';
 import { FACTORY_METADATA } from '../../utils/factoryMetadata.js';
 import { loadMockData } from '../../services/mock/mockData.js';
 import { renderIcon } from '../../core/icons.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 /**
  * ProjectDiscovery component
@@ -580,7 +581,7 @@ export class ProjectDiscovery extends Component {
         const allegiance = factoryMetadata?.allegiance || null;
 
         // Generate etherscan URL if address exists but no URL provided
-        const etherscanLink = etherscanUrl || (address ? `https://etherscan.io/address/${address}` : null);
+        const etherscanLink = etherscanUrl || (address ? getExplorerUrl(address) : null);
 
         // Get card image - use project imageURI if available, otherwise use CULT EXEC hardcoded image
         const projectImage = project.imageURI || project.image || null;

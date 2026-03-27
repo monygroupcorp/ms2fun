@@ -11,6 +11,7 @@ import { generateProjectURL } from '../../utils/navigation.js';
 import serviceFactory from '../../services/ServiceFactory.js';
 import { loadMockData } from '../../services/mock/mockData.js';
 import { renderIcon } from '../../core/icons.js';
+import { getExplorerUrl } from '../../config/network.js';
 
 export class ProjectCard extends Component {
     constructor(props = {}) {
@@ -112,7 +113,7 @@ export class ProjectCard extends Component {
 
         const factoryMetadata = FACTORY_METADATA[contractType];
         const allegiance = factoryMetadata?.allegiance || null;
-        const etherscanLink = etherscanUrl || (address ? `https://etherscan.io/address/${address}` : null);
+        const etherscanLink = etherscanUrl || (address ? getExplorerUrl(address) : null);
 
         const projectImage = project.imageURI || project.image || null;
         const cardImage = isFeatured ? '/execs/695.jpeg' : projectImage;
