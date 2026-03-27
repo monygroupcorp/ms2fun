@@ -55,8 +55,9 @@ export class ProjectHeaderCompact extends Component {
     }
 
     render() {
-        const { name, symbol, image, creator, createdAt, address, description } = this.projectData;
+        const { name, symbol, image, project_photo, creator, createdAt, address, description } = this.projectData;
         const { isFavorite, copied } = this.state;
+        const iconSrc = project_photo || image || null;
 
         return h('div', { className: 'project-header-compact' },
             h('h1', { className: 'project-name' },
@@ -65,8 +66,8 @@ export class ProjectHeaderCompact extends Component {
                 h('span', { className: 'project-ticker' }, `($${symbol})`)
             ),
             h('div', { className: 'project-icon' },
-                image
-                    ? h('img', { src: image, alt: name })
+                iconSrc
+                    ? h('img', { src: iconSrc, alt: name })
                     : h('div', { className: 'icon-placeholder' })
             ),
             description && h('p', { className: 'project-description' }, description),

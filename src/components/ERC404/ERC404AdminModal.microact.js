@@ -56,6 +56,20 @@ export class ERC404AdminModal extends Component {
         document.removeEventListener('keydown', this._boundKeyDown);
     }
 
+    // ── Error Banner ──
+
+    showError(message) {
+        if (!this._el) return;
+        const banner = this._el.querySelector('[data-modal-error]');
+        if (!banner) return;
+        banner.textContent = message;
+        banner.style.display = '';
+        clearTimeout(this._errorTimer);
+        this._errorTimer = setTimeout(() => {
+            if (banner) banner.style.display = 'none';
+        }, 6000);
+    }
+
     // ── Tab Switching ──
 
     switchTab(tabName) {
@@ -208,6 +222,7 @@ export class ERC404AdminModal extends Component {
             await this.loadData();
         } catch (error) {
             console.error('[ERC404AdminModal] Open bonding failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Open Bonding Now'; }, 3000);
         }
@@ -224,6 +239,7 @@ export class ERC404AdminModal extends Component {
             if (btn) btn.textContent = 'Claim Fees';
         } catch (error) {
             console.error('[ERC404AdminModal] Claim fees failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Claim Fees'; }, 3000);
         }
@@ -241,6 +257,7 @@ export class ERC404AdminModal extends Component {
             await this.loadData();
         } catch (error) {
             console.error('[ERC404AdminModal] Deploy liquidity failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Deploy Liquidity'; }, 3000);
         }
@@ -262,6 +279,7 @@ export class ERC404AdminModal extends Component {
             await this.loadData();
         } catch (error) {
             console.error('[ERC404AdminModal] Set open time failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Set Time'; }, 3000);
         }
@@ -283,6 +301,7 @@ export class ERC404AdminModal extends Component {
             await this.loadData();
         } catch (error) {
             console.error('[ERC404AdminModal] Set maturity time failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Set Time'; }, 3000);
         }
@@ -299,6 +318,7 @@ export class ERC404AdminModal extends Component {
             await this.loadData();
         } catch (error) {
             console.error('[ERC404AdminModal] Activate staking failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Activate Staking'; }, 3000);
         }
@@ -320,6 +340,7 @@ export class ERC404AdminModal extends Component {
             await this.loadData();
         } catch (error) {
             console.error('[ERC404AdminModal] Migrate vault failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Migrate Vault'; }, 3000);
         }
@@ -344,6 +365,7 @@ export class ERC404AdminModal extends Component {
             eventBus.emit('erc404:admin:disabled');
         } catch (error) {
             console.error('[ERC404AdminModal] Transfer ownership failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Transfer Ownership'; }, 3000);
         }
@@ -365,6 +387,7 @@ export class ERC404AdminModal extends Component {
             eventBus.emit('erc404:admin:disabled');
         } catch (error) {
             console.error('[ERC404AdminModal] Renounce ownership failed:', error);
+            this.showError(error.message || 'Transaction failed');
             if (btn) btn.textContent = 'Failed';
             setTimeout(() => { if (btn) btn.textContent = 'Renounce Ownership Forever'; }, 3000);
         }
@@ -413,6 +436,13 @@ export class ERC404AdminModal extends Component {
                         h('div', { className: 'modal-title' }, 'Project Administration'),
                         h('button', { className: 'modal-close', onClick: () => this.close() }, '\u00D7')
                     ),
+
+                    // Error banner
+                    h('div', {
+                        'data-modal-error': true,
+                        className: 'modal-error-banner',
+                        style: { display: 'none' }
+                    }),
 
                     // Tabs
                     h('div', { className: 'modal-tabs' },

@@ -1322,3 +1322,13 @@
     color: var(--text-tertiary);
     line-height: 1.5;
 }
+
+/* ── Admin modal error banner ── */
+.erc404-admin-modal .modal-error-banner {
+    padding: var(--space-2) var(--space-4);
+    background: #ff0000;
+    color: #ffffff;
+    font-size: var(--font-size-caption);
+    font-weight: bold;
+    word-break: break-word;
+}

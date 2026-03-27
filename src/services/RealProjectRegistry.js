@@ -78,7 +78,10 @@ export default class RealProjectRegistry {
                 const factory = await this.masterService.getFactoryByAddress(instanceInfo.factoryAddress);
                 const contractType = factory?.contractType || 'ERC1155';
 
-                const metadata = await this._fetchInstanceMetadata(instanceAddress, contractType);
+                const [metadata, presentation] = await Promise.all([
+                    this._fetchInstanceMetadata(instanceAddress, contractType),
+                    this._fetchPresentationFields(instanceAddress)
+                ]);
                 if (metadata) {
                     // Add info from MasterRegistry
                     metadata.factoryAddress = instanceInfo.factoryAddress;
@@ -86,14 +89,18 @@ export default class RealProjectRegistry {
                     metadata.vault = instanceInfo.vault;
                     metadata.owner = instanceInfo.creator;
 
-                    // Parse metadataURI for description, image, etc.
+                    // Parse metadataURI for NFT-standard fields
                     const onChainMeta = this._parseDataUri(instanceInfo.metadataURI);
                     if (onChainMeta) {
-                        metadata.description = metadata.description || onChainMeta.description || '';
                         metadata.image = metadata.image || onChainMeta.image || '';
                         metadata.category = metadata.category || onChainMeta.category || '';
                         metadata.tags = metadata.tags || onChainMeta.tags || [];
                     }
+
+                    // Merge styleUri presentation fields
+                    metadata.project_photo = presentation.project_photo || '';
+                    metadata.project_banner = presentation.project_banner || '';
+                    metadata.description = presentation.description || metadata.description || (onChainMeta?.description) || '';
 
                     this.projectCache.set(instanceAddress, metadata);
                 }
@@ -148,6 +155,29 @@ export default class RealProjectRegistry {
             }
         } catch (e) { /* ignore */ }
         return null;
+    }
+
+    /**
+     * Fetch styleUri from an instance contract and extract presentation fields.
+     * Both ERC404 and ERC1155 expose a public `styleUri()` view.
+     */
+    async _fetchPresentationFields(instanceAddress) {
+        const { provider } = this._getProvider();
+        if (!provider) return {};
+        try {
+            const minAbi = ['function styleUri() view returns (string)'];
+            const contract = new ethers.Contract(instanceAddress, minAbi, provider);
+            const uri = await contract.styleUri();
+            const parsed = this._parseDataUri(uri);
+            if (!parsed) return {};
+            return {
+                project_photo: parsed.project_photo || '',
+                project_banner: parsed.project_banner || '',
+                description: parsed.description || ''
+            };
+        } catch (e) {
+            return {};
+        }
     }
 
     async _fetchInstanceMetadata(instanceAddress, contractType) {
@@ -258,21 +288,28 @@ export default class RealProjectRegistry {
         const factory = await this.masterService.getFactoryByAddress(instance.factoryAddress);
         const contractType = factory?.contractType || 'ERC1155';
 
-        // Fetch full metadata
-        const metadata = await this._fetchInstanceMetadata(projectAddress, contractType);
+        // Fetch full metadata and styleUri presentation fields in parallel
+        const [metadata, presentation] = await Promise.all([
+            this._fetchInstanceMetadata(projectAddress, contractType),
+            this._fetchPresentationFields(projectAddress)
+        ]);
         if (metadata) {
             metadata.factoryAddress = instance.factoryAddress;
             metadata.creator = instance.creator;
             metadata.vault = instance.vault;
 
-            // Parse metadataURI for description, image, etc.
+            // Parse metadataURI for NFT-standard fields (image, category, tags)
             const onChainMeta = this._parseDataUri(instance.metadataURI);
             if (onChainMeta) {
-                metadata.description = metadata.description || onChainMeta.description || '';
                 metadata.image = metadata.image || onChainMeta.image || '';
                 metadata.category = metadata.category || onChainMeta.category || '';
                 metadata.tags = metadata.tags || onChainMeta.tags || [];
             }
+
+            // Merge styleUri presentation fields (take priority over metadataURI for description)
+            metadata.project_photo = presentation.project_photo || '';
+            metadata.project_banner = presentation.project_banner || '';
+            metadata.description = presentation.description || metadata.description || (onChainMeta?.description) || '';
 
             this.projectCache.set(projectAddress, metadata);
         }

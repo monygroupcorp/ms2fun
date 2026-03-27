@@ -158,6 +158,11 @@ export class ProjectCard extends Component {
 
             // Header
             h('div', { className: 'card-header' },
+                projectImage && !isFeatured && h('img', {
+                    className: 'card-project-icon',
+                    src: projectImage,
+                    alt: project.name
+                }),
                 h('h3', { className: 'card-title' }, project.name),
                 h('span', { className: `contract-type-badge ${contractType.toLowerCase()}` }, contractType)
             ),
