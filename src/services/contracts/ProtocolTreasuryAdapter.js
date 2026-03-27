@@ -116,6 +116,42 @@ class ProtocolTreasuryAdapter extends ContractAdapter {
         }
     }
 
+    async routeToDAO(safeAddress, amountWei) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'routeToDAO', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('routeToDAO', [safeAddress, amountWei], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'routeToDAO', receipt });
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'routeToDAO', error: this.wrapError(error, 'Failed to route to DAO') });
+            throw error;
+        }
+    }
+
+    async setMasterRegistry(registryAddress) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'setMasterRegistry', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('setMasterRegistry', [registryAddress], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'setMasterRegistry', receipt });
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'setMasterRegistry', error: this.wrapError(error, 'Failed to set master registry') });
+            throw error;
+        }
+    }
+
+    async setRevenueConductor(conductorAddress) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'setRevenueConductor', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('setRevenueConductor', [conductorAddress], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'setRevenueConductor', receipt });
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'setRevenueConductor', error: this.wrapError(error, 'Failed to set revenue conductor') });
+            throw error;
+        }
+    }
+
     async claimPOLFees(instanceAddress) {
         try {
             eventBus.emit('transaction:pending', { type: 'claimPOLFees', contractAddress: this.contractAddress });

@@ -10,6 +10,7 @@ import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethe
 import ContractAdapter from './ContractAdapter.js';
 import { loadABI } from '../../utils/abiLoader.js';
 import { eventBus } from '../../core/EventBus.js';
+import { contractCache } from '../ContractCache.js';
 
 const CACHE_TTL = {
     COMPONENTS: 5 * 60 * 1000, // 5 minutes — component approval changes are rare
@@ -158,6 +159,32 @@ class ComponentRegistryAdapter extends ContractAdapter {
             ];
         }
         return [];
+    }
+
+    async approveComponent(componentAddress, tagHash, name) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'approveComponent', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('approveComponent', [componentAddress, tagHash, name], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'approveComponent', receipt });
+            contractCache.invalidateByPattern('getAllComponents', 'getComponentsByTag');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'approveComponent', error: this.wrapError(error, 'Failed to approve component') });
+            throw error;
+        }
+    }
+
+    async revokeComponent(componentAddress) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'revokeComponent', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('revokeComponent', [componentAddress], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'revokeComponent', receipt });
+            contractCache.invalidateByPattern('getAllComponents', 'getComponentsByTag');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'revokeComponent', error: this.wrapError(error, 'Failed to revoke component') });
+            throw error;
+        }
     }
 
     _getMockAllComponents() {

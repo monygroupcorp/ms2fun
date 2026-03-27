@@ -408,6 +408,30 @@ class MasterRegistryAdapter extends ContractAdapter {
         }, CACHE_TTL.STATIC);
     }
 
+    async alignmentRegistry() {
+        return await this.getCachedOrFetch('alignmentRegistry', [], async () => {
+            return await this.executeContractCall('alignmentRegistry');
+        }, CACHE_TTL.STATIC);
+    }
+
+    async componentRegistry() {
+        return await this.getCachedOrFetch('componentRegistry', [], async () => {
+            return await this.executeContractCall('componentRegistry');
+        }, CACHE_TTL.STATIC);
+    }
+
+    async grandCentral() {
+        return await this.getCachedOrFetch('grandCentral', [], async () => {
+            return await this.executeContractCall('grandCentral');
+        }, CACHE_TTL.STATIC);
+    }
+
+    async isAgent(address) {
+        return await this.getCachedOrFetch('isAgent', [address], async () => {
+            return await this.executeContractCall('isAgent', [address]);
+        }, CACHE_TTL.DYNAMIC);
+    }
+
     /**
      * Get vault registry address
      * @returns {Promise<string>} Vault registry contract address (mapped to itself)
@@ -1630,6 +1654,101 @@ class MasterRegistryAdapter extends ContractAdapter {
                 type: 'finalizeAbdication',
                 error: this.wrapError(error, 'Failed to finalize abdication')
             });
+            throw error;
+        }
+    }
+
+    // =========================
+    // Admin Write Methods
+    // =========================
+
+    async deactivateFactory(factoryAddress) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'deactivateFactory', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('deactivateFactory', [factoryAddress], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'deactivateFactory', receipt });
+            contractCache.invalidateByPattern('getFactoryInfo', 'isFactoryRegistered', 'getActiveFactories');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'deactivateFactory', error: this.wrapError(error, 'Failed to deactivate factory') });
+            throw error;
+        }
+    }
+
+    async setAgent(agentAddress, authorized) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'setAgent', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('setAgent', [agentAddress, authorized], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'setAgent', receipt });
+            contractCache.invalidateByPattern('isAgent');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'setAgent', error: this.wrapError(error, 'Failed to set agent') });
+            throw error;
+        }
+    }
+
+    async revokeAgent(agentAddress) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'revokeAgent', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('revokeAgent', [agentAddress], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'revokeAgent', receipt });
+            contractCache.invalidateByPattern('isAgent');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'revokeAgent', error: this.wrapError(error, 'Failed to revoke agent') });
+            throw error;
+        }
+    }
+
+    async setAlignmentRegistry(address) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'setAlignmentRegistry', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('setAlignmentRegistry', [address], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'setAlignmentRegistry', receipt });
+            contractCache.invalidateByPattern('alignmentRegistry');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'setAlignmentRegistry', error: this.wrapError(error, 'Failed to set alignment registry') });
+            throw error;
+        }
+    }
+
+    async setComponentRegistry(address) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'setComponentRegistry', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('setComponentRegistry', [address], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'setComponentRegistry', receipt });
+            contractCache.invalidateByPattern('componentRegistry');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'setComponentRegistry', error: this.wrapError(error, 'Failed to set component registry') });
+            throw error;
+        }
+    }
+
+    async setGrandCentral(address) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'setGrandCentral', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('setGrandCentral', [address], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'setGrandCentral', receipt });
+            contractCache.invalidateByPattern('grandCentral');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'setGrandCentral', error: this.wrapError(error, 'Failed to set grand central') });
+            throw error;
+        }
+    }
+
+    async migrateVault(instanceAddress, newVaultAddress) {
+        try {
+            eventBus.emit('transaction:pending', { type: 'migrateVault', contractAddress: this.contractAddress });
+            const receipt = await this.executeContractCall('migrateVault', [instanceAddress, newVaultAddress], { requiresSigner: true });
+            eventBus.emit('transaction:success', { type: 'migrateVault', receipt });
+            contractCache.invalidateByPattern('getInstanceInfo', 'instanceInfo');
+            return receipt;
+        } catch (error) {
+            eventBus.emit('transaction:error', { type: 'migrateVault', error: this.wrapError(error, 'Failed to migrate vault') });
             throw error;
         }
     }

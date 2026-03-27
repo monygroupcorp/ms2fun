@@ -104,7 +104,7 @@
 
 .admin-stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: var(--space-4);
     margin-bottom: var(--space-8);
 }
@@ -330,6 +330,47 @@
     border-bottom: none;
 }
 
+/* ── Param Row ───────────────────────────────────────────── */
+
+.admin-param-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-secondary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+}
+
+.admin-param-row:last-child {
+    border-bottom: none;
+}
+
+.admin-param-row .param-label {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.admin-param-row .param-value {
+    color: var(--text-primary);
+}
+
+/* ── Target Edit Panel ───────────────────────────────────── */
+
+.admin-target-edit-panel {
+    border-top: 1px solid var(--border-primary);
+    border-bottom: 1px solid var(--border-primary);
+    background-color: var(--bg-secondary);
+    padding: var(--space-6) var(--space-6) var(--space-2);
+}
+
+.admin-target-edit-panel .admin-form {
+    border-color: var(--border-secondary);
+    background-color: var(--bg-primary);
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 640px) {
@@ -358,7 +399,7 @@
     }
 
     .admin-stats-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
     }
 
     .admin-content {

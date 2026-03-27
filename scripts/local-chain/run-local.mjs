@@ -6,6 +6,12 @@
 import { deployContracts, MAINNET_ADDRESSES } from './deploy-contracts.mjs'
 import { writeConfig } from './write-config.mjs'
 import { TEST_ACCOUNTS } from './seed-common.mjs'
+import { ethers } from 'ethers'
+import { promises as fs } from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Validate required environment
@@ -61,6 +67,40 @@ if (typeof scenario.seed !== 'function') {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { core, factories, vaults, governance, provider, deployer } = await deployContracts()
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Transfer MasterRegistry ownership to USER_ADDRESS
+// ─────────────────────────────────────────────────────────────────────────────
+
+console.log(`\n════════════════════════════════════════════════════`)
+console.log(`OWNERSHIP TRANSFER → ${USER_ADDRESS}`)
+console.log(`════════════════════════════════════════════════════`)
+
+try {
+  const abiPath = path.resolve(__dirname, '../../contracts/out/MasterRegistryV1.sol/MasterRegistryV1.json')
+  const artifact = JSON.parse(await fs.readFile(abiPath, 'utf8'))
+  const registry = new ethers.Contract(core.masterRegistry, artifact.abi, deployer)
+
+  const currentOwner = await registry.owner()
+  if (currentOwner.toLowerCase() === USER_ADDRESS.toLowerCase()) {
+    console.log(`   ✓ Already owned by USER_ADDRESS`)
+  } else {
+    // Solady 2-step handover:
+    // 1. Pending owner (USER_ADDRESS) calls requestOwnershipHandover()
+    // 2. Current owner (deployer) calls completeOwnershipHandover(USER_ADDRESS)
+    await provider.send('anvil_impersonateAccount', [USER_ADDRESS])
+    await provider.send('anvil_setBalance', [USER_ADDRESS, '0x56BC75E2D63100000'])
+    const registryAsUser = new ethers.Contract(core.masterRegistry, artifact.abi, provider.getSigner(USER_ADDRESS))
+    await (await registryAsUser.requestOwnershipHandover()).wait()
+    await provider.send('anvil_stopImpersonatingAccount', [USER_ADDRESS])
+
+    await (await registry.completeOwnershipHandover(USER_ADDRESS)).wait()
+    console.log(`   ✓ Ownership transferred to ${USER_ADDRESS}`)
+  }
+} catch (err) {
+  console.warn(`   ⚠️  Ownership transfer failed: ${err.message}`)
+  console.warn(`   Admin panel will require connecting with the deployer account instead`)
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Run scenario seed
