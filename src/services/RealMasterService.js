@@ -218,18 +218,19 @@ export default class RealMasterService {
     async getAllInstances() {
         await this._ensureInitialized();
         try {
-            const totalInstances = await this.masterRegistry.getTotalInstances();
+            // MasterRegistryV1 has no enumeration function — query InstanceRegistered events.
+            const contract = this.masterRegistry.contract;
+            if (!contract) return [];
 
-            // Parallelize instance address fetches
-            const instancePromises = [];
-            for (let i = 0; i < totalInstances; i++) {
-                instancePromises.push(
-                    this.masterRegistry.allInstances(i).catch(() => null)
-                );
-            }
+            const { loadContractConfig } = await import('../config/contractConfig.js');
+            const cfg = await loadContractConfig();
+            const fromBlock = cfg?.deployBlock ?? 0;
 
-            const results = await Promise.all(instancePromises);
-            return results.filter(addr => addr !== null);
+            const filter = contract.filters.InstanceRegistered();
+            const events = await contract.queryFilter(filter, fromBlock, 'latest');
+            const addresses = events.map(e => e.args.instance);
+            console.log(`Found ${addresses.length} total instances`);
+            return addresses;
         } catch (error) {
             console.warn('Error getting all instances:', error);
             return [];
