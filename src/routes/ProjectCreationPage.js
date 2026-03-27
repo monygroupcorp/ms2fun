@@ -161,6 +161,7 @@ export default class ProjectCreationPage extends Component {
                 name: '',
                 symbol: '',
                 description: '',
+                projectImage: '',
                 styleUri: '',
                 metadataURI: '',
                 nftCount: 1000,
@@ -291,10 +292,13 @@ export default class ProjectCreationPage extends Component {
         const currentStep = steps[currentStepIndex];
 
         if (currentStep?.type === STEP_CONFIGURE) {
+            // Rebuild metadataURI from builder fields (in case user typed name before adding image)
+            this._updateFormData('name', formData.name);
+            // Harvest style builder DOM inputs into formData.styleUri
+            this._readStyleFromDOM();
             const missing = [];
             if (!formData.name?.trim()) missing.push('Project Name');
             if (!formData.symbol?.trim()) missing.push('Token Symbol');
-            if (!formData.metadataURI?.trim()) missing.push('Collection Metadata URI');
             if (missing.length) {
                 this.setState({ configError: `Required: ${missing.join(', ')}` });
                 return;
@@ -510,7 +514,52 @@ export default class ProjectCreationPage extends Component {
 
     _updateFormData(field, value) {
         const formData = { ...this.state.formData, [field]: value };
+        // Auto-rebuild metadataURI from structured fields
+        if (['name', 'description', 'projectImage'].includes(field)) {
+            const meta = { name: formData.name || '' };
+            if (formData.description) meta.description = formData.description;
+            if (formData.projectImage) meta.image = formData.projectImage;
+            formData.metadataURI = 'data:application/json,' + encodeURIComponent(JSON.stringify(meta));
+            // Update preview without re-render
+            const preview = this.element?.querySelector('[data-meta-preview]');
+            if (preview) preview.textContent = formData.metadataURI;
+        }
         this.setState({ formData });
+    }
+
+    _readStyleFromDOM() {
+        if (!this.element) return;
+        const tokenKeys = [
+            '--bg-primary', '--bg-secondary', '--bg-tertiary',
+            '--text-primary', '--text-secondary',
+            '--border-primary', '--border-secondary',
+        ];
+        const overrides = [];
+        for (const key of tokenKeys) {
+            // Prefer text input (explicitly typed/synced); ignore color picker defaults
+            const textInput = this.element.querySelector(`[data-style-token-text="${key}"]`);
+            const val = textInput?.value?.trim();
+            if (val) overrides.push(`  ${key}: ${val};`);
+        }
+        const fontFamily = this.element.querySelector('[data-style-ext="font-family"]')?.value?.trim();
+        if (fontFamily) overrides.push(`  --font-primary: ${fontFamily};`);
+
+        const parts = [];
+        if (overrides.length) parts.push(`:root {\n${overrides.join('\n')}\n}`);
+
+        const bgImage = this.element.querySelector('[data-style-ext="bg-image"]')?.value?.trim();
+        if (bgImage) {
+            parts.push(`body {\n  background-image: url('${bgImage}');\n  background-size: cover;\n  background-position: center;\n  background-attachment: fixed;\n}`);
+        }
+
+        const customCSS = this.element.querySelector('[data-style-ext="custom-css"]')?.value?.trim();
+        if (customCSS) parts.push(customCSS);
+
+        const css = parts.join('\n\n');
+        if (css) {
+            const uri = 'data:text/css;base64,' + btoa(css);
+            this.state.formData = { ...this.state.formData, styleUri: uri };
+        }
     }
 
     _updateFreeMint(field, value) {
@@ -993,6 +1042,19 @@ export default class ProjectCreationPage extends Component {
         }, { signal });
 
         this.element.addEventListener('input', (e) => {
+            // Sync color picker ↔ text for inline style builder
+            if (e.target.hasAttribute('data-style-token') && e.target.type === 'color') {
+                const key = e.target.getAttribute('data-style-token');
+                const textEl = this.element.querySelector(`[data-style-token-text="${key}"]`);
+                if (textEl) textEl.value = e.target.value;
+                return;
+            }
+            if (e.target.hasAttribute('data-style-token-text')) {
+                const key = e.target.getAttribute('data-style-token-text');
+                const colorEl = this.element.querySelector(`[data-style-token="${key}"]`);
+                if (colorEl && e.target.value.match(/^#[0-9a-fA-F]{6}$/)) colorEl.value = e.target.value;
+                return;
+            }
             const action = e.target.dataset.action;
             if (action === 'mining-pattern') {
                 this.setState({ miningPattern: e.target.value, miningError: null });
@@ -1494,6 +1556,9 @@ export default class ProjectCreationPage extends Component {
         const hasGating = gatingTag && componentSelections[gatingTag] &&
             componentSelections[gatingTag] !== '0x0000000000000000000000000000000000000000';
 
+        // Pre-compute current metadataURI for preview
+        const currentMeta = formData.metadataURI || '';
+
         return `
             <div class="step-content active">
                 <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
@@ -1525,37 +1590,103 @@ export default class ProjectCreationPage extends Component {
                         </div>
                         ` : ''}
                     </div>
+                </div>
+
+                <div class="form-section">
+                    <h3 class="form-section-title">Project Card</h3>
+                    <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-4);">
+                        This information appears on your project card in the discovery feed and on your project page.
+                        It is stored immutably on-chain at creation.
+                    </p>
                     <div class="form-group">
                         <label class="form-label">Description</label>
                         <textarea class="form-input form-textarea" data-field="description"
-                                  placeholder="Describe your project">${formData.description}</textarea>
+                                  placeholder="Describe your project — what it is, who it's for, what makes it unique."
+                                  rows="3">${formData.description}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Collection Image</label>
+                        <input type="text" class="form-input" data-field="projectImage"
+                               placeholder="https://... or ipfs://..." value="${formData.projectImage}">
+                        <div class="form-help">
+                            Shown as the card background and project header image.
+                            Use a square or landscape image for best results.
+                            Supports IPFS (<code>ipfs://</code>), Arweave (<code>ar://</code>), or HTTPS.
+                        </div>
+                    </div>
+                    <div style="font-size: var(--font-size-caption); color: var(--text-tertiary); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-secondary); background: var(--bg-secondary); margin-top: var(--space-2); word-break: break-all;">
+                        <span style="text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; color: var(--text-secondary);">Generated Metadata URI</span><br>
+                        <span data-meta-preview>${currentMeta}</span>
                     </div>
                 </div>
 
                 <div class="form-section">
-                    <h3 class="form-section-title">Media & Styling</h3>
-                    <div class="form-group">
-                        <label class="form-label form-label-required">Collection Metadata URI</label>
-                        <input type="text" class="form-input" data-field="metadataURI"
-                               placeholder="ipfs://Qm... or https://..." value="${formData.metadataURI}">
-                        <div class="form-help">
-                            Points to the JSON metadata for your collection — name, description, image, and per-token attributes.
-                            This is stored immutably on-chain at creation. If your artwork isn't ready yet, deploy an
-                            <strong>unrevealed URI</strong> first (a placeholder JSON that says something like
-                            "Unrevealed") and update it post-reveal via your project's admin functions.
-                            Supports IPFS (<code>ipfs://</code>), Arweave (<code>ar://</code>), or HTTPS.
+                    <h3 class="form-section-title">Project Style <span style="font-weight: normal; color: var(--text-secondary); font-size: var(--font-size-sm);">(optional)</span></h3>
+                    <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-4);">
+                        Customize the look of your project page. Override design tokens to change colors, fonts, and backgrounds.
+                        Leave blank to use the platform's default style. Changes here generate a <code>data:text/css</code> URI stored on-chain.
+                    </p>
+
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); margin-bottom: var(--space-4);">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: var(--font-size-caption);">Background</label>
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                <input type="color" data-style-token="--bg-primary" value="#ffffff"
+                                       style="width: 36px; height: 32px; border: 1px solid var(--border-primary); cursor: pointer; padding: 2px;">
+                                <input type="text" class="form-input" data-style-token-text="--bg-primary"
+                                       placeholder="#ffffff" style="flex: 1; font-size: var(--font-size-caption);">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: var(--font-size-caption);">Surface</label>
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                <input type="color" data-style-token="--bg-secondary" value="#fafafa"
+                                       style="width: 36px; height: 32px; border: 1px solid var(--border-primary); cursor: pointer; padding: 2px;">
+                                <input type="text" class="form-input" data-style-token-text="--bg-secondary"
+                                       placeholder="#fafafa" style="flex: 1; font-size: var(--font-size-caption);">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: var(--font-size-caption);">Text</label>
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                <input type="color" data-style-token="--text-primary" value="#000000"
+                                       style="width: 36px; height: 32px; border: 1px solid var(--border-primary); cursor: pointer; padding: 2px;">
+                                <input type="text" class="form-input" data-style-token-text="--text-primary"
+                                       placeholder="#000000" style="flex: 1; font-size: var(--font-size-caption);">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label" style="font-size: var(--font-size-caption);">Border</label>
+                            <div style="display: flex; gap: var(--font-size-caption); gap: var(--space-2); align-items: center;">
+                                <input type="color" data-style-token="--border-primary" value="#000000"
+                                       style="width: 36px; height: 32px; border: 1px solid var(--border-primary); cursor: pointer; padding: 2px;">
+                                <input type="text" class="form-input" data-style-token-text="--border-primary"
+                                       placeholder="#000000" style="flex: 1; font-size: var(--font-size-caption);">
+                            </div>
                         </div>
                     </div>
+
                     <div class="form-group">
-                        <label class="form-label">Style URI <span style="font-weight: normal; color: var(--text-secondary);">(optional)</span></label>
-                        <input type="text" class="form-input" data-field="styleUri"
-                               placeholder="ipfs://... or data:text/css,..." value="${formData.styleUri}">
-                        <div class="form-help">
-                            A CSS file that skins your project's page on ms2.fun. You can host it on IPFS or Arweave for
-                            permanence, or point to any HTTPS URL. For quick inline styles you can use a
-                            <code>data:</code> URI — e.g. <code>data:text/css,body%7Bbackground%3A%23000%7D</code>.
-                            Leave blank to use the default platform style.
-                        </div>
+                        <label class="form-label" style="font-size: var(--font-size-caption);">Font Family</label>
+                        <input type="text" class="form-input" data-style-ext="font-family"
+                               placeholder="'Inter', sans-serif"
+                               style="font-size: var(--font-size-caption);">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-size: var(--font-size-caption);">Background Image URL</label>
+                        <input type="text" class="form-input" data-style-ext="bg-image"
+                               placeholder="https://... or ipfs://..."
+                               style="font-size: var(--font-size-caption);">
+                        <div class="form-help">Applied as a fixed full-page background.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" style="font-size: var(--font-size-caption);">Custom CSS</label>
+                        <textarea class="form-input" data-style-ext="custom-css" rows="3"
+                                  placeholder=".project-title { font-style: italic; }"
+                                  style="font-family: var(--font-mono); font-size: var(--font-size-caption);"></textarea>
+                    </div>
+                    <div style="font-size: var(--font-size-caption); color: var(--text-tertiary); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-secondary); background: var(--bg-secondary);">
+                        Style URI is generated from the above when you click Continue. You can also set it manually on your project page after launch.
                     </div>
                 </div>
 

@@ -411,7 +411,7 @@ export class ERC1155ProjectPage extends Component {
             ),
 
             // ── Admin Panel (hidden until ownership confirmed) ──
-            h(ERC1155AdminPanel, { adapter: this.adapter }),
+            h(ERC1155AdminPanel, { adapter: this.adapter, projectData: this.props.project || {} }),
 
             // ── Stats Bar ──
             h('div', { className: 'stats-bar' },

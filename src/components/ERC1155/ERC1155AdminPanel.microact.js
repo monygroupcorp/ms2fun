@@ -182,6 +182,24 @@ export class ERC1155AdminPanel extends Component {
         if (!isVisible) form.style.display = '';
     }
 
+    // ── Project Card Info ──
+
+    _renderProjectCardInfo() {
+        const pd = this.props.projectData || {};
+        const description = pd.description || '';
+        const image = pd.image || pd.imageURI || '';
+        if (!description && !image) return null;
+
+        return h('div', { className: 'admin-inline-form', style: { borderBottom: '1px solid var(--border-secondary)', paddingBottom: 'var(--space-4)', marginBottom: 'var(--space-2)' } },
+            h('div', { className: 'stat-label', style: { marginBottom: 'var(--space-2)' } }, 'Project Card'),
+            h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                'Metadata is set at creation and cannot be changed after deployment.'
+            ),
+            description && h('div', { style: { fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)', marginBottom: 'var(--space-2)' } }, description),
+            image && h('img', { src: image, alt: 'Project image', style: { maxWidth: '120px', maxHeight: '80px', objectFit: 'cover', border: '1px solid var(--border-secondary)' } })
+        );
+    }
+
     // ── Render ──
 
     render() {
@@ -217,6 +235,9 @@ export class ERC1155AdminPanel extends Component {
                     }, 'Renounce Ownership')
                 )
             ),
+
+            // ── Project Card Info ──
+            this._renderProjectCardInfo(),
 
             // ── Style Builder ──
             h('div', {

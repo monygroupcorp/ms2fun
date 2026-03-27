@@ -258,7 +258,8 @@ export class ERC404ProjectPage extends Component {
 
             // Admin modal (hidden until opened via event)
             h(ERC404AdminModal, {
-                adapter: this.adapter
+                adapter: this.adapter,
+                projectData: this.projectData
             })
         );
     }

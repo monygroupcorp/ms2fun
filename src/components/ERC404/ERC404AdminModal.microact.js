@@ -347,6 +347,38 @@ export class ERC404AdminModal extends Component {
         }
     }
 
+    // ── Project Card Section ──
+
+    _renderProjectCardSection() {
+        const pd = this.props.projectData || {};
+        const description = pd.description || '';
+        const image = pd.image || pd.imageURI || '';
+        const name = pd.name || pd.displayName || '';
+
+        return h('div', { className: 'modal-section' },
+            h('div', { className: 'modal-section-title' }, 'Project Card'),
+            h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                'This information is stored immutably on-chain and cannot be changed after creation.'
+            ),
+            name && h('div', { style: { marginBottom: 'var(--space-2)' } },
+                h('div', { className: 'admin-stat-label' }, 'Name'),
+                h('div', { className: 'admin-stat-value' }, name)
+            ),
+            description
+                ? h('div', { style: { marginBottom: 'var(--space-2)' } },
+                    h('div', { className: 'admin-stat-label' }, 'Description'),
+                    h('div', { style: { fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)' } }, description)
+                )
+                : h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-tertiary)', fontStyle: 'italic' } },
+                    'No description — set one at creation time to help collectors find your project.'
+                ),
+            image && h('div', { style: { marginTop: 'var(--space-2)' } },
+                h('div', { className: 'admin-stat-label', style: { marginBottom: 'var(--space-1)' } }, 'Image'),
+                h('img', { src: image, alt: 'Project image', style: { maxWidth: '120px', maxHeight: '80px', objectFit: 'cover', border: '1px solid var(--border-secondary)' } })
+            )
+        );
+    }
+
     // ── Render ──
 
     render() {
@@ -438,6 +470,9 @@ export class ERC404AdminModal extends Component {
                                     onClick: this.bind(this.handleDeployLiquidity)
                                 }, 'Deploy Liquidity')
                             ),
+
+                            // Project Card Info
+                            this._renderProjectCardSection(),
 
                             // Style
                             h('div', { className: 'modal-section' },
