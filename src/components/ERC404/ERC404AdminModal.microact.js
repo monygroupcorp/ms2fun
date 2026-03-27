@@ -209,9 +209,17 @@ export class ERC404AdminModal extends Component {
         const btn = this._el?.querySelector('[data-action="open-bonding-now"]');
 
         try {
-            if (btn) btn.textContent = 'Opening...';
-            const tx = await this.adapter.setBondingActive(true);
-            if (tx && typeof tx.wait === 'function') await tx.wait();
+            // Contract requires open time to be set before setBondingActive can be called.
+            // Set open time 30 seconds in the future (must be > now per contract validation).
+            if (btn) btn.textContent = 'Setting time...';
+            const openTimestamp = Math.floor(Date.now() / 1000) + 30;
+            const tx1 = await this.adapter.setBondingOpenTime(openTimestamp);
+            if (tx1 && typeof tx1.wait === 'function') await tx1.wait();
+
+            if (btn) btn.textContent = 'Activating...';
+            const tx2 = await this.adapter.setBondingActive(true);
+            if (tx2 && typeof tx2.wait === 'function') await tx2.wait();
+
             if (btn) btn.textContent = 'Bonding Opened';
             await this.loadData();
         } catch (error) {

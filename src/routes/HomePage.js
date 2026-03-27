@@ -254,7 +254,13 @@ export class HomePage extends Component {
                                     alt: 'CULT EXECUTIVES #695',
                                     className: 'featured-banner-img'
                                 })
-                                : featured.name.charAt(0).toUpperCase()
+                                : featured.project_banner
+                                    ? h('img', {
+                                        src: featured.project_banner,
+                                        alt: featured.name,
+                                        className: 'featured-banner-img'
+                                    })
+                                    : featured.name.charAt(0).toUpperCase()
                         ),
                         h('div', { className: 'featured-banner-content' },
                             h('div', { className: 'featured-banner-label' }, 'FEATURED'),
@@ -334,7 +340,9 @@ export class HomePage extends Component {
                                     onclick: this.handleProjectClick(project)
                                 },
                                     h('div', { className: 'project-card-image' },
-                                        project.name.charAt(0).toUpperCase()
+                                        project.project_photo
+                                            ? h('img', { src: project.project_photo, alt: project.name, style: 'width:100%;height:100%;object-fit:cover;' })
+                                            : project.name.charAt(0).toUpperCase()
                                     ),
                                     h('div', { className: 'project-card-content' },
                                         h('h4', { className: 'project-card-title' }, project.name),

@@ -19,67 +19,77 @@ class MessagePopup {
         style.textContent = `
             #message-popup-container {
                 position: fixed;
-                top: 20px;
-                right: 20px;
+                top: 16px;
+                right: 16px;
                 z-index: 10000;
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+                gap: 8px;
             }
 
             .message-popup {
-                background: #ffffff;
-                border-radius: 8px;
-                padding: 15px 20px;
-                min-width: 300px;
-                max-width: 400px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                background: var(--bg-primary, #fff);
+                border: 2px solid var(--border-primary, #000);
+                border-radius: 0;
+                padding: 12px 16px;
+                min-width: 280px;
+                max-width: 380px;
                 display: flex;
                 justify-content: space-between;
                 align-items: flex-start;
-                animation: slideIn 0.3s ease;
-                border-left: 4px solid #2196F3;
+                animation: slideIn 0.2s ease;
+                font-family: var(--font-primary, 'Helvetica Neue', sans-serif);
             }
 
             .message-popup.error {
-                border-left-color: #f44336;
+                border-color: #ff0000;
             }
 
             .message-popup.success {
-                border-left-color: #4CAF50;
+                border-color: var(--border-primary, #000);
             }
 
             .message-popup.warning {
-                border-left-color: #ff9800;
+                border-color: var(--border-primary, #000);
             }
 
             .message-content {
                 flex-grow: 1;
-                margin-right: 10px;
+                margin-right: 12px;
             }
 
             .message-title {
-                font-weight: bold;
-                margin-bottom: 5px;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                margin-bottom: 4px;
+                color: var(--text-primary, #000);
+            }
+
+            .message-popup.error .message-title {
+                color: #ff0000;
             }
 
             .message-text {
-                font-size: 14px;
-                color: #666;
+                font-size: 13px;
+                color: var(--text-secondary, #666);
+                line-height: 1.4;
             }
 
             .close-button {
                 background: none;
                 border: none;
-                color: #999;
+                color: var(--text-tertiary, #999);
                 cursor: pointer;
-                font-size: 20px;
+                font-size: 18px;
                 padding: 0;
                 line-height: 1;
+                flex-shrink: 0;
             }
 
             .close-button:hover {
-                color: #666;
+                color: var(--text-primary, #000);
             }
 
             @keyframes slideIn {
@@ -108,11 +118,6 @@ class MessagePopup {
     }
 
     show(options) {
-        console.log('MessagePopup.show called with:', {
-            options,
-            stack: new Error().stack // This will show us the call stack
-        });
-
         const {
             title = '',
             message = '',
@@ -185,11 +190,6 @@ class MessagePopup {
 
     // Helper methods for common message types
     error(message, title = 'Error') {
-        console.log('MessagePopup.error called with:', {
-            message,
-            title,
-            stack: new Error().stack
-        });
         return this.show({ title, message, type: 'error' });
     }
 
