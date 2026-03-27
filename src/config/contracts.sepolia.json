@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-26T00:00:00Z",
+  "generatedAt": "2026-03-27T00:00:00Z",
   "deployBlock": 10526848,
   "chainId": 11155111,
   "mode": "sepolia",
@@ -19,7 +19,10 @@
     "CurveParamsComputer": "0xfc0189E52Df95E1078f7DeC74d8e6849AFf84eaa",
     "DynamicPricingModule": "0x88B71cbCC6A62d5b76cc16Df35A0c063B6a84EB2",
     "LaunchManager": "0x354768153a0d3edC314D9f6baa2fd56a6961B449",
-    "UniswapVaultPriceValidator": "0x2d3C9f10671314639FCBD4d85F3DcfbFF2D5610E"
+    "UniswapVaultPriceValidator": "0x2d3C9f10671314639FCBD4d85F3DcfbFF2D5610E",
+    "LiquidityDeployerModule": "0xa6A8c51B36F61cFAA684dc7d83d862bDB0Ccc2CF",
+    "PasswordTierGatingModule": "0xb41b9be2deDe8741af3adcCa6C45F89fB054085d",
+    "UniAlignmentVaultFactory": "0x691f35B11B5Ec171f13bEE229d451D555f44Af6B"
   },
   "factories": [
     {
@@ -49,10 +52,16 @@
   ],
   "vaults": [
     {
-      "address": "0xf456B56E210924c249db834504a97c4A15D57cd8",
-      "alignmentToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
+      "address": "0xb86749C460ee69BE7E22437505577Fe1321Dbb53",
+      "alignmentToken": "0x5d9eA0e15977bd572C88866145089214AeA38149",
       "vaultType": "UNIv4",
-      "name": "LINK UNIv4"
+      "name": "MS2 UNIv4"
+    },
+    {
+      "address": "0x757aac7be1BaaD68C2dF9c67FC0c40542c62F64C",
+      "alignmentToken": "0x2250dae6056dd76aa126582152A1b99A7cb556CD",
+      "vaultType": "UNIv4",
+      "name": "CULT UNIv4"
     }
   ],
   "instances": {
@@ -65,9 +74,12 @@
     "v3Factory": "0x0227628f3F023bb0B980b67D528571c95c6DaC1c",
     "v2Factory": "0xF62c03E08ada871A0bEb309762E260a7a6a880E6",
     "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14",
-    "alignmentToken": "0x779877A7B0D9E8603169DdbD7836e478b4624789",
-    "alignmentTokenSymbol": "LINK"
+    "alignmentToken": "0x5d9eA0e15977bd572C88866145089214AeA38149",
+    "alignmentTokenSymbol": "MS2"
   },
-  "tokens": {},
+  "tokens": {
+    "ms2": "0x5d9eA0e15977bd572C88866145089214AeA38149",
+    "cult": "0x2250dae6056dd76aa126582152A1b99A7cb556CD"
+  },
   "governance": {}
 }
