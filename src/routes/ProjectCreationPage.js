@@ -191,6 +191,7 @@ export default class ProjectCreationPage extends Component {
             miningMode: 'prefix', // 'prefix' | 'suffix'
             miningActive: false,
             miningAttempts: 0,
+            miningError: null,
             minedSalt: null,
             minedAddress: null,
             lockedSalt: null,    // explicitly locked by user, persisted in draft
@@ -640,8 +641,13 @@ export default class ProjectCreationPage extends Component {
 
     _startMining() {
         if (this.state.miningActive) return;
+        const pattern = this.state.miningPattern?.replace(/^0x/, '') || '';
+        if (!/^[0-9a-fA-F]+$/.test(pattern)) {
+            this.setState({ miningError: 'Pattern must be hex characters only (0-9, a-f).' });
+            return;
+        }
+        this.setState({ miningActive: true, miningAttempts: 0, minedSalt: null, minedAddress: null, miningError: null });
         this._miningRunning = true;
-        this.setState({ miningActive: true, miningAttempts: 0, minedSalt: null, minedAddress: null });
         this._mineLoop();
     }
 
@@ -655,36 +661,35 @@ export default class ProjectCreationPage extends Component {
         const sender = walletService.getAddress();
         if (!sender) { this._stopMining(); return; }
 
-        const factoryAddress = this.state.selectedFactory?.address;
-        if (!factoryAddress) { this._stopMining(); return; }
+        if (!this.state.selectedFactory?.address) { this._stopMining(); return; }
 
         // Pure local CREATE3 address prediction — no RPC.
         //
         // The ERC404Factory does:
-        //   senderBoundSalt = keccak256(abi.encodePacked(msg.sender, identity.salt))
-        //   guardedSalt     = keccak256(abi.encodePacked(uint256(factoryAddress), senderBoundSalt))
+        //   senderBoundSalt = keccak256(abi.encodePacked(msg.sender, params.salt))
         //   instance        = createX.deployCreate3(senderBoundSalt, proxyCode)
         //
-        // CreateX internally applies the same guard, producing guardedSalt as the
-        // CREATE2 salt with CreateX as deployer. The factory precomputes it for prediction:
-        //   computeCreate3Address(guardedSalt, CREATEX)
+        // CreateX's _guard(senderBoundSalt) checks if address(bytes20(senderBoundSalt)) == factory.
+        // For a random user salt, senderBoundSalt is a keccak256 hash whose first 20 bytes are
+        // pseudo-random — they will NOT equal the factory address. So _guard returns senderBoundSalt
+        // unchanged (NoProtection path), and CreateX does:
+        //   proxy = CREATE2(CREATEX, senderBoundSalt, PROXY_INITCODE_HASH)
+        //   instance = nonce1(proxy)
         //
-        // Which resolves to standard Solady:
-        //   proxy = CREATE2(deployer=CREATEX, salt=guardedSalt, initcodeHash=PROXY_INITCODE_HASH)[12:]
-        //   final = CREATE(deployer=proxy, nonce=1)[12:]
+        // NOTE: ERC404Factory.computeInstanceAddress() applies an extra keccak256(factory, senderBoundSalt)
+        // step that does NOT match the actual deployment for random salts. That function is buggy.
+        // The correct prediction is below.
 
         const CREATEX = '0xba5Ed099633D3B313e4D5F7bdc1305d3c28ba5Ed';
         const PROXY_INITCODE_HASH = '0x21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f';
-        const factoryAsUint256 = ethers.BigNumber.from(factoryAddress);
 
         const predictAddress = (salt) => {
             const senderBoundSalt = ethers.utils.keccak256(
                 ethers.utils.solidityPack(['address', 'bytes32'], [sender, salt])
             );
-            const guardedSalt = ethers.utils.keccak256(
-                ethers.utils.solidityPack(['uint256', 'bytes32'], [factoryAsUint256, senderBoundSalt])
-            );
-            const proxy = ethers.utils.getCreate2Address(CREATEX, guardedSalt, PROXY_INITCODE_HASH);
+            // CreateX _guard: no protection applied for random senderBoundSalt
+            // guardedSalt === senderBoundSalt (returned unchanged)
+            const proxy = ethers.utils.getCreate2Address(CREATEX, senderBoundSalt, PROXY_INITCODE_HASH);
             return ethers.utils.getContractAddress({ from: proxy, nonce: 1 });
         };
 
@@ -698,6 +703,7 @@ export default class ProjectCreationPage extends Component {
             const pattern = miningPattern.toLowerCase().replace(/^0x/, '');
 
             for (let i = 0; i < BATCH; i++) {
+                if (!this._miningRunning) return;
                 const salt = ethers.utils.hexlify(ethers.utils.randomBytes(32));
                 const addr = predictAddress(salt).toLowerCase();
                 const hex = addr.slice(2);
@@ -760,7 +766,7 @@ export default class ProjectCreationPage extends Component {
                     vault: selectedVault.address,
                     nftCount: parseInt(formData.nftCount) || 1000,
                     presetId: componentConfigs[liqTag]?.presetId ?? 1,
-                    creationTier: parseInt(formData.creationTier) || 0,
+                    stakingModule: ethers.constants.AddressZero,
                 };
 
                 console.log('[ProjectCreationPage] ERC404 deploy args:', {
@@ -989,7 +995,7 @@ export default class ProjectCreationPage extends Component {
         this.element.addEventListener('input', (e) => {
             const action = e.target.dataset.action;
             if (action === 'mining-pattern') {
-                this.setState({ miningPattern: e.target.value });
+                this.setState({ miningPattern: e.target.value, miningError: null });
                 return;
             }
             if (action === 'tier-password') {
@@ -1066,8 +1072,16 @@ export default class ProjectCreationPage extends Component {
             return false;
         }
         if (oldState.miningMode !== newState.miningMode) return true;
+        if (oldState.miningError !== newState.miningError) return true;
         if (oldState.miningActive !== newState.miningActive) return true;
-        if (oldState.miningAttempts !== newState.miningAttempts) return true;
+        if (oldState.miningAttempts !== newState.miningAttempts) {
+            // Update attempts counter directly in DOM — no re-render needed.
+            // Avoids thrashing listeners on every 500-iteration batch, which
+            // makes the Stop button unreliable.
+            const attemptsEl = this.element?.querySelector('[data-mining-attempts]');
+            if (attemptsEl) attemptsEl.textContent = `${newState.miningAttempts.toLocaleString()} attempts...`;
+            return false;
+        }
         if (oldState.minedSalt !== newState.minedSalt) return true;
         if (oldState.minedAddress !== newState.minedAddress) return true;
         if (oldState.lockedSalt !== newState.lockedSalt) return true;
@@ -1300,7 +1314,7 @@ export default class ProjectCreationPage extends Component {
             return `
                 <div class="component-card${selected === c.address ? ' selected' : ''}"
                      data-action="select-component" data-tag="${tag}" data-address="${c.address}">
-                    <h3 class="component-card-title">${c.name}</h3>
+                    <h3 class="component-card-title">${meta.name || c.name}</h3>
                     ${meta.subtitle ? `<div class="type-card-subtitle">${meta.subtitle}</div>` : ''}
                     ${meta.description ? `<p class="type-card-description">${meta.description}</p>` : ''}
                 </div>
@@ -1882,16 +1896,16 @@ export default class ProjectCreationPage extends Component {
 
                 <div class="step-nav">
                     <button class="btn btn-secondary" data-action="prev-step"
-                            ${deployStatus ? 'disabled' : ''}>&larr; Back</button>
+                            ${deployStatus === 'pending' || deployStatus === 'confirming' ? 'disabled' : ''}>&larr; Back</button>
                     <button class="btn btn-primary" data-action="deploy"
-                            ${deployStatus ? 'disabled' : ''}>Deploy Project</button>
+                            ${deployStatus === 'pending' || deployStatus === 'confirming' ? 'disabled' : ''}>Deploy Project</button>
                 </div>
             </div>
         `;
     }
 
     _renderVanityMiningPanel() {
-        const { miningPattern, miningMode, miningActive, miningAttempts, minedSalt, minedAddress, lockedSalt, selectedFactory } = this.state;
+        const { miningPattern, miningMode, miningActive, miningAttempts, miningError, minedSalt, minedAddress, lockedSalt, selectedFactory } = this.state;
         const factoryAddress = selectedFactory?.address || '(factory not selected)';
         const walletAddress = walletService.getAddress() || '(wallet not connected)';
 
@@ -1949,11 +1963,13 @@ export default class ProjectCreationPage extends Component {
                     <div style="display: flex; gap: var(--space-2); align-items: center; margin-top: var(--space-2);">
                         ${miningActive ? `
                             <button class="btn btn-secondary" data-action="stop-mining">Stop</button>
-                            <span class="text-secondary" style="font-size: var(--font-size-body-sm);">${miningAttempts.toLocaleString()} attempts...</span>
+                            <span class="text-secondary" data-mining-attempts style="font-size: var(--font-size-body-sm);">${miningAttempts.toLocaleString()} attempts...</span>
                         ` : `
                             <button class="btn btn-secondary" data-action="start-mining"
                                     ${miningPattern ? '' : 'disabled'}>Mine</button>
-                            ${miningAttempts > 0 && !minedAddress ? `
+                            ${miningError ? `
+                                <span style="color: var(--color-error, #e53e3e); font-size: var(--font-size-body-sm);">${miningError}</span>
+                            ` : miningAttempts > 0 && !minedAddress ? `
                                 <span class="text-secondary" style="font-size: var(--font-size-body-sm);">Stopped after ${miningAttempts.toLocaleString()} attempts</span>
                             ` : ''}
                         `}
