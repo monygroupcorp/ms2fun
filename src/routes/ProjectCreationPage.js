@@ -161,10 +161,10 @@ export default class ProjectCreationPage extends Component {
                 name: '',
                 symbol: '',
                 description: '',
-                projectImage: '',
-                projectBanner: '',
+                projectPhoto: '',   // project card photo (goes into styleUri JSON)
+                projectBanner: '',  // project card banner (goes into styleUri JSON)
                 styleUri: '',
-                metadataURI: '',
+                metadataURI: '',    // NFT token metadata URI (ipfs://, ar://, https://)
                 nftCount: 1000,
                 presetId: 0,
                 creationTier: 0,
@@ -293,13 +293,13 @@ export default class ProjectCreationPage extends Component {
         const currentStep = steps[currentStepIndex];
 
         if (currentStep?.type === STEP_CONFIGURE) {
-            // Rebuild metadataURI from builder fields (picks up any pending projectBanner/image changes)
-            this._updateFormData('name', formData.name);
-            // Harvest style builder DOM inputs into formData.styleUri
+            // Harvest presentation builder into formData.styleUri before validating
             this._readStyleFromDOM();
             const missing = [];
             if (!formData.name?.trim()) missing.push('Project Name');
             if (!formData.symbol?.trim()) missing.push('Token Symbol');
+            if (!formData.projectPhoto?.trim()) missing.push('Project Photo');
+            if (!formData.projectBanner?.trim()) missing.push('Project Banner');
             if (missing.length) {
                 this.setState({ configError: `Required: ${missing.join(', ')}` });
                 return;
@@ -515,22 +515,14 @@ export default class ProjectCreationPage extends Component {
 
     _updateFormData(field, value) {
         const formData = { ...this.state.formData, [field]: value };
-        // Auto-rebuild metadataURI from structured fields
-        if (['name', 'description', 'projectImage', 'projectBanner'].includes(field)) {
-            const meta = { name: formData.name || '' };
-            if (formData.description) meta.description = formData.description;
-            if (formData.projectImage) meta.image = formData.projectImage;
-            if (formData.projectBanner) meta.banner_image = formData.projectBanner;
-            formData.metadataURI = 'data:application/json,' + encodeURIComponent(JSON.stringify(meta));
-            // Update preview without re-render
-            const preview = this.element?.querySelector('[data-meta-preview]');
-            if (preview) preview.textContent = formData.metadataURI;
-        }
         this.setState({ formData });
     }
 
     _readStyleFromDOM() {
         if (!this.element) return;
+        const fd = this.state.formData;
+
+        // Build CSS from token pickers
         const tokenKeys = [
             '--bg-primary', '--bg-secondary', '--bg-tertiary',
             '--text-primary', '--text-secondary',
@@ -538,7 +530,6 @@ export default class ProjectCreationPage extends Component {
         ];
         const overrides = [];
         for (const key of tokenKeys) {
-            // Prefer text input (explicitly typed/synced); ignore color picker defaults
             const textInput = this.element.querySelector(`[data-style-token-text="${key}"]`);
             const val = textInput?.value?.trim();
             if (val) overrides.push(`  ${key}: ${val};`);
@@ -546,20 +537,28 @@ export default class ProjectCreationPage extends Component {
         const fontFamily = this.element.querySelector('[data-style-ext="font-family"]')?.value?.trim();
         if (fontFamily) overrides.push(`  --font-primary: ${fontFamily};`);
 
-        const parts = [];
-        if (overrides.length) parts.push(`:root {\n${overrides.join('\n')}\n}`);
+        const cssParts = [];
+        if (overrides.length) cssParts.push(`:root {\n${overrides.join('\n')}\n}`);
 
         const bgImage = this.element.querySelector('[data-style-ext="bg-image"]')?.value?.trim();
         if (bgImage) {
-            parts.push(`body {\n  background-image: url('${bgImage}');\n  background-size: cover;\n  background-position: center;\n  background-attachment: fixed;\n}`);
+            cssParts.push(`body {\n  background-image: url('${bgImage}');\n  background-size: cover;\n  background-position: center;\n  background-attachment: fixed;\n}`);
         }
 
         const customCSS = this.element.querySelector('[data-style-ext="custom-css"]')?.value?.trim();
-        if (customCSS) parts.push(customCSS);
+        if (customCSS) cssParts.push(customCSS);
 
-        const css = parts.join('\n\n');
-        if (css) {
-            const uri = 'data:text/css;base64,' + btoa(css);
+        // Build styleUri JSON: project_photo + project_banner + css
+        // This is the mutable presentation layer — all updateable via setStyle() post-deploy
+        const presentation = {};
+        if (fd.description) presentation.description = fd.description;
+        if (fd.projectPhoto) presentation.project_photo = fd.projectPhoto;
+        if (fd.projectBanner) presentation.project_banner = fd.projectBanner;
+        const css = cssParts.join('\n\n');
+        if (css) presentation.css = css;
+
+        if (Object.keys(presentation).length > 0) {
+            const uri = 'data:application/json,' + encodeURIComponent(JSON.stringify(presentation));
             this.state.formData = { ...this.state.formData, styleUri: uri };
         }
     }
@@ -1558,9 +1557,6 @@ export default class ProjectCreationPage extends Component {
         const hasGating = gatingTag && componentSelections[gatingTag] &&
             componentSelections[gatingTag] !== '0x0000000000000000000000000000000000000000';
 
-        // Pre-compute current metadataURI for preview
-        const currentMeta = formData.metadataURI || '';
-
         return `
             <div class="step-content active">
                 <h2 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-6); text-transform: uppercase;">
@@ -1595,10 +1591,10 @@ export default class ProjectCreationPage extends Component {
                 </div>
 
                 <div class="form-section">
-                    <h3 class="form-section-title">Project Card</h3>
+                    <h3 class="form-section-title">Project Presentation</h3>
                     <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-4);">
-                        This information appears on your project card in the discovery feed and on your project page.
-                        It is stored immutably on-chain at creation.
+                        How your project appears on ms2.fun — discovery feed, project page header, and social shares.
+                        All of this is stored in your project's Style URI and can be updated by the owner at any time after launch.
                     </p>
                     <div class="form-group">
                         <label class="form-label">Description</label>
@@ -1608,29 +1604,39 @@ export default class ProjectCreationPage extends Component {
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Icon Image</label>
-                            <input type="text" class="form-input" data-field="projectImage"
-                                   placeholder="https://... or ipfs://..." value="${formData.projectImage}">
-                            <div class="form-help">Square thumbnail shown in the project header and discovery feed as the collection icon.</div>
+                            <label class="form-label form-label-required">Project Photo</label>
+                            <input type="text" class="form-input" data-field="projectPhoto"
+                                   placeholder="https://... or ipfs://..." value="${formData.projectPhoto}">
+                            <div class="form-help">Square avatar/icon shown alongside your project name. Minimum 400×400.</div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Banner Image</label>
+                            <label class="form-label form-label-required">Project Banner</label>
                             <input type="text" class="form-input" data-field="projectBanner"
                                    placeholder="https://... or ipfs://..." value="${formData.projectBanner}">
-                            <div class="form-help">Wide image shown as the card background. Landscape ratio (e.g. 1500×500) works best.</div>
+                            <div class="form-help">Wide image shown as the project card background. Landscape ratio (e.g. 1500×500) works best.</div>
                         </div>
-                    </div>
-                    <div style="font-size: var(--font-size-caption); color: var(--text-tertiary); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-secondary); background: var(--bg-secondary); margin-top: var(--space-2); word-break: break-all;">
-                        <span style="text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; color: var(--text-secondary);">Generated Metadata URI</span><br>
-                        <span data-meta-preview>${currentMeta}</span>
                     </div>
                 </div>
 
                 <div class="form-section">
-                    <h3 class="form-section-title">Project Style <span style="font-weight: normal; color: var(--text-secondary); font-size: var(--font-size-sm);">(optional)</span></h3>
+                    <h3 class="form-section-title">NFT Token Metadata <span style="font-weight: normal; color: var(--text-secondary); font-size: var(--font-size-sm);">(optional)</span></h3>
+                    <div class="form-group">
+                        <input type="text" class="form-input" data-field="metadataURI"
+                               placeholder="ipfs://Qm... or https://..." value="${formData.metadataURI}">
+                        <div class="form-help">
+                            URI pointing to your ERC-721/1155 token metadata JSON — token images, attributes, traits.
+                            This is what marketplaces like OpenSea read per-token. Leave blank if your art isn't ready yet.
+                            Supports IPFS (<code>ipfs://</code>), Arweave (<code>ar://</code>), or HTTPS.
+                            Note: currently immutable after creation — a contract upgrade to support post-deploy updates is in progress.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3 class="form-section-title">Custom Style <span style="font-weight: normal; color: var(--text-secondary); font-size: var(--font-size-sm);">(optional)</span></h3>
                     <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-4);">
-                        Customize the look of your project page. Override design tokens to change colors, fonts, and backgrounds.
-                        Leave blank to use the platform's default style. Changes here generate a <code>data:text/css</code> URI stored on-chain.
+                        Override design tokens to customize colors, fonts, and page background.
+                        Combined with the presentation fields above into your project's Style URI.
                     </p>
 
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); margin-bottom: var(--space-4);">
@@ -1663,7 +1669,7 @@ export default class ProjectCreationPage extends Component {
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label" style="font-size: var(--font-size-caption);">Border</label>
-                            <div style="display: flex; gap: var(--font-size-caption); gap: var(--space-2); align-items: center;">
+                            <div style="display: flex; gap: var(--space-2); align-items: center;">
                                 <input type="color" data-style-token="--border-primary" value="#000000"
                                        style="width: 36px; height: 32px; border: 1px solid var(--border-primary); cursor: pointer; padding: 2px;">
                                 <input type="text" class="form-input" data-style-token-text="--border-primary"
@@ -1671,28 +1677,21 @@ export default class ProjectCreationPage extends Component {
                             </div>
                         </div>
                     </div>
-
                     <div class="form-group">
                         <label class="form-label" style="font-size: var(--font-size-caption);">Font Family</label>
                         <input type="text" class="form-input" data-style-ext="font-family"
-                               placeholder="'Inter', sans-serif"
-                               style="font-size: var(--font-size-caption);">
+                               placeholder="'Inter', sans-serif" style="font-size: var(--font-size-caption);">
                     </div>
                     <div class="form-group">
-                        <label class="form-label" style="font-size: var(--font-size-caption);">Background Image URL</label>
+                        <label class="form-label" style="font-size: var(--font-size-caption);">Page Background Image</label>
                         <input type="text" class="form-input" data-style-ext="bg-image"
-                               placeholder="https://... or ipfs://..."
-                               style="font-size: var(--font-size-caption);">
-                        <div class="form-help">Applied as a fixed full-page background.</div>
+                               placeholder="https://... or ipfs://..." style="font-size: var(--font-size-caption);">
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="font-size: var(--font-size-caption);">Custom CSS</label>
                         <textarea class="form-input" data-style-ext="custom-css" rows="3"
                                   placeholder=".project-title { font-style: italic; }"
                                   style="font-family: var(--font-mono); font-size: var(--font-size-caption);"></textarea>
-                    </div>
-                    <div style="font-size: var(--font-size-caption); color: var(--text-tertiary); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-secondary); background: var(--bg-secondary);">
-                        Style URI is generated from the above when you click Continue. You can also set it manually on your project page after launch.
                     </div>
                 </div>
 

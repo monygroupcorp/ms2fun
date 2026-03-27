@@ -1,15 +1,19 @@
 /**
  * StyleBuilder - Shared style builder component
  *
- * Reusable UI for building/applying CSS style URIs to on-chain contracts.
+ * Reusable UI for building/applying style URIs to on-chain contracts.
+ * Produces a data:application/json URI containing presentation fields
+ * (description, project_photo, project_banner) and optional CSS overrides.
+ *
  * Used by ERC1155AdminPanel, SetEditionStyleModal, and ERC404AdminModal.
  *
  * Props:
- *   onSetStyle(uri)   - Required. Called with CSS data URI or raw URL. Returns Promise.
- *   onGetStyle()      - Optional. Loads current style on mount. Returns Promise<string>.
- *   onClearStyle()    - Optional. If provided, shows "Clear Style" button. Returns Promise.
- *   prefix            - Optional string (default ''). Prepends to data-* attrs to avoid conflicts.
- *   inputClass        - Optional CSS class for text inputs (default 'form-input').
+ *   onSetStyle(uri)      - Required. Called with data URI or raw URL. Returns Promise.
+ *   onGetStyle()         - Optional. Loads current style on mount. Returns Promise<string>.
+ *   onClearStyle()       - Optional. If provided, shows "Clear Style" button. Returns Promise.
+ *   showPresentation     - Optional bool (default true). Show project_photo/banner/description fields.
+ *   prefix               - Optional string (default ''). Prepends to data-* attrs to avoid conflicts.
+ *   inputClass           - Optional CSS class for text inputs (default 'form-input').
  */
 
 import { Component, h } from '../../core/microact-setup.js';
@@ -30,6 +34,7 @@ export const STYLE_TOKENS = [
 export class StyleBuilder extends Component {
     get prefix() { return this.props.prefix || ''; }
     get inputClass() { return this.props.inputClass || 'form-input'; }
+    get showPresentation() { return this.props.showPresentation !== false; }
 
     // Data attribute selectors with prefix
     _sel(base, val) {
@@ -49,18 +54,44 @@ export class StyleBuilder extends Component {
 
     // ── Style Builder Logic ──
 
+    _parseDataUri(uri) {
+        if (!uri) return null;
+        try {
+            if (uri.startsWith('data:application/json,')) {
+                return JSON.parse(decodeURIComponent(uri.replace('data:application/json,', '')));
+            }
+            if (uri.startsWith('data:application/json;base64,')) {
+                return JSON.parse(atob(uri.replace('data:application/json;base64,', '')));
+            }
+        } catch (e) { /* ignore */ }
+        return null;
+    }
+
     async _loadCurrentStyle() {
         if (!this.props.onGetStyle) return;
         try {
             const currentUri = await this.props.onGetStyle();
-            if (currentUri && this._el) {
-                const display = this._el.querySelector(this._selBare('current-style'));
-                if (display) {
-                    display.textContent = currentUri.length > 60
-                        ? currentUri.slice(0, 60) + '...'
-                        : currentUri;
-                    display.title = currentUri;
-                }
+            if (!currentUri || !this._el) return;
+
+            const display = this._el.querySelector(this._selBare('current-style'));
+            if (display) {
+                display.textContent = currentUri.length > 60
+                    ? currentUri.slice(0, 60) + '...'
+                    : currentUri;
+                display.title = currentUri;
+            }
+
+            // Pre-fill presentation fields from existing JSON styleUri
+            const parsed = this._parseDataUri(currentUri);
+            if (parsed && this.showPresentation) {
+                const p = this.prefix;
+                const setVal = (sel, val) => {
+                    const el = this._el.querySelector(sel);
+                    if (el && val) el.value = val;
+                };
+                setVal(`[data-${p}pres="description"]`, parsed.description);
+                setVal(`[data-${p}pres="project_photo"]`, parsed.project_photo);
+                setVal(`[data-${p}pres="project_banner"]`, parsed.project_banner);
             }
         } catch (e) { /* ignore */ }
     }
@@ -157,10 +188,19 @@ export class StyleBuilder extends Component {
         const submitBtn = this._el.querySelector(`[data-${p}action="set-style-builder-submit"]`);
 
         if (preview) {
-            preview.textContent = css || '/* No changes \u2014 using defaults */';
+            preview.textContent = css || '/* No CSS overrides \u2014 only presentation fields will be saved */';
         }
+
         if (submitBtn) {
-            submitBtn.disabled = !css;
+            let hasPresentation = false;
+            if (this.showPresentation) {
+                hasPresentation = !!(
+                    this._el.querySelector(`[data-${p}pres="description"]`)?.value?.trim() ||
+                    this._el.querySelector(`[data-${p}pres="project_photo"]`)?.value?.trim() ||
+                    this._el.querySelector(`[data-${p}pres="project_banner"]`)?.value?.trim()
+                );
+            }
+            submitBtn.disabled = !css && !hasPresentation;
         }
     }
 
@@ -240,10 +280,25 @@ export class StyleBuilder extends Component {
     async _handleSetBuilder() {
         const p = this.prefix;
         const btn = this._el?.querySelector(`[data-${p}action="set-style-builder-submit"]`);
-        const css = this._generateCSS();
-        if (!css) return;
 
-        const dataUri = 'data:text/css;base64,' + btoa(css);
+        const css = this._generateCSS();
+        const envelope = {};
+
+        // Gather presentation fields
+        if (this.showPresentation) {
+            const desc = this._el?.querySelector(`[data-${p}pres="description"]`)?.value?.trim();
+            const photo = this._el?.querySelector(`[data-${p}pres="project_photo"]`)?.value?.trim();
+            const banner = this._el?.querySelector(`[data-${p}pres="project_banner"]`)?.value?.trim();
+            if (desc) envelope.description = desc;
+            if (photo) envelope.project_photo = photo;
+            if (banner) envelope.project_banner = banner;
+        }
+
+        if (css) envelope.css = css;
+
+        if (Object.keys(envelope).length === 0) return;
+
+        const dataUri = 'data:application/json,' + encodeURIComponent(JSON.stringify(envelope));
 
         try {
             if (btn) btn.textContent = 'Setting...';
@@ -334,9 +389,48 @@ export class StyleBuilder extends Component {
 
             // Panel: Builder mode
             h('div', { [`data-${p}style-panel`]: 'builder' },
+
+                // ── Presentation fields ──
+                this.showPresentation && h('div', { className: 'style-extended-section' },
+                    h('div', { className: 'style-extended-title' }, 'Project Card'),
+                    h('div', { className: 'style-builder-hint' },
+                        'These fields control how your project appears on the homepage and discovery feed. ',
+                        'Saved alongside any CSS overrides as a single on-chain JSON value.'
+                    ),
+                    h('div', { className: 'style-extended-row' },
+                        h('label', { className: 'style-token-label' }, 'Project Photo'),
+                        h('input', {
+                            type: 'text',
+                            [`data-${p}pres`]: 'project_photo',
+                            className: ic,
+                            placeholder: 'https://... square image (icon)',
+                            onInput: () => this._updatePreview()
+                        })
+                    ),
+                    h('div', { className: 'style-extended-row' },
+                        h('label', { className: 'style-token-label' }, 'Project Banner'),
+                        h('input', {
+                            type: 'text',
+                            [`data-${p}pres`]: 'project_banner',
+                            className: ic,
+                            placeholder: 'https://... wide banner image',
+                            onInput: () => this._updatePreview()
+                        })
+                    ),
+                    h('div', { className: 'style-extended-row' },
+                        h('label', { className: 'style-token-label' }, 'Description'),
+                        h('textarea', {
+                            [`data-${p}pres`]: 'description',
+                            className: ic,
+                            rows: '2',
+                            placeholder: 'Short project description shown on cards and pages.',
+                            onInput: () => this._updatePreview()
+                        })
+                    )
+                ),
+
                 h('div', { className: 'style-builder-hint' },
-                    'Override design tokens below. Only changed values are stored. ',
-                    'The generated CSS is encoded as a data:text/css URI on-chain.'
+                    'Override design tokens below. Only changed values are stored.'
                 ),
 
                 // Token grid

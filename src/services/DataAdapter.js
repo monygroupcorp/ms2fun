@@ -46,6 +46,50 @@ export class DataAdapter {
     }
 
     /**
+     * Fetch styleUri for multiple instances in parallel using minimal ABI.
+     * Both ERC404 and ERC1155 instances expose a public `styleUri()` view.
+     * @param {string[]} addresses
+     * @returns {Promise<Map<string, string>>} lowercase address → styleUri string
+     */
+    async _fetchStyleUris(addresses) {
+        const map = new Map();
+        if (!this.provider || !addresses.length) return map;
+
+        const minAbi = ['function styleUri() view returns (string)'];
+        await Promise.all(addresses.map(async addr => {
+            try {
+                const contract = new ethers.Contract(addr, minAbi, this.provider);
+                const uri = await contract.styleUri();
+                map.set(addr.toLowerCase(), uri || '');
+            } catch (e) {
+                map.set(addr.toLowerCase(), '');
+            }
+        }));
+        return map;
+    }
+
+    /**
+     * Merge styleUri (presentation layer) and metadataURI (NFT token standard).
+     * styleUri JSON takes priority for presentation fields; metadataURI provides NFT image fallback.
+     * @param {string} styleUri
+     * @param {string} metadataURI
+     * @returns {{ description, project_photo, project_banner, image, category, tags }}
+     */
+    _parsePresentation(styleUri, metadataURI) {
+        const style = this._parseDataUri(styleUri) || {};
+        const meta = this._parseDataUri(metadataURI) || {};
+        return {
+            description: style.description || meta.description || '',
+            project_photo: style.project_photo || '',
+            project_banner: style.project_banner || '',
+            // NFT art image from metadataURI; also accept legacy banner_image from there
+            image: meta.image || '',
+            category: meta.category || '',
+            tags: meta.tags || []
+        };
+    }
+
+    /**
      * Get critical data (featured + projects) - fast, priority load
      * @returns {Promise<object>}
      */
@@ -173,7 +217,11 @@ export class DataAdapter {
 
                     if (instanceAddresses.length > 0) {
                         const t1 = performance.now();
-                        const projectCards = await aggregator.getProjectCardsBatch(instanceAddresses);
+                        // Fetch batch card data and styleUri for all instances in parallel
+                        const [projectCards, styleUriMap] = await Promise.all([
+                            aggregator.getProjectCardsBatch(instanceAddresses),
+                            this._fetchStyleUris(instanceAddresses)
+                        ]);
                         const t2 = performance.now();
 
                         // Merge QueryAggregator data with indexed lifecycle data
@@ -182,7 +230,8 @@ export class DataAdapter {
                             return {
                                 ...card,
                                 instanceType: indexed?.instanceType || null,
-                                currentState: indexed?.currentState || null
+                                currentState: indexed?.currentState || null,
+                                styleUri: styleUriMap.get(card.instance.toLowerCase()) || ''
                             };
                         });
 
@@ -197,30 +246,32 @@ export class DataAdapter {
                     const featuredCard = projects.find(p => p.featuredRank === 1);
 
                     if (featuredCard) {
-                        const featMeta = this._parseDataUri(featuredCard.metadataURI);
+                        const presentation = this._parsePresentation(featuredCard.styleUri, featuredCard.metadataURI);
                         featured = {
                             address: featuredCard.instance,
                             name: featuredCard.name || 'Featured Project',
                             symbol: '',
                             type: featuredCard.contractType,
-                            description: featMeta?.description || '',
-                            image: featMeta?.image || '',
-                            banner_image: featMeta?.banner_image || '',
+                            description: presentation.description,
+                            project_photo: presentation.project_photo,
+                            project_banner: presentation.project_banner,
+                            image: presentation.image,
                             creator: featuredCard.creator,
                             isFeatured: true
                         };
                         debug.log(`[DataAdapter] ✓ Featured project: "${featured.name}" (${featured.type})`);
                     } else if (projects.length > 0) {
                         const firstCard = projects[0];
-                        const firstMeta = this._parseDataUri(firstCard.metadataURI);
+                        const presentation = this._parsePresentation(firstCard.styleUri, firstCard.metadataURI);
                         featured = {
                             address: firstCard.instance,
                             name: firstCard.name || 'Project',
                             symbol: '',
                             type: firstCard.contractType,
-                            description: firstMeta?.description || '',
-                            image: firstMeta?.image || '',
-                            banner_image: firstMeta?.banner_image || '',
+                            description: presentation.description,
+                            project_photo: presentation.project_photo,
+                            project_banner: presentation.project_banner,
+                            image: presentation.image,
                             creator: firstCard.creator,
                             isFeatured: false
                         };
@@ -233,8 +284,7 @@ export class DataAdapter {
 
                     // Convert ProjectCard format to internal format (match existing structure)
                     const allProjects = projects.map(card => {
-                        // Parse metadataURI for description, image, etc.
-                        const onChainMeta = this._parseDataUri(card.metadataURI);
+                        const presentation = this._parsePresentation(card.styleUri, card.metadataURI);
                         return {
                             address: card.instance,
                             name: card.name,
@@ -242,11 +292,12 @@ export class DataAdapter {
                             type: card.contractType,
                             instanceType: card.instanceType,
                             currentState: card.currentState,
-                            description: onChainMeta?.description || '',
-                            image: onChainMeta?.image || '',
-                            banner_image: onChainMeta?.banner_image || '',
-                            category: onChainMeta?.category || '',
-                            tags: onChainMeta?.tags || [],
+                            description: presentation.description,
+                            project_photo: presentation.project_photo,
+                            project_banner: presentation.project_banner,
+                            image: presentation.image,
+                            category: presentation.category,
+                            tags: presentation.tags,
                             creator: card.creator,
                             factory: card.factory,
                             vault: card.vault,
