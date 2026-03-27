@@ -198,6 +198,7 @@ export default class RealProjectRegistry {
 
         // Fetch stats and name based on contract type
         let name = '';
+        let symbol = '';
         let stats = {
             volume: '0 ETH',
             holders: 0,
@@ -205,7 +206,6 @@ export default class RealProjectRegistry {
         };
 
         try {
-            let symbol = '';
         if (contractType === 'ERC404') {
                 // Get project metadata which includes name and reserve (ETH volume)
                 const projectMeta = await adapter.getProjectMetadata();
