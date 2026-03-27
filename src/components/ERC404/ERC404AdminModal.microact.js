@@ -74,20 +74,19 @@ export class ERC404AdminModal extends Component {
         if (!this.adapter) return;
 
         try {
-            const [bondingStatus, stakingEnabled, canDeploy] = await Promise.all([
+            const [bondingStatus, stakingEnabled] = await Promise.all([
                 this.adapter.getBondingStatus(),
-                this.adapter.stakingEnabled(),
-                this.adapter.canDeployPermissionless().catch(() => false)
+                this.adapter.stakingEnabled()
             ]);
 
-            this.updateControlsDOM(bondingStatus, stakingEnabled, canDeploy);
+            this.updateControlsDOM(bondingStatus, stakingEnabled);
             this.updateAdvancedDOM(bondingStatus, stakingEnabled);
         } catch (error) {
             console.warn('[ERC404AdminModal] Failed to load data:', error);
         }
     }
 
-    updateControlsDOM(bondingStatus, stakingEnabled, canDeploy) {
+    updateControlsDOM(bondingStatus, stakingEnabled) {
         if (!this._el) return;
 
         // Phase badge
@@ -203,8 +202,7 @@ export class ERC404AdminModal extends Component {
 
         try {
             if (btn) btn.textContent = 'Opening...';
-            const timestamp = Math.floor(Date.now() / 1000);
-            const tx = await this.adapter.setBondingOpenTime(timestamp);
+            const tx = await this.adapter.setBondingActive(true);
             if (tx && typeof tx.wait === 'function') await tx.wait();
             if (btn) btn.textContent = 'Bonding Opened';
             await this.loadData();
