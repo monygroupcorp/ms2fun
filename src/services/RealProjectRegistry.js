@@ -205,10 +205,12 @@ export default class RealProjectRegistry {
         };
 
         try {
-            if (contractType === 'ERC404') {
+            let symbol = '';
+        if (contractType === 'ERC404') {
                 // Get project metadata which includes name and reserve (ETH volume)
                 const projectMeta = await adapter.getProjectMetadata();
                 name = projectMeta.name || '';
+                symbol = projectMeta.symbol || '';
 
                 // Handle BigNumber or string for reserve
                 const reserveWei = projectMeta.reserve ? projectMeta.reserve.toString() : '0';
@@ -262,6 +264,7 @@ export default class RealProjectRegistry {
             contractType: contractType,
             name: name,
             displayName: name,
+            symbol: symbol,
             createdAt: Date.now(), // We don't have creation timestamp on-chain
             stats: stats
         };

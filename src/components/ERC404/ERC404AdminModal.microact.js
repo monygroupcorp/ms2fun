@@ -16,8 +16,9 @@ import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethe
 import { StyleBuilder } from '../shared/StyleBuilder.microact.js';
 import MessagePopup from '../MessagePopup/MessagePopup.js';
 
-const PHASE_LABELS = ['Pre-Open', 'Bonding Active', 'Full', 'Matured', 'Deployed'];
-const PHASE_CLASSES = ['pre-open', 'bonding', 'full', 'matured', 'deployed'];
+// Phase 0=Pre-Open, 1=Scheduled(active+openTime future), 2=Bonding Active(openTime passed), 3=Matured, 4=Deployed
+const PHASE_LABELS = ['Pre-Open', 'Scheduled', 'Bonding Active', 'Matured', 'Deployed'];
+const PHASE_CLASSES = ['pre-open', 'scheduled', 'bonding', 'matured', 'deployed'];
 
 export class ERC404AdminModal extends Component {
     constructor(props = {}) {
@@ -209,14 +210,19 @@ export class ERC404AdminModal extends Component {
         const btn = this._el?.querySelector('[data-action="open-bonding-now"]');
 
         try {
-            // Contract requires open time to be set before setBondingActive can be called.
-            // Set open time 30 seconds in the future (must be > now per contract validation).
-            if (btn) btn.textContent = 'Setting time...';
-            const openTimestamp = Math.floor(Date.now() / 1000) + 30;
-            const tx1 = await this.adapter.setBondingOpenTime(openTimestamp);
-            if (tx1 && typeof tx1.wait === 'function') await tx1.wait();
+            // Check if open time is already set — if so, skip setBondingOpenTime (saves 1 tx)
+            const status = await this.adapter.getBondingStatus();
+            const openTimeAlreadySet = status.openTime && status.openTime !== '0';
 
-            if (btn) btn.textContent = 'Activating...';
+            if (!openTimeAlreadySet) {
+                // Contract requires open time before setBondingActive — set to now + 10s
+                if (btn) btn.textContent = 'Setting time... (1/2)';
+                const openTimestamp = Math.floor(Date.now() / 1000) + 10;
+                const tx1 = await this.adapter.setBondingOpenTime(openTimestamp);
+                if (tx1 && typeof tx1.wait === 'function') await tx1.wait();
+            }
+
+            if (btn) btn.textContent = openTimeAlreadySet ? 'Activating...' : 'Activating... (2/2)';
             const tx2 = await this.adapter.setBondingActive(true);
             if (tx2 && typeof tx2.wait === 'function') await tx2.wait();
 
