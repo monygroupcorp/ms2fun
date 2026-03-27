@@ -14,6 +14,7 @@
 import { Component, h, eventBus } from '../../core/microact-setup.js';
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 import { StyleBuilder } from '../shared/StyleBuilder.microact.js';
+import MessagePopup from '../MessagePopup/MessagePopup.js';
 
 const PHASE_LABELS = ['Pre-Open', 'Bonding Active', 'Full', 'Matured', 'Deployed'];
 const PHASE_CLASSES = ['pre-open', 'bonding', 'full', 'matured', 'deployed'];
@@ -56,18 +57,11 @@ export class ERC404AdminModal extends Component {
         document.removeEventListener('keydown', this._boundKeyDown);
     }
 
-    // ── Error Banner ──
+    // ── Error Notification ──
 
     showError(message) {
-        if (!this._el) return;
-        const banner = this._el.querySelector('[data-modal-error]');
-        if (!banner) return;
-        banner.textContent = message;
-        banner.style.display = '';
-        clearTimeout(this._errorTimer);
-        this._errorTimer = setTimeout(() => {
-            if (banner) banner.style.display = 'none';
-        }, 6000);
+        const popup = new MessagePopup();
+        popup.error(message, 'Transaction Failed');
     }
 
     // ── Tab Switching ──
@@ -436,13 +430,6 @@ export class ERC404AdminModal extends Component {
                         h('div', { className: 'modal-title' }, 'Project Administration'),
                         h('button', { className: 'modal-close', onClick: () => this.close() }, '\u00D7')
                     ),
-
-                    // Error banner
-                    h('div', {
-                        'data-modal-error': true,
-                        className: 'modal-error-banner',
-                        style: { display: 'none' }
-                    }),
 
                     // Tabs
                     h('div', { className: 'modal-tabs' },
