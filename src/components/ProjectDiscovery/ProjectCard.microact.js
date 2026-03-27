@@ -115,8 +115,9 @@ export class ProjectCard extends Component {
         const allegiance = factoryMetadata?.allegiance || null;
         const etherscanLink = etherscanUrl || (address ? getExplorerUrl(address) : null);
 
+        const projectBanner = project.banner_image || project.bannerImage || null;
         const projectImage = project.imageURI || project.image || null;
-        const cardImage = isFeatured ? '/execs/695.jpeg' : projectImage;
+        const cardImage = isFeatured ? '/execs/695.jpeg' : (projectBanner || projectImage);
         const hasImage = !!cardImage;
 
         const cardClassName = [

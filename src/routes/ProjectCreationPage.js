@@ -162,6 +162,7 @@ export default class ProjectCreationPage extends Component {
                 symbol: '',
                 description: '',
                 projectImage: '',
+                projectBanner: '',
                 styleUri: '',
                 metadataURI: '',
                 nftCount: 1000,
@@ -292,7 +293,7 @@ export default class ProjectCreationPage extends Component {
         const currentStep = steps[currentStepIndex];
 
         if (currentStep?.type === STEP_CONFIGURE) {
-            // Rebuild metadataURI from builder fields (in case user typed name before adding image)
+            // Rebuild metadataURI from builder fields (picks up any pending projectBanner/image changes)
             this._updateFormData('name', formData.name);
             // Harvest style builder DOM inputs into formData.styleUri
             this._readStyleFromDOM();
@@ -515,10 +516,11 @@ export default class ProjectCreationPage extends Component {
     _updateFormData(field, value) {
         const formData = { ...this.state.formData, [field]: value };
         // Auto-rebuild metadataURI from structured fields
-        if (['name', 'description', 'projectImage'].includes(field)) {
+        if (['name', 'description', 'projectImage', 'projectBanner'].includes(field)) {
             const meta = { name: formData.name || '' };
             if (formData.description) meta.description = formData.description;
             if (formData.projectImage) meta.image = formData.projectImage;
+            if (formData.projectBanner) meta.banner_image = formData.projectBanner;
             formData.metadataURI = 'data:application/json,' + encodeURIComponent(JSON.stringify(meta));
             // Update preview without re-render
             const preview = this.element?.querySelector('[data-meta-preview]');
@@ -1604,14 +1606,18 @@ export default class ProjectCreationPage extends Component {
                                   placeholder="Describe your project — what it is, who it's for, what makes it unique."
                                   rows="3">${formData.description}</textarea>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Collection Image</label>
-                        <input type="text" class="form-input" data-field="projectImage"
-                               placeholder="https://... or ipfs://..." value="${formData.projectImage}">
-                        <div class="form-help">
-                            Shown as the card background and project header image.
-                            Use a square or landscape image for best results.
-                            Supports IPFS (<code>ipfs://</code>), Arweave (<code>ar://</code>), or HTTPS.
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Icon Image</label>
+                            <input type="text" class="form-input" data-field="projectImage"
+                                   placeholder="https://... or ipfs://..." value="${formData.projectImage}">
+                            <div class="form-help">Square thumbnail shown in the project header and discovery feed as the collection icon.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Banner Image</label>
+                            <input type="text" class="form-input" data-field="projectBanner"
+                                   placeholder="https://... or ipfs://..." value="${formData.projectBanner}">
+                            <div class="form-help">Wide image shown as the card background. Landscape ratio (e.g. 1500×500) works best.</div>
                         </div>
                     </div>
                     <div style="font-size: var(--font-size-caption); color: var(--text-tertiary); padding: var(--space-2) var(--space-3); border: 1px solid var(--border-secondary); background: var(--bg-secondary); margin-top: var(--space-2); word-break: break-all;">

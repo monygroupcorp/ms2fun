@@ -205,6 +205,7 @@ export class DataAdapter {
                             type: featuredCard.contractType,
                             description: featMeta?.description || '',
                             image: featMeta?.image || '',
+                            banner_image: featMeta?.banner_image || '',
                             creator: featuredCard.creator,
                             isFeatured: true
                         };
@@ -219,6 +220,7 @@ export class DataAdapter {
                             type: firstCard.contractType,
                             description: firstMeta?.description || '',
                             image: firstMeta?.image || '',
+                            banner_image: firstMeta?.banner_image || '',
                             creator: firstCard.creator,
                             isFeatured: false
                         };
@@ -242,6 +244,7 @@ export class DataAdapter {
                             currentState: card.currentState,
                             description: onChainMeta?.description || '',
                             image: onChainMeta?.image || '',
+                            banner_image: onChainMeta?.banner_image || '',
                             category: onChainMeta?.category || '',
                             tags: onChainMeta?.tags || [],
                             creator: card.creator,
