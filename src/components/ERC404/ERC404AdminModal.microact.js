@@ -119,9 +119,8 @@ export class ERC404AdminModal extends Component {
             if (el) el.textContent = val;
         };
 
-        const reserve = bondingStatus.currentReserve
-            ? parseFloat(ethers.utils.formatEther(bondingStatus.currentReserve))
-            : 0;
+        // currentReserve is already ETH-formatted (string like "0.0") from getBondingStatus
+        const reserve = parseFloat(bondingStatus.currentReserve || '0');
         setValue('reserve', (reserve < 0.01 && reserve > 0 ? reserve.toFixed(4) : reserve.toFixed(2)) + ' ETH');
 
         const fmtSupply = (n) => {
@@ -137,6 +136,14 @@ export class ERC404AdminModal extends Component {
         };
         setValue('open', fmtDate(bondingStatus.openTime));
         setValue('maturity', fmtDate(bondingStatus.maturityTime));
+
+        // Hide "Open Bonding" section once bonding is open
+        const openBondingSection = this._el.querySelector('[data-section="open-bonding"]');
+        if (openBondingSection) {
+            const isAlreadyOpen = bondingStatus.openTime && bondingStatus.openTime !== '0'
+                && parseInt(bondingStatus.openTime) * 1000 <= Date.now();
+            openBondingSection.style.display = isAlreadyOpen ? 'none' : '';
+        }
 
         // Deploy liquidity button
         const deployBtn = this._el.querySelector('[data-action="deploy-liquidity"]');
@@ -189,6 +196,24 @@ export class ERC404AdminModal extends Component {
     }
 
     // ── Actions ──
+
+    async handleOpenBondingNow() {
+        if (!this.adapter) return;
+        const btn = this._el?.querySelector('[data-action="open-bonding-now"]');
+
+        try {
+            if (btn) btn.textContent = 'Opening...';
+            const timestamp = Math.floor(Date.now() / 1000);
+            const tx = await this.adapter.setBondingOpenTime(timestamp);
+            if (tx && typeof tx.wait === 'function') await tx.wait();
+            if (btn) btn.textContent = 'Bonding Opened';
+            await this.loadData();
+        } catch (error) {
+            console.error('[ERC404AdminModal] Open bonding failed:', error);
+            if (btn) btn.textContent = 'Failed';
+            setTimeout(() => { if (btn) btn.textContent = 'Open Bonding Now'; }, 3000);
+        }
+    }
 
     async handleClaimFees() {
         if (!this.adapter) return;
@@ -444,6 +469,19 @@ export class ERC404AdminModal extends Component {
                                 )
                             ),
 
+                            // Open Bonding
+                            h('div', { className: 'modal-section', 'data-section': 'open-bonding' },
+                                h('div', { className: 'modal-section-title' }, 'Open Bonding'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                                    'Start the bonding curve now so collectors can buy. To schedule a future date/time, use the Advanced tab.'
+                                ),
+                                h('button', {
+                                    className: 'btn btn-primary',
+                                    'data-action': 'open-bonding-now',
+                                    onClick: this.bind(this.handleOpenBondingNow)
+                                }, 'Open Bonding Now')
+                            ),
+
                             // Claim Fees
                             h('div', { className: 'modal-section' },
                                 h('div', { className: 'modal-section-title' }, 'Fees'),
@@ -479,7 +517,7 @@ export class ERC404AdminModal extends Component {
                                 h('div', { className: 'modal-section-title' }, 'Project Style'),
                                 h(StyleBuilder, {
                                     onSetStyle: (uri) => this.adapter.setStyle(uri),
-                                    onGetStyle: () => this.adapter.getStyle(),
+                                    onGetStyle: () => this.adapter.styleUri(),
                                     onClearStyle: () => this.adapter.setStyle('')
                                 })
                             )

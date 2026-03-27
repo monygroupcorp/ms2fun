@@ -80,9 +80,8 @@ export class ERC404AdminControls extends Component {
             if (el) el.textContent = val;
         };
 
-        const reserve = bondingStatus.currentReserve
-            ? parseFloat(ethers.utils.formatEther(bondingStatus.currentReserve))
-            : 0;
+        // currentReserve is already ETH-formatted (string like "0.0" or "1.234") from getBondingStatus
+        const reserve = parseFloat(bondingStatus.currentReserve || '0');
         setValue('reserve', reserve < 0.01 && reserve > 0 ? reserve.toFixed(4) : reserve.toFixed(2));
 
         const fmtSupply = (n) => {

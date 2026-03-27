@@ -1300,3 +1300,25 @@
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* ── Bonding not open state ── */
+.erc404-trading-sidebar .trading-not-open {
+    padding: var(--space-6) var(--space-4);
+    border: 1px solid var(--border-secondary);
+    text-align: center;
+}
+
+.erc404-trading-sidebar .trading-not-open-label {
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.erc404-trading-sidebar .trading-not-open-sub {
+    font-size: var(--font-size-caption);
+    color: var(--text-tertiary);
+    line-height: 1.5;
+}

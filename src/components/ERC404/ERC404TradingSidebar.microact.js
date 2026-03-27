@@ -24,6 +24,7 @@ export class ERC404TradingSidebar extends Component {
             error: null,
             amount: '',
             message: '',
+            symbol: '',
             vaultAlignmentTokenName: '',
             vaultAlignmentTokenSymbol: '',
             vaultContributed: '0'
@@ -105,13 +106,21 @@ export class ERC404TradingSidebar extends Component {
                 }
             }
 
+            let symbol = this.projectData.symbol || '';
+            if (!symbol) {
+                try {
+                    symbol = await this.adapter.symbol();
+                } catch (e) { /* ignore */ }
+            }
+
             this.setState({
                 loading: false,
                 price,
                 tokensPerNFT,
                 isBondingActive,
                 userBalance,
-                userNFTCount
+                userNFTCount,
+                symbol: symbol || ''
             });
         } catch (error) {
             console.error('[ERC404TradingSidebar] Error:', error);
@@ -309,6 +318,7 @@ export class ERC404TradingSidebar extends Component {
         if (oldState.tokensPerNFT !== newState.tokensPerNFT) return true;
         if (oldState.vaultAlignmentTokenName !== newState.vaultAlignmentTokenName) return true;
         if (oldState.vaultContributed !== newState.vaultContributed) return true;
+        if (oldState.symbol !== newState.symbol) return true;
 
         // Skip re-render for input changes to preserve focus
         if (oldState.amount !== newState.amount) {
@@ -366,9 +376,9 @@ export class ERC404TradingSidebar extends Component {
     }
 
     render() {
-        const { loading, isBuying, isBondingActive, price, tokensPerNFT, userBalance, userNFTCount, txPending, error, amount, message, vaultAlignmentTokenName, vaultAlignmentTokenSymbol, vaultContributed } = this.state;
+        const { loading, isBuying, isBondingActive, price, tokensPerNFT, userBalance, userNFTCount, txPending, error, amount, message, symbol: stateSymbol, vaultAlignmentTokenName, vaultAlignmentTokenSymbol, vaultContributed } = this.state;
         const connected = this.isConnected();
-        const symbol = this.projectData.symbol || 'TOKEN';
+        const symbol = stateSymbol || this.projectData.symbol || 'TOKEN';
 
         const buyQuickPicks = [
             { value: '0.01', label: '0.01' },
@@ -387,72 +397,77 @@ export class ERC404TradingSidebar extends Component {
         const quickPicks = isBuying ? buyQuickPicks : sellQuickPicks;
 
         return h('div', { className: 'erc404-trading-sidebar' },
-            h('div', { className: 'trading-controls' },
-                h('div', { className: 'buy-sell-toggle' },
-                    h('button', {
-                        className: `toggle-btn ${isBuying ? 'active buy' : ''}`,
-                        onClick: this.bind(this.handleToggleBuy)
-                    }, 'Buy'),
-                    h('button', {
-                        className: `toggle-btn ${!isBuying ? 'active sell' : ''}`,
-                        onClick: this.bind(this.handleToggleSell)
-                    }, 'Sell')
-                ),
-
-                h('div', { className: 'amount-input-container' },
-                    h('input', {
-                        type: 'number',
-                        name: 'amount',
-                        className: 'amount-input',
-                        placeholder: isBuying ? '0.0 ETH' : `0.0 ${symbol}`,
-                        value: amount,
-                        onInput: this.bind(this.handleAmountChange),
-                        step: 'any',
-                        min: '0',
-                        disabled: txPending
-                    }),
-                    h('span', { className: 'currency-label' }, isBuying ? 'ETH' : symbol)
-                ),
-
-                h('div', { className: 'quick-picks' },
-                    ...quickPicks.map(pick =>
+            isBondingActive
+                ? h('div', { className: 'trading-controls' },
+                    h('div', { className: 'buy-sell-toggle' },
                         h('button', {
-                            key: `pick-${pick.value}`,
-                            className: 'quick-pick-btn',
-                            onClick: () => this.handleQuickPick(pick.value),
+                            className: `toggle-btn ${isBuying ? 'active buy' : ''}`,
+                            onClick: this.bind(this.handleToggleBuy)
+                        }, 'Buy'),
+                        h('button', {
+                            className: `toggle-btn ${!isBuying ? 'active sell' : ''}`,
+                            onClick: this.bind(this.handleToggleSell)
+                        }, 'Sell')
+                    ),
+
+                    h('div', { className: 'amount-input-container' },
+                        h('input', {
+                            type: 'number',
+                            name: 'amount',
+                            className: 'amount-input',
+                            placeholder: isBuying ? '0.0 ETH' : `0.0 ${symbol}`,
+                            value: amount,
+                            onInput: this.bind(this.handleAmountChange),
+                            step: 'any',
+                            min: '0',
                             disabled: txPending
-                        }, pick.label)
-                    )
+                        }),
+                        h('span', { className: 'currency-label' }, isBuying ? 'ETH' : symbol)
+                    ),
+
+                    h('div', { className: 'quick-picks' },
+                        ...quickPicks.map(pick =>
+                            h('button', {
+                                key: `pick-${pick.value}`,
+                                className: 'quick-pick-btn',
+                                onClick: () => this.handleQuickPick(pick.value),
+                                disabled: txPending
+                            }, pick.label)
+                        )
+                    ),
+
+                    h('div', { className: 'trade-quote' }),
+
+                    h('div', { className: 'message-input-container' },
+                        h('input', {
+                            type: 'text',
+                            name: 'message',
+                            className: 'message-input',
+                            placeholder: 'Add a message (optional)',
+                            value: message,
+                            onInput: this.bind(this.handleMessageChange),
+                            maxLength: 280,
+                            disabled: txPending
+                        })
+                    ),
+
+                    !connected
+                        ? h('button', {
+                            className: 'execute-btn connect-btn',
+                            onClick: this.bind(this.handleConnectClick)
+                        }, 'Connect Wallet')
+                        : h('button', {
+                            className: `execute-btn ${isBuying ? 'buy-btn' : 'sell-btn'}`,
+                            onClick: this.bind(this.handleExecuteTrade),
+                            disabled: txPending
+                        }, txPending ? 'Confirming...' : (isBuying ? `Buy $${symbol}` : `Sell $${symbol}`)),
+
+                    error && h('div', { className: 'sidebar-error-message' }, error)
+                )
+                : h('div', { className: 'trading-not-open' },
+                    h('div', { className: 'trading-not-open-label' }, 'Bonding Not Open'),
+                    h('div', { className: 'trading-not-open-sub' }, 'Trading will be available once the project owner opens the bonding curve.')
                 ),
-
-                h('div', { className: 'trade-quote' }),
-
-                isBondingActive && h('div', { className: 'message-input-container' },
-                    h('input', {
-                        type: 'text',
-                        name: 'message',
-                        className: 'message-input',
-                        placeholder: 'Add a message (optional)',
-                        value: message,
-                        onInput: this.bind(this.handleMessageChange),
-                        maxLength: 280,
-                        disabled: txPending
-                    })
-                ),
-
-                !connected
-                    ? h('button', {
-                        className: 'execute-btn connect-btn',
-                        onClick: this.bind(this.handleConnectClick)
-                    }, 'Connect Wallet')
-                    : h('button', {
-                        className: `execute-btn ${isBuying ? 'buy-btn' : 'sell-btn'}`,
-                        onClick: this.bind(this.handleExecuteTrade),
-                        disabled: txPending
-                    }, txPending ? 'Confirming...' : (isBuying ? `Buy $${symbol}` : `Sell $${symbol}`)),
-
-                error && h('div', { className: 'sidebar-error-message' }, error)
-            ),
 
             h('div', { className: 'token-info-section' },
                 h('div', { className: 'info-row' },
