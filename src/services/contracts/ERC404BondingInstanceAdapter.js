@@ -662,12 +662,41 @@ class ERC404BondingInstanceAdapter extends ERC404Adapter {
     }
 
     /**
+     * Set NFT token base URI (owner only)
+     * @param {string} uri - Base URI; tokenURI(id) returns this + tokenId
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async setMetadataURI(uri) {
+        try {
+            const receipt = await this.executeContractCall(
+                'setMetadataURI',
+                [uri],
+                { requiresSigner: true }
+            );
+            contractCache.invalidateByPattern('metadataURI');
+            return receipt;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to set metadata URI');
+        }
+    }
+
+    /**
      * Get contract style URI
      * @returns {Promise<string>} Style URI
      */
     async getStyle() {
         return await this.getCachedOrFetch('getStyle', [], async () => {
             return await this.executeContractCall('getStyle');
+        });
+    }
+
+    /**
+     * Get NFT token base URI
+     * @returns {Promise<string>} Current token base URI
+     */
+    async metadataURI() {
+        return await this.getCachedOrFetch('metadataURI', [], async () => {
+            return await this.executeContractCall('metadataURI');
         });
     }
 
