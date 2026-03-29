@@ -13,7 +13,7 @@
     "ProtocolTreasuryV1": "0x00001152e56eb45082De505e9E9be5DC158E4cfC",
     "QueryAggregator": "0x087179Ff25bD47E72fd45d21a92Efad2B0B103e6",
     "zRouter": "0x4ABdEaB1A6Dca8CEFB3280cb2843DDbEf0FA1CFB",
-    "ERC404Factory": "0xd84f755AdFac9408ADbde65832F8A1BFf5179bF8",
+    "ERC404Factory": "0xBCd41D5dB0a631C69f1681265814E104134eB2E6",
     "ERC1155Factory": "0x8b4282aBCE5DeF5ab9f5D4501182503492CD1C4B",
     "ERC721AuctionFactory": "0x073BBb8DF32b2228B6f08fAFc7d144ef911e2082",
     "CurveParamsComputer": "0xfc0189E52Df95E1078f7DeC74d8e6849AFf84eaa",
@@ -26,7 +26,7 @@
   },
   "factories": [
     {
-      "address": "0xd84f755AdFac9408ADbde65832F8A1BFf5179bF8",
+      "address": "0xBCd41D5dB0a631C69f1681265814E104134eB2E6",
       "type": "ERC404",
       "title": "ERC404-Bonding-Curve-Factory",
       "displayTitle": "ERC404 Bonding Curve",
