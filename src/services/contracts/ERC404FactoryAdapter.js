@@ -76,30 +76,38 @@ class ERC404FactoryAdapter extends ContractAdapter {
     /**
      * Create ERC404 bonding instance
      * @param {Object} params - Instance parameters
+     * @param {string} params.salt - CREATE2 salt (bytes32 hex)
      * @param {string} params.name - Token name
      * @param {string} params.symbol - Token symbol
-     * @param {string} params.metadataURI - Metadata URI
-     * @param {string} params.maxSupply - Maximum supply
-     * @param {number} params.liquidityReservePercent - Liquidity reserve percentage
-     * @param {Object} params.curveParams - Bonding curve parameters
-     * @param {Object} params.tierConfig - Tier configuration
-     * @param {string} params.creator - Creator address
+     * @param {string} params.metadataURI - Project metadata URI (stored in MasterRegistry)
+     * @param {string} params.tokenBaseURI - NFT token base URI; tokenURI(id) returns this + tokenId
+     * @param {string} params.owner - Owner address
      * @param {string} params.vault - Vault address
+     * @param {number} params.nftCount - NFT supply count
+     * @param {number} params.presetId - Bonding curve preset ID
+     * @param {string} params.stakingModule - Staking module address
+     * @param {string} params.liquidityDeployer - Liquidity deployer component address
+     * @param {string} params.gatingModule - Gating module address
+     * @param {Object} params.freeMint - Free mint params { allocation, scope }
      * @param {string} params.styleUri - Style URI
      * @returns {Promise<Object>} Transaction receipt
      */
     async createInstance(params) {
         try {
             const {
+                salt,
                 name,
                 symbol,
                 metadataURI,
-                maxSupply,
-                liquidityReservePercent,
-                curveParams,
-                tierConfig,
-                creator,
+                tokenBaseURI = '',
+                owner,
                 vault,
+                nftCount,
+                presetId,
+                stakingModule,
+                liquidityDeployer,
+                gatingModule,
+                freeMint = { allocation: 0, scope: 0 },
                 styleUri = ''
             } = params;
 
@@ -109,9 +117,22 @@ class ERC404FactoryAdapter extends ContractAdapter {
                 factoryType: 'ERC404'
             });
 
+            const identity = {
+                salt,
+                name,
+                symbol,
+                styleUri,
+                tokenBaseURI,
+                owner,
+                vault,
+                nftCount,
+                presetId,
+                stakingModule,
+            };
+
             const receipt = await this.executeContractCall(
                 'createInstance',
-                [name, symbol, metadataURI, maxSupply, liquidityReservePercent, curveParams, tierConfig, creator, vault, styleUri],
+                [identity, metadataURI, liquidityDeployer, gatingModule, freeMint],
                 { requiresSigner: true }
             );
 
