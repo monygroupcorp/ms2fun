@@ -1323,6 +1323,26 @@ class MasterRegistryAdapter extends ContractAdapter {
     }
 
     /**
+     * Update instance metadata URI (callable by creator or protocol owner)
+     * @param {string} instanceAddress - Instance contract address
+     * @param {string} uri - Metadata URI (data:application/json blob or IPFS/HTTPS/AR)
+     * @returns {Promise<Object>} Transaction receipt
+     */
+    async updateInstanceMetadata(instanceAddress, uri) {
+        try {
+            const receipt = await this.executeContractCall(
+                'updateInstanceMetadata',
+                [instanceAddress, uri],
+                { requiresSigner: true }
+            );
+            contractCache.invalidateByPattern('instance');
+            return receipt;
+        } catch (error) {
+            throw this.wrapError(error, 'Failed to update instance metadata');
+        }
+    }
+
+    /**
      * Register an approved vault (admin only)
      * @param {string} vaultAddress - Vault contract address
      * @param {string} vaultType - Vault type string
