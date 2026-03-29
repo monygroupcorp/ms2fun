@@ -18,6 +18,8 @@ import { ShareModal } from '../ShareModal/ShareModal.microact.js';
 import { ERC404AdminControls } from './ERC404AdminControls.microact.js';
 import { ERC404AdminModal } from './ERC404AdminModal.microact.js';
 import walletService from '../../services/WalletService.js';
+import MessagePopup from '../MessagePopup/MessagePopup.js';
+import serviceFactory from '../../services/ServiceFactory.js';
 
 export class ERC404ProjectPage extends Component {
     constructor(props = {}) {
@@ -52,12 +54,67 @@ export class ERC404ProjectPage extends Component {
         // Check admin ownership
         this.checkOwnership();
 
+        // Nudge wallet to correct chain
+        this.checkChain();
+
         // Re-check on wallet events
-        const unsub1 = eventBus.on('wallet:connected', () => this.checkOwnership());
+        const unsub1 = eventBus.on('wallet:connected', () => { this.checkOwnership(); this.checkChain(); });
         const unsub2 = eventBus.on('wallet:disconnected', () => this.hideAdmin());
-        const unsub3 = eventBus.on('wallet:changed', () => this.checkOwnership());
+        const unsub3 = eventBus.on('wallet:changed', () => { this.checkOwnership(); this.checkChain(); });
         const unsub4 = eventBus.on('erc404:admin:disabled', () => this.hideAdmin());
         this.registerCleanup(() => { unsub1(); unsub2(); unsub3(); unsub4(); });
+
+        try {
+            this._masterAdapter = await serviceFactory.getMasterRegistryAdapter();
+        } catch (e) {
+            console.warn('[ERC404ProjectPage] Could not load master adapter:', e);
+        }
+    }
+
+    async checkChain() {
+        if (!walletService.isConnected()) return;
+
+        // Extract chainId from URL (e.g. /11155111/test-project)
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const urlChainId = pathParts.length > 0 ? parseInt(pathParts[0]) : null;
+        if (!urlChainId || isNaN(urlChainId)) return;
+
+        try {
+            const { provider } = walletService.getProviderAndSigner();
+            if (!provider) return;
+            const network = await provider.getNetwork();
+            if (network.chainId === urlChainId) return;
+
+            // Mismatch — show nudge
+            const popup = new MessagePopup();
+            const chainNames = { 1: 'Mainnet', 11155111: 'Sepolia', 1337: 'Anvil Local', 31337: 'Anvil Local' };
+            const targetName = chainNames[urlChainId] || `Chain ${urlChainId}`;
+            const el = popup.show({
+                title: 'Wrong Network',
+                message: `This project is on ${targetName}. Switch your wallet to continue.`,
+                type: 'warning',
+                duration: 0
+            });
+
+            // Add switch button inside the popup
+            const textEl = el.querySelector('.message-text');
+            if (textEl) {
+                const btn = document.createElement('button');
+                btn.textContent = `Switch to ${targetName}`;
+                btn.style.cssText = 'margin-top:8px;padding:4px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;background:var(--text-primary,#000);color:var(--bg-primary,#fff);border:none;cursor:pointer;width:100%';
+                btn.addEventListener('click', async () => {
+                    try {
+                        await walletService.switchNetwork(urlChainId);
+                        el.remove();
+                    } catch (err) {
+                        console.warn('[ERC404ProjectPage] Network switch failed:', err);
+                    }
+                });
+                textEl.appendChild(btn);
+            }
+        } catch (e) {
+            // Silent — don't block page load
+        }
     }
 
     async checkOwnership() {
@@ -85,7 +142,7 @@ export class ERC404ProjectPage extends Component {
     showAdmin() {
         if (!this._el) return;
         const notice = this._el.querySelector('.admin-notice');
-        const controls = this._el.querySelector('.admin-controls');
+        const controls = this._el.querySelector('.erc404-admin-status');
         if (notice) notice.style.display = '';
         if (controls) controls.style.display = '';
 
@@ -105,7 +162,7 @@ export class ERC404ProjectPage extends Component {
     hideAdmin() {
         if (!this._el) return;
         const notice = this._el.querySelector('.admin-notice');
-        const controls = this._el.querySelector('.admin-controls');
+        const controls = this._el.querySelector('.erc404-admin-status');
         if (notice) notice.style.display = 'none';
         if (controls) controls.style.display = 'none';
 
@@ -132,13 +189,11 @@ export class ERC404ProjectPage extends Component {
 
     shouldUpdate(oldProps, newProps, oldState, newState) {
         if (oldState.loading !== newState.loading) return true;
-
         // Handle tab switch via DOM manipulation to preserve child components
         if (oldState.activeTab !== newState.activeTab) {
             this.updateTabDisplay(newState.activeTab);
             return false;
         }
-
         return false;
     }
 
@@ -157,10 +212,23 @@ export class ERC404ProjectPage extends Component {
         if (nftContent) nftContent.style.display = activeTab === 'nft' ? 'block' : 'none';
     }
 
+    truncateAddress(address) {
+        if (!address) return '';
+        return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    }
+
+    formatDate(timestamp) {
+        if (!timestamp) return null;
+        const ms = timestamp > 1e10 ? timestamp : timestamp * 1000;
+        return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
     render() {
         const { activeTab } = this.state;
         const projectData = this.projectData;
         const projectAddress = projectData.contractAddress || projectData.address || this.projectId;
+        const hasTokenInfo = projectData.symbol || projectAddress || projectData.stats?.volume;
+        const hasCreatorInfo = projectData.creator || projectData.createdAt || projectData.description;
 
         return h('div', { className: 'erc404-project-page' },
             // Admin notice bar (hidden until ownership confirmed)
@@ -175,20 +243,13 @@ export class ERC404ProjectPage extends Component {
                 }, 'Hide Admin Controls')
             ),
 
-            // Project header — outside the grid so it's always first on mobile
-            h(ProjectHeaderCompact, {
-                projectData: projectData
-            }),
+            // Project header — always above grid
+            h(ProjectHeaderCompact, { projectData }),
 
-            // Admin controls (hidden until ownership confirmed)
-            h(ERC404AdminControls, {
-                adapter: this.adapter
-            }),
-
-            h('div', { className: 'project-layout' },
-                // Main content column
-                h('div', { className: 'main-content' },
-                    // Tabs
+            // 2-column grid: project-tabs (left) + trading-controls (right)
+            // On mobile, trading-controls gets order:-1 via CSS so swap appears first
+            h('div', { className: 'erc404-content-grid' },
+                h('div', { className: 'project-tabs' },
                     h('div', { className: 'tabs' },
                         h('button', {
                             className: `tab ${activeTab === 'token' ? 'active' : ''}`,
@@ -201,48 +262,69 @@ export class ERC404ProjectPage extends Component {
                             onClick: () => this.handleTabClick('nft')
                         }, 'NFT')
                     ),
-
-                    // Token tab content
                     h('div', {
                         'data-tab-content': 'token',
                         style: { display: activeTab === 'token' ? 'block' : 'none' }
-                    },
-                        h(BondingProgressSection, {
-                            adapter: this.adapter
-                        }),
-                        h(StakingSection, {
-                            adapter: this.adapter
-                        })
-                    ),
-
-                    // NFT tab content
+                    }),
                     h('div', {
                         'data-tab-content': 'nft',
                         style: { display: activeTab === 'nft' ? 'block' : 'none' }
                     },
-                        h(NFTGalleryPreview, {
-                            adapter: this.adapter,
-                            projectId: this.projectId
-                        })
+                        h(NFTGalleryPreview, { adapter: this.adapter, projectId: this.projectId })
                     )
                 ),
 
-                // Sidebar
-                h('div', { className: 'sidebar' },
-                    h(ERC404TradingSidebar, {
-                        adapter: this.adapter,
-                        projectData: projectData
-                    })
+                h('div', { className: 'trading-controls' },
+                    h(ERC404TradingSidebar, { adapter: this.adapter, projectData })
                 )
             ),
 
-            // Comments section below the two-column layout
+            // Full-width sections below grid
+            h('div', { className: 'bonding-status' },
+                h(BondingProgressSection, { adapter: this.adapter })
+            ),
+
+            hasTokenInfo && h('div', { className: 'token-info-section' },
+                projectData.symbol && h('div', { className: 'info-row' },
+                    h('span', { className: 'info-label' }, 'Symbol'),
+                    h('span', { className: 'info-value' }, `$${projectData.symbol}`)
+                ),
+                projectAddress && h('div', { className: 'info-row' },
+                    h('span', { className: 'info-label' }, 'Contract'),
+                    h('span', { className: 'info-value mono' }, this.truncateAddress(projectAddress))
+                ),
+                projectData.stats?.volume && h('div', { className: 'info-row' },
+                    h('span', { className: 'info-label' }, 'Volume'),
+                    h('span', { className: 'info-value' }, projectData.stats.volume)
+                )
+            ),
+
+            hasCreatorInfo && h('div', { className: 'creator-info' },
+                projectData.creator && h('div', { className: 'info-row' },
+                    h('span', { className: 'info-label' }, 'Creator'),
+                    h('span', { className: 'info-value mono' }, this.truncateAddress(projectData.creator))
+                ),
+                this.formatDate(projectData.createdAt) && h('div', { className: 'info-row' },
+                    h('span', { className: 'info-label' }, 'Created'),
+                    h('span', { className: 'info-value' }, this.formatDate(projectData.createdAt))
+                ),
+                projectData.description && h('div', { className: 'info-row description' },
+                    h('span', { className: 'info-label' }, 'About'),
+                    h('span', { className: 'info-value' }, projectData.description)
+                )
+            ),
+
+            h('div', { className: 'alignment-section' },
+                h(StakingSection, { adapter: this.adapter })
+            ),
+
+            // Admin status (hidden until ownership confirmed)
+            h(ERC404AdminControls, { adapter: this.adapter }),
+
+            // Comments
             h('div', { className: 'comments-section' },
                 h('div', { className: 'section-title' }, 'Comments'),
-                h(ProjectCommentFeed, {
-                    projectAddress: projectAddress,
-                    adapter: this.adapter
-                })
+                h(ProjectCommentFeed, { projectAddress, adapter: this.adapter })
             ),
 
             // Portfolio modal (hidden until opened via event)
@@ -259,7 +341,9 @@ export class ERC404ProjectPage extends Component {
             // Admin modal (hidden until opened via event)
             h(ERC404AdminModal, {
                 adapter: this.adapter,
-                projectData: this.projectData
+                projectData: this.projectData,
+                masterAdapter: this._masterAdapter || null,
+                instanceAddress: this.projectData?.contractAddress || this.projectData?.address || this.projectId
             })
         );
     }
