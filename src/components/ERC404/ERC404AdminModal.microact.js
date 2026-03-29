@@ -83,13 +83,15 @@ export class ERC404AdminModal extends Component {
         if (!this.adapter) return;
 
         try {
-            const [bondingStatus, stakingEnabled] = await Promise.all([
+            const [bondingStatus, stakingEnabled, nftBaseURI] = await Promise.all([
                 this.adapter.getBondingStatus(),
-                this.adapter.stakingEnabled()
+                this.adapter.stakingEnabled(),
+                this.adapter.metadataURI().catch(() => '')
             ]);
 
             this.updateControlsDOM(bondingStatus, stakingEnabled);
             this.updateAdvancedDOM(bondingStatus, stakingEnabled);
+            this.updateMetadataDOM(nftBaseURI);
         } catch (error) {
             console.warn('[ERC404AdminModal] Failed to load data:', error);
         }
@@ -201,6 +203,44 @@ export class ERC404AdminModal extends Component {
         if (stakingNote) stakingNote.textContent = stakingEnabled
             ? 'Staking is active. Fees from claimAllFees are routed to stakers.'
             : 'Once activated, vault fees are distributed to token stakers. This cannot be undone.';
+    }
+
+    updateMetadataDOM(nftBaseURI) {
+        if (!this._el) return;
+
+        // Pre-fill NFT base URI
+        const nftInput = this._el.querySelector('[data-input="nft-base-uri"]');
+        if (nftInput && nftBaseURI) nftInput.value = nftBaseURI;
+        const nftCurrent = this._el.querySelector('[data-current-value="nft-base-uri"]');
+        if (nftCurrent) nftCurrent.textContent = nftBaseURI
+            ? (nftBaseURI.length > 50 ? nftBaseURI.slice(0, 50) + '...' : nftBaseURI)
+            : 'Not set';
+
+        // Pre-fill project metadata fields from projectData metadataURI
+        const metaURI = this.props.projectData?.metadataURI || '';
+        let parsed = null;
+        try {
+            if (metaURI.startsWith('data:application/json,')) {
+                parsed = JSON.parse(decodeURIComponent(metaURI.slice('data:application/json,'.length)));
+            } else if (metaURI.startsWith('data:application/json;base64,')) {
+                parsed = JSON.parse(atob(metaURI.slice('data:application/json;base64,'.length)));
+            }
+        } catch (e) { /* ignore */ }
+
+        if (parsed) {
+            const setVal = (sel, val) => {
+                const el = this._el.querySelector(sel);
+                if (el && val) el.value = val;
+            };
+            setVal('[data-input="meta-image"]', parsed.project_photo);
+            setVal('[data-input="meta-banner"]', parsed.project_banner);
+            setVal('[data-input="meta-description"]', parsed.description);
+        }
+
+        const metaCurrent = this._el.querySelector('[data-current-value="meta-uri"]');
+        if (metaCurrent) metaCurrent.textContent = metaURI
+            ? (metaURI.length > 50 ? metaURI.slice(0, 50) + '...' : metaURI)
+            : 'Not set';
     }
 
     // ── Actions ──
@@ -401,36 +441,60 @@ export class ERC404AdminModal extends Component {
         }
     }
 
-    // ── Project Card Section ──
+    async handleUpdateProjectMetadata() {
+        const masterAdapter = this.props.masterAdapter;
+        const instanceAddress = this.props.instanceAddress;
+        if (!masterAdapter || !instanceAddress) return;
+        const btn = this._el?.querySelector('[data-action="update-project-meta"]');
 
-    _renderProjectCardSection() {
-        const pd = this.props.projectData || {};
-        const description = pd.description || '';
-        const image = pd.image || pd.imageURI || '';
-        const name = pd.name || pd.displayName || '';
+        const image = this._el?.querySelector('[data-input="meta-image"]')?.value?.trim() || '';
+        const banner = this._el?.querySelector('[data-input="meta-banner"]')?.value?.trim() || '';
+        const description = this._el?.querySelector('[data-input="meta-description"]')?.value?.trim() || '';
+        const rawUri = this._el?.querySelector('[data-input="meta-uri"]')?.value?.trim() || '';
 
-        return h('div', { className: 'modal-section' },
-            h('div', { className: 'modal-section-title' }, 'Project Card'),
-            h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
-                'This information is stored immutably on-chain and cannot be changed after creation.'
-            ),
-            name && h('div', { style: { marginBottom: 'var(--space-2)' } },
-                h('div', { className: 'admin-stat-label' }, 'Name'),
-                h('div', { className: 'admin-stat-value' }, name)
-            ),
-            description
-                ? h('div', { style: { marginBottom: 'var(--space-2)' } },
-                    h('div', { className: 'admin-stat-label' }, 'Description'),
-                    h('div', { style: { fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)' } }, description)
-                )
-                : h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-tertiary)', fontStyle: 'italic' } },
-                    'No description — set one at creation time to help collectors find your project.'
-                ),
-            image && h('div', { style: { marginTop: 'var(--space-2)' } },
-                h('div', { className: 'admin-stat-label', style: { marginBottom: 'var(--space-1)' } }, 'Image'),
-                h('img', { src: image, alt: 'Project image', style: { maxWidth: '120px', maxHeight: '80px', objectFit: 'cover', border: '1px solid var(--border-secondary)' } })
-            )
-        );
+        let uri = rawUri;
+        if (!uri) {
+            const obj = {};
+            if (image) obj.project_photo = image;
+            if (banner) obj.project_banner = banner;
+            if (description) obj.description = description;
+            if (Object.keys(obj).length === 0) return;
+            uri = 'data:application/json,' + encodeURIComponent(JSON.stringify(obj));
+        }
+
+        try {
+            if (btn) btn.textContent = 'Updating...';
+            const tx = await masterAdapter.updateInstanceMetadata(instanceAddress, uri);
+            if (tx && typeof tx.wait === 'function') await tx.wait();
+            if (btn) btn.textContent = 'Update Project';
+            await this.loadData();
+        } catch (error) {
+            console.error('[ERC404AdminModal] Update project metadata failed:', error);
+            this.showError(error.message || 'Transaction failed');
+            if (btn) btn.textContent = 'Failed';
+            setTimeout(() => { if (btn) btn.textContent = 'Update Project'; }, 3000);
+        }
+    }
+
+    async handleSetNFTBaseURI() {
+        if (!this.adapter) return;
+        const input = this._el?.querySelector('[data-input="nft-base-uri"]');
+        const btn = this._el?.querySelector('[data-action="set-nft-base-uri"]');
+        const uri = input?.value?.trim();
+        if (!uri) return;
+
+        try {
+            if (btn) btn.textContent = 'Setting...';
+            const tx = await this.adapter.setMetadataURI(uri);
+            if (tx && typeof tx.wait === 'function') await tx.wait();
+            if (btn) btn.textContent = 'Set Base URI';
+            await this.loadData();
+        } catch (error) {
+            console.error('[ERC404AdminModal] Set NFT base URI failed:', error);
+            this.showError(error.message || 'Transaction failed');
+            if (btn) btn.textContent = 'Failed';
+            setTimeout(() => { if (btn) btn.textContent = 'Set Base URI'; }, 3000);
+        }
     }
 
     // ── Render ──
@@ -538,8 +602,63 @@ export class ERC404AdminModal extends Component {
                                 }, 'Deploy Liquidity')
                             ),
 
-                            // Project Card Info
-                            this._renderProjectCardSection(),
+                            // Edit Project
+                            h('div', { className: 'modal-section' },
+                                h('div', { className: 'modal-section-title' }, 'Edit Project'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
+                                    'Current: ',
+                                    h('span', { 'data-current-value': 'meta-uri', style: { fontFamily: 'var(--font-mono)' } }, 'Loading...')
+                                ),
+                                h('div', { className: 'form-group' },
+                                    h('label', { className: 'form-label' }, 'Project Image'),
+                                    h('input', { type: 'text', className: 'form-input', 'data-input': 'meta-image', placeholder: 'https://... or ipfs://...' })
+                                ),
+                                h('div', { className: 'form-group' },
+                                    h('label', { className: 'form-label' }, 'Project Banner'),
+                                    h('input', { type: 'text', className: 'form-input', 'data-input': 'meta-banner', placeholder: 'https://... or ipfs://... (wide, landscape ratio)' })
+                                ),
+                                h('div', { className: 'form-group' },
+                                    h('label', { className: 'form-label' }, 'Description'),
+                                    h('textarea', { className: 'form-input', 'data-input': 'meta-description', rows: '3', placeholder: 'Short description shown on the homepage and discovery feed.' })
+                                ),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
+                                    'Or paste a URI directly (IPFS, HTTPS, Arweave, or data:application/json):'
+                                ),
+                                h('div', { style: { display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' } },
+                                    h('input', { type: 'text', className: 'form-input', 'data-input': 'meta-uri', placeholder: 'ipfs://... or data:application/json,...', style: { flex: '1' } })
+                                ),
+                                h('button', {
+                                    className: 'btn btn-primary',
+                                    'data-action': 'update-project-meta',
+                                    onClick: this.bind(this.handleUpdateProjectMetadata)
+                                }, 'Update Project')
+                            ),
+
+                            // Edit NFT Metadata
+                            h('div', { className: 'modal-section' },
+                                h('div', { className: 'modal-section-title' }, 'Edit NFT Metadata'),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-2)' } },
+                                    'Current: ',
+                                    h('span', { 'data-current-value': 'nft-base-uri', style: { fontFamily: 'var(--font-mono)' } }, 'Loading...')
+                                ),
+                                h('div', { style: { fontSize: 'var(--font-size-caption)', color: 'var(--text-secondary)', marginBottom: 'var(--space-3)' } },
+                                    'Base path for NFT token metadata. tokenURI(id) returns this + the token number. Leave blank until your collection art is ready.'
+                                ),
+                                h('div', { style: { display: 'flex', gap: 'var(--space-2)' } },
+                                    h('input', {
+                                        type: 'text',
+                                        className: 'form-input',
+                                        'data-input': 'nft-base-uri',
+                                        placeholder: 'ipfs://Qm.../ or https://api.myproject.com/metadata/',
+                                        style: { flex: '1' }
+                                    }),
+                                    h('button', {
+                                        className: 'btn btn-secondary',
+                                        'data-action': 'set-nft-base-uri',
+                                        onClick: this.bind(this.handleSetNFTBaseURI)
+                                    }, 'Set Base URI')
+                                )
+                            ),
 
                             // Style
                             h('div', { className: 'modal-section' },
