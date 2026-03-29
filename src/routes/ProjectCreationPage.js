@@ -161,10 +161,11 @@ export default class ProjectCreationPage extends Component {
                 name: '',
                 symbol: '',
                 description: '',
-                projectPhoto: '',   // project card photo (goes into styleUri JSON)
-                projectBanner: '',  // project card banner (goes into styleUri JSON)
+                projectPhoto: '',   // project card photo (goes into metadataURI JSON)
+                projectBanner: '',  // project card banner (goes into metadataURI JSON)
                 styleUri: '',
-                metadataURI: '',    // NFT token metadata URI (ipfs://, ar://, https://)
+                metadataURI: '',    // project metadata URI (built from projectPhoto/Banner/description)
+                tokenBaseURI: '',   // NFT token base URI — tokenURI(id) returns this + tokenId
                 nftCount: 1000,
                 presetId: 0,
                 creationTier: 0,
@@ -548,17 +549,22 @@ export default class ProjectCreationPage extends Component {
         const customCSS = this.element.querySelector('[data-style-ext="custom-css"]')?.value?.trim();
         if (customCSS) cssParts.push(customCSS);
 
-        // Build styleUri JSON: project_photo + project_banner + css
-        // This is the mutable presentation layer — all updateable via setStyle() post-deploy
-        const presentation = {};
-        if (fd.description) presentation.description = fd.description;
-        if (fd.projectPhoto) presentation.project_photo = fd.projectPhoto;
-        if (fd.projectBanner) presentation.project_banner = fd.projectBanner;
-        const css = cssParts.join('\n\n');
-        if (css) presentation.css = css;
+        // Build metadataURI JSON: project_photo + project_banner + description
+        // Stored in MasterRegistry as the project's identity (updateable via updateInstanceMetadata)
+        const metaObj = {};
+        if (fd.description) metaObj.description = fd.description;
+        if (fd.projectPhoto) metaObj.project_photo = fd.projectPhoto;
+        if (fd.projectBanner) metaObj.project_banner = fd.projectBanner;
+        if (Object.keys(metaObj).length > 0) {
+            const metaUri = 'data:application/json,' + encodeURIComponent(JSON.stringify(metaObj));
+            this.state.formData = { ...this.state.formData, metadataURI: metaUri };
+        }
 
-        if (Object.keys(presentation).length > 0) {
-            const uri = 'data:application/json,' + encodeURIComponent(JSON.stringify(presentation));
+        // Build styleUri JSON: CSS only
+        const css = cssParts.join('\n\n');
+        if (css) {
+            const styleObj = { css };
+            const uri = 'data:application/json,' + encodeURIComponent(JSON.stringify(styleObj));
             this.state.formData = { ...this.state.formData, styleUri: uri };
         }
     }
@@ -812,6 +818,7 @@ export default class ProjectCreationPage extends Component {
                     name: formData.name.trim(),
                     symbol: formData.symbol.trim().toUpperCase(),
                     styleUri: formData.styleUri || '',
+                    tokenBaseURI: formData.tokenBaseURI || '',
                     owner: connectedAddress,
                     vault: selectedVault.address,
                     nftCount: parseInt(formData.nftCount) || 1000,
@@ -1619,15 +1626,15 @@ export default class ProjectCreationPage extends Component {
                 </div>
 
                 <div class="form-section">
-                    <h3 class="form-section-title">NFT Token Metadata <span style="font-weight: normal; color: var(--text-secondary); font-size: var(--font-size-sm);">(optional)</span></h3>
+                    <h3 class="form-section-title">NFT Token Base URI <span style="font-weight: normal; color: var(--text-secondary); font-size: var(--font-size-sm);">(optional)</span></h3>
                     <div class="form-group">
-                        <input type="text" class="form-input" data-field="metadataURI"
-                               placeholder="ipfs://Qm... or https://..." value="${formData.metadataURI}">
+                        <input type="text" class="form-input" data-field="tokenBaseURI"
+                               placeholder="ipfs://Qm.../ or https://api.myproject.com/metadata/" value="${formData.tokenBaseURI}">
                         <div class="form-help">
-                            URI pointing to your ERC-721/1155 token metadata JSON — token images, attributes, traits.
-                            This is what marketplaces like OpenSea read per-token. Leave blank if your art isn't ready yet.
+                            Base path for your NFT collection metadata. Each token's metadata is found at
+                            <strong>[your URI + token number]</strong> — e.g. <code>ipfs://Qm.../1</code>.
                             Supports IPFS (<code>ipfs://</code>), Arweave (<code>ar://</code>), or HTTPS.
-                            Note: currently immutable after creation — a contract upgrade to support post-deploy updates is in progress.
+                            Leave blank if your art isn't ready — you can set it after launch in Admin Settings.
                         </div>
                     </div>
                 </div>
