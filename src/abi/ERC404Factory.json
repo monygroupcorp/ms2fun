@@ -167,6 +167,11 @@
             "internalType": "string"
           },
           {
+            "name": "tokenBaseURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
             "name": "owner",
             "type": "address",
             "internalType": "address"

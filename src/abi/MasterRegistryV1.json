@@ -994,6 +994,24 @@
   },
   {
     "type": "function",
+    "name": "updateInstanceMetadata",
+    "inputs": [
+      {
+        "name": "instanceAddress",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "uri",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "upgradeToAndCall",
     "inputs": [
       {
