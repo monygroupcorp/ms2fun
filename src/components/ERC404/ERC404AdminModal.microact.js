@@ -147,12 +147,10 @@ export class ERC404AdminModal extends Component {
         setValue('open', fmtDate(bondingStatus.openTime));
         setValue('maturity', fmtDate(bondingStatus.maturityTime));
 
-        // Hide "Open Bonding" section once bonding is open
+        // Hide "Open Bonding" section only once bondingActive is true on-chain
         const openBondingSection = this._el.querySelector('[data-section="open-bonding"]');
         if (openBondingSection) {
-            const isAlreadyOpen = bondingStatus.openTime && bondingStatus.openTime !== '0'
-                && parseInt(bondingStatus.openTime) * 1000 <= Date.now();
-            openBondingSection.style.display = isAlreadyOpen ? 'none' : '';
+            openBondingSection.style.display = bondingStatus.isActive ? 'none' : '';
         }
 
         // Deploy liquidity button
