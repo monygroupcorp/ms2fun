@@ -1821,12 +1821,12 @@ export default class ProjectCreationPage extends Component {
                     <p class="text-secondary" style="margin-bottom: var(--space-4);">
                         This is how your custom project page will look.
                     </p>
-                    <div class="preview-custom-page">
-                        <div style="text-align: center;">
-                            <div style="font-size: var(--font-size-h1); font-weight: var(--font-weight-bold); margin-bottom: var(--space-3);">
+                    <div class="preview-custom-page" style="${formData.projectBanner ? `background-image: url(${formData.projectBanner}); background-size: cover; background-position: center;` : ''}">
+                        <div style="text-align: center; padding: var(--space-8) var(--space-4); ${formData.projectBanner ? 'background: rgba(0,0,0,0.5);' : ''} width: 100%;">
+                            <div style="font-size: var(--font-size-h1); font-weight: var(--font-weight-bold); margin-bottom: var(--space-3); ${formData.projectBanner ? 'color: #fff;' : ''}">
                                 ${formData.name || 'Your Project'}
                             </div>
-                            <p style="max-width: 600px; margin: 0 auto;">
+                            <p style="max-width: 600px; margin: 0 auto; ${formData.projectBanner ? 'color: rgba(255,255,255,0.85);' : ''}">
                                 ${formData.description || 'Project description will appear here.'}
                             </p>
                         </div>
