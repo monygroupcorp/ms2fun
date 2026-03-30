@@ -7,8 +7,6 @@
 /* ── Trading Sidebar ── */
 
 .erc404-trading-sidebar {
-    position: sticky;
-    top: var(--space-6);
     height: fit-content;
 }
 

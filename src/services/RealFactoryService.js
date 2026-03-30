@@ -30,14 +30,12 @@ export default class RealFactoryService {
             return { provider, signer: walletService.getProviderAndSigner().signer };
         }
 
-        // For local mode, create a read-only JsonRpcProvider
         const network = detectNetwork();
-        if (network.mode === 'local' && network.rpcUrl) {
-            // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
-            const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(
-                network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId, ensAddress: null }
-            );
+        if (network.rpcUrl) {
+            const chainConfig = network.mode === 'local'
+                ? { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                : { name: network.mode, chainId: network.chainId };
+            const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(network.rpcUrl, chainConfig);
             return { provider: readOnlyProvider, signer: null };
         }
 

@@ -159,11 +159,11 @@ class ServiceFactory {
         const network = detectNetwork();
         const { provider: walletProvider, signer } = walletService.getProviderAndSigner();
 
-        if (network.mode === 'local' && network.rpcUrl) {
-            const readProvider = new ethers.providers.StaticJsonRpcProvider(
-                network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId, ensAddress: null }
-            );
+        if (network.rpcUrl) {
+            const chainConfig = network.mode === 'local'
+                ? { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                : { name: network.mode, chainId: network.chainId };
+            const readProvider = new ethers.providers.StaticJsonRpcProvider(network.rpcUrl, chainConfig);
             return { provider: readProvider, signer: signer || null };
         }
 

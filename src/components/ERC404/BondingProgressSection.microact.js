@@ -380,12 +380,8 @@ export class BondingProgressSection extends Component {
                            phase === 'bonding' ? this.formatTime(timeUntilMaturity) : null;
 
         return h('div', { className: 'bonding-section' },
-            h('div', { className: 'bonding-header' },
-                h('span', {
-                    className: 'phase-badge',
-                    style: `background: ${phaseConfig.bg}; color: ${phaseConfig.color}`
-                }, phaseConfig.label),
-                timeDisplay && h('span', { className: 'time-remaining' },
+            timeDisplay && h('div', { className: 'bonding-header' },
+                h('span', { className: 'time-remaining' },
                     `${phase === 'pre-open' ? 'Opens in' : 'Matures in'} ${timeDisplay}`
                 )
             ),

@@ -147,16 +147,15 @@ class QueryService {
             return walletProviderAndSigner;
         }
 
-        // Fall back to read-only provider for local mode
         const { detectNetwork } = await import('../config/network.js');
         const network = detectNetwork();
 
-        if (network.mode === 'local' && network.rpcUrl) {
+        if (network.rpcUrl) {
             const { ethers } = await import('https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js');
-            const provider = new ethers.providers.StaticJsonRpcProvider(
-                network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId, ensAddress: null }
-            );
+            const chainConfig = network.mode === 'local'
+                ? { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                : { name: network.mode, chainId: network.chainId };
+            const provider = new ethers.providers.StaticJsonRpcProvider(network.rpcUrl, chainConfig);
             return { provider, signer: null };
         }
 

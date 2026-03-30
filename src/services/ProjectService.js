@@ -103,16 +103,14 @@ class ProjectService {
             }
         }
 
-        // If no wallet provider and not a mock contract, create read-only provider for local mode
+        // If no wallet provider and not a mock contract, create read-only provider from rpcUrl
         if (!provider && !isMockContract) {
             const network = detectNetwork();
-            if (network.mode === 'local' && network.rpcUrl) {
-                console.log('[ProjectService] Creating read-only provider for local development');
-                // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
-                provider = new ethers.providers.StaticJsonRpcProvider(
-                    network.rpcUrl,
-                    { name: 'anvil', chainId: network.chainId, ensAddress: null }
-                );
+            if (network.rpcUrl) {
+                const chainConfig = network.mode === 'local'
+                    ? { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                    : { name: network.mode, chainId: network.chainId };
+                provider = new ethers.providers.StaticJsonRpcProvider(network.rpcUrl, chainConfig);
                 signer = null;
             } else {
                 throw new Error('Wallet provider not available. Please connect a wallet or ensure local Anvil is running.');

@@ -38,22 +38,75 @@
     padding: var(--space-6) var(--space-10);
 }
 
-/* Two-column layout */
-.erc404-project-page .project-layout {
+/* Two-column grid: project-tabs (left) + trading-controls (right) */
+.erc404-project-page .erc404-content-grid {
     display: grid;
     grid-template-columns: 1fr 380px;
     gap: var(--space-8);
+    margin-bottom: var(--space-6);
 }
 
-.erc404-project-page .main-content {
+.erc404-project-page .project-tabs {
     min-width: 0;
 }
 
-.erc404-project-page .sidebar {
+.erc404-project-page .trading-controls {
     position: sticky;
     top: var(--space-6);
     height: fit-content;
 }
+
+/* Full-width sections below grid */
+.erc404-project-page .bonding-status,
+.erc404-project-page .token-info-section,
+.erc404-project-page .creator-info,
+.erc404-project-page .alignment-section {
+    margin-bottom: var(--space-6);
+}
+
+.erc404-project-page .token-info-section,
+.erc404-project-page .creator-info {
+    border: 1px solid var(--border-secondary);
+    padding: var(--space-4);
+}
+
+.erc404-project-page .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-tertiary);
+}
+
+.erc404-project-page .info-row:last-child {
+    border-bottom: none;
+}
+
+.erc404-project-page .info-row.description {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.erc404-project-page .info-label {
+    font-size: var(--font-size-body-sm);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--letter-spacing-wide);
+    flex-shrink: 0;
+}
+
+.erc404-project-page .info-value {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    text-align: right;
+}
+
+.erc404-project-page .info-value.mono {
+    font-family: var(--font-mono);
+}
+
 
 /* Project Header */
 .erc404-project-page .project-header {
@@ -211,11 +264,12 @@
 /* ── Responsive ── */
 
 @media (max-width: 1024px) {
-    .erc404-project-page .project-layout {
+    .erc404-project-page .erc404-content-grid {
         grid-template-columns: 1fr;
     }
 
-    .erc404-project-page .sidebar {
+    /* trading-controls appears first on mobile */
+    .erc404-project-page .trading-controls {
         position: relative;
         top: 0;
         order: -1;
@@ -278,14 +332,14 @@
 }
 
 /* Admin Controls (inline stats section) */
-.erc404-project-page .admin-controls {
+.erc404-project-page .erc404-admin-status {
     background-color: var(--bg-secondary);
     border: 2px solid var(--border-primary);
     padding: var(--space-5);
     margin-bottom: var(--space-6);
 }
 
-.erc404-project-page.admin-hidden .admin-controls {
+.erc404-project-page.admin-hidden .erc404-admin-status {
     display: none;
 }
 
@@ -809,7 +863,7 @@
         font-size: var(--font-size-caption);
     }
 
-    .erc404-project-page .admin-controls {
+    .erc404-project-page .erc404-admin-status {
         padding: var(--space-3);
     }
 

@@ -9,8 +9,8 @@
 import { Component, h, eventBus } from '../../core/microact-setup.js';
 import { ethers } from 'https://cdnjs.cloudflare.com/ajax/libs/ethers/5.2.0/ethers.esm.js';
 
-const PHASE_LABELS = ['Pre-Open', 'Bonding Active', 'Full', 'Matured', 'Deployed'];
-const PHASE_CLASSES = ['pre-open', 'bonding', 'full', 'matured', 'deployed'];
+const PHASE_LABELS = ['Pre-Open', 'Scheduled', 'Bonding Active', 'Matured', 'Deployed'];
+const PHASE_CLASSES = ['pre-open', 'scheduled', 'bonding', 'matured', 'deployed'];
 
 export class ERC404AdminControls extends Component {
     constructor(props = {}) {
@@ -102,7 +102,7 @@ export class ERC404AdminControls extends Component {
     }
 
     render() {
-        return h('div', { className: 'admin-controls', style: { display: 'none' } },
+        return h('div', { className: 'erc404-admin-status', style: { display: 'none' } },
             h('div', { className: 'admin-section-title' }, 'Bonding Status'),
             h('span', { className: 'phase-badge', 'data-admin-phase': true }, 'Loading...'),
 

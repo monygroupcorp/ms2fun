@@ -62,8 +62,7 @@ export class ProjectHeaderCompact extends Component {
         return h('div', { className: 'project-header-compact' },
             h('h1', { className: 'project-name' },
                 name,
-                ' ',
-                h('span', { className: 'project-ticker' }, `($${symbol})`)
+                symbol ? h('span', { className: 'project-ticker' }, ` ($${symbol})`) : null
             ),
             h('div', { className: 'project-icon' },
                 iconSrc

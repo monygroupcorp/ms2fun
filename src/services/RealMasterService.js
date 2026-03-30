@@ -31,11 +31,14 @@ export default class RealMasterService {
         // eth_call — after an Anvil restart the cached block is stale and calls revert.
         // Wallet signer is still passed through for transaction signing.
         const network = detectNetwork();
-        if (network.mode === 'local' && network.rpcUrl) {
-            const readProvider = new ethers.providers.StaticJsonRpcProvider(
-                network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId, ensAddress: null }
-            );
+
+        // For any mode with a known rpcUrl, use a StaticJsonRpcProvider for reads.
+        // This lets the app work read-only before a wallet is connected (sepolia dev, local).
+        if (network.rpcUrl) {
+            const chainConfig = network.mode === 'local'
+                ? { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                : { name: network.mode, chainId: network.chainId };
+            const readProvider = new ethers.providers.StaticJsonRpcProvider(network.rpcUrl, chainConfig);
             return { provider: readProvider, signer: signer || null };
         }
 
