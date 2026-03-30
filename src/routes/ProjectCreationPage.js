@@ -110,7 +110,7 @@ const FACTORY_DISPLAY = {
         badge: 'PUMP',
     },
     ERC721: {
-        name: 'Classic Collection',
+        name: 'AuctionCore Collection',
         subtitle: 'Numbered · Auction',
         tagline: 'A numbered collection of unique pieces, each sold via auction. Simple, proven, and widely understood by collectors.',
         recommended: [SIZE_MANY],
@@ -1777,8 +1777,8 @@ export default class ProjectCreationPage extends Component {
                     <p class="text-secondary" style="margin-bottom: var(--space-4);">
                         This is how your project will appear in the #1 featured spot.
                     </p>
-                    <div class="preview-featured-banner">
-                        ${initial}
+                    <div class="preview-featured-banner" style="${formData.projectBanner ? `background-image: url(${formData.projectBanner}); background-size: cover; background-position: center;` : ''}">
+                        ${formData.projectBanner ? '' : initial}
                         <div class="preview-featured-content">
                             <div style="font-size: var(--font-size-caption); text-transform: uppercase; letter-spacing: var(--letter-spacing-wide); color: var(--text-secondary); margin-bottom: var(--space-1);">FEATURED</div>
                             <h3 style="font-size: var(--font-size-h2); font-weight: var(--font-weight-bold); margin-bottom: var(--space-2);">${formData.name || 'Your Project'}</h3>
@@ -1794,7 +1794,9 @@ export default class ProjectCreationPage extends Component {
                         This is how your project will appear in the project grid.
                     </p>
                     <div class="preview-project-card">
-                        <div class="preview-card-image">${initial}</div>
+                        <div class="preview-card-image" style="${formData.projectPhoto ? `background-image: url(${formData.projectPhoto}); background-size: cover; background-position: center;` : ''}">
+                            ${formData.projectPhoto ? '' : initial}
+                        </div>
                         <div class="preview-card-content">
                             <h4 style="font-size: var(--font-size-h4); font-weight: var(--font-weight-bold); margin-bottom: var(--space-2);">
                                 ${formData.name || 'Your Project'}
@@ -1911,12 +1913,12 @@ export default class ProjectCreationPage extends Component {
                          data-action="select-vault" data-address="${v.address}">
                         <h3 class="component-card-title">${vaultType}</h3>
                         ${descHtml}
-                        ${etherscanUrl
-                            ? `<a href="${etherscanUrl}" target="_blank" rel="noopener" class="type-card-subtitle"
-                                  style="font-family: var(--font-mono); color: var(--text-tertiary); text-decoration: none;"
-                                  onclick="event.stopPropagation();">${v.address.slice(0, 8)}...${v.address.slice(-4)} ↗</a>`
-                            : `<span class="type-card-subtitle" style="font-family: var(--font-mono); color: var(--text-tertiary);">${v.address.slice(0, 8)}...${v.address.slice(-4)}</span>`
-                        }
+                        <span class="type-card-subtitle" style="font-family: var(--font-mono); color: var(--text-tertiary);">${v.address.slice(0, 8)}...${v.address.slice(-4)}${etherscanUrl
+                            ? ` <a href="${etherscanUrl}" target="_blank" rel="noopener"
+                                  style="color: var(--text-tertiary); text-decoration: none; font-size: var(--font-size-caption);"
+                                  onclick="event.stopPropagation();">↗</a>`
+                            : ''
+                        }</span>
                     </div>
                 `;
             }).join('');
