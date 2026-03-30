@@ -807,7 +807,15 @@ export default class ProjectCreationPage extends Component {
                 const liqTag = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('liquidity'));
 
                 const gatingModule = (gatingTag && componentSelections[gatingTag]) || ethers.constants.AddressZero;
-                const liquidityDeployer = componentSelections[liqTag];
+
+                // Prefer user-selected liquidity deployer; fall back to config default when factory
+                // has no registered feature tags (empty componentSteps for liquidity).
+                let liquidityDeployer = componentSelections[liqTag];
+                if (!liquidityDeployer) {
+                    const { loadContractConfig } = await import('../config/contractConfig.js');
+                    const cfg = await loadContractConfig();
+                    liquidityDeployer = cfg?.contracts?.LiquidityDeployerModule;
+                }
 
                 if (!liquidityDeployer) throw new Error('No liquidity deployer selected. Go back and select a liquidity option.');
                 if (!formData.name?.trim()) throw new Error('Project name is required.');
