@@ -80,8 +80,8 @@ export class DataAdapter {
         const meta = this._parseDataUri(metadataURI) || {};
         return {
             description: style.description || meta.description || '',
-            project_photo: style.project_photo || '',
-            project_banner: style.project_banner || '',
+            project_photo: style.project_photo || meta.project_photo || '',
+            project_banner: style.project_banner || meta.project_banner || '',
             // NFT art image from metadataURI; also accept legacy banner_image from there
             image: meta.image || '',
             category: meta.category || '',

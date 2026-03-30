@@ -36,14 +36,13 @@ export default class RealProjectRegistry {
             return { provider, signer: walletService.getProviderAndSigner().signer };
         }
 
-        // For local mode, create a read-only JsonRpcProvider
+        // For any mode with a known rpcUrl, create a read-only StaticJsonRpcProvider
         const network = detectNetwork();
-        if (network.mode === 'local' && network.rpcUrl) {
-            // Use StaticJsonRpcProvider for Anvil to skip network auto-detection entirely
-            const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(
-                network.rpcUrl,
-                { name: 'anvil', chainId: network.chainId, ensAddress: null }
-            );
+        if (network.rpcUrl) {
+            const chainConfig = network.mode === 'local'
+                ? { name: 'anvil', chainId: network.chainId, ensAddress: null }
+                : { name: network.mode, chainId: network.chainId };
+            const readOnlyProvider = new ethers.providers.StaticJsonRpcProvider(network.rpcUrl, chainConfig);
             return { provider: readOnlyProvider, signer: null };
         }
 
@@ -88,6 +87,9 @@ export default class RealProjectRegistry {
                     metadata.creator = instanceInfo.creator;
                     metadata.vault = instanceInfo.vault;
                     metadata.owner = instanceInfo.creator;
+                    // Registry name is authoritative when contract call fails
+                    metadata.name = metadata.name || instanceInfo.name || '';
+                    metadata.displayName = metadata.displayName || instanceInfo.name || '';
 
                     // Parse metadataURI for NFT-standard fields
                     const onChainMeta = this._parseDataUri(instanceInfo.metadataURI);
@@ -97,9 +99,9 @@ export default class RealProjectRegistry {
                         metadata.tags = metadata.tags || onChainMeta.tags || [];
                     }
 
-                    // Merge styleUri presentation fields
-                    metadata.project_photo = presentation.project_photo || '';
-                    metadata.project_banner = presentation.project_banner || '';
+                    // Merge presentation fields — styleUri takes priority, metadataURI as fallback
+                    metadata.project_photo = presentation.project_photo || onChainMeta?.project_photo || '';
+                    metadata.project_banner = presentation.project_banner || onChainMeta?.project_banner || '';
                     metadata.description = presentation.description || metadata.description || (onChainMeta?.description) || '';
 
                     this.projectCache.set(instanceAddress, metadata);
@@ -300,6 +302,10 @@ export default class RealProjectRegistry {
             metadata.factoryAddress = instance.factoryAddress;
             metadata.creator = instance.creator;
             metadata.vault = instance.vault;
+            metadata.owner = instance.creator;
+            // Registry name is authoritative when contract call fails
+            metadata.name = metadata.name || instance.name || '';
+            metadata.displayName = metadata.displayName || instance.name || '';
 
             // Parse metadataURI for NFT-standard fields (image, category, tags)
             const onChainMeta = this._parseDataUri(instance.metadataURI);
@@ -309,9 +315,9 @@ export default class RealProjectRegistry {
                 metadata.tags = metadata.tags || onChainMeta.tags || [];
             }
 
-            // Merge styleUri presentation fields (take priority over metadataURI for description)
-            metadata.project_photo = presentation.project_photo || '';
-            metadata.project_banner = presentation.project_banner || '';
+            // Merge presentation fields — styleUri takes priority, metadataURI as fallback
+            metadata.project_photo = presentation.project_photo || onChainMeta?.project_photo || '';
+            metadata.project_banner = presentation.project_banner || onChainMeta?.project_banner || '';
             metadata.description = presentation.description || metadata.description || (onChainMeta?.description) || '';
 
             this.projectCache.set(projectAddress, metadata);

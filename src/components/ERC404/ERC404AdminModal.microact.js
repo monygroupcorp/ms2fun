@@ -255,9 +255,10 @@ export class ERC404AdminModal extends Component {
             const openTimeAlreadySet = status.openTime && status.openTime !== '0';
 
             if (!openTimeAlreadySet) {
-                // Contract requires open time before setBondingActive — set to now + 10s
+                // Contract requires open time before setBondingActive — set to now + 60s
+                // (Sepolia block time ~12s + getBondingStatus call time; 10s was too tight)
                 if (btn) btn.textContent = 'Setting time... (1/2)';
-                const openTimestamp = Math.floor(Date.now() / 1000) + 10;
+                const openTimestamp = Math.floor(Date.now() / 1000) + 60;
                 const tx1 = await this.adapter.setBondingOpenTime(openTimestamp);
                 if (tx1 && typeof tx1.wait === 'function') await tx1.wait();
             }
