@@ -61,9 +61,15 @@ export async function loadABI(abiName) {
             // Production or mock: Read from exported ABI directory
             path = `/src/abi/${abiName}.json`;
 
-            const response = await fetch(path);
-            if (!response.ok) {
-                throw new Error(`Failed to load ABI: ${abiName} (HTTP ${response.status})`);
+            let response;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                response = await fetch(path);
+                if (response.ok) break;
+                if (attempt < 3 && response.status >= 500) {
+                    await new Promise(r => setTimeout(r, attempt * 500));
+                } else {
+                    throw new Error(`Failed to load ABI: ${abiName} (HTTP ${response.status})`);
+                }
             }
 
             abi = await response.json();
