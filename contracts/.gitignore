@@ -1,0 +1,42 @@
+# Dependencies
+lib/
+node_modules/
+
+# Build artifacts
+out/
+cache/
+broadcast/
+
+# Internal docs (promote to docs/spec/ or docs/examples/ when ready)
+docs/*
+!docs/spec/
+!docs/examples/
+archive/
+reference/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Foundry
+forge-cache/
+foundry.lock
+
+# Claude Code
+.claude/
+
+# Reports
+reports/
+CLAUDE.md
+STANDARDIZED_EVENTS_SPEC.md
