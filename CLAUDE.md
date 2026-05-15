@@ -6,13 +6,21 @@ Project-specific rules and conventions for AI-assisted development.
 
 ## Mandatory Rules
 
-### 0. No Co-Authored-By in Commits
+### 0. Frontend Never Touches Contracts
+
+`contracts/` is a separate domain. Frontend work does not modify `.sol` files, deployment scripts, ABIs, or anything under `contracts/`.
+
+If a frontend task surfaces a contract change that's needed, note it and hand it off — do not make the change yourself. See `contracts/AGENTS.md` for detail.
+
+---
+
+### 1. No Co-Authored-By in Commits
 
 Do NOT add "Co-Authored-By" lines to git commit messages.
 
 ---
 
-### 1. Log Library Friction to Improvements Doc
+### 2. Log Library Friction to Improvements Doc
 
 When encountering friction with the component system (microact) or web3 utilities (micro-web3):
 
@@ -36,7 +44,7 @@ This ensures real-world pain points feed directly into library improvements.
 
 ---
 
-### 2. Follow Naming Conventions
+### 3. Follow Naming Conventions
 
 See `docs/NAMING_CONVENTIONS.md` for component, route, and service naming patterns.
 
@@ -50,7 +58,7 @@ See `docs/NAMING_CONVENTIONS.md` for component, route, and service naming patter
 
 ---
 
-### 3. Modular CSS Architecture (V2)
+### 4. Modular CSS Architecture (V2)
 
 **Structure:**
 - `global-v2.css` - Design tokens, resets, base styles (loaded globally in index.html)
@@ -77,7 +85,7 @@ See `docs/NAMING_CONVENTIONS.md` for component, route, and service naming patter
 
 ---
 
-### 4. Demo-Driven Development (Gallery Brutalism v2)
+### 5. Demo-Driven Development (Gallery Brutalism v2)
 
 **CRITICAL:** Before implementing ANY v2 component or page, reference the corresponding demo file in `docs/examples/`.
 
@@ -144,7 +152,7 @@ But even with dynamic features, the **visual structure and styling must match th
 
 ---
 
-### 5. Web3 Initialization in Layout (All Routes Get It)
+### 6. Web3 Initialization in Layout (All Routes Get It)
 
 **Pattern:** Layout handles provider + environment initialization once. All child routes receive props automatically.
 
