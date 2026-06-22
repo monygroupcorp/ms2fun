@@ -48,6 +48,7 @@ docs/*
 !docs/STYLING_PROTECTION_PLAN.md
 !docs/WAR_PATH.md
 !docs/OPERATIONS.md
+!docs/ARCHITECTURE.md
 !docs/phases/
 !docs/decisions/
 
