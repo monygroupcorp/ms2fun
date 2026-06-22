@@ -158,7 +158,15 @@ Capture these so we tune the process before the big phases:
 ---
 
 ## Decision log
-- _(empty — populate during execution)_
+- **Wave 0 done:** `ARCHITECTURE.md` accepted by human.
+- **T1 done (lead):** `app/` scaffolded; G1/G4/G5 green (build 190KB/60KB gzip). Resolved versions:
+  React **19**, viem 2.53, wagmi **3.6**, TS **6.0**, Vite **8**, Vitest **4**, ESLint **10**.
+- **Pilot lesson #1 — latest-everything conflicts on Node 25.** Lead had to fix three things a
+  Sonnet would likely have face-planted on: TS 6.0 deprecates `baseUrl` (→ dropped, `paths`
+  resolve relative to tsconfig); Vite 8 needs esbuild ≥0.27 but `@wagmi/cli` pins 0.25 (→ pnpm
+  `overrides: esbuild ^0.28`); pnpm 10 blocks esbuild's binary build (→ `onlyBuiltDependencies`).
+  **Implication for later phases:** pin a coherent set / pre-resolve dep conflicts in the spec
+  before fanning out to Sonnet; don't let agents `add` latest blindly.
 
 ## Open questions
 - Which forked contract + value is the cheapest reliable hello-chain read? (Likely EXEC404

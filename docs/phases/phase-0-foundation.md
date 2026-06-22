@@ -88,6 +88,7 @@ that makes remnants structurally impossible** plus the written rules that keep i
 - Bindings generated in the dev loop (live); generated code isolated to `app/src/generated/**`.
 - Router: wouter + validated-param helper. (ADR-0002)
 - **All Phase 0 decisions locked 2026-06-22 — ready to execute.**
+- Wave 0: `docs/ARCHITECTURE.md` **accepted by human 2026-06-22**. Executing Wave 1.
 
 ## Open questions
 - See Design decisions → Open (1–7). These are the immediate "nail it down" items.

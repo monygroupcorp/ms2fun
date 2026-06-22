@@ -12,7 +12,7 @@ Companions: `WAR_PATH.md` (plan), `OPERATIONS.md` (process), `phases/phase-0-*.m
 
 ## 1. Stack (locked — see ADRs)
 
-- **React 18 + Vite + TypeScript (strict).**
+- **React 19 + Vite + TypeScript (strict).**
 - **viem + wagmi** for all chain access (injected-only, no vendor). *(ADR-0001)*
 - **@tanstack/react-query** — comes with wagmi; the single read-cache layer.
 - **wouter** + a validated-param helper for routing. *(ADR-0002)*
