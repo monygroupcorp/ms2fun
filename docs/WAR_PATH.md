@@ -4,8 +4,10 @@
 re-platform that ends with **a collection deployed to a pristine, beautiful frontend on
 mainnet.** Canonical doc — keep it current.
 
-Companion docs: root `CLAUDE.md` (North Star + rules), `docs/ARCHITECTURE.md` (the
-constitution — written in Phase 0). Strategic background: `docs/plans/NEW_DIRECTION_HANDOFF.md`.
+Companion docs: root `CLAUDE.md` (North Star + rules), `docs/OPERATIONS.md` (how we work —
+agent-driven, phase lifecycle, gates, branch strategy), `docs/ARCHITECTURE.md` (the technical
+constitution — written in Phase 0). Each phase has its own living doc in `docs/phases/`.
+Strategic background: `docs/plans/NEW_DIRECTION_HANDOFF.md`.
 
 ---
 

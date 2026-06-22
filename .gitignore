@@ -47,6 +47,8 @@ docs/*
 !docs/DESIGN_SYSTEM_V2.md
 !docs/STYLING_PROTECTION_PLAN.md
 !docs/WAR_PATH.md
+!docs/OPERATIONS.md
+!docs/phases/
 
 # Root-level planning docs
 ABI_COVERAGE_REPORT.json
