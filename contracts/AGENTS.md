@@ -1,18 +1,12 @@
-# Contracts — Agent Boundary Notice
+# Contracts — Agent Notes
 
-**If you are working on a frontend task, stop here.**
+This directory contains Solidity contracts, Foundry tests, deployment scripts, and build artifacts.
 
-This directory contains Solidity contracts, Foundry tests, deployment scripts, and build artifacts. Frontend workers — human or AI — do not modify anything in this directory.
+## No Boundary (as of the monorepo consolidation)
 
-## The Rule
+Contracts and frontend are one domain in one repo and are worked on together. A frontend task that needs a contract change makes that change directly, in the same effort. The earlier "frontend never touches contracts" separation has been retired.
 
-Frontend work never touches contracts. If a frontend task surfaces a need to change a contract, ABI, or deployment config:
-
-1. **Make a note** of what needs to change and why
-2. **Continue the frontend task** with the current contract state (mock, stub, or skip the blocked behavior)
-3. **Hand off the note** to whoever owns contracts work
-
-Do not edit `.sol` files, deployment scripts, ABIs, or config to unblock a frontend task. The separation is intentional.
+Treat contract changes with the care they deserve — tests, deliberate interfaces, simple defensible code — but do not avoid them.
 
 ## What Belongs Here
 

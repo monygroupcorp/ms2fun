@@ -4,47 +4,89 @@ Project-specific rules and conventions for AI-assisted development.
 
 ---
 
-## Mandatory Rules
+## North Star (current direction)
 
-### 0. Frontend Never Touches Contracts
+ms2fun is a **lean, onchain-only, statically-hosted boutique launchpad.** No servers,
+no backend — all state lives onchain, the app is static, and the whole thing is
+**walk-awayable from day 0.**
 
-`contracts/` is a separate domain. Frontend work does not modify `.sol` files, deployment scripts, ABIs, or anything under `contracts/`.
+We are building toward an MVP that has room to grow into the full vision without
+building it all at once:
 
-If a frontend task surfaces a contract change that's needed, note it and hand it off — do not make the change yourself. See `contracts/AGENTS.md` for detail.
+- **Onchain profiles** — one account owns many collections under it (us included, as a creator).
+- **Modular collections** — swappable whitelists, vaults, and components.
+- **Aave vault** (replaces the old alignment-vault/LP model): 20% of mint/liquidity
+  proceeds are deposited to a safe Aave pool; on withdrawal, 20% is tithed to the
+  creator's chosen alignment target and 1% to the platform, the rest to the creator.
+  A maturity period / pay-to-unlock-early option is a fun future add.
+- **Thin owner-operated governance wrapper** — a contract that is the protocol owner's
+  decision interface (treasury is a multisig). It can later grow into sellable governance.
+  No DAO, no voting, no Moloch — that's all retired.
+- **Agent/API surface** — collections can be created and managed programmatically so the
+  sister platform **NOEMA** (AI agents that create/manage collections) can hook in.
+- **ERC-8244 micro-build** — a parallel, self-contained minified-HTML build of the app
+  that can be hosted on-chain. This is a *build target*, not a framework choice.
+
+**Name:** stays **ms2fun** until explicitly changed.
+
+**The fossil:** **EXEC404 / Cult Executives** is the only thing ever deployed live. It uses
+the legacy alignment-vault model and is **grandfathered in, preserved no matter what.**
+That legacy model is being retired for everything else — but never delete or break EXEC404.
 
 ---
 
-### 1. No Co-Authored-By in Commits
+## Re-platform in progress
+
+The bespoke **microact** (component framework) and **micro-web3** (web3 layer) are being
+**dropped.** Do not build new features on microact patterns — no `h()` lifecycle hacks,
+no `shouldUpdate()` overrides to prevent child destruction, no manual-DOM or `setTimeout`
+mounting workarounds.
+
+Legacy microact code still exists (including ~83 `.microact.js` twin files) and is being
+removed slice by slice as flows are rebuilt. The target stack is not yet locked — see
+`docs/plans/NEW_DIRECTION_HANDOFF.md` (recommends Preact + Vite + wagmi/viem). Until it is,
+do not start new microact work; ask if a task forces the question.
+
+---
+
+## Mandatory Rules
+
+### 1. One Monorepo — Contracts and Frontend Are One Domain
+
+`contracts/` and the frontend live in the same repo and are worked on together. There is
+no boundary: contract changes that a task needs are made directly, in the same effort,
+with the same care (tests, deliberate interfaces, simple defensible code). This reversed
+the earlier "frontend never touches contracts" rule when we took ownership of the contracts
+into this monorepo.
+
+For contracts specifically: lean on the **simplest, most defensible** implementations and
+the best-known versions of standard building blocks. Simple beats clever.
+
+---
+
+### 2. No Co-Authored-By in Commits
 
 Do NOT add "Co-Authored-By" lines to git commit messages.
 
 ---
 
-### 2. Log Library Friction to Improvements Doc
+### 3. Documentation Discipline — Sacred vs Scratch
 
-When encountering friction with the component system (microact) or web3 utilities (micro-web3):
+Two zones, so generated idea-state docs never pollute (or embarrass) the canonical set:
 
-1. **Apply a workaround** to keep the task moving
-2. **Update `docs/plans/MICROACT_IMPROVEMENTS.md`** with:
-   - Problem encountered
-   - Workaround applied
-   - Desired behavior
-   - Acceptance criteria
-3. **Add entry to Issues Log table** at bottom of that doc
+- **Canonical (tracked, sacred):** top-level `docs/*.md` and `contracts/docs/*.md`.
+  Current-truth only — curated, reviewed, kept accurate. Keep this set small.
+- **Working (gitignored, local):** `docs/plans/`, `docs/scratch/`, `contracts/docs/plans/`.
+  Dated plans, handoffs, audits, generated drafts, session notes. Local until **deliberately
+  promoted** — edited down and moved up into the canonical zone.
 
-This ensures real-world pain points feed directly into library improvements.
-
-**Triggers:**
-- `shouldUpdate()` override needed to prevent child destruction
-- Manual DOM manipulation to avoid re-render
-- Timing hacks with `setTimeout` for component mounting
-- Contract adapter method missing or awkward
-- Wallet connection edge cases
-- Transaction state management issues
+Default new throwaway/generated docs to the working zone. Only place a doc in the canonical
+zone when it is blessed current truth. Don't let canonical docs describe retired models
+(governance/DAO, the 1/19/80 alignment-LP split) as if they were live.
 
 ---
 
-### 3. Follow Naming Conventions
+### 4. Follow Naming Conventions
 
 See `docs/NAMING_CONVENTIONS.md` for component, route, and service naming patterns.
 
@@ -58,197 +100,38 @@ See `docs/NAMING_CONVENTIONS.md` for component, route, and service naming patter
 
 ---
 
-### 4. Modular CSS Architecture (V2)
+## Design
 
-**Structure:**
-- `global-v2.css` - Design tokens, resets, base styles (loaded globally in index.html)
-- `core-components-v2.css` - Shared components: buttons, badges, nav, footer, skeletons (loaded globally in index.html)
-- `route-*-v2.css` - Route-specific styles (loaded dynamically by each route component)
+The **Gallery Brutalism** aesthetic is the design direction (`docs/DESIGN_SYSTEM_V2.md`),
+and the HTML demos in `docs/examples/` remain the visual source of truth — match their
+structure, spacing, and class names rather than inventing conventional patterns. This is a
+design-fidelity rule, independent of whatever rendering stack we land on. (The old
+microact-specific "convert HTML to `h()` line-by-line" workflow no longer applies.)
 
-**Adding route-specific styles:**
-1. Create `src/core/route-[name]-v2.css` for your route
-2. In your route component's `didMount()`:
-   ```javascript
-   import stylesheetLoader from '../utils/stylesheetLoader.js';
-
-   async didMount() {
-       await stylesheetLoader.load('/src/core/route-[name]-v2.css');
-       // ... rest of initialization
-   }
-   ```
-3. The stylesheet loader handles caching and prevents duplicate loads
-
-**Don't:**
-- Add route-specific CSS to `core-components-v2.css`
-- Create separate CSS files for individual components (use route-level CSS instead)
-- Load stylesheets via `<link>` tags in index.html (except global and core-components)
-
----
-
-### 5. Demo-Driven Development (Gallery Brutalism v2)
-
-**CRITICAL:** Before implementing ANY v2 component or page, reference the corresponding demo file in `docs/examples/`.
-
-**The demos are the source of truth.** Don't rely on assumptions, conventions, or general design patterns.
-
-**Required workflow:**
-
-1. **Find the demo file** for the component/page you're building
-   - HomePage → `docs/examples/homepage-v2-demo.html`
-   - ProjectDiscovery → `docs/examples/project-discovery-demo.html`
-   - Portfolio → `docs/examples/portfolio-demo.html`
-   - Etc. (see `docs/MOCK_SYSTEM_REFERENCE.md` for full inventory)
-
-2. **Open the demo in browser** to see the visual design
-   - Test responsive behavior (resize to 640px)
-   - Check mobile nav (click hamburger)
-   - Note spacing, typography, borders
-
-3. **Copy exact HTML structure** from demo file
-   - Desktop nav links (or lack thereof)
-   - Mobile nav panel links
-   - Card layouts, grids, forms
-   - Class names and structure
-
-4. **Convert HTML to Microact h() syntax** line-by-line
-   - Preserve class names exactly
-   - Match element hierarchy
-   - Keep inline styles if present in demo
-
-5. **Reference demo CSS** for any component-specific styles
-   - Check inline `<style>` blocks in demo
-   - Copy to `src/core/components-v2.css` if needed
-   - Don't invent new styles not in demo
-
-6. **Verify side-by-side** before considering done
-   - Open demo in one browser tab
-   - Open production in another tab
-   - Compare visually at multiple breakpoints
-   - Fix discrepancies immediately
-
-**Why this matters:**
-
-The Gallery Brutalism design is **intentionally minimal and opinionated**. Standard web conventions don't apply:
-- Desktop nav has ONLY "Create" button (not all links)
-- Discovery happens via homepage (not nav bar)
-- Portfolio accessed via wallet button (not nav bar)
-- Brutalist aesthetic rejects decoration, shadows, rounded corners
-
-Without referencing demos, you WILL introduce conventional patterns that violate the design philosophy.
-
-**Anti-patterns (DO NOT DO):**
-- ❌ Implementing components from memory or general knowledge
-- ❌ Adding "helpful" features not in the demo (extra nav links, dropdowns, etc.)
-- ❌ Assuming standard web conventions apply
-- ❌ Inventing new CSS classes or styles
-- ❌ Skipping side-by-side verification
-
-**Exceptions:**
-- Dynamic data binding (demos use static HTML)
-- Router integration (demos use static links)
-- State management (demos are stateless)
-
-But even with dynamic features, the **visual structure and styling must match the demo exactly**.
-
----
-
-### 6. Web3 Initialization in Layout (All Routes Get It)
-
-**Pattern:** Layout handles provider + environment initialization once. All child routes receive props automatically.
-
-**What Layout provides to routes:**
-```javascript
-{
-    mode,           // 'LOCAL_BLOCKCHAIN' | 'PLACEHOLDER_MOCK' | 'PRODUCTION_DEPLOYED' | 'COMING_SOON'
-    config,         // Parsed contracts config (from contracts.local.json or contracts.mainnet.json)
-    provider,       // ethers.js provider (wallet or public RPC)
-    providerType,   // 'wallet' | 'public'
-    web3Ready,      // boolean - true when initialization complete
-    web3InitError   // string | null - error message if initialization failed
-}
-```
-
-**In your route component:**
-```javascript
-async didMount() {
-    await stylesheetLoader.load('/src/core/route-[name]-v2.css');
-
-    // Wait for Layout's web3 initialization
-    if (!this.props.web3Ready) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-
-    // Use props from Layout
-    const { mode, config, provider, web3InitError } = this.props;
-
-    if (web3InitError) {
-        this.setState({ error: `Web3 failed: ${web3InitError}` });
-        return;
-    }
-
-    // Load your data using mode, config, provider
-    const adapter = new DataAdapter(mode, config, provider);
-    const data = await adapter.getCriticalData();
-    // ...
-}
-```
-
-**Don't:**
-- Import EnvironmentDetector or providerManager in route components
-- Call `EnvironmentDetector.detect()` or `providerManager.initialize()` in routes
-- Duplicate web3 initialization logic across routes
-
-**Why:**
-- Single source of truth for web3 state
-- Faster route loads (initialization already done)
-- Consistent provider/environment across all routes
-- Easy to add new routes without repeating plumbing
+The aesthetic is intentionally minimal and opinionated: desktop nav is sparse, discovery
+happens via the homepage, brutalist rejection of decoration/shadows/rounded corners. Don't
+add "helpful" conventional features the demos don't have.
 
 ---
 
 ## Guidelines
 
-### Component Architecture Workarounds
-
-Until microact VDOM is implemented, use these patterns:
-
-**Preventing child destruction:**
-```javascript
-shouldUpdate(oldState, newState) {
-    // Only re-render for structural changes
-    if (oldState.loading !== newState.loading) return true;
-    if (oldState.data !== newState.data) return true;
-
-    // Update DOM directly for minor state changes
-    if (oldState.balance !== newState.balance) {
-        this.updateBalanceDisplay(newState.balance);
-        return false;
-    }
-    return false;
-}
-```
-
-**Always log these workarounds to MICROACT_IMPROVEMENTS.md**
-
----
-
 ### Debug Logging
 
-When debugging component issues, add temporary logs with component name prefix:
+When debugging component issues, add temporary logs with a component-name prefix:
 ```javascript
 console.log('[ComponentName] description:', data);
 ```
-
 Remove debug logs before committing unless they provide ongoing value.
 
 ---
 
 ## Reference Docs
 
-- `docs/NAMING_CONVENTIONS.md` - Component and file naming
-- `docs/DESIGN_SYSTEM_V2.md` - Gallery Brutalism design system (v2)
-- `docs/MOCK_SYSTEM_REFERENCE.md` - Demo file inventory and usage guide
-- `docs/examples/*.html` - HTML demo files (source of truth for v2 design)
-- `docs/DESIGN_SYSTEM.md` - Temple of Capital UI patterns (v1, deprecated)
-- `docs/FRONTEND_ARCHITECTURE.md` - System architecture
-- `docs/plans/MICROACT_IMPROVEMENTS.md` - Library improvement tracker
+- `docs/NAMING_CONVENTIONS.md` — Component and file naming
+- `docs/DESIGN_SYSTEM_V2.md` — Gallery Brutalism design system (current)
+- `docs/examples/*.html` — HTML demos (visual source of truth)
+- `docs/plans/NEW_DIRECTION_HANDOFF.md` — Re-platform analysis & direction (working zone)
+- `docs/DESIGN_SYSTEM.md` — Temple of Capital UI patterns (v1, deprecated)
+- `docs/FRONTEND_ARCHITECTURE.md` — System architecture (legacy; describes the retired model)
+- `contracts/docs/ARCHITECTURE.md` — Contracts architecture (legacy; pending rewrite for the Aave model)
