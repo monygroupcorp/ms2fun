@@ -1,6 +1,6 @@
 # ADR-0001 — Web3 library stack
 
-**Status:** Proposed (pending human lock)
+**Status:** Locked (2026-06-22)
 **Date:** 2026-06-22
 **Decision owner:** Mony
 **Supersedes:** the bespoke `micro-web3` (ethers v5 wrapper) being retired with the re-platform.
@@ -32,6 +32,15 @@ no vendor account.** Brutalist UI is hand-authored on wagmi's headless hooks. Bo
 **Fallbacks, named explicitly:** if wevm shows abandonment signals, **ethers v6** is the
 low-level fallback; if our contract surface turns out genuinely tiny, **viem-only + a thin
 `mipd`-backed discovery hook** is an acceptable, leaner React-layer alternative.
+
+### What "hand-rolled wallet" means here (own the pixels, rent the plumbing, never touch the keys)
+- **Connect UI — we build it.** Brutalist button/modal/account display on wagmi's *headless*
+  hooks. This is the only "roll our own" we do, and it's encouraged.
+- **Connection logic (connector) — wagmi owns it.** EIP-6963 discovery, reconnect/`rdns`
+  persistence, EIP-1193 event→state wiring, multi-tab sync. Race-prone; not ours to rebuild.
+- **The wallet itself (keys/custody/signing) — never ours.** Users bring their own wallet
+  (MetaMask/Rabby/Frame/…) via injected/6963; we never hold a private key. Embedded-wallet
+  vendors (Privy/Dynamic) are disqualified by the walk-awayable rule anyway.
 
 ---
 
