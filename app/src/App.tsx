@@ -6,6 +6,7 @@ import { config } from './lib/wagmi'
 import { queryClient } from './lib/queryClient'
 import { HomePage } from './routes/HomePage'
 import { Exec404Page } from './routes/Exec404Page'
+import { CollectionsPage } from './routes/CollectionsPage'
 import styles from './App.module.css'
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
             <Switch>
               <Route path="/" component={HomePage} />
               <Route path="/exec404" component={Exec404Page} />
+              <Route path="/collections" component={CollectionsPage} />
               <Route>
                 <section className={styles.notFound}>404 · NOT FOUND</section>
               </Route>

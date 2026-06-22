@@ -9,6 +9,9 @@ export function HomePage() {
       <p className={styles.tagline}>the opinionated boutique launchpad</p>
       <HelloChain />
       <p className={styles.links}>
+        <Link href="/collections" className={styles.link} data-testid="collections-link">
+          → COLLECTIONS
+        </Link>
         <Link href="/exec404" className={styles.link} data-testid="exec404-link">
           → CULT EXECUTIVES
         </Link>

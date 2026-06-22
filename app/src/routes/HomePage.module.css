@@ -4,6 +4,9 @@
 
 .links {
   margin-top: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-lg);
 }
 
 .link {

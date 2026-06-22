@@ -8,11 +8,15 @@ test('home links to the EXEC404 fossil page', async ({ page }) => {
 })
 
 /**
- * G8-class — the EXEC404 slice reads real fossil state off the fork through the typed ABI:
- * the stats panel shows a live price (gwei), and the bonding-curve quote resolves for a typed
- * amount. Tagged @fork: requires the anvil mainnet-fork on localhost:8545.
+ * The EXEC404 slice reads real fossil state off the fork through the typed ABI: the stats panel
+ * shows a live price (gwei), and the bonding-curve quote resolves for a typed amount.
+ *
+ * Tagged @archive (NOT @fork): EXEC404 is forked-mainnet state, so reading it needs an
+ * archive-capable fork RPC. A non-archive public RPC 403s on cold mainnet storage once the fork
+ * ages — that's an environment limit, not a code issue (see docs/HUMAN_GATES.md G-A). Run with an
+ * archive fork up: `pnpm exec playwright test --grep @archive`.
  */
-test('EXEC404 page reads live state and quotes a buy off the fork @fork', async ({ page }) => {
+test('EXEC404 page reads live state and quotes a buy off the fork @archive', async ({ page }) => {
   await page.goto('/exec404')
 
   const stats = page.getByTestId('exec404-stats')
