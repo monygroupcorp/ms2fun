@@ -49,12 +49,14 @@ that makes remnants structurally impossible** plus the written rules that keep i
 - **Bindings ↔ fork bridge:** generate bindings/typed config in the dev loop from
   `contracts.local.json` + ABIs (live, never stale) — not committed artifacts.
 - **Generated code:** `app/src/generated/**`, lint-ignored, never hand-edited.
+- **Router:** **wouter** (~1.5KB). URL-state capability (shareable links, refs, refresh-survival)
+  comes from any router; TanStack Router's type-safety premium is small for our ~2–3 params and
+  doesn't cover the one case that matters (runtime-validating a money-bearing `ref`), which we
+  hand-write regardless. Pair wouter with a tiny **validated-param helper** (zod / viem
+  validators) on params that matter. See ADR-0002.
 
 **Open (resolve at the lock gate):**
-1. **Router** — **wouter** (~1.5KB, leanest; recommended for ~4 routes) vs **TanStack Router**
-   (fully type-safe routes/search; pairs with the TanStack Query wagmi already pulls in) vs
-   React Router (standard). Note: TanStack Router is unrelated to viem. Leaning wouter unless we
-   want type-safe URL state (e.g. wizard step).
+- _None — all Phase 0 decisions locked. Ready to execute on human go._
 
 ## Task units
 - [ ] T0 — Write `docs/ARCHITECTURE.md` (depends on the Open decisions being locked).
@@ -80,10 +82,12 @@ that makes remnants structurally impossible** plus the written rules that keep i
 - Human review of `ARCHITECTURE.md`.
 
 ## Decision log
-- Wallet: wagmi native 6963 connectors + custom brutalist UI; no kit, no ported connector.
-- Stack confirmed: viem/wagmi (ecosystem standard), pnpm, Vitest+Playwright, GitHub Actions.
+- Wallet: wagmi native 6963 connectors + custom brutalist UI; no kit, no ported connector. (ADR-0001)
+- Web3 stack: viem + wagmi (injected-only, no vendor), defended vs alternatives. (ADR-0001)
+- Tooling: pnpm, Vitest + Playwright, GitHub Actions.
 - Bindings generated in the dev loop (live); generated code isolated to `app/src/generated/**`.
-- Remaining open: router (wouter vs TanStack Router).
+- Router: wouter + validated-param helper. (ADR-0002)
+- **All Phase 0 decisions locked 2026-06-22 — ready to execute.**
 
 ## Open questions
 - See Design decisions → Open (1–7). These are the immediate "nail it down" items.
