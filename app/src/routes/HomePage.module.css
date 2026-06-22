@@ -2,6 +2,25 @@
   padding: var(--padding-xl) var(--padding-lg);
 }
 
+.links {
+  margin-top: var(--space-4);
+}
+
+.link {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.link:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-secondary);
+}
+
 .title {
   font-family: var(--font-mono);
   font-size: var(--font-size-display);

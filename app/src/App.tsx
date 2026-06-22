@@ -5,6 +5,7 @@ import { WalletButton } from './components/WalletButton'
 import { config } from './lib/wagmi'
 import { queryClient } from './lib/queryClient'
 import { HomePage } from './routes/HomePage'
+import { Exec404Page } from './routes/Exec404Page'
 import styles from './App.module.css'
 
 export function App() {
@@ -19,6 +20,7 @@ export function App() {
           <main className={styles.main}>
             <Switch>
               <Route path="/" component={HomePage} />
+              <Route path="/exec404" component={Exec404Page} />
               <Route>
                 <section className={styles.notFound}>404 · NOT FOUND</section>
               </Route>

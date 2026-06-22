@@ -81,10 +81,17 @@ A red gate blocks merge. A gate that can't catch its violation is a bug in the g
 
 - **All** reads/writes go through wagmi hooks built on the generated bindings. No ad-hoc `fetch`
   to RPC, no hand-rolled adapters (that was micro-web3 — gone).
-- TanStack Query (via wagmi) is the only read cache. Query keys and the **tx-state convention**
-  (pending/success/error UX) are defined in Phase 1 and recorded back here — until then, no
-  bespoke caching or tx-state patterns.
-- Reads batch via multicall where wagmi supports it. No per-render RPC storms.
+- TanStack Query (via wagmi) is the only read cache. wagmi derives query keys from
+  `{address, abi, functionName, args, chainId}` — we don't hand-author keys.
+- **Tx-state convention (defined in Phase 1, `Exec404Trade.tsx`):** `useWriteContract` drives
+  submit; `useWaitForTransactionReceipt({ hash })` drives confirmation. Surface the real
+  transitions only — `confirm in wallet → confirming → success/error` — **no optimistic UI**.
+  Quote a write before sending (e.g. `calculateCost`) and apply an explicit slippage guard
+  (`maxCost`/`minRefund`). On confirmed success, **invalidate the query cache** so every dependent
+  read (price, supply, balance) refetches. Error text prefers viem's `shortMessage`.
+- Reads batch via multicall: prefer one `useReadContracts` over N `useReadContract` for a panel
+  (one `eth_call`). No per-render RPC storms. Reads that need an argument only when ready (e.g. a
+  user-address balance, a quote for a typed amount) gate with `query: { enabled }`.
 
 ## 8. Wallet rule (own the pixels, rent the plumbing, never touch the keys)
 
@@ -98,8 +105,14 @@ A red gate blocks merge. A gate that can't catch its violation is a bug in the g
 
 - `wagmi.config.ts` uses the `@wagmi/cli` **foundry** plugin against `/contracts` (ABIs from
   `out/`) + the **react** plugin → typed hooks into `app/src/generated/`.
-- Fork/deployment addresses flow in from `contracts.local.json`; `pnpm wagmi:generate` runs in the
-  dev loop on (re)deploy so bindings never go stale. Generation is deterministic (G7).
+- Fork/deployment addresses flow in from `app/src/config/local-deployment.json`, **regenerated
+  every deploy** by the viem dev-chain bridge (`pnpm chain:fork` + `chain:deploy`,
+  `app/scripts/dev-chain/`). Addresses are non-deterministic (`DeployAnvil` salts off
+  `block.timestamp`), so the committed copy is a zero-address placeholder; `pnpm wagmi:generate`
+  regenerates bindings on (re)deploy so they never go stale. Generation is deterministic (G7).
+- The **fossil** (EXEC404, a pre-factory genesis contract) is the exception: it carries a
+  hand-curated as-const ABI in `lib/exec404.ts` (not factory bindings) and is read at its mainnet
+  address — same on mainnet and fork. Dev reads/writes target the fork via `EXEC404_CHAIN_ID`.
 - Bindings are the contract↔frontend seam. The richer typed **domain layer** (profiles,
   collections, the 3 metadata scopes, modules, messages) is designed in Phase 2 and lives in
   `lib/` on top of the generated hooks. *(That domain layer is also NOEMA's API surface.)*

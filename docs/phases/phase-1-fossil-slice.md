@@ -49,11 +49,13 @@ state with zero new contract risk**, by building the first vertical on the grand
 3. Read strategy: multicall batching + TanStack Query cache keys convention.
 
 ## Task units
-- [ ] T1 — EXEC404 read model (typed) + collection page render. *(parallel-safe after bindings)*
-- [ ] T2 — Buy flow (approve if needed → buy → tx state). 
-- [ ] T3 — Sell flow.
-- [ ] T4 — Port brutalist styles for the page from the demo.
-- [ ] T5 — Establish tx-state + query-cache conventions (doc them in ARCHITECTURE).
+- [x] T1 — EXEC404 read model (typed) + collection page render. `lib/exec404.ts` (as-const ABI,
+  address, slippage/parse helpers) + `Exec404Stats.tsx` (one-multicall live state) + `Exec404Page`.
+- [x] T2 — Buy flow: live `calculateCost` quote → `buyBonding` payable w/ +1% `maxCost` → tx state.
+  (No ERC20 approve needed — DN404 spends from balance directly.)
+- [x] T3 — Sell flow: `calculateRefund` quote → `sellBonding` w/ −1% `minRefund`.
+- [x] T4 — Brutalist styles for the page (CSS Modules + tokens), graduated/bonding state surfaced.
+- [x] T5 — Tx-state + multicall/query-cache conventions documented in ARCHITECTURE §7.
 
 ## Exit criteria
 1. On the fork, buy and sell EXEC404 from the new UI; balances/price update correctly.
@@ -63,6 +65,22 @@ state with zero new contract risk**, by building the first vertical on the grand
 ## Verification
 - `/run` or recording of a buy + sell round-trip on the fork.
 - Side-by-side screenshot vs demo.
+
+## Slice status (2026-06-22)
+**Code complete; read+quote path verified live; trade tx is human-gated on an archive RPC.**
+- New surface: `/exec404` (linked from home) — `Exec404Page` = `Exec404Stats` (live
+  price/supply/bonding-supply/graduation/balance via one multicall) + `Exec404Trade` (buy/sell with
+  live quote, slippage guard, real tx-state, cache-invalidate on success).
+- **Verified on the fork:** `getTotalFactories`→3 (G8); EXEC404 reads real
+  (CULT EXECUTIVES / EXEC, totalBondingSupply 1.74e27, price ~8.8 gwei/EXEC); 4/4 Playwright pass
+  incl. two `@fork` specs (hello-chain + EXEC404 live read & quote). The buy ABI/args are correct
+  (quoted cost computes; tx well-formed).
+- **OPEN — exit criterion #1 (live buy/sell round-trip):** blocked by RPC archive access, NOT code.
+  The fork's upstream (root `.env` `MAINNET_RPC_URL` = publicnode) serves latest-block reads
+  (stats/quotes/deploy) but 403s on the cold EXEC404 storage a trade tx touches
+  ("Archive requests require a personal token"). Point the fork at an **archive** RPC
+  (`contracts/.env` `ETH_RPC_URL` looks like Alchemy) and the in-wallet buy+sell should complete.
+  This is the remaining human gate.
 
 ## Decision log
 - **2026-06-22 — task-zero scope = deploy bridge only (architect call).** Port the deploy +
@@ -76,4 +94,7 @@ state with zero new contract risk**, by building the first vertical on the grand
   the root-`ethers` dependency. Old ethers loop quarantined in `legacy/scripts/local-chain/`.
 
 ## Open questions
-- Is EXEC404 pre- or post-graduation on the fork seed, and does that change which calls the page makes?
+- ~~Is EXEC404 pre- or post-graduation, and does it change the calls?~~ **Resolved:** EXEC404 is a
+  custom DN404 genesis contract that is **graduated** (non-zero `liquidityPair`) yet the **bonding
+  curve is still live** — `calculateCost`/`calculateRefund` quote and `buyBonding`/`sellBonding`
+  work. The slice trades the bonding curve directly. `reserve()` reverts (custom error) — never read it.
