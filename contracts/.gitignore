@@ -36,6 +36,10 @@ foundry.lock
 # Claude Code
 .claude/
 
+# Local dev-chain deploy artifact — regenerated every `pnpm chain:deploy`, non-deterministic
+# addresses (CreateX salts derived from block.timestamp). Sepolia deployment records stay tracked.
+deployments/anvil.json
+
 # Reports
 reports/
 CLAUDE.md

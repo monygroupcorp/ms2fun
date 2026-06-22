@@ -3,11 +3,19 @@
 **Status:** Next (Phase 0 accepted 2026-06-22)
 **Depends on:** Phase 0 (foundation green)
 
-> **Phase 1, task ZERO (carried from Phase 0):** port the anvil deploy/seed dev loop from
-> ethers-v5 to viem, fixing the rot found in Phase 0 (missing root `ethers`, ERC404 seed
-> `createInstance(...)` ABI drift, non-deterministic addresses). This unblocks **live G8** (the
-> hello-chain read off the fork) AND is the precondition for the EXEC404 trade slice below. The
-> fork bridge should consume the freshly-written deploy config, not a committed snapshot.
+> **Phase 1, task ZERO (carried from Phase 0): ✅ DONE 2026-06-22 — code complete, live G8
+> pending a fork run.** Ported the anvil **deploy bridge** ethers-v5 → viem. Scope decided with
+> the architect = **deploy bridge only**: the demo-seed scenario zoo is NOT ported (rebuilt in
+> Phase 3 on the typed domain layer + real create flows). New loop lives at
+> `app/scripts/dev-chain/` (`pnpm chain:fork` starts the anvil mainnet-fork; `pnpm chain:deploy`
+> runs `DeployAnvil.s.sol` and writes the FRESH `app/src/config/local-deployment.json`). Root
+> cause of the "non-deterministic addresses" rot pinned: `DeployAnvil` derives CreateX salts from
+> `block.timestamp`, so the bridge regenerates the config every deploy (never a committed
+> snapshot) — the committed file is a zero-address placeholder for typecheck/build. The
+> `createInstance(...)` ABI drift lived purely in the seed layer (now quarantined in
+> `legacy/scripts/local-chain/`), so it is moot for the deploy-only scope. **Live G8** (hello-chain
+> reading `MasterRegistryV1.getTotalFactories` off the fork) is code-ready but still needs one
+> real `chain:fork` + `chain:deploy` run against `MAINNET_RPC_URL` to flip green.
 **Exit gate owner:** Mony
 
 > EXEC404 / Cult Execs can be viewed and traded (buy/sell) from the new frontend on the anvil
@@ -57,7 +65,15 @@ state with zero new contract risk**, by building the first vertical on the grand
 - Side-by-side screenshot vs demo.
 
 ## Decision log
-- _(empty)_
+- **2026-06-22 — task-zero scope = deploy bridge only (architect call).** Port the deploy +
+  fresh-config write to viem; defer the ~1800-line ethers seed scenario zoo to Phase 3 (rebuilt on
+  the typed viem domain layer). Rationale: leanest path that unblocks live G8; porting legacy seed
+  now would be remnant work Phase 3's wizard largely reshapes.
+- **2026-06-22 — fork bridge regenerates config; never a committed snapshot.** `DeployAnvil` uses
+  `block.timestamp`-derived CreateX salts → non-deterministic addresses. Committed
+  `local-deployment.json` is a zero-address placeholder so static gates pass without a fork.
+- **2026-06-22 — new loop is app-native (pnpm/viem/tsx) under `app/scripts/dev-chain/`,** killing
+  the root-`ethers` dependency. Old ethers loop quarantined in `legacy/scripts/local-chain/`.
 
 ## Open questions
 - Is EXEC404 pre- or post-graduation on the fork seed, and does that change which calls the page makes?

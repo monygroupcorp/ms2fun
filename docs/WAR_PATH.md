@@ -76,8 +76,11 @@ de-risking fact in the whole plan.
 - **Unified message system** — `GlobalMessageRegistry`, the activity/comment feed wired
   directly into instances, **with scope abilities** (account / collection / global scopes).
   **This MUST be preserved and carried forward** — it is core, not optional.
-- **The anvil mainnet-fork dev loop** — `scripts/local-chain/*` + `DeployAnvil.s.sol` + seed
-  scenarios. The crown jewel. Fully portable; reused as-is.
+- **The anvil mainnet-fork dev loop** — `DeployAnvil.s.sol` (Solidity owns the deploy) driven by
+  a viem bridge at `app/scripts/dev-chain/` (`chain:fork` + `chain:deploy`). The crown jewel.
+  The ethers-v5 deploy bridge + seed scenarios are quarantined in `legacy/scripts/local-chain/`;
+  the demo-seed world is rebuilt on the typed viem domain layer in Phase 3 (Phase 1 ported the
+  deploy bridge only).
 - **EXEC404 / Cult Executives** — the one live deployment, on the legacy alignment-vault model,
   **grandfathered forever.** Our fossil and our Phase 1 proving ground.
 

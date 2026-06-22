@@ -6,10 +6,12 @@ export const forkChainId = deployment.chainId as 1337
 const c = deployment.contracts
 
 /**
- * Deployed addresses on the local fork. Deterministic across redeploys (anvil CREATE from a
- * fixed deployer nonce), so this committed copy stays valid. Retired DAO contracts
- * (GrandCentral, GnosisSafe, ShareOffering, RevenueConductor, OTCShareEscrow — zero-addressed)
- * are intentionally excluded.
+ * Deployed addresses on the local fork. Addresses are NON-deterministic — DeployAnvil derives
+ * CreateX salts from block.timestamp — so this file is REGENERATED on every deploy by the
+ * dev-chain bridge (`pnpm chain:deploy`), not a stable committed snapshot. The committed copy is
+ * a zero-address placeholder so typecheck/build pass without a live fork; run the bridge to
+ * populate it. To keep the regenerated file out of git noise: `git update-index --skip-worktree
+ * app/src/config/local-deployment.json`. Retired DAO contracts are intentionally excluded.
  */
 export const forkAddresses = {
   MasterRegistryV1: c.MasterRegistryV1 as `0x${string}`,
