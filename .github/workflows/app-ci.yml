@@ -1,0 +1,68 @@
+name: app-ci
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # G1 — TypeScript strict, zero errors
+      - name: Typecheck (G1)
+        run: pnpm typecheck
+
+      # G2 — No `any`, no unexplained @ts-ignore
+      - name: Lint (G2)
+        run: pnpm lint
+
+      # G3 — Format clean
+      - name: Format check (G3)
+        run: pnpm format:check
+
+      # G4 — Unit tests green
+      - name: Test (G4)
+        run: pnpm test
+
+      # G5 — Production build succeeds
+      - name: Build (G5)
+        run: pnpm build
+
+      # G6 — No app/ → legacy/ imports (grep runs from repo root)
+      - name: No legacy imports (G6)
+        working-directory: ${{ github.workspace }}
+        run: "! grep -rEq \"from ['\\\"].*legacy/\" app/src"
+
+      # G7 (generated-code determinism) and G8 (e2e) are added in later tasks.
+      # Uncomment and enable once the relevant task is complete.
+      #
+      # Added in T3 (G7) / T5 (G8)
+      #
+      # - name: Regenerate wagmi bindings and verify determinism (G7)
+      #   run: pnpm wagmi:generate && git diff --exit-code app/src/generated
+      #
+      # - name: Hello-chain e2e (G8)
+      #   run: pnpm test:e2e

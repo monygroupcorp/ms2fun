@@ -167,6 +167,13 @@ Capture these so we tune the process before the big phases:
   `overrides: esbuild ^0.28`); pnpm 10 blocks esbuild's binary build (→ `onlyBuiltDependencies`).
   **Implication for later phases:** pin a coherent set / pre-resolve dep conflicts in the spec
   before fanning out to Sonnet; don't let agents `add` latest blindly.
+- **Wave 2 done:** T2a ESLint flat config (lead — encodes G2 no-any + G6/layering import boundaries),
+  T2c wagmi/viem config (lead — mainnet + anvil fork, injected-only) + test; T2b CI workflow
+  (sonnet) and T2d design tokens from the demos (sonnet). All gates green. **Pilot lesson #2 —
+  the Sonnet fan-out worked exactly where predicted:** both Sonnet tasks (isolated, mechanical —
+  a YAML mapping to gate commands; CSS values ported from demos) landed clean, file-disjoint, no
+  drift. Confirms the split: lead owns load-bearing/drift-prone config, Sonnet owns isolated
+  mechanical work. **Still TODO:** T3 (bindings + fork bridge, lead) before Wave 3's hello-chain.
 
 ## Open questions
 - Which forked contract + value is the cheapest reliable hello-chain read? (Likely EXEC404
