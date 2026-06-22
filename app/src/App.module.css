@@ -1,0 +1,30 @@
+.app {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--padding-lg);
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.brand {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.main {
+  display: block;
+}
+
+.notFound {
+  font-family: var(--font-mono);
+  padding: var(--padding-xl) var(--padding-lg);
+  color: var(--text-secondary);
+}

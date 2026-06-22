@@ -1,0 +1,36 @@
+.wallet {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.address {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  border: 2px solid var(--border-primary);
+  padding: var(--space-1) var(--space-2);
+}
+
+.button {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--bg-primary);
+  background: var(--text-primary);
+  border: 2px solid var(--text-primary);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-primary);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
