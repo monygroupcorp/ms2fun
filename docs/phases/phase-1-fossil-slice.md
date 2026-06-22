@@ -1,7 +1,13 @@
 # Phase 1 — Prove the Stack on the Fossil
 
-**Status:** Not started
+**Status:** Next (Phase 0 accepted 2026-06-22)
 **Depends on:** Phase 0 (foundation green)
+
+> **Phase 1, task ZERO (carried from Phase 0):** port the anvil deploy/seed dev loop from
+> ethers-v5 to viem, fixing the rot found in Phase 0 (missing root `ethers`, ERC404 seed
+> `createInstance(...)` ABI drift, non-deterministic addresses). This unblocks **live G8** (the
+> hello-chain read off the fork) AND is the precondition for the EXEC404 trade slice below. The
+> fork bridge should consume the freshly-written deploy config, not a committed snapshot.
 **Exit gate owner:** Mony
 
 > EXEC404 / Cult Execs can be viewed and traded (buy/sell) from the new frontend on the anvil

@@ -1,6 +1,6 @@
 # Phase 0 — Foundation & Constitution
 
-**Status:** Not started (planning — nailing down design decisions)
+**Status:** ✅ DONE — accepted by human 2026-06-22 (live G8 carried to Phase 1; see execution doc)
 **Depends on:** repo cleanup landed on `main`
 **Exit gate owner:** Mony (human acceptance)
 
