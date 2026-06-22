@@ -1,3 +1,4 @@
+import { HelloChain } from '../components/HelloChain'
 import styles from './HomePage.module.css'
 
 export function HomePage() {
@@ -5,6 +6,7 @@ export function HomePage() {
     <section className={styles.home}>
       <h1 className={styles.title}>ms2.fun</h1>
       <p className={styles.tagline}>the opinionated boutique launchpad</p>
+      <HelloChain />
     </section>
   )
 }

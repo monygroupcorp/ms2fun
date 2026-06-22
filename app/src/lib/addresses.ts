@@ -1,7 +1,7 @@
 import deployment from '../config/local-deployment.json'
 
-/** Chain id of the local anvil mainnet-fork (see ./wagmi.ts). */
-export const forkChainId = deployment.chainId
+/** Chain id of the local anvil mainnet-fork (see ./wagmi.ts) — literal-typed for wagmi hooks. */
+export const forkChainId = deployment.chainId as 1337
 
 const c = deployment.contracts
 

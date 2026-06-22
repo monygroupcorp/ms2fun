@@ -1,0 +1,21 @@
+.hello {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border: 2px solid var(--border-primary);
+  padding: var(--padding-md);
+  font-family: var(--font-mono);
+}
+
+.label {
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+}
+
+.value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
