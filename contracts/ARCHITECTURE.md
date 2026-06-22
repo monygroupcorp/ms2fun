@@ -2,6 +2,12 @@
 
 **Last Updated:** 2026-03-12
 
+> **⚠️ Legacy / fossil reference.** Documents the alignment-vault + Uniswap-LP + DAO
+> model we are RETIRING. Kept because **EXEC404 / Cult Executives (the one live, forever-
+> grandfathered deployment) runs on it.** New direction: simple Aave vault, thin
+> owner-operated multisig wrapper (no DAO). See root `CLAUDE.md` "North Star". Reference
+> for the fossil, not the plan of record.
+
 ---
 
 ## 1. Protocol Overview

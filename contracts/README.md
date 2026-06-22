@@ -1,5 +1,12 @@
 # ms2fun-contracts
 
+> **⚠️ Legacy / fossil reference.** This describes the alignment-vault + Uniswap-LP
+> model we are RETIRING (replaced by a simple Aave vault; DAO/governance replaced by a
+> thin owner-operated multisig wrapper). It is kept because **EXEC404 / Cult Executives
+> — the one live deployment — runs on this model and is grandfathered forever.** See the
+> root `CLAUDE.md` "North Star" for current direction. Treat this as reference for the
+> live fossil, not the plan of record.
+
 Solidity contracts for the ms2.fun protocol — a curated launchpad for derivative art and tokens aligned to established crypto communities. Artists create projects bound to alignment vaults that buy and LP the target community's token via Uniswap V4.
 
 ## How It Works

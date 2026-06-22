@@ -38,10 +38,14 @@ logs/
 .cursor/
 CLAUDE.md
 
-# Internal docs (promote to docs/public/ when ready)
+# Docs are scratch by default (kept local). Canonical docs are explicitly
+# un-ignored below; promote a doc by adding a !line and committing it.
 docs/*
 !docs/examples/
 !docs/public/
+!docs/NAMING_CONVENTIONS.md
+!docs/DESIGN_SYSTEM_V2.md
+!docs/STYLING_PROTECTION_PLAN.md
 
 # Root-level planning docs
 ABI_COVERAGE_REPORT.json
