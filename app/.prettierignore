@@ -3,4 +3,5 @@ coverage
 playwright-report
 test-results
 src/generated
+src/config/local-deployment.json
 pnpm-lock.yaml

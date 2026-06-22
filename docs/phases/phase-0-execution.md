@@ -173,7 +173,18 @@ Capture these so we tune the process before the big phases:
   the Sonnet fan-out worked exactly where predicted:** both Sonnet tasks (isolated, mechanical —
   a YAML mapping to gate commands; CSS values ported from demos) landed clean, file-disjoint, no
   drift. Confirms the split: lead owns load-bearing/drift-prone config, Sonnet owns isolated
-  mechanical work. **Still TODO:** T3 (bindings + fork bridge, lead) before Wave 3's hello-chain.
+  mechanical work.
+- **T3 done (lead):** `forge build` (skip test/script) → `wagmi.config.ts` (foundry plugin,
+  `forge.build:false`, scoped include of the 9 live contracts) → `pnpm wagmi:generate` → 8137-line
+  `app/src/generated/contracts.ts` (typed ABIs + read/write hooks). Fork bridge relocated into the
+  app at `app/src/config/local-deployment.json` (+ `lib/addresses.ts`) so it survives the T6
+  quarantine; addresses are deterministic across redeploys. **G7 verified** (two generations →
+  identical md5). **Pilot lesson #3 — strict TS catches real binding-layer bugs:** fork chain id is
+  **1337**, not anvil's 31337 (fixed `lib/wagmi.ts`); JSON-imported addresses type as `string` and
+  `noUncheckedIndexedAccess` rejected a `Record` cast → forced explicit per-field `0x${string}`
+  typing so no `undefined` leaks to consumers. Exactly the class of bug that ships silently without
+  the gates. **CI G7 stays commented** (needs forge in CI); enforced in the dev loop for now.
+  **Remaining:** Wave 3 (T4 connect UI, T5 hello-chain+e2e), Wave 4 (T6 quarantine, T7 accept).
 
 ## Open questions
 - Which forked contract + value is the cheapest reliable hello-chain read? (Likely EXEC404
