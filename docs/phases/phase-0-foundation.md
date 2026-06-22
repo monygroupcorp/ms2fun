@@ -37,19 +37,24 @@ that makes remnants structurally impossible** plus the written rules that keep i
 - Generated bindings via wagmi CLI from Foundry ABIs — no hand-rolled adapters. *(WAR_PATH)*
 - CSS Modules + CSS-variable design tokens for the main app. *(WAR_PATH)*
 - New app lives at `app/` in this monorepo; old `src/` quarantined to `legacy/`, deleted at parity.
+- **Wallet:** wagmi's built-in connectors (EIP-6963-native multi-injected discovery) + a
+  hand-authored brutalist connect UI. **No ConnectKit/RainbowKit; do not port the old custom
+  6963 connector** (wagmi covers it). Add `walletConnect` connector only if/when mobile/remote
+  wallets are needed. *Rationale: leanest path, full aesthetic control, less code than porting.*
+- **viem + wagmi confirmed** as the foundation — the ecosystem standard (wevm), actively
+  maintained; explicitly de-risks the bus-factor problem that killed bespoke micro-web3.
+- **Package manager:** pnpm (+ pinned Node version).
+- **Test stack:** Vitest (unit/component) + Playwright (e2e against the fork).
+- **CI:** GitHub Actions, gating the Definition of Done (typecheck + lint + test + build).
+- **Bindings ↔ fork bridge:** generate bindings/typed config in the dev loop from
+  `contracts.local.json` + ABIs (live, never stale) — not committed artifacts.
+- **Generated code:** `app/src/generated/**`, lint-ignored, never hand-edited.
 
 **Open (resolve at the lock gate):**
-1. **Wallet kit** — RainbowKit vs ConnectKit vs Reown/Web3Modal vs hand-rolled. Trade-off:
-   polish/onboarding vs brutalist control + bundle. (Brutalism may favor a themed ConnectKit or
-   a thin custom connector over RainbowKit's rounded aesthetic.)
-2. **Router** — TanStack Router (type-safe, heavier) vs React Router v6 (standard) vs wouter
-   (minimal). Static SPA; type-safety is on-brand.
-3. **Package manager / Node** — pnpm (recommended) vs npm; Node version pin.
-4. **Test stack** — Vitest (unit/component) + Playwright (e2e against the fork)? Confirm.
-5. **CI host** — GitHub Actions (repo deploys to GitHub Pages today). Confirm + what gates block merge.
-6. **Bindings + fork bridge** — how `contracts.local.json` (fork addresses) + ABIs become a
-   typed, generated config the app imports. (Generate step in dev loop vs committed artifacts.)
-7. **Generated code location & boundary** — `app/src/generated/**`, lint-ignored, never edited by hand.
+1. **Router** — **wouter** (~1.5KB, leanest; recommended for ~4 routes) vs **TanStack Router**
+   (fully type-safe routes/search; pairs with the TanStack Query wagmi already pulls in) vs
+   React Router (standard). Note: TanStack Router is unrelated to viem. Leaning wouter unless we
+   want type-safe URL state (e.g. wizard step).
 
 ## Task units
 - [ ] T0 — Write `docs/ARCHITECTURE.md` (depends on the Open decisions being locked).
@@ -75,7 +80,10 @@ that makes remnants structurally impossible** plus the written rules that keep i
 - Human review of `ARCHITECTURE.md`.
 
 ## Decision log
-- _(empty — populate as Open decisions are locked)_
+- Wallet: wagmi native 6963 connectors + custom brutalist UI; no kit, no ported connector.
+- Stack confirmed: viem/wagmi (ecosystem standard), pnpm, Vitest+Playwright, GitHub Actions.
+- Bindings generated in the dev loop (live); generated code isolated to `app/src/generated/**`.
+- Remaining open: router (wouter vs TanStack Router).
 
 ## Open questions
 - See Design decisions → Open (1–7). These are the immediate "nail it down" items.
