@@ -185,6 +185,23 @@ Capture these so we tune the process before the big phases:
   typing so no `undefined` leaks to consumers. Exactly the class of bug that ships silently without
   the gates. **CI G7 stays commented** (needs forge in CI); enforced in the dev loop for now.
   **Remaining:** Wave 3 (T4 connect UI, T5 hello-chain+e2e), Wave 4 (T6 quarantine, T7 accept).
+- **T4 done (lead):** providers (Wagmi + QueryClient) + brutalist `WalletButton` on wagmi headless
+  hooks (EIP-6963 connectors) + wouter router shell. Gates green.
+- **T5 code done (lead):** `HelloChain` reads MasterRegistry total-factory count via the generated
+  typed hook with honest pending/error/empty states; Playwright e2e scaffold (`@fork`-tagged G8).
+  Gates green. **Live G8 NOT demonstrated** — see lesson #4.
+- **T6 done (lead):** `git mv src legacy` (390 files). app/ gates green after move; G6 clean.
+- **Pilot lesson #4 — the legacy ethers-v5 deploy/seed dev loop is rotted.** Poking the fork: it
+  starts fine (real mainnet block), but the deploy needs `ethers` (absent at root), the ERC404
+  seed crashes on a `createInstance(...)` ABI-signature drift, and addresses are **non-deterministic**
+  across runs (so a committed address snapshot is unreliable). This is exactly the dev loop the war
+  path plans to **port to viem in Phase 1** — and that port is the unblock for live G8. Confirms the
+  reuse-the-anvil-spine-but-rewrite-the-seed plan.
+- **PHASE 0 STATUS:** foundation complete, every static gate green (typecheck/lint/format/test/build
+  + G6 + G7 determinism), constitution accepted, legacy quarantined. The **only** unmet exit
+  criterion is the **live** hello-chain read (G8), blocked on the Phase-1 dev-loop port — the code
+  for it exists and type-checks. Recommend accepting Phase 0 with live-G8 carried as the first
+  Phase-1 task.
 
 ## Open questions
 - Which forked contract + value is the cheapest reliable hello-chain read? (Likely EXEC404
