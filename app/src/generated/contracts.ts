@@ -6,6 +6,480 @@ import {
 } from 'wagmi/codegen'
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// AlignmentEndowmentVault
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const alignmentEndowmentVaultAbi = [
+  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'MATURITY_DURATION',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'accumulatedFees',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'alignmentToken',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'calculateClaimableAmount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimFees',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    name: 'claimFeesAsDelegate',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'communityPayout',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'currentPolicy',
+    outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'delegateBenefactor',
+    outputs: [],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'depositTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'description',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'getBenefactorContribution',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'getBenefactorDelegate',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'getBenefactorShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'harvest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_owner', internalType: 'address', type: 'address' },
+      { name: '_weth', internalType: 'address', type: 'address' },
+      { name: '_stataToken', internalType: 'address', type: 'address' },
+      { name: '_protocolTreasury', internalType: 'address', type: 'address' },
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+      { name: '_alignmentToken', internalType: 'address', type: 'address' },
+      { name: '_communityPayout', internalType: 'address', type: 'address' },
+    ],
+    name: 'initialize',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'to', internalType: 'address', type: 'address' }],
+    name: 'migratePosition',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'principal',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'currency', internalType: 'Currency', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'benefactor', internalType: 'address', type: 'address' },
+    ],
+    name: 'receiveContribution',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'payout', internalType: 'address', type: 'address' }],
+    name: 'setCommunityPayout',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stataToken',
+    outputs: [
+      { name: '', internalType: 'contract IStataToken', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'capability', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'supportsCapability',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalPrincipal',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'validateCompliance',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'vaultType',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'contract IWETH', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'withdrawPrincipal',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'payout',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'CommunityPayoutUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'benefactor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ContributionReceived',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FeesAccumulated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'benefactor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'ethAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FeesClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'yield',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'community',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'Harvested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Migrated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'benefactor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      { name: 'matured', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'PrincipalWithdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'key', internalType: 'bytes32', type: 'bytes32', indexed: true },
+      { name: 'value', internalType: 'bytes', type: 'bytes', indexed: false },
+    ],
+    name: 'VaultPolicyUpdated',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AmountMismatch' },
+  { type: 'error', inputs: [], name: 'AmountMustBePositive' },
+  { type: 'error', inputs: [], name: 'BenefactorNotContract' },
+  { type: 'error', inputs: [], name: 'CommunityPayoutNotSet' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'NativeOnly' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoPrincipal' },
+  { type: 'error', inputs: [], name: 'NotAuthorized' },
+  { type: 'error', inputs: [], name: 'NotSupported' },
+  { type: 'error', inputs: [], name: 'RedeemShortfall' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // AlignmentRegistryV1
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3726,6 +4200,107 @@ export const iGlobalMessageRegistryAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IOwnable
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iOwnableAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IStataToken
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iStataTokenAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'asset',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    name: 'convertToAssets',
+    outputs: [{ name: 'assets', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'assets', internalType: 'uint256', type: 'uint256' },
+      { name: 'receiver', internalType: 'address', type: 'address' },
+    ],
+    name: 'deposit',
+    outputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'maxWithdraw',
+    outputs: [{ name: 'assets', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'assets', internalType: 'uint256', type: 'uint256' },
+      { name: 'receiver', internalType: 'address', type: 'address' },
+      { name: 'owner', internalType: 'address', type: 'address' },
+    ],
+    name: 'withdraw',
+    outputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IWETH
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iwethAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'deposit',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'withdraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // MasterRegistryV1
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -5010,6 +5585,561 @@ export const queryAggregatorAbi = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // React
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__
+ */
+export const useReadAlignmentEndowmentVault =
+  /*#__PURE__*/ createUseReadContract({ abi: alignmentEndowmentVaultAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"MATURITY_DURATION"`
+ */
+export const useReadAlignmentEndowmentVaultMaturityDuration =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'MATURITY_DURATION',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"accumulatedFees"`
+ */
+export const useReadAlignmentEndowmentVaultAccumulatedFees =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'accumulatedFees',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"alignmentToken"`
+ */
+export const useReadAlignmentEndowmentVaultAlignmentToken =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'alignmentToken',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"calculateClaimableAmount"`
+ */
+export const useReadAlignmentEndowmentVaultCalculateClaimableAmount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'calculateClaimableAmount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"claimFees"`
+ */
+export const useReadAlignmentEndowmentVaultClaimFees =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'claimFees',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"claimFeesAsDelegate"`
+ */
+export const useReadAlignmentEndowmentVaultClaimFeesAsDelegate =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'claimFeesAsDelegate',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"communityPayout"`
+ */
+export const useReadAlignmentEndowmentVaultCommunityPayout =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'communityPayout',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"currentPolicy"`
+ */
+export const useReadAlignmentEndowmentVaultCurrentPolicy =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'currentPolicy',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"delegateBenefactor"`
+ */
+export const useReadAlignmentEndowmentVaultDelegateBenefactor =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'delegateBenefactor',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"depositTime"`
+ */
+export const useReadAlignmentEndowmentVaultDepositTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'depositTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"description"`
+ */
+export const useReadAlignmentEndowmentVaultDescription =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'description',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"getBenefactorContribution"`
+ */
+export const useReadAlignmentEndowmentVaultGetBenefactorContribution =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'getBenefactorContribution',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"getBenefactorDelegate"`
+ */
+export const useReadAlignmentEndowmentVaultGetBenefactorDelegate =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'getBenefactorDelegate',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"getBenefactorShares"`
+ */
+export const useReadAlignmentEndowmentVaultGetBenefactorShares =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'getBenefactorShares',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadAlignmentEndowmentVaultMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadAlignmentEndowmentVaultOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadAlignmentEndowmentVaultOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"principal"`
+ */
+export const useReadAlignmentEndowmentVaultPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'principal',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadAlignmentEndowmentVaultProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"stataToken"`
+ */
+export const useReadAlignmentEndowmentVaultStataToken =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'stataToken',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"supportsCapability"`
+ */
+export const useReadAlignmentEndowmentVaultSupportsCapability =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'supportsCapability',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalPrincipal"`
+ */
+export const useReadAlignmentEndowmentVaultTotalPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalPrincipal',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalShares"`
+ */
+export const useReadAlignmentEndowmentVaultTotalShares =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalShares',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"validateCompliance"`
+ */
+export const useReadAlignmentEndowmentVaultValidateCompliance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'validateCompliance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vaultType"`
+ */
+export const useReadAlignmentEndowmentVaultVaultType =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'vaultType',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadAlignmentEndowmentVaultWeth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__
+ */
+export const useWriteAlignmentEndowmentVault =
+  /*#__PURE__*/ createUseWriteContract({ abi: alignmentEndowmentVaultAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteAlignmentEndowmentVaultCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteAlignmentEndowmentVaultCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"harvest"`
+ */
+export const useWriteAlignmentEndowmentVaultHarvest =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'harvest',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"initialize"`
+ */
+export const useWriteAlignmentEndowmentVaultInitialize =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'initialize',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"migratePosition"`
+ */
+export const useWriteAlignmentEndowmentVaultMigratePosition =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'migratePosition',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"receiveContribution"`
+ */
+export const useWriteAlignmentEndowmentVaultReceiveContribution =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'receiveContribution',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteAlignmentEndowmentVaultRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteAlignmentEndowmentVaultRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"setCommunityPayout"`
+ */
+export const useWriteAlignmentEndowmentVaultSetCommunityPayout =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'setCommunityPayout',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteAlignmentEndowmentVaultTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"withdrawPrincipal"`
+ */
+export const useWriteAlignmentEndowmentVaultWithdrawPrincipal =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'withdrawPrincipal',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__
+ */
+export const useSimulateAlignmentEndowmentVault =
+  /*#__PURE__*/ createUseSimulateContract({ abi: alignmentEndowmentVaultAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateAlignmentEndowmentVaultCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateAlignmentEndowmentVaultCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"harvest"`
+ */
+export const useSimulateAlignmentEndowmentVaultHarvest =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'harvest',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"initialize"`
+ */
+export const useSimulateAlignmentEndowmentVaultInitialize =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'initialize',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"migratePosition"`
+ */
+export const useSimulateAlignmentEndowmentVaultMigratePosition =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'migratePosition',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"receiveContribution"`
+ */
+export const useSimulateAlignmentEndowmentVaultReceiveContribution =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'receiveContribution',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateAlignmentEndowmentVaultRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateAlignmentEndowmentVaultRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"setCommunityPayout"`
+ */
+export const useSimulateAlignmentEndowmentVaultSetCommunityPayout =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'setCommunityPayout',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateAlignmentEndowmentVaultTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"withdrawPrincipal"`
+ */
+export const useSimulateAlignmentEndowmentVaultWithdrawPrincipal =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'withdrawPrincipal',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__
+ */
+export const useWatchAlignmentEndowmentVaultEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: alignmentEndowmentVaultAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"CommunityPayoutUpdated"`
+ */
+export const useWatchAlignmentEndowmentVaultCommunityPayoutUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'CommunityPayoutUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"ContributionReceived"`
+ */
+export const useWatchAlignmentEndowmentVaultContributionReceivedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'ContributionReceived',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"FeesAccumulated"`
+ */
+export const useWatchAlignmentEndowmentVaultFeesAccumulatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'FeesAccumulated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"FeesClaimed"`
+ */
+export const useWatchAlignmentEndowmentVaultFeesClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'FeesClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"Harvested"`
+ */
+export const useWatchAlignmentEndowmentVaultHarvestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'Harvested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"Migrated"`
+ */
+export const useWatchAlignmentEndowmentVaultMigratedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'Migrated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchAlignmentEndowmentVaultOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchAlignmentEndowmentVaultOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchAlignmentEndowmentVaultOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"PrincipalWithdrawn"`
+ */
+export const useWatchAlignmentEndowmentVaultPrincipalWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'PrincipalWithdrawn',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"VaultPolicyUpdated"`
+ */
+export const useWatchAlignmentEndowmentVaultVaultPolicyUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'VaultPolicyUpdated',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__
@@ -8918,6 +10048,170 @@ export const useReadIGlobalMessageRegistryMessageCount =
     abi: iGlobalMessageRegistryAbi,
     functionName: 'messageCount',
   })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOwnableAbi}__
+ */
+export const useReadIOwnable = /*#__PURE__*/ createUseReadContract({
+  abi: iOwnableAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOwnableAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadIOwnableOwner = /*#__PURE__*/ createUseReadContract({
+  abi: iOwnableAbi,
+  functionName: 'owner',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__
+ */
+export const useReadIStataToken = /*#__PURE__*/ createUseReadContract({
+  abi: iStataTokenAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"asset"`
+ */
+export const useReadIStataTokenAsset = /*#__PURE__*/ createUseReadContract({
+  abi: iStataTokenAbi,
+  functionName: 'asset',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"balanceOf"`
+ */
+export const useReadIStataTokenBalanceOf = /*#__PURE__*/ createUseReadContract({
+  abi: iStataTokenAbi,
+  functionName: 'balanceOf',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"convertToAssets"`
+ */
+export const useReadIStataTokenConvertToAssets =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iStataTokenAbi,
+    functionName: 'convertToAssets',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"maxWithdraw"`
+ */
+export const useReadIStataTokenMaxWithdraw =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iStataTokenAbi,
+    functionName: 'maxWithdraw',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStataTokenAbi}__
+ */
+export const useWriteIStataToken = /*#__PURE__*/ createUseWriteContract({
+  abi: iStataTokenAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useWriteIStataTokenDeposit = /*#__PURE__*/ createUseWriteContract({
+  abi: iStataTokenAbi,
+  functionName: 'deposit',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useWriteIStataTokenWithdraw = /*#__PURE__*/ createUseWriteContract(
+  { abi: iStataTokenAbi, functionName: 'withdraw' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStataTokenAbi}__
+ */
+export const useSimulateIStataToken = /*#__PURE__*/ createUseSimulateContract({
+  abi: iStataTokenAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useSimulateIStataTokenDeposit =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: iStataTokenAbi,
+    functionName: 'deposit',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStataTokenAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useSimulateIStataTokenWithdraw =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: iStataTokenAbi,
+    functionName: 'withdraw',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iwethAbi}__
+ */
+export const useWriteIweth = /*#__PURE__*/ createUseWriteContract({
+  abi: iwethAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iwethAbi}__ and `functionName` set to `"approve"`
+ */
+export const useWriteIwethApprove = /*#__PURE__*/ createUseWriteContract({
+  abi: iwethAbi,
+  functionName: 'approve',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iwethAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useWriteIwethDeposit = /*#__PURE__*/ createUseWriteContract({
+  abi: iwethAbi,
+  functionName: 'deposit',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iwethAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useWriteIwethWithdraw = /*#__PURE__*/ createUseWriteContract({
+  abi: iwethAbi,
+  functionName: 'withdraw',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iwethAbi}__
+ */
+export const useSimulateIweth = /*#__PURE__*/ createUseSimulateContract({
+  abi: iwethAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iwethAbi}__ and `functionName` set to `"approve"`
+ */
+export const useSimulateIwethApprove = /*#__PURE__*/ createUseSimulateContract({
+  abi: iwethAbi,
+  functionName: 'approve',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iwethAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useSimulateIwethDeposit = /*#__PURE__*/ createUseSimulateContract({
+  abi: iwethAbi,
+  functionName: 'deposit',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iwethAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useSimulateIwethWithdraw = /*#__PURE__*/ createUseSimulateContract(
+  { abi: iwethAbi, functionName: 'withdraw' },
+)
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link masterRegistryV1Abi}__
