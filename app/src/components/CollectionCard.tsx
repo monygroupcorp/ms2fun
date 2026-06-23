@@ -33,36 +33,40 @@ export function CollectionCard({ card }: CollectionCardProps) {
 
   return (
     <article className={styles.card}>
-      <div className={styles.cardImage}>
-        {metadata?.image ? (
-          <img src={resolveUri(metadata.image)} alt={title} className={styles.cardImg} />
-        ) : (
-          fallbackGlyph
-        )}
-      </div>
-      <div className={styles.cardContent}>
-        <div className={styles.cardHead}>
-          <h3 className={styles.cardTitle}>{title}</h3>
-          <span className="badge">{card.contractType}</span>
+      <Link href={`/collection/${card.instance}`} className={styles.cardLink}>
+        <div className={styles.cardImage}>
+          {metadata?.image ? (
+            <img src={resolveUri(metadata.image)} alt={title} className={styles.cardImg} />
+          ) : (
+            fallbackGlyph
+          )}
         </div>
-        {metadata?.description && <p className={styles.cardDescription}>{metadata.description}</p>}
-        <div className={styles.cardStats}>
-          <span className={styles.statSecondary}>price</span>
-          <span className={styles.statMono}>{formatGwei(card.currentPrice)} gwei</span>
+        <div className={styles.cardContent}>
+          <div className={styles.cardHead}>
+            <h3 className={styles.cardTitle}>{title}</h3>
+            <span className="badge">{card.contractType}</span>
+          </div>
+          {metadata?.description && (
+            <p className={styles.cardDescription}>{metadata.description}</p>
+          )}
+          <div className={styles.cardStats}>
+            <span className={styles.statSecondary}>price</span>
+            <span className={styles.statMono}>{formatGwei(card.currentPrice)} gwei</span>
+          </div>
+          <div className={styles.cardStats}>
+            <span className={styles.statSecondary}>supply</span>
+            <span className={styles.statMono}>{card.totalSupply.toString()}</span>
+          </div>
+          <span className={`badge ${card.isActive ? 'badge-solid' : ''} ${styles.state}`}>
+            {card.isActive ? 'active' : 'inactive'}
+          </span>
         </div>
-        <div className={styles.cardStats}>
-          <span className={styles.statSecondary}>supply</span>
-          <span className={styles.statMono}>{card.totalSupply.toString()}</span>
-        </div>
-        <span className={`badge ${card.isActive ? 'badge-solid' : ''} ${styles.state}`}>
-          {card.isActive ? 'active' : 'inactive'}
-        </span>
-        <div className={styles.cardCreator}>
-          <span className={styles.statSecondary}>by</span>{' '}
-          <Link href={`/profile/${card.creator}`} className={styles.creatorLink}>
-            {truncateAddress(card.creator)}
-          </Link>
-        </div>
+      </Link>
+      <div className={styles.cardCreator}>
+        <span className={styles.statSecondary}>by</span>{' '}
+        <Link href={`/profile/${card.creator}`} className={styles.creatorLink}>
+          {truncateAddress(card.creator)}
+        </Link>
       </div>
     </article>
   )

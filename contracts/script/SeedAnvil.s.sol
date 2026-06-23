@@ -63,9 +63,11 @@ contract SeedAnvil is Script {
             "MS2 Labs", "ms2labs",
             "Building the lean onchain launchpad. Alignment is the product.", "M"));
 
-        // Deployer activity (POST=0 to own wall: instance == sender). Lights up the message feed.
+        // Deployer activity (POST=0 to own wall: instance == sender). Lights up the profile feed.
         _post(messages, deployer, "gm. neon-drift is live and aligned to MS2.");
         _post(messages, deployer, "the vault is the product. alignment compounds.");
+        // A post to a COLLECTION channel (instance == c0) so the collection-detail feed renders too.
+        _post(messages, c0, "first drop. minting is open.");
 
         vm.stopBroadcast();
 
@@ -76,9 +78,10 @@ contract SeedAnvil is Script {
             "Vela", "vela",
             "Collector. Aligned to the cult.", "V"));
         _post(messages, acct1, "minted from monolith. clean.");
+        _post(messages, c0, "grabbed one from neon-drift. love the aberration.");
         vm.stopBroadcast();
 
-        console.log("Seeded 3 collections + 2 profiles + 3 messages. ERC1155 factory:", address(factory));
+        console.log("Seeded 3 collections + 2 profiles + 5 messages. ERC1155 factory:", address(factory));
     }
 
     function _createCollection(

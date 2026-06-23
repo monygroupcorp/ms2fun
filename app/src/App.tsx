@@ -8,6 +8,7 @@ import { HomePage } from './routes/HomePage'
 import { Exec404Page } from './routes/Exec404Page'
 import { CollectionsPage } from './routes/CollectionsPage'
 import { ProfilePage } from './routes/ProfilePage'
+import { CollectionPage } from './routes/CollectionPage'
 import styles from './App.module.css'
 
 export function App() {
@@ -37,6 +38,7 @@ export function App() {
               <Route path="/" component={HomePage} />
               <Route path="/exec404" component={Exec404Page} />
               <Route path="/collections" component={CollectionsPage} />
+              <Route path="/collection/:instance" component={CollectionPage} />
               <Route path="/profile" component={ProfilePage} />
               <Route path="/profile/:address" component={ProfilePage} />
               <Route>
