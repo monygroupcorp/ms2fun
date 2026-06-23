@@ -94,7 +94,11 @@ state with zero new contract risk**, by building the first vertical on the grand
   the root-`ethers` dependency. Old ethers loop quarantined in `legacy/scripts/local-chain/`.
 
 ## Open questions
-- ~~Is EXEC404 pre- or post-graduation, and does it change the calls?~~ **Resolved:** EXEC404 is a
-  custom DN404 genesis contract that is **graduated** (non-zero `liquidityPair`) yet the **bonding
-  curve is still live** — `calculateCost`/`calculateRefund` quote and `buyBonding`/`sellBonding`
-  work. The slice trades the bonding curve directly. `reserve()` reverts (custom error) — never read it.
+- ~~Is EXEC404 pre- or post-graduation, and does it change the calls?~~ **Resolved (corrected
+  2026-06-23):** EXEC404 is a DN404 genesis contract that **graduated** and its **bonding curve is
+  CLOSED** — `buyBonding` reverts `"Presale ended"` (earlier "still live" claim was wrong: it was
+  inferred from `calculateCost` returning a *view* value, but a buy was never executed until archive
+  access landed). It now trades on a **Uniswap V2** pool (`liquidityPair` 0xd158…), via fee-on-
+  transfer swap variants (~4% DN404 tax). `reserve()` reverts (custom error) — never read it.
+  → The slice's `buyBonding`/`sellBonding` path is wrong for current state; trade-UX direction is
+  **[[../HUMAN_GATES.md]] G-D** (read-only + Uniswap link-out vs full in-app V2 swap).
