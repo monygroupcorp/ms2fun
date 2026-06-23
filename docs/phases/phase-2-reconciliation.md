@@ -59,7 +59,12 @@ consume, and add the one new economic piece (the Aave vault).
   design locked in [ADR-0004](../decisions/0004-metadata-model.md); backend-free types built
   (`app/src/lib/metadata/{schemas,uri,encode}.ts`: lenient parsers + data-URI encode); the NEW
   account scope realized as the ownerless `ProfileRegistry` contract (`address → profileURI`).
-- [ ] T3 — Module option schema design → written spec + types.
+- [x] T3 — Module option schema design → written spec + types. **DONE 2026-06-23** —
+  [ADR-0005](../decisions/0005-module-option-schema.md): hybrid source (on-chain ComponentRegistry
+  enumerates modules + `configType`; client holds typed config forms + hand-authored factory
+  descriptors), generic declarative `FieldSchema` + shared evaluator, vault slot modelled (provider
+  pending T4). Types in `app/src/lib/wizard/` (schema/projectTypes/configTypes/useApprovedModules);
+  live `useApprovedModules` verified on the fork (gating→3, liquidity→3, vault→0).
 - [ ] T4 — Aave vault: select base, implement 20/20/1 + maturity, Foundry tests. *(deferred by
   Mony — app-facing work first.)*
 - [~] T5 — Typed domain layer over bindings (profiles/collections/metadata/modules/messages).
