@@ -54,6 +54,13 @@ export const alignmentRegistryV1Abi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'communityPayout',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'pendingOwner', internalType: 'address', type: 'address' },
     ],
@@ -113,6 +120,13 @@ export const alignmentRegistryV1Abi = [
     inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
     name: 'getAmbassadors',
     outputs: [{ name: '', internalType: 'address[]', type: 'address[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
+    name: 'getCommunityPayout',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -224,6 +238,16 @@ export const alignmentRegistryV1Abi = [
     name: 'requestOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'payout', internalType: 'address', type: 'address' },
+    ],
+    name: 'setCommunityPayout',
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -340,6 +364,25 @@ export const alignmentRegistryV1Abi = [
       },
     ],
     name: 'AmbassadorRemoved',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'payout',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'CommunityPayoutSet',
   },
   {
     type: 'event',
@@ -971,6 +1014,875 @@ export const erc1155FactoryAbi = [
   { type: 'error', inputs: [], name: 'UnapprovedComponent' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'VaultMustBeContract' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ERC1155Instance
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const erc1155InstanceAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_name', internalType: 'string', type: 'string' },
+      { name: '_creator', internalType: 'address', type: 'address' },
+      { name: '_factory', internalType: 'address', type: 'address' },
+      { name: '_vault', internalType: 'address', type: 'address' },
+      { name: '_styleUri', internalType: 'string', type: 'string' },
+      {
+        name: '_init',
+        internalType: 'struct ERC1155Instance.InstanceInit',
+        type: 'tuple',
+        components: [
+          {
+            name: 'globalMessageRegistry',
+            internalType: 'address',
+            type: 'address',
+          },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'masterRegistry', internalType: 'address', type: 'address' },
+          { name: 'gatingModule', internalType: 'address', type: 'address' },
+          {
+            name: 'dynamicPricingModule',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'weth', internalType: 'address', type: 'address' },
+        ],
+      },
+      { name: '_agentCreated', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pieceTitle', internalType: 'string', type: 'string' },
+      { name: 'basePrice', internalType: 'uint256', type: 'uint256' },
+      { name: 'supply', internalType: 'uint256', type: 'uint256' },
+      { name: 'metadataURI', internalType: 'string', type: 'string' },
+      {
+        name: 'pricingModel',
+        internalType: 'enum ERC1155Instance.PricingModel',
+        type: 'uint8',
+      },
+      { name: 'priceIncreaseRate', internalType: 'uint256', type: 'uint256' },
+      { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'addEdition',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'agentDelegationEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'calculateMintCost',
+    outputs: [{ name: 'totalCost', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimAllFees',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'gatingData', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'claimFreeMint',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimVaultFees',
+    outputs: [
+      { name: 'totalClaimed', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'creator',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'dynamicPricingModule',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IDynamicPricingModule',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'editions',
+    outputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'pieceTitle', internalType: 'string', type: 'string' },
+      { name: 'basePrice', internalType: 'uint256', type: 'uint256' },
+      { name: 'supply', internalType: 'uint256', type: 'uint256' },
+      { name: 'minted', internalType: 'uint256', type: 'uint256' },
+      { name: 'metadataURI', internalType: 'string', type: 'string' },
+      {
+        name: 'pricingModel',
+        internalType: 'enum ERC1155Instance.PricingModel',
+        type: 'uint8',
+      },
+      { name: 'priceIncreaseRate', internalType: 'uint256', type: 'uint256' },
+      { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'factory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'freeMintAllocation',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'freeMintClaimed',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'freeMintsClaimed',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'gatingModule',
+    outputs: [
+      { name: '', internalType: 'contract IGatingModule', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'gatingScope',
+    outputs: [{ name: '', internalType: 'enum GatingScope', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getAllEditionIds',
+    outputs: [
+      { name: 'editionIds', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
+    name: 'getCurrentPrice',
+    outputs: [{ name: 'price', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'editionId', internalType: 'uint256', type: 'uint256' }],
+    name: 'getEdition',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct ERC1155Instance.Edition',
+        type: 'tuple',
+        components: [
+          { name: 'id', internalType: 'uint256', type: 'uint256' },
+          { name: 'pieceTitle', internalType: 'string', type: 'string' },
+          { name: 'basePrice', internalType: 'uint256', type: 'uint256' },
+          { name: 'supply', internalType: 'uint256', type: 'uint256' },
+          { name: 'minted', internalType: 'uint256', type: 'uint256' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+          {
+            name: 'pricingModel',
+            internalType: 'enum ERC1155Instance.PricingModel',
+            type: 'uint8',
+          },
+          {
+            name: 'priceIncreaseRate',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getEditionCount',
+    outputs: [{ name: 'count', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getGlobalMessageRegistry',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'globalMessageRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IGlobalMessageRegistry',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'allocation', internalType: 'uint256', type: 'uint256' },
+      { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
+    ],
+    name: 'initializeFreeMint',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'instanceType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'isApprovedForAll',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newVault', internalType: 'address', type: 'address' }],
+    name: 'migrateVault',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'gatingData', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'messageData', internalType: 'bytes', type: 'bytes' },
+      { name: 'maxCost', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'mint',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'name',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'nextEditionId',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'pendingVaultCut',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'retryVaultContribution',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'amounts', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeBatchTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'enabled', internalType: 'bool', type: 'bool' }],
+    name: 'setAgentDelegation',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'approved', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setApprovalForAll',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setStyle',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'styleUri',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalProceeds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalWithdrawn',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'metadataURI', internalType: 'string', type: 'string' },
+    ],
+    name: 'updateEditionMetadata',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'vault',
+    outputs: [
+      { name: '', internalType: 'contract IAlignmentVault', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'withdraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'account',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'operator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'approved', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'ApprovalForAll',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ETHTransferFallbackToWETH',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'pieceTitle',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+      {
+        name: 'basePrice',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'supply',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'pricingModel',
+        internalType: 'enum ERC1155Instance.PricingModel',
+        type: 'uint8',
+        indexed: false,
+      },
+    ],
+    name: 'EditionAdded',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'metadataURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'EditionMetadataUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+    ],
+    name: 'FreeMintClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'totalCost',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Minted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newState',
+        internalType: 'bytes32',
+        type: 'bytes32',
+        indexed: true,
+      },
+    ],
+    name: 'StateChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'operator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'ids',
+        internalType: 'uint256[]',
+        type: 'uint256[]',
+        indexed: false,
+      },
+      {
+        name: 'values',
+        internalType: 'uint256[]',
+        type: 'uint256[]',
+        indexed: false,
+      },
+    ],
+    name: 'TransferBatch',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'operator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: false },
+      {
+        name: 'value',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'TransferSingle',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionFailed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionRetried',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'artistAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'vaultCut',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'protocolCut',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Withdrawn',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AmountMustBePositive' },
+  { type: 'error', inputs: [], name: 'DynamicPricingRequiresIncreaseRate' },
+  { type: 'error', inputs: [], name: 'ERC1155RejectedTokens' },
+  { type: 'error', inputs: [], name: 'EditionLimitReached' },
+  { type: 'error', inputs: [], name: 'EditionNotFound' },
+  { type: 'error', inputs: [], name: 'EditionNotOpen' },
+  { type: 'error', inputs: [], name: 'EditionSoldOut' },
+  { type: 'error', inputs: [], name: 'ExceedsMaxCost' },
+  { type: 'error', inputs: [], name: 'ExceedsSupply' },
+  { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
+  { type: 'error', inputs: [], name: 'FreeMintDisabled' },
+  { type: 'error', inputs: [], name: 'FreeMintExhausted' },
+  { type: 'error', inputs: [], name: 'GatingCheckFailed' },
+  { type: 'error', inputs: [], name: 'InsufficientBalance' },
+  { type: 'error', inputs: [], name: 'InsufficientPayment' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidName' },
+  { type: 'error', inputs: [], name: 'InvalidPrice' },
+  { type: 'error', inputs: [], name: 'InvalidTitle' },
+  { type: 'error', inputs: [], name: 'LengthMismatch' },
+  { type: 'error', inputs: [], name: 'LimitedMustHavePositiveSupply' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoDynamicPricingModule' },
+  { type: 'error', inputs: [], name: 'NoFeesToClaim' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
+  { type: 'error', inputs: [], name: 'OnlyFactory' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'SmartTransferFailed',
+  },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'UnlimitedMustHaveZeroSupply' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2693,6 +3605,39 @@ export const ierc1155EditionReaderAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC1155Receiver
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc1155ReceiverAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'ids', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'values', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'onERC1155BatchReceived',
+    outputs: [{ name: '', internalType: 'bytes4', type: 'bytes4' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'onERC1155Received',
+    outputs: [{ name: '', internalType: 'bytes4', type: 'bytes4' }],
+    stateMutability: 'nonpayable',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IERC404Balance
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -4092,6 +5037,15 @@ export const useReadAlignmentRegistryV1AlignmentTargets =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"communityPayout"`
+ */
+export const useReadAlignmentRegistryV1CommunityPayout =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'communityPayout',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"getAlignmentTarget"`
  */
 export const useReadAlignmentRegistryV1GetAlignmentTarget =
@@ -4116,6 +5070,15 @@ export const useReadAlignmentRegistryV1GetAmbassadors =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'getAmbassadors',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"getCommunityPayout"`
+ */
+export const useReadAlignmentRegistryV1GetCommunityPayout =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'getCommunityPayout',
   })
 
 /**
@@ -4279,6 +5242,15 @@ export const useWriteAlignmentRegistryV1RequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setCommunityPayout"`
+ */
+export const useWriteAlignmentRegistryV1SetCommunityPayout =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'setCommunityPayout',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteAlignmentRegistryV1TransferOwnership =
@@ -4393,6 +5365,15 @@ export const useSimulateAlignmentRegistryV1RequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setCommunityPayout"`
+ */
+export const useSimulateAlignmentRegistryV1SetCommunityPayout =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'setCommunityPayout',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateAlignmentRegistryV1TransferOwnership =
@@ -4468,6 +5449,15 @@ export const useWatchAlignmentRegistryV1AmbassadorRemovedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentRegistryV1Abi,
     eventName: 'AmbassadorRemoved',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `eventName` set to `"CommunityPayoutSet"`
+ */
+export const useWatchAlignmentRegistryV1CommunityPayoutSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentRegistryV1Abi,
+    eventName: 'CommunityPayoutSet',
   })
 
 /**
@@ -5175,6 +6165,809 @@ export const useWatchErc1155FactoryProtocolTreasuryUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155FactoryAbi,
     eventName: 'ProtocolTreasuryUpdated',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__
+ */
+export const useReadErc1155Instance = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155InstanceAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"agentDelegationEnabled"`
+ */
+export const useReadErc1155InstanceAgentDelegationEnabled =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'agentDelegationEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"balanceOf"`
+ */
+export const useReadErc1155InstanceBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'balanceOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"calculateMintCost"`
+ */
+export const useReadErc1155InstanceCalculateMintCost =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'calculateMintCost',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"creator"`
+ */
+export const useReadErc1155InstanceCreator =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'creator',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"dynamicPricingModule"`
+ */
+export const useReadErc1155InstanceDynamicPricingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'dynamicPricingModule',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"editions"`
+ */
+export const useReadErc1155InstanceEditions =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'editions',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"factory"`
+ */
+export const useReadErc1155InstanceFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'factory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"freeMintAllocation"`
+ */
+export const useReadErc1155InstanceFreeMintAllocation =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'freeMintAllocation',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"freeMintClaimed"`
+ */
+export const useReadErc1155InstanceFreeMintClaimed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'freeMintClaimed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"freeMintsClaimed"`
+ */
+export const useReadErc1155InstanceFreeMintsClaimed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'freeMintsClaimed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"gatingModule"`
+ */
+export const useReadErc1155InstanceGatingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'gatingModule',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"gatingScope"`
+ */
+export const useReadErc1155InstanceGatingScope =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'gatingScope',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"getAllEditionIds"`
+ */
+export const useReadErc1155InstanceGetAllEditionIds =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'getAllEditionIds',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"getCurrentPrice"`
+ */
+export const useReadErc1155InstanceGetCurrentPrice =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'getCurrentPrice',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"getEdition"`
+ */
+export const useReadErc1155InstanceGetEdition =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'getEdition',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"getEditionCount"`
+ */
+export const useReadErc1155InstanceGetEditionCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'getEditionCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"getGlobalMessageRegistry"`
+ */
+export const useReadErc1155InstanceGetGlobalMessageRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'getGlobalMessageRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"globalMessageRegistry"`
+ */
+export const useReadErc1155InstanceGlobalMessageRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'globalMessageRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"instanceType"`
+ */
+export const useReadErc1155InstanceInstanceType =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'instanceType',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"isApprovedForAll"`
+ */
+export const useReadErc1155InstanceIsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'isApprovedForAll',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadErc1155InstanceMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"name"`
+ */
+export const useReadErc1155InstanceName = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155InstanceAbi,
+  functionName: 'name',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"nextEditionId"`
+ */
+export const useReadErc1155InstanceNextEditionId =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'nextEditionId',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadErc1155InstanceOwner = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155InstanceAbi,
+  functionName: 'owner',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadErc1155InstanceOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"pendingVaultCut"`
+ */
+export const useReadErc1155InstancePendingVaultCut =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'pendingVaultCut',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadErc1155InstanceProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"styleUri"`
+ */
+export const useReadErc1155InstanceStyleUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'styleUri',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"totalProceeds"`
+ */
+export const useReadErc1155InstanceTotalProceeds =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'totalProceeds',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"totalWithdrawn"`
+ */
+export const useReadErc1155InstanceTotalWithdrawn =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'totalWithdrawn',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"vault"`
+ */
+export const useReadErc1155InstanceVault = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155InstanceAbi,
+  functionName: 'vault',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadErc1155InstanceWeth = /*#__PURE__*/ createUseReadContract({
+  abi: erc1155InstanceAbi,
+  functionName: 'weth',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__
+ */
+export const useWriteErc1155Instance = /*#__PURE__*/ createUseWriteContract({
+  abi: erc1155InstanceAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"addEdition"`
+ */
+export const useWriteErc1155InstanceAddEdition =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'addEdition',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteErc1155InstanceCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"claimAllFees"`
+ */
+export const useWriteErc1155InstanceClaimAllFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'claimAllFees',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"claimFreeMint"`
+ */
+export const useWriteErc1155InstanceClaimFreeMint =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'claimFreeMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"claimVaultFees"`
+ */
+export const useWriteErc1155InstanceClaimVaultFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'claimVaultFees',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteErc1155InstanceCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"initializeFreeMint"`
+ */
+export const useWriteErc1155InstanceInitializeFreeMint =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'initializeFreeMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"migrateVault"`
+ */
+export const useWriteErc1155InstanceMigrateVault =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"mint"`
+ */
+export const useWriteErc1155InstanceMint = /*#__PURE__*/ createUseWriteContract(
+  { abi: erc1155InstanceAbi, functionName: 'mint' },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteErc1155InstanceRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteErc1155InstanceRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"retryVaultContribution"`
+ */
+export const useWriteErc1155InstanceRetryVaultContribution =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'retryVaultContribution',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
+ */
+export const useWriteErc1155InstanceSafeBatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'safeBatchTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"safeTransferFrom"`
+ */
+export const useWriteErc1155InstanceSafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'safeTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setAgentDelegation"`
+ */
+export const useWriteErc1155InstanceSetAgentDelegation =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setAgentDelegation',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setApprovalForAll"`
+ */
+export const useWriteErc1155InstanceSetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
+ */
+export const useWriteErc1155InstanceSetStyle =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setStyle',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteErc1155InstanceTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"updateEditionMetadata"`
+ */
+export const useWriteErc1155InstanceUpdateEditionMetadata =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'updateEditionMetadata',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useWriteErc1155InstanceWithdraw =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'withdraw',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__
+ */
+export const useSimulateErc1155Instance =
+  /*#__PURE__*/ createUseSimulateContract({ abi: erc1155InstanceAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"addEdition"`
+ */
+export const useSimulateErc1155InstanceAddEdition =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'addEdition',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateErc1155InstanceCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"claimAllFees"`
+ */
+export const useSimulateErc1155InstanceClaimAllFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'claimAllFees',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"claimFreeMint"`
+ */
+export const useSimulateErc1155InstanceClaimFreeMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'claimFreeMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"claimVaultFees"`
+ */
+export const useSimulateErc1155InstanceClaimVaultFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'claimVaultFees',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateErc1155InstanceCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"initializeFreeMint"`
+ */
+export const useSimulateErc1155InstanceInitializeFreeMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'initializeFreeMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"migrateVault"`
+ */
+export const useSimulateErc1155InstanceMigrateVault =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"mint"`
+ */
+export const useSimulateErc1155InstanceMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'mint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateErc1155InstanceRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateErc1155InstanceRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"retryVaultContribution"`
+ */
+export const useSimulateErc1155InstanceRetryVaultContribution =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'retryVaultContribution',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"safeBatchTransferFrom"`
+ */
+export const useSimulateErc1155InstanceSafeBatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'safeBatchTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"safeTransferFrom"`
+ */
+export const useSimulateErc1155InstanceSafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'safeTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setAgentDelegation"`
+ */
+export const useSimulateErc1155InstanceSetAgentDelegation =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setAgentDelegation',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setApprovalForAll"`
+ */
+export const useSimulateErc1155InstanceSetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
+ */
+export const useSimulateErc1155InstanceSetStyle =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setStyle',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateErc1155InstanceTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"updateEditionMetadata"`
+ */
+export const useSimulateErc1155InstanceUpdateEditionMetadata =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'updateEditionMetadata',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"withdraw"`
+ */
+export const useSimulateErc1155InstanceWithdraw =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'withdraw',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__
+ */
+export const useWatchErc1155InstanceEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: erc1155InstanceAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"ApprovalForAll"`
+ */
+export const useWatchErc1155InstanceApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'ApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"ETHTransferFallbackToWETH"`
+ */
+export const useWatchErc1155InstanceEthTransferFallbackToWethEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'ETHTransferFallbackToWETH',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"EditionAdded"`
+ */
+export const useWatchErc1155InstanceEditionAddedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'EditionAdded',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"EditionMetadataUpdated"`
+ */
+export const useWatchErc1155InstanceEditionMetadataUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'EditionMetadataUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"FreeMintClaimed"`
+ */
+export const useWatchErc1155InstanceFreeMintClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'FreeMintClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"Minted"`
+ */
+export const useWatchErc1155InstanceMintedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'Minted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchErc1155InstanceOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchErc1155InstanceOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchErc1155InstanceOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"StateChanged"`
+ */
+export const useWatchErc1155InstanceStateChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'StateChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"TransferBatch"`
+ */
+export const useWatchErc1155InstanceTransferBatchEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'TransferBatch',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"TransferSingle"`
+ */
+export const useWatchErc1155InstanceTransferSingleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'TransferSingle',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"VaultContributionFailed"`
+ */
+export const useWatchErc1155InstanceVaultContributionFailedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'VaultContributionFailed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"VaultContributionRetried"`
+ */
+export const useWatchErc1155InstanceVaultContributionRetriedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'VaultContributionRetried',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"Withdrawn"`
+ */
+export const useWatchErc1155InstanceWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'Withdrawn',
   })
 
 /**
@@ -6985,6 +8778,55 @@ export const useReadIerc1155EditionReaderNextEditionId =
   /*#__PURE__*/ createUseReadContract({
     abi: ierc1155EditionReaderAbi,
     functionName: 'nextEditionId',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__
+ */
+export const useWriteIerc1155Receiver = /*#__PURE__*/ createUseWriteContract({
+  abi: ierc1155ReceiverAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155BatchReceived"`
+ */
+export const useWriteIerc1155ReceiverOnErc1155BatchReceived =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155ReceiverAbi,
+    functionName: 'onERC1155BatchReceived',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155Received"`
+ */
+export const useWriteIerc1155ReceiverOnErc1155Received =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: ierc1155ReceiverAbi,
+    functionName: 'onERC1155Received',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__
+ */
+export const useSimulateIerc1155Receiver =
+  /*#__PURE__*/ createUseSimulateContract({ abi: ierc1155ReceiverAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155BatchReceived"`
+ */
+export const useSimulateIerc1155ReceiverOnErc1155BatchReceived =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155ReceiverAbi,
+    functionName: 'onERC1155BatchReceived',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link ierc1155ReceiverAbi}__ and `functionName` set to `"onERC1155Received"`
+ */
+export const useSimulateIerc1155ReceiverOnErc1155Received =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: ierc1155ReceiverAbi,
+    functionName: 'onERC1155Received',
   })
 
 /**

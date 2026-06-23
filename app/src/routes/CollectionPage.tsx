@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatGwei } from 'viem'
+import { useAccount } from 'wagmi'
 import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { MessageFeed } from '../components/MessageFeed'
+import { EditionList } from '../components/collection/EditionList'
+import { AddEditionForm } from '../components/collection/AddEditionForm'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
 import styles from './CollectionPage.module.css'
@@ -22,6 +25,8 @@ export function CollectionPage() {
 
   const { data: card, isPending, isError } = useCollection(instance)
   const metadata = useCollectionMetadata(card?.metadataURI)
+  const { address: connected } = useAccount()
+  const [editionsKey, setEditionsKey] = useState(0) // bump to re-read editions after an add
 
   // Reset the broken-image fallback when navigating to a different collection (the route component
   // is reused across `/collection/:instance` params, so local state would otherwise persist).
@@ -123,6 +128,16 @@ export function CollectionPage() {
               {truncateAddress(card.creator)}
             </Link>
           </div>
+
+          {card.contractType === 'ERC1155' && instance && (
+            <section className={styles.editions}>
+              <h2 className={styles.editionsTitle}>EDITIONS</h2>
+              <EditionList key={editionsKey} instance={instance} />
+              {connected && connected.toLowerCase() === card.creator.toLowerCase() && (
+                <AddEditionForm instance={instance} onAdded={() => setEditionsKey((k) => k + 1)} />
+              )}
+            </section>
+          )}
 
           <MessageFeed filter={{ instance }} />
         </>

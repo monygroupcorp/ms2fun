@@ -23,6 +23,7 @@ export default defineConfig({
         'FeaturedQueueManager.sol/**',
         'ERC404Factory.sol/**',
         'ERC1155Factory.sol/**',
+        'ERC1155Instance.sol/**',
         'ERC721AuctionFactory.sol/**',
       ],
     }),
