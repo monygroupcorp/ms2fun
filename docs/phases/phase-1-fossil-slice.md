@@ -28,11 +28,17 @@ Validate wallet → typed read → typed write → brutalist UI end-to-end again
 state with zero new contract risk**, by building the first vertical on the grandfathered fossil.
 
 ## Scope
+> **Revised 2026-06-23 (G-D):** the fossil's bonding curve is CLOSED (graduated). The "buy/sell on
+> the bonding curve" scope below was based on a wrong premise; corrected to **read-only + Uniswap
+> link-out**. The typed-WRITE→UI proof moves to Phase-3 real mint/create flows (contracts we own).
+
 **In:**
-- EXEC404 collection page: live state (price, supply, reserve, user balance) via generated bindings.
-- Trade: **buy and sell** EXEC404 on the bonding curve, with real tx state (pending/success/error).
+- EXEC404 collection page: live state (real V2 market price, supply, user balance, graduated) via
+  the fossil's hand-curated ABI + the Uniswap V2 router (`getAmountsOut`).
+- ~~Trade: buy and sell on the bonding curve~~ → **read-only + "Trade on Uniswap ↗" link-out**
+  (graduated fossil; in-app AMM swap not worth building, see G-D).
 - Port the Gallery Brutalism design for this surface from `docs/examples/` (CSS Modules + tokens).
-- The first real use of the typed domain-layer pattern (even if thin here).
+- The first real use of the typed read pattern (even if thin here).
 
 **Out (deferred):**
 - New contracts, the Aave vault, the wizard, profiles → Phase 2/3.
@@ -49,21 +55,26 @@ state with zero new contract risk**, by building the first vertical on the grand
 3. Read strategy: multicall batching + TanStack Query cache keys convention.
 
 ## Task units
-- [x] T1 — EXEC404 read model (typed) + collection page render. `lib/exec404.ts` (as-const ABI,
-  address, slippage/parse helpers) + `Exec404Stats.tsx` (one-multicall live state) + `Exec404Page`.
-- [x] T2 — Buy flow: live `calculateCost` quote → `buyBonding` payable w/ +1% `maxCost` → tx state.
-  (No ERC20 approve needed — DN404 spends from balance directly.)
-- [x] T3 — Sell flow: `calculateRefund` quote → `sellBonding` w/ −1% `minRefund`.
-- [x] T4 — Brutalist styles for the page (CSS Modules + tokens), graduated/bonding state surfaced.
-- [x] T5 — Tx-state + multicall/query-cache conventions documented in ARCHITECTURE §7.
+- [x] T1 — EXEC404 read model (typed) + collection page render. `lib/exec404.ts` (as-const ABI +
+  V2 router) + `Exec404Stats.tsx` (one-multicall live state, real V2 price) + `Exec404Page`.
+- [x] T2/T3 — ~~bonding buy/sell~~ → **read-only + Uniswap link-out** (`Exec404TradeLink.tsx`),
+  after discovering the bonding curve is closed (graduated). Real trade path (V2 fee-on-transfer
+  swap) verified working by a cast round-trip; in-app swap declined for a fossil (G-D).
+- [x] T4 — Brutalist styles for the page (CSS Modules + tokens); graduated/market state surfaced.
+- [x] T5 — Tx-state + multicall/query-cache conventions documented in ARCHITECTURE §7 (the write
+  convention will be first exercised by Phase-3 mint flows, not the now read-only fossil).
 
-## Exit criteria
-1. On the fork, buy and sell EXEC404 from the new UI; balances/price update correctly.
-2. The page visually matches the brutalist intent (side-by-side with the demo).
-3. Zero stubs on the path; Definition of Done gates green.
+## Exit criteria (revised 2026-06-23 — fossil is read-only after G-D)
+1. On the fork, the EXEC404 page shows real live state — **market price from the graduated V2
+   pool**, supply, graduated status, and (when connected) user balance — zero stubs.
+2. Trading links out to Uniswap with EXEC preselected (no broken in-app trade).
+3. The page visually matches the brutalist intent.
+4. Definition of Done gates green; `@archive` e2e asserts the live V2 price.
 
 ## Verification
-- `/run` or recording of a buy + sell round-trip on the fork.
+- `cd app && pnpm chain:fork` + `pnpm chain:deploy` (archive RPC), then `pnpm test:e2e:archive`
+  (live V2 price read) and `pnpm test:e2e` (5/5). Real V2 buy/sell round-trip confirmed at the
+  contract level via a cast script (the actual graduated trade path).
 - Side-by-side screenshot vs demo.
 
 ## Slice status (2026-06-22)

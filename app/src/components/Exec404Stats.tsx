@@ -1,9 +1,12 @@
 import { formatGwei, formatUnits, zeroAddress } from 'viem'
 import { useAccount, useReadContract, useReadContracts } from 'wagmi'
-import { ONE_EXEC, exec404Contract } from '../lib/exec404'
+import {
+  EXEC_TO_ETH_PATH,
+  ONE_EXEC,
+  exec404Contract,
+  uniswapV2RouterContract,
+} from '../lib/exec404'
 import styles from './Exec404Stats.module.css'
-
-const base = exec404Contract
 
 /** Compact EXEC token amount: base-units → human, no trailing-zero noise. */
 function fmtExec(raw: bigint): string {
@@ -11,25 +14,29 @@ function fmtExec(raw: bigint): string {
 }
 
 /**
- * Live EXEC404 state read off the fork via one multicall (useReadContracts batches into a single
- * eth_call). User balance is a separate read, enabled only when a wallet is connected.
+ * Live EXEC404 state read off the fork via one multicall. Price is the REAL graduated market price
+ * from the Uniswap V2 pool (`getAmountsOut` for 1 EXEC → ETH), not the dead bonding curve. User
+ * balance is a separate read, enabled only when a wallet is connected.
  */
 export function Exec404Stats() {
   const { address, isConnected } = useAccount()
 
   const { data, isPending, isError } = useReadContracts({
     contracts: [
-      { ...base, functionName: 'name' },
-      { ...base, functionName: 'symbol' },
-      { ...base, functionName: 'totalSupply' },
-      { ...base, functionName: 'totalBondingSupply' },
-      { ...base, functionName: 'liquidityPair' },
-      { ...base, functionName: 'calculateCost', args: [ONE_EXEC] },
+      { ...exec404Contract, functionName: 'name' },
+      { ...exec404Contract, functionName: 'symbol' },
+      { ...exec404Contract, functionName: 'totalSupply' },
+      { ...exec404Contract, functionName: 'liquidityPair' },
+      {
+        ...uniswapV2RouterContract,
+        functionName: 'getAmountsOut',
+        args: [ONE_EXEC, EXEC_TO_ETH_PATH],
+      },
     ],
   })
 
   const balance = useReadContract({
-    ...base,
+    ...exec404Contract,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
     query: { enabled: isConnected && !!address },
@@ -39,26 +46,24 @@ export function Exec404Stats() {
     return <p className={styles.unreachable}>EXEC404 unreachable — is the fork up?</p>
   }
 
-  const [name, symbol, totalSupply, bondingSupply, pair, costPerExec] = data ?? []
-  // Test result presence with `!== undefined` — a real 0n is valid data, not "missing".
+  const [name, symbol, totalSupply, pair, amountsOut] = data ?? []
+  // getAmountsOut returns [amountIn, amountOut]; amountOut is wei ETH for 1 EXEC.
+  const priceWei = amountsOut?.result?.[1]
   const graduated = pair?.result !== undefined && pair.result !== zeroAddress
 
   const rows: Array<{ label: string; value: string }> = [
     {
-      label: 'price · 1 EXEC',
-      value: costPerExec?.result !== undefined ? `${formatGwei(costPerExec.result)} gwei` : '—',
+      label: 'market price · 1 EXEC',
+      value: priceWei !== undefined ? `≈ ${formatGwei(priceWei)} gwei` : '—',
     },
     {
       label: 'total supply',
       value: totalSupply?.result !== undefined ? fmtExec(totalSupply.result) : '—',
     },
     {
-      label: 'bonding supply',
-      value: bondingSupply?.result !== undefined ? fmtExec(bondingSupply.result) : '—',
-    },
-    {
-      label: 'graduated',
-      value: pair?.result !== undefined ? (graduated ? 'yes · has LP' : 'no') : '—',
+      label: 'market',
+      value:
+        pair?.result !== undefined ? (graduated ? 'Uniswap V2 · graduated' : 'not graduated') : '—',
     },
     {
       label: 'your balance',

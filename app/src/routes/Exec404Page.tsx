@@ -1,11 +1,12 @@
 import { Link } from 'wouter'
 import { Exec404Stats } from '../components/Exec404Stats'
-import { Exec404Trade } from '../components/Exec404Trade'
+import { Exec404TradeLink } from '../components/Exec404TradeLink'
 import styles from './Exec404Page.module.css'
 
 /**
- * The fossil slice: view + trade EXEC404 / CULT EXECUTIVES against real on-chain state on the
- * anvil mainnet-fork. First vertical proving wallet → typed read → typed write → brutalist UI.
+ * The fossil slice: view EXEC404 / CULT EXECUTIVES against real on-chain state on the anvil
+ * mainnet-fork (live market price from its graduated Uniswap V2 pool). The fossil's bonding curve
+ * is closed, so trading links out to Uniswap (read-only page — see docs/HUMAN_GATES.md G-D).
  */
 export function Exec404Page() {
   return (
@@ -21,7 +22,7 @@ export function Exec404Page() {
       </header>
       <div className={styles.layout}>
         <Exec404Stats />
-        <Exec404Trade />
+        <Exec404TradeLink />
       </div>
     </section>
   )

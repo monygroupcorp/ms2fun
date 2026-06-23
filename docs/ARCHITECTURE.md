@@ -83,12 +83,13 @@ A red gate blocks merge. A gate that can't catch its violation is a bug in the g
   to RPC, no hand-rolled adapters (that was micro-web3 — gone).
 - TanStack Query (via wagmi) is the only read cache. wagmi derives query keys from
   `{address, abi, functionName, args, chainId}` — we don't hand-author keys.
-- **Tx-state convention (defined in Phase 1, `Exec404Trade.tsx`):** `useWriteContract` drives
-  submit; `useWaitForTransactionReceipt({ hash })` drives confirmation. Surface the real
-  transitions only — `confirm in wallet → confirming → success/error` — **no optimistic UI**.
-  Quote a write before sending (e.g. `calculateCost`) and apply an explicit slippage guard
-  (`maxCost`/`minRefund`). On confirmed success, **invalidate the query cache** so every dependent
-  read (price, supply, balance) refetches. Error text prefers viem's `shortMessage`.
+- **Tx-state convention (to apply to write flows — first real use is Phase-3 mint/create; the
+  EXEC404 fossil graduated to read-only + Uniswap link-out, so it no longer exercises it):**
+  `useWriteContract` drives submit; `useWaitForTransactionReceipt({ hash })` drives confirmation.
+  Surface the real transitions only — `confirm in wallet → confirming → success/error` — **no
+  optimistic UI**. Quote a write before sending and apply an explicit slippage guard. On confirmed
+  success, **invalidate the query cache** so dependent reads refetch. Error text prefers viem's
+  `shortMessage`.
 - Reads batch via multicall: prefer one `useReadContracts` over N `useReadContract` for a panel
   (one `eth_call`). No per-render RPC storms. Reads that need an argument only when ready (e.g. a
   user-address balance, a quote for a typed amount) gate with `query: { enabled }`.

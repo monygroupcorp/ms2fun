@@ -16,7 +16,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --grep-invert @archive",
+    "test:e2e:archive": "playwright test --grep @archive",
     "wagmi:generate": "wagmi generate",
     "chain:fork": "bash scripts/dev-chain/fork.sh",
     "chain:deploy": "tsx scripts/dev-chain/deploy.ts"
