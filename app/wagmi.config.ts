@@ -18,6 +18,7 @@ export default defineConfig({
         'AlignmentRegistryV1.sol/**',
         'GlobalMessageRegistry.sol/**',
         'ComponentRegistry.sol/**',
+        'ProfileRegistry.sol/**',
         'QueryAggregator.sol/**',
         'FeaturedQueueManager.sol/**',
         'ERC404Factory.sol/**',

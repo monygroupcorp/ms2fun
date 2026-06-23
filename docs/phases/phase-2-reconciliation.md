@@ -55,11 +55,20 @@ consume, and add the one new economic piece (the Aave vault).
 ## Task units
 - [x] T1 — Contract inventory + classification (read-only survey). **DONE 2026-06-22 — see
   "T1 — Inventory & classification" below.**
-- [ ] T2 — Metadata model design (3 scopes) → written spec + types.
+- [x] T2 — Metadata model design (3 scopes) → written spec + types. **DONE 2026-06-23** —
+  design locked in [ADR-0004](../decisions/0004-metadata-model.md); backend-free types built
+  (`app/src/lib/metadata/{schemas,uri,encode}.ts`: lenient parsers + data-URI encode); the NEW
+  account scope realized as the ownerless `ProfileRegistry` contract (`address → profileURI`).
 - [ ] T3 — Module option schema design → written spec + types.
-- [ ] T4 — Aave vault: select base, implement 20/20/1 + maturity, Foundry tests.
-- [ ] T5 — Typed domain layer over bindings (profiles/collections/metadata/modules/messages).
-- [ ] T6 — Deploy the reconciled set + Aave vault to the fork via the existing pipeline + seeds.
+- [ ] T4 — Aave vault: select base, implement 20/20/1 + maturity, Foundry tests. *(deferred by
+  Mony — app-facing work first.)*
+- [~] T5 — Typed domain layer over bindings (profiles/collections/metadata/modules/messages).
+  **Profiles + collections DONE** (ProfileRegistry + metadata hooks; `getHomePageData` cards).
+  Remaining: the **GlobalMessageRegistry feed** (invariant) + creator→collections enumeration
+  (`CreatorInstanceAdded`) + modules.
+- [~] T6 — Deploy the reconciled set + Aave vault to the fork via the existing pipeline + seeds.
+  **Fork deploy + seed DONE** (`SeedAnvil.s.sol`: 3 featured ERC1155 collections + 2 profiles,
+  all backend-free `data:` metadata; verified via `getHomePageData`/`profileURI`). Aave pending T4.
 
 ## T1 — Inventory & classification (2026-06-22)
 
@@ -163,6 +172,13 @@ home or stay event-derived.
 - `forge test` green for the vault; fork deploy + seed run.
 
 ## Decision log
+- **2026-06-23 — T2 shipped + T5/T6 partial: account scope + backend-free metadata seed.**
+  Implemented `ProfileRegistry` (ownerless, non-upgradeable — zero admin surface; every address
+  self-edits one `profileURI`) as the on-chain account scope from ADR-0004; built the backend-free
+  metadata type layer (lenient parsers + `data:` encode) and the profile UI stack (`ProfileView`,
+  `ProfileEditForm`, `/profile` route reading/writing the generated bindings). Added `SeedAnvil.s.sol`
+  (anvil-only) standing up 3 featured collections + 2 profiles with inline `data:` JSON/SVG, verified
+  on the fork. Read/discovery path remains independent of the (deferred) Aave vault. See [[dev-fork-seed]].
 - **2026-06-23 — G-C ratified by Mony (with a correction).** (1) Keep/retire map AGREED — but the
   draft wrongly retired the LP deployers; **corrected**: only the alignment *vaults* retire, the LP
   deployers/backends are KEEP (the collection's bonding→DEX LP is necessary; "lean kills the LP

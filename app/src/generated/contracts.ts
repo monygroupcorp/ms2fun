@@ -3612,6 +3612,49 @@ export const masterRegistryV1Abi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ProfileRegistry
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const profileRegistryAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'clearProfile',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'account', internalType: 'address', type: 'address' }],
+    name: 'profileURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setProfile',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'account',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'uri', internalType: 'string', type: 'string', indexed: false },
+    ],
+    name: 'ProfileUpdated',
+  },
+  { type: 'error', inputs: [], name: 'InvalidURI' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // QueryAggregator
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -7821,6 +7864,86 @@ export const useWatchMasterRegistryV1VaultRegisteredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: masterRegistryV1Abi,
     eventName: 'VaultRegistered',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link profileRegistryAbi}__
+ */
+export const useReadProfileRegistry = /*#__PURE__*/ createUseReadContract({
+  abi: profileRegistryAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link profileRegistryAbi}__ and `functionName` set to `"profileURI"`
+ */
+export const useReadProfileRegistryProfileUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: profileRegistryAbi,
+    functionName: 'profileURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link profileRegistryAbi}__
+ */
+export const useWriteProfileRegistry = /*#__PURE__*/ createUseWriteContract({
+  abi: profileRegistryAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link profileRegistryAbi}__ and `functionName` set to `"clearProfile"`
+ */
+export const useWriteProfileRegistryClearProfile =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: profileRegistryAbi,
+    functionName: 'clearProfile',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link profileRegistryAbi}__ and `functionName` set to `"setProfile"`
+ */
+export const useWriteProfileRegistrySetProfile =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: profileRegistryAbi,
+    functionName: 'setProfile',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link profileRegistryAbi}__
+ */
+export const useSimulateProfileRegistry =
+  /*#__PURE__*/ createUseSimulateContract({ abi: profileRegistryAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link profileRegistryAbi}__ and `functionName` set to `"clearProfile"`
+ */
+export const useSimulateProfileRegistryClearProfile =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: profileRegistryAbi,
+    functionName: 'clearProfile',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link profileRegistryAbi}__ and `functionName` set to `"setProfile"`
+ */
+export const useSimulateProfileRegistrySetProfile =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: profileRegistryAbi,
+    functionName: 'setProfile',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link profileRegistryAbi}__
+ */
+export const useWatchProfileRegistryEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: profileRegistryAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link profileRegistryAbi}__ and `eventName` set to `"ProfileUpdated"`
+ */
+export const useWatchProfileRegistryProfileUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: profileRegistryAbi,
+    eventName: 'ProfileUpdated',
   })
 
 /**

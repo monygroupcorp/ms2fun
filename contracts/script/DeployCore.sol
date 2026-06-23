@@ -9,6 +9,7 @@ import {IAlignmentRegistry} from "../src/master/interfaces/IAlignmentRegistry.so
 import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
 import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ComponentRegistry} from "../src/registry/ComponentRegistry.sol";
+import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
 import {ProtocolTreasuryV1} from "../src/treasury/ProtocolTreasuryV1.sol";
 import {UniAlignmentVault} from "../src/vaults/uni/UniAlignmentVault.sol";
 import {UniAlignmentVaultFactory} from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
@@ -107,6 +108,7 @@ contract DeployCore is Script {
     AlignmentRegistryV1 public alignmentRegistryImpl;
     ComponentRegistry public componentRegistry;
     ComponentRegistry public componentRegistryImpl;
+    ProfileRegistry public profileRegistry;
 
     // Infrastructure
     address public safe;
@@ -193,6 +195,9 @@ contract DeployCore is Script {
         );
 
         MasterRegistryV1(masterRegistry).setAlignmentRegistry(address(alignmentRegistry));
+
+        // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
+        profileRegistry = new ProfileRegistry();
 
         // ── Phase 2: Safe ────────────────────────────────────────────────────
 
@@ -419,6 +424,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "GlobalMessageRegistry",      address(globalMessageRegistry));
         vm.serializeAddress(c, "AlignmentRegistry",          address(alignmentRegistry));
         vm.serializeAddress(c, "ComponentRegistry",          address(componentRegistry));
+        vm.serializeAddress(c, "ProfileRegistry",            address(profileRegistry));
         vm.serializeAddress(c, "QueryAggregator",            address(queryAggregator));
         vm.serializeAddress(c, "zRouter",                    address(zrouter));
         vm.serializeAddress(c, "LaunchManager",              address(launchManager));
