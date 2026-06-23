@@ -487,6 +487,12 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
     }
 
     function test_Withdraw_Tax() public {
+        address treasury = address(0xF00D);
+
+        // Wire up a named treasury so protocol cut is non-zero
+        vm.prank(owner);
+        factory.setProtocolTreasury(treasury);
+
         vm.deal(creator, 1 ether);
         vm.deal(minter1, 10 ether);
 
@@ -511,10 +517,23 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         instanceContract.mint{value: 1 ether}(1, 1, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
+        uint256 treasuryBefore = treasury.balance;
+        uint256 vaultBefore = address(vault).balance;
+        uint256 creatorBefore = creator.balance;
+
         vm.startPrank(creator);
-        // Withdraw 1 ETH
+        // Withdraw 1 ETH — splitMint: 1% protocol / 80% vault / 19% creator (ADR-0003)
         instanceContract.withdraw(1 ether);
         vm.stopPrank();
+
+        uint256 amount = 1 ether;
+        uint256 expectedProtocol = amount / 100;                   // 1%
+        uint256 expectedVault    = (amount * 80) / 100;            // 80%
+        uint256 expectedCreator  = amount - expectedProtocol - expectedVault; // 19% (absorbs dust)
+
+        assertEq(treasury.balance - treasuryBefore, expectedProtocol, "protocol cut should be 1%");
+        assertEq(address(vault).balance - vaultBefore, expectedVault, "vault cut should be 80%");
+        assertEq(creator.balance - creatorBefore, expectedCreator, "creator cut should be ~19%");
     }
 
     function test_GetMessagesBatch() public {

@@ -488,8 +488,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (amount > totalProceeds - totalWithdrawn) revert InsufficientBalance();
         totalWithdrawn += amount;
 
-        // 1/19/80 split
-        RevenueSplitLib.Split memory s = RevenueSplitLib.split(amount);
+        // 1/80/19 mint split: 1% protocol / 80% vault (endowment) / 19% creator (ADR-0003)
+        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMint(amount);
 
         // Protocol cut to treasury
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {
