@@ -166,7 +166,9 @@ home or stay event-derived.
 - **2026-06-23 — G-C ratified by Mony (with a correction).** (1) Keep/retire map AGREED — but the
   draft wrongly retired the LP deployers; **corrected**: only the alignment *vaults* retire, the LP
   deployers/backends are KEEP (the collection's bonding→DEX LP is necessary; "lean kills the LP
-  vault, not the LP"). (3) Metadata 3-scope direction AGREED. (2) Aave vault economics LOCKED — the **endowment model**, full spec in
+  vault, not the LP"). (3) Metadata 3-scope model LOCKED — [ADR-0004](../decisions/0004-metadata-model.md): minimal
+  on-chain profiles (`address → profileURI`), collection list event-derived, every scope = on-chain
+  pointer + decentralized (IPFS/Arweave/data-URI) content → backend-free + feature-rich. (2) Aave vault economics LOCKED — the **endowment model**, full spec in
   [ADR-0003](../decisions/0003-aave-alignment-vault.md): aligned collections are a perpetual
   endowment for their community. Type-specific intake (DN404 19%→vault/80%→LP; mints
   80%→vault/19%→creator); principal refundable (maturity 80 creator / 19 community / 1 platform;
