@@ -85,6 +85,19 @@ async function main(): Promise<void> {
     },
   )
 
+  // 2b. Seed anvil-only sample data (collections + profiles) so discovery cards, images, and
+  //     profile pages light up with real on-chain data. Backend-free (inline data: metadata).
+  //     Anvil-only — never part of DeployCore / a production deploy.
+  console.log('\n▶ forge script SeedAnvil.s.sol --broadcast')
+  execSync(
+    `forge script script/SeedAnvil.s.sol --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID} --code-size-limit 30000`,
+    {
+      cwd: contractsDir,
+      stdio: 'inherit',
+      env: { ...process.env, PRIVATE_KEY: ANVIL_DEPLOYER_KEY },
+    },
+  )
+
   // 3. Read the FRESH deployment output. Guard against a stale anvil.json from another chain.
   const deployed = JSON.parse(readFileSync(anvilJsonPath, 'utf8')) as AnvilDeployment
   if (deployed.chainId !== CHAIN_ID) {
@@ -114,6 +127,7 @@ async function main(): Promise<void> {
       ERC1155Factory: required(f, 'ERC1155'),
       ERC721AuctionFactory: required(f, 'ERC721'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
+      ProfileRegistry: required(c, 'ProfileRegistry'),
     },
   }
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)

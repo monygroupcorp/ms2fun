@@ -7,6 +7,8 @@ import { queryClient } from './lib/queryClient'
 import { HomePage } from './routes/HomePage'
 import { Exec404Page } from './routes/Exec404Page'
 import { CollectionsPage } from './routes/CollectionsPage'
+import { ProfilePage } from './routes/ProfilePage'
+import { CollectionPage } from './routes/CollectionPage'
 import styles from './App.module.css'
 
 export function App() {
@@ -25,6 +27,9 @@ export function App() {
               <Link href="/exec404" className={styles.navLink}>
                 CULT EXECUTIVES
               </Link>
+              <Link href="/profile" className={styles.navLink}>
+                PROFILE
+              </Link>
               <WalletButton />
             </nav>
           </header>
@@ -33,6 +38,9 @@ export function App() {
               <Route path="/" component={HomePage} />
               <Route path="/exec404" component={Exec404Page} />
               <Route path="/collections" component={CollectionsPage} />
+              <Route path="/collection/:instance" component={CollectionPage} />
+              <Route path="/profile" component={ProfilePage} />
+              <Route path="/profile/:address" component={ProfilePage} />
               <Route>
                 <section className={styles.notFound}>404 · NOT FOUND</section>
               </Route>

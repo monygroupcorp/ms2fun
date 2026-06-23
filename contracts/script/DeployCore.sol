@@ -9,6 +9,7 @@ import {IAlignmentRegistry} from "../src/master/interfaces/IAlignmentRegistry.so
 import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
 import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ComponentRegistry} from "../src/registry/ComponentRegistry.sol";
+import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
 import {ProtocolTreasuryV1} from "../src/treasury/ProtocolTreasuryV1.sol";
 import {UniAlignmentVault} from "../src/vaults/uni/UniAlignmentVault.sol";
 import {UniAlignmentVaultFactory} from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
@@ -107,6 +108,7 @@ contract DeployCore is Script {
     AlignmentRegistryV1 public alignmentRegistryImpl;
     ComponentRegistry public componentRegistry;
     ComponentRegistry public componentRegistryImpl;
+    ProfileRegistry public profileRegistry;
 
     // Infrastructure
     address public safe;
@@ -193,6 +195,9 @@ contract DeployCore is Script {
         );
 
         MasterRegistryV1(masterRegistry).setAlignmentRegistry(address(alignmentRegistry));
+
+        // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
+        profileRegistry = new ProfileRegistry();
 
         // ── Phase 2: Safe ────────────────────────────────────────────────────
 
@@ -352,7 +357,7 @@ contract DeployCore is Script {
         // createInstance; the real functional modules are wired into factory internals.
 
         string memory passwordGatingMeta = "data:application/json,{\"name\":\"Password Tier Gating\",\"subtitle\":\"Password \\u00b7 Tiered Access\",\"description\":\"Set one or more passwords, each unlocking a different tier of access or pricing.\",\"configType\":\"password-tier-gating\"}";
-        string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\"}";
+        string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\",\"configType\":\"merkle-allowlist-gating\"}";
         string memory uniV4Meta          = "data:application/json,{\"name\":\"Uniswap V4 Deployer\",\"subtitle\":\"Uniswap V4 \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to a Uniswap V4 pool on graduation.\",\"configType\":\"launch-profile\"}";
         string memory zammMeta           = "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
         string memory cypherMeta         = "data:application/json,{\"name\":\"Cypher Deployer\",\"subtitle\":\"Cypher \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to Cypher on graduation.\",\"configType\":\"launch-profile\"}";
@@ -419,6 +424,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "GlobalMessageRegistry",      address(globalMessageRegistry));
         vm.serializeAddress(c, "AlignmentRegistry",          address(alignmentRegistry));
         vm.serializeAddress(c, "ComponentRegistry",          address(componentRegistry));
+        vm.serializeAddress(c, "ProfileRegistry",            address(profileRegistry));
         vm.serializeAddress(c, "QueryAggregator",            address(queryAggregator));
         vm.serializeAddress(c, "zRouter",                    address(zrouter));
         vm.serializeAddress(c, "LaunchManager",              address(launchManager));
