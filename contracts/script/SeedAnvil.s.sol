@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Script, console} from "forge-std/Script.sol";
 import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
 import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
+import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
 import {FreeMintParams} from "../src/interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../src/gating/IGatingModule.sol";
@@ -33,6 +34,8 @@ contract SeedAnvil is Script {
         address vault = vm.parseJsonAddress(vaultsJson, "[0].address");
         FeaturedQueueManager queue =
             FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
+        GlobalMessageRegistry messages =
+            GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
 
         // ── Collections (creator must be the broadcaster) ───────────────────────
         // Each is created AND featured (rentFeatured) so it surfaces in getHomePageData — the
@@ -60,16 +63,22 @@ contract SeedAnvil is Script {
             "MS2 Labs", "ms2labs",
             "Building the lean onchain launchpad. Alignment is the product.", "M"));
 
+        // Deployer activity (POST=0 to own wall: instance == sender). Lights up the message feed.
+        _post(messages, deployer, "gm. neon-drift is live and aligned to MS2.");
+        _post(messages, deployer, "the vault is the product. alignment compounds.");
+
         vm.stopBroadcast();
 
-        // ── A second profile from a different account ───────────────────────────
+        // ── A second profile + post from a different account ────────────────────
         vm.startBroadcast(ACCOUNT_1_KEY);
+        address acct1 = vm.addr(ACCOUNT_1_KEY);
         profiles.setProfile(_profileMeta(
             "Vela", "vela",
             "Collector. Aligned to the cult.", "V"));
+        _post(messages, acct1, "minted from monolith. clean.");
         vm.stopBroadcast();
 
-        console.log("Seeded 3 collections + 2 profiles. ERC1155 factory:", address(factory));
+        console.log("Seeded 3 collections + 2 profiles + 3 messages. ERC1155 factory:", address(factory));
     }
 
     function _createCollection(
@@ -93,6 +102,12 @@ contract SeedAnvil is Script {
         });
         bytes32 salt = keccak256(abi.encode(block.timestamp, index, slug));
         instance = factory.createInstance(salt, params);
+    }
+
+    /// @dev Direct POST (messageType 0) to a channel; sender is the broadcaster. The profile feed
+    ///      filters by sender, so posting to the sender's own address (self-wall) keeps it coherent.
+    function _post(GlobalMessageRegistry messages, address channel, string memory content) internal {
+        messages.post(channel, 0, 0, bytes32(0), bytes32(0), content);
     }
 
     // ── Backend-free metadata builders (data: JSON wrapping a data: SVG image) ───

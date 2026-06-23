@@ -4,6 +4,8 @@ import { useAccount } from 'wagmi'
 import { ProfileView } from '../components/ProfileView'
 import { ProfileEditForm } from '../components/ProfileEditForm'
 import { CreatorCollections } from '../components/CreatorCollections'
+import { MessageFeed } from '../components/MessageFeed'
+import { MessageComposer } from '../components/MessageComposer'
 import { useProfileMetadata } from '../components/useProfileMetadata'
 import {
   useReadProfileRegistryProfileUri,
@@ -106,6 +108,10 @@ export function ProfilePage() {
       {!isPending && !isError && <ProfileView address={target} metadata={metadata} />}
 
       {!isPending && !isError && <CreatorCollections creator={target} />}
+
+      {!isPending && !isError && <MessageFeed filter={{ sender: target }} />}
+
+      {isOwn && !isPending && !isError && <MessageComposer channel={target} />}
 
       {isOwn && !isPending && !isError && (
         <div className={styles.editBar}>
