@@ -166,13 +166,14 @@ home or stay event-derived.
 - **2026-06-23 — G-C ratified by Mony (with a correction).** (1) Keep/retire map AGREED — but the
   draft wrongly retired the LP deployers; **corrected**: only the alignment *vaults* retire, the LP
   deployers/backends are KEEP (the collection's bonding→DEX LP is necessary; "lean kills the LP
-  vault, not the LP"). (3) Metadata 3-scope direction AGREED. (2) Aave vault economics LOCKED — full spec in
-  [ADR-0003](../decisions/0003-aave-alignment-vault.md): the 19% is a **refundable deposit**
-  (creator gets principal back at maturity) and its **yield funds the alignment target**.
-  Settlement 1/19/80 unchanged; principal early-exit = 80% alignment / 19% creator / 1% platform;
-  at maturity principal → 100% creator. Inner engine = Aave `StaticATokenV2` stataToken (WETH);
-  outer = custom principal-tracking vault implementing `IAlignmentVault` so existing deployers route
-  the 19% in unchanged.
+  vault, not the LP"). (3) Metadata 3-scope direction AGREED. (2) Aave vault economics LOCKED — the **endowment model**, full spec in
+  [ADR-0003](../decisions/0003-aave-alignment-vault.md): aligned collections are a perpetual
+  endowment for their community. Type-specific intake (DN404 19%→vault/80%→LP; mints
+  80%→vault/19%→creator); principal refundable (maturity 80 creator / 19 community / 1 platform;
+  early 80 community / 19 creator / 1); yield auto-compounds and distributes 80 community / 19
+  creator / 1 platform. Inner = Aave `StaticATokenV2` (WETH); outer = custom principal-tracking
+  vault implementing `IAlignmentVault` so existing deployers route the cut in unchanged. NOTE: the
+  mint (ERC1155/ERC721) settlement allocation changes (80→vault, 19→creator); DN404 intake unchanged.
 - **2026-06-22 — T1 inventory complete; keep/retire classified** (see section above; LP-deployer
   line superseded by the 2026-06-23 correction above).
 - **2026-06-22 — the crux is vault coupling, not metadata alone.** Factories hard-require a vault at
