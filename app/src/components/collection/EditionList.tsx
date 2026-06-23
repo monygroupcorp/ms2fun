@@ -118,7 +118,7 @@ function MintPanel({ instance, edition, refetch }: MintPanelProps) {
           </span>
         </span>
         <button
-          className="btn btn-primary"
+          className="btn btn-primary btn-chromatic"
           onClick={handleMint}
           disabled={isBusy || costData === undefined}
         >
