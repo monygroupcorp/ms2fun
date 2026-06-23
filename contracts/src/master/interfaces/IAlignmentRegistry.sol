@@ -28,6 +28,7 @@ interface IAlignmentRegistry {
     event AlignmentTargetUpdated(uint256 indexed targetId);
     event AmbassadorAdded(uint256 indexed targetId, address indexed ambassador);
     event AmbassadorRemoved(uint256 indexed targetId, address indexed ambassador);
+    event CommunityPayoutSet(uint256 indexed targetId, address indexed payout);
 
     // Alignment Target Functions
     function registerAlignmentTarget(
@@ -59,4 +60,8 @@ interface IAlignmentRegistry {
 
     // Token Lookup
     function isTokenInTarget(uint256 targetId, address token) external view returns (bool);
+
+    // Community Payout
+    function setCommunityPayout(uint256 targetId, address payout) external;
+    function getCommunityPayout(uint256 targetId) external view returns (address);
 }

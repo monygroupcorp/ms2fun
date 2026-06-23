@@ -44,7 +44,8 @@ contract DeployCoreTest is Test {
             description:       "Test alignment target",
             deployUniVault:    true,
             deployCypherVault: false,
-            deployZAMMVault:   false
+            deployZAMMVault:   false,
+            communityPayout:   address(0) // not needed in deploy test
         });
 
         cfg.chainId             = 1337;
