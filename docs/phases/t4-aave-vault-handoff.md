@@ -11,7 +11,7 @@ boilerplate + deploy wiring. **Verify on the archive mainnet-fork.**
 > vault is required before mainnet** — re-examine: the open (un-gated) `receiveContribution`; ERC-4626
 > share/round-trip accounting under multiple benefactors + adversarial donation; the maturity/early
 > split edges; `migratePosition` trust; reentrancy across the WETH-unwrap → distribute path; and Aave
-> pause/freeze/cap/deprecation handling on a long-lived position. Plus **T4b** (mint-path 80%→vault).
+> pause/freeze/cap/deprecation handling on a long-lived position. (T4b — mint-path 80%→vault — is DONE.)
 >
 > **Build outcome:** the lead fork-verify caught a real ERC-4626 1-wei `maxWithdraw` rounding revert
 > the clean mock + skipped fork test had missed → fixed by capping `_redeem` at `maxWithdraw`.
@@ -98,8 +98,10 @@ communityPayout[targetId]`. `accumulatedFees()` = harvestable = `stataToken valu
   set a community payout on the seeded targets so `harvest()` has a destination.
 - [ ] `SeedAnvil`/e2e: a **DN404** collection bound to the endowment vault; a graduation intake (19%);
   a simulated yield; a `harvest()`; a principal withdraw — fork-verified.
-- [ ] **(T4b, separate slice)** mint-path wiring: ERC1155/ERC721 settlement calls `receiveContribution`
-  with the 80% (+ split swap). NOT part of T4 core.
+- [x] **T4b — DONE 2026-06-23:** mint settlement split flipped to 1/80/19. `RevenueSplitLib.splitMint`
+  (1% protocol / 80% vault / 19% creator) added alongside the unchanged `split` (1/19/80 for DN404);
+  `ERC1155Instance` + `ERC721AuctionInstance` route 80% → vault via the existing `receiveContribution`
+  call. ERC721/ERC1155/RevenueSplit tests updated; ERC404 unchanged.
 - [ ] (Phase-3 follow-on, NOT T4) add a `VAULT` FeatureUtils tag + ComponentRegistry registration so
   the wizard's `useApprovedModules('vault')` populates — until then the schema slot stays `pendingProvider`.
 
