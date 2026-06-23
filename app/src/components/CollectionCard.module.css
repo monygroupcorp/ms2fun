@@ -85,3 +85,21 @@
 .state {
   margin-top: var(--space-2);
 }
+
+.cardCreator {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-caption);
+  font-family: var(--font-mono);
+}
+
+.creatorLink {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+}
+
+.creatorLink:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}

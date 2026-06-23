@@ -3,6 +3,7 @@ import { Link, useParams } from 'wouter'
 import { useAccount } from 'wagmi'
 import { ProfileView } from '../components/ProfileView'
 import { ProfileEditForm } from '../components/ProfileEditForm'
+import { CreatorCollections } from '../components/CreatorCollections'
 import { useProfileMetadata } from '../components/useProfileMetadata'
 import {
   useReadProfileRegistryProfileUri,
@@ -103,6 +104,8 @@ export function ProfilePage() {
       {isError && <p className={styles.note}>could not reach registry — is the fork up?</p>}
 
       {!isPending && !isError && <ProfileView address={target} metadata={metadata} />}
+
+      {!isPending && !isError && <CreatorCollections creator={target} />}
 
       {isOwn && !isPending && !isError && (
         <div className={styles.editBar}>

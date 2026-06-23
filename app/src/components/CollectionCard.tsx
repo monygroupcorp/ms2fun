@@ -1,22 +1,28 @@
 import type { ContractFunctionReturnType } from 'viem'
 import { formatGwei } from 'viem'
+import { Link } from 'wouter'
 import { queryAggregatorAbi } from '../generated/contracts'
 import { resolveUri } from '../lib/metadata'
 import { useCollectionMetadata } from './useCollectionMetadata'
 import styles from './CollectionCard.module.css'
 
 /**
- * Element type of the projects array returned by `QueryAggregator.getHomePageData`.
- * Derived via `ContractFunctionReturnType` — no `any`, no hand-written shape.
+ * Element type of the cards array returned by `QueryAggregator.getProjectCardsBatch`.
+ * Both `getHomePageData` and `getProjectCardsBatch` return the same `ProjectCard` struct,
+ * so this type is structurally compatible with both call sites.
  */
-type HomePageCard = ContractFunctionReturnType<
+export type HomePageCard = ContractFunctionReturnType<
   typeof queryAggregatorAbi,
   'view',
-  'getHomePageData'
->[0][number]
+  'getProjectCardsBatch'
+>[number]
 
 interface CollectionCardProps {
   card: HomePageCard
+}
+
+function truncateAddress(addr: `0x${string}`): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 export function CollectionCard({ card }: CollectionCardProps) {
@@ -51,6 +57,12 @@ export function CollectionCard({ card }: CollectionCardProps) {
         <span className={`badge ${card.isActive ? 'badge-solid' : ''} ${styles.state}`}>
           {card.isActive ? 'active' : 'inactive'}
         </span>
+        <div className={styles.cardCreator}>
+          <span className={styles.statSecondary}>by</span>{' '}
+          <Link href={`/profile/${card.creator}`} className={styles.creatorLink}>
+            {truncateAddress(card.creator)}
+          </Link>
+        </div>
       </div>
     </article>
   )
