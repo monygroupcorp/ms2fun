@@ -176,6 +176,22 @@ describe('parseProfile', () => {
       const result = parseProfile({ links: [null, undefined, { url: 'https://ok.com' }] })
       expect(result.links).toHaveLength(1)
     })
+
+    it('drops non-http(s) link URLs (XSS hardening — data:/javascript:/ipfs)', () => {
+      const result = parseProfile({
+        links: [
+          { label: 'site', url: 'https://safe.example' },
+          { label: 'http', url: 'http://also-ok.example' },
+          { label: 'xss', url: 'data:text/html,<script>alert(1)</script>' },
+          { label: 'js', url: 'javascript:alert(1)' },
+          { label: 'ipfs', url: 'ipfs://Qm123' },
+        ],
+      })
+      expect(result.links.map((l) => l.url)).toEqual([
+        'https://safe.example',
+        'http://also-ok.example',
+      ])
+    })
   })
 
   describe('socials filtering', () => {

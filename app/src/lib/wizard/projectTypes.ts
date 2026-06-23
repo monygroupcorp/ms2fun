@@ -210,8 +210,17 @@ const erc1155: ProjectTypeSchema = {
         label: 'Supply',
         kind: 'bigint',
         unit: 'count',
-        help: '0 = unlimited',
+        help: 'Required for limited editions',
         default: 0,
+        // UNLIMITED (pricingModel 0) requires supply == 0 on-chain — only collect supply otherwise.
+        visibleWhen: { field: 'pricingModel', notEquals: '0' },
+      },
+      {
+        key: 'metadataURI',
+        label: 'Edition metadata URI',
+        kind: 'text',
+        help: 'addEdition metadata pointer (data:/ipfs)',
+        validation: { required: true },
       },
       {
         key: 'pricingModel',
@@ -304,15 +313,17 @@ const erc721: ProjectTypeSchema = {
     {
       key: 'bidIncrement',
       label: 'Min bid increment',
-      kind: 'number',
-      unit: 'bps',
-      help: 'Ambiguous on-chain (bps or absolute) — confirm at submit',
+      kind: 'bigint',
+      unit: 'wei',
+      help: 'Absolute amount added to the current high bid (immutable)',
       validation: { required: true },
     },
   ],
   moduleSlots: [vaultSlot],
   postCreate: {
     title: 'Auction pieces',
+    // queuePiece(string _tokenURI) payable — the reserve is sent as msg.value; start/end times are
+    // set by the contract on queue, so they are NOT creator inputs.
     fields: [
       {
         key: 'tokenURI',
@@ -325,20 +336,8 @@ const erc721: ProjectTypeSchema = {
         label: 'Reserve / min bid',
         kind: 'bigint',
         unit: 'wei',
-        help: 'Creator deposit',
+        help: 'Sent as msg.value when queuing the piece',
         validation: { required: true },
-      },
-      {
-        key: 'startTime',
-        label: 'Start time',
-        kind: 'number',
-        unit: 'seconds',
-      },
-      {
-        key: 'endTime',
-        label: 'End time',
-        kind: 'number',
-        unit: 'seconds',
       },
     ],
   },

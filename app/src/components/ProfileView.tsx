@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import type { ProfileMetadata } from '../lib/metadata'
 import { isResolvableUri, resolveUri } from '../lib/metadata'
+import { truncateAddress } from '../lib/format'
 import styles from './ProfileView.module.css'
 
 interface ProfileViewProps {
   address: `0x${string}`
   metadata: ProfileMetadata | undefined
-}
-
-function truncateAddress(addr: `0x${string}`): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 function isUrl(value: string): boolean {
@@ -77,7 +74,7 @@ export function ProfileView({ address, metadata }: ProfileViewProps) {
       {/* Links */}
       {hasLinks && (
         <ul className={styles.links}>
-          {metadata!.links.map((link, i) => (
+          {metadata?.links.map((link, i) => (
             <li key={i}>
               <a href={link.url} target="_blank" rel="noopener noreferrer" className={styles.link}>
                 {link.label}

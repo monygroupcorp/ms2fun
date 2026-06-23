@@ -1,20 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatGwei } from 'viem'
 import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { MessageFeed } from '../components/MessageFeed'
 import { resolveUri } from '../lib/metadata'
+import { truncateAddress } from '../lib/format'
 import styles from './CollectionPage.module.css'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
   if (!raw) return undefined
   if (/^0x[0-9a-fA-F]{40}$/.test(raw)) return raw as `0x${string}`
   return undefined
-}
-
-function truncateAddress(addr: `0x${string}`): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
@@ -26,9 +23,14 @@ export function CollectionPage() {
   const { data: card, isPending, isError } = useCollection(instance)
   const metadata = useCollectionMetadata(card?.metadataURI)
 
+  // Reset the broken-image fallback when navigating to a different collection (the route component
+  // is reused across `/collection/:instance` params, so local state would otherwise persist).
   const [imgError, setImgError] = useState(false)
+  useEffect(() => {
+    setImgError(false)
+  }, [instance])
 
-  if (!instance || (params.instance !== undefined && instance === undefined)) {
+  if (!instance) {
     return (
       <div className={styles.page}>
         <nav className={styles.crumb}>

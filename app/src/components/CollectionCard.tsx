@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import type { ContractFunctionReturnType } from 'viem'
 import { formatGwei } from 'viem'
 import { Link } from 'wouter'
 import { queryAggregatorAbi } from '../generated/contracts'
 import { resolveUri } from '../lib/metadata'
+import { truncateAddress } from '../lib/format'
 import { useCollectionMetadata } from './useCollectionMetadata'
 import styles from './CollectionCard.module.css'
 
@@ -21,12 +23,9 @@ interface CollectionCardProps {
   card: HomePageCard
 }
 
-function truncateAddress(addr: `0x${string}`): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
-}
-
 export function CollectionCard({ card }: CollectionCardProps) {
   const metadata = useCollectionMetadata(card.metadataURI)
+  const [imgError, setImgError] = useState(false)
 
   const title = metadata?.name || card.name
   const fallbackGlyph = card.name.slice(0, 1).toUpperCase() || '✦'
@@ -35,8 +34,13 @@ export function CollectionCard({ card }: CollectionCardProps) {
     <article className={styles.card}>
       <Link href={`/collection/${card.instance}`} className={styles.cardLink}>
         <div className={styles.cardImage}>
-          {metadata?.image ? (
-            <img src={resolveUri(metadata.image)} alt={title} className={styles.cardImg} />
+          {metadata?.image && !imgError ? (
+            <img
+              src={resolveUri(metadata.image)}
+              alt={title}
+              className={styles.cardImg}
+              onError={() => setImgError(true)}
+            />
           ) : (
             fallbackGlyph
           )}

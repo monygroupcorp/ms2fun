@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 /**
  * @title IProfileRegistry
@@ -7,6 +7,9 @@ pragma solidity ^0.8.20;
  *         profile URI pointing at off-chain (IPFS / Arweave / data:) JSON. See ADR-0004.
  */
 interface IProfileRegistry {
+    /// @notice Emitted when an account sets or clears its profile pointer (empty uri on clear).
+    event ProfileUpdated(address indexed account, string uri);
+
     /// @notice Set/replace the caller's own profile pointer. URI must be a valid metadata URI.
     function setProfile(string calldata uri) external;
 

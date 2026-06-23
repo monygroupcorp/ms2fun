@@ -363,4 +363,37 @@ describe('validateFields', () => {
     expect(Object.keys(errors)).toEqual(['title'])
     expect(errors['secret']).toBeUndefined()
   })
+
+  it('recurses into a visible group and validates its child fields', () => {
+    const fields: FieldSchema[] = [
+      {
+        key: 'freeMint',
+        label: 'Free mint',
+        kind: 'group',
+        fields: [
+          field({
+            key: 'freeMint.allocation',
+            label: 'Allocation',
+            validation: { required: true },
+          }),
+        ],
+      },
+    ]
+    const errors = validateFields(fields, { freeMint: { allocation: '' } })
+    expect(errors['freeMint.allocation']).toBeTruthy()
+  })
+
+  it('skips a hidden group and its children', () => {
+    const fields: FieldSchema[] = [
+      {
+        key: 'advanced',
+        label: 'Advanced',
+        kind: 'group',
+        visibleWhen: { field: 'mode', equals: 'pro' },
+        fields: [field({ key: 'x', label: 'X', validation: { required: true } })],
+      },
+    ]
+    const errors = validateFields(fields, { mode: 'basic', x: '' })
+    expect(errors['x']).toBeUndefined()
+  })
 })

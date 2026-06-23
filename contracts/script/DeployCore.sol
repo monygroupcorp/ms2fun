@@ -357,7 +357,7 @@ contract DeployCore is Script {
         // createInstance; the real functional modules are wired into factory internals.
 
         string memory passwordGatingMeta = "data:application/json,{\"name\":\"Password Tier Gating\",\"subtitle\":\"Password \\u00b7 Tiered Access\",\"description\":\"Set one or more passwords, each unlocking a different tier of access or pricing.\",\"configType\":\"password-tier-gating\"}";
-        string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\"}";
+        string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\",\"configType\":\"merkle-allowlist-gating\"}";
         string memory uniV4Meta          = "data:application/json,{\"name\":\"Uniswap V4 Deployer\",\"subtitle\":\"Uniswap V4 \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to a Uniswap V4 pool on graduation.\",\"configType\":\"launch-profile\"}";
         string memory zammMeta           = "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
         string memory cypherMeta         = "data:application/json,{\"name\":\"Cypher Deployer\",\"subtitle\":\"Cypher \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to Cypher on graduation.\",\"configType\":\"launch-profile\"}";

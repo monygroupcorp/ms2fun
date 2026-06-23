@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'wouter'
 import { useAccount } from 'wagmi'
 import { ProfileView } from '../components/ProfileView'
@@ -34,21 +35,34 @@ export function ProfilePage() {
   const paramAddress = toAddress(params.address)
   const target: `0x${string}` | undefined = paramAddress ?? connected
 
-  const { data, isPending, isError } = useReadProfileRegistryProfileUri({
+  const { data, isPending, isError, queryKey } = useReadProfileRegistryProfileUri({
     address: forkAddresses.ProfileRegistry,
     chainId: forkChainId,
     args: [target ?? '0x0000000000000000000000000000000000000000'],
     query: { enabled: !!target },
   })
 
-  const uri = (data as string | undefined) || undefined
+  const uri = data || undefined
   const metadata = useProfileMetadata(uri)
+  // The profileURI read resolves fast; the metadata fetch (IPFS/data) lands later. While a URI
+  // exists but its metadata hasn't resolved, the edit form would init blank — gate editing on this
+  // so a save can't overwrite the profile with empties.
+  const metadataPending = !!uri && metadata === undefined
 
   const {
     writeContract,
     isPending: isSaving,
     isSuccess: isSaved,
   } = useWriteProfileRegistrySetProfile()
+
+  // After a successful write, refetch the on-chain URI + its metadata so the view reflects the save
+  // (the fork mines instantly; on a slow chain this refetch races the receipt — acceptable here).
+  const queryClient = useQueryClient()
+  useEffect(() => {
+    if (!isSaved) return
+    void queryClient.invalidateQueries({ queryKey })
+    void queryClient.invalidateQueries({ queryKey: ['profile-metadata'] })
+  }, [isSaved, queryClient, queryKey])
 
   const isOwn = !!connected && !!target && connected.toLowerCase() === target.toLowerCase()
 
@@ -115,7 +129,11 @@ export function ProfilePage() {
 
       {isOwn && !isPending && !isError && (
         <div className={styles.editBar}>
-          <button className="btn" onClick={() => setEditing((e) => !e)} disabled={isSaving}>
+          <button
+            className="btn"
+            onClick={() => setEditing((e) => !e)}
+            disabled={isSaving || (metadataPending && !editing)}
+          >
             {editing ? 'Cancel' : 'Edit profile'}
           </button>
           {isSaving && <span className={styles.savingNote}>saving…</span>}
@@ -125,6 +143,7 @@ export function ProfilePage() {
 
       {isOwn && editing && (
         <ProfileEditForm
+          key={uri ?? 'new'}
           {...(metadata !== undefined ? { initial: metadata } : {})}
           saving={isSaving}
           onSave={handleSave}

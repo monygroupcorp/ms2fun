@@ -172,7 +172,7 @@ export function validateField(
       break
     case 'number':
     case 'bigint': {
-      const n = typeof value === 'bigint' ? Number(value) : Number(value)
+      const n = Number(value)
       if (!Number.isFinite(n)) return rules?.message ?? `${field.label} must be a number`
       if (rules?.min !== undefined && n < rules.min)
         return rules.message ?? `${field.label} must be ≥ ${rules.min}`
@@ -212,6 +212,12 @@ export function validateFields(
 ): Record<string, string> {
   const errors: Record<string, string> = {}
   for (const field of fields) {
+    // Recurse into visible groups so nested required sub-fields are validated too.
+    if (field.kind === 'group' && field.fields) {
+      if (!isFieldVisible(field, values)) continue
+      Object.assign(errors, validateFields(field.fields, values))
+      continue
+    }
     const err = validateField(field, readValue(values, field.key), values)
     if (err) errors[field.key] = err
   }

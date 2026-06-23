@@ -1,3 +1,4 @@
+import { truncateAddress } from '../lib/format'
 import { type FeedFilter, useMessageFeed } from './useMessageFeed'
 import styles from './MessageFeed.module.css'
 
@@ -5,10 +6,6 @@ const MESSAGE_TYPE_LABELS: Record<number, string> = {
   1: 'REPLY',
   2: 'QUOTE',
   3: 'REACT',
-}
-
-function truncateAddress(addr: `0x${string}`): string {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
 }
 
 export function MessageFeed({ filter }: { filter: FeedFilter }) {

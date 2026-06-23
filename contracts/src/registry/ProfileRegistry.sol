@@ -28,11 +28,7 @@ contract ProfileRegistry is IProfileRegistry {
 
     mapping(address => string) private _profileURI;
 
-    // ┌─────────────────────────┐
-    // │         Events          │
-    // └─────────────────────────┘
-
-    event ProfileUpdated(address indexed account, string uri);
+    // `ProfileUpdated(address indexed account, string uri)` is declared in IProfileRegistry.
 
     // ┌─────────────────────────┐
     // │     Write Functions     │

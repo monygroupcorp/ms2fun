@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useWriteGlobalMessageRegistryPost } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import styles from './MessageComposer.module.css'
@@ -9,13 +10,15 @@ export function MessageComposer({ channel }: { channel: `0x${string}` }) {
   const [content, setContent] = useState('')
 
   const { writeContract, isPending, isSuccess } = useWriteGlobalMessageRegistryPost()
+  const queryClient = useQueryClient()
 
-  // Clear textarea after a successful post
+  // Clear the textarea and refetch the feed(s) after a successful post so the new message appears
+  // immediately rather than after the staleTime window.
   useEffect(() => {
-    if (isSuccess) {
-      setContent('')
-    }
-  }, [isSuccess])
+    if (!isSuccess) return
+    setContent('')
+    void queryClient.invalidateQueries({ queryKey: ['message-feed'] })
+  }, [isSuccess, queryClient])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()

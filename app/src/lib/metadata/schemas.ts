@@ -40,11 +40,14 @@ function str(v: unknown, fallback = ''): string {
 function num(v: unknown, fallback: number): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : fallback
 }
+// Links render into `<a href>`, so only http(s) URLs survive — this drops `data:`/`javascript:` and
+// other schemes that could execute when a viewer clicks an untrusted on-chain profile/collection link.
+const HTTP_URL_RE = /^https?:\/\//i
 function links(v: unknown): ProfileLink[] {
   if (!Array.isArray(v)) return []
   return v
     .map((l) => ({ label: str((l as ProfileLink)?.label), url: str((l as ProfileLink)?.url) }))
-    .filter((l) => l.url !== '')
+    .filter((l) => HTTP_URL_RE.test(l.url))
 }
 function record(v: unknown): Record<string, string> {
   if (!v || typeof v !== 'object') return {}
