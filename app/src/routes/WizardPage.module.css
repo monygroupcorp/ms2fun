@@ -1,0 +1,109 @@
+.page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--padding-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
+
+.crumb {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.back {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.back:hover {
+  color: var(--text-primary);
+}
+
+.title {
+  font-size: var(--font-size-display);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  padding-top: var(--padding-md);
+  border-top: 1px solid var(--border-secondary);
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.error {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  border-left: 2px solid var(--text-primary);
+  padding-left: var(--padding-sm);
+}
+
+/* Project type + vault cards share the selectable-card pattern */
+.typeRow,
+.vaultRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--gap-md);
+}
+
+.typeCard,
+.vaultCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  text-align: left;
+  padding: var(--padding-md);
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.typeCard:hover,
+.vaultCard:hover {
+  border-color: var(--text-primary);
+}
+
+.typeSelected,
+.vaultSelected {
+  border-color: var(--text-primary);
+  border-left-width: 4px;
+}
+
+.typeName,
+.vaultName {
+  font-weight: 600;
+}
+
+.typeSummary,
+.vaultMeta {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.connect {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+}
