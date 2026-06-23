@@ -75,3 +75,7 @@ scripts/debug-*.mjs
 
 # Misc
 .htaccess
+
+# Playwright artifacts (when run from repo root by mistake)
+test-results/
+playwright-report/
