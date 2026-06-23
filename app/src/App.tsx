@@ -9,6 +9,7 @@ import { Exec404Page } from './routes/Exec404Page'
 import { CollectionsPage } from './routes/CollectionsPage'
 import { ProfilePage } from './routes/ProfilePage'
 import { CollectionPage } from './routes/CollectionPage'
+import { WizardPage } from './routes/WizardPage'
 import styles from './App.module.css'
 
 export function App() {
@@ -21,6 +22,9 @@ export function App() {
               ms2<span className={styles.logoTld}>.fun</span>
             </Link>
             <nav className={styles.nav}>
+              <Link href="/launch" className={styles.navLink}>
+                LAUNCH
+              </Link>
               <Link href="/collections" className={styles.navLink}>
                 FEATURED
               </Link>
@@ -37,6 +41,7 @@ export function App() {
             <Switch>
               <Route path="/" component={HomePage} />
               <Route path="/exec404" component={Exec404Page} />
+              <Route path="/launch" component={WizardPage} />
               <Route path="/collections" component={CollectionsPage} />
               <Route path="/collection/:instance" component={CollectionPage} />
               <Route path="/profile" component={ProfilePage} />

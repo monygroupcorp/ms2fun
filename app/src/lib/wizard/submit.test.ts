@@ -21,8 +21,7 @@ const VAULT = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as const
 const GATING = '0xcccccccccccccccccccccccccccccccccccccccc' as const
 const STAKING = '0xdddddddddddddddddddddddddddddddddddddddd' as const
 const LIQUIDITY = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' as const
-const SALT =
-  '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' as const
+const SALT = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' as const
 const METADATA_URI = 'ipfs://QmTestMetadata'
 
 function baseCtx(overrides: Partial<CreateContext> = {}): CreateContext {
@@ -30,7 +29,12 @@ function baseCtx(overrides: Partial<CreateContext> = {}): CreateContext {
     creator: CREATOR,
     metadataURI: METADATA_URI,
     salt: SALT,
-    modules: { vault: VAULT, gatingModule: GATING, liquidityDeployer: LIQUIDITY, stakingModule: STAKING },
+    modules: {
+      vault: VAULT,
+      gatingModule: GATING,
+      liquidityDeployer: LIQUIDITY,
+      stakingModule: STAKING,
+    },
     values: {
       name: 'Test Collection',
       symbol: 'TEST',
