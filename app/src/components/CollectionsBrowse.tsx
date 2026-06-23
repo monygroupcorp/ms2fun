@@ -4,10 +4,11 @@ import { forkAddresses, forkChainId } from '../lib/addresses'
 import styles from './CollectionsBrowse.module.css'
 
 /**
- * Discovery read — the platform's own aggregation (`QueryAggregator.getHomePageData`) returns
- * registered collections + their live state in one call, so no event indexer is needed here.
- * Read-only and independent of the (gated) create path. Empty on a fresh fork until seeds exist —
- * proves the discovery pipeline like hello-chain, one tier up.
+ * Featured-collections read — `QueryAggregator.getHomePageData` returns the currently-active
+ * FEATURED instances (from FeaturedQueueManager), hydrated with live state, in one call. It is NOT
+ * a full registry enumeration: there is no "all instances" getter, so a complete browse needs
+ * event indexing (`CreatorInstanceAdded`) — deferred to the Phase 2/3 domain layer. Read-only and
+ * independent of the gated create path. Empty on a fresh fork (nothing featured yet).
  *
  * NOTE: uses the generated hook directly (pattern: HelloChain). The typed domain-layer wrapper
  * that NOEMA also consumes is a deliberate Phase 2 design decision — not pre-committed here.
@@ -26,7 +27,8 @@ export function CollectionsBrowse() {
   if (cards.length === 0) {
     return (
       <p className={styles.note} data-testid="collections-empty">
-        no collections registered yet — the fork has none until seeds land (Phase 3).
+        nothing featured yet — featured placements appear here (full browse needs the indexed domain
+        layer, Phase 2/3).
       </p>
     )
   }
@@ -42,9 +44,7 @@ export function CollectionsBrowse() {
           <dl className={styles.meta}>
             <div className={styles.metaRow}>
               <dt className={styles.metaLabel}>price</dt>
-              <dd className={styles.metaValue}>
-                {c.currentPrice > 0n ? `${formatGwei(c.currentPrice)} gwei` : '—'}
-              </dd>
+              <dd className={styles.metaValue}>{`${formatGwei(c.currentPrice)} gwei`}</dd>
             </div>
             <div className={styles.metaRow}>
               <dt className={styles.metaLabel}>supply</dt>

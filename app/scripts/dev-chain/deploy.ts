@@ -85,8 +85,11 @@ async function main(): Promise<void> {
     },
   )
 
-  // 3. Read the FRESH deployment output.
+  // 3. Read the FRESH deployment output. Guard against a stale anvil.json from another chain.
   const deployed = JSON.parse(readFileSync(anvilJsonPath, 'utf8')) as AnvilDeployment
+  if (deployed.chainId !== CHAIN_ID) {
+    throw new Error(`anvil.json chainId ${deployed.chainId} != expected ${CHAIN_ID} (stale file?)`)
+  }
   const c = deployed.contracts
   const f = deployed.factories
 
@@ -117,8 +120,9 @@ async function main(): Promise<void> {
 
   console.log(`\n✓ Wrote ${configPath}`)
   console.log('  MasterRegistryV1:', config.contracts.MasterRegistryV1)
-  console.log('\n✅ Dev chain ready. Note: addresses change every deploy — this file is')
-  console.log('   regenerated, not committed (see git update-index --skip-worktree below).')
+  console.log('\n✅ Dev chain ready. Addresses change every deploy — this file is regenerated, not')
+  console.log('   committed. To keep it out of git noise:')
+  console.log('   git update-index --skip-worktree app/src/config/local-deployment.json')
 }
 
 main().catch((err: unknown) => {

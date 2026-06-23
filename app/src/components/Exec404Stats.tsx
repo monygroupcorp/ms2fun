@@ -1,9 +1,9 @@
-import { formatGwei, formatUnits } from 'viem'
+import { formatGwei, formatUnits, zeroAddress } from 'viem'
 import { useAccount, useReadContract, useReadContracts } from 'wagmi'
-import { EXEC404_ADDRESS, EXEC404_CHAIN_ID, ONE_EXEC, exec404Abi } from '../lib/exec404'
+import { ONE_EXEC, exec404Contract } from '../lib/exec404'
 import styles from './Exec404Stats.module.css'
 
-const base = { address: EXEC404_ADDRESS, abi: exec404Abi, chainId: EXEC404_CHAIN_ID } as const
+const base = exec404Contract
 
 /** Compact EXEC token amount: base-units → human, no trailing-zero noise. */
 function fmtExec(raw: bigint): string {
@@ -40,16 +40,26 @@ export function Exec404Stats() {
   }
 
   const [name, symbol, totalSupply, bondingSupply, pair, costPerExec] = data ?? []
-  const graduated = pair?.result && pair.result !== '0x0000000000000000000000000000000000000000'
+  // Test result presence with `!== undefined` — a real 0n is valid data, not "missing".
+  const graduated = pair?.result !== undefined && pair.result !== zeroAddress
 
   const rows: Array<{ label: string; value: string }> = [
     {
       label: 'price · 1 EXEC',
-      value: costPerExec?.result ? `${formatGwei(costPerExec.result)} gwei` : '—',
+      value: costPerExec?.result !== undefined ? `${formatGwei(costPerExec.result)} gwei` : '—',
     },
-    { label: 'total supply', value: totalSupply?.result ? fmtExec(totalSupply.result) : '—' },
-    { label: 'bonding supply', value: bondingSupply?.result ? fmtExec(bondingSupply.result) : '—' },
-    { label: 'graduated', value: pair?.result ? (graduated ? 'yes · has LP' : 'no') : '—' },
+    {
+      label: 'total supply',
+      value: totalSupply?.result !== undefined ? fmtExec(totalSupply.result) : '—',
+    },
+    {
+      label: 'bonding supply',
+      value: bondingSupply?.result !== undefined ? fmtExec(bondingSupply.result) : '—',
+    },
+    {
+      label: 'graduated',
+      value: pair?.result !== undefined ? (graduated ? 'yes · has LP' : 'no') : '—',
+    },
     {
       label: 'your balance',
       value: !isConnected

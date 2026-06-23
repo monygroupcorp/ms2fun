@@ -106,16 +106,20 @@ direction (lean Aave-vault platform; legacy alignment-vault/LP + DAO retired). P
   off-chain metadata.
 
 ### 🔴 THE CRUX — vault coupling blocks "create a collection" (gates the wizard)
-Every KEEP factory **hard-requires a vault at `createInstance`** (`params.vault` is validated;
-MasterRegistry requires the vault to be deployed code at registration), and each ERC404 instance
-**bakes in one liquidity-deployer module at construction** that expects a specific *legacy* vault
-interface (`receiveContribution`/`supportsCapability`) and applies the 1/19/80 split at graduation.
-**Consequence:** the go-forward create path cannot ship until the **Aave vault + a new
-Aave-shaped liquidity/settlement deployer** exist and the factory's vault-selection seam accepts
-them. → This is the dependency that puts the **wizard (Phase 3) on top of the Aave decision
-(G-C)**. The **read/discovery side has no such dependency** and is buildable now.
-*(Answers this doc's open question #2: the seam needs widening + a new deployer, not just
-vault-selection.)*
+Every KEEP factory **hard-requires a vault at `createInstance`** — verified:
+`ERC404Factory.sol:166-167` reverts `VaultRequired`/`VaultMustBeContract` on a zero/non-contract
+vault (ERC1155 `:91-92`, ERC721 `:77-78` identical). Separately, the ERC404 instance also takes a
+**`liquidityDeployer`** — a caller-chosen address validated against ComponentRegistry
+(`ERC404Factory.sol:180` reverts `UnapprovedLiquidityDeployer`) and baked into the instance at
+`initialize(...)` (`:237-239`). That deployer (not the vault) owns the LP wiring + the 1/19/80
+split at graduation, and the only approved deployers today are the *legacy* Uni/ZAMM/Cypher ones.
+**Consequence:** the go-forward create path needs BOTH (a) an **Aave vault** contract that passes
+the vault checks AND (b) a new **Aave-shaped deployer/settlement module approved in
+ComponentRegistry** (the legacy split is wrong for the new model). → This is the dependency that
+puts the **wizard (Phase 3) on top of the Aave decision (G-C)**. The **read/discovery side has no
+such dependency** and is buildable now.
+*(Answers this doc's open question #2: the seam needs a new approved deployer + Aave vault, not
+just picking a vault in the existing selector.)*
 
 ### Metadata — the 3 scopes, as they exist today
 | Scope | Stored where | Key | On-chain vs URI |

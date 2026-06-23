@@ -3,16 +3,15 @@ import { formatGwei } from 'viem'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import {
-  EXEC404_ADDRESS,
   EXEC404_CHAIN_ID,
-  exec404Abi,
+  exec404Contract,
   maxCostWithSlippage,
   minRefundWithSlippage,
   parseExecAmount,
 } from '../lib/exec404'
 import styles from './Exec404Trade.module.css'
 
-const base = { address: EXEC404_ADDRESS, abi: exec404Abi, chainId: EXEC404_CHAIN_ID } as const
+const base = exec404Contract
 
 type Mode = 'buy' | 'sell'
 

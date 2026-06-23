@@ -110,6 +110,13 @@ export const exec404Abi = [
   },
 ] as const
 
+/** Shared contract handle for wagmi read/write hooks — reads/writes target the fork in dev. */
+export const exec404Contract = {
+  address: EXEC404_ADDRESS,
+  abi: exec404Abi,
+  chainId: EXEC404_CHAIN_ID,
+} as const
+
 /** Buy slippage guard: cap spend at quoted cost + 1%. */
 export function maxCostWithSlippage(cost: bigint): bigint {
   return (cost * 101n) / 100n

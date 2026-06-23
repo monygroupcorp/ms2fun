@@ -10,7 +10,7 @@ export function HomePage() {
       <HelloChain />
       <p className={styles.links}>
         <Link href="/collections" className={styles.link} data-testid="collections-link">
-          → COLLECTIONS
+          → FEATURED
         </Link>
         <Link href="/exec404" className={styles.link} data-testid="exec404-link">
           → CULT EXECUTIVES

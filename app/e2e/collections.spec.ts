@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
 
-test('home links to the collections discovery page', async ({ page }) => {
+test('home links to the featured collections discovery page', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('collections-link').click()
   await expect(page).toHaveURL(/\/collections$/)
-  await expect(page.getByRole('heading', { name: 'COLLECTIONS' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'FEATURED' })).toBeVisible()
 })
 
 /**
