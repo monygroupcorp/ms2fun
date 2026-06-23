@@ -8,6 +8,8 @@ import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
 import {FreeMintParams} from "../src/interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../src/gating/IGatingModule.sol";
+import {IAlignmentVault} from "../src/interfaces/IAlignmentVault.sol";
+import {Currency} from "v4-core/types/Currency.sol";
 
 /// @notice Anvil-only seed: stands up a few ERC1155 collections + a couple of profiles so the
 ///         discovery cards, images, and profile pages light up with real on-chain data. Runs AFTER
@@ -32,6 +34,9 @@ contract SeedAnvil is Script {
         // it out first, then index the inner array for the first deployed vault's address.
         string memory vaultsJson = vm.parseJsonString(json, ".vaults");
         address vault = vm.parseJsonAddress(vaultsJson, "[0].address");
+        // DeployCore serializes vaults as [uni0, uni1, aave0, aave1]; index 2 = the first
+        // AaveEndowment vault (target 0). c0 binds to it so its collection page shows the endowment.
+        address endowmentVault = vm.parseJsonAddress(vaultsJson, "[2].address");
         FeaturedQueueManager queue =
             FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
         GlobalMessageRegistry messages =
@@ -43,7 +48,8 @@ contract SeedAnvil is Script {
         // so the list has a stable order; a generous value covers the cost and the excess refunds.
         vm.startBroadcast(deployerKey);
 
-        address c0 = _createCollection(factory, deployer, vault, 0,
+        // c0 is bound to the Aave ENDOWMENT vault so its collection page shows the endowment panel.
+        address c0 = _createCollection(factory, deployer, endowmentVault, 0,
             "neon-drift", "Neon Drift",
             "Generative monochrome fragments. An edition aligned to the MS2 community.", "ND");
         address c1 = _createCollection(factory, deployer, vault, 1,
@@ -57,6 +63,12 @@ contract SeedAnvil is Script {
         queue.rentFeatured{value: 1 ether}(c0, duration, 0.03 ether);
         queue.rentFeatured{value: 1 ether}(c1, duration, 0.02 ether);
         queue.rentFeatured{value: 1 ether}(c2, duration, 0.01 ether);
+
+        // Seed the endowment with a direct contribution so c0's vault panel shows real principal
+        // (benefactor = the c0 instance; receiveContribution is open + requires a contract benefactor).
+        IAlignmentVault(payable(endowmentVault)).receiveContribution{value: 0.5 ether}(
+            Currency.wrap(address(0)), 0.5 ether, c0
+        );
 
         // Deployer profile.
         profiles.setProfile(_profileMeta(

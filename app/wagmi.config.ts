@@ -24,6 +24,7 @@ export default defineConfig({
         'ERC404Factory.sol/**',
         'ERC1155Factory.sol/**',
         'ERC1155Instance.sol/**',
+        'AlignmentEndowmentVault.sol/**',
         'ERC721AuctionFactory.sol/**',
       ],
     }),

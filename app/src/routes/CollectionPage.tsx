@@ -7,6 +7,7 @@ import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { MessageFeed } from '../components/MessageFeed'
 import { EditionList } from '../components/collection/EditionList'
 import { AddEditionForm } from '../components/collection/AddEditionForm'
+import { VaultPanel } from '../components/collection/VaultPanel'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
 import styles from './CollectionPage.module.css'
@@ -128,6 +129,8 @@ export function CollectionPage() {
               {truncateAddress(card.creator)}
             </Link>
           </div>
+
+          {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
 
           {card.contractType === 'ERC1155' && instance && (
             <section className={styles.editions}>

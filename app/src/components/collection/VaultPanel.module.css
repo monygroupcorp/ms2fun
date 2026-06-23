@@ -1,0 +1,77 @@
+/* VaultPanel — Gallery Brutalism, monochrome design tokens only.
+   Alignment economics panel; stat-row layout mirrors EditionList card stats. */
+
+.panel {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  font-family: var(--font-mono);
+}
+
+.heading {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-tertiary);
+  margin: 0;
+}
+
+/* ---- Stat grid -------------------------------------------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-right: 1px solid var(--border-tertiary);
+  border-bottom: 1px solid var(--border-tertiary);
+}
+
+/* last two cells: no bottom border if they sit in the final row */
+.stat:nth-child(2n) {
+  border-right: none;
+}
+
+.statLabel {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  line-height: var(--line-height-normal);
+}
+
+.statValue {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: var(--line-height-normal);
+}
+
+.statNote {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+}
+
+/* ---- Harvest row inside the yield stat -------------------- */
+
+.harvestRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.harvestNote {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  font-style: italic;
+}
