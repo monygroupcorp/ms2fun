@@ -26,29 +26,10 @@ export const EXEC404_CHAIN_ID = forkChainId
 /** 1 EXEC in base units (18 decimals) — the unit we quote price against. */
 export const ONE_EXEC = 1_000_000_000_000_000_000n
 
-/** Only the functions this read-only page uses, as-const for viem type inference. */
+/** Only the functions this read-only page uses, as-const for viem type inference.
+ * (name/symbol/decimals are hardcoded in the UI — "CULT EXECUTIVES"/"EXEC"/18 — so they are
+ * intentionally not in the ABI.) */
 export const exec404Abi = [
-  {
-    type: 'function',
-    name: 'name',
-    stateMutability: 'pure',
-    inputs: [],
-    outputs: [{ type: 'string' }],
-  },
-  {
-    type: 'function',
-    name: 'symbol',
-    stateMutability: 'pure',
-    inputs: [],
-    outputs: [{ type: 'string' }],
-  },
-  {
-    type: 'function',
-    name: 'decimals',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint8' }],
-  },
   {
     type: 'function',
     name: 'totalSupply',

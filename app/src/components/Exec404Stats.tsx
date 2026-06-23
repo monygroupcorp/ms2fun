@@ -51,7 +51,9 @@ export function Exec404Stats() {
   const [totalSupply, pair, amountsOut] = data ?? []
   // getAmountsOut returns [amountIn, amountOut]; amountOut is wei ETH for 1 EXEC.
   const priceWei = amountsOut?.result?.[1]
-  const graduated = pair?.result !== undefined && pair.result !== zeroAddress
+  // Gate on read success — a failed call has result `undefined`, which must not read as graduated.
+  const pairKnown = pair?.status === 'success'
+  const graduated = pairKnown && pair.result !== zeroAddress
 
   const stats: Array<{ label: string; value: string }> = [
     {
@@ -77,7 +79,7 @@ export function Exec404Stats() {
       <header className={styles.head}>
         <h2 className={styles.title}>Market</h2>
         <span className={`badge ${graduated ? 'badge-solid' : ''}`}>
-          {pair?.result === undefined ? '…' : graduated ? 'Uniswap V2' : 'not graduated'}
+          {!pairKnown ? '…' : graduated ? 'Uniswap V2' : 'not graduated'}
         </span>
       </header>
       <dl className={styles.statsGrid}>

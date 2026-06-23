@@ -77,21 +77,18 @@ state with zero new contract risk**, by building the first vertical on the grand
   contract level via a cast script (the actual graduated trade path).
 - Side-by-side screenshot vs demo.
 
-## Slice status (2026-06-22)
-**Code complete; read+quote path verified live; trade tx is human-gated on an archive RPC.**
-- New surface: `/exec404` (linked from home) — `Exec404Page` = `Exec404Stats` (live
-  price/supply/bonding-supply/graduation/balance via one multicall) + `Exec404Trade` (buy/sell with
-  live quote, slippage guard, real tx-state, cache-invalidate on success).
-- **Verified on the fork:** `getTotalFactories`→3 (G8); EXEC404 reads real
-  (CULT EXECUTIVES / EXEC, totalBondingSupply 1.74e27, price ~8.8 gwei/EXEC); 4/4 Playwright pass
-  incl. two `@fork` specs (hello-chain + EXEC404 live read & quote). The buy ABI/args are correct
-  (quoted cost computes; tx well-formed).
-- **OPEN — exit criterion #1 (live buy/sell round-trip):** blocked by RPC archive access, NOT code.
-  The fork's upstream (root `.env` `MAINNET_RPC_URL` = publicnode) serves latest-block reads
-  (stats/quotes/deploy) but 403s on the cold EXEC404 storage a trade tx touches
-  ("Archive requests require a personal token"). Point the fork at an **archive** RPC
-  (`contracts/.env` `ETH_RPC_URL` looks like Alchemy) and the in-wallet buy+sell should complete.
-  This is the remaining human gate.
+## Slice status (current — superseded the 2026-06-22 bonding draft)
+**Done. Read-only fossil page, real V2 market price, Uniswap link-out; all gates green.**
+- Surface: `/exec404` (linked from home) — `Exec404Page` (project-header + 2-col layout) =
+  `Exec404Stats` (live market price/supply/balance via one multicall) + `Exec404TradeLink`
+  (Uniswap link-out). Bonding `Exec404Trade` was removed when the fossil proved graduated (G-D).
+- **Verified on an archive fork:** `getTotalFactories`→3 (G8); EXEC404 reads real
+  (CULT EXECUTIVES / EXEC, ~1.5 gwei/EXEC **V2 market** price, 4.44e9 supply); e2e 5/5 default +
+  `@archive` 1/1 (EXEC404 live V2 price). The graduated V2 trade path (fee-on-transfer swap) is
+  verified working by a cast round-trip — the actual trade happens on Uniswap, which we link to.
+- **Exit criterion #1 was revised** (the original "in-app buy/sell on the bonding curve" was
+  premised on a live curve that no longer exists). Current criteria are met; see above.
+  The archive-RPC gate (G-A) is **cleared** — Mony supplied a working key.
 
 ## Decision log
 - **2026-06-22 — task-zero scope = deploy bridge only (architect call).** Port the deploy +

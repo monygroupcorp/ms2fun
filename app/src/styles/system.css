@@ -3,7 +3,11 @@
    Component patterns + the chromatic-aberration signature from
    docs/DESIGN_SYSTEM_V2.md and legacy/core/components-v2.css.
    Layout lives in per-component CSS Modules; these are the shared
-   building blocks (buttons, badges, chromatic, mono).
+   building blocks (buttons, badges, chromatic).
+
+   This is the design-system PRIMITIVE LIBRARY — it mirrors the documented
+   system, so it deliberately includes the full button family + the full
+   chromatic scale even where a page hasn't consumed a given primitive yet.
    ============================================================ */
 
 /* ---- Chromatic aberration ----------------------------------
@@ -130,9 +134,4 @@
   background-color: var(--text-primary);
   color: var(--bg-primary);
   border-color: var(--text-primary);
-}
-
-/* ---- Misc utilities --------------------------------------- */
-.text-mono {
-  font-family: var(--font-mono);
 }
