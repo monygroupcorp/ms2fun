@@ -26,6 +26,7 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     mapping(uint256 => address[]) public alignmentTargetAmbassadors;
     mapping(uint256 => mapping(address => bool)) internal _isAmbassador;
     mapping(address => uint256[]) public tokenToTargetIds;
+    mapping(uint256 => address) public communityPayout;
 
     constructor() {
         _initializeOwner(msg.sender);
@@ -156,6 +157,30 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
             if (assets[i].token == token) return true;
         }
         return false;
+    }
+
+    // ============ Community Payout ============
+
+    /**
+     * @notice Set the community payout address for an active alignment target
+     * @param targetId ID of the alignment target
+     * @param payout   Address that receives the community's share from the Aave endowment vault
+     */
+    function setCommunityPayout(uint256 targetId, address payout) external override onlyOwner {
+        if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
+        if (!alignmentTargets[targetId].active) revert TargetNotFound();
+        if (payout == address(0)) revert InvalidAddress();
+
+        communityPayout[targetId] = payout;
+        emit CommunityPayoutSet(targetId, payout);
+    }
+
+    /**
+     * @notice Return the community payout address for a given alignment target
+     * @param targetId ID of the alignment target
+     */
+    function getCommunityPayout(uint256 targetId) external view override returns (address) {
+        return communityPayout[targetId];
     }
 
 }

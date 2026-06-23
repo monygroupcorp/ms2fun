@@ -37,4 +37,6 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
     function removeAmbassador(uint256, address) external pure override {}
     function getAmbassadors(uint256) external pure override returns (address[] memory) { return new address[](0); }
     function isAmbassador(uint256, address) external pure override returns (bool) { return false; }
+    function setCommunityPayout(uint256, address) external pure override {}
+    function getCommunityPayout(uint256) external pure override returns (address) { return address(0); }
 }

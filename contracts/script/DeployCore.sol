@@ -17,6 +17,7 @@ import {CypherAlignmentVault} from "../src/vaults/cypher/CypherAlignmentVault.so
 import {CypherAlignmentVaultFactory} from "../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
 import {IZAMM, ZAMMAlignmentVault} from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import {ZAMMAlignmentVaultFactory} from "../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
+import {AlignmentEndowmentVaultFactory} from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
 import {UniswapVaultPriceValidator} from "../src/peripherals/UniswapVaultPriceValidator.sol";
 import {IVaultPriceValidator} from "../src/interfaces/IVaultPriceValidator.sol";
 import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
@@ -65,6 +66,7 @@ contract DeployCore is Script {
         address cypherPositionManager;
         address cypherRouter;
         address zamm;
+        address aaveStataToken; // Aave WETH StaticATokenV2 (waEthWETH); address(0) = no endowment vault
 
         // Pre-existing contracts — address(0) = deploy fresh
         address zrouter;
@@ -119,11 +121,13 @@ contract DeployCore is Script {
     UniAlignmentVaultFactory public uniVaultFactory;
     CypherAlignmentVaultFactory public cypherVaultFactory;
     ZAMMAlignmentVaultFactory public zammVaultFactory;
+    AlignmentEndowmentVaultFactory public aaveVaultFactory;
 
     // Deployed vault instances — indexed by target index
     address[] public uniVaults;
     address[] public cypherVaults;
     address[] public zammVaults;
+    address[] public aaveVaults;
     uint256[] public alignmentTargetIds;
 
     // Project factories
@@ -238,6 +242,13 @@ contract DeployCore is Script {
             );
         }
 
+        // Aave endowment vault factory (ADR-0003) — only where Aave's WETH stataToken exists.
+        if (cfg.aaveStataToken != address(0)) {
+            aaveVaultFactory = new AlignmentEndowmentVaultFactory(
+                cfg.weth, cfg.aaveStataToken, address(treasury), masterRegistry, alignmentRegistry
+            );
+        }
+
         // ── Phase 5: Alignment targets + vault instances ─────────────────────
 
         for (uint256 i = 0; i < cfg.alignmentTargets.length; i++) {
@@ -253,6 +264,24 @@ contract DeployCore is Script {
                 t.name, t.description, "", assets
             );
             alignmentTargetIds.push(targetId);
+
+            // Aave endowment vault (ADR-0003): set the target's community payout, then deploy +
+            // register a per-target endowment vault clone. Community payout is a deterministic
+            // placeholder for local/test; real deployments set the community's actual address.
+            if (cfg.aaveStataToken != address(0)) {
+                alignmentRegistry.setCommunityPayout(
+                    targetId,
+                    address(uint160(uint256(keccak256(abi.encode("ms2.community", targetId)))))
+                );
+                address aaveVault = aaveVaultFactory.deployVault(
+                    keccak256(abi.encode(cfg.chainId, i, "AAVE")), t.token, targetId
+                );
+                MasterRegistryV1(masterRegistry).registerVault(
+                    aaveVault, deployer, string.concat(t.symbol, " Aave Endowment Vault"),
+                    "https://ms2.fun", targetId
+                );
+                aaveVaults.push(aaveVault);
+            }
 
             if (t.deployUniVault) {
                 bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "UNIv4"));
@@ -478,6 +507,15 @@ contract DeployCore is Script {
             vaultsJson = string.concat(vaultsJson,
                 '{"address":"', vm.toString(zammVaults[i]),
                 '","type":"ZAMM","alignmentToken":"',
+                vm.toString(cfg.alignmentTargets[i].token),
+                '","targetId":', vm.toString(alignmentTargetIds[i]), '}');
+        }
+        for (uint256 i = 0; i < aaveVaults.length; i++) {
+            if (!firstVault) vaultsJson = string.concat(vaultsJson, ",");
+            firstVault = false;
+            vaultsJson = string.concat(vaultsJson,
+                '{"address":"', vm.toString(aaveVaults[i]),
+                '","type":"AaveEndowment","alignmentToken":"',
                 vm.toString(cfg.alignmentTargets[i].token),
                 '","targetId":', vm.toString(alignmentTargetIds[i]), '}');
         }

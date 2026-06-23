@@ -1,6 +1,6 @@
 # Phase 3 — MVP Frontend Flows
 
-**Status:** Not started
+**Status:** 🟡 Partly built ahead of the boundary (on `main` 2026-06-23): profile page (T1), unified message feed (T5), collection-detail **view** (T4 view), and the launch-wizard **option schema** (T2 schema, ADR-0005). Remaining and gated on Phase-2 T4 (Aave vault): the wizard **submit-builder** + factory `createInstance` wiring, mint/trade + vault accrual, the IPFS pipeline (T3), and the brutalist styling pass (T6).
 **Depends on:** Phase 2 (typed domain model + Aave vault on fork)
 **Exit gate owner:** Mony
 
