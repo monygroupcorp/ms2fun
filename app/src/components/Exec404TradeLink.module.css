@@ -1,32 +1,33 @@
-.panel {
+.card {
+  background-color: var(--bg-secondary);
   border: 2px solid var(--border-primary);
-  padding: var(--padding-lg);
+  padding: var(--space-5);
   font-family: var(--font-mono);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-lg);
+}
+
+.title {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  margin-bottom: var(--space-4);
 }
 
 .note {
   font-size: var(--font-size-body-sm);
   color: var(--text-secondary);
   line-height: var(--line-height-normal);
+  margin-bottom: var(--space-4);
 }
 
-.link {
-  display: block;
-  text-align: center;
-  height: var(--button-height-lg);
-  line-height: var(--button-height-lg);
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-bold);
+.cta {
+  margin-bottom: var(--space-3);
+}
+
+.fine {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  background: var(--text-primary);
-  color: var(--bg-primary);
-  text-decoration: none;
-  transition: var(--transition-opacity);
-}
-
-.link:hover {
-  opacity: 0.85;
+  text-align: center;
 }

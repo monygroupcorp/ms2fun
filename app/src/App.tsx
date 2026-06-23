@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { Route, Switch } from 'wouter'
+import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
 import { config } from './lib/wagmi'
@@ -14,9 +14,19 @@ export function App() {
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <div className={styles.app}>
-          <header className={styles.header}>
-            <span className={styles.brand}>ms2fun</span>
-            <WalletButton />
+          <header className={styles.topBar}>
+            <Link href="/" className={styles.logo}>
+              ms2<span className={styles.logoTld}>.fun</span>
+            </Link>
+            <nav className={styles.nav}>
+              <Link href="/collections" className={styles.navLink}>
+                FEATURED
+              </Link>
+              <Link href="/exec404" className={styles.navLink}>
+                CULT EXECUTIVES
+              </Link>
+              <WalletButton />
+            </nav>
           </header>
           <main className={styles.main}>
             <Switch>

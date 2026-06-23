@@ -4,26 +4,41 @@ import { Exec404TradeLink } from '../components/Exec404TradeLink'
 import styles from './Exec404Page.module.css'
 
 /**
- * The fossil slice: view EXEC404 / CULT EXECUTIVES against real on-chain state on the anvil
- * mainnet-fork (live market price from its graduated Uniswap V2 pool). The fossil's bonding curve
- * is closed, so trading links out to Uniswap (read-only page — see docs/HUMAN_GATES.md G-D).
+ * The fossil: view EXEC404 / CULT EXECUTIVES against real on-chain state on the anvil mainnet-fork
+ * (live market price from its graduated Uniswap V2 pool). Read-only — the bonding curve is closed,
+ * so trading links out to Uniswap (see docs/HUMAN_GATES.md G-D). Ported from the project-erc404 demo.
  */
 export function Exec404Page() {
   return (
-    <section className={styles.page}>
+    <div className={styles.page}>
       <nav className={styles.crumb}>
         <Link href="/" className={styles.back}>
           ← ms2.fun
         </Link>
       </nav>
+
       <header className={styles.header}>
-        <h1 className={styles.title}>CULT EXECUTIVES</h1>
-        <p className={styles.kicker}>the fossil · grandfathered forever</p>
+        <div className={styles.icon}>✕</div>
+        <h1 className={styles.title}>
+          CULT EXECUTIVES <span className={styles.ticker}>EXEC</span>
+        </h1>
+        <div className={styles.meta}>
+          <span>DN404 genesis</span>
+          <span>·</span>
+          <span>grandfathered fossil</span>
+          <span>·</span>
+          <span>graduated → Uniswap V2</span>
+        </div>
       </header>
+
       <div className={styles.layout}>
-        <Exec404Stats />
-        <Exec404TradeLink />
+        <div className={styles.mainCol}>
+          <Exec404Stats />
+        </div>
+        <aside className={styles.sidebar}>
+          <Exec404TradeLink />
+        </aside>
       </div>
-    </section>
+    </div>
   )
 }

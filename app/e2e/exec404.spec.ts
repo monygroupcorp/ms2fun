@@ -4,7 +4,7 @@ test('home links to the EXEC404 fossil page with a Uniswap trade link-out', asyn
   await page.goto('/')
   await page.getByTestId('exec404-link').click()
   await expect(page).toHaveURL(/\/exec404$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'CULT EXECUTIVES' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: /CULT EXECUTIVES/ })).toBeVisible()
   // Graduated fossil trades on Uniswap — the page links out there (static, no chain needed).
   const link = page.getByTestId('exec404-uniswap-link')
   await expect(link).toBeVisible()

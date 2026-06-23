@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test'
 
 test('app shell loads', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByText('ms2fun')).toBeVisible()
-  await expect(page.getByText('ms2.fun')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'ms2.fun' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'FEATURED', exact: true })).toBeVisible()
 })
 
 /**

@@ -7,11 +7,8 @@ import styles from './CollectionsBrowse.module.css'
  * Featured-collections read — `QueryAggregator.getHomePageData` returns the currently-active
  * FEATURED instances (from FeaturedQueueManager), hydrated with live state, in one call. It is NOT
  * a full registry enumeration: there is no "all instances" getter, so a complete browse needs
- * event indexing (`CreatorInstanceAdded`) — deferred to the Phase 2/3 domain layer. Read-only and
- * independent of the gated create path. Empty on a fresh fork (nothing featured yet).
- *
- * NOTE: uses the generated hook directly (pattern: HelloChain). The typed domain-layer wrapper
- * that NOEMA also consumes is a deliberate Phase 2 design decision — not pre-committed here.
+ * event indexing (`CreatorInstanceAdded`) — deferred to the Phase 2/3 domain layer. Rendered as the
+ * project-discovery card grid. Empty on a fresh fork (nothing featured yet).
  */
 export function CollectionsBrowse() {
   const { data, isPending, isError } = useReadQueryAggregatorGetHomePageData({
@@ -34,29 +31,29 @@ export function CollectionsBrowse() {
   }
 
   return (
-    <ul className={styles.grid} data-testid="collections-list">
+    <div className={styles.grid} data-testid="collections-list">
       {cards.map((c) => (
-        <li key={c.instance} className={styles.card}>
-          <div className={styles.cardHead}>
-            <span className={styles.cardName}>{c.name}</span>
-            <span className={styles.cardType}>{c.contractType}</span>
+        <article key={c.instance} className={styles.card}>
+          <div className={styles.cardImage}>{c.name.slice(0, 1).toUpperCase() || '✦'}</div>
+          <div className={styles.cardContent}>
+            <div className={styles.cardHead}>
+              <h3 className={styles.cardTitle}>{c.name}</h3>
+              <span className="badge">{c.contractType}</span>
+            </div>
+            <div className={styles.cardStats}>
+              <span className={styles.statSecondary}>price</span>
+              <span className={styles.statMono}>{formatGwei(c.currentPrice)} gwei</span>
+            </div>
+            <div className={styles.cardStats}>
+              <span className={styles.statSecondary}>supply</span>
+              <span className={styles.statMono}>{c.totalSupply.toString()}</span>
+            </div>
+            <span className={`badge ${c.isActive ? 'badge-solid' : ''} ${styles.state}`}>
+              {c.isActive ? 'active' : 'inactive'}
+            </span>
           </div>
-          <dl className={styles.meta}>
-            <div className={styles.metaRow}>
-              <dt className={styles.metaLabel}>price</dt>
-              <dd className={styles.metaValue}>{`${formatGwei(c.currentPrice)} gwei`}</dd>
-            </div>
-            <div className={styles.metaRow}>
-              <dt className={styles.metaLabel}>supply</dt>
-              <dd className={styles.metaValue}>{c.totalSupply.toString()}</dd>
-            </div>
-            <div className={styles.metaRow}>
-              <dt className={styles.metaLabel}>status</dt>
-              <dd className={styles.metaValue}>{c.isActive ? 'active' : 'inactive'}</dd>
-            </div>
-          </dl>
-        </li>
+        </article>
       ))}
-    </ul>
+    </div>
   )
 }

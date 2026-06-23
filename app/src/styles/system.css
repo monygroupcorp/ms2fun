@@ -1,0 +1,138 @@
+/* ============================================================
+   Gallery Brutalism — shared system primitives (global)
+   Component patterns + the chromatic-aberration signature from
+   docs/DESIGN_SYSTEM_V2.md and legacy/core/components-v2.css.
+   Layout lives in per-component CSS Modules; these are the shared
+   building blocks (buttons, badges, chromatic, mono).
+   ============================================================ */
+
+/* ---- Chromatic aberration ----------------------------------
+   "The only color we allow — refracted light through the monochrome."
+   RGB split: pink left, cyan right. LARGE text only (never body copy). */
+.text-chromatic-medium {
+  text-shadow:
+    -2px 0 0 rgba(255, 0, 128, 0.6),
+    2px 0 0 rgba(0, 255, 255, 0.6);
+}
+.text-chromatic-strong {
+  text-shadow:
+    -3px 0 0 rgba(255, 0, 128, 0.7),
+    3px 0 0 rgba(0, 255, 255, 0.7);
+}
+.text-chromatic-extreme {
+  text-shadow:
+    -4px 0 0 rgba(255, 0, 128, 0.8),
+    4px 0 0 rgba(0, 255, 255, 0.8);
+}
+.text-chromatic-ultra {
+  text-shadow:
+    -6px 0 0 rgba(255, 0, 128, 0.9),
+    6px 0 0 rgba(0, 255, 255, 0.9);
+}
+
+/* Chromatic on the SHAPE (not the text) — for primary CTAs. Text stays crisp,
+   edges go prismatic: inset pink left, outset cyan right. */
+.btn-chromatic {
+  box-shadow:
+    inset -3px 0 0 rgba(255, 0, 128, 0.7),
+    3px 0 0 rgba(0, 255, 255, 0.7);
+}
+
+/* ---- Buttons (from legacy/core/components-v2.css) ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--button-height-md);
+  padding: 0 var(--button-padding-x);
+  font-family: var(--font-primary);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  text-decoration: none;
+  border: var(--border-width-thin) solid transparent;
+  border-radius: var(--radius-none);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  user-select: none;
+  background: none;
+  outline: none;
+}
+.btn-primary {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+}
+.btn-primary:hover {
+  opacity: 0.7;
+}
+.btn-primary:active {
+  transform: translateY(1px);
+}
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+.btn-secondary:hover {
+  background-color: var(--state-hover-bg);
+}
+.btn-secondary:active {
+  transform: translateY(1px);
+}
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-primary);
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  opacity: 0.7;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+.btn-sm {
+  height: var(--button-height-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-body-sm);
+}
+.btn-lg {
+  height: var(--button-height-lg);
+  padding: 0 var(--space-4);
+  font-size: var(--font-size-body-lg);
+}
+.btn-full {
+  width: 100%;
+}
+.btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---- Badge ------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+.badge-solid {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+}
+
+/* ---- Misc utilities --------------------------------------- */
+.text-mono {
+  font-family: var(--font-mono);
+}

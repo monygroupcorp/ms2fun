@@ -4,14 +4,16 @@ import styles from './Exec404TradeLink.module.css'
 /**
  * EXEC404's bonding curve is closed (graduated) — it trades on a Uniswap V2 pool. Rather than
  * rebuild an in-app AMM swap for a grandfathered fossil, we link out to Uniswap with EXEC
- * preselected. (Decision: docs/HUMAN_GATES.md G-D — read-only + link-out.)
+ * preselected. (Decision: docs/HUMAN_GATES.md G-D — read-only + link-out.) Styled as the demo
+ * `.trading-card` with the chromatic primary CTA — the Gallery Brutalism signature.
  */
 export function Exec404TradeLink() {
   return (
-    <section className={styles.panel} data-testid="exec404-tradelink">
+    <section className={styles.card} data-testid="exec404-tradelink">
+      <h2 className={styles.title}>Trade</h2>
       <p className={styles.note}>Bonding curve graduated — EXEC trades on a Uniswap V2 pool.</p>
       <a
-        className={styles.link}
+        className={`btn btn-primary btn-lg btn-full btn-chromatic ${styles.cta}`}
         href={UNISWAP_SWAP_URL}
         target="_blank"
         rel="noopener noreferrer"
@@ -19,6 +21,7 @@ export function Exec404TradeLink() {
       >
         TRADE ON UNISWAP ↗
       </a>
+      <p className={styles.fine}>opens app.uniswap.org · EXEC preselected</p>
     </section>
   )
 }

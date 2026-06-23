@@ -5,21 +5,21 @@ import styles from './CollectionsPage.module.css'
 /**
  * Discovery surface — featured collections via the platform's own aggregator read
  * (`getHomePageData` → FeaturedQueueManager). Read-only; independent of the gated create/wizard
- * path (see docs/HUMAN_GATES.md G-C). Full registry browse needs the indexed domain layer (P2/3).
+ * path (see docs/HUMAN_GATES.md G-C). Ported from the project-discovery demo.
  */
 export function CollectionsPage() {
   return (
-    <section className={styles.page}>
+    <div className={styles.page}>
       <nav className={styles.crumb}>
         <Link href="/" className={styles.back}>
           ← ms2.fun
         </Link>
       </nav>
-      <header className={styles.header}>
-        <h1 className={styles.title}>FEATURED</h1>
-        <p className={styles.kicker}>featured collections · live read</p>
-      </header>
+      <h1 className={`${styles.title} text-chromatic-medium`}>FEATURED</h1>
+      <div className={styles.resultsHeader}>
+        <span className={styles.resultsCount}>featured collections · live read</span>
+      </div>
       <CollectionsBrowse />
-    </section>
+    </div>
   )
 }
