@@ -48,13 +48,21 @@ Maturity is a per-collection lock the creator chooses at launch.
 ### Vault — the yield (auto-compounds in Aave; the endowment)
 | | platform | community | creator |
 | --- | --- | --- | --- |
-| on harvest / distribution | 1% | **80%** | 19% |
+| **MVP (shipped)** | 1% | **99%** | **0%** |
+| target (fast-follow) | 1% | 80% | 19% |
+
+> **MVP reconciliation (2026-06-23):** the shipped vault distributes yield **99% community / 1%
+> platform** — the creator's 19% purse is **deferred**. Attributing a per-creator yield slice in a
+> single pooled, multi-benefactor position requires a MasterChef-style accumulator; one community
+> per vault makes the 99/1 split exact with zero per-benefactor yield accounting. The creator purse
+> (restoring 80/19/1) is the documented fast-follow — it's the only thing the accumulator buys.
+> **Principal splits are unchanged and shipped as specced** (maturity 80/19/1, early 80/19/1).
 
 The yield **auto-compounds** in the Aave position (stataToken) — no dribbling — so the endowment
 grows; we distribute the larger pot on harvest. It is tracked as the **community's endowment**,
 kept SEPARATE from the refundable principal (folding it into the creator-returned principal would
 hand 80% of the yield back to the creator and break the endowment). Longer maturity → bigger
-endowment + bigger creator purse.
+endowment (+ a bigger creator purse once the fast-follow lands).
 
 **Net:** community = a growing yield endowment (80% of yield) + 19% of principal at maturity;
 creator = principal back (80% at maturity) + a 19% yield purse; platform = 1% at every touchpoint.
@@ -105,14 +113,17 @@ collection instance (the deployer passes `instance` as `benefactor`); the creato
 
 ## Foundry test plan (Phase 2 T4 exit)
 1. **Intake:** DN404 → 1/19(vault)/80(LP); mint → 1/80(vault)/19(creator). Both wire correctly.
-2. Yield auto-compounds; `harvest()` distributes **80 community / 19 creator / 1 platform**;
-   principal untouched.
+2. Yield auto-compounds; `harvest()` distributes **(MVP) 99 community / 1 platform** — creator purse
+   deferred (target: 80/19/1); principal untouched.
 3. Principal **@ maturity** → 80 creator / 19 community / 1 platform.
 4. Principal **early exit** → 80 community / 19 creator / 1 platform.
 5. Registration: `alignmentToken()` + active-target checks pass `MasterRegistry.registerVault`.
 6. Aave pause/freeze/cap revert paths fail cleanly; position migratable.
 
 ## Decision log
+- **2026-06-23 (T4 ship)** — MVP yield split reconciled to **99 community / 1 platform**; the creator
+  19% yield purse is deferred (needs a per-benefactor accumulator) → fast-follow toward the 80/19/1
+  target. Principal splits shipped as specced. See the "MVP reconciliation" note above + the T4 handoff.
 - **2026-06-23** — LOCKED: the endowment model. Type-specific intake (DN404 19%→vault/80%→LP; mints
   80%→vault/19%→creator); principal refundable (maturity 80 creator / 19 community / 1; early 80
   community / 19 creator / 1); yield auto-compounds and distributes 80 community / 19 creator / 1.

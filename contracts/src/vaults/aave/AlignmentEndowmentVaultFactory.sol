@@ -49,6 +49,14 @@ contract AlignmentEndowmentVaultFactory is Ownable {
         AlignmentEndowmentVault(payable(vault)).setCommunityPayout(payout);
     }
 
+    /// @notice Emergency: migrate a vault's entire Aave position to `to` (the factory owns its vaults,
+    ///         and the vault's `migratePosition` is onlyOwner). For an Aave reserve deprecation.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param to    Recovery recipient for the redeemed ETH
+    function migrateVault(address vault, address to) external onlyOwner {
+        AlignmentEndowmentVault(payable(vault)).migratePosition(to);
+    }
+
     /// @notice Deploy a new vault clone via CREATE3
     /// @param salt CREATE3 deployment salt for deterministic vanity address
     /// @param alignmentToken The token this vault aligns to

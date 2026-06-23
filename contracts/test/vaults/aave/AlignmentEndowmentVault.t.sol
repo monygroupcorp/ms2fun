@@ -78,12 +78,16 @@ contract MockWETH {
 }
 
 /// @dev ERC-4626-ish mock over MockWETH; tracks shares separately from assets to allow yield sim.
+///      Also supports a maxWithdrawCap for testing RedeemShortfall (cap == 0 means unlimited).
 contract MockStataToken {
     MockWETH public immutable wethToken;
 
     mapping(address => uint256) private _shares;
     uint256 public totalShares;
     uint256 public totalManaged; // total WETH under management (increases on simulateYield)
+
+    /// @dev When non-zero, caps what maxWithdraw returns (simulates Aave liquidity crunch).
+    uint256 public maxWithdrawCap;
 
     constructor(address _weth) {
         wethToken = MockWETH(payable(_weth));
@@ -103,7 +107,14 @@ contract MockStataToken {
     }
 
     function maxWithdraw(address owner) external view returns (uint256) {
-        return convertToAssets(_shares[owner]);
+        uint256 full = convertToAssets(_shares[owner]);
+        if (maxWithdrawCap == 0) return full;
+        return full < maxWithdrawCap ? full : maxWithdrawCap;
+    }
+
+    /// @dev TEST HELPER: cap how much maxWithdraw returns (0 = no cap).
+    function setMaxWithdrawCap(uint256 cap) external {
+        maxWithdrawCap = cap;
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
@@ -181,6 +192,17 @@ contract MockOwnable {
     }
 }
 
+/// @dev A contract whose receive() and fallback() always revert — for testing forceSafeTransferETH.
+contract RejectETH {
+    receive() external payable {
+        revert("RejectETH: no ETH");
+    }
+
+    fallback() external payable {
+        revert("RejectETH: no ETH");
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Test contract
 // ────────────────────────────────────────────────────────────────────────────
@@ -211,6 +233,7 @@ contract AlignmentEndowmentVaultTest is Test {
     event PrincipalWithdrawn(address indexed benefactor, uint256 amount, bool matured);
     event Harvested(uint256 yield, address indexed community);
     event CommunityPayoutUpdated(address indexed payout);
+    event Migrated(address indexed to, uint256 amount);
 
     // ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -244,22 +267,27 @@ contract AlignmentEndowmentVaultTest is Test {
         masterRegistry.setAgent(agent, true);
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// @dev Contribute ETH from alice with alice as benefactor (simplest case).
-    function _contributeAlice(uint256 amount) internal {
-        vm.prank(alice);
-        vault.receiveContribution{value: amount}(nativeCurrency, amount, alice);
-    }
-
-    /// @dev Contribute on behalf of benefactorContract.
+    /// @dev Contribute ETH from alice on behalf of benefactorContract (a contract benefactor).
     function _contributeBenefactor(uint256 amount) internal {
         vm.prank(alice);
         vault.receiveContribution{value: amount}(nativeCurrency, amount, address(benefactorContract));
     }
 
-    /// @dev Give this test contract WETH, approve stata, call simulateYield.
+    /// @dev Deploy a second MockOwnable and contribute from it (distinct benefactor).
+    function _contributeNewBenefactor(address owner_, uint256 amount) internal returns (MockOwnable b) {
+        b = new MockOwnable(owner_);
+        vm.deal(owner_, owner_.balance + amount);
+        vm.prank(owner_);
+        vault.receiveContribution{value: amount}(nativeCurrency, amount, address(b));
+    }
+
+    /// @dev Simulate yield: inject ETH into MockWETH (so withdrawals are backed), mint the
+    ///      corresponding WETH balance to this test contract, approve stata, and call simulateYield.
     function _simulateYield(uint256 extra) internal {
+        // Back the simulated WETH with real ETH so MockWETH.withdraw can pay out.
+        vm.deal(address(weth), address(weth).balance + extra);
         weth.mint(address(this), extra);
         weth.approve(address(stata), extra);
         stata.simulateYield(extra);
@@ -293,37 +321,52 @@ contract AlignmentEndowmentVaultTest is Test {
         );
     }
 
+    /// @dev initialize sets a one-time max WETH approval for stataToken; deposits use it fine.
+    function test_initialize_maxApprovalWorksForDeposit() public {
+        // A fresh vault with a fresh stata to confirm the max approval path in isolation.
+        MockStataToken freshStata = new MockStataToken(address(weth));
+        address impl = address(new AlignmentEndowmentVault());
+        AlignmentEndowmentVault v2 = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
+        v2.initialize(vaultOwner, address(weth), address(freshStata), treasury, address(masterRegistry), alignmentToken, communityPayout);
+
+        MockOwnable b = new MockOwnable(alice);
+        vm.prank(alice);
+        v2.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(b));
+
+        assertEq(v2.principal(address(b)), ONE_ETH);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // 2. receiveContribution — happy paths
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_contribution_creditsPrincipal() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
-        assertEq(vault.principal(alice), ONE_ETH, "principal mismatch");
+        assertEq(vault.principal(address(benefactorContract)), ONE_ETH, "principal mismatch");
         assertEq(vault.totalPrincipal(), ONE_ETH, "totalPrincipal mismatch");
     }
 
     function test_contribution_setsDepositTimeOnFirst() public {
         vm.warp(1_000_000);
-        _contributeAlice(ONE_ETH);
-        assertEq(vault.depositTime(alice), 1_000_000);
+        _contributeBenefactor(ONE_ETH);
+        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000);
     }
 
     function test_contribution_doesNotResetDepositTimeOnSecond() public {
         vm.warp(1_000_000);
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
         vm.warp(2_000_000);
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
         // depositTime must still be the FIRST deposit time
-        assertEq(vault.depositTime(alice), 1_000_000, "depositTime should not reset");
-        assertEq(vault.principal(alice), 2 * ONE_ETH, "principal should accumulate");
+        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000, "depositTime should not reset");
+        assertEq(vault.principal(address(benefactorContract)), 2 * ONE_ETH, "principal should accumulate");
         assertEq(vault.totalPrincipal(), 2 * ONE_ETH);
     }
 
     function test_contribution_wethInStata() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
         // stata should hold WETH equal to the deposit (1:1 on first deposit)
         uint256 stataAssets = stata.convertToAssets(stata.balanceOf(address(vault)));
         assertApproxEqAbs(stataAssets, ONE_ETH, 1, "stata should hold deposited WETH");
@@ -331,9 +374,9 @@ contract AlignmentEndowmentVaultTest is Test {
 
     function test_contribution_emitsEvent() public {
         vm.expectEmit(true, false, false, true);
-        emit ContributionReceived(alice, ONE_ETH);
+        emit ContributionReceived(address(benefactorContract), ONE_ETH);
         vm.prank(alice);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, alice);
+        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(benefactorContract));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -344,19 +387,19 @@ contract AlignmentEndowmentVaultTest is Test {
         Currency erc20 = Currency.wrap(address(0x1234));
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.NativeOnly.selector);
-        vault.receiveContribution{value: ONE_ETH}(erc20, ONE_ETH, alice);
+        vault.receiveContribution{value: ONE_ETH}(erc20, ONE_ETH, address(benefactorContract));
     }
 
     function test_contribution_revertsAmountMismatch() public {
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.AmountMismatch.selector);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, 2 ether, alice);
+        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, 2 ether, address(benefactorContract));
     }
 
     function test_contribution_revertsZeroAmount() public {
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.AmountMustBePositive.selector);
-        vault.receiveContribution{value: 0}(nativeCurrency, 0, alice);
+        vault.receiveContribution{value: 0}(nativeCurrency, 0, address(benefactorContract));
     }
 
     function test_contribution_revertsZeroBenefactor() public {
@@ -365,12 +408,24 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(0));
     }
 
+    /// @dev NEW: An EOA benefactor (no code) must revert BenefactorNotContract.
+    function test_contribution_revertsEOABenefactor() public {
+        address eoa = makeAddr("eoa_benefactor");
+        // eoa has no code — confirming the assumption
+        assertEq(eoa.code.length, 0, "eoa must have no code");
+
+        vm.deal(alice, alice.balance + ONE_ETH);
+        vm.prank(alice);
+        vm.expectRevert(AlignmentEndowmentVault.BenefactorNotContract.selector);
+        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, eoa);
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // 4. harvest — happy path
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_harvest_splitYield() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
         uint256 yieldAmount = 0.1 ether;
         _simulateYield(yieldAmount);
@@ -395,7 +450,7 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     function test_harvest_noYieldIsNoop() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
         uint256 communityBefore = communityPayout.balance;
         uint256 treasuryBefore = treasury.balance;
@@ -413,28 +468,46 @@ contract AlignmentEndowmentVaultTest is Test {
         AlignmentEndowmentVault v2 = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
         v2.initialize(vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, address(0));
 
-        // deposit into this new vault (need a separate stata for simplicity — use same one but contribute directly)
-        // Actually, both vaults share the same stata which complicates; just contribute to v2 to give it a stata position.
-        // Easier: simulate yield directly is tricky across vaults. Instead verify the revert path
-        // by checking harvest reverts when communityPayout==0 and there IS yield.
-        //
-        // We can push WETH directly into stata, then trick v2 by depositing into v2.
+        // deposit into v2 using a contract benefactor
+        MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
-        v2.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, alice);
+        v2.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(b2));
 
-        _simulateYield(0.1 ether); // this raises stata.totalManaged, so v2's position also grows
+        _simulateYield(0.1 ether); // raises stata.totalManaged → v2's position grows too
 
         vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
         v2.harvest();
     }
 
     function test_harvest_emitsEvent() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
         _simulateYield(0.1 ether);
 
         vm.expectEmit(false, true, false, false);
         emit Harvested(0, communityPayout);
         vault.harvest();
+    }
+
+    /// @dev NEW: harvest succeeds even when communityPayout rejects ETH (forceSafeTransferETH).
+    function test_harvest_forcesSendToRejectingCommunity() public {
+        RejectETH rejecter = new RejectETH();
+
+        vm.prank(vaultOwner);
+        vault.setCommunityPayout(address(rejecter));
+
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+
+        uint256 rejecterBefore = address(rejecter).balance;
+        uint256 treasuryBefore = treasury.balance;
+
+        // Must NOT revert despite rejecter refusing ETH
+        vault.harvest();
+
+        // rejecter's balance increased (force-sent)
+        assertGt(address(rejecter).balance, rejecterBefore, "rejecter should have received ETH");
+        // treasury also received its cut
+        assertGt(treasury.balance, treasuryBefore, "treasury should have received ETH");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -553,10 +626,88 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     function test_withdraw_revertsNoPrincipal() public {
-        // alice has no principal
+        // benefactorContract has no principal
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.NoPrincipal.selector);
         vault.withdrawPrincipal(address(benefactorContract));
+    }
+
+    /// @dev NEW: RedeemShortfall — liquidity crunch reverts and state is unchanged.
+    function test_withdraw_revertsRedeemShortfall() public {
+        vm.warp(1_000_000);
+        _contributeBenefactor(ONE_ETH);
+
+        // Cap maxWithdraw to half of principal → shortfall >> REDEEM_DUST (1e6)
+        stata.setMaxWithdrawCap(ONE_ETH / 2);
+
+        vm.prank(alice);
+        vm.expectRevert(AlignmentEndowmentVault.RedeemShortfall.selector);
+        vault.withdrawPrincipal(address(benefactorContract));
+
+        // State must be unchanged
+        assertEq(vault.principal(address(benefactorContract)), ONE_ETH, "principal must be intact");
+        assertEq(vault.totalPrincipal(), ONE_ETH, "totalPrincipal must be intact");
+        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000, "depositTime must be intact");
+    }
+
+    /// @dev NEW: A shortfall within REDEEM_DUST (cap = p-1) is absorbed; withdrawal succeeds.
+    function test_withdraw_dustShortfallSucceeds() public {
+        vm.warp(1_000_000);
+        _contributeBenefactor(ONE_ETH);
+
+        // cap = p - 1 wei → shortfall = 1 wei ≤ REDEEM_DUST (1e6)
+        stata.setMaxWithdrawCap(ONE_ETH - 1);
+
+        vm.warp(1_000_000 + MATURITY);
+        vm.prank(alice);
+        vault.withdrawPrincipal(address(benefactorContract)); // must NOT revert
+
+        assertEq(vault.principal(address(benefactorContract)), 0, "principal cleared after dust-shortfall withdraw");
+    }
+
+    /// @dev NEW: After removing the cap, withdrawal succeeds following a previous crunch.
+    function test_withdraw_succeedsAfterCapLifted() public {
+        vm.warp(1_000_000);
+        _contributeBenefactor(ONE_ETH);
+
+        // Crunch
+        stata.setMaxWithdrawCap(ONE_ETH / 2);
+        vm.prank(alice);
+        vm.expectRevert(AlignmentEndowmentVault.RedeemShortfall.selector);
+        vault.withdrawPrincipal(address(benefactorContract));
+
+        // Lift cap
+        stata.setMaxWithdrawCap(0);
+        vm.prank(alice);
+        vault.withdrawPrincipal(address(benefactorContract)); // now succeeds
+
+        assertEq(vault.principal(address(benefactorContract)), 0);
+    }
+
+    /// @dev NEW: withdrawPrincipal succeeds even when creator rejects ETH (forceSafeTransferETH).
+    function test_withdraw_forcesSendToRejectingCreator() public {
+        RejectETH rejecter = new RejectETH();
+
+        // benefactor owned by the rejecting contract (so creator cut goes to rejecter)
+        MockOwnable b = new MockOwnable(address(rejecter));
+        vm.deal(address(rejecter), 10 ether);
+
+        // Deposit from alice as the caller; benefactor is b (owned by rejecter)
+        vm.prank(alice);
+        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(b));
+
+        vm.warp(MATURITY + 1);
+
+        uint256 rejecterBefore = address(rejecter).balance;
+        uint256 communityBefore = communityPayout.balance;
+
+        // rejecter is the owner of b, so it can call withdrawPrincipal
+        vm.prank(address(rejecter));
+        vault.withdrawPrincipal(address(b)); // must NOT revert
+
+        // rejecter's ETH balance increased (force-sent creator cut)
+        assertGt(address(rejecter).balance, rejecterBefore, "creator rejecter got ETH via force-send");
+        assertGt(communityPayout.balance, communityBefore, "community got their cut");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -609,24 +760,71 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.setCommunityPayout(address(0));
     }
 
+    /// @dev NEW: migratePosition(address(0)) reverts InvalidAddress.
+    function test_migratePosition_revertsZeroRecipient() public {
+        _contributeBenefactor(ONE_ETH);
+
+        vm.prank(vaultOwner);
+        vm.expectRevert(AlignmentEndowmentVault.InvalidAddress.selector);
+        vault.migratePosition(address(0));
+    }
+
+    /// @dev NEW: non-owner cannot call migratePosition.
     function test_migratePosition_revertsNonOwner() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
         vm.prank(stranger);
         vm.expectRevert();
-        vault.migratePosition();
+        vault.migratePosition(stranger);
     }
 
-    function test_migratePosition_pullsToOwner() public {
-        _contributeAlice(ONE_ETH);
+    /// @dev NEW: migratePosition(recipient) sends all ETH to recipient, zeroes totalPrincipal, emits Migrated.
+    function test_migratePosition_sendsToRecipient() public {
+        _contributeBenefactor(ONE_ETH);
 
-        uint256 ownerBefore = vaultOwner.balance;
+        address recipient = address(0xEE01);
+        vm.deal(recipient, 0);
+
+        uint256 recipientBefore = recipient.balance;
 
         vm.prank(vaultOwner);
-        vault.migratePosition();
+        vm.expectEmit(true, false, false, true);
+        emit Migrated(recipient, ONE_ETH);
+        vault.migratePosition(recipient);
 
-        uint256 ownerGot = vaultOwner.balance - ownerBefore;
-        assertApproxEqAbs(ownerGot, ONE_ETH, 1, "migrate should send full ETH to owner");
+        uint256 recipientGot = recipient.balance - recipientBefore;
+        assertApproxEqAbs(recipientGot, ONE_ETH, 1, "recipient should get full position");
+        assertEq(vault.totalPrincipal(), 0, "totalPrincipal must be zeroed after migrate");
+    }
+
+    /// @dev NEW: migratePosition with yield in position also moves yield to recipient.
+    function test_migratePosition_includesYield() public {
+        _contributeBenefactor(ONE_ETH);
+        _simulateYield(0.1 ether);
+
+        address recipient = makeAddr("migrate_recipient");
+        vm.deal(recipient, 0);
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(recipient);
+
+        // Recipient should have gotten at least principal + most of yield (minus rounding)
+        assertGe(recipient.balance, ONE_ETH, "recipient should get at least principal");
+        assertEq(vault.totalPrincipal(), 0, "totalPrincipal zeroed");
+    }
+
+    /// @dev NEW: migratePosition force-sends even if recipient rejects ETH.
+    function test_migratePosition_forcesSendToRejectingRecipient() public {
+        _contributeBenefactor(ONE_ETH);
+
+        RejectETH rejecter = new RejectETH();
+        uint256 rejecterBefore = address(rejecter).balance;
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(address(rejecter)); // must NOT revert
+
+        assertGt(address(rejecter).balance, rejecterBefore, "rejecter received ETH via force-send");
+        assertEq(vault.totalPrincipal(), 0);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -647,44 +845,46 @@ contract AlignmentEndowmentVaultTest is Test {
 
     function test_calculateClaimableAmount_beforeMaturity() public {
         vm.warp(1_000_000);
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
         // Just before maturity
         vm.warp(1_000_000 + MATURITY - 1);
-        assertEq(vault.calculateClaimableAmount(alice), 0, "not claimable before maturity");
+        assertEq(vault.calculateClaimableAmount(address(benefactorContract)), 0, "not claimable before maturity");
     }
 
     function test_calculateClaimableAmount_atMaturity() public {
         vm.warp(1_000_000);
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
 
         vm.warp(1_000_000 + MATURITY);
-        assertEq(vault.calculateClaimableAmount(alice), ONE_ETH, "should be claimable at maturity");
+        assertEq(vault.calculateClaimableAmount(address(benefactorContract)), ONE_ETH, "should be claimable at maturity");
     }
 
     function test_getBenefactorContribution() public {
-        _contributeAlice(ONE_ETH);
-        assertEq(vault.getBenefactorContribution(alice), ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
+        assertEq(vault.getBenefactorContribution(address(benefactorContract)), ONE_ETH);
     }
 
     function test_getBenefactorShares() public {
-        _contributeAlice(ONE_ETH);
-        assertEq(vault.getBenefactorShares(alice), ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
+        assertEq(vault.getBenefactorShares(address(benefactorContract)), ONE_ETH);
     }
 
     function test_totalShares_equalsTotalPrincipal() public {
-        _contributeAlice(ONE_ETH);
-        _contributeBenefactor(2 ether);
+        _contributeBenefactor(ONE_ETH);
+        MockOwnable b2 = new MockOwnable(alice);
+        vm.prank(alice);
+        vault.receiveContribution{value: 2 ether}(nativeCurrency, 2 ether, address(b2));
         assertEq(vault.totalShares(), vault.totalPrincipal());
     }
 
     function test_accumulatedFees_zeroWithNoYield() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
         assertEq(vault.accumulatedFees(), 0);
     }
 
     function test_accumulatedFees_afterYield() public {
-        _contributeAlice(ONE_ETH);
+        _contributeBenefactor(ONE_ETH);
         uint256 y = 0.05 ether;
         _simulateYield(y);
         assertApproxEqAbs(vault.accumulatedFees(), y, 1);

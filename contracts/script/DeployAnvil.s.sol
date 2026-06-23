@@ -34,12 +34,15 @@ contract DeployAnvil is DeployCore {
         targets[0] = AlignmentTargetConfig({
             token: MS2_TOKEN, symbol: "MS2",
             name: "Milady-Station-2", description: "MS2 community alignment target",
-            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false
+            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false,
+            // local-only deterministic placeholder community payout (a real deploy passes the actual address)
+            communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", MS2_TOKEN)))))
         });
         targets[1] = AlignmentTargetConfig({
             token: CULT_TOKEN, symbol: "CULT",
             name: "Cult-DAO", description: "Cult DAO community alignment target",
-            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false
+            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false,
+            communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", CULT_TOKEN)))))
         });
 
         // Use timestamp-derived salts so repeated Anvil restarts don't collide

@@ -61,6 +61,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error NotAuthorized();
     error CommunityPayoutNotSet();
     error NotSupported();
+    error BenefactorNotContract();
+    error RedeemShortfall();
 
     // ┌─────────────────────────┐
     // │       Constants         │
@@ -71,7 +73,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // Split weights (the platform 1% is always the remainder, so dust never strands).
     uint256 internal constant MAJOR_BPS = 8_000; // 80%
     uint256 internal constant MINOR_BPS = 1_900; // 19%
-    uint256 internal constant YIELD_COMMUNITY_BPS = 9_900; // MVP: community gets 99% of yield
+    // MVP yield community share = MAJOR_BPS + MINOR_BPS (= 99%); the creator-19% purse is the
+    // documented fast-follow. Derived (not a separate constant) so it can't drift out of sync.
+    // A principal redemption short of the request by ≤ REDEEM_DUST is absorbed as ERC-4626
+    // floor-rounding; a larger shortfall is treated as an Aave liquidity event and reverts so the
+    // benefactor can retry once liquidity returns (rather than losing the unredeemed remainder).
+    uint256 internal constant REDEEM_DUST = 1e6; // wei
 
     // ┌─────────────────────────┐
     // │         Storage         │
@@ -91,6 +98,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event PrincipalWithdrawn(address indexed benefactor, uint256 amount, bool matured);
     event Harvested(uint256 yield, address indexed community);
     event CommunityPayoutUpdated(address indexed payout);
+    event Migrated(address indexed to, uint256 amount);
 
     constructor() {
         // Lock the implementation; clones initialize via initialize().
@@ -122,6 +130,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         masterRegistry = IMasterRegistry(_masterRegistry);
         alignmentToken = _alignmentToken;
         communityPayout = _communityPayout; // may be set later via setCommunityPayout
+
+        // One-time max approval: the vault is the sole holder of its WETH, deposited each intake into
+        // the stataToken. Cheaper + cleaner than re-approving per deposit.
+        IWETH(_weth).approve(_stataToken, type(uint256).max);
     }
 
     // ┌─────────────────────────┐
@@ -132,7 +144,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     /// @dev Native ETH only (`currency` must be the zero Currency); `msg.value == amount`. Wraps to
     ///      WETH and supplies the stataToken, crediting `benefactor`'s refundable principal. Open +
     ///      guarded (matches the reference vault): there is no tradable-share surface to inflate, so
-    ///      no caller gate is required for safety.
+    ///      no caller gate is required. `benefactor` MUST be a contract — withdrawal reads
+    ///      `IOwnable(benefactor).owner()`, so crediting a codeless address would strand the funds.
     function receiveContribution(Currency currency, uint256 amount, address benefactor)
         external
         payable
@@ -143,6 +156,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         if (amount == 0) revert AmountMustBePositive();
         if (msg.value != amount) revert AmountMismatch();
         if (benefactor == address(0)) revert InvalidAddress();
+        if (benefactor.code.length == 0) revert BenefactorNotContract();
         _deposit(benefactor, amount);
     }
 
@@ -152,8 +166,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     receive() external payable override {}
 
     function _deposit(address benefactor, uint256 amount) internal {
-        weth.deposit{value: amount}();
-        weth.approve(address(stataToken), amount);
+        weth.deposit{value: amount}(); // approval is set once in initialize
         stataToken.deposit(amount, address(this));
 
         if (depositTime[benefactor] == 0) depositTime[benefactor] = block.timestamp;
@@ -174,8 +187,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         if (communityPayout == address(0)) revert CommunityPayoutNotSet();
 
         uint256 got = _redeem(y);
-        // creator purse deferred → creator share 0; community 99%; platform = remainder (~1%).
-        _distribute(got, address(0), 0, communityPayout, YIELD_COMMUNITY_BPS);
+        // creator purse deferred → creator share 0; community 99% (= MAJOR+MINOR); platform = remainder.
+        _distribute(got, address(0), 0, communityPayout, MAJOR_BPS + MINOR_BPS);
         emit Harvested(got, communityPayout);
         emit FeesAccumulated(got);
     }
@@ -197,12 +210,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
         bool matured = block.timestamp >= depositTime[benefactor] + MATURITY_DURATION;
 
-        // effects before interactions
+        // Redeem from Aave FIRST (trusted calls only) so we never clear accounting for funds we
+        // couldn't recover: a shortfall beyond rounding dust is an Aave liquidity event → revert so
+        // the benefactor retries later, rather than losing the unredeemed remainder to phantom yield.
+        uint256 got = _redeem(p);
+        if (got + REDEEM_DUST < p) revert RedeemShortfall();
+
+        // effects (clear state) before the untrusted distribution interactions
         principal[benefactor] = 0;
         depositTime[benefactor] = 0;
         totalPrincipal -= p;
 
-        uint256 got = _redeem(p);
         if (matured) {
             // creator 80 / community 19 / platform 1
             _distribute(got, creator, MAJOR_BPS, communityPayout, MINOR_BPS);
@@ -257,14 +275,16 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         uint256 communityCut = (amount * communityBps) / BPS;
         uint256 platformCut = amount - creatorCut - communityCut;
 
+        // force-send: a recipient that rejects ETH (e.g. a creator/community contract without a
+        // payable receiver) must not be able to brick harvest/withdrawal for everyone else.
         if (communityCut > 0) {
             if (community == address(0)) revert CommunityPayoutNotSet();
-            SafeTransferLib.safeTransferETH(community, communityCut);
+            SafeTransferLib.forceSafeTransferETH(community, communityCut);
         }
         if (creatorCut > 0 && creator != address(0)) {
-            SafeTransferLib.safeTransferETH(creator, creatorCut);
+            SafeTransferLib.forceSafeTransferETH(creator, creatorCut);
         }
-        if (platformCut > 0) SafeTransferLib.safeTransferETH(protocolTreasury, platformCut);
+        if (platformCut > 0) SafeTransferLib.forceSafeTransferETH(protocolTreasury, platformCut);
     }
 
     // ┌─────────────────────────┐
@@ -278,11 +298,18 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         emit CommunityPayoutUpdated(payout);
     }
 
-    /// @notice Minimal escape hatch: pull the entire position to native ETH at the owner, for an Aave
-    ///         reserve deprecation/migration. Accounting is preserved off-chain during migration.
-    function migratePosition() external onlyOwner nonReentrant {
+    /// @notice Emergency escape hatch (owner = factory): redeem the ENTIRE position to native ETH and
+    ///         force-send it to `to` (the protocol's recovery address) for an Aave reserve
+    ///         deprecation/migration. Zeroes `totalPrincipal`; per-benefactor entries are reconciled
+    ///         off-chain — post-migration the vault is decommissioned (withdrawals revert RedeemShortfall).
+    /// @dev    Sends to an explicit `to` rather than `owner()`: the owner is the factory, which has no
+    ///         `receive()`, so paying it directly would always revert.
+    function migratePosition(address to) external onlyOwner nonReentrant {
+        if (to == address(0)) revert InvalidAddress();
         uint256 got = _redeem(_stataValue());
-        if (got > 0) SafeTransferLib.safeTransferETH(owner(), got);
+        totalPrincipal = 0;
+        if (got > 0) SafeTransferLib.forceSafeTransferETH(to, got);
+        emit Migrated(to, got);
     }
 
     // ┌─────────────────────────┐
@@ -302,11 +329,14 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     }
 
     /// @inheritdoc IAlignmentVault
+    /// @dev Endowment semantics: returns harvestable yield still IN the Aave position (a preview),
+    ///      NOT withdrawn ETH. Realized only by `harvest()`.
     function accumulatedFees() external view override returns (uint256) {
         return _pendingYield();
     }
 
     /// @inheritdoc IAlignmentVault
+    /// @dev Not tradable shares — this is the total refundable WETH principal ledger (in wei).
     function totalShares() external view override returns (uint256) {
         return totalPrincipal;
     }
@@ -317,12 +347,14 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     }
 
     /// @inheritdoc IAlignmentVault
+    /// @dev Not shares — the benefactor's refundable WETH principal (in wei).
     function getBenefactorShares(address benefactor) external view override returns (uint256) {
         return principal[benefactor];
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Preview: a benefactor's principal becomes withdrawable at maturity (gross, pre-split).
+    /// @dev Endowment semantics: 0 while principal is LOCKED (not "no claim") → the gross principal at
+    ///      maturity (pre-split). Use `principal()`/`depositTime()` for the locked amount + unlock time.
     function calculateClaimableAmount(address benefactor) external view override returns (uint256) {
         if (block.timestamp < depositTime[benefactor] + MATURITY_DURATION) return 0;
         return principal[benefactor];

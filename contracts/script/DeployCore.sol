@@ -51,6 +51,7 @@ contract DeployCore is Script {
         bool    deployUniVault;
         bool    deployCypherVault;
         bool    deployZAMMVault;
+        address communityPayout; // endowment community destination; address(0) = set later, off-chain
     }
 
     struct NetworkConfig {
@@ -265,14 +266,13 @@ contract DeployCore is Script {
             );
             alignmentTargetIds.push(targetId);
 
-            // Aave endowment vault (ADR-0003): set the target's community payout, then deploy +
-            // register a per-target endowment vault clone. Community payout is a deterministic
-            // placeholder for local/test; real deployments set the community's actual address.
+            // Aave endowment vault (ADR-0003): set the target's community payout (from config — no
+            // placeholder baked into this cross-network script), then deploy + register a per-target
+            // endowment vault clone. A zero payout is left unset (configured later, off-chain).
             if (cfg.aaveStataToken != address(0)) {
-                alignmentRegistry.setCommunityPayout(
-                    targetId,
-                    address(uint160(uint256(keccak256(abi.encode("ms2.community", targetId)))))
-                );
+                if (t.communityPayout != address(0)) {
+                    alignmentRegistry.setCommunityPayout(targetId, t.communityPayout);
+                }
                 address aaveVault = aaveVaultFactory.deployVault(
                     keccak256(abi.encode(cfg.chainId, i, "AAVE")), t.token, targetId
                 );
