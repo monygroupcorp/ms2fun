@@ -87,17 +87,25 @@ direction (lean Aave-vault platform; legacy alignment-vault/LP + DAO retired). P
 > Also referenced for whitelist gating: a **Merkle gating** module (`ModuleMerkleGating`) — KEEP as
 > the whitelist seam alongside password tiers.
 
-### RETIRE — legacy alignment-vault + LP model (hide from UI; remove from the go-forward deploy)
-- **Vaults:** `vaults/uni/UniAlignmentVault*`, `vaults/cypher/CypherAlignmentVault*`,
-  `vaults/zamm/ZAMMAlignmentVault*` (+ their factories) — Uniswap-V4 / Algebra / ZAMM LP vaults.
-- **Liquidity deployers:** `factories/erc404/LiquidityDeployerModule.sol`,
-  `factories/erc404cypher/CypherLiquidityDeployerModule.sol`,
-  `factories/erc404zamm/ZAMMLiquidityDeployerModule.sol` — each hard-wired to one vault type; carry
-  the 1%/19%/80% split (`RevenueSplitLib`).
-- **Deployer modules in ComponentRegistry:** `ModuleUniV4Deployer`, `ModuleZAMMDeployer`,
-  `ModuleCypherDeployer` — selectable LP backends being killed.
-- **DAO/governance:** GrandCentral, Safe/Timelock voting, ShareOffering, RevenueConductor, OTC
-  escrow (already zero-addressed in config; see [[dao-is-legacy]]).
+### RETIRE — only the legacy alignment **vault** (the Aave vault replaces it)
+> **Corrected 2026-06-23 (Mony):** the earlier draft wrongly retired the liquidity deployers/LP
+> backends. The **collection's bonding→DEX LP is NECESSARY and stays** — "lean kills the LP *vault*,
+> not the LP." Only the alignment-vault contracts retire; everything that builds the collection's
+> own market is KEEP.
+- **Alignment vaults (RETIRE):** `vaults/uni/UniAlignmentVault*`, `vaults/cypher/CypherAlignmentVault*`,
+  `vaults/zamm/ZAMMAlignmentVault*` (+ their factories) — these took the 19% cut and LP'd the
+  *alignment* token. Replaced by the **Aave yield vault** (same `IAlignmentVault` seam).
+- **DAO/governance (RETIRE):** GrandCentral, Safe/Timelock voting, ShareOffering, RevenueConductor,
+  OTC escrow (already zero-addressed in config; see [[dao-is-legacy]]).
+
+### KEEP (corrected) — the collection's own DEX liquidity
+- **Liquidity deployers** (`factories/erc404/LiquidityDeployerModule.sol` + cypher/zamm variants) and
+  the **ComponentRegistry LP backends** (`ModuleUniV4Deployer`, `ModuleZAMMDeployer`,
+  `ModuleCypherDeployer`) = **KEEP** — they deploy the collection token's own DEX LP at graduation
+  (the bonding market) and ARE the "liquidity-pool selection" modular feature. They route the 19%
+  to whatever vault via `receiveContribution`, so pointing them at the Aave vault needs little/no
+  change. The settlement split stays **1% platform / 19% vault / 80% LP** (`RevenueSplitLib`
+  unchanged) — only the vault's WITHDRAWAL economics are new.
 
 ### UTILITY / UNSURE
 - `peripherals/zRouter.sol` (multi-AMM swap util) and `peripherals/UniswapVaultPriceValidator.sol`
@@ -112,14 +120,15 @@ vault (ERC1155 `:91-92`, ERC721 `:77-78` identical). Separately, the ERC404 inst
 **`liquidityDeployer`** — a caller-chosen address validated against ComponentRegistry
 (`ERC404Factory.sol:180` reverts `UnapprovedLiquidityDeployer`) and baked into the instance at
 `initialize(...)` (`:237-239`). That deployer (not the vault) owns the LP wiring + the 1/19/80
-split at graduation, and the only approved deployers today are the *legacy* Uni/ZAMM/Cypher ones.
-**Consequence:** the go-forward create path needs BOTH (a) an **Aave vault** contract that passes
-the vault checks AND (b) a new **Aave-shaped deployer/settlement module approved in
-ComponentRegistry** (the legacy split is wrong for the new model). → This is the dependency that
-puts the **wizard (Phase 3) on top of the Aave decision (G-C)**. The **read/discovery side has no
-such dependency** and is buildable now.
-*(Answers this doc's open question #2: the seam needs a new approved deployer + Aave vault, not
-just picking a vault in the existing selector.)*
+split at graduation.
+**Consequence (refined 2026-06-23, G-C):** the create path needs an **Aave vault** contract that
+(a) passes the `createInstance` vault checks and (b) implements `IAlignmentVault` (`receiveContribution`
++ `alignmentToken` + share tracking) so the EXISTING liquidity deployers route the 19% to it
+unchanged. The **deployers/LP backends are KEEP** (they build the collection's own DEX market) — no
+new deployer required, contrary to the earlier draft. The settlement split (1/19/80) is unchanged;
+the new logic is confined to the **vault's withdrawal economics**. → The wizard (Phase 3) still sits
+on the Aave decision (a registerable vault must exist), but the blast radius is the vault contract,
+not the deployer pipeline. Read/discovery side has no dependency and is built.
 
 ### Metadata — the 3 scopes, as they exist today
 | Scope | Stored where | Key | On-chain vs URI |
@@ -145,7 +154,8 @@ home or stay event-derived.
 ## Exit criteria
 1. A written, typed **domain model + API** covering profiles, collections, the 3 metadata scopes,
    modules, and the message system — accepted by the human.
-2. Aave vault deployed on the fork with passing Foundry tests for the 20/20/1 (+maturity) logic.
+2. Aave vault deployed on the fork with passing Foundry tests for: settlement deposit (19% in),
+   yield-withdraw split, principal-withdraw split (80/19/1), and the maturity / early-unlock option.
 3. Existing contracts green on the fork with seed scenarios; bug list triaged (blockers vs deferred).
 
 ## Verification
@@ -153,10 +163,17 @@ home or stay event-derived.
 - `forge test` green for the vault; fork deploy + seed run.
 
 ## Decision log
-- **2026-06-22 — T1 inventory complete; keep/retire classified** (see section above). KEEP = the
-  registries, message system, factories, gating (password + merkle), launch/curve/pricing config,
-  treasury. RETIRE = all alignment vaults + their factories + liquidity deployers (Uni/ZAMM/Cypher)
-  + the 1/19/80 split + DAO. Surfaced to [[../HUMAN_GATES.md]] G-C for ratification.
+- **2026-06-23 — G-C ratified by Mony (with a correction).** (1) Keep/retire map AGREED — but the
+  draft wrongly retired the LP deployers; **corrected**: only the alignment *vaults* retire, the LP
+  deployers/backends are KEEP (the collection's bonding→DEX LP is necessary; "lean kills the LP
+  vault, not the LP"). (3) Metadata 3-scope direction AGREED. (2) Aave vault economics, confirmed:
+  **settlement** = 1% platform / 19% Aave vault / 80% LP (unchanged split); **principal-out** (early
+  exit option) = 80% alignment target / 19% owner / 1% platform; **yield-out** = 19% owner / 1%
+  platform / [80% destination — CONFIRMING with Mony: alignment vs owner]. Architecture: Aave
+  `StaticATokenV2` stataToken + a thin OZ ERC-4626 wrapper holding the split/maturity logic, WETH
+  base; implements `IAlignmentVault` so existing deployers route the 19% in unchanged.
+- **2026-06-22 — T1 inventory complete; keep/retire classified** (see section above; LP-deployer
+  line superseded by the 2026-06-23 correction above).
 - **2026-06-22 — the crux is vault coupling, not metadata alone.** Factories hard-require a vault at
   `createInstance` and bake in a legacy-coupled liquidity deployer → the create/wizard path is
   gated on the Aave vault + a new Aave-shaped deployer. Read/discovery path is independent → build
@@ -164,4 +181,4 @@ home or stay event-derived.
 
 ## Open questions
 - Does "alignment target" as a tithe destination need its own onchain registry, or is it a free-form address per collection? *(AlignmentRegistry exists and is KEEP — leaning "reuse it as the tithe-target registry"; confirm in T2/T4.)*
-- ~~Can the existing factory express the Aave vault purely through vault-selection, or does the seam need widening?~~ **Resolved (T1): the seam needs widening** — a new Aave-shaped liquidity/settlement deployer is required (instances bake in a vault-type-specific deployer at construction; vault is mandatory at `createInstance`). Not a drop-in via vault-selection alone.
+- ~~Can the existing factory express the Aave vault purely through vault-selection, or does the seam need widening?~~ **Resolved (G-C, 2026-06-23): mostly a drop-in.** The existing liquidity deployers stay and route the 19% via `IAlignmentVault.receiveContribution`; the only new contract is the **Aave vault** itself (implements `IAlignmentVault`, registerable via `alignmentToken()` + active target). No new deployer. The settlement split is unchanged; new logic is confined to the vault's withdrawal economics.
