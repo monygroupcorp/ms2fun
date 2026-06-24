@@ -1,8 +1,10 @@
 /**
- * ERC721 auction surface (W-B1 shell). Routing target for `contractType === 'ERC721'`. The auction
- * UI — active/past auctions, bid form, settle/reclaim, bid history, multi-line queues — lands in
- * W-B3, built on the pure `deriveAuctionState` machine in `../erc721/auctionState`.
+ * ERC721 auction surface (W-B1 shell, filled in by W-B3). Routing target for
+ * `contractType === 'ERC721'`. Delegates the multi-line auction UI — active auctions, bid form,
+ * settle/reclaim, bid history — to `Erc721AuctionSurface`, built on the pure `deriveAuctionState`
+ * machine in `../erc721/auctionState`.
  */
+import { Erc721AuctionSurface } from '../erc721/Erc721AuctionSurface'
 import styles from './TypeSection.module.css'
 
 export interface Erc721CollectionProps {
@@ -10,11 +12,11 @@ export interface Erc721CollectionProps {
   creator: `0x${string}`
 }
 
-export function Erc721Collection(_props: Erc721CollectionProps) {
+export function Erc721Collection({ instance }: Erc721CollectionProps) {
   return (
     <section className={styles.section} data-testid="erc721-collection">
       <h2 className={styles.title}>AUCTIONS</h2>
-      <p className={styles.note}>auction interface coming up (W-B3)</p>
+      <Erc721AuctionSurface instance={instance} />
     </section>
   )
 }
