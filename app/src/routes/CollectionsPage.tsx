@@ -34,6 +34,17 @@ export function CollectionsPage() {
     search,
   })
 
+  const trimmedSearch = search.trim()
+  const filtersActive =
+    typeFilter !== 'ALL' || statusFilter !== 'ALL' || trimmedSearch !== '' || sort !== 'recent'
+
+  const clearFilters = () => {
+    setTypeFilter('ALL')
+    setStatusFilter('ALL')
+    setSort('recent')
+    setSearch('')
+  }
+
   const typeOptions: TypeFilter[] = ['ALL', 'ERC1155', 'ERC721', 'ERC404']
   const sortOptions: { value: SortFilter; label: string }[] = [
     { value: 'recent', label: 'RECENT' },
@@ -113,9 +124,14 @@ export function CollectionsPage() {
       </div>
 
       <div className={styles.resultsHeader}>
-        <span className={styles.resultsCount}>
+        <span className={styles.resultsCount} data-testid="collections-count">
           {isPending ? 'loading…' : isError ? 'error' : `${total} result${total === 1 ? '' : 's'}`}
         </span>
+        {filtersActive && (
+          <button type="button" className={styles.clearBtn} onClick={clearFilters}>
+            clear filters ✕
+          </button>
+        )}
       </div>
 
       {isPending && <p className={browseStyles.note}>loading collections…</p>}
@@ -123,11 +139,7 @@ export function CollectionsPage() {
 
       {!isPending && !isError && total === 0 && (
         <p className={browseStyles.note} data-testid="collections-empty">
-          {data !== undefined &&
-          data.length === 0 &&
-          search === '' &&
-          typeFilter === 'ALL' &&
-          statusFilter === 'ALL'
+          {data !== undefined && data.length === 0 && !filtersActive
             ? 'nothing registered yet — run the seed script to populate.'
             : 'no collections match the current filters.'}
         </p>
