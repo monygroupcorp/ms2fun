@@ -7538,6 +7538,605 @@ export const profileRegistryAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ProtocolTreasuryV1
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const protocolTreasuryV1Abi = [
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'claimPOLFees',
+    outputs: [
+      { name: 'amount0', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount1', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'source',
+        internalType: 'enum ProtocolTreasuryV1.Source',
+        type: 'uint8',
+      },
+    ],
+    name: 'deposit',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'getPolPosition',
+    outputs: [
+      { name: 'tickLower', internalType: 'int24', type: 'int24' },
+      { name: 'tickUpper', internalType: 'int24', type: 'int24' },
+      { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'liquidity', internalType: 'uint128', type: 'uint128' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'source',
+        internalType: 'enum ProtocolTreasuryV1.Source',
+        type: 'uint8',
+      },
+    ],
+    name: 'getRevenueBySource',
+    outputs: [
+      { name: 'received', internalType: 'uint256', type: 'uint256' },
+      { name: 'withdrawn', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_owner', internalType: 'address', type: 'address' }],
+    name: 'initialize',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'onERC721Received',
+    outputs: [{ name: '', internalType: 'bytes4', type: 'bytes4' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'polInstanceCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'polInstances',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'proxiableUUID',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'poolKey',
+        internalType: 'struct PoolKey',
+        type: 'tuple',
+        components: [
+          { name: 'currency0', internalType: 'Currency', type: 'address' },
+          { name: 'currency1', internalType: 'Currency', type: 'address' },
+          { name: 'fee', internalType: 'uint24', type: 'uint24' },
+          { name: 'tickSpacing', internalType: 'int24', type: 'int24' },
+          { name: 'hooks', internalType: 'contract IHooks', type: 'address' },
+        ],
+      },
+      { name: 'tickLower', internalType: 'int24', type: 'int24' },
+      { name: 'tickUpper', internalType: 'int24', type: 'int24' },
+      { name: 'amount0', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount1', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'receivePOL',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'revenueConductor',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'safe', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'routeToDAO',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_registry', internalType: 'address', type: 'address' }],
+    name: 'setMasterRegistry',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_conductor', internalType: 'address', type: 'address' }],
+    name: 'setRevenueConductor',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_pm', internalType: 'address', type: 'address' }],
+    name: 'setV4PoolManager',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_weth', internalType: 'address', type: 'address' }],
+    name: 'setWETH',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: '',
+        internalType: 'enum ProtocolTreasuryV1.Source',
+        type: 'uint8',
+      },
+    ],
+    name: 'totalReceived',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: '',
+        internalType: 'enum ProtocolTreasuryV1.Source',
+        type: 'uint8',
+      },
+    ],
+    name: 'totalWithdrawn',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'data', internalType: 'bytes', type: 'bytes' }],
+    name: 'unlockCallback',
+    outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'newImplementation', internalType: 'address', type: 'address' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'upgradeToAndCall',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'v4PoolManager',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'withdrawERC20',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'tokenId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'withdrawERC721',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'withdrawETH',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ERC20Withdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'tokenId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ERC721Withdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ETHWithdrawn',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newRegistry',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'MasterRegistryUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount0',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'amount1',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'POLFeesCollected',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'liquidity',
+        internalType: 'uint128',
+        type: 'uint128',
+        indexed: false,
+      },
+      {
+        name: 'salt',
+        internalType: 'bytes32',
+        type: 'bytes32',
+        indexed: false,
+      },
+    ],
+    name: 'POLPositionDeployed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'conductor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'RevenueConductorUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'source',
+        internalType: 'enum ProtocolTreasuryV1.Source',
+        type: 'uint8',
+        indexed: true,
+      },
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RevenueReceived',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'conductor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'safe', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RevenueRouted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'implementation',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'Upgraded',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newPoolManager',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'V4PoolManagerUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newWETH',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'WETHUpdated',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'InsufficientBalance' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidRecipient' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoPOLPosition' },
+  { type: 'error', inputs: [], name: 'NoValue' },
+  { type: 'error', inputs: [], name: 'NotRegisteredInstance' },
+  { type: 'error', inputs: [], name: 'POLAlreadyDeployed' },
+  { type: 'error', inputs: [], name: 'RegistryNotConfigured' },
+  { type: 'error', inputs: [], name: 'RenounceDisabled' },
+  { type: 'error', inputs: [], name: 'TransferFailed' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
+  { type: 'error', inputs: [], name: 'UpgradeFailed' },
+  { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
+  { type: 'error', inputs: [], name: 'V4NotConfigured' },
+  { type: 'error', inputs: [], name: 'WETHNotConfigured' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // QueryAggregator
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -15892,6 +16491,644 @@ export const useWatchProfileRegistryProfileUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: profileRegistryAbi,
     eventName: 'ProfileUpdated',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__
+ */
+export const useReadProtocolTreasuryV1 = /*#__PURE__*/ createUseReadContract({
+  abi: protocolTreasuryV1Abi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"getBalance"`
+ */
+export const useReadProtocolTreasuryV1GetBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'getBalance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"getPolPosition"`
+ */
+export const useReadProtocolTreasuryV1GetPolPosition =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'getPolPosition',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"getRevenueBySource"`
+ */
+export const useReadProtocolTreasuryV1GetRevenueBySource =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'getRevenueBySource',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadProtocolTreasuryV1MasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"onERC721Received"`
+ */
+export const useReadProtocolTreasuryV1OnErc721Received =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'onERC721Received',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"owner"`
+ */
+export const useReadProtocolTreasuryV1Owner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadProtocolTreasuryV1OwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"polInstanceCount"`
+ */
+export const useReadProtocolTreasuryV1PolInstanceCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'polInstanceCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"polInstances"`
+ */
+export const useReadProtocolTreasuryV1PolInstances =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'polInstances',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"proxiableUUID"`
+ */
+export const useReadProtocolTreasuryV1ProxiableUuid =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'proxiableUUID',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"revenueConductor"`
+ */
+export const useReadProtocolTreasuryV1RevenueConductor =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'revenueConductor',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"totalReceived"`
+ */
+export const useReadProtocolTreasuryV1TotalReceived =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'totalReceived',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"totalWithdrawn"`
+ */
+export const useReadProtocolTreasuryV1TotalWithdrawn =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'totalWithdrawn',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"v4PoolManager"`
+ */
+export const useReadProtocolTreasuryV1V4PoolManager =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'v4PoolManager',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"weth"`
+ */
+export const useReadProtocolTreasuryV1Weth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__
+ */
+export const useWriteProtocolTreasuryV1 = /*#__PURE__*/ createUseWriteContract({
+  abi: protocolTreasuryV1Abi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteProtocolTreasuryV1CancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"claimPOLFees"`
+ */
+export const useWriteProtocolTreasuryV1ClaimPolFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'claimPOLFees',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteProtocolTreasuryV1CompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"deposit"`
+ */
+export const useWriteProtocolTreasuryV1Deposit =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'deposit',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"initialize"`
+ */
+export const useWriteProtocolTreasuryV1Initialize =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'initialize',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"receivePOL"`
+ */
+export const useWriteProtocolTreasuryV1ReceivePol =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'receivePOL',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteProtocolTreasuryV1RenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteProtocolTreasuryV1RequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"routeToDAO"`
+ */
+export const useWriteProtocolTreasuryV1RouteToDao =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'routeToDAO',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setMasterRegistry"`
+ */
+export const useWriteProtocolTreasuryV1SetMasterRegistry =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setMasterRegistry',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setRevenueConductor"`
+ */
+export const useWriteProtocolTreasuryV1SetRevenueConductor =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setRevenueConductor',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setV4PoolManager"`
+ */
+export const useWriteProtocolTreasuryV1SetV4PoolManager =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setV4PoolManager',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setWETH"`
+ */
+export const useWriteProtocolTreasuryV1SetWeth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setWETH',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteProtocolTreasuryV1TransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useWriteProtocolTreasuryV1UnlockCallback =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"upgradeToAndCall"`
+ */
+export const useWriteProtocolTreasuryV1UpgradeToAndCall =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'upgradeToAndCall',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"withdrawERC20"`
+ */
+export const useWriteProtocolTreasuryV1WithdrawErc20 =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'withdrawERC20',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"withdrawERC721"`
+ */
+export const useWriteProtocolTreasuryV1WithdrawErc721 =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'withdrawERC721',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"withdrawETH"`
+ */
+export const useWriteProtocolTreasuryV1WithdrawEth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'withdrawETH',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__
+ */
+export const useSimulateProtocolTreasuryV1 =
+  /*#__PURE__*/ createUseSimulateContract({ abi: protocolTreasuryV1Abi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateProtocolTreasuryV1CancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"claimPOLFees"`
+ */
+export const useSimulateProtocolTreasuryV1ClaimPolFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'claimPOLFees',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateProtocolTreasuryV1CompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"deposit"`
+ */
+export const useSimulateProtocolTreasuryV1Deposit =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'deposit',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"initialize"`
+ */
+export const useSimulateProtocolTreasuryV1Initialize =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'initialize',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"receivePOL"`
+ */
+export const useSimulateProtocolTreasuryV1ReceivePol =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'receivePOL',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateProtocolTreasuryV1RenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateProtocolTreasuryV1RequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"routeToDAO"`
+ */
+export const useSimulateProtocolTreasuryV1RouteToDao =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'routeToDAO',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setMasterRegistry"`
+ */
+export const useSimulateProtocolTreasuryV1SetMasterRegistry =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setMasterRegistry',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setRevenueConductor"`
+ */
+export const useSimulateProtocolTreasuryV1SetRevenueConductor =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setRevenueConductor',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setV4PoolManager"`
+ */
+export const useSimulateProtocolTreasuryV1SetV4PoolManager =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setV4PoolManager',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setWETH"`
+ */
+export const useSimulateProtocolTreasuryV1SetWeth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'setWETH',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateProtocolTreasuryV1TransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useSimulateProtocolTreasuryV1UnlockCallback =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"upgradeToAndCall"`
+ */
+export const useSimulateProtocolTreasuryV1UpgradeToAndCall =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'upgradeToAndCall',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"withdrawERC20"`
+ */
+export const useSimulateProtocolTreasuryV1WithdrawErc20 =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'withdrawERC20',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"withdrawERC721"`
+ */
+export const useSimulateProtocolTreasuryV1WithdrawErc721 =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'withdrawERC721',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"withdrawETH"`
+ */
+export const useSimulateProtocolTreasuryV1WithdrawEth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: protocolTreasuryV1Abi,
+    functionName: 'withdrawETH',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__
+ */
+export const useWatchProtocolTreasuryV1Event =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: protocolTreasuryV1Abi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"ERC20Withdrawn"`
+ */
+export const useWatchProtocolTreasuryV1Erc20WithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'ERC20Withdrawn',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"ERC721Withdrawn"`
+ */
+export const useWatchProtocolTreasuryV1Erc721WithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'ERC721Withdrawn',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"ETHWithdrawn"`
+ */
+export const useWatchProtocolTreasuryV1EthWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'ETHWithdrawn',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"MasterRegistryUpdated"`
+ */
+export const useWatchProtocolTreasuryV1MasterRegistryUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'MasterRegistryUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchProtocolTreasuryV1OwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchProtocolTreasuryV1OwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchProtocolTreasuryV1OwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"POLFeesCollected"`
+ */
+export const useWatchProtocolTreasuryV1PolFeesCollectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'POLFeesCollected',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"POLPositionDeployed"`
+ */
+export const useWatchProtocolTreasuryV1PolPositionDeployedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'POLPositionDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"RevenueConductorUpdated"`
+ */
+export const useWatchProtocolTreasuryV1RevenueConductorUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'RevenueConductorUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"RevenueReceived"`
+ */
+export const useWatchProtocolTreasuryV1RevenueReceivedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'RevenueReceived',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"RevenueRouted"`
+ */
+export const useWatchProtocolTreasuryV1RevenueRoutedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'RevenueRouted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"Upgraded"`
+ */
+export const useWatchProtocolTreasuryV1UpgradedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'Upgraded',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"V4PoolManagerUpdated"`
+ */
+export const useWatchProtocolTreasuryV1V4PoolManagerUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'V4PoolManagerUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"WETHUpdated"`
+ */
+export const useWatchProtocolTreasuryV1WethUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: protocolTreasuryV1Abi,
+    eventName: 'WETHUpdated',
   })
 
 /**

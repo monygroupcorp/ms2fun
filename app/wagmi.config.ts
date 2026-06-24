@@ -21,6 +21,7 @@ export default defineConfig({
         'ProfileRegistry.sol/**',
         'QueryAggregator.sol/**',
         'FeaturedQueueManager.sol/**',
+        'ProtocolTreasuryV1.sol/ProtocolTreasuryV1.json',
         'ERC404Factory.sol/**',
         'ERC404BondingInstance.sol/**',
         'ERC404StakingModule.sol/**',

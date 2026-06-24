@@ -196,6 +196,7 @@ async function main(): Promise<void> {
       AlignmentRegistryV1: required(c, 'AlignmentRegistry'),
       GlobalMessageRegistry: required(c, 'GlobalMessageRegistry'),
       FeaturedQueueManager: required(c, 'FeaturedQueueManager'),
+      ProtocolTreasuryV1: required(c, 'ProtocolTreasury'),
       QueryAggregator: required(c, 'QueryAggregator'),
       ERC404Factory: required(f, 'ERC404'),
       ERC1155Factory: required(f, 'ERC1155'),

@@ -12,6 +12,7 @@ import { MasterRegistryPanel } from '../components/admin/MasterRegistryPanel'
 import { AlignmentPanel } from '../components/admin/AlignmentPanel'
 import { ComponentRegistryPanel } from '../components/admin/ComponentRegistryPanel'
 import { PlatformConfigPanel } from '../components/admin/PlatformConfigPanel'
+import { TreasuryPanel } from '../components/admin/TreasuryPanel'
 import styles from './AdminPage.module.css'
 
 export function AdminPage() {
@@ -30,6 +31,7 @@ export function AdminPage() {
         <AlignmentPanel />
         <ComponentRegistryPanel />
         <PlatformConfigPanel />
+        <TreasuryPanel />
       </div>
     </div>
   )
