@@ -12,6 +12,12 @@ export const anvilFork = defineChain({
   name: 'Anvil Fork',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: { default: { http: ['http://localhost:8545'] } },
+  // The mainnet fork carries Multicall3 at its canonical mainnet address. WITHOUT declaring it,
+  // viem's `client.multicall` throws ChainDoesNotSupportContract — which broke every multicall
+  // reader (the ERC721 auction surface, the NFT galleries). Single-contract reads were unaffected.
+  contracts: {
+    multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
+  },
   testnet: true,
 })
 
