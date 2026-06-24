@@ -1,9 +1,11 @@
 /**
- * ERC404 bonding surface (W-B1 shell). Routing target for `contractType === 'ERC404'`. The trading
- * UI — buy/sell against CurveParamsComputer quotes, phase/gating/free-mint/reroll, the curve+candle
- * chart (W-B5) and staking (W-B7) — lands in W-B4, built on the pure `derivePhase` machine in
- * `../erc404/bondingPhase`.
+ * ERC404 bonding surface (W-B1 shell, filled in by W-B4). Routing target for
+ * `contractType === 'ERC404'`. Delegates the whole phase-aware trading UI — buy/sell against
+ * CurveParamsComputer quotes, gating/free-mint/reroll, permissionless graduate — to `BondingSurface`,
+ * built on the pure `derivePhase` machine in `../erc404/bondingPhase`. The curve+candle chart (W-B5)
+ * and staking (W-B7) mount inside `BondingSurface` at their marked seams.
  */
+import { BondingSurface } from '../erc404/BondingSurface'
 import styles from './TypeSection.module.css'
 
 export interface Erc404CollectionProps {
@@ -11,11 +13,11 @@ export interface Erc404CollectionProps {
   creator: `0x${string}`
 }
 
-export function Erc404Collection(_props: Erc404CollectionProps) {
+export function Erc404Collection({ instance }: Erc404CollectionProps) {
   return (
     <section className={styles.section} data-testid="erc404-collection">
       <h2 className={styles.title}>BONDING</h2>
-      <p className={styles.note}>bonding-curve trading coming up (W-B4)</p>
+      <BondingSurface instance={instance} />
     </section>
   )
 }
