@@ -4,10 +4,10 @@
  * actions here (free-mint claim, withdraw, claimVaultFees, updateEditionMetadata, gated/message mint).
  */
 import { useState } from 'react'
-import { useAccount } from 'wagmi'
 import { EditionList } from '../EditionList'
 import { AddEditionForm } from '../AddEditionForm'
 import { CreatorAdminPanel } from '../erc1155/CreatorAdminPanel'
+import { useOwnerGate } from '../../ui/useOwnerGate'
 import styles from './TypeSection.module.css'
 
 export interface Erc1155CollectionProps {
@@ -15,16 +15,18 @@ export interface Erc1155CollectionProps {
   creator: `0x${string}`
 }
 
-export function Erc1155Collection({ instance, creator }: Erc1155CollectionProps) {
-  const { address: connected } = useAccount()
+export function Erc1155Collection({ instance }: Erc1155CollectionProps) {
+  // Gate the owner-only surfaces on the live owner() (which is transferable), NOT card.creator —
+  // ownership can move (e.g. to an admin/agent) while creator stays the original deployer. addEdition
+  // + the admin panel are owner-gated on-chain, so this matches the contract.
+  const { isOwner } = useOwnerGate(instance)
   const [editionsKey, setEditionsKey] = useState(0) // bump to re-read editions after an add
-  const isCreator = !!connected && connected.toLowerCase() === creator.toLowerCase()
 
   return (
     <section className={styles.section} data-testid="erc1155-collection">
       <h2 className={styles.title}>EDITIONS</h2>
       <EditionList key={editionsKey} instance={instance} />
-      {isCreator && (
+      {isOwner && (
         <>
           <AddEditionForm instance={instance} onAdded={() => setEditionsKey((k) => k + 1)} />
           <CreatorAdminPanel instance={instance} />

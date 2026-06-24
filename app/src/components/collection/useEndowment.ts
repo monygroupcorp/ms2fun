@@ -11,6 +11,7 @@ import {
   useReadAlignmentEndowmentVaultTotalPrincipal,
   useReadAlignmentEndowmentVaultCommunityPayout,
   useReadAlignmentEndowmentVaultMaturityDuration,
+  useReadAlignmentEndowmentVaultCalculateClaimableAmount,
 } from '../../generated/contracts'
 import { forkChainId } from '../../lib/addresses'
 
@@ -21,6 +22,8 @@ export interface EndowmentState {
   maturity: bigint
   matured: boolean
   yield: bigint
+  /** Gross principal claimable via withdrawPrincipal — 0 while locked, gross at maturity. */
+  claimable: bigint
   totalPrincipal: bigint
   communityPayout: `0x${string}` | undefined
   isPending: boolean
@@ -93,10 +96,22 @@ export function useEndowment(
       query: { enabled: enabled && isEndowment },
     })
 
+  const {
+    data: claimable,
+    isPending: claimablePending,
+    refetch: refetchClaimable,
+  } = useReadAlignmentEndowmentVaultCalculateClaimableAmount({
+    ...(vault ? { address: vault } : {}),
+    chainId: forkChainId,
+    args: [benefactor ?? ZERO_ADDRESS],
+    query: { enabled: enabled && !!benefactor && isEndowment },
+  })
+
   const refetch = useCallback(() => {
     void refetchPrincipal()
     void refetchFees()
-  }, [refetchPrincipal, refetchFees])
+    void refetchClaimable()
+  }, [refetchPrincipal, refetchFees, refetchClaimable])
 
   const resolvedPrincipal = principal ?? 0n
   const resolvedDepositTime = depositTime ?? 0n
@@ -115,7 +130,8 @@ export function useEndowment(
         feesPending ||
         totalPending ||
         communityPending ||
-        maturityPending))
+        maturityPending ||
+        claimablePending))
 
   return {
     isEndowment,
@@ -124,6 +140,7 @@ export function useEndowment(
     maturity,
     matured,
     yield: accumulatedFees ?? 0n,
+    claimable: claimable ?? 0n,
     totalPrincipal: totalPrincipal ?? 0n,
     communityPayout: communityPayout ?? undefined,
     isPending,

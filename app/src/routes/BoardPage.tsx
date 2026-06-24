@@ -1,39 +1,34 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
 import { globalMessageRegistryAbi } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
+import { ReplyComposer } from '../components/ReplyComposer'
+import { ReactButton } from '../components/ReactButton'
+import { type ThreadView, reactionFor, threadMessages } from '../components/threadMessages'
+import type { FeedMessage } from '../components/useMessageFeed'
 import styles from './BoardPage.module.css'
 
-interface BoardMessage {
-  messageId: bigint
-  instance: `0x${string}`
-  sender: `0x${string}`
-  messageType: number
-  refId: bigint
-  content: string
-}
-
 const MESSAGE_TYPE_LABELS: Record<number, string> = {
-  1: 'REPLY',
   2: 'QUOTE',
-  3: 'REACT',
 }
 
 function useGlobalFeed(): {
-  data: BoardMessage[] | undefined
+  data: FeedMessage[] | undefined
   isPending: boolean
   isError: boolean
 } {
   const client = usePublicClient({ chainId: forkChainId })
 
   return useQuery({
-    queryKey: ['message-feed-global'],
+    // Keyed under 'message-feed' so reply/react refetches (which invalidate that key) refresh the board.
+    queryKey: ['message-feed', 'global'],
     enabled: !!client,
     staleTime: 15_000,
-    queryFn: async (): Promise<BoardMessage[]> => {
+    queryFn: async (): Promise<FeedMessage[]> => {
       if (!client) return []
 
       const logs = await client.getContractEvents({
@@ -44,7 +39,7 @@ function useGlobalFeed(): {
         toBlock: 'latest',
       })
 
-      const messages: BoardMessage[] = []
+      const messages: FeedMessage[] = []
       for (const log of logs) {
         const { messageId, instance, sender, messageType, refId, content } = log.args
         if (
@@ -69,13 +64,21 @@ function useGlobalFeed(): {
 }
 
 /**
- * Board route — platform-wide activity feed across all channels.
+ * Board route — platform-wide threaded activity across all channels.
  * Compose section posts to the connected user's own wall (their address as channel),
  * which is the established convention from ProfilePage and shows in this global feed.
+ * Replies (type 1) nest under their parent; reactions (type 3) aggregate into a 👍 count.
  */
 export function BoardPage() {
   const { data, isPending, isError } = useGlobalFeed()
   const { address: connected } = useAccount()
+  const queryClient = useQueryClient()
+
+  const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
+
+  const refetch = () => {
+    void queryClient.invalidateQueries({ queryKey: ['message-feed'] })
+  }
 
   return (
     <div className={styles.page}>
@@ -111,34 +114,111 @@ export function BoardPage() {
           <p className={styles.note}>no activity yet</p>
         )}
 
-        {!isPending && !isError && data !== undefined && data.length > 0 && (
+        {!isPending && !isError && view.threads.length > 0 && (
           <ul className={styles.list}>
-            {data.map((msg) => (
-              <li key={String(msg.messageId)} className={styles.item}>
-                <div className={styles.meta}>
-                  <Link href={`/profile/${msg.sender}`} className={styles.senderLink}>
-                    {truncateAddress(msg.sender)}
-                  </Link>
+            {view.threads.map((thread) => (
+              <li
+                key={String(thread.message.messageId)}
+                className={styles.item}
+                data-testid="board-thread"
+              >
+                <BoardMessage
+                  message={thread.message}
+                  view={view}
+                  connected={connected !== undefined}
+                  onChanged={refetch}
+                />
 
-                  <span className={styles.arrow}>→</span>
-
-                  <Link href={`/collection/${msg.instance}`} className={styles.channelLink}>
-                    {truncateAddress(msg.instance)}
-                  </Link>
-
-                  {msg.messageType !== 0 && (
-                    <span className="badge">
-                      {MESSAGE_TYPE_LABELS[msg.messageType] ?? String(msg.messageType)}
-                    </span>
-                  )}
-                </div>
-
-                <p className={styles.content}>{msg.content}</p>
+                {thread.replies.length > 0 && (
+                  <ul className={styles.replies}>
+                    {thread.replies.map((reply) => (
+                      <li
+                        key={String(reply.messageId)}
+                        className={styles.reply}
+                        data-testid="board-reply"
+                      >
+                        <BoardMessage
+                          message={reply}
+                          view={view}
+                          connected={connected !== undefined}
+                          onChanged={refetch}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
         )}
       </section>
     </div>
+  )
+}
+
+function BoardMessage({
+  message,
+  view,
+  connected,
+  onChanged,
+}: {
+  message: FeedMessage
+  view: ThreadView
+  connected: boolean
+  onChanged: () => void
+}) {
+  const [replying, setReplying] = useState(false)
+  const reaction = reactionFor(view, message.messageId)
+
+  return (
+    <>
+      <div className={styles.meta}>
+        <Link href={`/profile/${message.sender}`} className={styles.senderLink}>
+          {truncateAddress(message.sender)}
+        </Link>
+
+        <span className={styles.arrow}>→</span>
+
+        <Link href={`/collection/${message.instance}`} className={styles.channelLink}>
+          {truncateAddress(message.instance)}
+        </Link>
+
+        {MESSAGE_TYPE_LABELS[message.messageType] !== undefined && (
+          <span className="badge">{MESSAGE_TYPE_LABELS[message.messageType]}</span>
+        )}
+      </div>
+
+      {message.content.length > 0 && <p className={styles.content}>{message.content}</p>}
+
+      <div className={styles.actions}>
+        <div className={styles.actionBar}>
+          <ReactButton
+            targetId={message.messageId}
+            channel={message.instance}
+            count={reaction.count}
+            reactedByMe={reaction.reactedByMe}
+            onReacted={onChanged}
+          />
+          {connected && !replying && (
+            <button
+              type="button"
+              className={styles.replyBtn}
+              onClick={() => setReplying(true)}
+              data-testid="board-reply-toggle"
+            >
+              reply
+            </button>
+          )}
+        </div>
+        {replying && (
+          <ReplyComposer
+            parentId={message.messageId}
+            channel={message.instance}
+            onPosted={onChanged}
+            onCancel={() => setReplying(false)}
+          />
+        )}
+      </div>
+    </>
   )
 }
