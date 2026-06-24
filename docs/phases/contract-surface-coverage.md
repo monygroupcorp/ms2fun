@@ -17,11 +17,14 @@ DAO is OUT; **creator admin and protocol admin are first-class**. Built from a 4
 - ✅ Home: featured grid (rank-sorted, EXEC404 pinned) + stats bar + recent-activity preview, on the
   featured fast-path. Discovery filters polished (count, clear-filters). All-collections event scan ✓.
 
-### B. Launch / Create — 🟡
-- ✅ `{ERC404,ERC1155,ERC721}Factory.createInstance` via wizard; ERC1155 `addEdition` post-create.
-- ⬜ **`ERC721AuctionInstance.queuePiece`** — creators CANNOT add auction pieces after launch (no UI).
-- ⬜ **Gating config** `PasswordTierGatingModule.configureFor` — wizard can't set password tiers
-  (seam stubbed in `useCreateSubmit`). *(old W-G3)*
+### B. Launch / Create — 🟡 (one BLOCKED item remains)
+- ✅ `{ERC404,ERC1155,ERC721}Factory.createInstance` via wizard; ERC1155 `addEdition`; ERC721
+  `queuePiece` (Phase 1 admin).
+- ⛔ **Gating config** `PasswordTierGatingModule.configureFor` — BLOCKED, not just unwired: the FIRST
+  config is **factory-only** (`isFactoryRegistered(msg.sender)`); only UPDATES are owner-callable, and
+  `createInstance` doesn't accept a `TierConfig`. So "set up password gating" needs a create-flow (and
+  likely contract) change to pass the tier config through the factory. Deliberate decision, deferred.
+  (An unconfigured gated instance is effectively open — tier 0, no cap.)
 
 ### C. Per-type trading — ✅ (W-B, done)
 - ✅ ERC404 buy/sell/quote/freemint/reroll/graduate/staking; ERC1155 mint/freemint; ERC721 bid/
@@ -71,16 +74,18 @@ Per-instance owner functions, mostly UNWIRED across all three types:
   distinct-sender aggregated). Replies/reactions post to the PARENT's channel so threads render on the
   board AND in collection/profile feeds. Pure threading transform is unit-tested.
 
-### J. Profiles — ✅ (minor gap)
-- ✅ `setProfile` / `profileURI`. ⬜ `clearProfile` (one button).
+### J. Profiles — ✅ (Phase 3)
+- ✅ `setProfile` / `profileURI` / `clearProfile`; created-collections list already on the profile.
 
-### K. Protocol admin console — ⬜ (34 owner functions)
-Operator surface (owner = Safe; UI still needed for routine ops):
-- Factory mgmt (`registerFactory`/`deactivateFactory`), Vault mgmt (`registerVault`/`deactivateVault`),
-  Alignment targets+ambassadors+payouts (AlignmentRegistry CRUD — *zero UI*), Component registry
-  (`approveComponent`/`revokeComponent`), Treasury (`withdrawETH/ERC20/ERC721`, revenue-by-source,
-  POL), Featured-queue config (rates/bounds/size), Agent delegation (`setAgent`/`revokeAgent`/
-  `emergencyRevoker`), registry wiring. *(old W-F)*
+### K. Protocol admin console — ✅ (Phase 3, done 2026-06-24; treasury sub-panel deferred)
+- ✅ `/admin` console (nav + page gated on the MasterRegistry owner), four registry panels each
+  self-gating on their `owner()`: **MasterRegistry** (factory/vault/instance mgmt), **Alignment**
+  (targets/ambassadors/payouts), **Component** (approve/revoke), **PlatformConfig** (featured-queue
+  rates/bounds/size + agent delegation `setAgent`/`revokeAgent`/`emergencyRevoker`).
+- ✅ Registry ownership handed to the testing wallet via the 2-step handover (deploy.ts impersonation),
+  so the console is operable as `0x54Ef…`.
+- ⬜ **Treasury sub-panel** (`withdrawETH/ERC20/ERC721`, revenue-by-source, POL) — deferred: the
+  ProtocolTreasury address isn't in the slim frontend config (needs adding to the deploy bridge).
 
 ### L. Skip (internal / out) 
 `initialize*`, UUPS upgrade + ownership-handover, factory-only (`registerInstance`/`initializeStaking`),
