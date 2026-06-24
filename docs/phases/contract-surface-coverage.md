@@ -37,7 +37,13 @@ DAO is OUT; **creator admin and protocol admin are first-class**. Built from a 4
   (`mirrorERC721`→`tokenURI`/`ownerOf` via minimal ABI) + ERC721 piece art + auction history.
   Galleries (`Erc404NftGallery`, `Erc721PieceGallery`) mounted on the collection surfaces.
 
-### E. Creator admin (per-instance) — 🟡 (biggest execution gap)
+### E. Creator admin (per-instance) — ✅ (Phase 1, done 2026-06-24)
+Owner-gated admin panel per type (composing the Phase-0 primitives), self-hides for non-owners:
+ERC404 (bonding lifecycle/style/metadata/migrateVault/claimAllFees/delegation), ERC1155 (the prior
+withdraw/claimVaultFees/updateMeta refactored + setStyle/migrateVault/claimAllFees/delegation/retry),
+ERC721 (**queuePiece** + claimVaultFees/migrateVault/claimAllFees/delegation). Original gap below:
+
+#### (original gap)
 Per-instance owner functions, mostly UNWIRED across all three types:
 - ERC404: `setBondingActive` / `setBondingOpenTime` / `setBondingMaturityTime`, `setStyle`,
   `setMetadataURI`, `migrateVault`, `claimAllFees`, `setAgentDelegation`. (only `activateStaking` ✅)
@@ -53,21 +59,20 @@ Per-instance owner functions, mostly UNWIRED across all three types:
   ERC404 token+NFT+staked+pendingRewards, ERC1155 balances, vault contribution/shares/claimable.
   Powers a `/portfolio` page + the **ERC404 NFT gallery**. *(user: "no … portfolio ability")* *(old W-D1)*
 
-### G. Vault & yield — 🟡
-- ✅ `harvest` + reads (`principal`/`depositTime`/`accumulatedFees`/`totalPrincipal`/`communityPayout`).
-- ⬜ **`withdrawPrincipal`** — VaultPanel labels principal "refundable" with NO withdraw button;
-  `calculateClaimableAmount` ungates it. Alignment-target display (name/community) thin. *(old W-D2)*
+### G. Vault & yield — ✅ (Phase 1, done 2026-06-24)
+- ✅ `harvest` + reads, and **`withdrawPrincipal`** — VaultPanel now shows claimable principal
+  (gated on `calculateClaimableAmount`; disabled+dated-hint while locked) + the matured 80/19/1 split.
+- ⬜ (minor) richer alignment-target display (name/community) — fast-follow.
 
 ### H. Featured-queue management — ⬜
 - ⬜ `FeaturedQueueManager.rentFeatured` / `boostRank` / `renewDuration` / `pruneExpired` + reads
   (`getRentalInfo`/`getEffectiveRank`/`quoteDurationCost`). Read indirectly today, never written from
   the UI. Monetization surface. *(old W-E)*
 
-### I. Social / board — 🟡  ← **user-flagged**
-- ✅ `GlobalMessageRegistry.post` (new posts), event feed.
-- ⬜ **Replies + reactions + threading** — the contract supports it (`messageType` 0=POST/1=REPLY/
-  2=QUOTE/3=REACT, `refId` parent-link, `postBatch`); the rebuilt `/board` reads events but doesn't
-  thread or aggregate. *(user: "board has no reactions or replies … lost in the migration")*
+### I. Social / board — ✅ (Phase 1, done 2026-06-24)  ← **user-flagged**
+- ✅ `post` + **threaded replies** (messageType 1, refId=parent) + **reactions** (messageType 3,
+  distinct-sender aggregated). Replies/reactions post to the PARENT's channel so threads render on the
+  board AND in collection/profile feeds. Pure threading transform is unit-tested.
 
 ### J. Profiles — ✅ (minor gap)
 - ✅ `setProfile` / `profileURI`. ⬜ `clearProfile` (one button).
