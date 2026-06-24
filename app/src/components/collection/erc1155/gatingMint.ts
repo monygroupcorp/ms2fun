@@ -16,9 +16,13 @@
  * bytes32 that ERC404BondingInstance.buyBonding accepts). We therefore resolve a password tier
  * by hashing the plaintext client-side.
  *
- * Two encodings differ by call site because the ABI types differ:
- *   - `mint(... bytes32 gatingData ...)`  → the raw keccak256 hash (a bytes32)
- *   - `claimFreeMint(bytes gatingData)`   → that same hash, typed as `bytes`
+ * Two encodings differ by call site because the call sites forward the credential differently:
+ *   - `mint(... bytes32 gatingData ...)`  → the raw keccak256 hash (a bytes32). The INSTANCE wraps
+ *     it as `abi.encode(gatingData, edition.openTime)` before calling the module, so the client
+ *     passes only the hash.
+ *   - `claimFreeMint(bytes gatingData)`   → forwarded DIRECTLY to the module, which does
+ *     `abi.decode(data, (bytes32, uint256))`. So the client must itself encode
+ *     `abi.encode(passwordHash, openTime)`. Passing a bare hash here reverts in abi.decode.
  *
  * MERKLE SEAM: an allowlist (merkle-allowlist-gating) module would instead expect an
  * ABI-encoded merkle proof (`bytes32[]`) as gatingData. Resolving a proof needs the full leaf
@@ -76,13 +80,23 @@ export function passwordToBytes32(password: string): Hex {
 }
 
 /**
- * Resolve a plaintext password into the `bytes` credential the `claimFreeMint` path expects.
- * It is the same keccak256 hash, just typed as `bytes` rather than `bytes32`. Empty → '0x'.
+ * Encode the `bytes` credential the `claimFreeMint` path expects. Unlike paid `mint` (where the
+ * instance wraps the hash with the edition's openTime), `claimFreeMint` forwards this blob straight
+ * to the module's `abi.decode(data, (bytes32, uint256))`, so we must encode the pair ourselves:
+ * `abi.encode(passwordHash, openTime)`. An empty password yields `(bytes32(0), openTime)` → the
+ * module reads tier 0. `openTime` only affects TIME_BASED tiers; free mint has no per-claim time
+ * anchor, so it defaults to 0 (callers with a TIME_BASED free-mint tier can pass the edition's
+ * openTime). Note: only call this when the free mint is actually gated — pass '0x' otherwise, since
+ * the module isn't consulted and abi.decode('0x') would revert.
  */
-export function passwordToBytes(password: string): Hex {
-  const trimmed = password.trim()
-  if (trimmed === '') return '0x'
-  return keccak256(toHex(trimmed))
+export function encodeFreeMintGatingData(password: string, openTime: bigint = 0n): Hex {
+  return encodeAbiParameters(
+    [
+      { name: 'passwordHash', type: 'bytes32' },
+      { name: 'openTime', type: 'uint256' },
+    ],
+    [passwordToBytes32(password), openTime],
+  )
 }
 
 /**

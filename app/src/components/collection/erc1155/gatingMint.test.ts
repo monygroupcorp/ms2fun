@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { keccak256, toHex } from 'viem'
+import { decodeAbiParameters, keccak256, toHex } from 'viem'
 import {
+  encodeFreeMintGatingData,
   encodeMintMessage,
   GatingScope,
   hasGatingModule,
   isFreeMintGated,
   isPaidMintGated,
-  passwordToBytes,
   passwordToBytes32,
   resolveMerkleGatingData,
   ZERO_BYTES32,
@@ -61,12 +61,28 @@ describe('passwordToBytes32', () => {
   })
 })
 
-describe('passwordToBytes', () => {
-  it('empty → 0x', () => {
-    expect(passwordToBytes('')).toBe('0x')
+describe('encodeFreeMintGatingData', () => {
+  const params = [
+    { name: 'passwordHash', type: 'bytes32' },
+    { name: 'openTime', type: 'uint256' },
+  ] as const
+
+  it('abi-encodes (passwordHash, openTime) so the module can abi.decode it', () => {
+    const encoded = encodeFreeMintGatingData('hunter2', 1234n)
+    const [hash, openTime] = decodeAbiParameters(params, encoded)
+    expect(hash).toBe(passwordToBytes32('hunter2'))
+    expect(openTime).toBe(1234n)
   })
-  it('same hash as the bytes32 form', () => {
-    expect(passwordToBytes('hunter2')).toBe(passwordToBytes32('hunter2'))
+
+  it('empty password → (bytes32(0), openTime) → module reads tier 0', () => {
+    const [hash, openTime] = decodeAbiParameters(params, encodeFreeMintGatingData(''))
+    expect(hash).toBe(ZERO_BYTES32)
+    expect(openTime).toBe(0n)
+  })
+
+  it('encodes to 64 bytes (two 32-byte words), not a bare 32-byte hash', () => {
+    // The original bug: a bare bytes32 (66 chars) reverts in abi.decode((bytes32,uint256)).
+    expect(encodeFreeMintGatingData('x').length).toBe(2 + 128)
   })
 })
 
