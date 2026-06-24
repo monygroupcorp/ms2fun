@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchJson, IPFS_GATEWAYS, isResolvableUri, resolveUri } from './uri'
+import { fetchJson, getIpfsGateways, IPFS_GATEWAYS, isResolvableUri, resolveUri } from './uri'
 
 // ── resolveUri ────────────────────────────────────────────────────────────────
 
@@ -118,6 +118,33 @@ describe('isResolvableUri', () => {
   })
 })
 
+// ── getIpfsGateways ───────────────────────────────────────────────────────────
+
+describe('getIpfsGateways', () => {
+  it('returns the public gateways when there is no custom gateway', () => {
+    expect(getIpfsGateways(null)).toEqual([...IPFS_GATEWAYS])
+  })
+
+  it('prepends a normalized custom gateway (bare host)', () => {
+    expect(getIpfsGateways('https://my.gw')).toEqual(['https://my.gw/ipfs/', ...IPFS_GATEWAYS])
+  })
+
+  it('normalizes a custom gateway that already ends in /ipfs', () => {
+    expect(getIpfsGateways('https://my.gw/ipfs')).toEqual(['https://my.gw/ipfs/', ...IPFS_GATEWAYS])
+  })
+
+  it('strips trailing slashes before normalizing', () => {
+    expect(getIpfsGateways('https://my.gw/ipfs/')).toEqual([
+      'https://my.gw/ipfs/',
+      ...IPFS_GATEWAYS,
+    ])
+  })
+
+  it('ignores a blank custom gateway', () => {
+    expect(getIpfsGateways('   ')).toEqual([...IPFS_GATEWAYS])
+  })
+})
+
 // ── fetchJson ─────────────────────────────────────────────────────────────────
 
 type MockFetch = ReturnType<typeof vi.fn>
@@ -141,109 +168,84 @@ describe('fetchJson', () => {
     vi.unstubAllGlobals()
   })
 
+  // Non-ipfs: a single resolve + fetch.
   it('returns parsed JSON for a resolvable http URI that responds ok', async () => {
     const data = { name: 'test' }
     mockFetch.mockResolvedValueOnce(makeMockResponse(true, data))
     const result = await fetchJson('https://example.com/meta.json')
     expect(result).toEqual(data)
     expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockFetch).toHaveBeenCalledWith('https://example.com/meta.json', {
-      signal: undefined,
-    })
+    expect(mockFetch).toHaveBeenCalledWith('https://example.com/meta.json', { signal: undefined })
   })
 
   it('returns null for a non-resolvable URI without calling fetch', async () => {
-    const result = await fetchJson('hello')
-    expect(result).toBeNull()
+    expect(await fetchJson('hello')).toBeNull()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('returns null for an empty string without calling fetch', async () => {
-    const result = await fetchJson('')
-    expect(result).toBeNull()
+    expect(await fetchJson('')).toBeNull()
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
-  it('returns null when http fetch returns !ok', async () => {
+  it('returns null when a non-ipfs fetch returns !ok', async () => {
     mockFetch.mockResolvedValueOnce(makeMockResponse(false, null))
-    const result = await fetchJson('https://example.com/meta.json')
-    expect(result).toBeNull()
+    expect(await fetchJson('https://example.com/meta.json')).toBeNull()
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  describe('ipfs:// gateway fallback', () => {
-    it('succeeds on the first gateway if it returns ok', async () => {
+  // ipfs: race across all gateways, first healthy response wins.
+  describe('ipfs:// gateway race', () => {
+    it('fires all gateways in parallel and returns the first healthy response', async () => {
       const data = { schema: 1 }
+      // gateway 0 ok; the other two get the default undefined mock and reject
       mockFetch.mockResolvedValueOnce(makeMockResponse(true, data))
       const result = await fetchJson('ipfs://QmFoo')
       expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(1)
-      expect(mockFetch).toHaveBeenCalledWith(`${IPFS_GATEWAYS[0]}QmFoo`, { signal: undefined })
+      expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
     })
 
-    it('retries gateway 1 when gateway 0 fetch rejects, succeeds on gateway 1', async () => {
+    it('still wins when an earlier gateway rejects', async () => {
       const data = { schema: 1 }
       mockFetch
-        .mockRejectedValueOnce(new Error('network error'))
+        .mockRejectedValueOnce(new Error('gw0 down'))
         .mockResolvedValueOnce(makeMockResponse(true, data))
       const result = await fetchJson('ipfs://QmFoo')
       expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(2)
-      expect(mockFetch).toHaveBeenNthCalledWith(1, `${IPFS_GATEWAYS[0]}QmFoo`, {
-        signal: undefined,
-      })
-      expect(mockFetch).toHaveBeenNthCalledWith(2, `${IPFS_GATEWAYS[1]}QmFoo`, {
-        signal: undefined,
-      })
+      expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
     })
 
-    it('retries gateway 2 when gateways 0 and 1 return !ok, succeeds on gateway 2', async () => {
-      const data = { schema: 1 }
-      mockFetch
-        .mockResolvedValueOnce(makeMockResponse(false, null))
-        .mockResolvedValueOnce(makeMockResponse(false, null))
-        .mockResolvedValueOnce(makeMockResponse(true, data))
-      const result = await fetchJson('ipfs://QmFoo')
-      expect(result).toEqual(data)
-      expect(mockFetch).toHaveBeenCalledTimes(3)
+    it('hits each gateway at its CID-resolved URL', async () => {
+      mockFetch.mockResolvedValue(makeMockResponse(true, { ok: 1 }))
+      await fetchJson('ipfs://QmFoo/meta.json')
+      const calledUrls = mockFetch.mock.calls.map((c) => c[0])
+      expect(calledUrls).toEqual(IPFS_GATEWAYS.map((g) => `${g}QmFoo/meta.json`))
     })
 
-    it('returns null when all gateways fail', async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error('fail 0'))
-        .mockRejectedValueOnce(new Error('fail 1'))
-        .mockRejectedValueOnce(new Error('fail 2'))
-      const result = await fetchJson('ipfs://QmFoo')
-      expect(result).toBeNull()
+    it('returns null when all gateways reject', async () => {
+      mockFetch.mockRejectedValue(new Error('all down'))
+      expect(await fetchJson('ipfs://QmFoo')).toBeNull()
       expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
     })
 
     it('returns null when all gateways return !ok', async () => {
-      mockFetch
-        .mockResolvedValueOnce(makeMockResponse(false, null))
-        .mockResolvedValueOnce(makeMockResponse(false, null))
-        .mockResolvedValueOnce(makeMockResponse(false, null))
-      const result = await fetchJson('ipfs://QmFoo')
-      expect(result).toBeNull()
+      mockFetch.mockResolvedValue(makeMockResponse(false, null))
+      expect(await fetchJson('ipfs://QmFoo')).toBeNull()
       expect(mockFetch).toHaveBeenCalledTimes(IPFS_GATEWAYS.length)
     })
   })
 
   describe('AbortSignal handling', () => {
-    it('rethrows the error when the AbortSignal is already aborted and fetch rejects', async () => {
+    it('throws and fires no requests when the signal is already aborted (ipfs)', async () => {
       const controller = new AbortController()
       controller.abort()
-      const abortError = new DOMException('Aborted', 'AbortError')
-      mockFetch.mockRejectedValueOnce(abortError)
-      await expect(fetchJson('ipfs://QmFoo', controller.signal)).rejects.toThrow('Aborted')
-      // Should not have tried further gateways
-      expect(mockFetch).toHaveBeenCalledTimes(1)
+      await expect(fetchJson('ipfs://QmFoo', controller.signal)).rejects.toThrow()
+      expect(mockFetch).not.toHaveBeenCalled()
     })
 
-    it('passes the signal to fetch', async () => {
+    it('passes the signal to fetch for a non-ipfs URI', async () => {
       const controller = new AbortController()
-      const data = { ok: true }
-      mockFetch.mockResolvedValueOnce(makeMockResponse(true, data))
+      mockFetch.mockResolvedValueOnce(makeMockResponse(true, { ok: true }))
       await fetchJson('https://example.com/meta.json', controller.signal)
       expect(mockFetch).toHaveBeenCalledWith('https://example.com/meta.json', {
         signal: controller.signal,

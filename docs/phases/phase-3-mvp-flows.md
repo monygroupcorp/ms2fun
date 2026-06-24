@@ -41,16 +41,16 @@ Each task notes its **legacy source** and the **contract surface** it must wire.
 `[ ]` todo · `[~]` partial · `[x]` done.
 
 ### W-A — Foundation (data + platform layer) — *do first; everything depends on it*
-- [ ] **A1** Generate the missing instance ABIs into the bindings: `ERC721AuctionInstance`,
+- [x] **A1** Generate the missing instance ABIs into the bindings: `ERC721AuctionInstance`,
   `ERC404BondingInstance`, `CurveParamsComputer` (wagmi.config + regen). *Blocks B3/B4.*
-- [ ] **A2** Event-indexed discovery layer — index `CreatorInstanceAdded` (+ factory/vault events)
+- [x] **A2** Event-indexed discovery layer — index `CreatorInstanceAdded` (+ factory/vault events)
   into an all-collections store; featured queue stays the fast-path. *Legacy: `ProjectIndex.js`,
   `ActivityIndexer.js`; `docs/plans/DATA_LAYER_ARCHITECTURE.md`. Contracts: MasterRegistry events,
   QueryAggregator `getProjectCardsBatch`.*
-- [ ] **A3** Persistence service (localStorage) — wizard drafts, favorites, last-wallet, read-only
+- [x] **A3** Persistence service (localStorage) — wizard drafts, favorites, last-wallet, read-only
   prefs, contract cache (TTL), index-mode. *Legacy: `FavoritesService`, `ProjectIndex`,
   `ContractCache`, `StorageSettings`.*
-- [ ] **A4** IPFS multi-gateway resolver — rotation (w3s/cloudflare/ipfs.io/pinata/dweb) + custom
+- [x] **A4** IPFS multi-gateway resolver — rotation (w3s/cloudflare/ipfs.io/pinata/dweb) + custom
   gateway override. *Legacy: `IpfsService.js`. Current `lib/metadata/resolveUri` is single-gateway.*
 
 ### W-B — Per-type collection experiences (the trading surface)
@@ -107,7 +107,10 @@ Each task notes its **legacy source** and the **contract surface** it must wire.
   create **and** mint — completes the config-apply seam stubbed in `useCreateSubmit`.
 - [ ] **G4** Wizard draft persistence (A3) + media upload (`data:` URI + client-side downscale/
   compress with URL escape hatch).
-- [ ] **G5** Storage settings + index-mode controls. *Legacy: `StorageSettings/`.*
+- [ ] **G5** First-chain-sync heads-up (a "syncing to chain…" indicator on the initial
+  all-collections event scan) + user storage levers (view / minimize / clear localStorage if it's
+  throttling them). *Deferred (Mony 2026-06-23). Leaner, user-facing replacement for legacy
+  `StorageSettings/` — NOT the FULL/MINIMAL/OFF index-mode (dropped).*
 
 ### W-H — Polish & parity sign-off
 - [ ] **H1** Brutalist styling pass across all new surfaces.
@@ -137,6 +140,11 @@ fork-verify rhythm), branched and merged on Mony's call. Status tracked **here**
 ## Decision log
 - **2026-06-23** — Rebuilt this phase to full legacy parity + full admin (Mony), after the gap
   audits. Original happy-path scope retired as the cause of the skip.
+- **2026-06-23** — W-A design reviewed vs legacy + approved (Mony). DROP: `ContractCache` (React
+  Query is the cache), FULL/MINIMAL/OFF index-mode, IndexedDB two-phase index→hydrate, ~9 stale
+  localStorage keys. BUILD: lean `useAllCollections` (event scan − creator filter → batch read),
+  typed `storage<T>()` (~4–5 keys), race-first IPFS. In-memory single-shot scan now; chunked +
+  incremental-persist seam left for testnet scale.
 
 ## Open questions
 - A2 indexer: pure client-side event scan (fork-fast, may not scale on a busy testnet) vs a light
