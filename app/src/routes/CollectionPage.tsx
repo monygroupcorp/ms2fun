@@ -5,6 +5,7 @@ import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { MessageFeed } from '../components/MessageFeed'
 import { VaultPanel } from '../components/collection/VaultPanel'
+import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { Erc1155Collection } from '../components/collection/types/Erc1155Collection'
 import { Erc721Collection } from '../components/collection/types/Erc721Collection'
 import { Erc404Collection } from '../components/collection/types/Erc404Collection'
@@ -129,6 +130,9 @@ export function CollectionPage() {
           </div>
 
           {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
+
+          {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}
+          <FeaturedPanel instance={instance} />
 
           {card.contractType === 'ERC1155' && (
             <Erc1155Collection instance={instance} creator={card.creator} />
