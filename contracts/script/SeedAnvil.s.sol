@@ -219,7 +219,7 @@ contract SeedAnvil is Script {
 
         // acct1 bids on piece #1 (a non-owner EOA; settleAuction _safeMints to the winner).
         vm.startBroadcast(ACCOUNT_1_KEY);
-        g.createBid{value: 0.1 ether}(1, "0x");
+        g.createBid{value: 0.1 ether}(1, "");
         vm.stopBroadcast();
 
         // FIRST warp: now + 2h, past the 1h auctions' endTime.
@@ -245,7 +245,7 @@ contract SeedAnvil is Script {
         vm.stopBroadcast();
 
         vm.startBroadcast(ACCOUNT_1_KEY);
-        l.createBid{value: 0.1 ether}(1, "0x"); // piece #1 active-with-bids; piece #2 stays no-bid
+        l.createBid{value: 0.1 ether}(1, ""); // piece #1 active-with-bids; piece #2 stays no-bid
         vm.stopBroadcast();
     }
 
@@ -353,7 +353,7 @@ contract SeedAnvil is Script {
         uint256 fee = (cost * b.bondingFeeBps()) / 10000;
         uint256 total = cost + fee;
         vm.startBroadcast(key);
-        b.buyBonding{value: total}(amount, total, false, bytes32(0), "0x", 0);
+        b.buyBonding{value: total}(amount, total, false, bytes32(0), "", 0);
         vm.stopBroadcast();
     }
 
