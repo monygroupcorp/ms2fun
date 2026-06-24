@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'wouter'
 import { useAccount, useDisconnect } from 'wagmi'
 import { WalletModal } from './WalletModal'
 import styles from './WalletButton.module.css'
@@ -11,8 +12,9 @@ function truncate(address: `0x${string}`): string {
  * Brutalist wallet UI on wagmi's headless hooks.  When disconnected, renders a
  * single CONNECT WALLET button that opens WalletModal — which lists connectors
  * de-duplicated so EIP-6963 wallets don't appear alongside the generic
- * 'injected' fallback.  When connected, shows the truncated address and a
- * DISCONNECT button.  See docs/decisions/0001-web3-stack.md.
+ * 'injected' fallback.  When connected, the truncated address links to the
+ * holder's /portfolio, and a compact ⏏ (eject) button disconnects.
+ * See docs/decisions/0001-web3-stack.md.
  */
 export function WalletButton() {
   const { address, isConnected } = useAccount()
@@ -22,9 +24,17 @@ export function WalletButton() {
   if (isConnected && address) {
     return (
       <div className={styles.wallet}>
-        <span className={styles.address}>{truncate(address)}</span>
-        <button type="button" className={styles.button} onClick={() => disconnect()}>
-          DISCONNECT
+        <Link href="/portfolio" className={styles.address} title="view portfolio">
+          {truncate(address)}
+        </Link>
+        <button
+          type="button"
+          className={styles.eject}
+          onClick={() => disconnect()}
+          title="disconnect"
+          aria-label="disconnect wallet"
+        >
+          ⏏
         </button>
       </div>
     )

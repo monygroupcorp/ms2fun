@@ -348,12 +348,15 @@ contract SeedAnvil is Script {
         _buyBonding(b, deployerKey, buyAmount);
         _buyBonding(b, ACCOUNT_1_KEY, buyAmount);
         _buyBonding(b, deployerKey, buyAmount);
+        // One larger deployer buy so there's enough to seed ADMIN a whole NFT (unit = 1e24).
+        _buyBonding(b, deployerKey, 12e23);
 
-        // Activate staking and stake a portion of the deployer's bought tokens (deployer holds
-        // 2*buyAmount from two buys; stake half of one buy).
+        // Activate staking + stake a slice, then hand ADMIN 1 unit (1 NFT + tokens) so the testing
+        // wallet's PORTFOLIO shows real ERC404 holdings. Deployer now holds 1e23+1e23+12e23 = 1.4e24.
         vm.startBroadcast(deployerKey);
         b.activateStaking();
         b.stake(buyAmount / 2);
+        b.transfer(ADMIN, 1e24); // DN404: a whole-unit transfer mints the NFT to ADMIN
         vm.stopBroadcast();
     }
 
