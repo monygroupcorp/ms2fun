@@ -21,7 +21,8 @@ import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createTestClient, defineChain, http, type Address } from 'viem'
+import { createTestClient, createWalletClient, defineChain, http, type Address } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(here, '../..')
@@ -116,6 +117,68 @@ async function main(): Promise<void> {
   }
   const c = deployed.contracts
   const f = deployed.factories
+
+  // 3b. Hand the platform REGISTRIES to the testing wallet (ADMIN) so it can drive /admin. They're
+  //     Solady-Ownable with the 2-STEP handover (direct transferOwnership reverts UseRequest…), and
+  //     the incoming owner must initiate — so we anvil-impersonate ADMIN to requestOwnershipHandover,
+  //     then the deployer completes it. (Instances were handed over directly in the seed; ADMIN is
+  //     already funded there for gas.) Per-registry try/catch so one odd registry can't fail deploy.
+  const ADMIN = '0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86' as const
+  const handoverAbi = [
+    {
+      type: 'function',
+      name: 'requestOwnershipHandover',
+      inputs: [],
+      outputs: [],
+      stateMutability: 'payable',
+    },
+    {
+      type: 'function',
+      name: 'completeOwnershipHandover',
+      inputs: [{ name: 'pendingOwner', type: 'address' }],
+      outputs: [],
+      stateMutability: 'payable',
+    },
+  ] as const
+  const deployerWallet = createWalletClient({
+    account: privateKeyToAccount(ANVIL_DEPLOYER_KEY),
+    chain: anvilFork,
+    transport: http(RPC),
+  })
+  const adminWallet = createWalletClient({ account: ADMIN, chain: anvilFork, transport: http(RPC) })
+  for (const name of [
+    'MasterRegistry',
+    'AlignmentRegistry',
+    'ComponentRegistry',
+    'FeaturedQueueManager',
+  ]) {
+    const addr = c[name]
+    if (!addr) continue
+    try {
+      await test.impersonateAccount({ address: ADMIN })
+      await adminWallet.writeContract({
+        address: addr,
+        abi: handoverAbi,
+        functionName: 'requestOwnershipHandover',
+      })
+      await test.mine({ blocks: 1 })
+      await test.stopImpersonatingAccount({ address: ADMIN })
+      await deployerWallet.writeContract({
+        address: addr,
+        abi: handoverAbi,
+        functionName: 'completeOwnershipHandover',
+        args: [ADMIN],
+      })
+      await test.mine({ blocks: 1 })
+    } catch (err) {
+      console.warn(
+        `⚠ ownership handover skipped for ${name}: ${(err as Error).message.split('\n')[0]}`,
+      )
+    }
+  }
+  console.log(
+    `✓ Handed platform registries to ADMIN (${ADMIN}) — /admin operable as the testing wallet`,
+  )
 
   const required = (record: Record<string, Address>, key: string): Address => {
     const value = record[key]
