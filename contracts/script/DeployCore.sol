@@ -81,6 +81,10 @@ contract DeployCore is Script {
         bytes32 saltGlobalMsgReg;
         bytes32 saltAlignmentReg;
         bytes32 saltComponentReg;
+        // Mixed into the per-target VAULT salts so repeated local re-deploys onto the same fork
+        // don't CreateCollision. Production callers leave it 0 → deterministic vault addresses;
+        // DeployAnvil sets it to block.timestamp (matching the UUPS-proxy salt pattern above).
+        uint256 saltNonce;
 
         // Price validator params
         uint256 priceDeviationBps;
@@ -276,7 +280,7 @@ contract DeployCore is Script {
                     alignmentRegistry.setCommunityPayout(targetId, t.communityPayout);
                 }
                 address aaveVault = aaveVaultFactory.deployVault(
-                    keccak256(abi.encode(cfg.chainId, i, "AAVE")), t.token, targetId
+                    _vaultSalt(cfg.chainId, i, "AAVE", cfg.saltNonce), t.token, targetId
                 );
                 MasterRegistryV1(masterRegistry).registerVault(
                     aaveVault, deployer, string.concat(t.symbol, " Aave Endowment Vault"),
@@ -286,7 +290,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployUniVault) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "UNIv4"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "UNIv4", cfg.saltNonce);
                 address vault = uniVaultFactory.deployVault(
                     salt, t.token, targetId, IVaultPriceValidator(address(0))
                 );
@@ -300,7 +304,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployCypherVault && address(cypherVaultFactory) != address(0)) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "CYPHER"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "CYPHER", cfg.saltNonce);
                 address vault = address(cypherVaultFactory.createVault(
                     salt, cfg.cypherPositionManager, cfg.cypherRouter,
                     cfg.weth, t.token, address(treasury), address(0)
@@ -313,7 +317,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployZAMMVault && address(zammVaultFactory) != address(0)) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "ZAMM"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "ZAMM", cfg.saltNonce);
                 IZAMM.PoolKey memory poolKey; // zero poolKey — configure post-deploy when live
                 address vault = zammVaultFactory.deployVault(salt, t.token, poolKey);
                 MasterRegistryV1(masterRegistry).registerVault(
@@ -556,5 +560,17 @@ contract DeployCore is Script {
             abi.encode(impl, initData)
         );
         return ICreateX(CREATEX).deployCreate3(salt, proxyInitCode);
+    }
+
+    /// @dev Per-target vault CREATE3 salt. `nonce == 0` reproduces the original
+    ///      `keccak256(chainId, i, tag)` EXACTLY (production addresses unchanged); a non-zero nonce
+    ///      (DeployAnvil passes block.timestamp) yields a fresh salt so local re-deploys onto the
+    ///      same fork don't CreateCollision.
+    function _vaultSalt(uint256 chainId, uint256 i, string memory tag, uint256 nonce)
+        private pure returns (bytes32)
+    {
+        return nonce == 0
+            ? keccak256(abi.encode(chainId, i, tag))
+            : keccak256(abi.encode(chainId, i, tag, nonce));
     }
 }
