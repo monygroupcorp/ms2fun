@@ -224,4 +224,50 @@ describe('storage', () => {
       expect(fn).not.toHaveBeenCalled()
     })
   })
+
+  describe('useSyncExternalStore contract', () => {
+    function makeArrayEntry(key: string) {
+      return storage<string[]>(key, {
+        default: [],
+        version: 1,
+        parse: (r) =>
+          Array.isArray(r) && r.every((x) => typeof x === 'string') ? (r as string[]) : undefined,
+      })
+    }
+
+    it('get() returns a referentially STABLE value across calls when unchanged', () => {
+      // The useSyncExternalStore contract: re-parsing a new array each call would loop React.
+      const entry = makeArrayEntry('stable-key')
+      entry.set(['a', 'b'])
+      expect(entry.get()).toBe(entry.get())
+    })
+
+    it('get() returns a NEW reference after set (snapshot actually changes)', () => {
+      const entry = makeArrayEntry('change-key')
+      const before = entry.get()
+      entry.set(['z'])
+      const after = entry.get()
+      expect(after).not.toBe(before)
+      expect(after).toEqual(['z'])
+    })
+
+    it('same-tab set() notifies subscribers with the new value', () => {
+      const entry = makeStringEntry('same-tab-set', 1)
+      const fn = vi.fn()
+      const unsub = entry.subscribe(fn)
+      entry.set('written')
+      expect(fn).toHaveBeenCalledWith('written')
+      unsub()
+    })
+
+    it('same-tab remove() notifies subscribers with the default', () => {
+      const entry = makeStringEntry('same-tab-rm', 1)
+      entry.set('x')
+      const fn = vi.fn()
+      const unsub = entry.subscribe(fn)
+      entry.remove()
+      expect(fn).toHaveBeenCalledWith('default')
+      unsub()
+    })
+  })
 })
