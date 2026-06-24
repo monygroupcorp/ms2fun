@@ -10,6 +10,7 @@ import { CollectionsPage } from './routes/CollectionsPage'
 import { ProfilePage } from './routes/ProfilePage'
 import { CollectionPage } from './routes/CollectionPage'
 import { WizardPage } from './routes/WizardPage'
+import { BoardPage } from './routes/BoardPage'
 import styles from './App.module.css'
 
 export function App() {
@@ -26,7 +27,10 @@ export function App() {
                 LAUNCH
               </Link>
               <Link href="/collections" className={styles.navLink}>
-                FEATURED
+                COLLECTIONS
+              </Link>
+              <Link href="/board" className={styles.navLink}>
+                BOARD
               </Link>
               <Link href="/exec404" className={styles.navLink}>
                 CULT EXECUTIVES
@@ -43,6 +47,7 @@ export function App() {
               <Route path="/exec404" component={Exec404Page} />
               <Route path="/launch" component={WizardPage} />
               <Route path="/collections" component={CollectionsPage} />
+              <Route path="/board" component={BoardPage} />
               <Route path="/collection/:instance" component={CollectionPage} />
               <Route path="/profile" component={ProfilePage} />
               <Route path="/profile/:address" component={ProfilePage} />

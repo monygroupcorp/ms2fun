@@ -20,7 +20,8 @@
     "test:e2e:archive": "playwright test --grep @archive",
     "wagmi:generate": "wagmi generate",
     "chain:fork": "bash scripts/dev-chain/fork.sh",
-    "chain:deploy": "tsx scripts/dev-chain/deploy.ts"
+    "chain:deploy": "tsx scripts/dev-chain/deploy.ts",
+    "chain:stop": "bash scripts/dev-chain/stop.sh"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",

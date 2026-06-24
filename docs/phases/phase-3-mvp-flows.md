@@ -1,66 +1,144 @@
-# Phase 3 — MVP Frontend Flows
+# Phase 3 — Full Feature Parity
 
-**Status:** 🟡 Partly built ahead of the boundary (on `main` 2026-06-23): profile page (T1), unified message feed (T5), collection-detail **view** (T4 view), and the launch-wizard **option schema** (T2 schema, ADR-0005). Remaining and gated on Phase-2 T4 (Aave vault): the wizard **submit-builder** + factory `createInstance` wiring, mint/trade + vault accrual, the IPFS pipeline (T3), and the brutalist styling pass (T6).
+**Status:** 🟠 Rebuilt 2026-06-23. The original "MVP happy-path" scope (below the fold in git
+history) under-scoped this phase to a single vertical and led to ~⅔ of the legacy surface being
+skipped. Decision (2026-06-23, Mony): **testnet ships at full legacy parity, including full admin.**
+This doc is the corrected source of truth — scope cannot silently shrink to "the happy path" again.
 **Depends on:** Phase 2 (typed domain model + Aave vault on fork)
 **Exit gate owner:** Mony
 
-> Locally: create a profile → run the launch wizard → launch a collection (whitelist / password
-> tiers / pool / vault chosen) → mint → watch the Aave vault accrue → post & read scoped
-> messages. All from the new UI, beautiful, zero stubs.
+> Parity bar: a creator can discover, launch, **trade/mint/bid across all three types**, manage
+> their portfolio, claim yield, and the operator can run the platform from an in-app admin — all on
+> the new typed architecture, beautiful, zero stubs, zero configured-but-unclaimable actions.
 
 ---
 
-## Goal
-Build the user-facing MVP on top of Phase 2's domain layer. The **launch wizard is the
-centerpiece** — it is where the information architecture and the 3-scope metadata become a real,
-legible experience.
+## Baseline & method
+Parity is measured against **`legacy/`** (the quarantined microact ms2fun frontend — 24 routes, 22
+contract adapters), established by two audits on 2026-06-23 (old-app inventory + current-wiring
+audit). The gap list those audits produced is the task backlog below.
 
-## Scope
-**In:**
-- **Profile page** — onchain account, the collections it owns, account metadata editing.
-- **Launch wizard** — surfaces the module option space (whitelist, password tiers, pool, vault
-  incl. Aave); writes collection metadata; deploys a collection via the factory.
-- **Metadata management UI** across the 3 scopes (account / collection / per-NFT).
-- **Collection page** — view + mint/trade + vault/yield display.
-- **Unified message feed** with scope controls (account / collection / global). *(INVARIANT)*
-- Full Gallery Brutalism treatment across all of the above.
+- **Keep + match:** the full legacy feature set wired to the live contracts.
+- **Add (new direction):** Aave endowment vault model, ProfileRegistry, event-indexed discovery,
+  typed wagmi/viem bindings, client-side media (`data:` URI).
+- **Do NOT resurrect (dead/mock in legacy + memory):** EXEC voting, governance, DAO, safe,
+  share-offering. EXEC404 stays a grandfathered read-only fossil.
 
-**Out (deferred):**
-- Multiple module implementations → post-launch.
-- ERC-8244 micro-frontend → separate track.
-- Anything not on the create→mint→vault→message happy path → backlog.
+## Honest status of what's already built
+Genuinely contract-backed (no mocks), but only one vertical deep:
+- ✅ ERC1155 end-to-end (create → editions → mint → vault harvest)
+- ✅ Launch wizard (schema-driven `createInstance`, all 3 factories) — **create only**
+- ✅ Profiles (ProfileRegistry get/set), messaging + `/board`, vault panel (read + harvest)
+- ✅ Discovery **list-only** (featured set via `getHomePageData`), 4 UX fixes (wallet modal,
+  profile setup, board, landing), local-chain tooling
+- ❌ Everything in the workstreams below
 
-## Design decisions
-**Locked:**
-- Wizard is the centerpiece and consumes Phase 2's option schema directly. *(WAR_PATH)*
-- Message feed + scopes preserved as a first-class feature. *(INVARIANT)*
+---
 
-**Open:**
-1. Wizard UX — single long form vs stepped flow vs progressive disclosure; save-draft behavior.
-2. Per-NFT metadata authoring UX (bulk vs per-token; upload pipeline to IPFS).
-3. How much of mint/trade generalizes from Phase 1's EXEC404 page vs is rebuilt generically.
-4. Empty/loading/error states convention (brutalist, no decoration).
+## Workstreams
 
-## Task units
-- [ ] T1 — Profile page (read + account metadata edit).
-- [ ] T2 — Launch wizard (option schema → form → metadata write → factory deploy).
-- [ ] T3 — Metadata management across 3 scopes (incl. IPFS pipeline).
-- [ ] T4 — Generic collection page (view + mint/trade + vault/yield).
-- [ ] T5 — Unified message feed + scope controls.
-- [ ] T6 — Brutalist styling pass across all flows.
+Each task notes its **legacy source** and the **contract surface** it must wire. Status:
+`[ ]` todo · `[~]` partial · `[x]` done.
+
+### W-A — Foundation (data + platform layer) — *do first; everything depends on it*
+- [ ] **A1** Generate the missing instance ABIs into the bindings: `ERC721AuctionInstance`,
+  `ERC404BondingInstance`, `CurveParamsComputer` (wagmi.config + regen). *Blocks B3/B4.*
+- [ ] **A2** Event-indexed discovery layer — index `CreatorInstanceAdded` (+ factory/vault events)
+  into an all-collections store; featured queue stays the fast-path. *Legacy: `ProjectIndex.js`,
+  `ActivityIndexer.js`; `docs/plans/DATA_LAYER_ARCHITECTURE.md`. Contracts: MasterRegistry events,
+  QueryAggregator `getProjectCardsBatch`.*
+- [ ] **A3** Persistence service (localStorage) — wizard drafts, favorites, last-wallet, read-only
+  prefs, contract cache (TTL), index-mode. *Legacy: `FavoritesService`, `ProjectIndex`,
+  `ContractCache`, `StorageSettings`.*
+- [ ] **A4** IPFS multi-gateway resolver — rotation (w3s/cloudflare/ipfs.io/pinata/dweb) + custom
+  gateway override. *Legacy: `IpfsService.js`. Current `lib/metadata/resolveUri` is single-gateway.*
+
+### W-B — Per-type collection experiences (the trading surface)
+- [ ] **B1** `CollectionPage` per-type routing — branch ERC1155 / ERC721 / ERC404 (today only
+  ERC1155 renders anything past stats).
+- [~] **B2** ERC1155 completion — free-mint **claim**, `withdraw`, `claimVaultFees`, gating wired
+  into `mint` (today `gatingData` hardcoded 0), `updateEditionMetadata`. *Legacy: `ERC1155Adapter`.*
+- [ ] **B3** ERC721 auctions — `createBid` / `settleAuction` / `reclaimUnsold` + active/past auction
+  state UI + bid history + config display. *Legacy: `ERC721AuctionInstanceAdapter`.*
+- [ ] **B4** ERC404 bonding — `buyBonding` / `sellBonding` + curve quote + graduated detection
+  (`liquidityPair`) + phase-2 DEX swap path + tier/password gating + free-mint + auto-NFT-mint +
+  reroll. *Legacy: `SwapInterface/`, `BondingCurve/`, `TradingInterface/`, `ReRollModal/`.*
+- [ ] **B5** ERC404 bonding chart — phase-1 curve canvas + candles; phase-2 pool view. *Legacy:
+  `BondingCurve/`, `utils/candleAggregator.js`, `tradeEventCache.js`.*
+- [ ] **B6** Full-state seed across all 3 types so every state is demoable (ERC1155 open/limited/
+  dynamic + free-mint; ERC721 auction not-started/active/no-bid/ended/settled/unsold; ERC404
+  bonding mid-curve + graduated). *Seed: `SeedAnvil.s.sol` + `vm.warp`.*
+
+### W-C — Discovery + home
+- [ ] **C1** Discovery filters/sort/search over the A2 indexed layer — by type/ERC-standard/state/
+  vault; sort recent/TVL/volume; pagination. *Legacy: `ProjectDiscovery.js`. (`CollectionsPage`
+  today filters the featured set only.)*
+- [ ] **C2** Home — featured banner + top-vaults stats bar + recent-activity feed + grid (EXEC404
+  pinned). *Legacy: `HomePage.js`.*
+
+### W-D — Portfolio + vault explorer + yield *(folds in the integrity fixes)*
+- [ ] **D1** Portfolio page — `QueryAggregator.getPortfolioData`: ERC404 token+NFT holdings, ERC1155
+  balances, vault/staking positions, total value + P&L, **claim yield / unstake**. *Legacy:
+  `Portfolio.js`.*
+- [ ] **D2** Vault explorer + detail — list vaults, benefactor contribution/shares, claimable,
+  `claimFees`; **`withdrawPrincipal`** for the endowment (the VaultPanel labels principal
+  "refundable" with no button — fix). *Legacy: `VaultExplorer.js`/`VaultDetail.js`.*
+
+### W-E — Featured-queue management (monetization)
+- [ ] **E1** Featured rental UI — view queue + per-position pricing, `rentFeatured` / `renew` /
+  `cleanupExpired`. *Legacy: `FeaturedRental/`. (Today FeaturedQueueManager is read only indirectly,
+  never written.)*
+
+### W-F — Admin (full parity)
+- [ ] **F1** Admin shell + factory mgmt (`registerFactory`/`deactivateFactory`/`getFactoryInfo`).
+- [ ] **F2** Vault mgmt (`registerVault`/`deactivateVault`/`migrateVault`).
+- [ ] **F3** Alignment targets + ambassadors (AlignmentRegistry CRUD — *zero UI today*).
+- [ ] **F4** Component registry (`approveComponent`/`revokeComponent`).
+- [ ] **F5** Treasury (balance/revenue/POL) + parameters panel + abdication status.
+- [ ] **F6** Agent delegation (`MasterRegistry.isAgent/setAgent`; instance `setAgentDelegation`) —
+  core to the "agents act for users" design; *absent today*.
+  *Legacy: `AdminPage.js` (80 KB), `AdminDashboard/`, `AdminFunctionDiscovery.js`.*
+
+### W-G — Platform affordances
+- [ ] **G1** Wallet read-only mode + mode banner + multi-RPC. *Legacy: `ReadOnlyService`,
+  `ModeBanner`.*
+- [ ] **G2** Share / Send / Approval modals + tx options. *Legacy: `ShareModal/`, `SendModal/`.*
+- [ ] **G3** Gating configuration UI in the wizard (password tiers / merkle allowlist) wired to
+  create **and** mint — completes the config-apply seam stubbed in `useCreateSubmit`.
+- [ ] **G4** Wizard draft persistence (A3) + media upload (`data:` URI + client-side downscale/
+  compress with URL escape hatch).
+- [ ] **G5** Storage settings + index-mode controls. *Legacy: `StorageSettings/`.*
+
+### W-H — Polish & parity sign-off
+- [ ] **H1** Brutalist styling pass across all new surfaces.
+- [ ] **H2** Parity checklist sign-off vs `legacy/` (this doc's task list all `[x]`).
+
+---
+
+## Sequence
+1. **W-A** foundation (ABIs + indexer + storage + IPFS) — unblocks everything.
+2. **W-B** + **W-C** in parallel once A1/A2 land (trading surface + discovery are the heart).
+3. **W-D**, **W-E** (portfolio/vault/featured).
+4. **W-F** admin.
+5. **W-G** affordances (several parallelizable throughout).
+6. **W-H** polish + parity sign-off → Phase 3 exit.
+
+Each task ships as a fork-verified slice (the established agent-fanout + lead-integration +
+fork-verify rhythm), branched and merged on Mony's call. Status tracked **here**, updated per slice.
 
 ## Exit criteria
-1. The full local round-trip works on the fork: profile → wizard → launch → mint → vault accrues
-   → scoped message posted and read. Zero stubs.
-2. Every surface matches the brutalist design intent.
-3. Definition of Done gates green.
-
-## Verification
-- `/run` of the complete happy path on the fork (recorded).
-- Side-by-side vs demos for each surface.
+1. Every task above is `[x]`, verified on the fork.
+2. All three project types are end-to-end (discover → launch → trade/mint/bid → portfolio → yield).
+3. Operator can run the platform from the in-app admin (no cast required for routine ops).
+4. Zero configured-but-unclaimable actions; zero mocks.
+5. Definition-of-Done gates green; full happy-path `/run` per type recorded.
+6. Every surface matches the Gallery Brutalism intent.
 
 ## Decision log
-- _(empty)_
+- **2026-06-23** — Rebuilt this phase to full legacy parity + full admin (Mony), after the gap
+  audits. Original happy-path scope retired as the cause of the skip.
 
 ## Open questions
-- What is the minimum lovable wizard? (Resist surfacing every option; ship the legible core.)
+- A2 indexer: pure client-side event scan (fork-fast, may not scale on a busy testnet) vs a light
+  indexed cache — decide at A2.
+- How much of legacy's bonding **chart** (B5) is parity-required vs a fast-follow.

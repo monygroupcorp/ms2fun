@@ -27,8 +27,15 @@
   letter-spacing: var(--letter-spacing-wide);
 }
 
-.projects {
+.featured {
   margin-top: var(--space-8);
+}
+
+.featuredHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
 }
 
 .sectionTitle {
@@ -37,50 +44,59 @@
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  margin-bottom: var(--space-4);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--gap-lg);
+.browseLink {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  text-decoration: none;
 }
 
-.card {
-  display: block;
+.browseLink:hover {
+  color: var(--text-primary);
+}
+
+/* EXEC404 fossil card — same shape as CollectionCard but hand-authored */
+.execCard {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
-  text-decoration: none;
-  color: inherit;
   transition: var(--transition-base);
 }
 
-.card:hover {
+.execCard:hover {
   background-color: var(--state-hover-bg);
 }
 
-.card:active {
-  transform: translateY(1px);
+.execLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 
-.cardImage {
+.execImage {
   width: 100%;
-  aspect-ratio: 16 / 7;
+  aspect-ratio: 1;
   background-color: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-mono);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
   color: var(--text-tertiary);
+  overflow: hidden;
 }
 
-.cardContent {
-  padding: var(--padding-md);
+.execContent {
+  padding: var(--space-3);
+  font-family: var(--font-mono);
 }
 
-.cardHead {
+.execHead {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -88,25 +104,53 @@
   margin-bottom: var(--space-2);
 }
 
-.cardTitle {
+.execTitle {
   font-family: var(--font-mono);
   font-size: var(--font-size-h4);
   font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.cardBody {
-  font-family: var(--font-mono);
+.execDescription {
   font-size: var(--font-size-body-sm);
   color: var(--text-secondary);
-  line-height: var(--line-height-relaxed);
+  line-height: var(--line-height-normal);
+  margin-bottom: var(--space-2);
+}
+
+.execMeta {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-body-sm);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-tertiary);
+}
+
+.metaLabel {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-size: var(--font-size-caption);
+}
+
+.metaMono {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.execState {
+  margin-top: var(--space-2);
 }
 
 @media (max-width: 768px) {
   .page {
     padding: var(--space-6) var(--space-4);
   }
-  .grid {
-    grid-template-columns: 1fr;
+
+  .featuredHeader {
+    flex-direction: column;
+    gap: var(--gap-sm);
   }
 }

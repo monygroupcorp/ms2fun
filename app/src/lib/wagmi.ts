@@ -18,9 +18,11 @@ export const anvilFork = defineChain({
 /**
  * Two chains: mainnet (production) and the local anvil mainnet-fork (dev).
  *
- * Wallet: injected/EIP-6963 only. `multiInjectedProviderDiscovery` (default true) makes wagmi
- * discover all injected wallets via EIP-6963 — we render a brutalist UI on top of these headless
- * connectors and never custody keys (see docs/decisions/0001-web3-stack.md).
+ * Wallet: injected/EIP-6963 only. `multiInjectedProviderDiscovery: true` makes wagmi discover all
+ * injected wallets via EIP-6963 — each gets its own connector (id = rdns, e.g. 'io.ambire.wallet').
+ * The explicit `injected()` adds a generic connector (id 'injected') as a fallback for wallets that
+ * don't announce via EIP-6963.  WalletModal.dedupeConnectors() hides the generic one whenever any
+ * EIP-6963 connector is present, preventing duplicates.  See docs/decisions/0001-web3-stack.md.
  */
 export const config = createConfig({
   chains: [mainnet, anvilFork],

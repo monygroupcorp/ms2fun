@@ -119,7 +119,24 @@ export function ProfilePage() {
       {isPending && <p className={styles.note}>loading profile…</p>}
       {isError && <p className={styles.note}>could not reach registry — is the fork up?</p>}
 
-      {!isPending && !isError && <ProfileView address={target} metadata={metadata} />}
+      {/* Own profile, not yet set up: show setup CTA or the form front-and-centre */}
+      {isOwn && !uri && !isPending && !isError && !editing && (
+        <div className={styles.setupCta}>
+          <p className={styles.setupPrompt}>You haven't set up your profile yet.</p>
+          <button className="btn btn-primary btn-chromatic" onClick={() => setEditing(true)}>
+            Set up your profile
+          </button>
+        </div>
+      )}
+
+      {isOwn && !uri && !isPending && !isError && editing && (
+        <ProfileEditForm key="new" saving={isSaving} onSave={handleSave} />
+      )}
+
+      {/* Profile view: visitors always; own only when already set up */}
+      {!isPending && !isError && (!isOwn || !!uri) && (
+        <ProfileView address={target} metadata={metadata} />
+      )}
 
       {!isPending && !isError && <CreatorCollections creator={target} />}
 
@@ -127,7 +144,8 @@ export function ProfilePage() {
 
       {isOwn && !isPending && !isError && <MessageComposer channel={target} />}
 
-      {isOwn && !isPending && !isError && (
+      {/* Edit bar: only when the profile is already set up */}
+      {isOwn && !!uri && !isPending && !isError && (
         <div className={styles.editBar}>
           <button
             className="btn"
@@ -141,9 +159,9 @@ export function ProfilePage() {
         </div>
       )}
 
-      {isOwn && editing && (
+      {isOwn && !!uri && editing && (
         <ProfileEditForm
-          key={uri ?? 'new'}
+          key={uri}
           {...(metadata !== undefined ? { initial: metadata } : {})}
           saving={isSaving}
           onSave={handleSave}
