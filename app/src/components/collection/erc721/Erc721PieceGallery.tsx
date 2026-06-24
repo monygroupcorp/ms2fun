@@ -14,17 +14,21 @@ import {
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
 import { fetchJson, resolveUri } from '../../../lib/metadata'
-import { deriveAuctionState, type AuctionState } from './auctionState'
+import { deriveAuctionState } from './auctionState'
 import { useNowSec } from './useNowSec'
 import styles from './Erc721PieceGallery.module.css'
 
 /** Pragmatic cap on the id scan — galleries show a representative window, not the whole chain. */
 const MAX_SCAN = 100
 
+/** Raw auction fields cached by the query; the state BADGE is derived at render (per nowSec tick). */
 interface Piece {
   id: bigint
   image: string | undefined
-  state: AuctionState
+  startTime: bigint
+  endTime: bigint
+  highBidder: `0x${string}`
+  settled: boolean
 }
 
 export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
@@ -36,7 +40,9 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
   })
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['erc721-piece-gallery', instance, next?.toString() ?? null, nowSec.toString()],
+    // Time-independent read; the state badge is derived from nowSec at render, not keyed here (else
+    // the whole multicall + image fetch would re-run every second).
+    queryKey: ['erc721-piece-gallery', instance, next?.toString() ?? null],
     enabled: !!client && next !== undefined,
     staleTime: 15_000,
     queryFn: async (): Promise<Piece[]> => {
@@ -57,7 +63,7 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
         })),
       })
 
-      const raw: { id: bigint; tokenURI: string; state: AuctionState }[] = []
+      const raw: { id: bigint; tokenURI: string; piece: Omit<Piece, 'image'> }[] = []
       structs.forEach((r, i) => {
         const id = ids[i]
         if (r.status !== 'success' || id === undefined) return
@@ -65,23 +71,21 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
         raw.push({
           id,
           tokenURI: a.tokenURI,
-          state: deriveAuctionState(
-            {
-              startTime: BigInt(a.startTime),
-              endTime: BigInt(a.endTime),
-              highBidder: a.highBidder,
-              settled: a.settled,
-            },
-            nowSec,
-          ),
+          piece: {
+            id,
+            startTime: BigInt(a.startTime),
+            endTime: BigInt(a.endTime),
+            highBidder: a.highBidder,
+            settled: a.settled,
+          },
         })
       })
 
       // Resolve images in parallel; soft-fail to a glyph tile on any miss.
       return Promise.all(
-        raw.map(async ({ id, tokenURI, state }): Promise<Piece> => {
+        raw.map(async ({ tokenURI, piece }): Promise<Piece> => {
           const meta = tokenURI ? await fetchJson<{ image?: string }>(tokenURI) : null
-          return { id, image: meta?.image, state }
+          return { ...piece, image: meta?.image }
         }),
       )
     },
@@ -113,30 +117,31 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
 
   return (
     <ul className={styles.grid} data-testid="erc721-piece-gallery">
-      {data.map((piece) => (
-        <li key={piece.id.toString()} className={styles.tile}>
-          <Link
-            href={`/collection/${instance}/token/${piece.id.toString()}`}
-            className={styles.link}
-          >
-            {piece.image ? (
-              <img
-                src={resolveUri(piece.image)}
-                alt={`#${piece.id.toString()}`}
-                className={styles.thumb}
-              />
-            ) : (
-              <div className={styles.thumbGlyph}>✦</div>
-            )}
-            <div className={styles.meta}>
-              <span className={styles.id}>#{piece.id.toString()}</span>
-              <span className={`badge ${piece.state === 'active' ? 'badge-solid' : ''}`}>
-                {piece.state}
-              </span>
-            </div>
-          </Link>
-        </li>
-      ))}
+      {data.map((piece) => {
+        const state = deriveAuctionState(piece, nowSec)
+        return (
+          <li key={piece.id.toString()} className={styles.tile}>
+            <Link
+              href={`/collection/${instance}/token/${piece.id.toString()}`}
+              className={styles.link}
+            >
+              {piece.image ? (
+                <img
+                  src={resolveUri(piece.image)}
+                  alt={`#${piece.id.toString()}`}
+                  className={styles.thumb}
+                />
+              ) : (
+                <div className={styles.thumbGlyph}>✦</div>
+              )}
+              <div className={styles.meta}>
+                <span className={styles.id}>#{piece.id.toString()}</span>
+                <span className={`badge ${state === 'active' ? 'badge-solid' : ''}`}>{state}</span>
+              </div>
+            </Link>
+          </li>
+        )
+      })}
     </ul>
   )
 }

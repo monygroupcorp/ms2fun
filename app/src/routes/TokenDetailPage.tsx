@@ -183,7 +183,9 @@ function Erc721Token({ instance, id, collectionName }: TokenProps) {
   const nowSec = useNowSec()
 
   const { data, isPending, isError } = useQuery({
-    queryKey: ['erc721-token', instance, id.toString(), nowSec.toString()],
+    // NB: do NOT key on nowSec — the auction read is time-independent; deriveAuctionState(a, nowSec)
+    // below recomputes the badge each tick without refetching the contract every second.
+    queryKey: ['erc721-token', instance, id.toString()],
     enabled: !!client,
     staleTime: 15_000,
     queryFn: async () => {

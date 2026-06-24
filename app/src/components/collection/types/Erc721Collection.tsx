@@ -5,6 +5,7 @@
  * machine in `../erc721/auctionState`.
  */
 import { Erc721AuctionSurface } from '../erc721/Erc721AuctionSurface'
+import { Erc721PieceGallery } from '../erc721/Erc721PieceGallery'
 import styles from './TypeSection.module.css'
 
 export interface Erc721CollectionProps {
@@ -17,6 +18,8 @@ export function Erc721Collection({ instance }: Erc721CollectionProps) {
     <section className={styles.section} data-testid="erc721-collection">
       <h2 className={styles.title}>AUCTIONS</h2>
       <Erc721AuctionSurface instance={instance} />
+      {/* W-D3: the full piece gallery (every minted/queued token + state badge → token page). */}
+      <Erc721PieceGallery instance={instance} />
     </section>
   )
 }
