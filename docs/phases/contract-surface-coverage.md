@@ -13,11 +13,9 @@ DAO is OUT; **creator admin and protocol admin are first-class**. Built from a 4
 
 ## Interfaces
 
-### A. Discovery & Home — 🟡
-- ✅ `QueryAggregator.getHomePageData` (featured), `getProjectCardsBatch` (hydrate); `MasterRegistry
-  CreatorInstanceAdded` event scan (W-A2 all-collections).
-- ⬜ Home composition (featured banner + top-vaults + activity feed + EXEC404 pin); filters polish.
-*(≈ old W-C)*
+### A. Discovery & Home — ✅ (Phase 2, done 2026-06-24)
+- ✅ Home: featured grid (rank-sorted, EXEC404 pinned) + stats bar + recent-activity preview, on the
+  featured fast-path. Discovery filters polished (count, clear-filters). All-collections event scan ✓.
 
 ### B. Launch / Create — 🟡
 - ✅ `{ERC404,ERC1155,ERC721}Factory.createInstance` via wizard; ERC1155 `addEdition` post-create.
@@ -54,20 +52,19 @@ Per-instance owner functions, mostly UNWIRED across all three types:
 - Cross-cutting: agent delegation (`setAgentDelegation` on every instance) is the "agents act for
   users" design — absent everywhere.
 
-### F. Portfolio & holdings — ⬜  ← **user-flagged**
-- ⬜ `QueryAggregator.getPortfolioData(user, instances, vaults)` is entirely unwired — one call returns
-  ERC404 token+NFT+staked+pendingRewards, ERC1155 balances, vault contribution/shares/claimable.
-  Powers a `/portfolio` page + the **ERC404 NFT gallery**. *(user: "no … portfolio ability")* *(old W-D1)*
+### F. Portfolio & holdings — ✅ (Phase 2, done 2026-06-24)
+- ✅ `/portfolio` via `getPortfolioData(user, instances, vaultAddrs)`: ERC404 token+NFT+staked+rewards,
+  ERC1155 balances, vault positions + totalClaimable; MAX_QUERY_LIMIT(50)-capped. NFT holdings shown
+  as counts + link to the collection gallery (per-owner mirror scan deferred).
 
 ### G. Vault & yield — ✅ (Phase 1, done 2026-06-24)
 - ✅ `harvest` + reads, and **`withdrawPrincipal`** — VaultPanel now shows claimable principal
   (gated on `calculateClaimableAmount`; disabled+dated-hint while locked) + the matured 80/19/1 split.
 - ⬜ (minor) richer alignment-target display (name/community) — fast-follow.
 
-### H. Featured-queue management — ⬜
-- ⬜ `FeaturedQueueManager.rentFeatured` / `boostRank` / `renewDuration` / `pruneExpired` + reads
-  (`getRentalInfo`/`getEffectiveRank`/`quoteDurationCost`). Read indirectly today, never written from
-  the UI. Monetization surface. *(old W-E)*
+### H. Featured-queue management — ✅ (Phase 2, done 2026-06-24)
+- ✅ FeaturedPanel on every collection: rent / boost / renew / prune + live `getRentalInfo` status;
+  `value` = `quoteDurationCost(duration) + rankBoost` (verified against the contract).
 
 ### I. Social / board — ✅ (Phase 1, done 2026-06-24)  ← **user-flagged**
 - ✅ `post` + **threaded replies** (messageType 1, refId=parent) + **reactions** (messageType 3,
