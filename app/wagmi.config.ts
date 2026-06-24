@@ -23,6 +23,7 @@ export default defineConfig({
         'FeaturedQueueManager.sol/**',
         'ERC404Factory.sol/**',
         'ERC404BondingInstance.sol/**',
+        'ERC404StakingModule.sol/**',
         'CurveParamsComputer.sol/**',
         'ERC1155Factory.sol/**',
         'ERC1155Instance.sol/**',

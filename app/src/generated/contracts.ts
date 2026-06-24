@@ -4144,6 +4144,273 @@ export const erc404FactoryAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ERC404StakingModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const erc404StakingModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'calculatePendingRewards',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    name: 'computeClaim',
+    outputs: [
+      { name: 'rewardAmount', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'enableStaking',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'getStakingInfo',
+    outputs: [
+      { name: 'enabled', internalType: 'bool', type: 'bool' },
+      { name: 'userStaked', internalType: 'uint256', type: 'uint256' },
+      { name: 'globalTotalStaked', internalType: 'uint256', type: 'uint256' },
+      { name: 'userProportion', internalType: 'uint256', type: 'uint256' },
+      { name: 'pendingRewards', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IMasterRegistryMin',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'delta', internalType: 'uint256', type: 'uint256' }],
+    name: 'recordFeesReceived',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'recordStake',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'recordUnstake',
+    outputs: [
+      { name: 'rewardAmount', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'rewardPerTokenPaid',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'rewardPerTokenStored',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'rewardsAccrued',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'stakedBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'stakingEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'totalStaked',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'delta',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'newCumulative',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FeesReceived',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RewardsClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'newTotal',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Staked',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'StakingEnabled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'newTotal',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Unstaked',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyEnabled' },
+  { type: 'error', inputs: [], name: 'AmountMustBePositive' },
+  { type: 'error', inputs: [], name: 'InsufficientStakedBalance' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'NoPendingRewards' },
+  { type: 'error', inputs: [], name: 'NoStakedBalance' },
+  { type: 'error', inputs: [], name: 'NotRegisteredInstance' },
+  { type: 'error', inputs: [], name: 'StakingNotEnabled' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ERC721AuctionFactory
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -6277,6 +6544,20 @@ export const iGlobalMessageRegistryAbi = [
     inputs: [],
     name: 'messageCount',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IMasterRegistryMin
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iMasterRegistryMinAbi = [
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'isRegisteredInstance',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
 ] as const
@@ -12081,6 +12362,248 @@ export const useWatchErc404FactoryVaultCapabilityWarningEvent =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useReadErc404StakingModule = /*#__PURE__*/ createUseReadContract({
+  abi: erc404StakingModuleAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"calculatePendingRewards"`
+ */
+export const useReadErc404StakingModuleCalculatePendingRewards =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'calculatePendingRewards',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"getStakingInfo"`
+ */
+export const useReadErc404StakingModuleGetStakingInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'getStakingInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadErc404StakingModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerTokenPaid"`
+ */
+export const useReadErc404StakingModuleRewardPerTokenPaid =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardPerTokenPaid',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerTokenStored"`
+ */
+export const useReadErc404StakingModuleRewardPerTokenStored =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardPerTokenStored',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardsAccrued"`
+ */
+export const useReadErc404StakingModuleRewardsAccrued =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardsAccrued',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"stakedBalance"`
+ */
+export const useReadErc404StakingModuleStakedBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'stakedBalance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"stakingEnabled"`
+ */
+export const useReadErc404StakingModuleStakingEnabled =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'stakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"totalStaked"`
+ */
+export const useReadErc404StakingModuleTotalStaked =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'totalStaked',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useWriteErc404StakingModule = /*#__PURE__*/ createUseWriteContract(
+  { abi: erc404StakingModuleAbi },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"computeClaim"`
+ */
+export const useWriteErc404StakingModuleComputeClaim =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'computeClaim',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"enableStaking"`
+ */
+export const useWriteErc404StakingModuleEnableStaking =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'enableStaking',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordFeesReceived"`
+ */
+export const useWriteErc404StakingModuleRecordFeesReceived =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordFeesReceived',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordStake"`
+ */
+export const useWriteErc404StakingModuleRecordStake =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordStake',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordUnstake"`
+ */
+export const useWriteErc404StakingModuleRecordUnstake =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordUnstake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useSimulateErc404StakingModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: erc404StakingModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"computeClaim"`
+ */
+export const useSimulateErc404StakingModuleComputeClaim =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'computeClaim',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"enableStaking"`
+ */
+export const useSimulateErc404StakingModuleEnableStaking =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'enableStaking',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordFeesReceived"`
+ */
+export const useSimulateErc404StakingModuleRecordFeesReceived =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordFeesReceived',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordStake"`
+ */
+export const useSimulateErc404StakingModuleRecordStake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordStake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordUnstake"`
+ */
+export const useSimulateErc404StakingModuleRecordUnstake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordUnstake',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useWatchErc404StakingModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: erc404StakingModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"FeesReceived"`
+ */
+export const useWatchErc404StakingModuleFeesReceivedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'FeesReceived',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"RewardsClaimed"`
+ */
+export const useWatchErc404StakingModuleRewardsClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'RewardsClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"Staked"`
+ */
+export const useWatchErc404StakingModuleStakedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'Staked',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"StakingEnabled"`
+ */
+export const useWatchErc404StakingModuleStakingEnabledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'StakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"Unstaked"`
+ */
+export const useWatchErc404StakingModuleUnstakedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'Unstaked',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionFactoryAbi}__
  */
 export const useReadErc721AuctionFactory = /*#__PURE__*/ createUseReadContract({
@@ -14320,6 +14843,22 @@ export const useReadIGlobalMessageRegistryMessageCount =
   /*#__PURE__*/ createUseReadContract({
     abi: iGlobalMessageRegistryAbi,
     functionName: 'messageCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iMasterRegistryMinAbi}__
+ */
+export const useReadIMasterRegistryMin = /*#__PURE__*/ createUseReadContract({
+  abi: iMasterRegistryMinAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iMasterRegistryMinAbi}__ and `functionName` set to `"isRegisteredInstance"`
+ */
+export const useReadIMasterRegistryMinIsRegisteredInstance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iMasterRegistryMinAbi,
+    functionName: 'isRegisteredInstance',
   })
 
 /**
