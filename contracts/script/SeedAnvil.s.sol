@@ -64,10 +64,6 @@ contract SeedAnvil is Script {
         address endowmentVault; // first Aave endowment vault (index 2)
         address stakingModule;  // ERC404StakingModule (approved STAKING component)
         address zammDeployer;   // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
-        // Platform registries handed to ADMIN at the end (for the protocol-admin console).
-        address masterRegistry;
-        address alignmentRegistry;
-        address componentRegistry;
     }
 
     uint256 deployerKey;
@@ -121,10 +117,16 @@ contract SeedAnvil is Script {
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
     }
 
-    /// @dev Hand ownership of every seeded instance + the platform registries to ADMIN (the testing
-    ///      wallet), so it drives creator admin + the protocol-admin console from the UI. Runs LAST,
-    ///      as the deployer, after all owner-only seeding — Solady single-step transferOwnership.
-    function _transferAdmin(Deployed memory d) internal {
+    /// @dev Hand ownership of every seeded INSTANCE to ADMIN (the testing wallet) + fund it, so it
+    ///      drives creator admin from the UI. Runs LAST, as the deployer, after all owner-only seeding
+    ///      (instances use Solady's single-step transferOwnership).
+    ///
+    ///      The platform REGISTRIES (MasterRegistry/Alignment/Component/FeaturedQueue) are UUPS proxies
+    ///      that override transferOwnership to force the 2-step `requestOwnershipHandover` flow — which
+    ///      the NEW owner must initiate, and we don't hold ADMIN's key here. So protocol-admin
+    ///      ownership is deferred to Phase 3 (handled via anvil impersonation in deploy.ts, or by ADMIN
+    ///      requesting the handover from the admin console). The deployer stays the protocol owner.
+    function _transferAdmin(Deployed memory) internal {
         vm.startBroadcast(deployerKey);
         // Fund ADMIN so it can pay gas + value actions (queuePiece deposit, bids, buys) immediately.
         (bool funded,) = ADMIN.call{value: 50 ether}("");
@@ -132,12 +134,8 @@ contract SeedAnvil is Script {
         for (uint256 i = 0; i < _instances.length; i++) {
             IOwnable(_instances[i]).transferOwnership(ADMIN);
         }
-        IOwnable(d.masterRegistry).transferOwnership(ADMIN);
-        IOwnable(d.alignmentRegistry).transferOwnership(ADMIN);
-        IOwnable(d.componentRegistry).transferOwnership(ADMIN);
-        IOwnable(address(d.queue)).transferOwnership(ADMIN); // FeaturedQueueManager
         vm.stopBroadcast();
-        console.log("Handed", _instances.length, "instances + 4 registries to ADMIN:");
+        console.log("Handed", _instances.length, "instances (creator admin) + 50 ETH to ADMIN:");
         console.log(ADMIN);
     }
 
@@ -153,9 +151,6 @@ contract SeedAnvil is Script {
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
         d.zammDeployer  = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
-        d.masterRegistry    = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
-        d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
-        d.componentRegistry = vm.parseJsonAddress(json, ".contracts.ComponentRegistry");
         // `vaults` is serialized as a JSON-encoded STRING (DeployCore builds it by hand): parse it
         // out first, then index the inner array. [0]=first Uni vault, [2]=first Aave endowment vault.
         string memory vaultsJson = vm.parseJsonString(json, ".vaults");
