@@ -8,14 +8,20 @@ import { formatEther } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
   useReadErc1155InstanceCalculateMintCost,
+  useReadErc1155InstanceGatingModule,
+  useReadErc1155InstanceGatingScope,
   useWriteErc1155InstanceMint,
 } from '../../generated/contracts'
 import { forkChainId } from '../../lib/addresses'
+import {
+  encodeMintMessage,
+  isPaidMintGated,
+  passwordToBytes32,
+  ZERO_BYTES32,
+} from './erc1155/gatingMint'
+import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
 import { useEditions, type EditionView } from './useEditions'
 import styles from './EditionList.module.css'
-
-/** bytes32 zero — used as gatingData for open mints. */
-const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000' as const
 
 const PRICING_MODEL_LABELS: Record<number, string> = {
   0: 'fixed',
@@ -36,6 +42,8 @@ interface MintPanelProps {
 function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const { isConnected } = useAccount()
   const [amount, setAmount] = useState(1)
+  const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
 
   const { data: costData, isPending: costPending } = useReadErc1155InstanceCalculateMintCost({
     address: instance,
@@ -43,6 +51,19 @@ function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     args: [edition.id, BigInt(amount)],
     query: { enabled: amount > 0 },
   })
+
+  // Gating config for the paid mint path. When a module is set and scope isn't FREE_MINT_ONLY,
+  // `mint` consults the module — we then resolve the user's password credential into bytes32
+  // (see erc1155/gatingMint.ts for the approach + the merkle seam). Otherwise gatingData = zero.
+  const { data: gatingModule } = useReadErc1155InstanceGatingModule({
+    address: instance,
+    chainId: forkChainId,
+  })
+  const { data: gatingScope } = useReadErc1155InstanceGatingScope({
+    address: instance,
+    chainId: forkChainId,
+  })
+  const gated = isPaidMintGated(gatingModule, gatingScope)
 
   const {
     writeContract,
@@ -60,10 +81,14 @@ function MintPanel({ instance, edition, refetch }: MintPanelProps) {
 
   function handleMint(): void {
     if (costData === undefined) return
+    // Real gatingData when the paid path is gated (keccak256(password) as bytes32), else zero.
+    const gatingData = gated ? passwordToBytes32(password) : ZERO_BYTES32
+    // Optional attached message, ABI-encoded to the registry's 5-field convention (else '0x').
+    const messageData = encodeMintMessage(message)
     writeContract({
       address: instance,
       chainId: forkChainId,
-      args: [edition.id, BigInt(amount), ZERO_BYTES32, '0x', costData],
+      args: [edition.id, BigInt(amount), gatingData, messageData, costData],
       value: costData,
     })
   }
@@ -71,6 +96,8 @@ function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   function handleSuccess(): void {
     resetWrite()
     setAmount(1)
+    setPassword('')
+    setMessage('')
     refetch()
   }
 
@@ -125,6 +152,28 @@ function MintPanel({ instance, edition, refetch }: MintPanelProps) {
           {sigPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'mint'}
         </button>
       </div>
+      {gated && (
+        <input
+          className={styles.mintInput}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="access password (gated sale)"
+          disabled={isBusy}
+          aria-label="mint access password"
+          data-testid="erc1155-mint-password"
+        />
+      )}
+      <textarea
+        className={styles.mintMessage}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="attach a message (optional)"
+        rows={2}
+        disabled={isBusy}
+        aria-label="optional mint message"
+        data-testid="erc1155-mint-message"
+      />
       {(writeError || waitError) && (
         <p className={`${styles.txStatus} ${styles.txError}`}>transaction failed — try again</p>
       )}
@@ -143,7 +192,8 @@ export function EditionList({ instance }: EditionListProps) {
     return <p className={styles.note}>could not load editions — is the fork up?</p>
   }
 
-  if (data.length === 0) {
+  const firstEdition = data[0]
+  if (firstEdition === undefined) {
     return (
       <p className={styles.note} data-testid="editions-empty">
         no editions yet
@@ -152,13 +202,18 @@ export function EditionList({ instance }: EditionListProps) {
   }
 
   return (
-    <ul className={styles.list} data-testid="editions">
-      {data.map((edition) => (
-        <li key={edition.id.toString()} className={styles.card}>
-          <EditionCard edition={edition} instance={instance} refetch={refetch} />
-        </li>
-      ))}
-    </ul>
+    <div className={styles.editions}>
+      {/* Free-mint claim is per-instance (allocation is a single tranche); target the first
+          edition. The panel renders nothing unless the connected wallet is eligible. */}
+      <FreeMintClaimPanel instance={instance} editionId={firstEdition.id} />
+      <ul className={styles.list} data-testid="editions">
+        {data.map((edition) => (
+          <li key={edition.id.toString()} className={styles.card}>
+            <EditionCard edition={edition} instance={instance} refetch={refetch} />
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
