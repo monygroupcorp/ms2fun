@@ -3,8 +3,8 @@
  * primitives (useOwnerGate + AdminSection/ActionRow + useTxAction/TxButton + AmountField/parseAmount)
  * so every admin surface looks and behaves the same; a new action is config, not bespoke wiring.
  *
- * Gated by `useOwnerGate(instance)` (the connected wallet must equal the on-chain `owner()`); the
- * parent also gates on the registry creator. Actions:
+ * Gated by `useOwnerGate(instance)` (the connected wallet must equal the on-chain `owner()`, which is
+ * transferable — so this follows ownership, not the original registry creator). Actions:
  *   - withdraw(amount)              proceeds; default amount = full withdrawable (proceeds − withdrawn)
  *   - claimVaultFees()              sweep this instance's accrued alignment-vault yield
  *   - claimAllFees()              ✦ sweep every fee bucket at once
@@ -42,7 +42,7 @@ interface CreatorAdminPanelProps {
 
 export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
   const { isOwner } = useOwnerGate(instance)
-  const { data: editions } = useEditions(instance)
+  const { data: editions, refetch: refetchEditions } = useEditions(instance)
 
   if (!isOwner) return null
 
@@ -51,7 +51,7 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
       <WithdrawRow instance={instance} />
       <ClaimFeesRow instance={instance} />
       <ClaimAllFeesRow instance={instance} />
-      <UpdateMetadataRow instance={instance} editions={editions} />
+      <UpdateMetadataRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetStyleRow instance={instance} />
       <MigrateVaultRow instance={instance} />
       <AgentDelegationRow instance={instance} />
@@ -205,9 +205,11 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
 function UpdateMetadataRow({
   instance,
   editions,
+  onUpdated,
 }: {
   instance: `0x${string}`
   editions: readonly EditionView[]
+  onUpdated: () => void
 }) {
   // Track an explicit selection; fall back to the first edition so the row is usable even when
   // editions finish loading after mount (the useState initializer only runs once).
@@ -216,7 +218,8 @@ function UpdateMetadataRow({
   const editionId =
     selectedId !== '' ? selectedId : firstEdition !== undefined ? firstEdition.id.toString() : ''
   const [uri, setUri] = useState('')
-  const tx = useTxAction()
+  // Refetch the shared editions query on success so the list + detail page show the new URI at once.
+  const tx = useTxAction({ onSuccess: onUpdated })
 
   const canSubmit = editionId.trim() !== '' && uri.trim() !== '' && !tx.isBusy
 
