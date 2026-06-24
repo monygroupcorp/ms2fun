@@ -45,6 +45,16 @@
   margin: 0;
 }
 
+.titleLink {
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.titleLink:hover .title {
+  text-decoration: underline;
+}
+
 .badge {
   flex-shrink: 0;
   font-size: var(--font-size-caption);

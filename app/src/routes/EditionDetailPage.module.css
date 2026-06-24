@@ -1,0 +1,31 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  max-width: var(--content-max, 1100px);
+  margin: 0 auto;
+  padding: var(--padding-lg) var(--padding-md);
+}
+
+.crumb {
+  display: flex;
+  gap: var(--gap-sm);
+}
+
+.back {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}

@@ -9,6 +9,8 @@ import { Exec404Page } from './routes/Exec404Page'
 import { CollectionsPage } from './routes/CollectionsPage'
 import { ProfilePage } from './routes/ProfilePage'
 import { CollectionPage } from './routes/CollectionPage'
+import { EditionDetailPage } from './routes/EditionDetailPage'
+import { TokenDetailPage } from './routes/TokenDetailPage'
 import { WizardPage } from './routes/WizardPage'
 import { BoardPage } from './routes/BoardPage'
 import styles from './App.module.css'
@@ -48,6 +50,8 @@ export function App() {
               <Route path="/launch" component={WizardPage} />
               <Route path="/collections" component={CollectionsPage} />
               <Route path="/board" component={BoardPage} />
+              <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
+              <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
               <Route path="/collection/:instance" component={CollectionPage} />
               <Route path="/profile" component={ProfilePage} />
               <Route path="/profile/:address" component={ProfilePage} />
