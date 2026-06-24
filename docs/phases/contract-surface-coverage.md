@@ -77,15 +77,14 @@ Per-instance owner functions, mostly UNWIRED across all three types:
 ### J. Profiles — ✅ (Phase 3)
 - ✅ `setProfile` / `profileURI` / `clearProfile`; created-collections list already on the profile.
 
-### K. Protocol admin console — ✅ (Phase 3, done 2026-06-24; treasury sub-panel deferred)
-- ✅ `/admin` console (nav + page gated on the MasterRegistry owner), four registry panels each
+### K. Protocol admin console — ✅ (Phase 3, done 2026-06-24)
+- ✅ `/admin` console (nav + page gated on the MasterRegistry owner), FIVE registry panels each
   self-gating on their `owner()`: **MasterRegistry** (factory/vault/instance mgmt), **Alignment**
   (targets/ambassadors/payouts), **Component** (approve/revoke), **PlatformConfig** (featured-queue
-  rates/bounds/size + agent delegation `setAgent`/`revokeAgent`/`emergencyRevoker`).
+  rates/bounds/size + agent delegation), **Treasury** (balance + revenue-by-source + POL; withdraw
+  ETH/ERC20/ERC721 + setRevenueConductor).
 - ✅ Registry ownership handed to the testing wallet via the 2-step handover (deploy.ts impersonation),
   so the console is operable as `0x54Ef…`.
-- ⬜ **Treasury sub-panel** (`withdrawETH/ERC20/ERC721`, revenue-by-source, POL) — deferred: the
-  ProtocolTreasury address isn't in the slim frontend config (needs adding to the deploy bridge).
 
 ### L. Skip (internal / out) 
 `initialize*`, UUPS upgrade + ownership-handover, factory-only (`registerInstance`/`initializeStaking`),
