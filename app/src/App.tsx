@@ -14,7 +14,22 @@ import { TokenDetailPage } from './routes/TokenDetailPage'
 import { WizardPage } from './routes/WizardPage'
 import { BoardPage } from './routes/BoardPage'
 import { PortfolioPage } from './routes/PortfolioPage'
+import { AdminPage } from './routes/AdminPage'
+import { useOwnerGate } from './components/ui/useOwnerGate'
+import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
+
+/** ADMIN nav link — shown only to the platform operator (MasterRegistry owner). Lives inside the
+ * WagmiProvider so it can read on-chain ownership. */
+function AdminNavLink() {
+  const { isOwner } = useOwnerGate(forkAddresses.MasterRegistryV1)
+  if (!isOwner) return null
+  return (
+    <Link href="/admin" className={styles.navLink}>
+      ADMIN
+    </Link>
+  )
+}
 
 export function App() {
   return (
@@ -38,6 +53,7 @@ export function App() {
               <Link href="/portfolio" className={styles.navLink}>
                 PORTFOLIO
               </Link>
+              <AdminNavLink />
               <Link href="/exec404" className={styles.navLink}>
                 CULT EXECUTIVES
               </Link>
@@ -55,6 +71,7 @@ export function App() {
               <Route path="/collections" component={CollectionsPage} />
               <Route path="/board" component={BoardPage} />
               <Route path="/portfolio" component={PortfolioPage} />
+              <Route path="/admin" component={AdminPage} />
               <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
               <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
               <Route path="/collection/:instance" component={CollectionPage} />

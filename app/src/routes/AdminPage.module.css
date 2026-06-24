@@ -1,0 +1,28 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+  max-width: var(--content-max, 1100px);
+  margin: 0 auto;
+  padding: var(--padding-lg) var(--padding-md);
+}
+
+.title {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.panels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
