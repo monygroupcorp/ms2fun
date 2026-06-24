@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'wouter'
 import { useAccount } from 'wagmi'
@@ -8,7 +8,10 @@ import { CreatorCollections } from '../components/CreatorCollections'
 import { MessageFeed } from '../components/MessageFeed'
 import { MessageComposer } from '../components/MessageComposer'
 import { useProfileMetadata } from '../components/useProfileMetadata'
+import { TxButton } from '../components/ui/TxButton'
+import { useTxAction } from '../components/ui/useTxAction'
 import {
+  profileRegistryAbi,
   useReadProfileRegistryProfileUri,
   useWriteProfileRegistrySetProfile,
 } from '../generated/contracts'
@@ -58,11 +61,18 @@ export function ProfilePage() {
   // After a successful write, refetch the on-chain URI + its metadata so the view reflects the save
   // (the fork mines instantly; on a slow chain this refetch races the receipt — acceptable here).
   const queryClient = useQueryClient()
-  useEffect(() => {
-    if (!isSaved) return
+  const refetchProfile = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey })
     void queryClient.invalidateQueries({ queryKey: ['profile-metadata'] })
-  }, [isSaved, queryClient, queryKey])
+  }, [queryClient, queryKey])
+  useEffect(() => {
+    if (!isSaved) return
+    refetchProfile()
+  }, [isSaved, refetchProfile])
+
+  // clearProfile() — wipes the connected wallet's on-chain profile URI; own-profile only. On a
+  // confirmed receipt, refetch the URI + metadata so the view drops back to the empty/setup state.
+  const clearTx = useTxAction({ onSuccess: refetchProfile })
 
   const isOwn = !!connected && !!target && connected.toLowerCase() === target.toLowerCase()
 
@@ -138,7 +148,11 @@ export function ProfilePage() {
         <ProfileView address={target} metadata={metadata} />
       )}
 
-      {!isPending && !isError && <CreatorCollections creator={target} />}
+      {!isPending && !isError && (
+        <div data-testid="profile-collections">
+          <CreatorCollections creator={target} />
+        </div>
+      )}
 
       {!isPending && !isError && <MessageFeed filter={{ sender: target }} />}
 
@@ -156,6 +170,25 @@ export function ProfilePage() {
           </button>
           {isSaving && <span className={styles.savingNote}>saving…</span>}
           {isSaved && !isSaving && !editing && <span className={styles.savedNote}>saved</span>}
+          {!editing && (
+            <TxButton
+              state={clearTx.state}
+              onClick={() =>
+                clearTx.send({
+                  address: forkAddresses.ProfileRegistry,
+                  chainId: forkChainId,
+                  abi: profileRegistryAbi,
+                  functionName: 'clearProfile',
+                })
+              }
+              label="clear profile"
+              successLabel="profile cleared"
+              onReset={clearTx.reset}
+              disabled={isSaving}
+              className="btn"
+              testId="profile-clear"
+            />
+          )}
         </div>
       )}
 
