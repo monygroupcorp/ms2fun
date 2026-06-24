@@ -6,6 +6,7 @@
  * and staking (W-B7) mount inside `BondingSurface` at their marked seams.
  */
 import { BondingSurface } from '../erc404/BondingSurface'
+import { Erc404NftGallery } from '../erc404/Erc404NftGallery'
 import styles from './TypeSection.module.css'
 
 export interface Erc404CollectionProps {
@@ -18,6 +19,8 @@ export function Erc404Collection({ instance }: Erc404CollectionProps) {
     <section className={styles.section} data-testid="erc404-collection">
       <h2 className={styles.title}>BONDING</h2>
       <BondingSurface instance={instance} />
+      {/* W-D3: a DN404 is also an NFT collection — show the mirror art (→ token page). */}
+      <Erc404NftGallery instance={instance} />
     </section>
   )
 }

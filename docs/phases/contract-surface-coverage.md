@@ -29,12 +29,13 @@ DAO is OUT; **creator admin and protocol admin are first-class**. Built from a 4
 - ✅ ERC404 buy/sell/quote/freemint/reroll/graduate/staking; ERC1155 mint/freemint; ERC721 bid/
   settle/reclaim. The verbs are operational.
 
-### D. Collection detail + sub-pages — 🟡  ← **user-flagged**
+### D. Collection detail + sub-pages — ✅ (W-D, done 2026-06-24)
 - ✅ Collection page per type (W-B1).
-- ⬜ **ERC1155 edition detail PAGE** — `getEdition`/`getCurrentPrice`/`calculateMintCost` are wired
-  inline, but there's no per-edition ROUTE (shareable URL, own styling). *(user: "no edition page")*
-- ⬜ **ERC404 / ERC721 NFT (token) detail + gallery** — a DN404 is coin AND NFT; `tokenURI`/`ownerOf`/
-  mirror balance are unsurfaced. No art view. *(user: "ERC404 … its also an NFT. show the art")*
+- ✅ **ERC1155 edition detail page** — route `/collection/:instance/edition/:id`: hero art, stats,
+  inline shared `MintPanel`, metadata-driven theming (`theme.accent`/`background`), copy-link share.
+- ✅ **NFT galleries + token detail page** — `/collection/:instance/token/:id`: DN404 mirror art
+  (`mirrorERC721`→`tokenURI`/`ownerOf` via minimal ABI) + ERC721 piece art + auction history.
+  Galleries (`Erc404NftGallery`, `Erc721PieceGallery`) mounted on the collection surfaces.
 
 ### E. Creator admin (per-instance) — 🟡 (biggest execution gap)
 Per-instance owner functions, mostly UNWIRED across all three types:
