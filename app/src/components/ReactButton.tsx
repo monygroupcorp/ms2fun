@@ -1,10 +1,11 @@
 /**
  * ReactButton — posts a REACT (messageType 3) targeting a message, and renders the aggregate count.
  *
- * Channel mirrors MessageComposer/ReplyComposer: posted to the connected wallet's OWN address as the
- * `instance`, `refId` = the target messageId. actionRef/metadata are bytes32(0). The threading
- * transform de-dupes by sender, so a second click by the same wallet won't inflate the count once the
- * feed refetches. Disabled (but still shows the count) when disconnected or already reacted.
+ * Channel: posted to the TARGET message's `instance` channel (so the reaction appears in the same
+ * filtered feed as the message it reacts to), `refId` = the target messageId. actionRef/metadata are
+ * bytes32(0). The threading transform de-dupes by sender, so a second click by the same wallet won't
+ * inflate the count once the feed refetches. Disabled (but still shows the count) when disconnected or
+ * already reacted.
  */
 import { useAccount } from 'wagmi'
 import { globalMessageRegistryAbi } from '../generated/contracts'
@@ -16,11 +17,14 @@ const ZERO_BYTES32 = '0x00000000000000000000000000000000000000000000000000000000
 
 export function ReactButton({
   targetId,
+  channel,
   count,
   reactedByMe,
   onReacted,
 }: {
   targetId: bigint
+  /** The target message's `instance` channel — the reaction is posted here so it threads in-context. */
+  channel: `0x${string}`
   count: number
   reactedByMe: boolean
   onReacted: () => void
@@ -37,8 +41,8 @@ export function ReactButton({
       abi: globalMessageRegistryAbi,
       functionName: 'post',
       chainId: forkChainId,
-      // [instance, messageType=3 REACT, refId=targetId, actionRef, metadata, content('')]
-      args: [connected, 3, targetId, ZERO_BYTES32, ZERO_BYTES32, ''],
+      // [instance(=target channel), messageType=3 REACT, refId=targetId, actionRef, metadata, '']
+      args: [channel, 3, targetId, ZERO_BYTES32, ZERO_BYTES32, ''],
     })
   }
 

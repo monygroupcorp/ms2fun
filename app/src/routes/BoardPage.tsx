@@ -194,6 +194,7 @@ function BoardMessage({
         <div className={styles.actionBar}>
           <ReactButton
             targetId={message.messageId}
+            channel={message.instance}
             count={reaction.count}
             reactedByMe={reaction.reactedByMe}
             onReacted={onChanged}
@@ -212,6 +213,7 @@ function BoardMessage({
         {replying && (
           <ReplyComposer
             parentId={message.messageId}
+            channel={message.instance}
             onPosted={onChanged}
             onCancel={() => setReplying(false)}
           />

@@ -1,10 +1,11 @@
 /**
  * ReplyComposer — a compact composer for posting a REPLY (messageType 1) to a parent message.
  *
- * Channel convention mirrors MessageComposer: a reply is posted to the connected wallet's OWN address
- * as the `instance` channel (the established per-wall convention), with `refId` = the parent's
- * messageId so the threading transform can nest it. actionRef/metadata are bytes32(0) like top-level
- * posts. On a confirmed receipt it clears, calls onPosted (feed refetch), and collapses.
+ * Channel: a reply is posted to the PARENT message's `instance` channel (not the replier's own wall)
+ * so it appears wherever the parent does — a reply to a collection message shows on that collection
+ * page, not only on the global board. `refId` = the parent's messageId so the threading transform can
+ * nest it; `sender` is still the replier (set by msg.sender). actionRef/metadata are bytes32(0). On a
+ * confirmed receipt it clears, calls onPosted (feed refetch), and collapses.
  */
 import { useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
@@ -17,10 +18,13 @@ const ZERO_BYTES32 = '0x00000000000000000000000000000000000000000000000000000000
 
 export function ReplyComposer({
   parentId,
+  channel,
   onPosted,
   onCancel,
 }: {
   parentId: bigint
+  /** The parent message's `instance` channel — the reply is posted here so it threads in-context. */
+  channel: `0x${string}`
   onPosted: () => void
   onCancel: () => void
 }) {
@@ -53,8 +57,8 @@ export function ReplyComposer({
       abi: globalMessageRegistryAbi,
       functionName: 'post',
       chainId: forkChainId,
-      // [instance, messageType=1 REPLY, refId=parentId, actionRef, metadata, content]
-      args: [connected, 1, parentId, ZERO_BYTES32, ZERO_BYTES32, trimmed],
+      // [instance(=parent channel), messageType=1 REPLY, refId=parentId, actionRef, metadata, content]
+      args: [channel, 1, parentId, ZERO_BYTES32, ZERO_BYTES32, trimmed],
     })
   }
 

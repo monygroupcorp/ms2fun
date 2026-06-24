@@ -131,6 +131,7 @@ function ReactionRow({
       <div className={styles.actionBar}>
         <ReactButton
           targetId={message.messageId}
+          channel={message.instance}
           count={count}
           reactedByMe={reactedByMe}
           onReacted={onChanged}
@@ -149,6 +150,7 @@ function ReactionRow({
       {replying && (
         <ReplyComposer
           parentId={message.messageId}
+          channel={message.instance}
           onPosted={onChanged}
           onCancel={() => setReplying(false)}
         />
