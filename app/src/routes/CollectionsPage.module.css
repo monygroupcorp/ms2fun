@@ -133,6 +133,24 @@
   color: var(--text-secondary);
 }
 
+.clearBtn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  background-color: transparent;
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.clearBtn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
 .resultsNote {
   font-family: var(--font-mono);
   font-size: var(--font-size-caption);

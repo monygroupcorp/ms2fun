@@ -1,13 +1,23 @@
+import { useMemo } from 'react'
 import { Link } from 'wouter'
 import { useReadQueryAggregatorGetHomePageData } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
-import { CollectionCard } from '../components/CollectionCard'
+import { useAllCollections } from '../lib/discovery'
+import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
+import { HomeStats } from '../components/home/HomeStats'
+import { ActivityPreview } from '../components/home/ActivityPreview'
 import styles from './HomePage.module.css'
 import browseStyles from '../components/CollectionsBrowse.module.css'
 
 /**
- * Landing page — shows the featured collection grid with EXEC404 / CULT EXECUTIVES pinned first,
- * plus a link to the full collections browse. Read path only; no wallet required.
+ * Landing surface. Composed from:
+ *  - a featured grid (fast path: `getHomePageData`) with EXEC404 / CULT EXECUTIVES pinned first,
+ *    remaining featured cards ordered by on-chain `featuredRank` (lower rank = higher placement),
+ *  - a stats bar (featured count from the fast path; total collections from the full-registry scan,
+ *    which fills in when ready — the page never blocks on it),
+ *  - a read-only recent-activity preview (shares the board's global feed cache).
+ *
+ * Read path only; no wallet required.
  */
 export function HomePage() {
   const { data, isPending, isError } = useReadQueryAggregatorGetHomePageData({
@@ -16,7 +26,27 @@ export function HomePage() {
     args: [0n, 24n],
   })
 
-  const featuredCards = data?.[0] ?? null
+  // Full-registry total for the stats bar. Independent query — its own loading state, so the
+  // (slower) event scan never blocks the featured fast path above.
+  const { total: totalCollections, isPending: totalPending } = useAllCollections()
+
+  const featuredRaw = data?.[0] ?? null
+  const totalFeatured = data?.[1]
+
+  // Featured ordering: ascending featuredRank (the queue's effective rank; lower = higher).
+  // Cards with rank 0 (unranked) sort to the end so genuinely-boosted entries lead.
+  const featuredCards = useMemo((): readonly HomePageCard[] | null => {
+    if (featuredRaw === null) return null
+    const rankKey = (c: HomePageCard) =>
+      c.featuredRank === 0n ? BigInt(Number.MAX_SAFE_INTEGER) : c.featuredRank
+    return [...featuredRaw].sort((a, b) => {
+      const ra = rankKey(a)
+      const rb = rankKey(b)
+      return ra < rb ? -1 : ra > rb ? 1 : 0
+    })
+  }, [featuredRaw])
+
+  const featuredCount = totalFeatured !== undefined ? Number(totalFeatured) : featuredCards?.length
 
   return (
     <div className={styles.page}>
@@ -24,6 +54,26 @@ export function HomePage() {
         <h1 className={`${styles.title} text-chromatic-strong`}>ms2.fun</h1>
         <p className={styles.tagline}>the opinionated boutique launchpad</p>
       </section>
+
+      <HomeStats
+        stats={[
+          {
+            label: 'collections',
+            value: String(totalCollections),
+            pending: totalPending,
+          },
+          {
+            label: 'featured',
+            // +1 for the pinned EXEC404 fossil, which is not in the queue.
+            value: featuredCount !== undefined ? String(featuredCount + 1) : '—',
+            pending: isPending,
+          },
+          {
+            label: 'fossil',
+            value: 'EXEC404',
+          },
+        ]}
+      />
 
       <section className={styles.featured}>
         <div className={styles.featuredHeader}>
@@ -75,6 +125,8 @@ export function HomePage() {
           </div>
         )}
       </section>
+
+      <ActivityPreview />
     </div>
   )
 }
