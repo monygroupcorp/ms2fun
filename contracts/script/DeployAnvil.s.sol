@@ -64,6 +64,8 @@ contract DeployAnvil is DeployCore {
         cfg.saltGlobalMsgReg   = bytes32(uint256(keccak256(abi.encode(block.timestamp, "gmr"))));
         cfg.saltAlignmentReg   = bytes32(uint256(keccak256(abi.encode(block.timestamp, "align"))));
         cfg.saltComponentReg   = bytes32(uint256(keccak256(abi.encode(block.timestamp, "comp"))));
+        // Mixed into the per-target vault salts so re-deploying onto the same fork doesn't collide.
+        cfg.saltNonce          = block.timestamp;
         cfg.priceDeviationBps  = 1000;
         cfg.twapSeconds        = 1800;
         cfg.zrouterFee         = 3000;

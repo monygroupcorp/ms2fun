@@ -41,33 +41,45 @@ Each task notes its **legacy source** and the **contract surface** it must wire.
 `[ ]` todo · `[~]` partial · `[x]` done.
 
 ### W-A — Foundation (data + platform layer) — *do first; everything depends on it*
-- [ ] **A1** Generate the missing instance ABIs into the bindings: `ERC721AuctionInstance`,
+- [x] **A1** Generate the missing instance ABIs into the bindings: `ERC721AuctionInstance`,
   `ERC404BondingInstance`, `CurveParamsComputer` (wagmi.config + regen). *Blocks B3/B4.*
-- [ ] **A2** Event-indexed discovery layer — index `CreatorInstanceAdded` (+ factory/vault events)
+- [x] **A2** Event-indexed discovery layer — index `CreatorInstanceAdded` (+ factory/vault events)
   into an all-collections store; featured queue stays the fast-path. *Legacy: `ProjectIndex.js`,
   `ActivityIndexer.js`; `docs/plans/DATA_LAYER_ARCHITECTURE.md`. Contracts: MasterRegistry events,
   QueryAggregator `getProjectCardsBatch`.*
-- [ ] **A3** Persistence service (localStorage) — wizard drafts, favorites, last-wallet, read-only
+- [x] **A3** Persistence service (localStorage) — wizard drafts, favorites, last-wallet, read-only
   prefs, contract cache (TTL), index-mode. *Legacy: `FavoritesService`, `ProjectIndex`,
   `ContractCache`, `StorageSettings`.*
-- [ ] **A4** IPFS multi-gateway resolver — rotation (w3s/cloudflare/ipfs.io/pinata/dweb) + custom
+- [x] **A4** IPFS multi-gateway resolver — rotation (w3s/cloudflare/ipfs.io/pinata/dweb) + custom
   gateway override. *Legacy: `IpfsService.js`. Current `lib/metadata/resolveUri` is single-gateway.*
 
 ### W-B — Per-type collection experiences (the trading surface)
-- [ ] **B1** `CollectionPage` per-type routing — branch ERC1155 / ERC721 / ERC404 (today only
-  ERC1155 renders anything past stats).
-- [~] **B2** ERC1155 completion — free-mint **claim**, `withdraw`, `claimVaultFees`, gating wired
-  into `mint` (today `gatingData` hardcoded 0), `updateEditionMetadata`. *Legacy: `ERC1155Adapter`.*
-- [ ] **B3** ERC721 auctions — `createBid` / `settleAuction` / `reclaimUnsold` + active/past auction
-  state UI + bid history + config display. *Legacy: `ERC721AuctionInstanceAdapter`.*
-- [ ] **B4** ERC404 bonding — `buyBonding` / `sellBonding` + curve quote + graduated detection
-  (`liquidityPair`) + phase-2 DEX swap path + tier/password gating + free-mint + auto-NFT-mint +
-  reroll. *Legacy: `SwapInterface/`, `BondingCurve/`, `TradingInterface/`, `ReRollModal/`.*
-- [ ] **B5** ERC404 bonding chart — phase-1 curve canvas + candles; phase-2 pool view. *Legacy:
-  `BondingCurve/`, `utils/candleAggregator.js`, `tradeEventCache.js`.*
-- [ ] **B6** Full-state seed across all 3 types so every state is demoable (ERC1155 open/limited/
-  dynamic + free-mint; ERC721 auction not-started/active/no-bid/ended/settled/unsold; ERC404
-  bonding mid-curve + graduated). *Seed: `SeedAnvil.s.sol` + `vm.warp`.*
+**Status: built + gate-green (TS 298 tests; `forge build` clean). NOT yet fork-verified (human gate).**
+Branch `phase-3/wb-trading`. Lead-review caught + fixed a real gating-encoding bug (claimFreeMint)
+and the B6 agent caught 5 runtime-revert traps in the seed brief by reading source.
+- [x] **B1** `CollectionPage` per-type routing — branches by `card.contractType` into
+  Erc1155/Erc721/Erc404 type components; ships the pure tested state machines `deriveAuctionState`
+  + `derivePhase`/`canDeployLiquidity`.
+- [x] **B2** ERC1155 completion — free-mint **claim**, `withdraw`, `claimVaultFees`, gating wired
+  into `mint` + `claimFreeMint` (real `gatingData`, not 0), `updateEditionMetadata`, message mint.
+- [x] **B3** ERC721 auctions — `createBid` / `settleAuction` / `reclaimUnsold` + multi-line active
+  state UI + bid history (`BidPlaced` events) + countdown + config display.
+- [x] **B4** ERC404 bonding — `buyBonding` / `sellBonding` + curve quote (`CurveParamsComputer.
+  calculateCost/calculateRefund`) + phase detection (`bondingActive`/`bondingOpenTime`/`graduated`/
+  `liquidityDeployer`) + tier/password gating (`gatingActive`/`gatingModule`/`gatingScope`) +
+  free-mint (`claimFreeMint`) + reroll (first-class on the new contract: `rerollSelectedNfTs` +
+  `getSkipNft`/`setSkipNft` + `RerollInitiated/Completed` events — drop legacy's
+  `transferTokensToSelf` hack). *Legacy: `SwapInterface/` (gut the 1,137-LOC manual-setState/EventBus
+  machinery — W-A already replaced it).*
+- [x] **B5** ERC404 bonding chart — curve canvas + you-are-here dot **and candles** (fresh
+  `BondingSale`-event → OHLC indexer); candles also serve the graduated/pool view.
+- [x] **B7** ERC404 staking surface — `activateStaking`/`stake`/`unstake`/`claimStakingRewards`,
+  position+rewards via the new `ERC404StakingModule` bindings; self-hides when inactive. Required
+  adding the staking module to DeployCore (was never deployed). Staking position → W-D portfolio.
+- [x] **B6** Full-state seed + staking deploy infra. ERC1155 editions + free-mint; ERC721 two
+  auctions (settled/no-bid past + active-with/without-bid live); ERC404 preopen / mid-curve (3 buys
+  + active staking) / ready-to-graduate (matured, graduate live). `deployLiquidity` left for live
+  human graduation (hits an external AMM). `forge build` clean; **runtime-verify on the fork**.
 
 ### W-C — Discovery + home
 - [ ] **C1** Discovery filters/sort/search over the A2 indexed layer — by type/ERC-standard/state/
@@ -107,7 +119,10 @@ Each task notes its **legacy source** and the **contract surface** it must wire.
   create **and** mint — completes the config-apply seam stubbed in `useCreateSubmit`.
 - [ ] **G4** Wizard draft persistence (A3) + media upload (`data:` URI + client-side downscale/
   compress with URL escape hatch).
-- [ ] **G5** Storage settings + index-mode controls. *Legacy: `StorageSettings/`.*
+- [ ] **G5** First-chain-sync heads-up (a "syncing to chain…" indicator on the initial
+  all-collections event scan) + user storage levers (view / minimize / clear localStorage if it's
+  throttling them). *Deferred (Mony 2026-06-23). Leaner, user-facing replacement for legacy
+  `StorageSettings/` — NOT the FULL/MINIMAL/OFF index-mode (dropped).*
 
 ### W-H — Polish & parity sign-off
 - [ ] **H1** Brutalist styling pass across all new surfaces.
@@ -137,8 +152,22 @@ fork-verify rhythm), branched and merged on Mony's call. Status tracked **here**
 ## Decision log
 - **2026-06-23** — Rebuilt this phase to full legacy parity + full admin (Mony), after the gap
   audits. Original happy-path scope retired as the cause of the skip.
+- **2026-06-23** — W-A design reviewed vs legacy + approved (Mony). DROP: `ContractCache` (React
+  Query is the cache), FULL/MINIMAL/OFF index-mode, IndexedDB two-phase index→hydrate, ~9 stale
+  localStorage keys. BUILD: lean `useAllCollections` (event scan − creator filter → batch read),
+  typed `storage<T>()` (~4–5 keys), race-first IPFS. In-memory single-shot scan now; chunked +
+  incremental-persist seam left for testnet scale.
+
+## Decision log (cont.)
+- **2026-06-23** — W-B design reviewed vs `legacy/` + bindings verified against the real contracts
+  (legacy JS adapters describe an older surface). DROP wholesale: `SwapInterface` setState/EventBus
+  machinery, the 54-KB ERC404 adapter's dead methods, `candleAggregator`/`tradeEventCache` (never
+  imported in legacy), `transferTokensToSelf` reroll hack, hardcoded vault-split (`80/20`,`19%`) +
+  slippage literals (read `bondingFeeBps`/`pendingVaultCut`; slippage = user control). KEEP the
+  legacy ERC721 *idea*: explicit state machine from contract reads — reborn as pure tested helpers
+  (`deriveAuctionState`, `derivePhase`). Per-type page = branch on `card.contractType`. Decisions:
+  **B5 = curve + candles** (fresh OHLC indexer); **staking IN** (new B7, beyond parity).
 
 ## Open questions
 - A2 indexer: pure client-side event scan (fork-fast, may not scale on a busy testnet) vs a light
   indexed cache — decide at A2.
-- How much of legacy's bonding **chart** (B5) is parity-required vs a fast-follow.

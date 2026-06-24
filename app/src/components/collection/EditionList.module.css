@@ -1,5 +1,11 @@
 /* EditionList — Gallery Brutalism, monochrome design tokens only. */
 
+.editions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .list {
   display: flex;
   flex-direction: column;
@@ -121,6 +127,38 @@
 .costValue {
   font-weight: var(--font-weight-bold);
   color: var(--text-primary);
+}
+
+.mintInput {
+  height: var(--button-height-md);
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-none);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  padding: 0 var(--space-2);
+}
+
+.mintInput:focus {
+  outline: none;
+  border-color: var(--border-primary);
+}
+
+.mintMessage {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-none);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  padding: var(--space-2);
+  resize: vertical;
+}
+
+.mintMessage:focus {
+  outline: none;
+  border-color: var(--border-primary);
 }
 
 .connectNote {

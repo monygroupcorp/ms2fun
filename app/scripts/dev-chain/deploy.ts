@@ -98,6 +98,17 @@ async function main(): Promise<void> {
     },
   )
 
+  // 2c. Advance the anvil clock +2h. The seed creates time-relative states (auctions with a 1h
+  //     duration, bonding open +1h, maturity +90m) but vm.warp is a no-op under --broadcast, so we
+  //     advance the LIVE chain here instead. After this: gallery auctions are ended (settle-ready +
+  //     no-bid), ember stays preopen, vapor is mid-curve, cinder is bonding + matured (graduate
+  //     unlocked), live-salon (1-day) stays active. The UI is chain-anchored (useNowSec reads
+  //     block.timestamp) so countdowns agree with the advanced chain.
+  const TWO_HOURS = 2 * 60 * 60
+  await test.increaseTime({ seconds: TWO_HOURS })
+  await test.mine({ blocks: 1 })
+  console.log(`✓ Advanced anvil clock +${TWO_HOURS}s so seeded auction/bonding states materialize`)
+
   // 3. Read the FRESH deployment output. Guard against a stale anvil.json from another chain.
   const deployed = JSON.parse(readFileSync(anvilJsonPath, 'utf8')) as AnvilDeployment
   if (deployed.chainId !== CHAIN_ID) {

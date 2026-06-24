@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatGwei } from 'viem'
-import { useAccount } from 'wagmi'
 import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { MessageFeed } from '../components/MessageFeed'
-import { EditionList } from '../components/collection/EditionList'
-import { AddEditionForm } from '../components/collection/AddEditionForm'
 import { VaultPanel } from '../components/collection/VaultPanel'
+import { Erc1155Collection } from '../components/collection/types/Erc1155Collection'
+import { Erc721Collection } from '../components/collection/types/Erc721Collection'
+import { Erc404Collection } from '../components/collection/types/Erc404Collection'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
 import styles from './CollectionPage.module.css'
@@ -26,8 +26,6 @@ export function CollectionPage() {
 
   const { data: card, isPending, isError } = useCollection(instance)
   const metadata = useCollectionMetadata(card?.metadataURI)
-  const { address: connected } = useAccount()
-  const [editionsKey, setEditionsKey] = useState(0) // bump to re-read editions after an add
 
   // Reset the broken-image fallback when navigating to a different collection (the route component
   // is reused across `/collection/:instance` params, so local state would otherwise persist).
@@ -132,14 +130,14 @@ export function CollectionPage() {
 
           {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
 
-          {card.contractType === 'ERC1155' && instance && (
-            <section className={styles.editions}>
-              <h2 className={styles.editionsTitle}>EDITIONS</h2>
-              <EditionList key={editionsKey} instance={instance} />
-              {connected && connected.toLowerCase() === card.creator.toLowerCase() && (
-                <AddEditionForm instance={instance} onAdded={() => setEditionsKey((k) => k + 1)} />
-              )}
-            </section>
+          {card.contractType === 'ERC1155' && (
+            <Erc1155Collection instance={instance} creator={card.creator} />
+          )}
+          {card.contractType === 'ERC721' && (
+            <Erc721Collection instance={instance} creator={card.creator} />
+          )}
+          {card.contractType === 'ERC404' && (
+            <Erc404Collection instance={instance} creator={card.creator} />
           )}
 
           <MessageFeed filter={{ instance }} />

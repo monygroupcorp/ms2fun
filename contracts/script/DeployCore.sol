@@ -24,6 +24,7 @@ import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
 import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
 import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
 import {CurveParamsComputer} from "../src/factories/erc404/CurveParamsComputer.sol";
+import {ERC404StakingModule} from "../src/factories/erc404/ERC404StakingModule.sol";
 import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
 import {DynamicPricingModule} from "../src/factories/erc1155/DynamicPricingModule.sol";
 import {ERC721AuctionFactory} from "../src/factories/erc721/ERC721AuctionFactory.sol";
@@ -80,6 +81,10 @@ contract DeployCore is Script {
         bytes32 saltGlobalMsgReg;
         bytes32 saltAlignmentReg;
         bytes32 saltComponentReg;
+        // Mixed into the per-target VAULT salts so repeated local re-deploys onto the same fork
+        // don't CreateCollision. Production callers leave it 0 → deterministic vault addresses;
+        // DeployAnvil sets it to block.timestamp (matching the UUPS-proxy salt pattern above).
+        uint256 saltNonce;
 
         // Price validator params
         uint256 priceDeviationBps;
@@ -136,6 +141,7 @@ contract DeployCore is Script {
     ERC404BondingInstance public erc404Impl;
     LaunchManager public launchManager;
     CurveParamsComputer public curveParamsComputer;
+    ERC404StakingModule public erc404StakingModule;
     ERC1155Factory public erc1155Factory;
     DynamicPricingModule public dynamicPricingModule;
     ERC721AuctionFactory public erc721Factory;
@@ -274,7 +280,7 @@ contract DeployCore is Script {
                     alignmentRegistry.setCommunityPayout(targetId, t.communityPayout);
                 }
                 address aaveVault = aaveVaultFactory.deployVault(
-                    keccak256(abi.encode(cfg.chainId, i, "AAVE")), t.token, targetId
+                    _vaultSalt(cfg.chainId, i, "AAVE", cfg.saltNonce), t.token, targetId
                 );
                 MasterRegistryV1(masterRegistry).registerVault(
                     aaveVault, deployer, string.concat(t.symbol, " Aave Endowment Vault"),
@@ -284,7 +290,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployUniVault) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "UNIv4"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "UNIv4", cfg.saltNonce);
                 address vault = uniVaultFactory.deployVault(
                     salt, t.token, targetId, IVaultPriceValidator(address(0))
                 );
@@ -298,7 +304,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployCypherVault && address(cypherVaultFactory) != address(0)) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "CYPHER"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "CYPHER", cfg.saltNonce);
                 address vault = address(cypherVaultFactory.createVault(
                     salt, cfg.cypherPositionManager, cfg.cypherRouter,
                     cfg.weth, t.token, address(treasury), address(0)
@@ -311,7 +317,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployZAMMVault && address(zammVaultFactory) != address(0)) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "ZAMM"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "ZAMM", cfg.saltNonce);
                 IZAMM.PoolKey memory poolKey; // zero poolKey — configure post-deploy when live
                 address vault = zammVaultFactory.deployVault(salt, t.token, poolKey);
                 MasterRegistryV1(masterRegistry).registerVault(
@@ -406,6 +412,11 @@ contract DeployCore is Script {
         moduleCypherDeployer  = new MockComponentModule(deployer, cypherMeta);
         componentRegistry.approveComponent(address(moduleCypherDeployer),  FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
 
+        // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
+        // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
+        erc404StakingModule = new ERC404StakingModule(masterRegistry);
+        componentRegistry.approveComponent(address(erc404StakingModule), FeatureUtils.STAKING, "ERC404 Staking");
+
         // ── Phase 8: ERC721AuctionFactory ────────────────────────────────────
 
         erc721Factory = new ERC721AuctionFactory(
@@ -465,6 +476,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "ModuleUniV4Deployer",        address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer",         address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ModuleCypherDeployer",       address(moduleCypherDeployer));
+        vm.serializeAddress(c, "ERC404StakingModule",        address(erc404StakingModule));
         string memory contracts = vm.serializeAddress(c,
             "UniswapVaultPriceValidator", address(priceValidator));
 
@@ -548,5 +560,17 @@ contract DeployCore is Script {
             abi.encode(impl, initData)
         );
         return ICreateX(CREATEX).deployCreate3(salt, proxyInitCode);
+    }
+
+    /// @dev Per-target vault CREATE3 salt. `nonce == 0` reproduces the original
+    ///      `keccak256(chainId, i, tag)` EXACTLY (production addresses unchanged); a non-zero nonce
+    ///      (DeployAnvil passes block.timestamp) yields a fresh salt so local re-deploys onto the
+    ///      same fork don't CreateCollision.
+    function _vaultSalt(uint256 chainId, uint256 i, string memory tag, uint256 nonce)
+        private pure returns (bytes32)
+    {
+        return nonce == 0
+            ? keccak256(abi.encode(chainId, i, tag))
+            : keccak256(abi.encode(chainId, i, tag, nonce));
     }
 }

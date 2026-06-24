@@ -1182,6 +1182,247 @@ export const componentRegistryAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// CurveParamsComputer
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const curveParamsComputerAbi = [
+  {
+    type: 'constructor',
+    inputs: [{ name: '_protocol', internalType: 'address', type: 'address' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'baseWeight',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'params',
+        internalType: 'struct BondingCurveMath.Params',
+        type: 'tuple',
+        components: [
+          { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
+          { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'normalizationFactor',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+        ],
+      },
+      { name: 'currentSupply', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'calculateCost',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'params',
+        internalType: 'struct BondingCurveMath.Params',
+        type: 'tuple',
+        components: [
+          { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
+          { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'normalizationFactor',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+        ],
+      },
+      { name: 'currentSupply', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'calculateRefund',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'nftCount', internalType: 'uint256', type: 'uint256' },
+      { name: 'targetETH', internalType: 'uint256', type: 'uint256' },
+      { name: 'unitPerNFT', internalType: 'uint256', type: 'uint256' },
+      { name: 'liquidityReserveBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'computeCurveParams',
+    outputs: [
+      {
+        name: 'params',
+        internalType: 'struct BondingCurveMath.Params',
+        type: 'tuple',
+        components: [
+          { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
+          { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
+          { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'normalizationFactor',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cubicWeight',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'quadraticWeight',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'quarticWeight',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_quarticWeight', internalType: 'uint256', type: 'uint256' },
+      { name: '_cubicWeight', internalType: 'uint256', type: 'uint256' },
+      { name: '_quadraticWeight', internalType: 'uint256', type: 'uint256' },
+      { name: '_baseWeight', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setCurveWeights',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  { type: 'event', anonymous: false, inputs: [], name: 'CurveWeightsUpdated' },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AmountExceedsSupply' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidBounds' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
+  { type: 'error', inputs: [], name: 'ReferenceAreaZero' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ERC1155Factory
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2360,6 +2601,1064 @@ export const erc1155InstanceAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ERC404BondingInstance
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const erc404BondingInstanceAbi = [
+  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  { type: 'fallback', stateMutability: 'payable' },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'activateStaking',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'agentDelegationEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'owner', internalType: 'address', type: 'address' },
+      { name: 'spender', internalType: 'address', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'spender', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondingActive',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondingFeeBps',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondingMaturityTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondingOpenTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'maxCost', internalType: 'uint256', type: 'uint256' },
+      { name: 'mintNFT', internalType: 'bool', type: 'bool' },
+      { name: 'passwordHash', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'messageData', internalType: 'bytes', type: 'bytes' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'buyBonding',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimAllFees',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'gatingData', internalType: 'bytes', type: 'bytes' }],
+    name: 'claimFreeMint',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimStakingRewards',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'curveParams',
+    outputs: [
+      { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
+      { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'normalizationFactor', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'decimals',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'deployLiquidity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'factory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'freeMintAllocation',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'freeMintClaimed',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'freeMintsClaimed',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'gatingActive',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'gatingModule',
+    outputs: [
+      { name: '', internalType: 'contract IGatingModule', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'gatingScope',
+    outputs: [{ name: '', internalType: 'enum GatingScope', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'getSkipNFT',
+    outputs: [{ name: 'result', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'globalMessageRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IGlobalMessageRegistry',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'graduated',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'owner', internalType: 'address', type: 'address' },
+      { name: 'vault_', internalType: 'address', type: 'address' },
+      {
+        name: 'bonding',
+        internalType: 'struct ERC404BondingInstance.BondingParams',
+        type: 'tuple',
+        components: [
+          { name: 'maxSupply', internalType: 'uint256', type: 'uint256' },
+          { name: 'unit', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'liquidityReserveBps',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          {
+            name: 'curve',
+            internalType: 'struct BondingCurveMath.Params',
+            type: 'tuple',
+            components: [
+              {
+                name: 'initialPrice',
+                internalType: 'uint256',
+                type: 'uint256',
+              },
+              {
+                name: 'quarticCoeff',
+                internalType: 'uint256',
+                type: 'uint256',
+              },
+              { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
+              {
+                name: 'quadraticCoeff',
+                internalType: 'uint256',
+                type: 'uint256',
+              },
+              {
+                name: 'normalizationFactor',
+                internalType: 'uint256',
+                type: 'uint256',
+              },
+            ],
+          },
+        ],
+      },
+      { name: '_liquidityDeployer', internalType: 'address', type: 'address' },
+      { name: '_gatingModule', internalType: 'address', type: 'address' },
+    ],
+    name: 'initialize',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'allocation', internalType: 'uint256', type: 'uint256' },
+      { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
+    ],
+    name: 'initializeFreeMint',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'name_', internalType: 'string', type: 'string' },
+      { name: 'symbol_', internalType: 'string', type: 'string' },
+      { name: 'styleUri_', internalType: 'string', type: 'string' },
+      { name: 'tokenBaseURI_', internalType: 'string', type: 'string' },
+    ],
+    name: 'initializeMetadata',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'protocol',
+        internalType: 'struct ERC404BondingInstance.ProtocolParams',
+        type: 'tuple',
+        components: [
+          {
+            name: 'globalMessageRegistry',
+            internalType: 'address',
+            type: 'address',
+          },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'masterRegistry', internalType: 'address', type: 'address' },
+          { name: 'bondingFeeBps', internalType: 'uint256', type: 'uint256' },
+          { name: 'weth', internalType: 'address', type: 'address' },
+        ],
+      },
+    ],
+    name: 'initializeProtocol',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_stakingModule', internalType: 'address', type: 'address' },
+    ],
+    name: 'initializeStaking',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'instanceType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'liquidityDeployer',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract ILiquidityDeployerModule',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'liquidityReserve',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'maxSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newVault', internalType: 'address', type: 'address' }],
+    name: 'migrateVault',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'mirrorERC721',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'name',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'tokenAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'exemptedNFTIds', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    name: 'rerollSelectedNFTs',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'reserve',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'minRefund', internalType: 'uint256', type: 'uint256' },
+      { name: 'passwordHash', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'messageData', internalType: 'bytes', type: 'bytes' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'sellBonding',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'enabled', internalType: 'bool', type: 'bool' }],
+    name: 'setAgentDelegation',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'setAgentDelegationFromFactory',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_active', internalType: 'bool', type: 'bool' }],
+    name: 'setBondingActive',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'timestamp', internalType: 'uint256', type: 'uint256' }],
+    name: 'setBondingMaturityTime',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'timestamp', internalType: 'uint256', type: 'uint256' }],
+    name: 'setBondingOpenTime',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'skipNFT', internalType: 'bool', type: 'bool' }],
+    name: 'setSkipNFT',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setStyle',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'stake',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stakingActive',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stakingModule',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IERC404StakingModule',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'styleUri',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalBondingSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'unit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'unstake',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'vault',
+    outputs: [
+      { name: '', internalType: 'contract IAlignmentVault', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'enabled', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'AgentDelegationChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'spender',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Approval',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'active', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'BondingActiveChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'buyer',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'feeAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondingFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'maturityTime',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondingMaturityTimeSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'openTime',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondingOpenTimeSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'cost',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      { name: 'isBuy', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'BondingSale',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ETHTransferFallbackToWETH',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+    ],
+    name: 'FreeMintClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'deployer',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amountToken',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'amountETH',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'LiquidityDeployed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'tokensReturned',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RerollCompleted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'tokenAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'exemptedNFTIds',
+        internalType: 'uint256[]',
+        type: 'uint256[]',
+        indexed: false,
+      },
+    ],
+    name: 'RerollInitiated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'status', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'SkipNFTSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Staked',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'stakingModule',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'StakingActivated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'StakingRewardsClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newState',
+        internalType: 'bytes32',
+        type: 'bytes32',
+        indexed: true,
+      },
+    ],
+    name: 'StateChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Transfer',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'rewardPaid',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Unstaked',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyDeployed' },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AmountExceedsSupply' },
+  { type: 'error', inputs: [], name: 'ApprovalCallerNotOwnerNorApproved' },
+  { type: 'error', inputs: [], name: 'BalanceMismatchAfterReroll' },
+  { type: 'error', inputs: [], name: 'BondingEnded' },
+  { type: 'error', inputs: [], name: 'BondingNotActive' },
+  { type: 'error', inputs: [], name: 'BondingNotConfigured' },
+  { type: 'error', inputs: [], name: 'CannotActivateAfterLiquidityDeployed' },
+  { type: 'error', inputs: [], name: 'DNAlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'DNNotInitialized' },
+  { type: 'error', inputs: [], name: 'ExceedsBonding' },
+  { type: 'error', inputs: [], name: 'FnSelectorNotRecognized' },
+  { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
+  { type: 'error', inputs: [], name: 'FreeMintDisabled' },
+  { type: 'error', inputs: [], name: 'FreeMintExhausted' },
+  { type: 'error', inputs: [], name: 'GatingNotAllowed' },
+  { type: 'error', inputs: [], name: 'InsufficientAllowance' },
+  { type: 'error', inputs: [], name: 'InsufficientBalance' },
+  { type: 'error', inputs: [], name: 'InsufficientTokenBalance' },
+  { type: 'error', inputs: [], name: 'InvalidBounds' },
+  { type: 'error', inputs: [], name: 'InvalidGlobalMessageRegistry' },
+  { type: 'error', inputs: [], name: 'InvalidLiquidityDeployer' },
+  { type: 'error', inputs: [], name: 'InvalidMaxSupply' },
+  { type: 'error', inputs: [], name: 'InvalidOwner' },
+  { type: 'error', inputs: [], name: 'InvalidRefund' },
+  { type: 'error', inputs: [], name: 'InvalidUnit' },
+  { type: 'error', inputs: [], name: 'InvalidVault' },
+  { type: 'error', inputs: [], name: 'LinkMirrorContractFailed' },
+  { type: 'error', inputs: [], name: 'LowETHValue' },
+  { type: 'error', inputs: [], name: 'MaturityMustBeAfterOpenTime' },
+  { type: 'error', inputs: [], name: 'MaxCostExceeded' },
+  { type: 'error', inputs: [], name: 'MetadataAlreadySet' },
+  { type: 'error', inputs: [], name: 'MirrorAddressIsZero' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoReserve' },
+  { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
+  { type: 'error', inputs: [], name: 'NotInitialized' },
+  { type: 'error', inputs: [], name: 'OnlyFactory' },
+  { type: 'error', inputs: [], name: 'OnlyOwnerBeforeMaturity' },
+  { type: 'error', inputs: [], name: 'OpenTimeMustBeSetFirst' },
+  { type: 'error', inputs: [], name: 'OpenTimeNotSet' },
+  { type: 'error', inputs: [], name: 'PurchaseTooSmall' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'SenderNotMirror' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'SmartTransferFailed',
+  },
+  { type: 'error', inputs: [], name: 'StakingAlreadyActive' },
+  { type: 'error', inputs: [], name: 'StakingModuleNotSet' },
+  { type: 'error', inputs: [], name: 'TimeMustBeInFuture' },
+  { type: 'error', inputs: [], name: 'TokenAmountMustBePositive' },
+  { type: 'error', inputs: [], name: 'TokenAmountMustRepresentNFT' },
+  { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
+  { type: 'error', inputs: [], name: 'TooEarly' },
+  { type: 'error', inputs: [], name: 'TotalSupplyOverflow' },
+  { type: 'error', inputs: [], name: 'TransactionExpired' },
+  { type: 'error', inputs: [], name: 'TransferCallerNotOwnerNorApproved' },
+  { type: 'error', inputs: [], name: 'TransferFromIncorrectOwner' },
+  { type: 'error', inputs: [], name: 'TransferToZeroAddress' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ERC404Factory
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2845,6 +4144,273 @@ export const erc404FactoryAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ERC404StakingModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const erc404StakingModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'calculatePendingRewards',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
+    name: 'computeClaim',
+    outputs: [
+      { name: 'rewardAmount', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'enableStaking',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'getStakingInfo',
+    outputs: [
+      { name: 'enabled', internalType: 'bool', type: 'bool' },
+      { name: 'userStaked', internalType: 'uint256', type: 'uint256' },
+      { name: 'globalTotalStaked', internalType: 'uint256', type: 'uint256' },
+      { name: 'userProportion', internalType: 'uint256', type: 'uint256' },
+      { name: 'pendingRewards', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IMasterRegistryMin',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'delta', internalType: 'uint256', type: 'uint256' }],
+    name: 'recordFeesReceived',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'recordStake',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'recordUnstake',
+    outputs: [
+      { name: 'rewardAmount', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'rewardPerTokenPaid',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'rewardPerTokenStored',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'rewardsAccrued',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'stakedBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'stakingEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'totalStaked',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'delta',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'newCumulative',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FeesReceived',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RewardsClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'newTotal',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Staked',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'StakingEnabled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'newTotal',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'Unstaked',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyEnabled' },
+  { type: 'error', inputs: [], name: 'AmountMustBePositive' },
+  { type: 'error', inputs: [], name: 'InsufficientStakedBalance' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'NoPendingRewards' },
+  { type: 'error', inputs: [], name: 'NoStakedBalance' },
+  { type: 'error', inputs: [], name: 'NotRegisteredInstance' },
+  { type: 'error', inputs: [], name: 'StakingNotEnabled' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ERC721AuctionFactory
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -3131,6 +4697,789 @@ export const erc721AuctionFactoryAbi = [
   { type: 'error', inputs: [], name: 'Reentrancy' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'VaultMustBeContract' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ERC721AuctionInstance
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const erc721AuctionInstanceAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      {
+        name: 'p',
+        internalType: 'struct ERC721AuctionInstance.ConstructorParams',
+        type: 'tuple',
+        components: [
+          { name: 'vault', internalType: 'address', type: 'address' },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'owner', internalType: 'address', type: 'address' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'symbol', internalType: 'string', type: 'string' },
+          { name: 'lines', internalType: 'uint8', type: 'uint8' },
+          { name: 'baseDuration', internalType: 'uint40', type: 'uint40' },
+          { name: 'timeBuffer', internalType: 'uint40', type: 'uint40' },
+          { name: 'bidIncrement', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'globalMessageRegistry',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'masterRegistry', internalType: 'address', type: 'address' },
+          { name: 'factory', internalType: 'address', type: 'address' },
+          { name: 'weth', internalType: 'address', type: 'address' },
+        ],
+      },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'agentDelegationEnabled',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'account', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'approve',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    name: 'auctions',
+    outputs: [
+      { name: 'tokenId', internalType: 'uint24', type: 'uint24' },
+      { name: 'tokenURI', internalType: 'string', type: 'string' },
+      { name: 'minBid', internalType: 'uint256', type: 'uint256' },
+      { name: 'highBidder', internalType: 'address', type: 'address' },
+      { name: 'highBid', internalType: 'uint256', type: 'uint256' },
+      { name: 'startTime', internalType: 'uint40', type: 'uint40' },
+      { name: 'endTime', internalType: 'uint40', type: 'uint40' },
+      { name: 'settled', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'baseDuration',
+    outputs: [{ name: '', internalType: 'uint40', type: 'uint40' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bidIncrement',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimAllFees',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'claimVaultFees',
+    outputs: [
+      { name: 'totalClaimed', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'tokenId', internalType: 'uint24', type: 'uint24' },
+      { name: 'messageData', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'createBid',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'factory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'flushPendingVaultCut',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'line', internalType: 'uint8', type: 'uint8' }],
+    name: 'getActiveAuction',
+    outputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'getApproved',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
+    name: 'getAuction',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct ERC721AuctionInstance.Auction',
+        type: 'tuple',
+        components: [
+          { name: 'tokenId', internalType: 'uint24', type: 'uint24' },
+          { name: 'tokenURI', internalType: 'string', type: 'string' },
+          { name: 'minBid', internalType: 'uint256', type: 'uint256' },
+          { name: 'highBidder', internalType: 'address', type: 'address' },
+          { name: 'highBid', internalType: 'uint256', type: 'uint256' },
+          { name: 'startTime', internalType: 'uint40', type: 'uint40' },
+          { name: 'endTime', internalType: 'uint40', type: 'uint40' },
+          { name: 'settled', internalType: 'bool', type: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getGlobalMessageRegistry',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'line', internalType: 'uint8', type: 'uint8' }],
+    name: 'getQueueLength',
+    outputs: [{ name: 'remaining', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'globalMessageRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IGlobalMessageRegistry',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'instanceType',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'owner', internalType: 'address', type: 'address' },
+      { name: 'operator', internalType: 'address', type: 'address' },
+    ],
+    name: 'isApprovedForAll',
+    outputs: [{ name: 'result', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    name: 'lineQueueHead',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'uint8', type: 'uint8' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'lineQueues',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'lines',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newVault', internalType: 'address', type: 'address' }],
+    name: 'migrateVault',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'name',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'nextTokenId',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'ownerOf',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'pendingVaultCut',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_tokenURI', internalType: 'string', type: 'string' }],
+    name: 'queuePiece',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
+    name: 'reclaimUnsold',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'safeTransferFrom',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'enabled', internalType: 'bool', type: 'bool' }],
+    name: 'setAgentDelegation',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'setAgentDelegationFromFactory',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'operator', internalType: 'address', type: 'address' },
+      { name: 'isApproved', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setApprovalForAll',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
+    name: 'settleAuction',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'interfaceId', internalType: 'bytes4', type: 'bytes4' }],
+    name: 'supportsInterface',
+    outputs: [{ name: 'result', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'symbol',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'timeBuffer',
+    outputs: [{ name: '', internalType: 'uint40', type: 'uint40' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tokenId', internalType: 'uint256', type: 'uint256' }],
+    name: 'tokenURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'vault',
+    outputs: [
+      { name: '', internalType: 'contract IAlignmentVault', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'enabled', internalType: 'bool', type: 'bool', indexed: false },
+    ],
+    name: 'AgentDelegationChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'account',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+    ],
+    name: 'Approval',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'owner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'operator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'isApproved',
+        internalType: 'bool',
+        type: 'bool',
+        indexed: false,
+      },
+    ],
+    name: 'ApprovalForAll',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'tokenId',
+        internalType: 'uint24',
+        type: 'uint24',
+        indexed: true,
+      },
+      {
+        name: 'winner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'AuctionSettled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'tokenId',
+        internalType: 'uint24',
+        type: 'uint24',
+        indexed: true,
+      },
+      {
+        name: 'startTime',
+        internalType: 'uint40',
+        type: 'uint40',
+        indexed: false,
+      },
+      {
+        name: 'endTime',
+        internalType: 'uint40',
+        type: 'uint40',
+        indexed: false,
+      },
+    ],
+    name: 'AuctionStarted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'tokenId',
+        internalType: 'uint24',
+        type: 'uint24',
+        indexed: true,
+      },
+      {
+        name: 'bidder',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BidPlaced',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ETHTransferFallbackToWETH',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'tokenId',
+        internalType: 'uint24',
+        type: 'uint24',
+        indexed: true,
+      },
+      { name: 'line', internalType: 'uint8', type: 'uint8', indexed: true },
+      {
+        name: 'minBid',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'tokenURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'PieceQueued',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newState',
+        internalType: 'bytes32',
+        type: 'bytes32',
+        indexed: true,
+      },
+    ],
+    name: 'StateChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+    ],
+    name: 'Transfer',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'tokenId',
+        internalType: 'uint24',
+        type: 'uint24',
+        indexed: true,
+      },
+      {
+        name: 'forfeitedDeposit',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'UnsoldReclaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionFailed',
+  },
+  { type: 'error', inputs: [], name: 'AccountBalanceOverflow' },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AuctionAlreadySettled' },
+  { type: 'error', inputs: [], name: 'AuctionDoesNotExist' },
+  { type: 'error', inputs: [], name: 'AuctionExpired' },
+  { type: 'error', inputs: [], name: 'AuctionNotEnded' },
+  { type: 'error', inputs: [], name: 'AuctionNotStarted' },
+  { type: 'error', inputs: [], name: 'BalanceQueryForZeroAddress' },
+  { type: 'error', inputs: [], name: 'BidBelowMinimum' },
+  { type: 'error', inputs: [], name: 'BidTooLow' },
+  { type: 'error', inputs: [], name: 'DepositRequired' },
+  { type: 'error', inputs: [], name: 'HasBids' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidBidIncrement' },
+  { type: 'error', inputs: [], name: 'InvalidDuration' },
+  { type: 'error', inputs: [], name: 'InvalidLine' },
+  { type: 'error', inputs: [], name: 'InvalidLines' },
+  { type: 'error', inputs: [], name: 'InvalidName' },
+  { type: 'error', inputs: [], name: 'InvalidSymbol' },
+  { type: 'error', inputs: [], name: 'InvalidTimeBuffer' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoBids' },
+  { type: 'error', inputs: [], name: 'NoFeesToClaim' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotOwnerNorApproved' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'SmartTransferFailed',
+  },
+  { type: 'error', inputs: [], name: 'TokenAlreadyExists' },
+  { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
+  { type: 'error', inputs: [], name: 'TransferFromIncorrectOwner' },
+  { type: 'error', inputs: [], name: 'TransferToNonERC721ReceiverImplementer' },
+  { type: 'error', inputs: [], name: 'TransferToZeroAddress' },
+  { type: 'error', inputs: [], name: 'URIRequired' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -4195,6 +6544,20 @@ export const iGlobalMessageRegistryAbi = [
     inputs: [],
     name: 'messageCount',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IMasterRegistryMin
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iMasterRegistryMinAbi = [
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'isRegisteredInstance',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
 ] as const
@@ -6959,6 +9322,257 @@ export const useWatchComponentRegistryUpgradedEvent =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__
+ */
+export const useReadCurveParamsComputer = /*#__PURE__*/ createUseReadContract({
+  abi: curveParamsComputerAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"baseWeight"`
+ */
+export const useReadCurveParamsComputerBaseWeight =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'baseWeight',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"calculateCost"`
+ */
+export const useReadCurveParamsComputerCalculateCost =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'calculateCost',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"calculateRefund"`
+ */
+export const useReadCurveParamsComputerCalculateRefund =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'calculateRefund',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"computeCurveParams"`
+ */
+export const useReadCurveParamsComputerComputeCurveParams =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'computeCurveParams',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"cubicWeight"`
+ */
+export const useReadCurveParamsComputerCubicWeight =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'cubicWeight',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadCurveParamsComputerOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadCurveParamsComputerOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"quadraticWeight"`
+ */
+export const useReadCurveParamsComputerQuadraticWeight =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'quadraticWeight',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"quarticWeight"`
+ */
+export const useReadCurveParamsComputerQuarticWeight =
+  /*#__PURE__*/ createUseReadContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'quarticWeight',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__
+ */
+export const useWriteCurveParamsComputer = /*#__PURE__*/ createUseWriteContract(
+  { abi: curveParamsComputerAbi },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteCurveParamsComputerCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteCurveParamsComputerCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteCurveParamsComputerRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteCurveParamsComputerRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"setCurveWeights"`
+ */
+export const useWriteCurveParamsComputerSetCurveWeights =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'setCurveWeights',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteCurveParamsComputerTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__
+ */
+export const useSimulateCurveParamsComputer =
+  /*#__PURE__*/ createUseSimulateContract({ abi: curveParamsComputerAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateCurveParamsComputerCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateCurveParamsComputerCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateCurveParamsComputerRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateCurveParamsComputerRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"setCurveWeights"`
+ */
+export const useSimulateCurveParamsComputerSetCurveWeights =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'setCurveWeights',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateCurveParamsComputerTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: curveParamsComputerAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curveParamsComputerAbi}__
+ */
+export const useWatchCurveParamsComputerEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: curveParamsComputerAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `eventName` set to `"CurveWeightsUpdated"`
+ */
+export const useWatchCurveParamsComputerCurveWeightsUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curveParamsComputerAbi,
+    eventName: 'CurveWeightsUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchCurveParamsComputerOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curveParamsComputerAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchCurveParamsComputerOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curveParamsComputerAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link curveParamsComputerAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchCurveParamsComputerOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: curveParamsComputerAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155FactoryAbi}__
  */
 export const useReadErc1155Factory = /*#__PURE__*/ createUseReadContract({
@@ -8101,6 +10715,1165 @@ export const useWatchErc1155InstanceWithdrawnEvent =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__
+ */
+export const useReadErc404BondingInstance = /*#__PURE__*/ createUseReadContract(
+  { abi: erc404BondingInstanceAbi },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"agentDelegationEnabled"`
+ */
+export const useReadErc404BondingInstanceAgentDelegationEnabled =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'agentDelegationEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"allowance"`
+ */
+export const useReadErc404BondingInstanceAllowance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'allowance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"balanceOf"`
+ */
+export const useReadErc404BondingInstanceBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'balanceOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bondingActive"`
+ */
+export const useReadErc404BondingInstanceBondingActive =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'bondingActive',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bondingFeeBps"`
+ */
+export const useReadErc404BondingInstanceBondingFeeBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'bondingFeeBps',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bondingMaturityTime"`
+ */
+export const useReadErc404BondingInstanceBondingMaturityTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'bondingMaturityTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bondingOpenTime"`
+ */
+export const useReadErc404BondingInstanceBondingOpenTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'bondingOpenTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"curveParams"`
+ */
+export const useReadErc404BondingInstanceCurveParams =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'curveParams',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"decimals"`
+ */
+export const useReadErc404BondingInstanceDecimals =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'decimals',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"factory"`
+ */
+export const useReadErc404BondingInstanceFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'factory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"freeMintAllocation"`
+ */
+export const useReadErc404BondingInstanceFreeMintAllocation =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'freeMintAllocation',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"freeMintClaimed"`
+ */
+export const useReadErc404BondingInstanceFreeMintClaimed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'freeMintClaimed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"freeMintsClaimed"`
+ */
+export const useReadErc404BondingInstanceFreeMintsClaimed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'freeMintsClaimed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"gatingActive"`
+ */
+export const useReadErc404BondingInstanceGatingActive =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'gatingActive',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"gatingModule"`
+ */
+export const useReadErc404BondingInstanceGatingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'gatingModule',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"gatingScope"`
+ */
+export const useReadErc404BondingInstanceGatingScope =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'gatingScope',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"getSkipNFT"`
+ */
+export const useReadErc404BondingInstanceGetSkipNft =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'getSkipNFT',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"globalMessageRegistry"`
+ */
+export const useReadErc404BondingInstanceGlobalMessageRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'globalMessageRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"graduated"`
+ */
+export const useReadErc404BondingInstanceGraduated =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'graduated',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"instanceType"`
+ */
+export const useReadErc404BondingInstanceInstanceType =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'instanceType',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"liquidityDeployer"`
+ */
+export const useReadErc404BondingInstanceLiquidityDeployer =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'liquidityDeployer',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"liquidityReserve"`
+ */
+export const useReadErc404BondingInstanceLiquidityReserve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'liquidityReserve',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadErc404BondingInstanceMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"maxSupply"`
+ */
+export const useReadErc404BondingInstanceMaxSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'maxSupply',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadErc404BondingInstanceMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"mirrorERC721"`
+ */
+export const useReadErc404BondingInstanceMirrorErc721 =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'mirrorERC721',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"name"`
+ */
+export const useReadErc404BondingInstanceName =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'name',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadErc404BondingInstanceOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadErc404BondingInstanceOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadErc404BondingInstanceProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"reserve"`
+ */
+export const useReadErc404BondingInstanceReserve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'reserve',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"stakingActive"`
+ */
+export const useReadErc404BondingInstanceStakingActive =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'stakingActive',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"stakingModule"`
+ */
+export const useReadErc404BondingInstanceStakingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'stakingModule',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"styleUri"`
+ */
+export const useReadErc404BondingInstanceStyleUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'styleUri',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"symbol"`
+ */
+export const useReadErc404BondingInstanceSymbol =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'symbol',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"totalBondingSupply"`
+ */
+export const useReadErc404BondingInstanceTotalBondingSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'totalBondingSupply',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"totalSupply"`
+ */
+export const useReadErc404BondingInstanceTotalSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'totalSupply',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"unit"`
+ */
+export const useReadErc404BondingInstanceUnit =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'unit',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"vault"`
+ */
+export const useReadErc404BondingInstanceVault =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'vault',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadErc404BondingInstanceWeth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__
+ */
+export const useWriteErc404BondingInstance =
+  /*#__PURE__*/ createUseWriteContract({ abi: erc404BondingInstanceAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"activateStaking"`
+ */
+export const useWriteErc404BondingInstanceActivateStaking =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'activateStaking',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"approve"`
+ */
+export const useWriteErc404BondingInstanceApprove =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'approve',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"buyBonding"`
+ */
+export const useWriteErc404BondingInstanceBuyBonding =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'buyBonding',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteErc404BondingInstanceCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimAllFees"`
+ */
+export const useWriteErc404BondingInstanceClaimAllFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimAllFees',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimFreeMint"`
+ */
+export const useWriteErc404BondingInstanceClaimFreeMint =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimFreeMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimStakingRewards"`
+ */
+export const useWriteErc404BondingInstanceClaimStakingRewards =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimStakingRewards',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteErc404BondingInstanceCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useWriteErc404BondingInstanceDeployLiquidity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initialize"`
+ */
+export const useWriteErc404BondingInstanceInitialize =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initialize',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeFreeMint"`
+ */
+export const useWriteErc404BondingInstanceInitializeFreeMint =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeFreeMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeMetadata"`
+ */
+export const useWriteErc404BondingInstanceInitializeMetadata =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeMetadata',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeProtocol"`
+ */
+export const useWriteErc404BondingInstanceInitializeProtocol =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeProtocol',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeStaking"`
+ */
+export const useWriteErc404BondingInstanceInitializeStaking =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeStaking',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"migrateVault"`
+ */
+export const useWriteErc404BondingInstanceMigrateVault =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteErc404BondingInstanceRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteErc404BondingInstanceRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"rerollSelectedNFTs"`
+ */
+export const useWriteErc404BondingInstanceRerollSelectedNfTs =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'rerollSelectedNFTs',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"sellBonding"`
+ */
+export const useWriteErc404BondingInstanceSellBonding =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'sellBonding',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setAgentDelegation"`
+ */
+export const useWriteErc404BondingInstanceSetAgentDelegation =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setAgentDelegation',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setAgentDelegationFromFactory"`
+ */
+export const useWriteErc404BondingInstanceSetAgentDelegationFromFactory =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setAgentDelegationFromFactory',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setBondingActive"`
+ */
+export const useWriteErc404BondingInstanceSetBondingActive =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setBondingActive',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setBondingMaturityTime"`
+ */
+export const useWriteErc404BondingInstanceSetBondingMaturityTime =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setBondingMaturityTime',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setBondingOpenTime"`
+ */
+export const useWriteErc404BondingInstanceSetBondingOpenTime =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setBondingOpenTime',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteErc404BondingInstanceSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setSkipNFT"`
+ */
+export const useWriteErc404BondingInstanceSetSkipNft =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setSkipNFT',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setStyle"`
+ */
+export const useWriteErc404BondingInstanceSetStyle =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setStyle',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"stake"`
+ */
+export const useWriteErc404BondingInstanceStake =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'stake',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"transfer"`
+ */
+export const useWriteErc404BondingInstanceTransfer =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'transfer',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"transferFrom"`
+ */
+export const useWriteErc404BondingInstanceTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'transferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteErc404BondingInstanceTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"unstake"`
+ */
+export const useWriteErc404BondingInstanceUnstake =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'unstake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__
+ */
+export const useSimulateErc404BondingInstance =
+  /*#__PURE__*/ createUseSimulateContract({ abi: erc404BondingInstanceAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"activateStaking"`
+ */
+export const useSimulateErc404BondingInstanceActivateStaking =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'activateStaking',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"approve"`
+ */
+export const useSimulateErc404BondingInstanceApprove =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'approve',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"buyBonding"`
+ */
+export const useSimulateErc404BondingInstanceBuyBonding =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'buyBonding',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateErc404BondingInstanceCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimAllFees"`
+ */
+export const useSimulateErc404BondingInstanceClaimAllFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimAllFees',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimFreeMint"`
+ */
+export const useSimulateErc404BondingInstanceClaimFreeMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimFreeMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimStakingRewards"`
+ */
+export const useSimulateErc404BondingInstanceClaimStakingRewards =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimStakingRewards',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateErc404BondingInstanceCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useSimulateErc404BondingInstanceDeployLiquidity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initialize"`
+ */
+export const useSimulateErc404BondingInstanceInitialize =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initialize',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeFreeMint"`
+ */
+export const useSimulateErc404BondingInstanceInitializeFreeMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeFreeMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeMetadata"`
+ */
+export const useSimulateErc404BondingInstanceInitializeMetadata =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeMetadata',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeProtocol"`
+ */
+export const useSimulateErc404BondingInstanceInitializeProtocol =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeProtocol',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initializeStaking"`
+ */
+export const useSimulateErc404BondingInstanceInitializeStaking =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initializeStaking',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"migrateVault"`
+ */
+export const useSimulateErc404BondingInstanceMigrateVault =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateErc404BondingInstanceRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateErc404BondingInstanceRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"rerollSelectedNFTs"`
+ */
+export const useSimulateErc404BondingInstanceRerollSelectedNfTs =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'rerollSelectedNFTs',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"sellBonding"`
+ */
+export const useSimulateErc404BondingInstanceSellBonding =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'sellBonding',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setAgentDelegation"`
+ */
+export const useSimulateErc404BondingInstanceSetAgentDelegation =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setAgentDelegation',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setAgentDelegationFromFactory"`
+ */
+export const useSimulateErc404BondingInstanceSetAgentDelegationFromFactory =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setAgentDelegationFromFactory',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setBondingActive"`
+ */
+export const useSimulateErc404BondingInstanceSetBondingActive =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setBondingActive',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setBondingMaturityTime"`
+ */
+export const useSimulateErc404BondingInstanceSetBondingMaturityTime =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setBondingMaturityTime',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setBondingOpenTime"`
+ */
+export const useSimulateErc404BondingInstanceSetBondingOpenTime =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setBondingOpenTime',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateErc404BondingInstanceSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setSkipNFT"`
+ */
+export const useSimulateErc404BondingInstanceSetSkipNft =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setSkipNFT',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setStyle"`
+ */
+export const useSimulateErc404BondingInstanceSetStyle =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setStyle',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"stake"`
+ */
+export const useSimulateErc404BondingInstanceStake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'stake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"transfer"`
+ */
+export const useSimulateErc404BondingInstanceTransfer =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'transfer',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"transferFrom"`
+ */
+export const useSimulateErc404BondingInstanceTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'transferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateErc404BondingInstanceTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"unstake"`
+ */
+export const useSimulateErc404BondingInstanceUnstake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'unstake',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__
+ */
+export const useWatchErc404BondingInstanceEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: erc404BondingInstanceAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"AgentDelegationChanged"`
+ */
+export const useWatchErc404BondingInstanceAgentDelegationChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'AgentDelegationChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"Approval"`
+ */
+export const useWatchErc404BondingInstanceApprovalEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'Approval',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"BondingActiveChanged"`
+ */
+export const useWatchErc404BondingInstanceBondingActiveChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'BondingActiveChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"BondingFeePaid"`
+ */
+export const useWatchErc404BondingInstanceBondingFeePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'BondingFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"BondingMaturityTimeSet"`
+ */
+export const useWatchErc404BondingInstanceBondingMaturityTimeSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'BondingMaturityTimeSet',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"BondingOpenTimeSet"`
+ */
+export const useWatchErc404BondingInstanceBondingOpenTimeSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'BondingOpenTimeSet',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"BondingSale"`
+ */
+export const useWatchErc404BondingInstanceBondingSaleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'BondingSale',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"ETHTransferFallbackToWETH"`
+ */
+export const useWatchErc404BondingInstanceEthTransferFallbackToWethEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'ETHTransferFallbackToWETH',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"FreeMintClaimed"`
+ */
+export const useWatchErc404BondingInstanceFreeMintClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'FreeMintClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"LiquidityDeployed"`
+ */
+export const useWatchErc404BondingInstanceLiquidityDeployedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'LiquidityDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchErc404BondingInstanceOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchErc404BondingInstanceOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchErc404BondingInstanceOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"RerollCompleted"`
+ */
+export const useWatchErc404BondingInstanceRerollCompletedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'RerollCompleted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"RerollInitiated"`
+ */
+export const useWatchErc404BondingInstanceRerollInitiatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'RerollInitiated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"SkipNFTSet"`
+ */
+export const useWatchErc404BondingInstanceSkipNftSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'SkipNFTSet',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"Staked"`
+ */
+export const useWatchErc404BondingInstanceStakedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'Staked',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"StakingActivated"`
+ */
+export const useWatchErc404BondingInstanceStakingActivatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'StakingActivated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"StakingRewardsClaimed"`
+ */
+export const useWatchErc404BondingInstanceStakingRewardsClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'StakingRewardsClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"StateChanged"`
+ */
+export const useWatchErc404BondingInstanceStateChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'StateChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"Transfer"`
+ */
+export const useWatchErc404BondingInstanceTransferEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'Transfer',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"Unstaked"`
+ */
+export const useWatchErc404BondingInstanceUnstakedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'Unstaked',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__
  */
 export const useReadErc404Factory = /*#__PURE__*/ createUseReadContract({
@@ -8589,6 +12362,248 @@ export const useWatchErc404FactoryVaultCapabilityWarningEvent =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useReadErc404StakingModule = /*#__PURE__*/ createUseReadContract({
+  abi: erc404StakingModuleAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"calculatePendingRewards"`
+ */
+export const useReadErc404StakingModuleCalculatePendingRewards =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'calculatePendingRewards',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"getStakingInfo"`
+ */
+export const useReadErc404StakingModuleGetStakingInfo =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'getStakingInfo',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadErc404StakingModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerTokenPaid"`
+ */
+export const useReadErc404StakingModuleRewardPerTokenPaid =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardPerTokenPaid',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerTokenStored"`
+ */
+export const useReadErc404StakingModuleRewardPerTokenStored =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardPerTokenStored',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardsAccrued"`
+ */
+export const useReadErc404StakingModuleRewardsAccrued =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardsAccrued',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"stakedBalance"`
+ */
+export const useReadErc404StakingModuleStakedBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'stakedBalance',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"stakingEnabled"`
+ */
+export const useReadErc404StakingModuleStakingEnabled =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'stakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"totalStaked"`
+ */
+export const useReadErc404StakingModuleTotalStaked =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'totalStaked',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useWriteErc404StakingModule = /*#__PURE__*/ createUseWriteContract(
+  { abi: erc404StakingModuleAbi },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"computeClaim"`
+ */
+export const useWriteErc404StakingModuleComputeClaim =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'computeClaim',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"enableStaking"`
+ */
+export const useWriteErc404StakingModuleEnableStaking =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'enableStaking',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordFeesReceived"`
+ */
+export const useWriteErc404StakingModuleRecordFeesReceived =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordFeesReceived',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordStake"`
+ */
+export const useWriteErc404StakingModuleRecordStake =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordStake',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordUnstake"`
+ */
+export const useWriteErc404StakingModuleRecordUnstake =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordUnstake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useSimulateErc404StakingModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: erc404StakingModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"computeClaim"`
+ */
+export const useSimulateErc404StakingModuleComputeClaim =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'computeClaim',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"enableStaking"`
+ */
+export const useSimulateErc404StakingModuleEnableStaking =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'enableStaking',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordFeesReceived"`
+ */
+export const useSimulateErc404StakingModuleRecordFeesReceived =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordFeesReceived',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordStake"`
+ */
+export const useSimulateErc404StakingModuleRecordStake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordStake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"recordUnstake"`
+ */
+export const useSimulateErc404StakingModuleRecordUnstake =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'recordUnstake',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__
+ */
+export const useWatchErc404StakingModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: erc404StakingModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"FeesReceived"`
+ */
+export const useWatchErc404StakingModuleFeesReceivedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'FeesReceived',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"RewardsClaimed"`
+ */
+export const useWatchErc404StakingModuleRewardsClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'RewardsClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"Staked"`
+ */
+export const useWatchErc404StakingModuleStakedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'Staked',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"StakingEnabled"`
+ */
+export const useWatchErc404StakingModuleStakingEnabledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'StakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"Unstaked"`
+ */
+export const useWatchErc404StakingModuleUnstakedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'Unstaked',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionFactoryAbi}__
  */
 export const useReadErc721AuctionFactory = /*#__PURE__*/ createUseReadContract({
@@ -8899,6 +12914,787 @@ export const useWatchErc721AuctionFactoryVaultCapabilityWarningEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionFactoryAbi,
     eventName: 'VaultCapabilityWarning',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__
+ */
+export const useReadErc721AuctionInstance = /*#__PURE__*/ createUseReadContract(
+  { abi: erc721AuctionInstanceAbi },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"agentDelegationEnabled"`
+ */
+export const useReadErc721AuctionInstanceAgentDelegationEnabled =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'agentDelegationEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"auctions"`
+ */
+export const useReadErc721AuctionInstanceAuctions =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'auctions',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"balanceOf"`
+ */
+export const useReadErc721AuctionInstanceBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'balanceOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"baseDuration"`
+ */
+export const useReadErc721AuctionInstanceBaseDuration =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'baseDuration',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"bidIncrement"`
+ */
+export const useReadErc721AuctionInstanceBidIncrement =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'bidIncrement',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"factory"`
+ */
+export const useReadErc721AuctionInstanceFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'factory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"getActiveAuction"`
+ */
+export const useReadErc721AuctionInstanceGetActiveAuction =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'getActiveAuction',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"getApproved"`
+ */
+export const useReadErc721AuctionInstanceGetApproved =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'getApproved',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"getAuction"`
+ */
+export const useReadErc721AuctionInstanceGetAuction =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'getAuction',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"getGlobalMessageRegistry"`
+ */
+export const useReadErc721AuctionInstanceGetGlobalMessageRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'getGlobalMessageRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"getQueueLength"`
+ */
+export const useReadErc721AuctionInstanceGetQueueLength =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'getQueueLength',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"globalMessageRegistry"`
+ */
+export const useReadErc721AuctionInstanceGlobalMessageRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'globalMessageRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"instanceType"`
+ */
+export const useReadErc721AuctionInstanceInstanceType =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'instanceType',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"isApprovedForAll"`
+ */
+export const useReadErc721AuctionInstanceIsApprovedForAll =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'isApprovedForAll',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"lineQueueHead"`
+ */
+export const useReadErc721AuctionInstanceLineQueueHead =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'lineQueueHead',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"lineQueues"`
+ */
+export const useReadErc721AuctionInstanceLineQueues =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'lineQueues',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"lines"`
+ */
+export const useReadErc721AuctionInstanceLines =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'lines',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadErc721AuctionInstanceMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"name"`
+ */
+export const useReadErc721AuctionInstanceName =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'name',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"nextTokenId"`
+ */
+export const useReadErc721AuctionInstanceNextTokenId =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'nextTokenId',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadErc721AuctionInstanceOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"ownerOf"`
+ */
+export const useReadErc721AuctionInstanceOwnerOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'ownerOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadErc721AuctionInstanceOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"pendingVaultCut"`
+ */
+export const useReadErc721AuctionInstancePendingVaultCut =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'pendingVaultCut',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadErc721AuctionInstanceProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"supportsInterface"`
+ */
+export const useReadErc721AuctionInstanceSupportsInterface =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'supportsInterface',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"symbol"`
+ */
+export const useReadErc721AuctionInstanceSymbol =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'symbol',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"timeBuffer"`
+ */
+export const useReadErc721AuctionInstanceTimeBuffer =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'timeBuffer',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"tokenURI"`
+ */
+export const useReadErc721AuctionInstanceTokenUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'tokenURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"vault"`
+ */
+export const useReadErc721AuctionInstanceVault =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'vault',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadErc721AuctionInstanceWeth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__
+ */
+export const useWriteErc721AuctionInstance =
+  /*#__PURE__*/ createUseWriteContract({ abi: erc721AuctionInstanceAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"approve"`
+ */
+export const useWriteErc721AuctionInstanceApprove =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'approve',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteErc721AuctionInstanceCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"claimAllFees"`
+ */
+export const useWriteErc721AuctionInstanceClaimAllFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'claimAllFees',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"claimVaultFees"`
+ */
+export const useWriteErc721AuctionInstanceClaimVaultFees =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'claimVaultFees',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteErc721AuctionInstanceCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"createBid"`
+ */
+export const useWriteErc721AuctionInstanceCreateBid =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'createBid',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useWriteErc721AuctionInstanceFlushPendingVaultCut =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'flushPendingVaultCut',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"migrateVault"`
+ */
+export const useWriteErc721AuctionInstanceMigrateVault =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"queuePiece"`
+ */
+export const useWriteErc721AuctionInstanceQueuePiece =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'queuePiece',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"reclaimUnsold"`
+ */
+export const useWriteErc721AuctionInstanceReclaimUnsold =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'reclaimUnsold',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteErc721AuctionInstanceRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteErc721AuctionInstanceRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"safeTransferFrom"`
+ */
+export const useWriteErc721AuctionInstanceSafeTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'safeTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setAgentDelegation"`
+ */
+export const useWriteErc721AuctionInstanceSetAgentDelegation =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setAgentDelegation',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setAgentDelegationFromFactory"`
+ */
+export const useWriteErc721AuctionInstanceSetAgentDelegationFromFactory =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setAgentDelegationFromFactory',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setApprovalForAll"`
+ */
+export const useWriteErc721AuctionInstanceSetApprovalForAll =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"settleAuction"`
+ */
+export const useWriteErc721AuctionInstanceSettleAuction =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'settleAuction',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"transferFrom"`
+ */
+export const useWriteErc721AuctionInstanceTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'transferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteErc721AuctionInstanceTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__
+ */
+export const useSimulateErc721AuctionInstance =
+  /*#__PURE__*/ createUseSimulateContract({ abi: erc721AuctionInstanceAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"approve"`
+ */
+export const useSimulateErc721AuctionInstanceApprove =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'approve',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateErc721AuctionInstanceCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"claimAllFees"`
+ */
+export const useSimulateErc721AuctionInstanceClaimAllFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'claimAllFees',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"claimVaultFees"`
+ */
+export const useSimulateErc721AuctionInstanceClaimVaultFees =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'claimVaultFees',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateErc721AuctionInstanceCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"createBid"`
+ */
+export const useSimulateErc721AuctionInstanceCreateBid =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'createBid',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useSimulateErc721AuctionInstanceFlushPendingVaultCut =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'flushPendingVaultCut',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"migrateVault"`
+ */
+export const useSimulateErc721AuctionInstanceMigrateVault =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"queuePiece"`
+ */
+export const useSimulateErc721AuctionInstanceQueuePiece =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'queuePiece',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"reclaimUnsold"`
+ */
+export const useSimulateErc721AuctionInstanceReclaimUnsold =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'reclaimUnsold',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateErc721AuctionInstanceRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateErc721AuctionInstanceRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"safeTransferFrom"`
+ */
+export const useSimulateErc721AuctionInstanceSafeTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'safeTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setAgentDelegation"`
+ */
+export const useSimulateErc721AuctionInstanceSetAgentDelegation =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setAgentDelegation',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setAgentDelegationFromFactory"`
+ */
+export const useSimulateErc721AuctionInstanceSetAgentDelegationFromFactory =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setAgentDelegationFromFactory',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setApprovalForAll"`
+ */
+export const useSimulateErc721AuctionInstanceSetApprovalForAll =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"settleAuction"`
+ */
+export const useSimulateErc721AuctionInstanceSettleAuction =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'settleAuction',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"transferFrom"`
+ */
+export const useSimulateErc721AuctionInstanceTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'transferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateErc721AuctionInstanceTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__
+ */
+export const useWatchErc721AuctionInstanceEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: erc721AuctionInstanceAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"AgentDelegationChanged"`
+ */
+export const useWatchErc721AuctionInstanceAgentDelegationChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'AgentDelegationChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"Approval"`
+ */
+export const useWatchErc721AuctionInstanceApprovalEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'Approval',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"ApprovalForAll"`
+ */
+export const useWatchErc721AuctionInstanceApprovalForAllEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'ApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"AuctionSettled"`
+ */
+export const useWatchErc721AuctionInstanceAuctionSettledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'AuctionSettled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"AuctionStarted"`
+ */
+export const useWatchErc721AuctionInstanceAuctionStartedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'AuctionStarted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"BidPlaced"`
+ */
+export const useWatchErc721AuctionInstanceBidPlacedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'BidPlaced',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"ETHTransferFallbackToWETH"`
+ */
+export const useWatchErc721AuctionInstanceEthTransferFallbackToWethEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'ETHTransferFallbackToWETH',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchErc721AuctionInstanceOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchErc721AuctionInstanceOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchErc721AuctionInstanceOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"PieceQueued"`
+ */
+export const useWatchErc721AuctionInstancePieceQueuedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'PieceQueued',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"StateChanged"`
+ */
+export const useWatchErc721AuctionInstanceStateChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'StateChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"Transfer"`
+ */
+export const useWatchErc721AuctionInstanceTransferEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'Transfer',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"UnsoldReclaimed"`
+ */
+export const useWatchErc721AuctionInstanceUnsoldReclaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'UnsoldReclaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"VaultContributionFailed"`
+ */
+export const useWatchErc721AuctionInstanceVaultContributionFailedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'VaultContributionFailed',
   })
 
 /**
@@ -10047,6 +14843,22 @@ export const useReadIGlobalMessageRegistryMessageCount =
   /*#__PURE__*/ createUseReadContract({
     abi: iGlobalMessageRegistryAbi,
     functionName: 'messageCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iMasterRegistryMinAbi}__
+ */
+export const useReadIMasterRegistryMin = /*#__PURE__*/ createUseReadContract({
+  abi: iMasterRegistryMinAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iMasterRegistryMinAbi}__ and `functionName` set to `"isRegisteredInstance"`
+ */
+export const useReadIMasterRegistryMinIsRegisteredInstance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iMasterRegistryMinAbi,
+    functionName: 'isRegisteredInstance',
   })
 
 /**
