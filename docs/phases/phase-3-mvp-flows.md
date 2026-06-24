@@ -60,11 +60,19 @@ Each task notes its **legacy source** and the **contract surface** it must wire.
   into `mint` (today `gatingData` hardcoded 0), `updateEditionMetadata`. *Legacy: `ERC1155Adapter`.*
 - [ ] **B3** ERC721 auctions — `createBid` / `settleAuction` / `reclaimUnsold` + active/past auction
   state UI + bid history + config display. *Legacy: `ERC721AuctionInstanceAdapter`.*
-- [ ] **B4** ERC404 bonding — `buyBonding` / `sellBonding` + curve quote + graduated detection
-  (`liquidityPair`) + phase-2 DEX swap path + tier/password gating + free-mint + auto-NFT-mint +
-  reroll. *Legacy: `SwapInterface/`, `BondingCurve/`, `TradingInterface/`, `ReRollModal/`.*
-- [ ] **B5** ERC404 bonding chart — phase-1 curve canvas + candles; phase-2 pool view. *Legacy:
-  `BondingCurve/`, `utils/candleAggregator.js`, `tradeEventCache.js`.*
+- [ ] **B4** ERC404 bonding — `buyBonding` / `sellBonding` + curve quote (`CurveParamsComputer.
+  calculateCost/calculateRefund`) + phase detection (`bondingActive`/`bondingOpenTime`/`graduated`/
+  `liquidityDeployer`) + tier/password gating (`gatingActive`/`gatingModule`/`gatingScope`) +
+  free-mint (`claimFreeMint`) + reroll (first-class on the new contract: `rerollSelectedNfTs` +
+  `getSkipNft`/`setSkipNft` + `RerollInitiated/Completed` events — drop legacy's
+  `transferTokensToSelf` hack). *Legacy: `SwapInterface/` (gut the 1,137-LOC manual-setState/EventBus
+  machinery — W-A already replaced it).*
+- [ ] **B5** ERC404 bonding chart — phase-1 curve canvas + price dot **and candles** (decided
+  2026-06-23: fresh `BondingSale`-event → OHLC indexer, NOT legacy's dead `candleAggregator.js`/
+  `tradeEventCache.js`); phase-2 pool view.
+- [ ] **B7** ERC404 staking surface (decided 2026-06-23: beyond legacy parity — legacy shipped no
+  staking UI) — `activateStaking`/`stake`/`unstake`/`claimStakingRewards`; staking position feeds
+  W-D portfolio.
 - [ ] **B6** Full-state seed across all 3 types so every state is demoable (ERC1155 open/limited/
   dynamic + free-mint; ERC721 auction not-started/active/no-bid/ended/settled/unsold; ERC404
   bonding mid-curve + graduated). *Seed: `SeedAnvil.s.sol` + `vm.warp`.*
@@ -146,7 +154,16 @@ fork-verify rhythm), branched and merged on Mony's call. Status tracked **here**
   typed `storage<T>()` (~4–5 keys), race-first IPFS. In-memory single-shot scan now; chunked +
   incremental-persist seam left for testnet scale.
 
+## Decision log (cont.)
+- **2026-06-23** — W-B design reviewed vs `legacy/` + bindings verified against the real contracts
+  (legacy JS adapters describe an older surface). DROP wholesale: `SwapInterface` setState/EventBus
+  machinery, the 54-KB ERC404 adapter's dead methods, `candleAggregator`/`tradeEventCache` (never
+  imported in legacy), `transferTokensToSelf` reroll hack, hardcoded vault-split (`80/20`,`19%`) +
+  slippage literals (read `bondingFeeBps`/`pendingVaultCut`; slippage = user control). KEEP the
+  legacy ERC721 *idea*: explicit state machine from contract reads — reborn as pure tested helpers
+  (`deriveAuctionState`, `derivePhase`). Per-type page = branch on `card.contractType`. Decisions:
+  **B5 = curve + candles** (fresh OHLC indexer); **staking IN** (new B7, beyond parity).
+
 ## Open questions
 - A2 indexer: pure client-side event scan (fork-fast, may not scale on a busy testnet) vs a light
   indexed cache — decide at A2.
-- How much of legacy's bonding **chart** (B5) is parity-required vs a fast-follow.
