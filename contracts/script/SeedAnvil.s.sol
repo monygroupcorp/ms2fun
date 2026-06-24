@@ -25,13 +25,14 @@ import {Currency} from "v4-core/types/Currency.sol";
 ///         `data:` SVG images, so the seed needs no IPFS/network and renders offline. NEVER part of
 ///         a production deploy (DeployCore stays clean); this lives only in the local dev bridge.
 ///
-///         TIME MODEL: vm.warp sets block.timestamp for the WHOLE script. So all "must be in the
-///         past" work happens FIRST, then time is warped forward monotonically, and anything that
-///         must be LIVE/active is created AFTER the final warp. Anchors:
-///           T0 = deploy time
-///           T1 = T0 + 2 hours   (past the 1h gallery auctions so they can settle / expire)
-///           ... mid-curve + ready-to-graduate cross their own open/maturity with +1/+2s warps ...
-///           Tfinal = after the ready-to-graduate maturity warp (live auction created here).
+///         TIME MODEL: vm.warp is a NO-OP under --broadcast (it advances only the script's in-memory
+///         EVM, not the live chain), so this seed NEVER warps. Every instance is created with time
+///         OFFSETS relative to seed-time T0 (open +1h, gallery duration 1h, maturity +90m, etc.), and
+///         `deploy.ts` advances the anvil chain by +2h afterward (evm_increaseTime) so the
+///         ended/open/matured states materialize. The frontend countdown is chain-anchored (useNowSec
+///         reads block.timestamp) so the UI agrees with the advanced chain. Net result after +2h:
+///         gallery auctions ended (settle-ready + no-bid), live auctions active, ember preopen,
+///         vapor mid-curve (bonding + staking), cinder bonding + matured (graduate unlocked).
 contract SeedAnvil is Script {
 
     // Well-known Anvil account #1 (public test key) — used to seed a second, non-deployer actor.
@@ -66,17 +67,22 @@ contract SeedAnvil is Script {
         // ── Phase A: ERC1155 editions + profiles + activity (the original seed, enriched) ──
         address c0 = _seedErc1155(d);
 
-        // ── Phase B: ERC721 gallery auction (settles / expires in the past; FIRST warp +2h) ──
+        // TIME MODEL: vm.warp is a NO-OP under --broadcast (it advances only the script's in-memory
+        // EVM, never the live chain). So this seed never warps — every instance is created with time
+        // OFFSETS relative to seed-time T0, and deploy.ts advances the anvil chain by +2h afterward
+        // (evm_increaseTime) so the ended/open/matured states materialize. The UI's countdown is
+        // chain-anchored (useNowSec reads block.timestamp), so it agrees with the advanced chain.
+        // Order below is no longer time-sensitive.
+
+        // ── ERC721 gallery (1h duration -> ENDED after the +2h advance: settle-ready + no-bid) ──
         _seedErc721Gallery(d);
 
-        // ── Phase C: ERC404 bonding — preopen + mid-curve(+staking) ──
+        // ── ERC404 bonding — preopen + mid-curve(+staking) + ready-to-graduate ──
         _seedErc404PreOpen(d);
         _seedErc404MidCurve(d);
-
-        // ── Phase D: ERC404 ready-to-graduate (crosses maturity; holds the final bonding warp) ──
         _seedErc404ReadyToGraduate(d);
 
-        // ── Phase E: live ERC721 auction (created AFTER the final warp, so it counts down now) ──
+        // ── ERC721 live (1-day duration -> stays ACTIVE after the advance) ──
         _seedErc721Live(d);
 
         // Second profile + activity (independent of the time model).
@@ -203,13 +209,14 @@ contract SeedAnvil is Script {
 
     // ─────────────────────────── Phase B: ERC721 gallery ───────────────────────────
 
-    /// @dev Gallery auction created at T0 with a 1h duration. Two pieces (lines 0 and 1) each
-    ///      auto-start (first per line). acct1 bids on piece #1. We then warp +2h (past endTime) and
-    ///      settle #1 (-> settled, NFT minted) and leave #2 (-> ended, no bids, reclaimable). This
-    ///      is the FIRST warp in the whole script.
+    /// @dev Gallery auction: a SHORT 1h duration so the post-seed +2h chain advance (deploy.ts) ends
+    ///      both pieces. Piece #1 gets acct1's bid -> ENDED-WITH-BIDS (the human settles it live, which
+    ///      demos settleAuction -> settled); piece #2 has no bid -> ENDED-NO-BIDS (reclaimable).
+    ///      No vm.warp (a no-op under --broadcast) and no in-script settle (the auction isn't ended at
+    ///      broadcast time — only after deploy.ts advances the chain).
     function _seedErc721Gallery(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address gallery = _createAuction(d, "gallery-relics", "Gallery Relics", "GAL", "GL");
+        address gallery = _createAuction(d, "gallery-relics", "Gallery Relics", "GAL", "GL", 1 hours);
         ERC721AuctionInstance g = ERC721AuctionInstance(payable(gallery));
         // Each queuePiece's msg.value = minBid; first piece per line auto-starts (endTime = now+1h).
         g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic I", "R1", "gallery-relics"));  // tokenId 1, line 0
@@ -221,23 +228,16 @@ contract SeedAnvil is Script {
         vm.startBroadcast(ACCOUNT_1_KEY);
         g.createBid{value: 0.1 ether}(1, "");
         vm.stopBroadcast();
-
-        // FIRST warp: now + 2h, past the 1h auctions' endTime.
-        vm.warp(block.timestamp + 2 hours);
-
-        // Settle piece #1 (has a bid) -> settled. Piece #2 left untouched -> ended, no bids.
-        vm.startBroadcast(deployerKey);
-        g.settleAuction(1);
-        vm.stopBroadcast();
     }
 
     // ─────────────────────────── Phase E: ERC721 live ───────────────────────────
 
-    /// @dev Live auction created AFTER the final warp so both pieces count down into the future.
-    ///      One gets a bid (active-with-bids), the other is active-no-bid (clean bid form to demo).
+    /// @dev Live auction with a LONG 1-day duration so it stays active well past the +2h chain
+    ///      advance. One piece gets a bid (active-with-bids), the other is active-no-bid (clean bid
+    ///      form to demo). Both keep counting down (chain-anchored countdown in the UI).
     function _seedErc721Live(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address live = _createAuction(d, "live-salon", "Live Salon", "LIV", "LV");
+        address live = _createAuction(d, "live-salon", "Live Salon", "LIV", "LV", 1 days);
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));
         l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon I", "S1", "live-salon"));  // tokenId 1, line 0
         l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon II", "S2", "live-salon")); // tokenId 2, line 1
@@ -254,7 +254,8 @@ contract SeedAnvil is Script {
         string memory slug,
         string memory displayName,
         string memory symbol,
-        string memory glyph
+        string memory glyph,
+        uint40 baseDuration
     ) internal returns (address instance) {
         ERC721AuctionFactory.CreateParams memory params = ERC721AuctionFactory.CreateParams({
             name: slug,
@@ -263,7 +264,7 @@ contract SeedAnvil is Script {
             vault: d.vault, // must be a contract; the generic Uni vault qualifies
             symbol: symbol,
             lines: 2,
-            baseDuration: 1 hours,
+            baseDuration: baseDuration,
             timeBuffer: 300,
             bidIncrement: 0.01 ether
         });
@@ -292,19 +293,17 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(d, "vapor-mid", "Vapor", "VAPOR", d.stakingModule);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        // setBondingOpenTime requires a strictly-future ts; set now+1 then warp +1 so buys land in
-        // the live window. (Monotonic: we are already at T0+2h from the gallery warp.)
-        uint256 openAt = block.timestamp + 1;
-        b.setBondingOpenTime(openAt);
+        // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
+        // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
+        // buyBonding does NOT gate on openTime, so the seed buys land now regardless.
+        b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
         d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.05 ether);
-        vm.stopBroadcast();
-
-        if (block.timestamp < openAt) vm.warp(openAt + 1);
 
         // Buy amount: >= normalizationFactor (else cost rounds to 0 -> PurchaseTooSmall) and well
         // under maxBondingSupply (~9e24 for preset 1: maxSupply 1e25 - 10% reserve). unit = 1e24.
         uint256 buyAmount = 1e23; // 0.1 NFT-equivalent worth of tokens per buy
+        vm.stopBroadcast();
 
         _buyBonding(b, deployerKey, buyAmount);
         _buyBonding(b, ACCOUNT_1_KEY, buyAmount);
@@ -318,28 +317,23 @@ contract SeedAnvil is Script {
         vm.stopBroadcast();
     }
 
-    /// @dev READY-TO-GRADUATE: created, opened, one buy (so reserve > 0), maturity set just ahead,
-    ///      then warped past maturity -> deployLiquidity's isMatured is true so the UI surfaces the
-    ///      graduate button. We do NOT call deployLiquidity (it hits an external AMM); the human
-    ///      graduates live. This holds the FINAL bonding-related warp.
+    /// @dev READY-TO-GRADUATE: opened, one buy (reserve > 0 is required by deployLiquidity), maturity
+    ///      set so the post-seed +2h chain advance (deploy.ts) crosses it -> deployLiquidity's
+    ///      isMatured becomes true and the UI surfaces the graduate button. We do NOT call
+    ///      deployLiquidity (it hits an external AMM); the human graduates live. No vm.warp.
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(d, "cinder-ready", "Cinder", "CINDER", address(0));
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
-        uint256 openAt = block.timestamp + 1;   // strictly future (required)
-        uint256 matureAt = block.timestamp + 2; // > openAt (required), still near-now
-        b.setBondingOpenTime(openAt);
-        b.setBondingMaturityTime(matureAt);
+        // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
+        // advance the curve is open (bonding) AND matured (graduate unlocked).
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
         d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.045 ether);
         vm.stopBroadcast();
-
-        // Cross openAt, buy (reserve > 0 is required by deployLiquidity), then cross maturity.
-        if (block.timestamp < openAt) vm.warp(openAt + 1);
+        // _buyBonding manages its own broadcast — call it OUTSIDE the block above (no nesting).
         _buyBonding(b, deployerKey, 1e23);
-
-        // FINAL warp: past matureAt so isMatured == true (graduation unlocked, not executed).
-        if (block.timestamp <= matureAt) vm.warp(matureAt + 1);
     }
 
     /// @dev Compute the EXACT cost the instance will charge and pay it, so buyBonding never reverts.

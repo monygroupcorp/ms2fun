@@ -1,11 +1,6 @@
-import { useEffect, useState } from 'react'
-
-/** Current unix time in seconds (bigint), ticking every second — drives auction countdowns. */
-export function useNowSec(): bigint {
-  const [now, setNow] = useState(() => BigInt(Math.floor(Date.now() / 1000)))
-  useEffect(() => {
-    const id = setInterval(() => setNow(BigInt(Math.floor(Date.now() / 1000))), 1000)
-    return () => clearInterval(id)
-  }, [])
-  return now
-}
+/**
+ * Chain-anchored unix-seconds clock for auction countdowns + state derivation (re-exported from the
+ * shared hook so an on-chain-ended auction reads as ended in the UI — see useChainNow for why this
+ * matters on a time-advanced dev fork).
+ */
+export { useChainNow as useNowSec } from '../../../lib/time/useChainNow'
