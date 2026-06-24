@@ -17,6 +17,13 @@ building UI MUST read this**, then confirm exact arg/return shapes in `app/src/g
   `…MirrorErc721`. The mirror's ERC721 views (`tokenURI`/`ownerOf`/`totalSupply`) are NOT generated —
   read via a minimal inline ABI + `usePublicClient`.
 
+## Nomenclature (don't overload "metadata")
+- **content URI** = `metadataURI` — the JSON describing the asset (name/image/description). *What it is.*
+- **style URI** = `styleUri` (collection `setStyle`; per-edition style rides in the edition content JSON
+  as a `styleURI` field — no on-chain edition style slot). A CSS pointer for how the SITE renders the
+  page. *How it looks.* NOTE: `styleUri` is currently write-only — no renderer applies it yet (backlog).
+- Say "content" / "style" in UI labels, never bare "metadata".
+
 ## Gotchas (every one of these has already bitten us)
 - **`client.multicall` needs Multicall3** — now declared on the fork chain (`lib/wagmi`). Fine to use.
 - **Time-state: derive at render, never key a query on it.** Use `useChainNow` (`lib/time`) for "now"
