@@ -15,9 +15,11 @@ import {
 import { forkChainId } from '../../../lib/addresses'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { formatCountdown, formatOpenTime } from './bondingFormat'
+import { BondingChart } from './BondingChart'
 import { FreeMintPanel } from './FreeMintPanel'
 import { GraduateButton } from './GraduateButton'
 import { RerollPanel } from './RerollPanel'
+import { StakingPanel } from './StakingPanel'
 import { SwapPanel } from './SwapPanel'
 import { useBondingData } from './useBondingData'
 import { useCurveComputer } from './useCurveComputer'
@@ -96,9 +98,14 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
             the bonding curve is closed — trading has moved to the liquidity pool.
           </span>
         </div>
-        {/* W-B5 MOUNT POINT: pool / DEX view (price, depth, swap-via-pool) slots in here. */}
-        <div className={styles.mountPoint} data-testid="erc404-pool-mount">
-          pool view — W-B5
+        {/* Curve is closed; show the trade-history candles for the now-graduated instance. */}
+        <div data-testid="erc404-pool-mount">
+          <BondingChart
+            instance={instance}
+            curveParams={curveParams}
+            view="candles"
+            decimals={decimals}
+          />
         </div>
       </div>
     )
@@ -109,9 +116,21 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
   return (
     <div className={styles.surface} data-testid="erc404-phase-bonding">
-      {/* W-B5 MOUNT POINT: curve + candle chart slots in above the trade panel. */}
-      <div className={styles.mountPoint} data-testid="erc404-chart-mount">
-        curve + candle chart — W-B5
+      {/* W-B5: the bonding curve (with a you-are-here dot) + trade-history candles. */}
+      <div data-testid="erc404-chart-mount">
+        <BondingChart
+          instance={instance}
+          curveParams={curveParams}
+          view="curve"
+          decimals={decimals}
+          bondingView={view}
+        />
+        <BondingChart
+          instance={instance}
+          curveParams={curveParams}
+          view="candles"
+          decimals={decimals}
+        />
       </div>
 
       <SwapPanel
@@ -136,9 +155,9 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
       {showGraduate && <GraduateButton instance={instance} refetch={refetch} />}
 
-      {/* W-B7 MOUNT POINT: staking panel (stake / unstake / claim rewards) slots in here. */}
-      <div className={styles.mountPoint} data-testid="erc404-staking-mount">
-        staking — W-B7
+      {/* W-B7: staking panel (stake / unstake / claim rewards); self-hides when inactive. */}
+      <div data-testid="erc404-staking-mount">
+        <StakingPanel instance={instance} decimals={decimals} />
       </div>
 
       {curveComputer.address === undefined && !curveComputer.isPending && (
