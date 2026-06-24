@@ -1,0 +1,21 @@
+.action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.status {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  margin: 0;
+}
+
+.error {
+  color: var(--text-primary);
+}
