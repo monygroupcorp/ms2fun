@@ -24,6 +24,7 @@ import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
 import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
 import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
 import {CurveParamsComputer} from "../src/factories/erc404/CurveParamsComputer.sol";
+import {ERC404StakingModule} from "../src/factories/erc404/ERC404StakingModule.sol";
 import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
 import {DynamicPricingModule} from "../src/factories/erc1155/DynamicPricingModule.sol";
 import {ERC721AuctionFactory} from "../src/factories/erc721/ERC721AuctionFactory.sol";
@@ -136,6 +137,7 @@ contract DeployCore is Script {
     ERC404BondingInstance public erc404Impl;
     LaunchManager public launchManager;
     CurveParamsComputer public curveParamsComputer;
+    ERC404StakingModule public erc404StakingModule;
     ERC1155Factory public erc1155Factory;
     DynamicPricingModule public dynamicPricingModule;
     ERC721AuctionFactory public erc721Factory;
@@ -406,6 +408,11 @@ contract DeployCore is Script {
         moduleCypherDeployer  = new MockComponentModule(deployer, cypherMeta);
         componentRegistry.approveComponent(address(moduleCypherDeployer),  FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
 
+        // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
+        // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
+        erc404StakingModule = new ERC404StakingModule(masterRegistry);
+        componentRegistry.approveComponent(address(erc404StakingModule), FeatureUtils.STAKING, "ERC404 Staking");
+
         // ── Phase 8: ERC721AuctionFactory ────────────────────────────────────
 
         erc721Factory = new ERC721AuctionFactory(
@@ -465,6 +472,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "ModuleUniV4Deployer",        address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer",         address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ModuleCypherDeployer",       address(moduleCypherDeployer));
+        vm.serializeAddress(c, "ERC404StakingModule",        address(erc404StakingModule));
         string memory contracts = vm.serializeAddress(c,
             "UniswapVaultPriceValidator", address(priceValidator));
 
