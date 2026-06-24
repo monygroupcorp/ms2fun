@@ -64,6 +64,21 @@ caught real bugs (gating-encoding, multicall3, per-second refetch, board-channel
 
 ---
 
+## ► NEXT PHASE — the design / style pass (Phase 4)
+**Not yet done, and it fell through the reframe.** Every surface this session was built to Gallery
+Brutalism *in isolation* (per-agent), but there has been **no holistic visual review** across them all.
+This is the retired plan's W-H1 ("Brutalist styling pass across all new surfaces"), which never carried
+into the contract-surface reframe — so it's an unscheduled gap, NOT optional polish. Scope:
+- Cohesion sweep across ALL new surfaces — collection pages (3 types), trading panels (swap/bid/mint),
+  bonding chart, edition/token detail, NFT galleries, portfolio, board threading, the 5 admin panels,
+  featured panel, wallet/nav. Do they feel like ONE app?
+- Rubric = `docs/DESIGN_SYSTEM_V2.md` (pure monochrome, 8px grid, no gradients/shadows/radius>2px;
+  chromatic aberration ONLY on large display text + primary CTAs — check for over/under-use), type
+  hierarchy, spacing, mono-label consistency, empty/loading/error states, responsive behavior.
+- Benefits from Mony's eye (visual judgment). Likely a fan-out: review surfaces → list inconsistencies
+  → fix → sign-off.
+- **Distinct from the "style renderer" backlog item** (creator-supplied per-page `styleUri` CSS).
+
 ## Not yet verified / open
 - **Fork-verify Phase 2 + Phase 3 end-to-end** — they're on main + gate-green but not fully walked
   (portfolio holdings, featured rent/boost, the 5 admin panels operating as ADMIN). A fresh
