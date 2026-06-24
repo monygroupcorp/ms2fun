@@ -17,6 +17,11 @@ import {GatingScope} from "../src/gating/IGatingModule.sol";
 import {IAlignmentVault} from "../src/interfaces/IAlignmentVault.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 
+/// @dev Minimal Solady-Ownable surface — instances + registries all expose this single-step transfer.
+interface IOwnable {
+    function transferOwnership(address newOwner) external payable;
+}
+
 /// @notice Anvil-only FULL-STATE seed: stands up demoable instances of every project type
 ///         (ERC1155 editions, ERC721 auctions, ERC404 bonding) plus profiles + activity, so the
 ///         discovery cards, trading surfaces, candles, staking, and profile pages all light up with
@@ -39,6 +44,14 @@ contract SeedAnvil is Script {
     uint256 constant ACCOUNT_1_KEY =
         0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
 
+    // The team's testing wallet. After the deployer finishes all owner-only seeding, ownership of
+    // every seeded instance + the platform registries is handed to ADMIN so it can drive the creator
+    // admin + (future) protocol-admin console from the UI. Anvil-only — DeployCore stays untouched.
+    address constant ADMIN = 0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86;
+
+    // Every seeded instance, accumulated as they're created, so _transferAdmin can hand them over.
+    address[] private _instances;
+
     // Deployed addresses (read from anvil.json in run()).
     struct Deployed {
         ERC1155Factory erc1155;
@@ -51,6 +64,10 @@ contract SeedAnvil is Script {
         address endowmentVault; // first Aave endowment vault (index 2)
         address stakingModule;  // ERC404StakingModule (approved STAKING component)
         address zammDeployer;   // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
+        // Platform registries handed to ADMIN at the end (for the protocol-admin console).
+        address masterRegistry;
+        address alignmentRegistry;
+        address componentRegistry;
     }
 
     uint256 deployerKey;
@@ -94,11 +111,34 @@ contract SeedAnvil is Script {
         _post(d.messages, c0, "grabbed one from neon-drift. love the aberration.");
         vm.stopBroadcast();
 
+        // Hand everything to the team's testing wallet (LAST — after all owner-only seeding).
+        _transferAdmin(d);
+
         console.log("=== SeedAnvil complete ===");
         console.log("ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions");
         console.log("ERC721 : 2 auctions (gallery=settled+expired, live=active+bid)");
         console.log("ERC404 : 3 bonding (preopen, mid-curve+staking, ready-to-graduate)");
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
+    }
+
+    /// @dev Hand ownership of every seeded instance + the platform registries to ADMIN (the testing
+    ///      wallet), so it drives creator admin + the protocol-admin console from the UI. Runs LAST,
+    ///      as the deployer, after all owner-only seeding — Solady single-step transferOwnership.
+    function _transferAdmin(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        // Fund ADMIN so it can pay gas + value actions (queuePiece deposit, bids, buys) immediately.
+        (bool funded,) = ADMIN.call{value: 50 ether}("");
+        require(funded, "fund ADMIN failed");
+        for (uint256 i = 0; i < _instances.length; i++) {
+            IOwnable(_instances[i]).transferOwnership(ADMIN);
+        }
+        IOwnable(d.masterRegistry).transferOwnership(ADMIN);
+        IOwnable(d.alignmentRegistry).transferOwnership(ADMIN);
+        IOwnable(d.componentRegistry).transferOwnership(ADMIN);
+        IOwnable(address(d.queue)).transferOwnership(ADMIN); // FeaturedQueueManager
+        vm.stopBroadcast();
+        console.log("Handed", _instances.length, "instances + 4 registries to ADMIN:");
+        console.log(ADMIN);
     }
 
     // ─────────────────────────── Address loading ───────────────────────────
@@ -113,6 +153,9 @@ contract SeedAnvil is Script {
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
         d.zammDeployer  = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
+        d.masterRegistry    = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
+        d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
+        d.componentRegistry = vm.parseJsonAddress(json, ".contracts.ComponentRegistry");
         // `vaults` is serialized as a JSON-encoded STRING (DeployCore builds it by hand): parse it
         // out first, then index the inner array. [0]=first Uni vault, [2]=first Aave endowment vault.
         string memory vaultsJson = vm.parseJsonString(json, ".vaults");
@@ -205,6 +248,7 @@ contract SeedAnvil is Script {
         });
         bytes32 salt = keccak256(abi.encode(block.timestamp, index, slug));
         instance = factory.createInstance(salt, params);
+        _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
     }
 
     // ─────────────────────────── Phase B: ERC721 gallery ───────────────────────────
@@ -270,6 +314,7 @@ contract SeedAnvil is Script {
         });
         bytes32 salt = keccak256(abi.encode(block.timestamp, slug, "ERC721"));
         instance = d.erc721.createInstance(salt, params); // msg.value 0: no creation fee on anvil
+        _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
     }
 
     // ─────────────────────────── Phase C/D: ERC404 bonding ───────────────────────────
@@ -399,6 +444,7 @@ contract SeedAnvil is Script {
             address(0),          // no gating
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
         ); // msg.value 0: no creation fee on anvil
+        _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
     }
 
     // ─────────────────────────── Activity ───────────────────────────
