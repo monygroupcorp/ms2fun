@@ -1,0 +1,26 @@
+/* ============================================================
+   Gallery Brutalism — shared layout primitives (CSS Modules)
+   Compose these into page modules with `composes: page from ...`.
+   Pages own their CONTENT; the container width + gutter live here,
+   so the whole site's page frame is adjusted from one place.
+   ============================================================ */
+
+/* The page container. Centers content, caps width, applies the
+   responsive gutter + vertical padding from tokens.css.
+   Override width per page by setting `--page-max` on the element,
+   e.g. `--page-max: var(--page-max-content);` (default = wide). */
+.page {
+  width: 100%;
+  max-width: var(--page-max, var(--page-max-wide));
+  margin-inline: auto;
+  padding: var(--page-pad-y) var(--page-gutter);
+}
+
+/* Vertical-stack variant of .page — for column layouts (admin, detail,
+   wizard) that previously set `display:flex; flex-direction:column; gap`. */
+.pageStack {
+  composes: page;
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-stack-gap, var(--gap-lg));
+}

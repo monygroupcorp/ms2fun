@@ -1,0 +1,70 @@
+/* AlignmentPanel — each action's inputs stack full-width above their TxButton (the generic ActionRow
+   control column is right-aligned; these multi-field forms want full-width inputs). */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: stretch;
+  width: 100%;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.btnRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+}
+
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-tertiary, var(--border-secondary));
+}
+
+.readRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption, var(--font-size-body-sm));
+}
+
+.readRow dt {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.readRow dd {
+  margin: 0;
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

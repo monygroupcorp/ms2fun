@@ -13,74 +13,7 @@
   gap: var(--gap-md);
 }
 
-.card {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-  transition: var(--transition-base);
-}
-
-.card:hover {
-  background-color: var(--state-hover-bg);
-}
-
-.cardImage {
-  width: 100%;
-  aspect-ratio: 1;
-  background-color: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-tertiary);
-}
-
-.cardContent {
-  padding: var(--space-3);
-  font-family: var(--font-mono);
-}
-
-.cardHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  margin-bottom: var(--space-2);
-}
-
-.cardTitle {
-  font-size: var(--font-size-h4);
-  font-weight: var(--font-weight-bold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cardStats {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-body-sm);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-tertiary);
-}
-
-.statSecondary {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  font-size: var(--font-size-caption);
-}
-
-.statMono {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-bold);
-}
-
-.state {
-  margin-top: var(--space-2);
-}
+/* Card styles live in CollectionCard.module.css (the card is its own component). */
 
 @media (max-width: 1024px) {
   .grid {

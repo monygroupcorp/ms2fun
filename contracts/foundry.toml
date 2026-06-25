@@ -23,7 +23,8 @@ remappings = [
     "@uniswap/v2-core/=lib/v2-core/contracts/",
     "zamm/=lib/zamm/src/",
     "zRouter/=lib/zRouter/src/",
-    "createx-forge/=lib/createx-forge/"
+    "createx-forge/=lib/createx-forge/",
+    "aave-address-book/=lib/aave-address-book/src/"
 ]
 
 [profile.ci]

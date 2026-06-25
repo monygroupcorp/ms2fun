@@ -1,0 +1,28 @@
+/* Erc721AdminPanel — the queue-piece form stacks its tokenURI + min-bid inputs above the submit
+   button (the generic ActionRow control column is right-aligned; the form wants full-width inputs). */
+.queueForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: stretch;
+  width: 100%;
+}
+
+.uriInput {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+}
+
+.addrInput {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+}

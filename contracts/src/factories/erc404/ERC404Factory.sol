@@ -14,6 +14,7 @@ import {LaunchManager} from "./LaunchManager.sol";
 import {IComponentRegistry} from "../../registry/interfaces/IComponentRegistry.sol";
 import {FreeMintParams} from "../../interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../../gating/IGatingModule.sol";
+import {IPasswordTierGatingModule, TierConfig} from "../../gating/IPasswordTierGatingModule.sol";
 import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
 
 /**
@@ -146,6 +147,32 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address gatingModule,
         FreeMintParams calldata freeMint
     ) external payable nonReentrant returns (address instance) {
+        TierConfig memory empty;
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, empty);
+    }
+
+    /// @notice Create an instance and apply tier-gating config in the same tx.
+    /// @param gatingConfig Tier config applied to gatingModule at deploy time.
+    ///        Empty (no passwordHashes) leaves the instance open / unconfigured.
+    function createInstance(
+        CreateParams calldata params,
+        string calldata metadataURI,
+        address liquidityDeployer,
+        address gatingModule,
+        FreeMintParams calldata freeMint,
+        TierConfig calldata gatingConfig
+    ) external payable nonReentrant returns (address instance) {
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig);
+    }
+
+    function _createInstance(
+        CreateParams calldata params,
+        string calldata metadataURI,
+        address liquidityDeployer,
+        address gatingModule,
+        FreeMintParams calldata freeMint,
+        TierConfig memory gatingConfig
+    ) private returns (address instance) {
         if (gatingModule != address(0)) {
             if (!componentRegistry.isApprovedComponent(gatingModule)) revert UnapprovedGatingModule();
         }
@@ -194,6 +221,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Staking wired after registration — module's enableStaking checks isRegisteredInstance
         if (params.stakingModule != address(0)) {
             ERC404BondingInstance(payable(instance)).initializeStaking(params.stakingModule);
+        }
+        // Tier gating configured after registration — factory is a registered configurer.
+        // Empty config (no passwordHashes) leaves the instance open.
+        if (gatingModule != address(0) && gatingConfig.passwordHashes.length > 0) {
+            IPasswordTierGatingModule(gatingModule).configureFor(instance, gatingConfig);
         }
         emit InstanceCreated(instance, params.owner, params.name, params.symbol, params.vault);
     }

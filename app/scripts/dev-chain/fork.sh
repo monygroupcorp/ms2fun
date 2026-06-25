@@ -29,6 +29,11 @@ if lsof -ti:8545 >/dev/null 2>&1; then
 fi
 
 echo "🌐 Starting anvil fork (chain id 1337, :8545)…"
+# NOTE: no `--block-time` on purpose — anvil defaults to AUTO-MINE (a block is produced only when a
+# tx arrives), so the fork does NOT churn out empty blocks while it sits idle. Do NOT add interval
+# mining or `--dump-state` (the inherited camel404 setup paired `--block-time 1` with a per-block
+# state dump into .anvil-cache, which is what grew without bound). The only cache is the shared
+# mainnet-state cache under ~/.foundry/cache, which is tiny. Stop the fork with `pnpm chain:stop`.
 # --code-size-limit raised for the larger protocol contracts (over the 24KB Spurious Dragon limit).
 exec anvil \
   --fork-url "$MAINNET_RPC_URL" \

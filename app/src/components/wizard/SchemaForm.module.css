@@ -1,0 +1,264 @@
+/* SchemaForm — Gallery Brutalism, CSS Modules */
+
+/* ── Form shell ─────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+}
+
+/* ── Field wrapper (all leaf kinds share this) ──────────────── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* ── Label row ──────────────────────────────────────────────── */
+
+.label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.required {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.unit {
+  display: inline-block;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-regular);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-tertiary);
+  /* no border-radius — brutalist */
+}
+
+/* ── Help text ──────────────────────────────────────────────── */
+
+.help {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+  font-family: var(--font-mono);
+}
+
+/* ── Error line ─────────────────────────────────────────────── */
+
+.error {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  /* Subtle left-border accent to distinguish from help */
+  border-left: 2px solid var(--text-primary);
+  padding-left: var(--space-2);
+}
+
+/* ── Shared input base ──────────────────────────────────────── */
+
+.input {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-none);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.input:focus {
+  border-color: var(--border-primary);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.inputError {
+  border-color: var(--text-primary);
+}
+
+/* ── Textarea ───────────────────────────────────────────────── */
+
+.textarea {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-none);
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  line-height: var(--line-height-relaxed);
+  transition: border-color var(--transition-fast);
+  outline: none;
+}
+
+.textarea:focus {
+  border-color: var(--border-primary);
+}
+
+.textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ── Select override ────────────────────────────────────────── */
+
+.select {
+  cursor: pointer;
+  /* Custom arrow */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M0 0l5 6 5-6H0z' fill='%23888'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+  padding-right: calc(var(--space-3) * 2 + 10px);
+}
+
+/* ── Checkbox ───────────────────────────────────────────────── */
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--border-secondary);
+  background: var(--bg-secondary);
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: var(--radius-none);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.checkbox:checked {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+
+.checkboxText {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+/* ── Group (fieldset) ───────────────────────────────────────── */
+
+.group {
+  margin: 0;
+  padding: 0;
+  border: 1px dashed var(--border-secondary);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.groupLegend {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  padding: 0 var(--space-1);
+}
+
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+/* ── List ───────────────────────────────────────────────────── */
+
+.listHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.addBtn {
+  flex-shrink: 0;
+}
+
+.listRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.listRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  border-left: 2px solid var(--border-secondary);
+  padding-left: var(--space-3);
+}
+
+.rowLabel {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-family: var(--font-mono);
+}
+
+.rowControl {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rowControl .input {
+  flex: 1;
+}
+
+.removeBtn {
+  flex-shrink: 0;
+  font-size: var(--font-size-body-lg);
+  line-height: 1;
+  color: var(--text-secondary);
+}
+
+.removeBtn:hover {
+  color: var(--text-primary);
+}

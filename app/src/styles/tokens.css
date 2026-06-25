@@ -45,11 +45,14 @@
   --font-mono: 'IBM Plex Mono', 'Courier New', 'Courier', monospace;
   --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Font Sizes — Modular scale 1.333 */
-  --font-size-display: 4.5rem; /* 72px — hero only */
-  --font-size-h1: 3rem; /* 48px */
-  --font-size-h2: 2.25rem; /* 36px */
-  --font-size-h3: 1.5rem; /* 24px */
+  /* Font Sizes — Modular scale 1.333.
+     Headings are FLUID: clamp(min, fluid, max). max == the modular-scale value
+     (desktop ceiling); min keeps them legible on small screens. Body sizes stay
+     fixed. Adjust the whole heading rhythm here — nowhere else. */
+  --font-size-display: clamp(2.5rem, 5vw + 1.25rem, 4.5rem); /* 40 → 72px — hero only */
+  --font-size-h1: clamp(2rem, 3.5vw + 1rem, 3rem); /* 32 → 48px */
+  --font-size-h2: clamp(1.5rem, 2vw + 0.85rem, 2.25rem); /* 24 → 36px */
+  --font-size-h3: clamp(1.25rem, 1vw + 0.85rem, 1.5rem); /* 20 → 24px */
   --font-size-h4: 1.125rem; /* 18px */
   --font-size-body-lg: 1.125rem; /* 18px */
   --font-size-body: 1rem; /* 16px */
@@ -98,6 +101,7 @@
   --padding-xl: var(--space-6); /* 48px */
 
   /* Gaps (between elements) */
+  --gap-xs: 0.25rem; /* 4px — sub-grid: label↔value, tight stacks */
   --gap-sm: var(--space-1); /* 8px */
   --gap-md: var(--space-2); /* 16px */
   --gap-lg: var(--space-3); /* 24px */
@@ -119,6 +123,17 @@
   --container-lg: 64rem; /* 1024px — wide */
   --container-xl: 75rem; /* 1200px — max */
   --container-full: 100%;
+
+  /* Page widths (semantic) — what the .page primitive in layout.module.css reads.
+     Pages pick one via `--page-max`; they never hardcode a max-width. */
+  --page-max-wide: var(--container-xl); /* 1200px — listings, home, board */
+  --page-max-content: var(--container-lg); /* 1024px — detail + admin reading width */
+  --page-max-form: 55rem; /* 880px — single-column wizard / forms */
+
+  /* Page gutter — the horizontal breathing room on every page. RESPONSIVE:
+     redefined at breakpoints below so the whole site reflows from one knob. */
+  --page-gutter: var(--space-10); /* 80px desktop */
+  --page-pad-y: var(--space-8); /* 64px vertical */
 
   /* Grid */
   --grid-columns: 12;
@@ -206,6 +221,31 @@
   --z-modal-backdrop: 300;
   --z-modal: 400;
   --z-tooltip: 500;
+}
+
+/* ============================================================
+   RESPONSIVE GUTTER
+   The page gutter + vertical padding shrink at each breakpoint.
+   Defined ONCE here — every .page inherits it. To retune the
+   site's edge spacing on any device, edit only these values.
+   ============================================================ */
+@media (max-width: 1024px) {
+  :root {
+    --page-gutter: var(--space-6); /* 48px */
+    --page-pad-y: var(--space-6); /* 48px */
+  }
+}
+@media (max-width: 768px) {
+  :root {
+    --page-gutter: var(--space-4); /* 32px */
+    --page-pad-y: var(--space-5); /* 40px */
+  }
+}
+@media (max-width: 480px) {
+  :root {
+    --page-gutter: var(--space-3); /* 24px */
+    --page-pad-y: var(--space-4); /* 32px */
+  }
 }
 
 /* ============================================================

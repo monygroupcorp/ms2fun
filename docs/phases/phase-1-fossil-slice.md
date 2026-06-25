@@ -1,6 +1,6 @@
 # Phase 1 — Prove the Stack on the Fossil
 
-**Status:** Next (Phase 0 accepted 2026-06-22)
+**Status:** ✅ DONE 2026-06-23 — deploy bridge (viem) + read-only EXEC404 fossil slice live on the fork (G8 green); V2 market price + Uniswap link-out shipped.
 **Depends on:** Phase 0 (foundation green)
 
 > **Phase 1, task ZERO (carried from Phase 0): ✅ DONE 2026-06-22 — code complete, live G8

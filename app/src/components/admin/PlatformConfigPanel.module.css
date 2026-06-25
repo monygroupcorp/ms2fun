@@ -1,0 +1,51 @@
+/* PlatformConfigPanel (W-K4) — protocol-admin config console. Two independently owner-gated
+   AdminSections stacked vertically. Each action row stacks its inputs above the TxButton (the generic
+   ActionRow control column is right-aligned; these forms want full-width inputs), matching the
+   per-instance creator-admin panels. Gallery Brutalism: mono type, hairline borders, no rounding. */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  width: 100%;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: stretch;
+  width: 100%;
+}
+
+/* min/max duration fields side-by-side. */
+.pair {
+  display: flex;
+  gap: var(--gap-sm);
+  width: 100%;
+}
+
+.pair > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.addrInput {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}

@@ -2,15 +2,19 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: var(--text-primary);
+  /* One overflowing child (e.g. a wide nav) must never give the whole site a
+     horizontal scrollbar. This is the global guard. */
+  overflow-x: clip;
 }
 
-/* Top bar — matches docs/examples .top-bar / .logo */
+/* Top bar — matches docs/examples .top-bar / .logo. Horizontal padding tracks
+   the page gutter so the bar's edges line up with page content. */
 .topBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap-lg);
-  padding: var(--space-4) var(--space-10);
+  padding: var(--space-4) var(--page-gutter);
   border-bottom: 1px solid var(--border-secondary);
 }
 
@@ -64,14 +68,78 @@
   color: var(--text-secondary);
 }
 
-@media (max-width: 768px) {
-  .topBar {
-    padding: var(--space-3) var(--space-4);
-  }
+/* ---- Mobile menu --------------------------------------------------------
+   The MENU/✕ toggle is hidden until the desktop nav no longer fits (≤1024px),
+   at which point the inline nav is swapped for a full-screen overlay. */
+.menuButton {
+  display: none;
+  align-items: center;
+  gap: var(--gap-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.menuButton:hover {
+  opacity: 0.7;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.overlayBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--page-gutter);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.overlayNav {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) var(--page-gutter) var(--space-6);
+}
+
+.overlayLink {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-primary);
+  text-decoration: none;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-tertiary);
+  transition: var(--transition-opacity);
+}
+
+.overlayLink:hover {
+  opacity: 0.7;
+}
+
+.overlayWallet {
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 1024px) {
   .nav {
-    gap: var(--gap-md);
+    display: none;
   }
-  .navLink {
-    font-size: var(--font-size-caption);
+  .menuButton {
+    display: inline-flex;
   }
 }

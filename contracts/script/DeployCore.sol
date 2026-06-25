@@ -9,6 +9,7 @@ import {IAlignmentRegistry} from "../src/master/interfaces/IAlignmentRegistry.so
 import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
 import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ComponentRegistry} from "../src/registry/ComponentRegistry.sol";
+import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
 import {ProtocolTreasuryV1} from "../src/treasury/ProtocolTreasuryV1.sol";
 import {UniAlignmentVault} from "../src/vaults/uni/UniAlignmentVault.sol";
 import {UniAlignmentVaultFactory} from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
@@ -16,12 +17,14 @@ import {CypherAlignmentVault} from "../src/vaults/cypher/CypherAlignmentVault.so
 import {CypherAlignmentVaultFactory} from "../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
 import {IZAMM, ZAMMAlignmentVault} from "../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import {ZAMMAlignmentVaultFactory} from "../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
+import {AlignmentEndowmentVaultFactory} from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
 import {UniswapVaultPriceValidator} from "../src/peripherals/UniswapVaultPriceValidator.sol";
 import {IVaultPriceValidator} from "../src/interfaces/IVaultPriceValidator.sol";
 import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
 import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
 import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
 import {CurveParamsComputer} from "../src/factories/erc404/CurveParamsComputer.sol";
+import {ERC404StakingModule} from "../src/factories/erc404/ERC404StakingModule.sol";
 import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
 import {DynamicPricingModule} from "../src/factories/erc1155/DynamicPricingModule.sol";
 import {ERC721AuctionFactory} from "../src/factories/erc721/ERC721AuctionFactory.sol";
@@ -49,6 +52,7 @@ contract DeployCore is Script {
         bool    deployUniVault;
         bool    deployCypherVault;
         bool    deployZAMMVault;
+        address communityPayout; // endowment community destination; address(0) = set later, off-chain
     }
 
     struct NetworkConfig {
@@ -64,6 +68,7 @@ contract DeployCore is Script {
         address cypherPositionManager;
         address cypherRouter;
         address zamm;
+        address aaveStataToken; // Aave WETH StaticATokenV2 (waEthWETH); address(0) = no endowment vault
 
         // Pre-existing contracts — address(0) = deploy fresh
         address zrouter;
@@ -76,6 +81,10 @@ contract DeployCore is Script {
         bytes32 saltGlobalMsgReg;
         bytes32 saltAlignmentReg;
         bytes32 saltComponentReg;
+        // Mixed into the per-target VAULT salts so repeated local re-deploys onto the same fork
+        // don't CreateCollision. Production callers leave it 0 → deterministic vault addresses;
+        // DeployAnvil sets it to block.timestamp (matching the UUPS-proxy salt pattern above).
+        uint256 saltNonce;
 
         // Price validator params
         uint256 priceDeviationBps;
@@ -107,6 +116,7 @@ contract DeployCore is Script {
     AlignmentRegistryV1 public alignmentRegistryImpl;
     ComponentRegistry public componentRegistry;
     ComponentRegistry public componentRegistryImpl;
+    ProfileRegistry public profileRegistry;
 
     // Infrastructure
     address public safe;
@@ -117,11 +127,13 @@ contract DeployCore is Script {
     UniAlignmentVaultFactory public uniVaultFactory;
     CypherAlignmentVaultFactory public cypherVaultFactory;
     ZAMMAlignmentVaultFactory public zammVaultFactory;
+    AlignmentEndowmentVaultFactory public aaveVaultFactory;
 
     // Deployed vault instances — indexed by target index
     address[] public uniVaults;
     address[] public cypherVaults;
     address[] public zammVaults;
+    address[] public aaveVaults;
     uint256[] public alignmentTargetIds;
 
     // Project factories
@@ -129,6 +141,7 @@ contract DeployCore is Script {
     ERC404BondingInstance public erc404Impl;
     LaunchManager public launchManager;
     CurveParamsComputer public curveParamsComputer;
+    ERC404StakingModule public erc404StakingModule;
     ERC1155Factory public erc1155Factory;
     DynamicPricingModule public dynamicPricingModule;
     ERC721AuctionFactory public erc721Factory;
@@ -136,7 +149,6 @@ contract DeployCore is Script {
     QueryAggregator public queryAggregator;
 
     // Seed component modules — wizard-facing metadata stubs (testnet + local)
-    MockComponentModule public modulePasswordGating;
     MockComponentModule public moduleMerkleGating;
     MockComponentModule public moduleUniV4Deployer;
     MockComponentModule public moduleZAMMDeployer;
@@ -194,6 +206,9 @@ contract DeployCore is Script {
 
         MasterRegistryV1(masterRegistry).setAlignmentRegistry(address(alignmentRegistry));
 
+        // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
+        profileRegistry = new ProfileRegistry();
+
         // ── Phase 2: Safe ────────────────────────────────────────────────────
 
         safe = cfg.safe != address(0) ? cfg.safe : address(new MockSafe());
@@ -233,6 +248,13 @@ contract DeployCore is Script {
             );
         }
 
+        // Aave endowment vault factory (ADR-0003) — only where Aave's WETH stataToken exists.
+        if (cfg.aaveStataToken != address(0)) {
+            aaveVaultFactory = new AlignmentEndowmentVaultFactory(
+                cfg.weth, cfg.aaveStataToken, address(treasury), masterRegistry, alignmentRegistry
+            );
+        }
+
         // ── Phase 5: Alignment targets + vault instances ─────────────────────
 
         for (uint256 i = 0; i < cfg.alignmentTargets.length; i++) {
@@ -249,8 +271,25 @@ contract DeployCore is Script {
             );
             alignmentTargetIds.push(targetId);
 
+            // Aave endowment vault (ADR-0003): set the target's community payout (from config — no
+            // placeholder baked into this cross-network script), then deploy + register a per-target
+            // endowment vault clone. A zero payout is left unset (configured later, off-chain).
+            if (cfg.aaveStataToken != address(0)) {
+                if (t.communityPayout != address(0)) {
+                    alignmentRegistry.setCommunityPayout(targetId, t.communityPayout);
+                }
+                address aaveVault = aaveVaultFactory.deployVault(
+                    _vaultSalt(cfg.chainId, i, "AAVE", cfg.saltNonce), t.token, targetId
+                );
+                MasterRegistryV1(masterRegistry).registerVault(
+                    aaveVault, deployer, string.concat(t.symbol, " Aave Endowment Vault"),
+                    "https://ms2.fun", targetId
+                );
+                aaveVaults.push(aaveVault);
+            }
+
             if (t.deployUniVault) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "UNIv4"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "UNIv4", cfg.saltNonce);
                 address vault = uniVaultFactory.deployVault(
                     salt, t.token, targetId, IVaultPriceValidator(address(0))
                 );
@@ -264,7 +303,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployCypherVault && address(cypherVaultFactory) != address(0)) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "CYPHER"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "CYPHER", cfg.saltNonce);
                 address vault = address(cypherVaultFactory.createVault(
                     salt, cfg.cypherPositionManager, cfg.cypherRouter,
                     cfg.weth, t.token, address(treasury), address(0)
@@ -277,7 +316,7 @@ contract DeployCore is Script {
             }
 
             if (t.deployZAMMVault && address(zammVaultFactory) != address(0)) {
-                bytes32 salt = keccak256(abi.encode(cfg.chainId, i, "ZAMM"));
+                bytes32 salt = _vaultSalt(cfg.chainId, i, "ZAMM", cfg.saltNonce);
                 IZAMM.PoolKey memory poolKey; // zero poolKey — configure post-deploy when live
                 address vault = zammVaultFactory.deployVault(salt, t.token, poolKey);
                 MasterRegistryV1(masterRegistry).registerVault(
@@ -350,15 +389,19 @@ contract DeployCore is Script {
         // These MockComponentModules give the frontend creation wizard metadata to
         // display for each selectable component. Users pass these addresses to
         // createInstance; the real functional modules are wired into factory internals.
+        // EXCEPTION: gating is a per-instance module the wizard passes through verbatim
+        // (createInstance stores it, mint calls canMint, create/admin call configureFor),
+        // so the REAL PasswordTierGatingModule carries the password-tier metadata directly —
+        // there is no mock stand-in for it.
 
         string memory passwordGatingMeta = "data:application/json,{\"name\":\"Password Tier Gating\",\"subtitle\":\"Password \\u00b7 Tiered Access\",\"description\":\"Set one or more passwords, each unlocking a different tier of access or pricing.\",\"configType\":\"password-tier-gating\"}";
-        string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\"}";
+        string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\",\"configType\":\"merkle-allowlist-gating\"}";
         string memory uniV4Meta          = "data:application/json,{\"name\":\"Uniswap V4 Deployer\",\"subtitle\":\"Uniswap V4 \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to a Uniswap V4 pool on graduation.\",\"configType\":\"launch-profile\"}";
         string memory zammMeta           = "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
         string memory cypherMeta         = "data:application/json,{\"name\":\"Cypher Deployer\",\"subtitle\":\"Cypher \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to Cypher on graduation.\",\"configType\":\"launch-profile\"}";
 
-        modulePasswordGating  = new MockComponentModule(deployer, passwordGatingMeta);
-        componentRegistry.approveComponent(address(modulePasswordGating),  FeatureUtils.GATING,             "Password Tier Gating");
+        // Real module carries its own wizard metadata (configType drives the password-tier form).
+        passwordTierGatingModule.setMetadataURI(passwordGatingMeta);
 
         moduleMerkleGating    = new MockComponentModule(deployer, merkleGatingMeta);
         componentRegistry.approveComponent(address(moduleMerkleGating),    FeatureUtils.GATING,             "Merkle Allowlist Gating");
@@ -371,6 +414,11 @@ contract DeployCore is Script {
 
         moduleCypherDeployer  = new MockComponentModule(deployer, cypherMeta);
         componentRegistry.approveComponent(address(moduleCypherDeployer),  FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
+
+        // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
+        // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
+        erc404StakingModule = new ERC404StakingModule(masterRegistry);
+        componentRegistry.approveComponent(address(erc404StakingModule), FeatureUtils.STAKING, "ERC404 Staking");
 
         // ── Phase 8: ERC721AuctionFactory ────────────────────────────────────
 
@@ -419,17 +467,18 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "GlobalMessageRegistry",      address(globalMessageRegistry));
         vm.serializeAddress(c, "AlignmentRegistry",          address(alignmentRegistry));
         vm.serializeAddress(c, "ComponentRegistry",          address(componentRegistry));
+        vm.serializeAddress(c, "ProfileRegistry",            address(profileRegistry));
         vm.serializeAddress(c, "QueryAggregator",            address(queryAggregator));
         vm.serializeAddress(c, "zRouter",                    address(zrouter));
         vm.serializeAddress(c, "LaunchManager",              address(launchManager));
         vm.serializeAddress(c, "CurveParamsComputer",        address(curveParamsComputer));
         vm.serializeAddress(c, "DynamicPricingModule",       address(dynamicPricingModule));
         vm.serializeAddress(c, "PasswordTierGatingModule",   address(passwordTierGatingModule));
-        vm.serializeAddress(c, "ModulePasswordGating",       address(modulePasswordGating));
         vm.serializeAddress(c, "ModuleMerkleGating",         address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer",        address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer",         address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ModuleCypherDeployer",       address(moduleCypherDeployer));
+        vm.serializeAddress(c, "ERC404StakingModule",        address(erc404StakingModule));
         string memory contracts = vm.serializeAddress(c,
             "UniswapVaultPriceValidator", address(priceValidator));
 
@@ -475,6 +524,15 @@ contract DeployCore is Script {
                 vm.toString(cfg.alignmentTargets[i].token),
                 '","targetId":', vm.toString(alignmentTargetIds[i]), '}');
         }
+        for (uint256 i = 0; i < aaveVaults.length; i++) {
+            if (!firstVault) vaultsJson = string.concat(vaultsJson, ",");
+            firstVault = false;
+            vaultsJson = string.concat(vaultsJson,
+                '{"address":"', vm.toString(aaveVaults[i]),
+                '","type":"AaveEndowment","alignmentToken":"',
+                vm.toString(cfg.alignmentTargets[i].token),
+                '","targetId":', vm.toString(alignmentTargetIds[i]), '}');
+        }
         vaultsJson = string.concat(vaultsJson, "]");
 
         // root object
@@ -504,5 +562,17 @@ contract DeployCore is Script {
             abi.encode(impl, initData)
         );
         return ICreateX(CREATEX).deployCreate3(salt, proxyInitCode);
+    }
+
+    /// @dev Per-target vault CREATE3 salt. `nonce == 0` reproduces the original
+    ///      `keccak256(chainId, i, tag)` EXACTLY (production addresses unchanged); a non-zero nonce
+    ///      (DeployAnvil passes block.timestamp) yields a fresh salt so local re-deploys onto the
+    ///      same fork don't CreateCollision.
+    function _vaultSalt(uint256 chainId, uint256 i, string memory tag, uint256 nonce)
+        private pure returns (bytes32)
+    {
+        return nonce == 0
+            ? keccak256(abi.encode(chainId, i, tag))
+            : keccak256(abi.encode(chainId, i, tag, nonce));
     }
 }

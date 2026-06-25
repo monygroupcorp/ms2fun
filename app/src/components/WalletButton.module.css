@@ -10,6 +10,30 @@
   color: var(--text-primary);
   border: 2px solid var(--border-primary);
   padding: var(--space-1) var(--space-2);
+  text-decoration: none;
+}
+
+.address:hover {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+/* Compact icon-only disconnect (eject) — narrow, square-ish, doesn't crowd the nav. */
+.eject {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  line-height: 1;
+  color: var(--text-primary);
+  background: transparent;
+  border: 2px solid var(--border-primary);
+  padding: var(--space-1);
+  min-width: 2rem;
+  cursor: pointer;
+}
+
+.eject:hover {
+  color: var(--bg-primary);
+  background: var(--text-primary);
 }
 
 .button {

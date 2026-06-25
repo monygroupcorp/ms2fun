@@ -9,6 +9,7 @@ import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComp
 import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
 import {FreeMintParams} from "../../../src/interfaces/IFactoryTypes.sol";
 import {PasswordTierGatingModule} from "../../../src/gating/PasswordTierGatingModule.sol";
+import {TierConfig, TierType} from "../../../src/gating/IPasswordTierGatingModule.sol";
 import {GatingScope} from "../../../src/gating/IGatingModule.sol";
 import {IGatingModule} from "../../../src/gating/IGatingModule.sol";
 import {ComponentRegistry} from "../../../src/registry/ComponentRegistry.sol";
@@ -212,8 +213,8 @@ contract ERC404FreeMintTest is Test {
         hashes[0] = keccak256("secret");
         uint256[] memory caps = new uint256[](1);
         caps[0] = 1e24; // large enough
-        PasswordTierGatingModule.TierConfig memory tiers = PasswordTierGatingModule.TierConfig({
-            tierType: PasswordTierGatingModule.TierType.VOLUME_CAP,
+        TierConfig memory tiers = TierConfig({
+            tierType: TierType.VOLUME_CAP,
             passwordHashes: hashes,
             volumeCaps: caps,
             tierUnlockTimes: new uint256[](0)
@@ -249,8 +250,8 @@ contract ERC404FreeMintTest is Test {
         hashes[0] = keccak256("secret2");
         uint256[] memory caps = new uint256[](1);
         caps[0] = 1e24;
-        tierGatingModule.configureFor(address(0), PasswordTierGatingModule.TierConfig({
-            tierType: PasswordTierGatingModule.TierType.VOLUME_CAP,
+        tierGatingModule.configureFor(address(0), TierConfig({
+            tierType: TierType.VOLUME_CAP,
             passwordHashes: hashes,
             volumeCaps: caps,
             tierUnlockTimes: new uint256[](0)
@@ -292,8 +293,8 @@ contract ERC404FreeMintTest is Test {
         hashes[0] = keccak256("secret3");
         uint256[] memory caps = new uint256[](1);
         caps[0] = 0; // zero cap — would block everyone
-        tierGatingModule.configureFor(address(0), PasswordTierGatingModule.TierConfig({
-            tierType: PasswordTierGatingModule.TierType.VOLUME_CAP,
+        tierGatingModule.configureFor(address(0), TierConfig({
+            tierType: TierType.VOLUME_CAP,
             passwordHashes: hashes,
             volumeCaps: caps,
             tierUnlockTimes: new uint256[](0)

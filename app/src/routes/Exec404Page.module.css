@@ -1,7 +1,5 @@
 .page {
-  max-width: var(--container-xl);
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-10);
+  composes: page from '../styles/layout.module.css';
 }
 
 .crumb {
@@ -88,11 +86,5 @@
   .sidebar {
     position: relative;
     top: 0;
-  }
-}
-
-@media (max-width: 768px) {
-  .page {
-    padding: var(--space-4);
   }
 }
