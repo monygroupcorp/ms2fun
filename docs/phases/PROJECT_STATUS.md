@@ -64,6 +64,11 @@ Shipped:
 merges + **adversarially reviews integration points** + gates → fork-verify. The review repeatedly
 caught real bugs (gating-encoding, multicall3, per-second refetch, board-channel) — keep doing it.
 
+## Verifying UI ↔ contract coverage (write-path E2E)
+**`docs/testing-write-path-e2e.md`** — headless Playwright walks that drive the real app against the
+fork with an injected auto-signing wallet, asserting on-chain via viem. This is the tool for proving
+(not assuming) that every contract function has a working UI path. Template: `app/e2e/gating.spec.ts`.
+
 ## Dev loop & fork facts
 - `pnpm chain:fork` (start anvil mainnet-fork) → `pnpm chain:deploy` (deploy + seed + advance +
   registry handover + writes `app/src/config/local-deployment.json`).
