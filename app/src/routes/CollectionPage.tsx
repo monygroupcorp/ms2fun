@@ -9,6 +9,7 @@ import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { Erc1155Collection } from '../components/collection/types/Erc1155Collection'
 import { Erc721Collection } from '../components/collection/types/Erc721Collection'
 import { Erc404Collection } from '../components/collection/types/Erc404Collection'
+import { ProjectStyle } from '../components/collection/ProjectStyle'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -73,6 +74,11 @@ export function CollectionPage() {
 
       {!isPending && !isError && card && card.instance !== ZERO_ADDRESS && (
         <>
+          {/* Creator-supplied page CSS (ERC1155 + ERC404 carry styleUri). Renders nothing; injects
+              scoped CSS + the `has-project-style` body flag while this page is mounted. */}
+          {(card.contractType === 'ERC1155' || card.contractType === 'ERC404') && (
+            <ProjectStyle instance={instance} />
+          )}
           {metadata?.image && !imgError ? (
             <img
               src={resolveUri(metadata.image)}
