@@ -1,0 +1,18 @@
+/* Erc404AdminPanel (W-E) — control column for an action row: input stacked above its TxButton. */
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: flex-end;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+  max-width: 22rem;
+}

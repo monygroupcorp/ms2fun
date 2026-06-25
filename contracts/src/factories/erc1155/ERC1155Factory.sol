@@ -11,6 +11,7 @@ import {IComponentRegistry} from "../../registry/interfaces/IComponentRegistry.s
 import {FeatureUtils} from "../../master/libraries/FeatureUtils.sol";
 import {FreeMintParams} from "../../interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../../gating/IGatingModule.sol";
+import {IPasswordTierGatingModule, TierConfig} from "../../gating/IPasswordTierGatingModule.sol";
 import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
 
 /**
@@ -77,6 +78,26 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         bytes32 salt,
         CreateParams calldata params
     ) external payable nonReentrant returns (address instance) {
+        TierConfig memory empty;
+        return _createInstance(salt, params, empty);
+    }
+
+    /// @notice Deploy a new ERC1155 instance and apply tier-gating config in the same tx.
+    /// @param gatingConfig Tier config applied to params.gatingModule at deploy time.
+    ///        Empty (no passwordHashes) leaves the instance open / unconfigured.
+    function createInstance(
+        bytes32 salt,
+        CreateParams calldata params,
+        TierConfig calldata gatingConfig
+    ) external payable nonReentrant returns (address instance) {
+        return _createInstance(salt, params, gatingConfig);
+    }
+
+    function _createInstance(
+        bytes32 salt,
+        CreateParams calldata params,
+        TierConfig memory gatingConfig
+    ) private returns (address instance) {
         if (params.gatingModule != address(0)) {
             if (!componentRegistry.isApprovedComponent(params.gatingModule)) revert UnapprovedComponent();
         }
@@ -101,6 +122,12 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
 
         instance = _deployAndRegister(salt, params, agentCreated);
         ERC1155Instance(instance).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
+
+        // Tier gating configured after registration — factory is a registered configurer.
+        // Empty config (no passwordHashes) leaves the instance open.
+        if (params.gatingModule != address(0) && gatingConfig.passwordHashes.length > 0) {
+            IPasswordTierGatingModule(params.gatingModule).configureFor(instance, gatingConfig);
+        }
 
         emit InstanceCreated(instance, params.creator, params.name, params.vault);
     }

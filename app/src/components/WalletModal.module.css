@@ -1,0 +1,129 @@
+/* ============================================================
+   WalletModal — Gallery Brutalism
+   Monochrome. No gradients. No shadows on modal surface.
+   Max border-radius: 2px (--radius-sm).
+   ============================================================ */
+
+/* Backdrop: semi-opaque to keep context visible */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+}
+
+/* Modal panel */
+.modal {
+  position: relative;
+  z-index: var(--z-modal);
+  background: var(--bg-primary);
+  border: 2px solid var(--border-primary);
+  width: 100%;
+  max-width: 22rem;
+}
+
+/* Header row */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.title {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.closeBtn {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  background: none;
+  border: none;
+  padding: var(--space-1);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.closeBtn:hover {
+  background: var(--state-hover-bg);
+}
+
+/* Connector list */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Each connector row */
+.connectorBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: none;
+  border-bottom: 1px solid var(--border-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.connectorBtn:last-child {
+  border-bottom: none;
+}
+
+.connectorBtn:hover:not(:disabled) {
+  background: var(--state-hover-bg);
+}
+
+.connectorBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  /* Brutalist: no border-radius on icons either */
+  display: block;
+}
+
+.name {
+  flex: 1;
+}
+
+.pending {
+  font-size: var(--font-size-caption);
+  letter-spacing: var(--letter-spacing-normal);
+  color: var(--text-secondary);
+}
+
+/* Empty-state when no connectors available */
+.empty {
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  text-align: center;
+}

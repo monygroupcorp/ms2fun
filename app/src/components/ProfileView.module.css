@@ -1,0 +1,159 @@
+.profile {
+  font-family: var(--font-mono);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+}
+
+/* ── Banner ─────────────────────────────────────────────────── */
+.banner {
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.bannerBlank {
+  background-color: var(--bg-tertiary);
+}
+
+.bannerImg {
+  background-color: var(--bg-tertiary);
+}
+
+.bannerImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Avatar ─────────────────────────────────────────────────── */
+.avatarWrap {
+  margin-top: calc(var(--space-3) * -3);
+  margin-left: var(--space-3);
+  width: 5rem;
+  height: 5rem;
+  border: 2px solid var(--bg-secondary);
+  background-color: var(--bg-secondary);
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.avatarImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatarGlyph {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+
+/* ── Identity block ─────────────────────────────────────────── */
+.identity {
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.name {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--space-1);
+  line-height: var(--line-height-tight);
+  overflow-wrap: break-word;
+}
+
+.handle {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-1);
+}
+
+.addressLine {
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  letter-spacing: var(--letter-spacing-wide);
+  margin: 0;
+}
+
+/* ── Empty state ────────────────────────────────────────────── */
+.emptyNote {
+  margin: var(--space-2) var(--space-3) 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* ── Bio ────────────────────────────────────────────────────── */
+.bio {
+  margin: var(--space-2) var(--space-3) 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ── Links ──────────────────────────────────────────────────── */
+.links {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) var(--space-3) 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  border-top: 1px solid var(--border-tertiary);
+  padding-top: var(--space-2);
+}
+
+.link {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: var(--transition-fast);
+}
+
+.link:hover {
+  opacity: 0.7;
+}
+
+/* ── Socials ────────────────────────────────────────────────── */
+.socials {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) var(--space-3) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  border-top: 1px solid var(--border-tertiary);
+  padding-top: var(--space-2);
+}
+
+.socialItem {
+  display: flex;
+  gap: var(--gap-sm);
+  align-items: baseline;
+  font-size: var(--font-size-body-sm);
+}
+
+.socialKey {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-size: var(--font-size-caption);
+  min-width: 5rem;
+  flex-shrink: 0;
+}
+
+.socialValue {
+  color: var(--text-primary);
+}

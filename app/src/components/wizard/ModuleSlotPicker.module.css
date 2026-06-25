@@ -1,0 +1,155 @@
+/* ============================================================
+   ModuleSlotPicker — Gallery Brutalism
+   Monochrome CSS Modules. All color via var(--…) tokens.
+   ============================================================ */
+
+/* ── Root ──────────────────────────────────────────────────── */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+/* ── Slot header ───────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-primary);
+}
+
+.required {
+  margin-left: 0.25rem;
+  color: var(--text-primary);
+}
+
+.help {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
+}
+
+/* ── Note (pending / error / empty) ────────────────────────── */
+
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-secondary);
+  padding: var(--padding-lg);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* ── Options grid ──────────────────────────────────────────── */
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr));
+  gap: var(--gap-md);
+}
+
+/* ── Option card/radio ─────────────────────────────────────── */
+
+.option {
+  /* Reset button defaults */
+  appearance: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+
+  /* Card shell */
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  padding: var(--space-3);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  text-align: left;
+  transition: var(--transition-fast);
+}
+
+.option:hover {
+  background-color: var(--state-hover-bg);
+  border-color: var(--border-primary);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--state-focus-outline);
+  outline-offset: 2px;
+}
+
+/* Selected state — thick left accent + border inversion */
+.optionSelected {
+  background-color: var(--bg-primary);
+  border-color: var(--border-primary);
+  border-left-width: var(--border-width-bold);
+}
+
+.optionSelected:hover {
+  background-color: var(--state-hover-bg);
+}
+
+/* "None" option — visually lighter until selected */
+.optionNone {
+  border-style: dashed;
+}
+
+.optionNone.optionSelected {
+  border-style: solid;
+}
+
+/* ── Option internals ──────────────────────────────────────── */
+
+.optionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.optionName {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionSubtitle {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  margin: 0;
+}
+
+.optionDescription {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
+
+  /* Clamp to 3 lines — descriptions can be long */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

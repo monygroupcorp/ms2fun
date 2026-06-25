@@ -1,6 +1,6 @@
 # Phase 2 — Reconciliation: the API + the Crux
 
-**Status:** Not started
+**Status:** 🟡 Mostly DONE — T1/T2/T3/T5/T6 complete and merged to `main` 2026-06-23 (`a3d310a`); **T4 (Aave vault) is the lone open item** and gates the entire create/write path.
 **Depends on:** Phase 1 (stack proven)
 **Exit gate owner:** Mony
 
@@ -55,11 +55,26 @@ consume, and add the one new economic piece (the Aave vault).
 ## Task units
 - [x] T1 — Contract inventory + classification (read-only survey). **DONE 2026-06-22 — see
   "T1 — Inventory & classification" below.**
-- [ ] T2 — Metadata model design (3 scopes) → written spec + types.
-- [ ] T3 — Module option schema design → written spec + types.
-- [ ] T4 — Aave vault: select base, implement 20/20/1 + maturity, Foundry tests.
-- [ ] T5 — Typed domain layer over bindings (profiles/collections/metadata/modules/messages).
-- [ ] T6 — Deploy the reconciled set + Aave vault to the fork via the existing pipeline + seeds.
+- [x] T2 — Metadata model design (3 scopes) → written spec + types. **DONE 2026-06-23** —
+  design locked in [ADR-0004](../decisions/0004-metadata-model.md); backend-free types built
+  (`app/src/lib/metadata/{schemas,uri,encode}.ts`: lenient parsers + data-URI encode); the NEW
+  account scope realized as the ownerless `ProfileRegistry` contract (`address → profileURI`).
+- [x] T3 — Module option schema design → written spec + types. **DONE 2026-06-23** —
+  [ADR-0005](../decisions/0005-module-option-schema.md): hybrid source (on-chain ComponentRegistry
+  enumerates modules + `configType`; client holds typed config forms + hand-authored factory
+  descriptors), generic declarative `FieldSchema` + shared evaluator, vault slot modelled (provider
+  pending T4). Types in `app/src/lib/wizard/` (schema/projectTypes/configTypes/useApprovedModules);
+  live `useApprovedModules` verified on the fork (gating→3, liquidity→3, vault→0).
+- [ ] T4 — Aave vault: select base, implement the endowment splits + maturity, Foundry tests.
+  **Build handoff ready → [t4-aave-vault-handoff.md](./t4-aave-vault-handoff.md)** (seams pinned,
+  prerequisites + open decisions flagged). The lone open Phase-2 item; gates the create/write path.
+- [~] T5 — Typed domain layer over bindings (profiles/collections/metadata/modules/messages).
+  **Profiles + collections DONE** (ProfileRegistry + metadata hooks; `getHomePageData` cards).
+  Remaining: the **GlobalMessageRegistry feed** (invariant) + creator→collections enumeration
+  (`CreatorInstanceAdded`) + modules.
+- [~] T6 — Deploy the reconciled set + Aave vault to the fork via the existing pipeline + seeds.
+  **Fork deploy + seed DONE** (`SeedAnvil.s.sol`: 3 featured ERC1155 collections + 2 profiles,
+  all backend-free `data:` metadata; verified via `getHomePageData`/`profileURI`). Aave pending T4.
 
 ## T1 — Inventory & classification (2026-06-22)
 
@@ -163,6 +178,13 @@ home or stay event-derived.
 - `forge test` green for the vault; fork deploy + seed run.
 
 ## Decision log
+- **2026-06-23 — T2 shipped + T5/T6 partial: account scope + backend-free metadata seed.**
+  Implemented `ProfileRegistry` (ownerless, non-upgradeable — zero admin surface; every address
+  self-edits one `profileURI`) as the on-chain account scope from ADR-0004; built the backend-free
+  metadata type layer (lenient parsers + `data:` encode) and the profile UI stack (`ProfileView`,
+  `ProfileEditForm`, `/profile` route reading/writing the generated bindings). Added `SeedAnvil.s.sol`
+  (anvil-only) standing up 3 featured collections + 2 profiles with inline `data:` JSON/SVG, verified
+  on the fork. Read/discovery path remains independent of the (deferred) Aave vault. See [[dev-fork-seed]].
 - **2026-06-23 — G-C ratified by Mony (with a correction).** (1) Keep/retire map AGREED — but the
   draft wrongly retired the LP deployers; **corrected**: only the alignment *vaults* retire, the LP
   deployers/backends are KEEP (the collection's bonding→DEX LP is necessary; "lean kills the LP

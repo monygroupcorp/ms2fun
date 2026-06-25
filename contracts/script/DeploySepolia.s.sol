@@ -23,7 +23,8 @@ contract DeploySepolia is DeployCore {
             description:       "Chainlink - Sepolia alignment target",
             deployUniVault:    true,
             deployCypherVault: false,
-            deployZAMMVault:   false
+            deployZAMMVault:   false,
+            communityPayout:   address(0) // set post-deploy
         });
 
         cfg.chainId          = 11155111;

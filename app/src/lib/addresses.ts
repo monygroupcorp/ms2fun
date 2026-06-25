@@ -18,9 +18,11 @@ export const forkAddresses = {
   AlignmentRegistryV1: c.AlignmentRegistryV1 as `0x${string}`,
   GlobalMessageRegistry: c.GlobalMessageRegistry as `0x${string}`,
   FeaturedQueueManager: c.FeaturedQueueManager as `0x${string}`,
+  ProtocolTreasuryV1: c.ProtocolTreasuryV1 as `0x${string}`,
   QueryAggregator: c.QueryAggregator as `0x${string}`,
   ERC404Factory: c.ERC404Factory as `0x${string}`,
   ERC1155Factory: c.ERC1155Factory as `0x${string}`,
   ERC721AuctionFactory: c.ERC721AuctionFactory as `0x${string}`,
   ComponentRegistry: c.ComponentRegistry as `0x${string}`,
+  ProfileRegistry: c.ProfileRegistry as `0x${string}`,
 } as const

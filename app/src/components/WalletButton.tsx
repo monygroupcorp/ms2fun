@@ -1,4 +1,7 @@
-import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { useState } from 'react'
+import { Link } from 'wouter'
+import { useAccount, useDisconnect } from 'wagmi'
+import { WalletModal } from './WalletModal'
 import styles from './WalletButton.module.css'
 
 function truncate(address: `0x${string}`): string {
@@ -6,39 +9,45 @@ function truncate(address: `0x${string}`): string {
 }
 
 /**
- * Brutalist wallet UI on wagmi's headless hooks. Connectors are discovered via EIP-6963
- * (multiInjectedProviderDiscovery); we render the pixels, wagmi owns the plumbing, and we never
- * custody keys. See docs/decisions/0001-web3-stack.md.
+ * Brutalist wallet UI on wagmi's headless hooks.  When disconnected, renders a
+ * single CONNECT WALLET button that opens WalletModal — which lists connectors
+ * de-duplicated so EIP-6963 wallets don't appear alongside the generic
+ * 'injected' fallback.  When connected, the truncated address links to the
+ * holder's /portfolio, and a compact ⏏ (eject) button disconnects.
+ * See docs/decisions/0001-web3-stack.md.
  */
 export function WalletButton() {
   const { address, isConnected } = useAccount()
-  const { connect, connectors, status } = useConnect()
   const { disconnect } = useDisconnect()
+  const [modalOpen, setModalOpen] = useState(false)
 
   if (isConnected && address) {
     return (
       <div className={styles.wallet}>
-        <span className={styles.address}>{truncate(address)}</span>
-        <button type="button" className={styles.button} onClick={() => disconnect()}>
-          DISCONNECT
+        <Link href="/portfolio" className={styles.address} title="view portfolio">
+          {truncate(address)}
+        </Link>
+        <button
+          type="button"
+          className={styles.eject}
+          onClick={() => disconnect()}
+          title="disconnect"
+          aria-label="disconnect wallet"
+        >
+          ⏏
         </button>
       </div>
     )
   }
 
   return (
-    <div className={styles.wallet}>
-      {connectors.map((connector) => (
-        <button
-          key={connector.uid}
-          type="button"
-          className={styles.button}
-          disabled={status === 'pending'}
-          onClick={() => connect({ connector })}
-        >
-          CONNECT{connector.name ? ` · ${connector.name}` : ''}
+    <>
+      <div className={styles.wallet}>
+        <button type="button" className={styles.button} onClick={() => setModalOpen(true)}>
+          CONNECT WALLET
         </button>
-      ))}
-    </div>
+      </div>
+      {modalOpen && <WalletModal onClose={() => setModalOpen(false)} />}
+    </>
   )
 }

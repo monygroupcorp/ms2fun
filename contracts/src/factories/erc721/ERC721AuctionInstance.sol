@@ -326,8 +326,8 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         // Refund creator's deposit (force-transfer so a non-receiving owner cannot permanently strand the bidder's funds)
         SafeTransferLib.forceSafeTransferETH(owner(), auction.minBid);
 
-        // Split winning bid: 1/19/80
-        RevenueSplitLib.Split memory s = RevenueSplitLib.split(auction.highBid);
+        // Split winning bid 1/80/19: 1% protocol / 80% vault (endowment) / 19% creator (ADR-0003)
+        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMint(auction.highBid);
 
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(protocolTreasury, s.protocolCut);

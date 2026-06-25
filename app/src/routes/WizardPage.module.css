@@ -1,0 +1,111 @@
+.page {
+  composes: pageStack from '../styles/layout.module.css';
+  --page-max: var(--page-max-form);
+}
+
+.crumb {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.back {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.back:hover {
+  color: var(--text-primary);
+}
+
+.title {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  padding-top: var(--padding-md);
+  border-top: 1px solid var(--border-secondary);
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Per-module config form (e.g. password tiers) nested under its slot picker. */
+.moduleConfig {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.error {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  border-left: 2px solid var(--text-primary);
+  padding-left: var(--padding-sm);
+}
+
+/* Project type + vault cards share the selectable-card pattern */
+.typeRow,
+.vaultRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--gap-md);
+}
+
+.typeCard,
+.vaultCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+  text-align: left;
+  padding: var(--padding-md);
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.typeCard:hover,
+.vaultCard:hover {
+  border-color: var(--text-primary);
+}
+
+.typeSelected,
+.vaultSelected {
+  border-color: var(--text-primary);
+  border-left-width: 4px;
+}
+
+.typeName,
+.vaultName {
+  font-weight: 600;
+}
+
+.typeSummary,
+.vaultMeta {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.connect {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+}

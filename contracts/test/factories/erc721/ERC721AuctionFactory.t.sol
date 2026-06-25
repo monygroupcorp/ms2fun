@@ -344,7 +344,7 @@ contract ERC721AuctionFactoryTest is Test {
         assertEq(inst.ownerOf(1), bidder1);
 
         uint256 protocolCut = 1 ether / 100;
-        uint256 expectedVaultCut = (1 ether * 19) / 100;
+        uint256 expectedVaultCut = (1 ether * 80) / 100;
         uint256 expectedCreatorCut = 1 ether - protocolCut - expectedVaultCut;
         uint256 expectedCreatorPay = 0.1 ether + expectedCreatorCut;
         assertEq(artist.balance - artistBalBefore, expectedCreatorPay);

@@ -1,0 +1,20 @@
+/* MasterRegistryPanel (W-K1) — control column for an action row: inputs stacked above the TxButton.
+   Mirrors the per-instance admin panels so the protocol console reads identically. */
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: flex-end;
+  width: 100%;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+  max-width: 28rem;
+}

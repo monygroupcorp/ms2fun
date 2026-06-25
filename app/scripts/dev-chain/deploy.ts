@@ -21,7 +21,8 @@ import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createTestClient, defineChain, http, type Address } from 'viem'
+import { createTestClient, createWalletClient, defineChain, http, type Address } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const appDir = resolve(here, '../..')
@@ -85,6 +86,30 @@ async function main(): Promise<void> {
     },
   )
 
+  // 2b. Seed anvil-only sample data (collections + profiles) so discovery cards, images, and
+  //     profile pages light up with real on-chain data. Backend-free (inline data: metadata).
+  //     Anvil-only — never part of DeployCore / a production deploy.
+  console.log('\n▶ forge script SeedAnvil.s.sol --broadcast')
+  execSync(
+    `forge script script/SeedAnvil.s.sol --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID} --code-size-limit 30000`,
+    {
+      cwd: contractsDir,
+      stdio: 'inherit',
+      env: { ...process.env, PRIVATE_KEY: ANVIL_DEPLOYER_KEY },
+    },
+  )
+
+  // 2c. Advance the anvil clock +2h. The seed creates time-relative states (auctions with a 1h
+  //     duration, bonding open +1h, maturity +90m) but vm.warp is a no-op under --broadcast, so we
+  //     advance the LIVE chain here instead. After this: gallery auctions are ended (settle-ready +
+  //     no-bid), ember stays preopen, vapor is mid-curve, cinder is bonding + matured (graduate
+  //     unlocked), live-salon (1-day) stays active. The UI is chain-anchored (useNowSec reads
+  //     block.timestamp) so countdowns agree with the advanced chain.
+  const TWO_HOURS = 2 * 60 * 60
+  await test.increaseTime({ seconds: TWO_HOURS })
+  await test.mine({ blocks: 1 })
+  console.log(`✓ Advanced anvil clock +${TWO_HOURS}s so seeded auction/bonding states materialize`)
+
   // 3. Read the FRESH deployment output. Guard against a stale anvil.json from another chain.
   const deployed = JSON.parse(readFileSync(anvilJsonPath, 'utf8')) as AnvilDeployment
   if (deployed.chainId !== CHAIN_ID) {
@@ -92,6 +117,68 @@ async function main(): Promise<void> {
   }
   const c = deployed.contracts
   const f = deployed.factories
+
+  // 3b. Hand the platform REGISTRIES to the testing wallet (ADMIN) so it can drive /admin. They're
+  //     Solady-Ownable with the 2-STEP handover (direct transferOwnership reverts UseRequest…), and
+  //     the incoming owner must initiate — so we anvil-impersonate ADMIN to requestOwnershipHandover,
+  //     then the deployer completes it. (Instances were handed over directly in the seed; ADMIN is
+  //     already funded there for gas.) Per-registry try/catch so one odd registry can't fail deploy.
+  const ADMIN = '0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86' as const
+  const handoverAbi = [
+    {
+      type: 'function',
+      name: 'requestOwnershipHandover',
+      inputs: [],
+      outputs: [],
+      stateMutability: 'payable',
+    },
+    {
+      type: 'function',
+      name: 'completeOwnershipHandover',
+      inputs: [{ name: 'pendingOwner', type: 'address' }],
+      outputs: [],
+      stateMutability: 'payable',
+    },
+  ] as const
+  const deployerWallet = createWalletClient({
+    account: privateKeyToAccount(ANVIL_DEPLOYER_KEY),
+    chain: anvilFork,
+    transport: http(RPC),
+  })
+  const adminWallet = createWalletClient({ account: ADMIN, chain: anvilFork, transport: http(RPC) })
+  for (const name of [
+    'MasterRegistry',
+    'AlignmentRegistry',
+    'ComponentRegistry',
+    'FeaturedQueueManager',
+  ]) {
+    const addr = c[name]
+    if (!addr) continue
+    try {
+      await test.impersonateAccount({ address: ADMIN })
+      await adminWallet.writeContract({
+        address: addr,
+        abi: handoverAbi,
+        functionName: 'requestOwnershipHandover',
+      })
+      await test.mine({ blocks: 1 })
+      await test.stopImpersonatingAccount({ address: ADMIN })
+      await deployerWallet.writeContract({
+        address: addr,
+        abi: handoverAbi,
+        functionName: 'completeOwnershipHandover',
+        args: [ADMIN],
+      })
+      await test.mine({ blocks: 1 })
+    } catch (err) {
+      console.warn(
+        `⚠ ownership handover skipped for ${name}: ${(err as Error).message.split('\n')[0]}`,
+      )
+    }
+  }
+  console.log(
+    `✓ Handed platform registries to ADMIN (${ADMIN}) — /admin operable as the testing wallet`,
+  )
 
   const required = (record: Record<string, Address>, key: string): Address => {
     const value = record[key]
@@ -109,11 +196,13 @@ async function main(): Promise<void> {
       AlignmentRegistryV1: required(c, 'AlignmentRegistry'),
       GlobalMessageRegistry: required(c, 'GlobalMessageRegistry'),
       FeaturedQueueManager: required(c, 'FeaturedQueueManager'),
+      ProtocolTreasuryV1: required(c, 'ProtocolTreasury'),
       QueryAggregator: required(c, 'QueryAggregator'),
       ERC404Factory: required(f, 'ERC404'),
       ERC1155Factory: required(f, 'ERC1155'),
       ERC721AuctionFactory: required(f, 'ERC721'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
+      ProfileRegistry: required(c, 'ProfileRegistry'),
     },
   }
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)

@@ -1,0 +1,60 @@
+/* ERC404 bonding chart (W-B5) — Gallery Brutalism: monochrome, mono labels, no gradients/shadows,
+   no radius. The canvas draws in #000/#fff via the resolved CSS vars. */
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-4);
+  font-family: var(--font-mono);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.meta {
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+}
+
+.canvasWrap {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--border-tertiary);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.note {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-size: var(--font-size-caption);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}

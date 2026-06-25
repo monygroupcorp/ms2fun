@@ -16,6 +16,10 @@ contract DeployAnvil is DeployCore {
     address constant V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
     address constant MS2_TOKEN  = 0x98Ed411B8cf8536657c660Db8aA55D9D4bAAf820;
     address constant CULT_TOKEN = 0x0000000000c5dc95539589fbD24BE07c6C14eCa4;
+    // Aave WETH StataTokenV2 (waEthWETH). = AaveV3EthereumAssets.WETH_STATA_TOKEN in the vendored
+    // aave-dao/aave-address-book; pinned here (verified live on the fork) to avoid dragging the whole
+    // Aave protocol into compilation for one address. Update from the address-book if Aave migrates.
+    address constant WETH_STATA_TOKEN = 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202;
 
     function run() public {
         uint256 pk = vm.envUint("PRIVATE_KEY");
@@ -30,12 +34,15 @@ contract DeployAnvil is DeployCore {
         targets[0] = AlignmentTargetConfig({
             token: MS2_TOKEN, symbol: "MS2",
             name: "Milady-Station-2", description: "MS2 community alignment target",
-            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false
+            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false,
+            // local-only deterministic placeholder community payout (a real deploy passes the actual address)
+            communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", MS2_TOKEN)))))
         });
         targets[1] = AlignmentTargetConfig({
             token: CULT_TOKEN, symbol: "CULT",
             name: "Cult-DAO", description: "Cult DAO community alignment target",
-            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false
+            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false,
+            communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", CULT_TOKEN)))))
         });
 
         // Use timestamp-derived salts so repeated Anvil restarts don't collide
@@ -47,6 +54,7 @@ contract DeployAnvil is DeployCore {
         cfg.cypherPositionManager = address(0);
         cfg.cypherRouter     = address(0);
         cfg.zamm             = address(0);
+        cfg.aaveStataToken   = WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
         cfg.zrouter          = address(0);
         cfg.safe             = address(0);
         // Sequential salts — unguarded so any address can call CreateX on local chain
@@ -56,6 +64,8 @@ contract DeployAnvil is DeployCore {
         cfg.saltGlobalMsgReg   = bytes32(uint256(keccak256(abi.encode(block.timestamp, "gmr"))));
         cfg.saltAlignmentReg   = bytes32(uint256(keccak256(abi.encode(block.timestamp, "align"))));
         cfg.saltComponentReg   = bytes32(uint256(keccak256(abi.encode(block.timestamp, "comp"))));
+        // Mixed into the per-target vault salts so re-deploying onto the same fork doesn't collide.
+        cfg.saltNonce          = block.timestamp;
         cfg.priceDeviationBps  = 1000;
         cfg.twapSeconds        = 1800;
         cfg.zrouterFee         = 3000;

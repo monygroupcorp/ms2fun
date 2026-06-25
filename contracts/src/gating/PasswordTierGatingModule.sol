@@ -2,24 +2,18 @@
 pragma solidity ^0.8.20;
 
 import {IGatingModule} from "./IGatingModule.sol";
+import {IPasswordTierGatingModule, TierConfig, TierType} from "./IPasswordTierGatingModule.sol";
 import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 /// @title PasswordTierGatingModule
 /// @notice Singleton gating module for password-protected tier minting.
 /// State is keyed by the calling instance address (msg.sender).
-/// Only registered factories may configure instances.
-contract PasswordTierGatingModule is IGatingModule, Ownable {
+/// Initial config is authored by a registered factory (at deploy) or the
+/// instance owner (post-create); updates are owner-only.
+contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, Ownable {
     // ── Types ──────────────────────────────────────────────────────────────────
-
-    enum TierType { VOLUME_CAP, TIME_BASED }
-
-    struct TierConfig {
-        TierType   tierType;
-        bytes32[]  passwordHashes;
-        uint256[]  volumeCaps;       // For VOLUME_CAP mode
-        uint256[]  tierUnlockTimes;  // For TIME_BASED mode (relative to bondingOpenTime)
-    }
+    // TierType / TierConfig live in IPasswordTierGatingModule.sol (shared with factories).
 
     // ── Errors ─────────────────────────────────────────────────────────────────
 
@@ -54,12 +48,15 @@ contract PasswordTierGatingModule is IGatingModule, Ownable {
     // ── Configuration ──────────────────────────────────────────────────────────
 
     /// @notice Configure or update tier config for an instance.
-    /// @dev Initial configuration (before first deploy) may only be called by a registered factory.
+    /// @dev Initial configuration may be called by a registered factory (threaded through
+    ///      createInstance at deploy time) OR by the instance owner (post-create setup).
     ///      Subsequent updates may only be called by the instance owner.
     ///      canMint data encoding: abi.encode(bytes32 passwordHash, uint256 openTime)
-    function configureFor(address instance, TierConfig calldata config) external {
+    function configureFor(address instance, TierConfig calldata config) external override {
         if (!configured[instance]) {
-            if (!masterRegistry.isFactoryRegistered(msg.sender)) revert Unauthorized();
+            if (!masterRegistry.isFactoryRegistered(msg.sender) && msg.sender != Ownable(instance).owner()) {
+                revert Unauthorized();
+            }
         } else {
             if (msg.sender != Ownable(instance).owner()) revert Unauthorized();
         }
