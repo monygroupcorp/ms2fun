@@ -5,8 +5,12 @@ import { toHex } from 'viem'
 import {
   PROJECT_TYPES,
   getProjectType,
+  getConfigSchema,
   validateFields,
   buildCreateInstance,
+  encodeTierConfig,
+  hasTierConfig,
+  validateTierConfig,
   type ProjectTypeSchema,
   type SelectedModules,
 } from '../lib/wizard'
@@ -45,6 +49,9 @@ export function WizardPage() {
   const [values, setValues] = useState<Record<string, string>>({})
   const [vault, setVault] = useState<`0x${string}` | undefined>(undefined)
   const [modules, setModules] = useState<Record<string, `0x${string}`>>({})
+  // The gating module's metadata `configType` (drives which config form to show) + its form values.
+  const [gatingConfigType, setGatingConfigType] = useState('')
+  const [gatingValues, setGatingValues] = useState<Record<string, string>>({})
   const [metadata, setMetadata] = useState<CollectionMetadata>(EMPTY_META)
   const [attempted, setAttempted] = useState(false)
 
@@ -61,10 +68,20 @@ export function WizardPage() {
   const coreErrors = attempted ? validateFields(projectType.coreFields, values) : {}
   const busy = submit.isPending || submit.isConfirming
 
+  // Config form for the selected gating module (currently only password-tier-gating has inputs).
+  const gatingSchema = gatingConfigType ? getConfigSchema(gatingConfigType) : undefined
+  const showGatingForm = Boolean(modules.gatingModule && gatingSchema && gatingSchema.fields.length > 0)
+  const gatingErrors =
+    attempted && showGatingForm && gatingSchema
+      ? { ...validateFields(gatingSchema.fields, gatingValues), ...validateTierConfig(gatingValues) }
+      : {}
+
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
     setValues({})
     setModules({})
+    setGatingConfigType('')
+    setGatingValues({})
     setAttempted(false)
     submit.reset()
   }
@@ -74,6 +91,13 @@ export function WizardPage() {
     setAttempted(true)
     if (Object.keys(validateFields(projectType.coreFields, values)).length > 0) return
     if (!creator || !vault || !metadata.name.trim()) return
+    if (
+      showGatingForm &&
+      gatingSchema &&
+      (Object.keys(validateFields(gatingSchema.fields, gatingValues)).length > 0 ||
+        Object.keys(validateTierConfig(gatingValues)).length > 0)
+    )
+      return
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(32)))
     const selected: SelectedModules = {
@@ -82,6 +106,11 @@ export function WizardPage() {
       ...(modules.liquidityDeployer ? { liquidityDeployer: modules.liquidityDeployer } : {}),
       ...(modules.stakingModule ? { stakingModule: modules.stakingModule } : {}),
     }
+    // Thread tier config into the same create tx when the gating form has at least one tier.
+    const gatingConfig =
+      modules.gatingModule && hasTierConfig(gatingValues)
+        ? encodeTierConfig(gatingValues)
+        : undefined
     submit.submit(
       buildCreateInstance(typeKey, {
         values,
@@ -89,6 +118,7 @@ export function WizardPage() {
         metadataURI: collectionToDataUri(metadata),
         salt,
         modules: selected,
+        ...(gatingConfig ? { gatingConfig } : {}),
       }),
     )
   }
@@ -170,8 +200,23 @@ export function WizardPage() {
             <ModuleSlotPicker
               slot={slot}
               value={modules[slot.key]}
-              onChange={(sel) => setModules((m) => ({ ...m, [slot.key]: sel.address }))}
+              onChange={(sel) => {
+                setModules((m) => ({ ...m, [slot.key]: sel.address }))
+                if (slot.key === 'gatingModule') setGatingConfigType(sel.configType)
+              }}
             />
+            {/* Per-module config form (e.g. password tiers) — applied in the same create tx. */}
+            {slot.key === 'gatingModule' && showGatingForm && gatingSchema && (
+              <div className={styles.moduleConfig}>
+                <h3 className={styles.sectionTitle}>{gatingSchema.title}</h3>
+                <SchemaForm
+                  fields={gatingSchema.fields}
+                  values={gatingValues}
+                  onChange={(key, value) => setGatingValues((v) => ({ ...v, [key]: value }))}
+                  errors={gatingErrors}
+                />
+              </div>
+            )}
           </section>
         ))}
 

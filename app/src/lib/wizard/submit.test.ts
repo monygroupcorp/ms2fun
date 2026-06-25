@@ -170,6 +170,60 @@ describe('buildErc404Create', () => {
   })
 })
 
+// ── Tier-gating config threading ──────────────────────────────────────────────
+
+const TIER_CONFIG = {
+  tierType: 0,
+  passwordHashes: ['0x' + 'ab'.repeat(32)] as `0x${string}`[],
+  volumeCaps: [100n],
+  tierUnlockTimes: [],
+}
+
+describe('gating config threading', () => {
+  it('ERC1155: legacy 2-arg create when no config', () => {
+    const call = buildErc1155Create(baseCtx())
+    expect(call.args.length).toBe(2)
+  })
+
+  it('ERC1155: 3-arg gated overload when config present', () => {
+    const call = buildErc1155Create(baseCtx({ gatingConfig: TIER_CONFIG }))
+    expect(call.args.length).toBe(3)
+    expect(call.args[2]).toEqual(TIER_CONFIG)
+  })
+
+  it('ERC404: 5-arg legacy create when no config', () => {
+    const call = buildErc404Create(baseCtx())
+    expect(call.args.length).toBe(5)
+  })
+
+  it('ERC404: 6-arg gated overload appends config', () => {
+    const call = buildErc404Create(baseCtx({ gatingConfig: TIER_CONFIG }))
+    expect(call.args.length).toBe(6)
+    expect(call.args[5]).toEqual(TIER_CONFIG)
+  })
+
+  it('does NOT thread config when no gating module is selected', () => {
+    const call = buildErc1155Create(
+      baseCtx({ gatingConfig: TIER_CONFIG, modules: { vault: VAULT } }),
+    )
+    expect(call.args.length).toBe(2)
+  })
+
+  it('does NOT thread an empty config (no passwordHashes)', () => {
+    const empty = { tierType: 0, passwordHashes: [], volumeCaps: [], tierUnlockTimes: [] }
+    const call = buildErc404Create(baseCtx({ gatingConfig: empty }))
+    expect(call.args.length).toBe(5)
+  })
+
+  it('the gated args still encode against the factory ABI', () => {
+    const call = buildErc404Create(baseCtx({ gatingConfig: TIER_CONFIG }))
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(() =>
+      encodeFunctionData({ abi: erc404FactoryAbi, functionName: 'createInstance', args: call.args }),
+    ).not.toThrow()
+  })
+})
+
 // ── Module defaults (undefined → ZERO_ADDRESS) ────────────────────────────────
 
 describe('module defaults', () => {

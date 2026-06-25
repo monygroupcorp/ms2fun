@@ -18,6 +18,7 @@ import {
   erc721AuctionFactoryAbi,
 } from '../../generated/contracts'
 import type { ProjectTypeSchema } from './schema'
+import type { TierConfigValue } from './gatingConfig'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
@@ -40,6 +41,12 @@ export interface CreateContext {
   /** Fresh CREATE3 salt (the wizard generates it; bound to the creator on-chain). */
   salt: `0x${string}`
   modules: SelectedModules
+  /**
+   * Optional tier-gating config, applied to `modules.gatingModule` in the SAME create tx via the
+   * factory's gated `createInstance` overload. Omitted / empty (no passwordHashes) → the legacy
+   * overload is used and the instance is open/unconfigured.
+   */
+  gatingConfig?: TierConfigValue
 }
 
 type Erc1155Args = ContractFunctionArgs<typeof erc1155FactoryAbi, 'payable', 'createInstance'>
@@ -74,6 +81,16 @@ function num(v: string | undefined): number {
 }
 const addr = (a: `0x${string}` | undefined): `0x${string}` => a ?? ZERO_ADDRESS
 
+/**
+ * Tier config to thread through the gated overload, or undefined to use the legacy overload.
+ * Only threaded when a gating module is selected AND at least one tier was configured.
+ */
+function gating(c: CreateContext): TierConfigValue | undefined {
+  if (!c.modules.gatingModule || c.modules.gatingModule === ZERO_ADDRESS) return undefined
+  if (!c.gatingConfig || c.gatingConfig.passwordHashes.length === 0) return undefined
+  return c.gatingConfig
+}
+
 function freeMint(c: CreateContext): { allocation: bigint; scope: number } {
   return {
     allocation: big(c.values['freeMint.allocation']),
@@ -84,18 +101,18 @@ function freeMint(c: CreateContext): { allocation: bigint; scope: number } {
 // ── per-factory builders ─────────────────────────────────────────────────────
 
 export function buildErc1155Create(c: CreateContext): CreateCall {
-  const args: Erc1155Args = [
-    c.salt,
-    {
-      name: str(c.values.name),
-      metadataURI: c.metadataURI,
-      creator: c.creator,
-      vault: c.modules.vault,
-      styleUri: str(c.values.styleUri),
-      gatingModule: addr(c.modules.gatingModule),
-      freeMint: freeMint(c),
-    },
-  ]
+  const params = {
+    name: str(c.values.name),
+    metadataURI: c.metadataURI,
+    creator: c.creator,
+    vault: c.modules.vault,
+    styleUri: str(c.values.styleUri),
+    gatingModule: addr(c.modules.gatingModule),
+    freeMint: freeMint(c),
+  }
+  const cfg = gating(c)
+  // Gated overload threads the tier config; otherwise the 2-arg legacy create.
+  const args: Erc1155Args = cfg ? [c.salt, params, cfg] : [c.salt, params]
   return { type: 'erc1155', factory: 'ERC1155Factory', args, value: 0n }
 }
 
@@ -120,24 +137,28 @@ export function buildErc721Create(c: CreateContext): CreateCall {
 export function buildErc404Create(c: CreateContext): CreateCall {
   // ERC404 lifts metadataURI/liquidityDeployer/gatingModule/freeMint to top-level args; salt lives
   // inside params. liquidityDeployer is REQUIRED (the DEX the bonding curve graduates into).
-  const args: Erc404Args = [
-    {
-      salt: c.salt,
-      name: str(c.values.name),
-      symbol: str(c.values.symbol),
-      styleUri: str(c.values.styleUri),
-      tokenBaseURI: str(c.values.tokenBaseURI),
-      owner: c.creator,
-      vault: c.modules.vault,
-      nftCount: big(c.values.nftCount), // uint256
-      presetId: num(c.values.presetId), // uint8
-      stakingModule: addr(c.modules.stakingModule),
-    },
+  const params = {
+    salt: c.salt,
+    name: str(c.values.name),
+    symbol: str(c.values.symbol),
+    styleUri: str(c.values.styleUri),
+    tokenBaseURI: str(c.values.tokenBaseURI),
+    owner: c.creator,
+    vault: c.modules.vault,
+    nftCount: big(c.values.nftCount), // uint256
+    presetId: num(c.values.presetId), // uint8
+    stakingModule: addr(c.modules.stakingModule),
+  }
+  const cfg = gating(c)
+  const head = [
+    params,
     c.metadataURI,
     addr(c.modules.liquidityDeployer),
     addr(c.modules.gatingModule),
     freeMint(c),
-  ]
+  ] as const
+  // Gated overload appends the tier config as the 6th arg; otherwise the 5-arg legacy create.
+  const args = (cfg ? [...head, cfg] : [...head]) as Erc404Args
   return { type: 'erc404', factory: 'ERC404Factory', args, value: 0n }
 }
 

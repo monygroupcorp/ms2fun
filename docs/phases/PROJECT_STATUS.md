@@ -7,8 +7,8 @@
 ---
 
 ## Headline
-**The contract surface is essentially fully wired.** Every external-function interface a user/creator/
-operator needs has an operational UI path — **except one blocked item (gating config)**. We pivoted
+**The contract surface is fully wired.** Every external-function interface a user/creator/operator
+needs has an operational UI path — **including gating config, now unblocked** (see below). We pivoted
 this session from "legacy-parity" to **contract-surface coverage** (the contracts are the source of
 truth; `legacy/` was itself incomplete).
 
@@ -16,7 +16,7 @@ truth; `legacy/` was itself incomplete).
 | | Interface | Status |
 |---|---|---|
 | A | Discovery & home | ✅ |
-| B | Launch / create | ✅ create · editions · queuePiece — **⛔ gating config blocked** (see below) |
+| B | Launch / create | ✅ create · editions · queuePiece · **gating config (during + after create)** |
 | C | Per-type trading (ERC1155/721/404) | ✅ |
 | D | Detail pages + NFT art/galleries | ✅ |
 | E | Creator admin (per-instance, all 3 types) | ✅ |
@@ -27,13 +27,19 @@ truth; `legacy/` was itself incomplete).
 | J | Profiles (set/read/clear + created-collections) | ✅ |
 | K | Protocol admin console `/admin` (5 panels) | ✅ |
 
-## The one blocked item
-**B — gating config (`PasswordTierGatingModule.configureFor`).** Genuinely blocked, not lazy: the
-FIRST config is **factory-only** (`isFactoryRegistered(msg.sender)`); only UPDATES are owner-callable,
-and `createInstance` does NOT accept a `TierConfig`. So "set up password tiers" needs a **create-flow
-(and likely contract) change** to thread the tier config through the factory at create time. Until then,
-a gated-but-unconfigured instance is effectively open (tier 0, no cap). **Decision needed** — this is
-the next real design call, not a UI slice.
+## B gating config — RESOLVED (2026-06-25)
+Was blocked because the FIRST `configureFor` was **factory-only** and `createInstance` didn't accept a
+`TierConfig`. Decision: support config **during AND after** create (max flexibility), ERC404 + ERC1155.
+Shipped:
+- **Contract:** new `IPasswordTierGatingModule.sol` hoists `TierConfig`/`TierType` (shared type).
+  `configureFor` first-config relaxed to **factory OR instance owner** (updates still owner-only).
+  Both factories gained a **gated `createInstance` overload** (legacy signatures preserved → zero
+  caller churn) that forwards the config to the module in the SAME create tx. Empty config = open.
+- **Frontend:** `lib/wizard/gatingConfig.ts` encoder (keccak passwords, length-matched arrays);
+  wizard renders the password-tier `SchemaForm` and threads config into the single create tx;
+  `ConfigureGatingRow` on the ERC1155 + ERC404 creator-admin panels for owner-authored
+  add/update post-create (calls `configureFor` directly on the module).
+- **Gate:** forge build clean; frontend 347 tests + lint + build green. NOT yet fork-walked.
 
 ---
 
@@ -81,13 +87,13 @@ into the contract-surface reframe — so it's an unscheduled gap, NOT optional p
 
 ## Not yet verified / open
 - **Fork-verify Phase 2 + Phase 3 end-to-end** — they're on main + gate-green but not fully walked
-  (portfolio holdings, featured rent/boost, the 5 admin panels operating as ADMIN). A fresh
+  (portfolio holdings, featured rent/boost, the 5 admin panels operating as ADMIN, **and the new
+  gating-config flows: set tiers in the wizard at create + edit them from creator admin**). A fresh
   `pnpm chain:deploy` + walk is the next confidence step.
 - **Real testnet deploy** — only the anvil mainnet-fork has been exercised. Testnet readiness (a real
   testnet, read-only provider, EXEC404 grandfathering) is a separate push.
 
 ## Backlog (non-blocking, with captured designs)
-- **Gating-config** decision/build (the blocked B item — needs the create-flow change).
 - **Style renderer** — `styleUri` is write-only today; a scoped-CSS renderer for collection + edition
   pages. Nomenclature locked (content URI vs style URI); edition style → content-JSON `styleURI` field.
   Design captured in `[[improvements-backlog]]`.

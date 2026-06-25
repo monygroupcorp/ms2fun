@@ -31,6 +31,7 @@ export default defineConfig({
         'AlignmentEndowmentVault.sol/**',
         'ERC721AuctionFactory.sol/**',
         'ERC721AuctionInstance.sol/**',
+        'PasswordTierGatingModule.sol/**',
       ],
     }),
     react(),

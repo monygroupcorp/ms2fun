@@ -22,6 +22,7 @@ import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
+import { ConfigureGatingRow } from '../ConfigureGatingRow'
 import styles from './Erc404AdminPanel.module.css'
 
 interface Erc404AdminPanelProps {
@@ -76,6 +77,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         placeholder="ipfs://, ar://, https://, or data:"
         testId="erc404-admin-metadata"
       />
+      <ConfigureGatingRow instance={instance} />
       <MigrateVaultRow instance={instance} />
       <ClaimAllFeesRow instance={instance} />
       <SetAgentDelegationRow instance={instance} />

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {PasswordTierGatingModule} from "../../src/gating/PasswordTierGatingModule.sol";
+import {TierConfig, TierType} from "../../src/gating/IPasswordTierGatingModule.sol";
 import {MockMasterRegistry} from "../mocks/MockMasterRegistry.sol";
 import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
 import {IComponentRegistry} from "../../src/registry/interfaces/IComponentRegistry.sol";
@@ -29,15 +30,15 @@ contract PasswordTierGatingModuleTest is Test {
         module = new PasswordTierGatingModule(address(mockRegistry));
     }
 
-    function _volumeCapConfig() internal pure returns (PasswordTierGatingModule.TierConfig memory) {
+    function _volumeCapConfig() internal pure returns (TierConfig memory) {
         bytes32[] memory hashes = new bytes32[](2);
         hashes[0] = keccak256("tier1password");
         hashes[1] = keccak256("tier2password");
         uint256[] memory caps = new uint256[](2);
         caps[0] = 100e18;
         caps[1] = 500e18;
-        return PasswordTierGatingModule.TierConfig({
-            tierType: PasswordTierGatingModule.TierType.VOLUME_CAP,
+        return TierConfig({
+            tierType: TierType.VOLUME_CAP,
             passwordHashes: hashes,
             volumeCaps: caps,
             tierUnlockTimes: new uint256[](0)
@@ -60,9 +61,24 @@ contract PasswordTierGatingModuleTest is Test {
         MockRejectRegistry rejectRegistry = new MockRejectRegistry(attacker);
         PasswordTierGatingModule strictModule = new PasswordTierGatingModule(address(rejectRegistry));
 
+        // First-config now also accepts the instance owner, so owner() must resolve to
+        // someone other than the attacker for the Unauthorized path to hold.
+        vm.mockCall(instance1, abi.encodeWithSignature("owner()"), abi.encode(address(0xC0FFEE)));
         vm.prank(attacker);
         vm.expectRevert(Ownable.Unauthorized.selector);
         strictModule.configureFor(instance1, _volumeCapConfig());
+    }
+
+    function test_configureFor_ownerCanAuthorFirstConfig() public {
+        // Caller is NOT a registered factory, but IS the instance owner → first config allowed.
+        address creator = address(0xC0FFEE);
+        MockRejectRegistry rejectRegistry = new MockRejectRegistry(creator);
+        PasswordTierGatingModule strictModule = new PasswordTierGatingModule(address(rejectRegistry));
+
+        vm.mockCall(instance1, abi.encodeWithSignature("owner()"), abi.encode(creator));
+        vm.prank(creator);
+        strictModule.configureFor(instance1, _volumeCapConfig());
+        assertTrue(strictModule.configured(instance1));
     }
 
     function test_configureFor_ownerCanReconfigure() public {
@@ -149,8 +165,8 @@ contract PasswordTierGatingModuleTest is Test {
         unlockTimes[0] = 1 hours;
         unlockTimes[1] = 24 hours;
 
-        PasswordTierGatingModule.TierConfig memory config = PasswordTierGatingModule.TierConfig({
-            tierType: PasswordTierGatingModule.TierType.TIME_BASED,
+        TierConfig memory config = TierConfig({
+            tierType: TierType.TIME_BASED,
             passwordHashes: hashes,
             volumeCaps: new uint256[](0),
             tierUnlockTimes: unlockTimes
@@ -262,8 +278,8 @@ contract PasswordTierGatingModuleTest is Test {
         uint256[] memory caps = new uint256[](1);
         caps[0] = 10;
 
-        PasswordTierGatingModule.TierConfig memory config = PasswordTierGatingModule.TierConfig({
-            tierType: PasswordTierGatingModule.TierType.VOLUME_CAP,
+        TierConfig memory config = TierConfig({
+            tierType: TierType.VOLUME_CAP,
             passwordHashes: hashes,
             volumeCaps: caps,
             tierUnlockTimes: new uint256[](0)

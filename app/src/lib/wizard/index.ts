@@ -6,5 +6,6 @@
 export * from './schema'
 export * from './projectTypes'
 export * from './configTypes'
+export * from './gatingConfig'
 export * from './useApprovedModules'
 export * from './submit'

@@ -4,9 +4,9 @@
  * receipt, and parses the `InstanceCreated` event for the new instance (so the wizard can redirect to
  * `/collection/:instance`).
  *
- * The config-apply seam: `submit` takes the `CreateCall` only for now; follow-on module-config calls
- * (e.g. `configureFor(instance, TierConfig)`) attach here once the per-`configType` encoders land —
- * they run after `instance` is known, keyed by the chosen module's configType.
+ * Module config (e.g. password-tier `TierConfig`) is threaded INTO `createInstance` by the
+ * submit-builder and applied by the factory in the same tx — so there is no follow-on config
+ * transaction here. Post-create edits to gating config go through the creator-admin panel instead.
  */
 import { useState } from 'react'
 import { parseEventLogs } from 'viem'
