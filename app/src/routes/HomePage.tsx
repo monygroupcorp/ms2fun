@@ -6,6 +6,7 @@ import { useAllCollections } from '../lib/discovery'
 import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
 import { HomeStats } from '../components/home/HomeStats'
 import { ActivityPreview } from '../components/home/ActivityPreview'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './HomePage.module.css'
 import browseStyles from '../components/CollectionsBrowse.module.css'
 
@@ -83,8 +84,16 @@ export function HomePage() {
           </Link>
         </div>
 
-        {isPending && <p className={browseStyles.note}>loading collections…</p>}
-        {isError && <p className={browseStyles.note}>discovery unreachable — is the fork up?</p>}
+        {isPending && (
+          <StateBlock variant="loading" boxed>
+            loading collections…
+          </StateBlock>
+        )}
+        {isError && (
+          <StateBlock variant="error" boxed>
+            discovery unreachable — is the fork up?
+          </StateBlock>
+        )}
 
         {!isPending && !isError && (
           <div className={browseStyles.grid}>
@@ -111,13 +120,14 @@ export function HomePage() {
             </article>
 
             {featuredCards !== null && featuredCards.length === 0 && (
-              <p
-                className={browseStyles.note}
-                data-testid="collections-empty"
-                style={{ gridColumn: '1 / -1' }}
+              <StateBlock
+                variant="empty"
+                boxed
+                testId="collections-empty"
+                className={styles.gridSpan}
               >
                 nothing featured yet — run the seed script to populate.
-              </p>
+              </StateBlock>
             )}
 
             {featuredCards !== null &&

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
@@ -19,50 +20,107 @@ import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
 
+/** The site's primary navigation links. Rendered twice — once inline in the desktop top bar, once
+ * stacked in the mobile overlay — so the link set lives in exactly one place. `linkClassName` styles
+ * each link for its context; `onNavigate` (overlay only) closes the menu after a tap. */
+function NavLinks({
+  linkClassName,
+  onNavigate,
+}: {
+  linkClassName: string | undefined
+  onNavigate?: (() => void) | undefined
+}) {
+  return (
+    <>
+      <Link href="/launch" className={linkClassName} onClick={onNavigate}>
+        LAUNCH
+      </Link>
+      <Link href="/collections" className={linkClassName} onClick={onNavigate}>
+        COLLECTIONS
+      </Link>
+      <Link href="/board" className={linkClassName} onClick={onNavigate}>
+        BOARD
+      </Link>
+      <Link href="/portfolio" className={linkClassName} onClick={onNavigate}>
+        PORTFOLIO
+      </Link>
+      <AdminNavLink linkClassName={linkClassName} onNavigate={onNavigate} />
+      <Link href="/exec404" className={linkClassName} onClick={onNavigate}>
+        CULT EXECUTIVES
+      </Link>
+      <Link href="/profile" className={linkClassName} onClick={onNavigate}>
+        PROFILE
+      </Link>
+    </>
+  )
+}
+
 /** ADMIN nav link — shown only to the platform operator (MasterRegistry owner). Lives inside the
  * WagmiProvider so it can read on-chain ownership. */
-function AdminNavLink() {
+function AdminNavLink({
+  linkClassName,
+  onNavigate,
+}: {
+  linkClassName: string | undefined
+  onNavigate?: (() => void) | undefined
+}) {
   const { isOwner } = useOwnerGate(forkAddresses.MasterRegistryV1)
   if (!isOwner) return null
   return (
-    <Link href="/admin" className={styles.navLink}>
+    <Link href="/admin" className={linkClassName} onClick={onNavigate}>
       ADMIN
     </Link>
   )
 }
 
 export function App() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const closeMenu = () => setMenuOpen(false)
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <div className={styles.app}>
           <header className={styles.topBar}>
-            <Link href="/" className={styles.logo}>
+            <Link href="/" className={styles.logo} onClick={closeMenu}>
               ms2<span className={styles.logoTld}>.fun</span>
             </Link>
             <nav className={styles.nav}>
-              <Link href="/launch" className={styles.navLink}>
-                LAUNCH
-              </Link>
-              <Link href="/collections" className={styles.navLink}>
-                COLLECTIONS
-              </Link>
-              <Link href="/board" className={styles.navLink}>
-                BOARD
-              </Link>
-              <Link href="/portfolio" className={styles.navLink}>
-                PORTFOLIO
-              </Link>
-              <AdminNavLink />
-              <Link href="/exec404" className={styles.navLink}>
-                CULT EXECUTIVES
-              </Link>
-              <Link href="/profile" className={styles.navLink}>
-                PROFILE
-              </Link>
+              <NavLinks linkClassName={styles.navLink} />
               <WalletButton />
             </nav>
+            <button
+              type="button"
+              className={styles.menuButton}
+              onClick={() => setMenuOpen(true)}
+              aria-label="open menu"
+            >
+              MENU <span aria-hidden>☰</span>
+            </button>
           </header>
+          {menuOpen && (
+            <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
+              <div className={styles.overlayBar}>
+                <Link href="/" className={styles.logo} onClick={closeMenu}>
+                  ms2<span className={styles.logoTld}>.fun</span>
+                </Link>
+                <button
+                  type="button"
+                  className={styles.menuButton}
+                  onClick={closeMenu}
+                  aria-label="close menu"
+                >
+                  <span aria-hidden>✕</span>
+                </button>
+              </div>
+              <nav className={styles.overlayNav}>
+                <NavLinks linkClassName={styles.overlayLink} onNavigate={closeMenu} />
+                <div className={styles.overlayWallet}>
+                  <WalletButton />
+                </div>
+              </nav>
+            </div>
+          )}
           <main className={styles.main}>
             <Switch>
               <Route path="/" component={HomePage} />

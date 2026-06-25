@@ -18,6 +18,7 @@ import { useRegisteredVaults } from '../components/wizard/useRegisteredVaults'
 import { useCreateSubmit } from '../components/wizard/useCreateSubmit'
 import { WalletButton } from '../components/WalletButton'
 import { truncateAddress } from '../lib/format'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './WizardPage.module.css'
 
 const EMPTY_META: CollectionMetadata = {
@@ -137,10 +138,12 @@ export function WizardPage() {
       {/* Alignment vault (registered in MasterRegistry, not ComponentRegistry) */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Alignment vault</h2>
-        {vaults.isPending && <p className={styles.note}>loading vaults…</p>}
-        {vaults.isError && <p className={styles.note}>could not load vaults — is the fork up?</p>}
+        {vaults.isPending && <StateBlock variant="loading">loading vaults…</StateBlock>}
+        {vaults.isError && (
+          <StateBlock variant="error">could not load vaults — is the fork up?</StateBlock>
+        )}
         {vaults.data && vaults.data.length === 0 && (
-          <p className={styles.note}>no alignment vaults registered yet.</p>
+          <StateBlock variant="empty">no alignment vaults registered yet.</StateBlock>
         )}
         <div className={styles.vaultRow}>
           {vaults.data?.map((v) => (
@@ -183,7 +186,7 @@ export function WizardPage() {
       <section className={styles.section}>
         {!creator ? (
           <div className={styles.connect}>
-            <p className={styles.note}>connect your wallet to launch</p>
+            <StateBlock variant="empty">connect your wallet to launch</StateBlock>
             <WalletButton />
           </div>
         ) : (

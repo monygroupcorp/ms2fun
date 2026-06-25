@@ -29,7 +29,7 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover;
-  background: var(--surface-secondary);
+  background: var(--bg-secondary);
 }
 
 .thumbGlyph {
@@ -41,7 +41,7 @@
   font-family: var(--font-mono);
   font-size: var(--font-size-h2, 1.5rem);
   color: var(--text-secondary);
-  background: var(--surface-secondary);
+  background: var(--bg-secondary);
 }
 
 .meta {

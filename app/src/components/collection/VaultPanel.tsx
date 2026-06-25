@@ -12,6 +12,7 @@ import {
 import { forkChainId } from '../../lib/addresses'
 import { truncateAddress } from '../../lib/format'
 import { TxButton } from '../ui/TxButton'
+import { Disclosure } from '../ui/Disclosure'
 import { useTxAction } from '../ui/useTxAction'
 import { useEndowment } from './useEndowment'
 import styles from './VaultPanel.module.css'
@@ -82,8 +83,7 @@ function VaultPanelInner({ vault, benefactor, state }: VaultPanelInnerProps) {
   })()
 
   return (
-    <section className={styles.panel} data-testid="vault-panel">
-      <h2 className={styles.heading}>COMMUNITY ENDOWMENT</h2>
+    <Disclosure summary="COMMUNITY ENDOWMENT" testId="vault-panel">
       <div className={styles.stats}>
         <div className={styles.stat}>
           <span className={styles.statLabel}>this collection's principal</span>
@@ -142,6 +142,6 @@ function VaultPanelInner({ vault, benefactor, state }: VaultPanelInnerProps) {
           <span className={styles.statValue}>{formatEther(state.totalPrincipal)} ETH</span>
         </div>
       </div>
-    </section>
+    </Disclosure>
   )
 }

@@ -24,6 +24,7 @@ import { truncateAddress } from '../../lib/format'
 import { AmountField } from '../ui/AmountField'
 import { parseAmount } from '../ui/parseAmount'
 import { TxButton } from '../ui/TxButton'
+import { Disclosure } from '../ui/Disclosure'
 import { useTxAction } from '../ui/useTxAction'
 import styles from './FeaturedPanel.module.css'
 
@@ -155,9 +156,7 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
       : '—'
 
   return (
-    <section className={styles.panel} data-testid="featured-panel">
-      <h2 className={styles.heading}>FEATURED QUEUE</h2>
-
+    <Disclosure summary="FEATURED QUEUE" testId="featured-panel">
       {/* ---- Status ---------------------------------------------------- */}
       <div className={styles.status}>
         {featured ? (
@@ -327,6 +326,6 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           />
         </div>
       )}
-    </section>
+    </Disclosure>
   )
 }

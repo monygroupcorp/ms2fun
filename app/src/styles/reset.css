@@ -20,6 +20,10 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Global guarantee: a long word/name/address can never push past the viewport
+     (which, under .app's overflow-x: clip, would otherwise be cut off). Elements
+     that want single-line truncation opt out with white-space: nowrap. */
+  overflow-wrap: break-word;
 }
 
 img,

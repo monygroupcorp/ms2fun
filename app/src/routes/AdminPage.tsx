@@ -13,6 +13,7 @@ import { AlignmentPanel } from '../components/admin/AlignmentPanel'
 import { ComponentRegistryPanel } from '../components/admin/ComponentRegistryPanel'
 import { PlatformConfigPanel } from '../components/admin/PlatformConfigPanel'
 import { TreasuryPanel } from '../components/admin/TreasuryPanel'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './AdminPage.module.css'
 
 export function AdminPage() {
@@ -22,9 +23,9 @@ export function AdminPage() {
     <div className={styles.page} data-testid="admin-console">
       <h1 className={`${styles.title} text-chromatic-medium`}>ADMIN</h1>
       {!isOwner && (
-        <p className={styles.note}>
+        <StateBlock variant="empty">
           you are not the platform operator — admin actions are gated to each registry&apos;s owner.
-        </p>
+        </StateBlock>
       )}
       <div className={styles.panels}>
         <MasterRegistryPanel />

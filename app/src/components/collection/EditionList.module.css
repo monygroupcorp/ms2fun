@@ -69,7 +69,8 @@
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Intrinsically responsive — reflows from 3 columns down as width shrinks. */
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   padding: var(--space-3);
   gap: var(--space-3);
   border-bottom: 1px solid var(--border-tertiary);

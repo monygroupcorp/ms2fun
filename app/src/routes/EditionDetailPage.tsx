@@ -19,6 +19,7 @@ import { useEditions, type EditionView } from '../components/collection/useEditi
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
 import { fetchJson, isResolvableUri, resolveUri } from '../lib/metadata'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './EditionDetailPage.module.css'
 
 interface EditionMetadata {
@@ -62,7 +63,7 @@ export function EditionDetailPage() {
             ← ms2.fun
           </Link>
         </nav>
-        <p className={styles.note}>invalid edition reference</p>
+        <StateBlock variant="empty">invalid edition reference</StateBlock>
       </div>
     )
   }
@@ -111,7 +112,7 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
     return (
       <div className={styles.page} data-testid="edition-detail">
         {crumb}
-        <p className={styles.note}>loading edition…</p>
+        <StateBlock variant="loading">loading edition…</StateBlock>
       </div>
     )
   }
@@ -120,7 +121,7 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
     return (
       <div className={styles.page} data-testid="edition-detail">
         {crumb}
-        <p className={styles.note}>couldn't load edition — is the fork up?</p>
+        <StateBlock variant="error">couldn't load edition — is the fork up?</StateBlock>
       </div>
     )
   }
@@ -129,7 +130,7 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
     return (
       <div className={styles.page} data-testid="edition-detail">
         {crumb}
-        <p className={styles.note}>edition not found</p>
+        <StateBlock variant="empty">edition not found</StateBlock>
       </div>
     )
   }

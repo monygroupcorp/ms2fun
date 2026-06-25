@@ -3,6 +3,7 @@ import { Link } from 'wouter'
 import { useAllCollections } from '../lib/discovery'
 import type { CollectionFilters } from '../lib/discovery'
 import { CollectionCard } from '../components/CollectionCard'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './CollectionsPage.module.css'
 import browseStyles from '../components/CollectionsBrowse.module.css'
 
@@ -134,15 +135,23 @@ export function CollectionsPage() {
         )}
       </div>
 
-      {isPending && <p className={browseStyles.note}>loading collections…</p>}
-      {isError && <p className={browseStyles.note}>discovery unreachable — is the fork up?</p>}
+      {isPending && (
+        <StateBlock variant="loading" boxed>
+          loading collections…
+        </StateBlock>
+      )}
+      {isError && (
+        <StateBlock variant="error" boxed>
+          discovery unreachable — is the fork up?
+        </StateBlock>
+      )}
 
       {!isPending && !isError && total === 0 && (
-        <p className={browseStyles.note} data-testid="collections-empty">
+        <StateBlock variant="empty" boxed testId="collections-empty">
           {data !== undefined && data.length === 0 && !filtersActive
             ? 'nothing registered yet — run the seed script to populate.'
             : 'no collections match the current filters.'}
-        </p>
+        </StateBlock>
       )}
 
       {!isPending && !isError && data !== undefined && data.length > 0 && (

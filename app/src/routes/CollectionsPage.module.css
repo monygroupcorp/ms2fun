@@ -1,7 +1,5 @@
 .page {
-  max-width: var(--container-xl);
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-10);
+  composes: page from '../styles/layout.module.css';
 }
 
 .crumb {
@@ -58,7 +56,9 @@
 
 .filterButtons {
   display: flex;
-  gap: 0;
+  flex-wrap: wrap;
+  column-gap: 0; /* segmented — borders collapse via margin-right: -1px */
+  row-gap: var(--space-1); /* breathing room when the group wraps on mobile */
 }
 
 .filterBtn {
@@ -159,10 +159,6 @@
 }
 
 @media (max-width: 768px) {
-  .page {
-    padding: var(--space-6) var(--space-4);
-  }
-
   .filters {
     flex-direction: column;
     align-items: flex-start;

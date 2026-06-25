@@ -17,6 +17,7 @@ import {
 } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { profileToDataUri, type ProfileMetadata } from '../lib/metadata'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './ProfilePage.module.css'
 
 /** Validate and normalize a param string to `0x${string}` or undefined. */
@@ -97,7 +98,7 @@ export function ProfilePage() {
           </Link>
         </nav>
         <h1 className={`${styles.title} text-chromatic-medium`}>PROFILE</h1>
-        <p className={styles.note}>connect your wallet to view your profile</p>
+        <StateBlock variant="empty">connect your wallet to view your profile</StateBlock>
       </div>
     )
   }
@@ -112,7 +113,7 @@ export function ProfilePage() {
           </Link>
         </nav>
         <h1 className={`${styles.title} text-chromatic-medium`}>PROFILE</h1>
-        <p className={styles.note}>invalid address in URL</p>
+        <StateBlock variant="empty">invalid address in URL</StateBlock>
       </div>
     )
   }
@@ -126,8 +127,10 @@ export function ProfilePage() {
       </nav>
       <h1 className={`${styles.title} text-chromatic-medium`}>PROFILE</h1>
 
-      {isPending && <p className={styles.note}>loading profile…</p>}
-      {isError && <p className={styles.note}>could not reach registry — is the fork up?</p>}
+      {isPending && <StateBlock variant="loading">loading profile…</StateBlock>}
+      {isError && (
+        <StateBlock variant="error">could not reach registry — is the fork up?</StateBlock>
+      )}
 
       {/* Own profile, not yet set up: show setup CTA or the form front-and-centre */}
       {isOwn && !uri && !isPending && !isError && !editing && (

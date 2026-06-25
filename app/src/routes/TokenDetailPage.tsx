@@ -24,6 +24,7 @@ import { deriveAuctionState } from '../components/collection/erc721/auctionState
 import { forkChainId } from '../lib/addresses'
 import { fetchJson, resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './TokenDetailPage.module.css'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
@@ -63,7 +64,7 @@ export function TokenDetailPage() {
             ← ms2.fun
           </Link>
         </nav>
-        <p className={styles.note}>invalid token reference</p>
+        <StateBlock variant="empty">invalid token reference</StateBlock>
       </div>
     )
   }
@@ -89,7 +90,7 @@ export function TokenDetailPage() {
         card.contractType !== 'ERC721' && (
           <EditionNote instance={instance} collectionName={collectionName} />
         )}
-      {card === undefined && <p className={styles.note}>loading token…</p>}
+      {card === undefined && <StateBlock variant="loading">loading token…</StateBlock>}
     </div>
   )
 }
@@ -156,8 +157,9 @@ function Erc404Token({ instance, id, collectionName }: TokenProps) {
     },
   })
 
-  if (isPending) return <p className={styles.note}>loading token…</p>
-  if (isError) return <p className={styles.note}>couldn&apos;t load token — is the fork up?</p>
+  if (isPending) return <StateBlock variant="loading">loading token…</StateBlock>
+  if (isError)
+    return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
 
   return (
     <article className={styles.detail}>
@@ -205,9 +207,9 @@ function Erc721Token({ instance, id, collectionName }: TokenProps) {
 
   const { data: bids } = useBidHistory(instance, data ? id : undefined)
 
-  if (isPending) return <p className={styles.note}>loading token…</p>
+  if (isPending) return <StateBlock variant="loading">loading token…</StateBlock>
   if (isError || !data)
-    return <p className={styles.note}>couldn&apos;t load token — is the fork up?</p>
+    return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
 
   const a = data.auction
   const state = deriveAuctionState(

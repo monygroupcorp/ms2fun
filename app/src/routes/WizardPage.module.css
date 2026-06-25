@@ -1,10 +1,6 @@
 .page {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: var(--padding-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-lg);
+  composes: pageStack from '../styles/layout.module.css';
+  --page-max: var(--page-max-form);
 }
 
 .crumb {
@@ -43,12 +39,6 @@
   letter-spacing: 0.08em;
   color: var(--text-secondary);
   margin: 0;
-}
-
-.note {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
 }
 
 .error {

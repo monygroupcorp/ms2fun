@@ -1,28 +1,14 @@
 /* VaultPanel — Gallery Brutalism, monochrome design tokens only.
    Alignment economics panel; stat-row layout mirrors EditionList card stats. */
 
-.panel {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-  font-family: var(--font-mono);
-}
-
-.heading {
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
-  padding: var(--space-3);
-  border-bottom: 1px solid var(--border-tertiary);
-  margin: 0;
-}
-
 /* ---- Stat grid -------------------------------------------- */
 
 .stats {
+  font-family: var(--font-mono); /* the panel now renders inside <Disclosure>; keep mono on content */
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* Intrinsically responsive — collapses to one column on narrow screens
+     without a breakpoint. */
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   gap: 0;
 }
 

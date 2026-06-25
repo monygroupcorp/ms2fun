@@ -1,7 +1,5 @@
 .page {
-  max-width: var(--container-xl);
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-10);
+  composes: page from '../styles/layout.module.css';
 }
 
 .crumb {
@@ -60,14 +58,6 @@
   color: var(--text-primary);
 }
 
-.note {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-}
-
 .warn {
   font-family: var(--font-mono);
   font-size: var(--font-size-caption);
@@ -98,7 +88,8 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  /* min(20rem, 100%) keeps the track from overflowing viewports narrower than 20rem. */
+  grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr));
   gap: var(--gap-md);
 }
 
@@ -139,7 +130,8 @@ a.cardLink:hover {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  /* Intrinsically responsive — collapses to one column on narrow screens. */
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: var(--gap-sm);
   margin: 0;
 }
@@ -214,10 +206,6 @@ a.cardLink:hover {
 }
 
 @media (max-width: 768px) {
-  .page {
-    padding: var(--space-6) var(--space-4);
-  }
-
   .header {
     flex-direction: column;
     align-items: flex-start;

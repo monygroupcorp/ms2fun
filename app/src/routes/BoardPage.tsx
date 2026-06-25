@@ -10,6 +10,7 @@ import { ReplyComposer } from '../components/ReplyComposer'
 import { ReactButton } from '../components/ReactButton'
 import { type ThreadView, reactionFor, threadMessages } from '../components/threadMessages'
 import type { FeedMessage } from '../components/useMessageFeed'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './BoardPage.module.css'
 
 const MESSAGE_TYPE_LABELS: Record<number, string> = {
@@ -101,17 +102,21 @@ export function BoardPage() {
         </section>
       )}
 
-      {connected === undefined && <p className={styles.note}>connect your wallet to post</p>}
+      {connected === undefined && (
+        <StateBlock variant="empty">connect your wallet to post</StateBlock>
+      )}
 
       <section className={styles.feedSection}>
         <h2 className={styles.sectionHeading}>ALL ACTIVITY</h2>
 
-        {isPending && <p className={styles.note}>loading activity…</p>}
+        {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
 
-        {isError && <p className={styles.note}>couldn&apos;t load activity — is the fork up?</p>}
+        {isError && (
+          <StateBlock variant="error">couldn&apos;t load activity — is the fork up?</StateBlock>
+        )}
 
         {!isPending && !isError && data !== undefined && data.length === 0 && (
-          <p className={styles.note}>no activity yet</p>
+          <StateBlock variant="empty">no activity yet</StateBlock>
         )}
 
         {!isPending && !isError && view.threads.length > 0 && (

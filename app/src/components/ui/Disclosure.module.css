@@ -1,0 +1,47 @@
+/* Collapsible section — native <details>, Gallery Brutalism.
+   The toggle marker is a brutalist +/− (no rotation — rotation is forbidden). */
+
+.disclosure {
+  border: 1px solid var(--border-secondary);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-primary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+/* Remove the default disclosure triangle (both engines). */
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::after {
+  content: '+';
+  font-weight: var(--font-weight-regular);
+  color: var(--text-secondary);
+}
+
+.disclosure[open] .summary::after {
+  content: '−';
+}
+
+.summary:hover {
+  background: var(--state-hover-bg);
+}
+
+.content {
+  padding: var(--space-4);
+  border-top: 1px solid var(--border-secondary);
+}

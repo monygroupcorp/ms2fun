@@ -11,6 +11,7 @@ import { Erc721Collection } from '../components/collection/types/Erc721Collectio
 import { Erc404Collection } from '../components/collection/types/Erc404Collection'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './CollectionPage.module.css'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
@@ -44,7 +45,7 @@ export function CollectionPage() {
           </Link>
         </nav>
         <h1 className={`${styles.title} text-chromatic-medium`}>COLLECTION</h1>
-        <p className={styles.note}>invalid collection address</p>
+        <StateBlock variant="empty">invalid collection address</StateBlock>
       </div>
     )
   }
@@ -63,10 +64,12 @@ export function CollectionPage() {
       </nav>
       <h1 className={`${styles.title} text-chromatic-medium`}>{title}</h1>
 
-      {isPending && <p className={styles.note}>loading collection…</p>}
-      {isError && <p className={styles.note}>couldn't load collection — is the fork up?</p>}
+      {isPending && <StateBlock variant="loading">loading collection…</StateBlock>}
+      {isError && (
+        <StateBlock variant="error">couldn't load collection — is the fork up?</StateBlock>
+      )}
 
-      {isNotFound && <p className={styles.note}>collection not found</p>}
+      {isNotFound && <StateBlock variant="empty">collection not found</StateBlock>}
 
       {!isPending && !isError && card && card.instance !== ZERO_ADDRESS && (
         <>
@@ -129,11 +132,8 @@ export function CollectionPage() {
             </Link>
           </div>
 
-          {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
-
-          {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}
-          <FeaturedPanel instance={instance} />
-
+          {/* Primary action first — the trading surface (buy / mint / swap) leads, above
+              the secondary panels below. */}
           {card.contractType === 'ERC1155' && (
             <Erc1155Collection instance={instance} creator={card.creator} />
           )}
@@ -143,6 +143,12 @@ export function CollectionPage() {
           {card.contractType === 'ERC404' && (
             <Erc404Collection instance={instance} creator={card.creator} />
           )}
+
+          {/* Secondary, demoted below the CTA and collapsed by default (self-rendered as
+              <Disclosure> inside each panel, so a null vault doesn't leave an empty box). */}
+          {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
+          {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}
+          <FeaturedPanel instance={instance} />
 
           <MessageFeed filter={{ instance }} />
         </>

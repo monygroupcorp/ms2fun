@@ -9,6 +9,7 @@ import {
   type VaultPosition,
 } from '../components/portfolio/usePortfolio'
 import { truncateAddress } from '../lib/format'
+import { StateBlock } from '../components/ui/StateBlock'
 import styles from './PortfolioPage.module.css'
 
 /**
@@ -181,19 +182,19 @@ export function PortfolioPage() {
       </div>
 
       {noWallet && (
-        <p className={styles.note} data-testid="portfolio-connect">
+        <StateBlock variant="empty" testId="portfolio-connect">
           connect your wallet to view your portfolio
-        </p>
+        </StateBlock>
       )}
 
       {!noWallet && isPending && (
-        <p className={styles.note} data-testid="portfolio-loading">
+        <StateBlock variant="loading" testId="portfolio-loading">
           loading your holdings…
-        </p>
+        </StateBlock>
       )}
 
       {!noWallet && !isPending && isError && (
-        <p className={styles.note}>could not reach the aggregator — is the fork up?</p>
+        <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
       )}
 
       {truncated && (
@@ -203,9 +204,9 @@ export function PortfolioPage() {
       )}
 
       {!noWallet && !isPending && !isError && isPortfolioEmpty(data) && (
-        <p className={styles.note} data-testid="portfolio-empty">
+        <StateBlock variant="empty" testId="portfolio-empty">
           nothing yet — go mint or bid.
-        </p>
+        </StateBlock>
       )}
 
       {!noWallet && !isPending && !isError && data !== undefined && !isPortfolioEmpty(data) && (
