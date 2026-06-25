@@ -1,0 +1,52 @@
+{
+  "//": "Gallery Brutalism enforcement (docs/DESIGN_SYSTEM_V2.md). Focused on brand-defining rules — NOT stylelint-config-standard, which would flood us with formatting nits and fight CSS-module camelCase class names. tokens.css/reset.css/system.css are the sanctioned places for raw values (they DEFINE the system); everything else must go through tokens.",
+  "plugins": ["stylelint-declaration-strict-value"],
+  "rules": {
+    "color-no-hex": true,
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "color",
+        "background-color",
+        "border-color",
+        "border-top-color",
+        "border-right-color",
+        "border-bottom-color",
+        "border-left-color",
+        "outline-color",
+        "fill",
+        "stroke",
+        "font-size"
+      ],
+      {
+        "ignoreValues": ["transparent", "currentColor", "inherit", "initial", "unset", "none"]
+      }
+    ],
+    "declaration-property-value-disallowed-list": {
+      "/^background/": ["/gradient/i"],
+      "filter": ["/blur/i", "/drop-shadow/i"],
+      "backdrop-filter": ["/.+/"]
+    },
+    "declaration-property-value-allowed-list": {
+      "border-radius": ["0", "/^var\\(--radius/"],
+      "box-shadow": ["none", "/^var\\(--shadow/"]
+    }
+  },
+  "overrides": [
+    {
+      "files": ["src/styles/tokens.css"],
+      "rules": {
+        "color-no-hex": null,
+        "scale-unlimited/declaration-strict-value": null
+      }
+    },
+    {
+      "files": ["src/styles/reset.css", "src/styles/system.css"],
+      "rules": {
+        "color-no-hex": null,
+        "scale-unlimited/declaration-strict-value": null,
+        "declaration-property-value-allowed-list": null,
+        "declaration-property-value-disallowed-list": null
+      }
+    }
+  ]
+}

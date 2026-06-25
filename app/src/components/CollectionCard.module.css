@@ -2,6 +2,10 @@
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
   transition: var(--transition-base);
+  /* As a grid/flex item, default min-width:auto refuses to shrink below content min-content — a wide
+     stat value would then expand the track past the viewport. min-width:0 lets the card shrink to its
+     track and its content ellipsize/wrap instead of overflowing. */
+  min-width: 0;
 }
 
 .card:hover {
@@ -55,6 +59,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* min-width:0 lets a flex child shrink below its content so the ellipsis engages instead of
+     pushing the badge off the card on narrow viewports. */
+  min-width: 0;
+}
+
+/* Keep the type badge at its intrinsic size — the title takes the squeeze, not the badge. */
+.cardHead :global(.badge) {
+  flex-shrink: 0;
 }
 
 .cardDescription {
