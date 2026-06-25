@@ -6,6 +6,7 @@ import {
   PROJECT_TYPES,
   getProjectType,
   getConfigSchema,
+  collectDefaults,
   validateFields,
   buildCreateInstance,
   encodeTierConfig,
@@ -202,7 +203,13 @@ export function WizardPage() {
               value={modules[slot.key]}
               onChange={(sel) => {
                 setModules((m) => ({ ...m, [slot.key]: sel.address }))
-                if (slot.key === 'gatingModule') setGatingConfigType(sel.configType)
+                if (slot.key === 'gatingModule') {
+                  setGatingConfigType(sel.configType)
+                  // Seed the config form's defaults so defaulted selects (e.g. tierType) satisfy
+                  // their dependents' visibleWhen and reach submit.
+                  const s = sel.configType ? getConfigSchema(sel.configType) : undefined
+                  setGatingValues(s ? collectDefaults(s.fields) : {})
+                }
               }}
             />
             {/* Per-module config form (e.g. password tiers) — applied in the same create tx. */}

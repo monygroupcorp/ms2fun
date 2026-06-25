@@ -149,7 +149,6 @@ contract DeployCore is Script {
     QueryAggregator public queryAggregator;
 
     // Seed component modules — wizard-facing metadata stubs (testnet + local)
-    MockComponentModule public modulePasswordGating;
     MockComponentModule public moduleMerkleGating;
     MockComponentModule public moduleUniV4Deployer;
     MockComponentModule public moduleZAMMDeployer;
@@ -390,6 +389,10 @@ contract DeployCore is Script {
         // These MockComponentModules give the frontend creation wizard metadata to
         // display for each selectable component. Users pass these addresses to
         // createInstance; the real functional modules are wired into factory internals.
+        // EXCEPTION: gating is a per-instance module the wizard passes through verbatim
+        // (createInstance stores it, mint calls canMint, create/admin call configureFor),
+        // so the REAL PasswordTierGatingModule carries the password-tier metadata directly —
+        // there is no mock stand-in for it.
 
         string memory passwordGatingMeta = "data:application/json,{\"name\":\"Password Tier Gating\",\"subtitle\":\"Password \\u00b7 Tiered Access\",\"description\":\"Set one or more passwords, each unlocking a different tier of access or pricing.\",\"configType\":\"password-tier-gating\"}";
         string memory merkleGatingMeta   = "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\",\"configType\":\"merkle-allowlist-gating\"}";
@@ -397,8 +400,8 @@ contract DeployCore is Script {
         string memory zammMeta           = "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
         string memory cypherMeta         = "data:application/json,{\"name\":\"Cypher Deployer\",\"subtitle\":\"Cypher \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to Cypher on graduation.\",\"configType\":\"launch-profile\"}";
 
-        modulePasswordGating  = new MockComponentModule(deployer, passwordGatingMeta);
-        componentRegistry.approveComponent(address(modulePasswordGating),  FeatureUtils.GATING,             "Password Tier Gating");
+        // Real module carries its own wizard metadata (configType drives the password-tier form).
+        passwordTierGatingModule.setMetadataURI(passwordGatingMeta);
 
         moduleMerkleGating    = new MockComponentModule(deployer, merkleGatingMeta);
         componentRegistry.approveComponent(address(moduleMerkleGating),    FeatureUtils.GATING,             "Merkle Allowlist Gating");
@@ -471,7 +474,6 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "CurveParamsComputer",        address(curveParamsComputer));
         vm.serializeAddress(c, "DynamicPricingModule",       address(dynamicPricingModule));
         vm.serializeAddress(c, "PasswordTierGatingModule",   address(passwordTierGatingModule));
-        vm.serializeAddress(c, "ModulePasswordGating",       address(modulePasswordGating));
         vm.serializeAddress(c, "ModuleMerkleGating",         address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer",        address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer",         address(moduleZAMMDeployer));

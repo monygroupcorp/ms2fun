@@ -39,7 +39,16 @@ Shipped:
   wizard renders the password-tier `SchemaForm` and threads config into the single create tx;
   `ConfigureGatingRow` on the ERC1155 + ERC404 creator-admin panels for owner-authored
   add/update post-create (calls `configureFor` directly on the module).
-- **Gate:** forge build clean; frontend 347 tests + lint + build green. NOT yet fork-walked.
+- **Gate:** forge build clean; frontend 347 tests + lint + build green.
+- **Fork-walked ✅ (2026-06-25):** new `app/e2e/gating.spec.ts` drives the real wizard with an
+  injected auto-signing anvil wallet — creates a gated collection with a tier in ONE tx, then edits
+  tiers from creator admin, asserting on-chain via viem. The walk caught + fixed THREE real bugs the
+  unit tests missed: (1) deploy approved a *mock* password-gating module (no `configureFor`) while the
+  real module lacked the wizard metadata → now the real module carries it, mock dropped
+  (`DeployCore.sol`); (2) `SchemaForm` list fields counted only non-empty rows, so added rows never
+  rendered → tracked by explicit count; (3) defaulted selects weren't committed to form state, so
+  `visibleWhen` dependents stayed hidden → `collectDefaults` seeds them. The injected-wallet fixture
+  (`app/e2e/fixtures/anvilWallet.ts`) is reusable for ALL future write-path walks.
 
 ---
 
@@ -86,10 +95,11 @@ into the contract-surface reframe — so it's an unscheduled gap, NOT optional p
 - **Distinct from the "style renderer" backlog item** (creator-supplied per-page `styleUri` CSS).
 
 ## Not yet verified / open
-- **Fork-verify Phase 2 + Phase 3 end-to-end** — they're on main + gate-green but not fully walked
-  (portfolio holdings, featured rent/boost, the 5 admin panels operating as ADMIN, **and the new
-  gating-config flows: set tiers in the wizard at create + edit them from creator admin**). A fresh
-  `pnpm chain:deploy` + walk is the next confidence step.
+- **Fork-verify Phase 2 + Phase 3 end-to-end** — on main + gate-green but not fully walked (portfolio
+  holdings, featured rent/boost, the 5 admin panels operating as ADMIN). The **gating-config flow is
+  now walked** (see B above). The new injected-wallet E2E harness (`app/e2e/fixtures/anvilWallet.ts` +
+  the `@fork` pattern in `gating.spec.ts`) is the template to walk these remaining write paths
+  headlessly — `pnpm chain:fork` + `pnpm chain:deploy`, then `pnpm test:e2e`.
 - **Real testnet deploy** — only the anvil mainnet-fork has been exercised. Testnet readiness (a real
   testnet, read-only provider, EXEC404 grandfathering) is a separate push.
 

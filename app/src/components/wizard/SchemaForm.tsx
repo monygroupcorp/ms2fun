@@ -96,34 +96,29 @@ function GroupField({ field, values, onChange, errors }: FieldRendererProps) {
 function ListField({ field, values, onChange, errors }: FieldRendererProps) {
   const item = field.item
 
-  // Count existing rows by scanning values for `${field.key}.N` keys
-  const rowIndices = getListIndices(values, field.key)
+  // Row COUNT is tracked explicitly under `${key}.length` — separate from row VALUES (`${key}.N`),
+  // so a freshly-added row renders even while its value is still empty. (A previous "count
+  // non-empty values" approach hid newly-added rows, making the list impossible to fill.)
+  const countKey = `${field.key}.length`
+  const rawCount = values[countKey]
+  const count = rawCount !== undefined && /^\d+$/.test(rawCount) ? Number(rawCount) : 0
+  const rowIndices = Array.from({ length: count }, (_, i) => i)
   const maxRows = field.validation?.max
-  const canAdd = maxRows === undefined || rowIndices.length < maxRows
+  const canAdd = maxRows === undefined || count < maxRows
 
   function handleAdd() {
-    const nextIdx = rowIndices.length > 0 ? Math.max(...rowIndices) + 1 : 0
-    const rowKey = `${field.key}.${nextIdx}`
-    onChange(rowKey, item ? String(item.default ?? '') : '')
+    // Seed the new row's value key (keeps the existing onChange contract) then bump the count.
+    onChange(`${field.key}.${count}`, item ? String(item.default ?? '') : '')
+    onChange(countKey, String(count + 1))
   }
 
   function handleRemove(idx: number) {
-    // Shift remaining rows down to fill the gap
-    const remaining = rowIndices.filter((i) => i !== idx)
-    // We need to signal removal; emit empty string for removed key, then re-index
-    // Strategy: tell the consumer to clear the removed key and re-order by emitting
-    // sequential re-indexed values. The consumer's onChange sets a flat key.
-    // Simplest robust approach: remove by setting removed key to empty sentinel then
-    // re-emit all remaining rows at packed indices.
-    const rowValues = remaining.map((i) => values[`${field.key}.${i}`] ?? '')
-    // First clear all existing keys (emit empty)
-    rowIndices.forEach((i) => {
-      onChange(`${field.key}.${i}`, '')
-    })
-    // Then re-emit packed
-    rowValues.forEach((v, newIdx) => {
-      onChange(`${field.key}.${newIdx}`, v)
-    })
+    // Shift each row above `idx` down one slot, clear the now-unused top slot, decrement the count.
+    for (let i = idx; i < count - 1; i++) {
+      onChange(`${field.key}.${i}`, values[`${field.key}.${i + 1}`] ?? '')
+    }
+    onChange(`${field.key}.${count - 1}`, '')
+    onChange(countKey, String(Math.max(0, count - 1)))
   }
 
   const fieldError = errors[field.key]
@@ -378,19 +373,4 @@ function InputForKind({
       )
     }
   }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Return the sorted set of integer indices present under `${prefix}.N` in values. */
-function getListIndices(values: Record<string, string>, prefix: string): number[] {
-  const seen = new Set<number>()
-  const prefixDot = `${prefix}.`
-  for (const key of Object.keys(values)) {
-    if (!key.startsWith(prefixDot)) continue
-    const rest = key.slice(prefixDot.length)
-    const idx = parseInt(rest, 10)
-    if (!Number.isNaN(idx) && values[key] !== '') seen.add(idx)
-  }
-  return [...seen].sort((a, b) => a - b)
 }

@@ -120,6 +120,21 @@ export interface ProjectTypeSchema {
   postCreate?: { title: string; fields: FieldSchema[] }
 }
 
+/**
+ * Seed a values bag with each leaf field's `default`. A select's `default` is only DISPLAYED by the
+ * renderer, never committed to state until changed — so without this, a `visibleWhen` keyed on a
+ * defaulted select reads `undefined` and stays hidden (and the default never reaches submit). Use
+ * this to initialize a form's values. Lists are tracked by count, not defaults, so they're skipped.
+ */
+export function collectDefaults(fields: FieldSchema[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const f of fields) {
+    if (f.kind === 'group' && f.fields) Object.assign(out, collectDefaults(f.fields))
+    else if (f.kind !== 'list' && f.default !== undefined) out[f.key] = String(f.default)
+  }
+  return out
+}
+
 // ── Evaluator (shared by the wizard renderer + NOEMA) ────────────────────────
 
 /** Resolve a `key` against a flat-or-nested values bag (supports dotted paths like `freeMint.scope`). */

@@ -16,6 +16,7 @@ import { passwordTierGatingModuleAbi } from '../../generated/contracts'
 import { forkChainId } from '../../lib/addresses'
 import {
   getConfigSchema,
+  collectDefaults,
   encodeTierConfig,
   hasTierConfig,
   validateTierConfig,
@@ -58,7 +59,9 @@ export function ConfigureGatingRow({ instance }: { instance: `0x${string}` }) {
     query: { enabled: hasModule },
   })
 
-  const [values, setValues] = useState<Record<string, string>>({})
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    collectDefaults(getConfigSchema('password-tier-gating')?.fields ?? []),
+  )
   const [attempted, setAttempted] = useState(false)
   const tx = useTxAction({ onSuccess: () => void refetch() })
 
@@ -97,7 +100,7 @@ export function ConfigureGatingRow({ instance }: { instance: `0x${string}` }) {
 
   function handleReset(): void {
     tx.reset()
-    setValues({})
+    setValues(collectDefaults(schema?.fields ?? []))
     setAttempted(false)
     void refetch()
   }
