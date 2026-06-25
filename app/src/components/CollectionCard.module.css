@@ -55,6 +55,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* min-width:0 lets a flex child shrink below its content so the ellipsis engages instead of
+     pushing the badge off the card on narrow viewports. */
+  min-width: 0;
+}
+
+/* Keep the type badge at its intrinsic size — the title takes the squeeze, not the badge. */
+.cardHead :global(.badge) {
+  flex-shrink: 0;
 }
 
 .cardDescription {

@@ -35,7 +35,7 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 2rem;
+  font-size: var(--font-size-h2);
   font-weight: var(--font-weight-bold);
   color: var(--text-secondary);
   margin-bottom: var(--space-3);

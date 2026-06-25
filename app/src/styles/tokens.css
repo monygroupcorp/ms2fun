@@ -95,6 +95,7 @@
   --space-24: 12rem; /* 192px */
 
   /* Component Padding */
+  --padding-xs: 0.25rem; /* 4px — sub-grid micro padding (matches --gap-xs); use sparingly */
   --padding-sm: var(--space-2); /* 16px */
   --padding-md: var(--space-3); /* 24px */
   --padding-lg: var(--space-4); /* 32px */
