@@ -73,13 +73,17 @@ export const test = base.extend({
 
 export { expect }
 
-/** Click CONNECT WALLET, then the (single) injected connector in the modal; wait until connected. */
+/** Click CONNECT WALLET, then the (single) injected connector in the modal; wait until connected.
+ *  Mobile-aware: at ≤1024px the top-bar nav (incl. the wallet) is hidden behind the MENU overlay, so
+ *  open it first. */
 export async function connectWallet(page: import('@playwright/test').Page): Promise<void> {
-  await page.getByRole('banner').getByRole('button', { name: 'CONNECT WALLET' }).click()
+  const menuButton = page.getByRole('button', { name: 'open menu' })
+  if (await menuButton.isVisible().catch(() => false)) await menuButton.click()
+  await page.getByRole('button', { name: 'CONNECT WALLET' }).first().click()
   // The modal lists the generic injected connector; click the first connector button.
   await page.locator('ul li button').first().click()
-  // Connected = the nav swaps CONNECT WALLET for the disconnect (⏏) control.
-  await expect(page.getByRole('button', { name: 'disconnect wallet' })).toBeVisible({
+  // Connected = the wallet UI swaps CONNECT WALLET for the disconnect (⏏) control.
+  await expect(page.getByRole('button', { name: 'disconnect wallet' }).first()).toBeVisible({
     timeout: 15_000,
   })
 }
