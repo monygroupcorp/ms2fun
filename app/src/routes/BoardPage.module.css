@@ -55,16 +55,107 @@
   margin: var(--space-3) 0 0;
 }
 
-/* The salon | featured rail. The work-discourse leads; featured is contained, never the lead. */
+/* Channels + featured rail | the salon. Discourse leads; the rail is the index, featured contained. */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 16rem;
+  grid-template-columns: 15rem minmax(0, 1fr);
   gap: var(--space-8);
   align-items: start;
 }
 
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
 .main {
   min-width: 0;
+}
+
+/* Channels — the wall index. Each row: a work swatch + name + post count; active = ink fill. */
+.channels {
+  display: flex;
+  flex-direction: column;
+}
+
+.channelsHead {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.channel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  text-align: left;
+}
+
+.channel:hover {
+  color: var(--color-text);
+}
+
+.channelOn {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.swatch {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: var(--border-width-thick, 2px) solid currentColor;
+}
+
+.channelName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channelCount {
+  flex: 0 0 auto;
+  color: var(--color-text-subtle);
+}
+
+.channelOn .channelCount {
+  color: color-mix(in srgb, var(--color-bg) 70%, var(--color-text));
+}
+
+/* Quote-card — a considered quote carrying the referenced work's swatch + channel. */
+.quoteCard {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+}
+
+.quoteCard:hover {
+  color: var(--color-text);
+}
+
+.quoteRef {
+  letter-spacing: 0.04em;
 }
 
 .toolbar {
