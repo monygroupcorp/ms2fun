@@ -159,6 +159,15 @@ contract MockStataToken {
         wethToken.transferFrom(msg.sender, address(this), extra);
         totalManaged += extra;
     }
+
+    /// @dev TEST HELPER: simulate an Aave solvency impairment (e.g. bad debt) by lowering value-per-share
+    ///      without burning shares — convertToAssets drops below the deposited principal. WETH backing is
+    ///      reduced so redemptions still settle the (now smaller) value.
+    function simulateLoss(uint256 lost) external {
+        require(lost <= totalManaged, "stata: loss exceeds managed");
+        totalManaged -= lost;
+        wethToken.transfer(address(0xdEaD), lost); // burn the now-unbacked WETH
+    }
 }
 
 /// @dev Minimal MasterRegistry mock: settable isAgent mapping.
@@ -682,6 +691,73 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.withdrawPrincipal(address(benefactorContract)); // now succeeds
 
         assertEq(vault.principal(address(benefactorContract)), 0);
+    }
+
+    // ── Shared-position first-mover bank run (audit #36 Tier-2) ────────────────
+    //
+    // All benefactors share ONE Aave position. If it is impaired (worth less than the sum of
+    // principals), withdrawals must socialize the loss pro-rata — NOT let a first mover redeem 100%
+    // and brick latecomers. After simulateLoss burns the unbacked WETH, MockWETH is topped up so the
+    // (reduced) redemptions can still settle in native ETH.
+
+    /// @dev Total ETH a withdrawal paid out across all three split legs (creator/community/platform).
+    function _payout(address creator, uint256 c0, uint256 m0, uint256 t0) internal view returns (uint256) {
+        return (creator.balance - c0) + (communityPayout.balance - m0) + (treasury.balance - t0);
+    }
+
+    /// @dev THE fix: under a 50% impairment, two equal benefactors each get ~50% — the first mover
+    ///      cannot drain the position and the second is NOT bricked. Pre-fix the first took 100% and
+    ///      the second reverted RedeemShortfall forever.
+    function test_withdraw_impairedPositionSocializesLossProRata() public {
+        vm.warp(1_000_000);
+
+        // Two equal benefactors: alice's benefactorContract + a second one owned by 0xCAFE.
+        _contributeBenefactor(10 ether);
+        MockOwnable b2 = _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        assertEq(vault.totalPrincipal(), 20 ether);
+
+        // Aave loses 50% of the shared position (10 of 20 ETH of value gone).
+        stata.simulateLoss(10 ether);
+        vm.deal(address(weth), 100 ether); // native ETH backs the reduced redemptions
+
+        // Mature so creator (the benefactor's owner) is the 80% leg.
+        vm.warp(1_000_000 + MATURITY);
+
+        // First mover (alice) withdraws — total paid out must be the pro-rata ~5 ETH, not the full 10.
+        uint256 c0 = alice.balance;
+        uint256 m0 = communityPayout.balance;
+        uint256 t0 = treasury.balance;
+        vm.prank(alice);
+        vault.withdrawPrincipal(address(benefactorContract));
+        assertApproxEqAbs(_payout(alice, c0, m0, t0), 5 ether, 1e9, "first mover must get ~pro-rata 5 ETH");
+
+        // Second benefactor is NOT bricked and also gets ~5 ETH (the ratio held constant).
+        c0 = address(0xCAFE).balance;
+        m0 = communityPayout.balance;
+        t0 = treasury.balance;
+        vm.prank(address(0xCAFE));
+        vault.withdrawPrincipal(address(b2)); // must NOT revert
+        assertApproxEqAbs(_payout(address(0xCAFE), c0, m0, t0), 5 ether, 1e9, "second must also get ~pro-rata 5 ETH");
+        assertEq(vault.principal(address(b2)), 0, "second benefactor withdrew, not bricked");
+        assertEq(vault.totalPrincipal(), 0, "ledger fully cleared");
+    }
+
+    /// @dev Solvency haircut (value < principal) is honored and does NOT spuriously revert: a lone
+    ///      benefactor under impairment withdraws the reduced value rather than reverting RedeemShortfall.
+    function test_withdraw_soleBenefactorTakesImpairedValue() public {
+        vm.warp(1_000_000);
+        _contributeBenefactor(10 ether);
+
+        stata.simulateLoss(4 ether); // 40% impairment → value 6 ETH
+        vm.deal(address(weth), 100 ether);
+
+        vm.warp(1_000_000 + MATURITY);
+        vm.prank(alice);
+        vault.withdrawPrincipal(address(benefactorContract)); // must NOT revert
+
+        assertEq(vault.principal(address(benefactorContract)), 0, "principal cleared");
+        assertEq(vault.totalPrincipal(), 0, "totalPrincipal cleared");
+        // The full nominal principal leaves the ledger; the 4 ETH shortfall is a realized loss.
     }
 
     /// @dev NEW: withdrawPrincipal succeeds even when creator rejects ETH (forceSafeTransferETH).
