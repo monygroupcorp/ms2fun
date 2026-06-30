@@ -1,11 +1,11 @@
 .page {
-  composes: pageStack from '../styles/layout.module.css';
-  --page-max: var(--page-max-form);
+  composes: page from '../styles/layout.module.css';
 }
 
 .crumb {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
+  margin-bottom: var(--space-4);
 }
 
 .back {
@@ -16,25 +16,162 @@
   color: var(--color-text);
 }
 
-.kicker {
+/* ── The shell — stepper/manifest rail | the working panel ─────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 19rem minmax(0, 1fr);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  min-height: 36rem;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6);
+  border-right: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.railKicker {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-caption);
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--color-text-muted);
-  margin: 0;
+  margin: 0 0 var(--space-4);
 }
 
-.title {
+/* Stepper rows are buttons (jump to an applicable step); the .noesis-stepper device paints them. */
+.step {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.step:disabled {
+  cursor: default;
+}
+
+.manifest {
+  margin-top: auto;
+}
+
+.manifestHead {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2);
+}
+
+/* ── The panel ──────────────────────────────────────────────────────────────── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-8);
+  min-width: 0;
+}
+
+.stepKicker {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0 0 var(--space-5);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  flex: 1;
+}
+
+/* B register — the reverent big-question decision (Contract / Alignment). */
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  text-align: center;
+}
+
+.question {
   font-family: var(--brand-font-display);
-  font-size: var(--font-size-h1);
+  font-size: clamp(2.5rem, 6vw, 4.5rem);
   font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-tight);
-  line-height: 1;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
   margin: 0;
 }
 
-.section {
+.lede {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+  max-width: 60ch;
+}
+
+/* Large selectable cards — the decision's choices (type / inspiration). Selected = inverted ink. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--gap-md);
+  width: 100%;
+  text-align: left;
+  margin-top: var(--space-2);
+}
+
+.bigCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  min-height: 9rem;
+  justify-content: flex-end;
+  background: transparent;
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+}
+.bigCard:hover {
+  background: var(--color-surface);
+}
+
+.bigSelected,
+.bigSelected:hover {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: var(--color-text);
+}
+
+.bigCardName {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+}
+
+.bigCardSummary {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+}
+
+.bigSelected .bigCardSummary {
+  color: color-mix(in srgb, var(--color-bg) 75%, var(--color-text));
+}
+
+/* A register — the dense config blocks. */
+.formBlock {
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
@@ -51,7 +188,12 @@
   margin: 0;
 }
 
-/* Per-module config form (e.g. password tiers) nested under its slot picker. */
+.slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
 .moduleConfig {
   margin-top: var(--space-4);
   padding-top: var(--space-4);
@@ -61,84 +203,173 @@
   gap: var(--space-3);
 }
 
-.error {
-  font-family: var(--brand-font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text);
-  border-left: var(--border-width-thick, 2px) solid var(--color-text);
-  padding-left: var(--space-3);
-}
-
-/* Project type + vault cards — NOESIS selectable cards: 2px mono frame, selected = inverted ink. */
-.typeRow,
-.vaultRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--gap-md);
-}
-
-.typeCard,
-.vaultCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-  text-align: left;
-  padding: var(--space-4);
-  background: transparent;
-  border: var(--border-width-thick, 2px) solid var(--color-border);
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-}
-.typeCard:hover,
-.vaultCard:hover {
-  background: var(--color-surface);
-}
-
-.typeSelected,
-.typeSelected:hover,
-.vaultSelected,
-.vaultSelected:hover {
-  background: var(--color-text);
-  color: var(--color-bg);
-  border-color: var(--color-text);
-}
-
-.typeName,
-.vaultName {
-  font-family: var(--brand-font-display);
-  font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-h4);
-}
-
-.typeSummary,
-.vaultMeta {
-  font-family: var(--brand-font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--color-text-muted);
-  line-height: var(--line-height-relaxed);
-}
-
-/* Selected card flips to ink — keep the muted sub-text legible on the dark fill. */
-.typeSelected .typeSummary,
-.vaultSelected .vaultMeta {
-  color: color-mix(in srgb, var(--color-bg) 75%, var(--color-text));
-}
-
 .bind {
-  margin-top: var(--space-2);
+  max-width: 28rem;
 }
 
 .bindNote {
   font-family: var(--brand-font-body);
   font-size: var(--font-size-body-sm);
   color: var(--color-text-muted);
-  line-height: var(--line-height-relaxed);
   margin: 0;
 }
 
-.launchBtn {
-  align-self: flex-start;
+.error {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text);
+  border-left: var(--border-width-thick, 2px) solid var(--color-text);
+  padding-left: var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+
+/* C register — Review: live preview | deploy summary. */
+.reviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: var(--space-6);
+  flex: 1;
+}
+
+.previewHead {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.summaryHead {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.summaryList {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--gap-md);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.summaryRow dt {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.summaryRow dd {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+  text-align: right;
+}
+
+.permanence {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-muted);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  padding: var(--space-4);
+}
+
+/* The live collection-page preview (C). */
+.preview {
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  display: grid;
+  grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+}
+
+.previewLabel {
+  padding: var(--space-5);
+  border-right: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.previewTitle {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  margin: 0;
+}
+
+.previewBy {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin: var(--space-1) 0 var(--space-4);
+}
+
+.previewBind {
+  margin-top: var(--space-2);
+}
+
+.previewHang {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.previewTile {
+  aspect-ratio: 3 / 4;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Footer — Back · Continue / Deploy, pinned to the panel foot ────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-top: var(--space-8);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.backStep {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.backStep:hover:not(:disabled) {
+  color: var(--color-text);
+}
+.backStep:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.continue {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   letter-spacing: 0.12em;
@@ -149,8 +380,7 @@
   padding: var(--space-4) var(--space-6);
   cursor: pointer;
 }
-
-.launchBtn:disabled {
+.continue:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -159,4 +389,22 @@
   display: flex;
   align-items: center;
   gap: var(--gap-md);
+}
+
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    border-right: 0;
+    border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+  }
+  .reviewGrid,
+  .preview {
+    grid-template-columns: 1fr;
+  }
+  .previewLabel {
+    border-right: 0;
+    border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+  }
 }
