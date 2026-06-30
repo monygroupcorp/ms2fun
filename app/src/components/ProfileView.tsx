@@ -7,6 +7,8 @@ import styles from './ProfileView.module.css'
 interface ProfileViewProps {
   address: `0x${string}`
   metadata: ProfileMetadata | undefined
+  /** When provided (own profile), an Edit affordance is shown on the framed avatar. */
+  onEdit?: (() => void) | undefined
 }
 
 function isUrl(value: string): boolean {
@@ -17,7 +19,7 @@ function GlyphAvatar({ char }: { char: string }) {
   return <div className={styles.avatarGlyph}>{char.toUpperCase()}</div>
 }
 
-export function ProfileView({ address, metadata }: ProfileViewProps) {
+export function ProfileView({ address, metadata, onEdit }: ProfileViewProps) {
   const [bannerError, setBannerError] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
 
@@ -44,17 +46,30 @@ export function ProfileView({ address, metadata }: ProfileViewProps) {
         )}
       </div>
 
-      {/* Avatar */}
-      <div className={styles.avatarWrap}>
-        {hasAvatar && metadata != null && metadata.avatar !== '' ? (
-          <img
-            src={resolveUri(metadata.avatar)}
-            alt={displayName}
-            className={styles.avatarImage}
-            onError={() => setAvatarError(true)}
-          />
-        ) : (
-          <GlyphAvatar char={glyphChar} />
+      {/* Avatar — the user-set image, hung in the mono .noesis-frame (the brand container). An
+          Edit affordance shows on one's own profile (rule 1: avatar is set/updated, not derived). */}
+      <div className={`noesis-frame ${styles.avatarFrame}`}>
+        <div className={styles.avatarInner}>
+          {hasAvatar && metadata != null && metadata.avatar !== '' ? (
+            <img
+              src={resolveUri(metadata.avatar)}
+              alt={displayName}
+              className={styles.avatarImage}
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <GlyphAvatar char={glyphChar} />
+          )}
+        </div>
+        {onEdit && (
+          <button
+            type="button"
+            className={styles.avatarEdit}
+            onClick={onEdit}
+            data-testid="profile-avatar-edit"
+          >
+            Edit
+          </button>
         )}
       </div>
 

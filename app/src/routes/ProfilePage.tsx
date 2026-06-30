@@ -163,7 +163,11 @@ export function ProfilePage() {
       {/* The plate: framed identity + a standing strip, then the tabbed galleries. */}
       {!isPending && !isError && (!isOwn || !!uri) && (
         <div className={styles.plate}>
-          <ProfileView address={target} metadata={metadata} />
+          <ProfileView
+            address={target}
+            metadata={metadata}
+            {...(isOwn ? { onEdit: () => setEditing(true) } : {})}
+          />
           <div className="noesis-standing">
             <div className="sr">
               <span className="k">Works held</span>
