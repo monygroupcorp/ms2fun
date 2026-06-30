@@ -13,13 +13,17 @@ contract MockMasterRegistry is IMasterRegistry {
     // Simple no-op implementations for testing
 
     function registerInstance(
-        address,
-        address,
+        address instance,
+        address factory,
         address,
         string memory,
         string memory,
         address
-    ) external override {}
+    ) external override {
+        // Record instance→factory so config/seal modules' factory-of-instance auth (D1) works for the
+        // honest createInstance flow (factory registers the instance before wiring its modules).
+        _instanceFactory[instance] = factory;
+    }
 
     function getFactoryInfo(uint256)
         external
@@ -65,10 +69,18 @@ contract MockMasterRegistry is IMasterRegistry {
         return 0;
     }
 
-    function getInstanceInfo(address) external view override returns (InstanceInfo memory) {
+    // Per-instance factory, settable for least-privilege auth tests (D1). Default address(0).
+    mapping(address => address) private _instanceFactory;
+
+    /// @dev TEST HELPER: record which factory "registered" `instance` (what getInstanceInfo reports).
+    function setInstanceFactory(address instance, address factory) external {
+        _instanceFactory[instance] = factory;
+    }
+
+    function getInstanceInfo(address instance) external view override returns (InstanceInfo memory) {
         return InstanceInfo({
-            instance: address(0),
-            factory: address(0),
+            instance: instance,
+            factory: _instanceFactory[instance],
             creator: address(0),
             vaults: new address[](0),
             name: "",
