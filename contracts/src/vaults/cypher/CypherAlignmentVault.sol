@@ -7,6 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
+import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
 import {IAlgebraNFTPositionManager, IAlgebraSwapRouter} from "../../interfaces/algebra/IAlgebra.sol";
 
 interface IWETH9 {
@@ -41,6 +42,8 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     event DelegateSet(address indexed benefactor, address indexed delegate);
     event ProtocolYieldCutUpdated(uint256 newBps);
     event ProtocolFeesWithdrawn(uint256 amount);
+    event PriceValidatorUpdated(address indexed validator);
+    event MaxPriceDeviationUpdated(uint256 newBps);
 
     // ── Config ────────────────────────────────────────────────────────────
     IAlgebraNFTPositionManager public positionManager;
@@ -57,6 +60,12 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Economics ─────────────────────────────────────────────────────────
     uint256 public protocolYieldCutBps;  // default 100 (1%)
+
+    // ── Price-manipulation guard (sandwich floor, mirrors Uni/ZAMM F5) ─────
+    /// @notice Independent price source (Uniswap TWAP) used to floor the permissionless harvest
+    ///         swap's slippage. address(0) = no floor (caller minAmountOut only — back-compat).
+    IVaultPriceValidator public priceValidator;
+    uint256 public maxPriceDeviationBps;  // default 500 (5%)
 
     // ── Fee buckets ───────────────────────────────────────────────────────
     uint256 public accumulatedProtocolFees;
@@ -86,7 +95,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // slither-disable-next-line missing-zero-check
         address _protocolTreasury,
         // slither-disable-next-line missing-zero-check
-        address _liquidityDeployer
+        address _liquidityDeployer,
+        // slither-disable-next-line missing-zero-check
+        address _priceValidator
     ) external {
         if (_initialized) revert VaultAlreadyInitialized();
         _initialized = true;
@@ -98,6 +109,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         protocolTreasury = _protocolTreasury;
         liquidityDeployer = _liquidityDeployer;
         protocolYieldCutBps = 100;
+        maxPriceDeviationBps = 500;
+        // Wire the oracle floor at init (mirrors Uni/ZAMM). address(0) → floor inert (back-compat);
+        // production deploys pass the shared UniswapVaultPriceValidator so the harvest swap is floored.
+        priceValidator = IVaultPriceValidator(_priceValidator);
 
         _initializeOwner(msg.sender);
     }
@@ -170,6 +185,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // slither-disable-next-line uninitialized-local
         uint256 wethFromSwap;
         if (alignmentFees > 0) {
+            // Floor the caller's slippage bound to an oracle-derived minimum so a permissionless caller
+            // cannot pass loose minAmountOut and sandwich the vault's own token->WETH swap.
+            uint256 effMinAmountOut = _floorWethOut(alignmentFees, minAmountOut);
             IERC20(alignmentToken).forceApprove(address(swapRouter), alignmentFees);
             wethFromSwap = swapRouter.exactInputSingle(
                 IAlgebraSwapRouter.ExactInputSingleParams({
@@ -178,7 +196,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
                     recipient: address(this),
                     deadline: block.timestamp,
                     amountIn: alignmentFees,
-                    amountOutMinimum: minAmountOut,
+                    amountOutMinimum: effMinAmountOut,
                     limitSqrtPrice: 0
                 })
             );
@@ -260,6 +278,30 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (bps > 1000) revert ExceedsMaxBps();
         protocolYieldCutBps = bps;
         emit ProtocolYieldCutUpdated(bps);
+    }
+
+    /// @notice Wire the independent price validator used to floor the harvest swap slippage.
+    ///         Pass address(0) to disable the floor (caller-supplied minimum only).
+    function setPriceValidator(address validator) external onlyOwner {
+        priceValidator = IVaultPriceValidator(validator);
+        emit PriceValidatorUpdated(validator);
+    }
+
+    function setMaxPriceDeviationBps(uint256 bps) external onlyOwner {
+        if (bps > 2000) revert ExceedsMaxBps();
+        maxPriceDeviationBps = bps;
+        emit MaxPriceDeviationUpdated(bps);
+    }
+
+    /// @dev Floor a caller-supplied WETH-out minimum (token->WETH swap) to an oracle-derived value.
+    ///      Falls back to the caller value when no validator is wired or no reliable price exists,
+    ///      so the vault never bricks when no oracle source exists (mirrors Uni/ZAMM degradation).
+    function _floorWethOut(uint256 tokenIn, uint256 callerMin) internal view returns (uint256) {
+        if (address(priceValidator) == address(0)) return callerMin;
+        uint256 expectedEth = priceValidator.quoteEthForTokens(alignmentToken, tokenIn);
+        if (expectedEth == 0) return callerMin;
+        uint256 floor = expectedEth * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
+        return callerMin > floor ? callerMin : floor;
     }
 
     // ── IAlignmentVault compliance ────────────────────────────────────────

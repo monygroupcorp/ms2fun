@@ -127,7 +127,8 @@ contract ERC404StakingModule {
 
     /// @notice Record that `delta` ETH was received from vault (already in instance).
     /// @dev Instance calls this after vault.claimFees() transfers ETH to instance.
-    ///      If totalStaked == 0, delta is silently unclaimable (held in instance, owner can withdrawDust).
+    ///      If totalStaked == 0, delta is silently unclaimable (held in the instance balance; the owner
+    ///      can recover it via ERC404BondingInstance.withdrawDust(), which sweeps balance above `reserve`).
     function recordFeesReceived(uint256 delta) external onlyRegisteredInstance {
         if (!stakingEnabled[msg.sender]) revert StakingNotEnabled();
         address instance = msg.sender;

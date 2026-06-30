@@ -239,7 +239,10 @@ contract DeployCore is Script {
 
         if (cfg.cypherPositionManager != address(0)) {
             CypherAlignmentVault cypherImpl = new CypherAlignmentVault();
-            cypherVaultFactory = new CypherAlignmentVaultFactory(address(cypherImpl));
+            cypherVaultFactory = new CypherAlignmentVaultFactory(
+                address(cypherImpl),
+                IVaultPriceValidator(address(priceValidator))
+            );
         }
 
         if (cfg.zamm != address(0)) {

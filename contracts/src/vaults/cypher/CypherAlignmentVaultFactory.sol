@@ -2,18 +2,23 @@
 pragma solidity ^0.8.24;
 
 import {CypherAlignmentVault} from "./CypherAlignmentVault.sol";
+import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
 import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
 
 /// @title CypherAlignmentVaultFactory
 /// @notice Deploys CypherAlignmentVault clones via CREATE3
 contract CypherAlignmentVaultFactory {
     address public immutable vaultImplementation;
+    /// @notice Oracle/TWAP validator wired into every deployed vault. The vault's harvest swap floor
+    ///         is inert when this is address(0), so production must pass the shared validator.
+    IVaultPriceValidator public immutable defaultPriceValidator;
 
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
     // slither-disable-next-line missing-zero-check
-    constructor(address _vaultImplementation) {
+    constructor(address _vaultImplementation, IVaultPriceValidator _defaultPriceValidator) {
         vaultImplementation = _vaultImplementation;
+        defaultPriceValidator = _defaultPriceValidator;
     }
 
     // slither-disable-next-line reentrancy-events
@@ -36,7 +41,7 @@ contract CypherAlignmentVaultFactory {
         vault = CypherAlignmentVault(payable(ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode)));
         vault.initialize(
             positionManager, swapRouterAddr, weth, alignmentToken,
-            protocolTreasury, liquidityDeployer
+            protocolTreasury, liquidityDeployer, address(defaultPriceValidator)
         );
         emit VaultDeployed(address(vault), alignmentToken);
     }

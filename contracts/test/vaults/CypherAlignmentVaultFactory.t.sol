@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
 import "../../src/vaults/cypher/CypherAlignmentVault.sol";
+import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
 import {CREATEX} from "../../src/shared/CreateXConstants.sol";
 import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
 
@@ -26,7 +27,10 @@ contract CypherAlignmentVaultFactoryTest is Test {
     function setUp() public {
         vm.etch(CREATEX, CREATEX_BYTECODE);
         CypherAlignmentVault impl = new CypherAlignmentVault();
-        factory = new CypherAlignmentVaultFactory(address(impl));
+        factory = new CypherAlignmentVaultFactory(
+            address(impl),
+            IVaultPriceValidator(address(0)) // floor-mechanics covered elsewhere; deploy test only
+        );
     }
 
     function test_createVault_deploysClone() public {

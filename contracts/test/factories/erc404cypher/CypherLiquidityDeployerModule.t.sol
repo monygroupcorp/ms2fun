@@ -38,7 +38,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
         vault.initialize(
             address(positionManager), address(swapRouter), address(weth),
             address(token), protocolTreasury,
-            address(deployer)  // liquidityDeployer = this module
+            address(deployer),  // liquidityDeployer = this module
+            address(0)          // priceValidator inert
         );
     }
 
