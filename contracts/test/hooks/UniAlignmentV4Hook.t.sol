@@ -40,6 +40,8 @@ contract UniAlignmentV4HookTest is Test {
     address public bob = address(0x3);
 
     address public mockToken = address(0x2222222222222222222222222222222222222222);
+    /// @notice The fixed project instance the hook credits — distinct from any swapper/router address.
+    address public projectInstance = address(0x7777777777777777777777777777777777777777);
 
     uint256 constant DEFAULT_HOOK_FEE_BIPS = 100; // 1%
     uint24 constant DEFAULT_LP_FEE_RATE = 3000; // 0.3%
@@ -59,6 +61,7 @@ contract UniAlignmentV4HookTest is Test {
             UniAlignmentVault(payable(address(mockVault))),
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2), // WETH (not used in fee logic)
             owner,
+            projectInstance,
             DEFAULT_HOOK_FEE_BIPS,
             DEFAULT_LP_FEE_RATE
         );
@@ -133,6 +136,83 @@ contract UniAlignmentV4HookTest is Test {
         assertEq(hook.lpFeeRate(), DEFAULT_LP_FEE_RATE, "lpFeeRate should be set at deploy");
     }
 
+    function test_constructor_setsImmutableBenefactor() public view {
+        assertEq(hook.benefactor(), projectInstance, "benefactor should be set at deploy");
+    }
+
+    function test_constructor_rejectsZeroBenefactor() public {
+        vm.prank(owner);
+        vm.expectRevert(TestableHook.InvalidAddress.selector);
+        new TestableHook(
+            IPoolManager(address(mockPoolManager)),
+            UniAlignmentVault(payable(address(mockVault))),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            owner,
+            address(0), // benefactor — must revert
+            DEFAULT_HOOK_FEE_BIPS,
+            DEFAULT_LP_FEE_RATE
+        );
+    }
+
+    // ========== Benefactor attribution (audit #36 Tier-2: router-stranding/misattribution) ==========
+
+    /// @dev In Uniswap v4, afterSwap's `sender` is whoever called poolManager.swap() inside the unlock
+    ///      callback — the router/periphery locker, NOT the trading EOA. Crediting it would misroute the
+    ///      vault yield to a router (often unable to claim → stranded) and let a self-routing swapper farm
+    ///      benefactor credit. The fee must always be attributed to the fixed project instance instead.
+    function test_afterSwap_creditsBenefactorNotRouter() public {
+        PoolKey memory key = _ethTokenPoolKey();
+        address router = address(0xDEAD); // the v4 locker/router that actually calls poolManager.swap()
+        BalanceDelta delta = _buyDelta(1000e18, 500e18);
+
+        vm.expectEmit(true, false, false, true, address(hook));
+        emit AlignmentFeeCollected((1000e18 * DEFAULT_HOOK_FEE_BIPS) / 10000, projectInstance);
+
+        vm.prank(address(mockPoolManager));
+        hook.afterSwap(router, key, _buyParams(1000e18), delta, bytes(""));
+
+        assertEq(mockVault.lastBenefactor(), projectInstance, "must credit project instance, not the router");
+        assertTrue(mockVault.lastBenefactor() != router, "router must never be credited");
+    }
+
+    /// @dev The queued-retry path must credit the same fixed benefactor, not the hook itself.
+    function test_flushQueuedFees_creditsBenefactor() public {
+        MockRevertingVault revertingVault = new MockRevertingVault();
+        vm.prank(owner);
+        TestableHook h = new TestableHook(
+            IPoolManager(address(mockPoolManager)),
+            UniAlignmentVault(payable(address(revertingVault))),
+            address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
+            owner,
+            projectInstance,
+            DEFAULT_HOOK_FEE_BIPS,
+            DEFAULT_LP_FEE_RATE
+        );
+        vm.deal(address(h), 100 ether);
+
+        PoolKey memory key = PoolKey({
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(mockToken),
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(address(h))
+        });
+
+        // Queue a fee (vault reverts on receive).
+        BalanceDelta delta = _buyDelta(100e18, 50e18);
+        vm.prank(address(mockPoolManager));
+        h.afterSwap(address(0xDEAD), key, _buyParams(100e18), delta, bytes(""));
+        assertGt(h.queuedFees(), 0, "fee should be queued");
+
+        // Swap the reverting vault for a recording one at the same address so flush succeeds.
+        MockVault recorder = new MockVault();
+        vm.etch(address(revertingVault), address(recorder).code);
+
+        h.flushQueuedFees();
+        assertEq(MockVault(payable(address(revertingVault))).lastBenefactor(), projectInstance,
+            "flush must credit the project instance");
+    }
+
     // ========== Buy Direction Tests (ETH→token, zeroForOne=true) ==========
     // THIS IS THE DIRECTION THAT WAS BROKEN BEFORE THE REFACTOR
 
@@ -151,7 +231,7 @@ contract UniAlignmentV4HookTest is Test {
         assertEq(selector, IHooks.afterSwap.selector);
         assertEq(hookDelta, int128(uint128(expectedFee)), "Hook delta should be fee amount");
         assertEq(mockVault.lastFeeAmount(), expectedFee, "Vault should receive exact fee");
-        assertEq(mockVault.lastBenefactor(), alice, "Benefactor should be swapper");
+        assertEq(mockVault.lastBenefactor(), projectInstance, "Benefactor is the fixed project instance");
     }
 
     function test_buy_feeCalculatedFromETHNotToken() public {
@@ -203,7 +283,7 @@ contract UniAlignmentV4HookTest is Test {
         assertEq(selector, IHooks.afterSwap.selector);
         assertEq(hookDelta, int128(uint128(expectedFee)), "Sell should produce ETH fee");
         assertEq(mockVault.lastFeeAmount(), expectedFee, "Vault receives sell fee");
-        assertEq(mockVault.lastBenefactor(), bob);
+        assertEq(mockVault.lastBenefactor(), projectInstance);
     }
 
     function test_sell_feeCalculatedFromETHNotToken() public {
@@ -345,6 +425,7 @@ contract UniAlignmentV4HookTest is Test {
             UniAlignmentVault(payable(address(mockVault))),
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             owner,
+            projectInstance,
             0, // hookFeeBips = 0
             DEFAULT_LP_FEE_RATE
         );
@@ -481,19 +562,19 @@ contract UniAlignmentV4HookTest is Test {
     function test_multipleSwaps_differentUsers() public {
         PoolKey memory key = _ethTokenPoolKey();
 
-        // Alice buys
+        // Alice buys — afterSwap's `sender` is alice here, but credit goes to the project instance.
         BalanceDelta delta1 = _buyDelta(1000e18, 500e18);
         vm.prank(address(mockPoolManager));
         hook.afterSwap(alice, key, _buyParams(1000e18), delta1, bytes(""));
         assertEq(mockVault.lastFeeAmount(), 10e18, "Alice: 1% of 1000 ETH");
-        assertEq(mockVault.lastBenefactor(), alice);
+        assertEq(mockVault.lastBenefactor(), projectInstance);
 
-        // Bob sells (receives 2000 ETH)
+        // Bob sells (receives 2000 ETH) — again credited to the project instance, not bob.
         BalanceDelta delta2 = _sellDelta(2000e18, 1000e18);
         vm.prank(address(mockPoolManager));
         hook.afterSwap(bob, key, _sellParams(1000e18), delta2, bytes(""));
         assertEq(mockVault.lastFeeAmount(), 20e18, "Bob: 1% of 2000 ETH");
-        assertEq(mockVault.lastBenefactor(), bob);
+        assertEq(mockVault.lastBenefactor(), projectInstance);
     }
 
     // ========== Vault Integration ==========
@@ -506,7 +587,7 @@ contract UniAlignmentV4HookTest is Test {
         hook.afterSwap(alice, key, _buyParams(5000e18), delta, bytes(""));
 
         assertTrue(mockVault.receivedFee(), "Vault should have received fee");
-        assertEq(mockVault.lastBenefactor(), alice);
+        assertEq(mockVault.lastBenefactor(), projectInstance);
         assertEq(mockVault.lastFeeAmount(), 50e18);
     }
 
@@ -519,6 +600,7 @@ contract UniAlignmentV4HookTest is Test {
             UniAlignmentVault(payable(address(revertingVault))),
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             owner,
+            projectInstance,
             DEFAULT_HOOK_FEE_BIPS,
             DEFAULT_LP_FEE_RATE
         );
@@ -535,9 +617,9 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(50e18, 25e18);
         uint256 expectedFee = (50e18 * DEFAULT_HOOK_FEE_BIPS) / 10000;
 
-        // Vault reverts but swap must NOT revert — fee queued instead
+        // Vault reverts but swap must NOT revert — fee queued instead (credited to project instance)
         vm.expectEmit(true, false, false, true, address(revertingHook));
-        emit TestableHook.AlignmentFeeQueued(expectedFee, alice);
+        emit TestableHook.AlignmentFeeQueued(expectedFee, projectInstance);
 
         vm.prank(address(mockPoolManager));
         (bytes4 sel, int128 delta2) = revertingHook.afterSwap(alice, key, _buyParams(50e18), delta, bytes(""));
@@ -575,6 +657,7 @@ contract UniAlignmentV4HookTest is Test {
             UniAlignmentVault(payable(address(mockVault))),
             address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2),
             owner,
+            projectInstance,
             10000, // 100% fee
             DEFAULT_LP_FEE_RATE
         );
@@ -617,6 +700,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
     IPoolManager public immutable poolManager;
     UniAlignmentVault public immutable vault;
     address public immutable weth;
+    address public immutable benefactor;
     uint256 public immutable hookFeeBips;
     uint24 public lpFeeRate;
 
@@ -632,12 +716,14 @@ contract TestableHook is ReentrancyGuard, Ownable {
         UniAlignmentVault _vault,
         address _weth,
         address _owner,
+        address _benefactor,
         uint256 _hookFeeBips,
         uint24 _initialLpFeeRate
     ) {
         if (address(_poolManager) == address(0)) revert InvalidAddress();
         if (address(_vault) == address(0)) revert InvalidAddress();
         if (_owner == address(0)) revert InvalidAddress();
+        if (_benefactor == address(0)) revert InvalidAddress();
         if (_hookFeeBips > 10000) revert HookFeeTooHigh();
         if (_initialLpFeeRate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeTooHigh();
 
@@ -645,6 +731,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
         poolManager = _poolManager;
         vault = _vault;
         weth = _weth;
+        benefactor = _benefactor;
         hookFeeBips = _hookFeeBips;
         lpFeeRate = _initialLpFeeRate;
     }
@@ -670,7 +757,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
 
     /// @dev MIRRORS production afterSwap exactly — always taxes currency0 (ETH side)
     function afterSwap(
-        address sender,
+        address, /* sender — v4 passes the router/locker, not the trader; we credit the fixed benefactor */
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,
         BalanceDelta delta,
@@ -685,13 +772,13 @@ contract TestableHook is ReentrancyGuard, Ownable {
         if (feeAmount > 0) {
             poolManager.take(key.currency0, address(this), feeAmount);
             (bool ok,) = address(vault).call{value: feeAmount}(
-                abi.encodeCall(IAlignmentVault.receiveContribution, (key.currency0, feeAmount, sender))
+                abi.encodeCall(IAlignmentVault.receiveContribution, (key.currency0, feeAmount, benefactor))
             );
             if (ok) {
-                emit AlignmentFeeCollected(feeAmount, sender);
+                emit AlignmentFeeCollected(feeAmount, benefactor);
             } else {
                 queuedFees += feeAmount;
-                emit AlignmentFeeQueued(feeAmount, sender);
+                emit AlignmentFeeQueued(feeAmount, benefactor);
             }
             return (IHooks.afterSwap.selector, feeAmount.toInt128());
         }
@@ -704,7 +791,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
         uint256 amount = queuedFees;
         if (amount == 0) revert NoQueuedFees();
         queuedFees = 0;
-        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, address(this));
+        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, benefactor);
         emit QueuedFeesForwarded(amount);
     }
 
