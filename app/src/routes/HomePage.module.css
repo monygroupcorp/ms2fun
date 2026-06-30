@@ -2,54 +2,143 @@
   composes: page from '../styles/layout.module.css';
 }
 
-.gridSpan {
-  grid-column: 1 / -1;
-}
-
+/* Pre-connect splash (Surface 1) — the honest wall: the headline states what it is, the ledger +
+   bind prove the mechanic. Two columns; the disclosure rail is surface-tinted, the chrome mono. */
 .hero {
-  padding: var(--space-12) 0 var(--space-8);
-  border-bottom: 1px solid var(--border-secondary);
-  margin-bottom: var(--space-8);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-10);
+  align-items: center;
+  min-height: 70vh;
 }
 
-.title {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-display);
+.heroLeft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.heroTitle {
+  font-family: var(--brand-font-display);
+  font-size: clamp(3rem, 8vw, 6rem);
   font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-tight);
-  color: var(--text-primary);
-  margin-bottom: var(--space-2);
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  margin: 0;
 }
 
-.tagline {
-  font-family: var(--font-mono);
+.heroSub {
+  font-family: var(--brand-font-body);
   font-size: var(--font-size-body-lg);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+  max-width: 46ch;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-md);
+  margin-top: var(--space-3);
+}
+
+.heroPrimary,
+.heroSecondary {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
+  padding: var(--space-4) var(--space-6);
+  text-decoration: none;
+}
+
+.heroPrimary {
+  color: var(--color-bg);
+  background: var(--color-text);
+}
+
+.heroSecondary {
+  color: var(--color-text);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.heroRight {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-8) 0 var(--space-8) var(--space-8);
+  border-left: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.heroBind {
+  margin-top: auto;
+}
+
+.heroFoot {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--space-8);
+    min-height: 0;
+  }
+
+  .heroRight {
+    border-left: 0;
+    padding: var(--space-6) 0 0;
+    border-top: var(--border-width-thick, 2px) solid var(--color-border);
+  }
+}
+
+/* Home = stats bar (HomeStats device) + two columns: Featured (the work) | activity rail. The
+   work leads; on mobile the columns stack with Featured first (the activity preview follows). */
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
 }
 
 .featured {
-  margin-top: var(--space-8);
+  min-width: 0;
 }
 
 .featuredHeader {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
   margin-bottom: var(--space-4);
 }
 
 .sectionTitle {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-h4);
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h2);
   font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+/* The honesty label — Featured is paid placement, never editorial (board's rule, on Home too). */
+.paidLabel {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
   letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
 }
 
 .browseLink {
-  font-family: var(--font-mono);
+  margin-left: auto;
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
@@ -61,94 +150,68 @@
   color: var(--text-primary);
 }
 
-/* EXEC404 fossil card — same shape as CollectionCard but hand-authored */
-.execCard {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-  transition: var(--transition-base);
+/* Contact-sheet grid; cards get their height from grid-auto-rows (the device art fills it). The
+   lead card (first featured) spans two columns + two rows so the work reads at hero scale. */
+.featuredGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 13rem;
+  gap: var(--gap-md);
 }
 
-.execCard:hover {
-  background-color: var(--state-hover-bg);
+.featuredGrid :global(.noesis-card.lead) {
+  grid-column: span 2;
+  grid-row: span 2;
 }
 
-.execLink {
-  display: block;
-  color: inherit;
-  text-decoration: none;
+.gridSpan {
+  grid-column: 1 / -1;
 }
 
-.execImage {
-  width: 100%;
-  aspect-ratio: 1;
-  background-color: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-secondary);
+/* EXEC404 fossil tile — the past specimen: its colour is deliberately drained (cold ash), the
+   single thing on the wall whose hue has gone. */
+.execArt {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-mono);
+  background: var(--color-surface-2);
+}
+
+.execGlyph {
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
-  color: var(--text-tertiary);
+  color: var(--color-text-subtle);
+  opacity: 0.5;
+}
+
+.execLabMain {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   overflow: hidden;
 }
 
-.execContent {
-  padding: var(--space-3);
-  font-family: var(--font-mono);
+.rail {
+  min-width: 0;
 }
 
-.execHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  margin-bottom: var(--space-2);
+@media (max-width: 900px) {
+  .body {
+    grid-template-columns: 1fr;
+  }
+
+  .featuredGrid :global(.noesis-card.lead) {
+    grid-row: span 2;
+  }
 }
 
-.execTitle {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-h4);
-  font-weight: var(--font-weight-bold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+@media (max-width: 560px) {
+  .featuredGrid {
+    grid-template-columns: 1fr;
+  }
 
-.execDescription {
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  line-height: var(--line-height-normal);
-  margin-bottom: var(--space-2);
-}
-
-.execMeta {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-body-sm);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-tertiary);
-}
-
-.metaLabel {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  font-size: var(--font-size-caption);
-}
-
-.metaMono {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-bold);
-}
-
-.execState {
-  margin-top: var(--space-2);
-}
-
-@media (max-width: 768px) {
-  .featuredHeader {
-    flex-direction: column;
-    gap: var(--gap-sm);
+  .featuredGrid :global(.noesis-card.lead) {
+    grid-column: span 1;
   }
 }

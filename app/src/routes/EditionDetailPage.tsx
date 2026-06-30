@@ -140,62 +140,86 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
   const pricingLabel = PRICING_MODEL_LABELS[edition.pricingModel] ?? `model-${edition.pricingModel}`
   const supplyLabel = edition.supply === 0n ? 'unlimited' : edition.supply.toString()
   const hasImage = !!meta?.image && !imgError
+  const limited = edition.supply > 0n
+  const remaining = limited ? edition.supply - edition.minted : 0n
+  const fillPct = limited ? Math.min(100, Number((edition.minted * 100n) / edition.supply)) : 0
 
   return (
     <div
-      className={styles.page}
+      className={`noesis-edition ${styles.page}`}
       data-testid="edition-detail"
       style={editionThemeStyle(meta?.theme)}
     >
       {crumb}
 
-      <header className={styles.header}>
-        <h1 className={styles.title}>{title}</h1>
-        <button
-          type="button"
-          className={styles.share}
-          onClick={handleShare}
-          data-testid="edition-share"
-        >
-          {copied ? 'link copied' : 'copy link'}
-        </button>
-      </header>
-
-      {hasImage ? (
-        <img
-          src={resolveUri(meta!.image as string)}
-          alt={title}
-          className={styles.hero}
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <div className={styles.heroGlyph}>{fallbackGlyph}</div>
-      )}
-
-      {meta?.description && <p className={styles.description}>{meta.description}</p>}
-
-      <div className={styles.stats}>
-        <div className={styles.statRow}>
-          <span className={styles.statLabel}>price</span>
-          <span className={styles.statValue}>{formatEther(edition.currentPrice)} ETH</span>
+      <div className={styles.plate}>
+        {/* The work, hung — the placard family's framed idiom, edge-to-edge on mobile. */}
+        <div className={styles.framewrap}>
+          <div className={`noesis-frame ${styles.frame}`}>
+            <span className="noesis-tick tl" />
+            <span className="noesis-tick tr" />
+            <span className="noesis-tick bl" />
+            <span className="noesis-tick br" />
+            <div className={styles.artInner}>
+              {hasImage ? (
+                <img
+                  src={resolveUri(meta!.image as string)}
+                  alt={title}
+                  className={styles.art}
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <div className={styles.artGlyph}>{fallbackGlyph}</div>
+              )}
+            </div>
+          </div>
         </div>
-        <div className={styles.statRow}>
-          <span className={styles.statLabel}>minted</span>
-          <span className={styles.statValue}>{edition.minted.toString()}</span>
-        </div>
-        <div className={styles.statRow}>
-          <span className={styles.statLabel}>supply</span>
-          <span className={styles.statValue}>{supplyLabel}</span>
-        </div>
-        <div className={styles.statRow}>
-          <span className={styles.statLabel}>pricing</span>
-          <span className={styles.statValue}>{pricingLabel}</span>
+
+        {/* The wall label — identity is the NUMBER, so the counter leads. */}
+        <div className={styles.label}>
+          <header className={styles.header}>
+            <h1 className={`ed-title ${styles.title}`}>{title}</h1>
+            <button
+              type="button"
+              className={styles.share}
+              onClick={handleShare}
+              data-testid="edition-share"
+            >
+              {copied ? 'link copied' : 'copy link'}
+            </button>
+          </header>
+
+          {meta?.description && <p className={styles.description}>{meta.description}</p>}
+
+          <div className={styles.counterWrap}>
+            <div className="noesis-counter">
+              <span className="n">{edition.minted.toString()}</span>
+              <span className="of">/ {supplyLabel}</span>
+              {limited && <span className="left">{remaining.toString()} remaining</span>}
+            </div>
+            {limited && (
+              <div className="track">
+                <div className="fill" style={{ width: `${fillPct}%` }} />
+              </div>
+            )}
+          </div>
+
+          <div className="ed-stats">
+            <div className="r">
+              <span className="k">price</span>
+              <span className="v">{formatEther(edition.currentPrice)} ETH</span>
+            </div>
+            <div className="r">
+              <span className="k">pricing</span>
+              <span className="v">{pricingLabel}</span>
+            </div>
+          </div>
+
+          <section className={styles.mint} data-testid="edition-mint">
+            <MintPanel instance={instance} edition={edition} refetch={refetch} />
+          </section>
         </div>
       </div>
-
-      <section className={styles.mint} data-testid="edition-mint">
-        <MintPanel instance={instance} edition={edition} refetch={refetch} />
-      </section>
     </div>
   )
 }

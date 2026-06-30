@@ -7,57 +7,73 @@
 .crumb {
   display: flex;
   gap: var(--gap-sm);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
 .back {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  text-decoration: underline;
+  color: var(--color-text);
 }
 
 .note {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   margin: 0;
 }
 
 .inlineLink {
-  font-family: var(--font-mono);
-  color: var(--text-primary);
+  font-family: var(--brand-font-mono);
+  color: var(--color-text);
   text-decoration: none;
-  border-bottom: 1px solid var(--border-secondary);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .inlineLink:hover {
-  border-color: var(--border-primary);
+  border-color: var(--color-text);
 }
 
-.detail {
+/* The placard — the work, hung (left) beside the wall label (right). Surface-tinted wall. */
+.wall {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--gap-lg);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) 24rem;
+  gap: var(--space-8);
+  align-items: stretch;
+  background: var(--color-surface);
+  padding: var(--space-8);
 }
 
-@media (max-width: 768px) {
-  .detail {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.framewrap {
+  min-width: 0;
+}
+
+.frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--color-bg);
+}
+
+.artInner {
+  position: absolute;
+  inset: 20px;
+  overflow: hidden;
+  background: var(--color-surface-2);
 }
 
 .art {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: contain;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
+  height: 100%;
+  object-fit: cover;
 }
 
 .artGlyph {
@@ -65,73 +81,144 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  font-family: var(--font-mono);
+  height: 100%;
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-display);
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
+  color: var(--color-text-subtle);
 }
 
-.info {
+/* The wall label — artist, title, the museum rows, provenance, acquire (pinned to the foot). */
+.placard {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-sm);
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.artist {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .title {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-h2, 1.5rem);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1;
   margin: 0;
 }
 
-.statRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  padding-bottom: var(--padding-xs);
-  border-bottom: 1px solid var(--border-secondary);
+.tokenId {
+  color: var(--color-text-subtle);
 }
 
-.statLabel {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-}
-
-.statValue {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-primary);
-}
-
-.history {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-  margin-top: var(--gap-sm);
-}
-
-.historyList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-  list-style: none;
+.label {
   margin: 0;
-  padding: 0;
+  padding-top: var(--space-4);
+  border-top: var(--border-width-thick, 2px) solid var(--color-border);
+  display: flex;
+  flex-direction: column;
 }
 
-.historyRow {
+.labelRow {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: var(--gap-sm);
-  font-family: var(--font-mono);
+  align-items: baseline;
+  gap: var(--gap-md);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
+}
+
+.labelRow dt {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.labelRow dd {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+  text-align: right;
+}
+
+.sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.secHead {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* Acquire — pinned to the foot; commerce subdued but unmistakable. */
+.acquire {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-md);
+}
+
+.priceLabel {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.price {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+}
+
+.bidLink {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  background: var(--color-text);
+  padding: var(--space-3) var(--space-4);
+  text-align: center;
+  text-decoration: none;
+}
+
+.alignLine {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+@media (max-width: 960px) {
+  .wall {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+    padding: var(--space-4);
+  }
 }

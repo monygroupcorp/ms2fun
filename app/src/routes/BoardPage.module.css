@@ -7,143 +7,163 @@
 }
 
 .back {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--text-primary);
+  color: var(--color-text);
+}
+
+/* The salon — discourse leads; the no-anonymous stance stated in the header. */
+.salonHead {
+  margin-bottom: var(--space-6);
 }
 
 .title {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
   letter-spacing: var(--letter-spacing-tight);
-  margin-bottom: var(--space-6);
+  line-height: 1;
+  margin: 0 0 var(--space-2);
+}
+
+.sub {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
 }
 
 .composeSection {
   margin-bottom: var(--space-8);
   padding-bottom: var(--space-6);
-  border-bottom: 1px solid var(--border-secondary);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.composeNote {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  letter-spacing: 0.06em;
+  margin: var(--space-3) 0 0;
+}
+
+/* The salon | featured rail. The work-discourse leads; featured is contained, never the lead. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.main {
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-5);
+}
+
+/* View toggle — buttons (local state); mirror the .noesis-viewtoggle a look (device styles <a>). */
+.toggleBtn {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  border-right: var(--border-width-thick, 2px) solid var(--color-border);
+  cursor: pointer;
+}
+
+.toggleBtn:last-child {
+  border-right: 0;
+}
+
+.toggleOn {
+  background: var(--color-text);
+  color: var(--color-bg);
 }
 
 .feedSection {
   margin-top: var(--space-4);
 }
 
-.sectionHeading {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
-  margin-bottom: var(--space-2);
-}
-
-.composeNote {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  margin-bottom: var(--space-3);
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-md);
+/* Activity — the flat on-chain register: one mono row per event, attributed. */
+.register {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.item {
-  border: 1px solid var(--border-secondary);
-  padding: var(--space-3);
+.regRow {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--gap-sm);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
 }
 
-.meta {
+.regWho {
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+}
+
+.regVerb {
+  color: var(--color-text-subtle);
+}
+
+.regCh {
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.regContent {
+  flex: 1 1 100%;
+  font-family: var(--brand-font-body);
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Posts — the device (.noesis-post) draws each post's wall-label look; the page only stacks them. */
+.list {
   display: flex;
-  align-items: center;
-  gap: var(--gap-md);
-  flex-wrap: wrap;
+  flex-direction: column;
 }
 
 .senderLink {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
   text-decoration: none;
-}
-
-.senderLink:hover {
-  color: var(--text-primary);
-}
-
-.arrow {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--text-secondary);
 }
 
 .channelLink {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
   text-decoration: none;
-}
-
-.channelLink:hover {
-  color: var(--text-primary);
-}
-
-.content {
-  font-family: var(--font-primary);
-  font-size: var(--font-size-body);
-  color: var(--text-primary);
-  line-height: var(--line-height-relaxed);
-  word-break: break-word;
-}
-
-/* ── threading ─────────────────────────────────────────────────────────────── */
-
-.replies {
-  list-style: none;
-  margin: var(--space-2) 0 0;
-  padding: 0 0 0 var(--space-3);
-  border-left: 1px solid var(--border-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-md);
-}
-
-.reply {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
 }
 
 .actions {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-top: var(--space-1);
+  margin-top: var(--space-3);
 }
 
 .actionBar {
@@ -153,17 +173,17 @@
 }
 
 .replyBtn {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-caption);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   background-color: transparent;
   border: none;
   padding: var(--space-1) 0;
   cursor: pointer;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
 }
 
 .replyBtn:hover {
-  color: var(--text-primary);
+  color: var(--color-text);
 }

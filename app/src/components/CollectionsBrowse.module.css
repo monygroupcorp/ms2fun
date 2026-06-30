@@ -1,19 +1,13 @@
-.note {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  border: 1px dashed var(--border-secondary);
-  padding: var(--padding-lg);
-  line-height: var(--line-height-relaxed);
-}
+/* Contact-sheet browse grid — 4-up desktop, collapsing to 2-up then 1-up. Card LOOK is the
+   `.noesis-card` device; the grid only sets columns + a fixed row height so the device art tile
+   (`flex: 1`) has a height to fill. Loading / empty / error are the shared StateBlock device. */
 
 .grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 13rem;
   gap: var(--gap-md);
 }
-
-/* Card styles live in CollectionCard.module.css (the card is its own component). */
 
 @media (max-width: 1024px) {
   .grid {

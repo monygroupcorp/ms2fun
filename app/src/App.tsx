@@ -14,42 +14,42 @@ import { EditionDetailPage } from './routes/EditionDetailPage'
 import { TokenDetailPage } from './routes/TokenDetailPage'
 import { WizardPage } from './routes/WizardPage'
 import { BoardPage } from './routes/BoardPage'
-import { PortfolioPage } from './routes/PortfolioPage'
 import { AdminPage } from './routes/AdminPage'
 import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
 
-/** The site's primary navigation links. Rendered twice — once inline in the desktop top bar, once
- * stacked in the mobile overlay — so the link set lives in exactly one place. `linkClassName` styles
- * each link for its context; `onNavigate` (overlay only) closes the menu after a tap. */
+/** The site's primary navigation. Canonical NOESIS nav (ADR-019): COLLECTIONS · BOARD · LAUNCH ·
+ * CONNECT, with LAUNCH as the single black filled CTA — the platform's job is to get creators to
+ * launch. The wallet button (CONNECT) is rendered alongside in the header. PROFILE / PORTFOLIO are
+ * reached via the connected wallet (the merged profile plate); the EXEC404 fossil is linked from
+ * Home; ADMIN stays owner-only. Rendered twice — desktop top bar + mobile overlay — so the link set
+ * lives in one place. `linkClassName` styles each link for its context; `ctaClassName` (desktop)
+ * gives LAUNCH the filled treatment; `onNavigate` (overlay only) closes the menu after a tap. */
 function NavLinks({
   linkClassName,
+  ctaClassName,
   onNavigate,
 }: {
   linkClassName: string | undefined
+  ctaClassName?: string | undefined
   onNavigate?: (() => void) | undefined
 }) {
   return (
     <>
-      <Link href="/launch" className={linkClassName} onClick={onNavigate}>
-        LAUNCH
-      </Link>
       <Link href="/collections" className={linkClassName} onClick={onNavigate}>
         COLLECTIONS
       </Link>
       <Link href="/board" className={linkClassName} onClick={onNavigate}>
         BOARD
       </Link>
-      <Link href="/portfolio" className={linkClassName} onClick={onNavigate}>
-        PORTFOLIO
-      </Link>
       <AdminNavLink linkClassName={linkClassName} onNavigate={onNavigate} />
-      <Link href="/exec404" className={linkClassName} onClick={onNavigate}>
-        CULT EXECUTIVES
-      </Link>
-      <Link href="/profile" className={linkClassName} onClick={onNavigate}>
-        PROFILE
+      <Link
+        href="/launch"
+        className={[linkClassName, ctaClassName].filter(Boolean).join(' ')}
+        onClick={onNavigate}
+      >
+        LAUNCH
       </Link>
     </>
   )
@@ -80,13 +80,13 @@ export function App() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <div className={styles.app}>
+        <div className={styles.app} data-brand="noesis">
           <header className={styles.topBar}>
             <Link href="/" className={styles.logo} onClick={closeMenu}>
               ms2<span className={styles.logoTld}>.fun</span>
             </Link>
             <nav className={styles.nav}>
-              <NavLinks linkClassName={styles.navLink} />
+              <NavLinks linkClassName={styles.navLink} ctaClassName={styles.navCta} />
               <WalletButton />
             </nav>
             <button
@@ -128,7 +128,9 @@ export function App() {
               <Route path="/launch" component={WizardPage} />
               <Route path="/collections" component={CollectionsPage} />
               <Route path="/board" component={BoardPage} />
-              <Route path="/portfolio" component={PortfolioPage} />
+              {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
+                  the connected wallet's own plate. */}
+              <Route path="/portfolio" component={ProfilePage} />
               <Route path="/admin" component={AdminPage} />
               <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
               <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
@@ -136,7 +138,31 @@ export function App() {
               <Route path="/profile" component={ProfilePage} />
               <Route path="/profile/:address" component={ProfilePage} />
               <Route>
-                <section className={styles.notFound}>404 · NOT FOUND</section>
+                <section className={styles.notFound}>
+                  <div className="noesis-404">
+                    <div className="plate">
+                      <span className="k">Wall label</span>
+                      <span className="e">404 · not found</span>
+                    </div>
+                    <div className="inner">
+                      <div className="big">404</div>
+                      <div className="ttl">Not on view</div>
+                      <p className="cap">
+                        There&rsquo;s nothing hung at this address. The piece may have been moved, or
+                        the link mistyped. Nothing here left the building — it was never on this
+                        wall.
+                      </p>
+                      <div className={styles.recoverActions}>
+                        <Link href="/collections" className={styles.recoverPrimary}>
+                          ← Back to collections
+                        </Link>
+                        <Link href="/board" className={styles.recoverSecondary}>
+                          Open the board
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </Route>
             </Switch>
           </main>

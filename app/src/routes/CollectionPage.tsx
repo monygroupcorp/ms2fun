@@ -45,7 +45,8 @@ export function CollectionPage() {
             ← ms2.fun
           </Link>
         </nav>
-        <h1 className={`${styles.title} text-chromatic-medium`}>COLLECTION</h1>
+        <p className={styles.kicker}>Collections</p>
+        <h1 className={styles.title}>Collection</h1>
         <StateBlock variant="empty">invalid collection address</StateBlock>
       </div>
     )
@@ -56,6 +57,14 @@ export function CollectionPage() {
 
   const isNotFound = !isPending && !isError && (!card || card.instance === ZERO_ADDRESS)
 
+  // Mint-state readout. The working mint/buy controls live in the type-specific component (the
+  // "works" column); this rail block is the honest readout — how far the drop has gone.
+  const minted = card?.totalSupply ?? 0n
+  const cap = card?.maxSupply ?? 0n
+  const meterPct = cap > 0n ? Math.min(100, Number((minted * 100n) / cap)) : 0
+  const hasVault = !!card && card.vault !== ZERO_ADDRESS
+  const vaultLabel = card?.vaultName || 'Alignment'
+
   return (
     <div className={styles.page} data-testid="collection-detail">
       <nav className={styles.crumb}>
@@ -63,9 +72,8 @@ export function CollectionPage() {
           ← ms2.fun
         </Link>
       </nav>
-      <h1 className={`${styles.title} text-chromatic-medium`}>{title}</h1>
 
-      {isPending && <StateBlock variant="loading">loading collection…</StateBlock>}
+      {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
       {isError && (
         <StateBlock variant="error">couldn't load collection — is the fork up?</StateBlock>
       )}
@@ -79,78 +87,119 @@ export function CollectionPage() {
           {(card.contractType === 'ERC1155' || card.contractType === 'ERC404') && (
             <ProjectStyle instance={instance} />
           )}
-          {metadata?.image && !imgError ? (
-            <img
-              src={resolveUri(metadata.image)}
-              alt={title}
-              className={styles.banner}
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className={styles.imageGlyph}>{fallbackGlyph}</div>
-          )}
 
-          {metadata?.description && <p className={styles.description}>{metadata.description}</p>}
+          {/* The gallery hang: a specimen rail (the disclosure) beside the works (the goods).
+              Transparency-forward — the mechanic is read before you acquire. */}
+          <div className={styles.shell}>
+            <aside className={styles.specimen}>
+              <p className={styles.kicker}>
+                Collections / {card.isActive ? 'Live' : 'Ended'} · Ethereum
+              </p>
+              <h1 className={styles.title}>{title}</h1>
+              <p className={styles.by}>
+                by{' '}
+                <Link href={`/profile/${card.creator}`} className={styles.byLink}>
+                  {truncateAddress(card.creator)}
+                </Link>
+              </p>
+              {metadata?.description && <p className={styles.desc}>{metadata.description}</p>}
 
-          <div className={styles.stats}>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>type</span>
-              <span className="badge">{card.contractType}</span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>price</span>
-              <span className={styles.statValue}>{formatGwei(card.currentPrice)} gwei</span>
-            </div>
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>supply</span>
-              <span className={styles.statValue}>{card.totalSupply.toString()}</span>
-            </div>
-            {card.maxSupply > 0n && (
-              <div className={styles.statRow}>
-                <span className={styles.statLabel}>max supply</span>
-                <span className={styles.statValue}>{card.maxSupply.toString()}</span>
+              <div className={styles.mintstate}>
+                <div className={styles.mintTop}>
+                  <span className={styles.price}>{formatGwei(card.currentPrice)} gwei</span>
+                  <span className={styles.count}>
+                    {minted.toString()}
+                    {cap > 0n ? ` / ${cap.toString()}` : ''}
+                    {cap > 0n && <small>{(cap - minted).toString()} remaining</small>}
+                  </span>
+                </div>
+                {cap > 0n && (
+                  <div className={styles.meter}>
+                    <i style={{ width: `${meterPct}%` }} />
+                  </div>
+                )}
               </div>
-            )}
-            <div className={styles.statRow}>
-              <span className={styles.statLabel}>status</span>
-              <span className={`badge ${card.isActive ? 'badge-solid' : ''}`}>
-                {card.isActive ? 'active' : 'inactive'}
-              </span>
-            </div>
-            {card.vaultName && (
-              <div className={styles.statRow}>
-                <span className={styles.statLabel}>vault</span>
-                <span className={styles.statValue}>{card.vaultName}</span>
-              </div>
-            )}
-            {card.factoryTitle && (
-              <div className={styles.statRow}>
-                <span className={styles.statLabel}>factory</span>
-                <span className={styles.statValue}>{card.factoryTitle}</span>
-              </div>
-            )}
+
+              {hasVault && (
+                <div className={styles.alignment}>
+                  <div className={styles.alignHead}>
+                    <span>Alignment</span>
+                    <span>Contract-enforced</span>
+                  </div>
+                  <div className="noesis-bind">
+                    <div className="cell">
+                      your mint fee<b>fees</b>
+                    </div>
+                    <div className="arrow">→</div>
+                    <div className="cell vault">
+                      {vaultLabel} vault<b>~20%</b>
+                    </div>
+                  </div>
+                  <p className={styles.who}>
+                    Aligned to <b>{vaultLabel}</b> — ~20% of fees bind to its vault on every mint,
+                    forever. <b>The creator can&rsquo;t walk.</b>
+                  </p>
+                </div>
+              )}
+
+              <dl className={styles.facts}>
+                <div className={styles.fact}>
+                  <dt>Standard</dt>
+                  <dd>{card.contractType}</dd>
+                </div>
+                <div className={styles.fact}>
+                  <dt>Contract</dt>
+                  <dd>{truncateAddress(instance)}</dd>
+                </div>
+                {hasVault && (
+                  <div className={styles.fact}>
+                    <dt>Vault</dt>
+                    <dd>{truncateAddress(card.vault)}</dd>
+                  </div>
+                )}
+                {card.factoryTitle && (
+                  <div className={styles.fact}>
+                    <dt>Factory</dt>
+                    <dd>{card.factoryTitle}</dd>
+                  </div>
+                )}
+              </dl>
+            </aside>
+
+            <section className={styles.works}>
+              <div className={styles.ghead}>The collection</div>
+              {/* The cover stands in as the lead piece when present; the type component renders the
+                  actual works + the working mint/buy/swap controls. */}
+              {metadata?.image && !imgError ? (
+                <div className={`noesis-piece ${styles.cover}`}>
+                  <img
+                    src={resolveUri(metadata.image)}
+                    alt={title}
+                    className="noesis-art"
+                    onError={() => setImgError(true)}
+                  />
+                </div>
+              ) : (
+                <div className={`noesis-piece ${styles.cover}`}>
+                  <span className={styles.coverGlyph} aria-hidden>
+                    {fallbackGlyph}
+                  </span>
+                </div>
+              )}
+
+              {card.contractType === 'ERC1155' && (
+                <Erc1155Collection instance={instance} creator={card.creator} />
+              )}
+              {card.contractType === 'ERC721' && (
+                <Erc721Collection instance={instance} creator={card.creator} />
+              )}
+              {card.contractType === 'ERC404' && (
+                <Erc404Collection instance={instance} creator={card.creator} />
+              )}
+            </section>
           </div>
 
-          <div className={styles.creatorSection}>
-            <span className={styles.creatorLabel}>by </span>
-            <Link href={`/profile/${card.creator}`} className={styles.creatorLink}>
-              {truncateAddress(card.creator)}
-            </Link>
-          </div>
-
-          {/* Primary action first — the trading surface (buy / mint / swap) leads, above
-              the secondary panels below. */}
-          {card.contractType === 'ERC1155' && (
-            <Erc1155Collection instance={instance} creator={card.creator} />
-          )}
-          {card.contractType === 'ERC721' && (
-            <Erc721Collection instance={instance} creator={card.creator} />
-          )}
-          {card.contractType === 'ERC404' && (
-            <Erc404Collection instance={instance} creator={card.creator} />
-          )}
-
-          {/* Secondary, demoted below the CTA and collapsed by default (self-rendered as
+          {/* Secondary, demoted below the hang and collapsed by default (self-rendered as
               <Disclosure> inside each panel, so a null vault doesn't leave an empty box). */}
           {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
           {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}

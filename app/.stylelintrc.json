@@ -47,6 +47,16 @@
         "declaration-property-value-allowed-list": null,
         "declaration-property-value-disallowed-list": null
       }
+    },
+    {
+      "//": "Vendored NOESIS design system (~/projects/design). These DEFINE the brand layer — raw values are sanctioned, same as tokens.css. Do not hand-edit; re-vendor per styles/noesis/VENDORED.md.",
+      "files": ["src/styles/noesis/**/*.css"],
+      "rules": {
+        "color-no-hex": null,
+        "scale-unlimited/declaration-strict-value": null,
+        "declaration-property-value-allowed-list": null,
+        "declaration-property-value-disallowed-list": null
+      }
     }
   ]
 }

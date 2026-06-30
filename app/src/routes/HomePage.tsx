@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'wouter'
+import { useAccount } from 'wagmi'
 import { useReadQueryAggregatorGetHomePageData } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { useAllCollections } from '../lib/discovery'
@@ -8,7 +9,6 @@ import { HomeStats } from '../components/home/HomeStats'
 import { ActivityPreview } from '../components/home/ActivityPreview'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './HomePage.module.css'
-import browseStyles from '../components/CollectionsBrowse.module.css'
 
 /**
  * Landing surface. Composed from:
@@ -20,7 +20,79 @@ import browseStyles from '../components/CollectionsBrowse.module.css'
  *
  * Read path only; no wallet required.
  */
+/**
+ * Pre-connect splash (Surface 1, "the honest wall"): shown on `/` to a disconnected visitor — the
+ * marketing hero (chromatic headline + the "how alignment works" ledger + the bind). Once a wallet
+ * is connected, `/` becomes the discovery home below. The mechanic is the marketing; the chromatic
+ * moment is display-only, one word.
+ */
+function HeroLanding() {
+  return (
+    <div className={styles.hero}>
+      <div className={styles.heroLeft}>
+        <p className="noesis-kicker">Onchain · Ethereum · No grift</p>
+        <h1 className={styles.heroTitle}>
+          <span className="text-chromatic-strong">alignment</span> launchpad.
+        </h1>
+        <p className={styles.heroSub}>
+          Onchain releases that are <b>forced to align.</b> Deploy a collection and ~20% of every
+          fee binds, by contract, to the work that inspired you. No promises — just commitment you
+          can read onchain.
+        </p>
+        <div className={styles.heroActions}>
+          <Link href="/launch" className={styles.heroPrimary}>
+            Launch a collection
+          </Link>
+          <Link href="/collections" className={styles.heroSecondary}>
+            Browse
+          </Link>
+        </div>
+      </div>
+      <aside className={styles.heroRight}>
+        <div className="noesis-ledger">
+          <div className="noesis-ledger-head">
+            <span>How alignment works</span>
+            <span>Ethereum · Live</span>
+          </div>
+          <div className="noesis-ledger-row">
+            <span className="n">01</span>
+            <span>
+              Deploy<small>ERC404 / 1155 / 721, your terms</small>
+            </span>
+            <span className="v">creator</span>
+          </div>
+          <div className="noesis-ledger-row">
+            <span className="n">02</span>
+            <span>
+              Fee split<small>set once, enforced forever</small>
+            </span>
+            <span className="v">~20%</span>
+          </div>
+          <div className="noesis-ledger-row">
+            <span className="n">03</span>
+            <span>
+              Bind<small>to your stated inspiration&rsquo;s vault</small>
+            </span>
+            <span className="v">on-mint</span>
+          </div>
+        </div>
+        <div className={`noesis-bind ${styles.heroBind}`}>
+          <div className="cell">
+            your launch<b>fees</b>
+          </div>
+          <div className="arrow">→</div>
+          <div className="cell vault">
+            alignment vault<b>~20%</b>
+          </div>
+        </div>
+        <p className={styles.heroFoot}>▪ contract-enforced · no promises, just commitment</p>
+      </aside>
+    </div>
+  )
+}
+
 export function HomePage() {
+  const { address: connected } = useAccount()
   const { data, isPending, isError } = useReadQueryAggregatorGetHomePageData({
     address: forkAddresses.QueryAggregator,
     chainId: forkChainId,
@@ -49,13 +121,19 @@ export function HomePage() {
 
   const featuredCount = totalFeatured !== undefined ? Number(totalFeatured) : featuredCards?.length
 
+  // Pre-connect: the marketing hero leads. Connected: the discovery home (below).
+  if (!connected) {
+    return (
+      <div className={styles.page}>
+        <HeroLanding />
+      </div>
+    )
+  }
+
   return (
     <div className={styles.page}>
-      <section className={styles.hero}>
-        <h1 className={`${styles.title} text-chromatic-strong`}>ms2.fun</h1>
-        <p className={styles.tagline}>the opinionated boutique launchpad</p>
-      </section>
-
+      {/* No bespoke hero — Home reuses the discovery grammar (collections-spec). The vital-signs
+          bar leads; the work, not a banner, carries the page. */}
       <HomeStats
         stats={[
           {
@@ -76,67 +154,70 @@ export function HomePage() {
         ]}
       />
 
-      <section className={styles.featured}>
-        <div className={styles.featuredHeader}>
-          <h2 className={styles.sectionTitle}>FEATURED</h2>
-          <Link href="/collections" className={styles.browseLink} data-testid="collections-link">
-            Browse all collections →
-          </Link>
-        </div>
+      <div className={styles.body}>
+        <section className={styles.featured}>
+          <div className={styles.featuredHeader}>
+            <h2 className={styles.sectionTitle}>Featured</h2>
+            <span className={styles.paidLabel}>· paid placement, labelled — not an endorsement</span>
+            <Link href="/collections" className={styles.browseLink} data-testid="collections-link">
+              Browse all collections →
+            </Link>
+          </div>
 
-        {isPending && (
-          <StateBlock variant="loading" boxed>
-            loading collections…
-          </StateBlock>
-        )}
-        {isError && (
-          <StateBlock variant="error" boxed>
-            discovery unreachable — is the fork up?
-          </StateBlock>
-        )}
+          {isPending && (
+            <StateBlock variant="loading" boxed>
+              hanging the work…
+            </StateBlock>
+          )}
+          {isError && (
+            <StateBlock variant="error" boxed>
+              discovery unreachable — is the fork up?
+            </StateBlock>
+          )}
 
-        {!isPending && !isError && (
-          <div className={browseStyles.grid}>
-            {/* EXEC404 / CULT EXECUTIVES — grandfathered fossil, always pinned first */}
-            <article className={styles.execCard} data-testid="exec404-link">
-              <Link href="/exec404" className={styles.execLink}>
-                <div className={styles.execImage}>✕</div>
-                <div className={styles.execContent}>
-                  <div className={styles.execHead}>
-                    <h3 className={styles.execTitle}>CULT EXECUTIVES</h3>
-                    <span className="badge">ERC404</span>
+          {!isPending && !isError && (
+            <div className={styles.featuredGrid}>
+              {/* EXEC404 / CULT EXECUTIVES — grandfathered fossil, always pinned first.
+                  Read-only specimen; trading lives on Uniswap (its full surface is the fossil page). */}
+              <Link href="/exec404" className="noesis-card" data-testid="exec404-link">
+                <div className={`art ${styles.execArt}`}>
+                  <span className={styles.execGlyph} aria-hidden>
+                    ✕
+                  </span>
+                  <span className="st">Fossil</span>
+                </div>
+                <div className="lab">
+                  <div className={styles.execLabMain}>
+                    <span className="nm">CULT EXECUTIVES</span>
+                    <span className="by">EXEC · grandfathered</span>
                   </div>
-                  <p className={styles.execDescription}>
-                    The one live deployment, grandfathered forever. Real market price from its V2
-                    pool.
-                  </p>
-                  <div className={styles.execMeta}>
-                    <span className={styles.metaLabel}>type</span>
-                    <span className={styles.metaMono}>EXEC · fossil</span>
-                  </div>
-                  <span className={`badge badge-solid ${styles.execState}`}>active</span>
+                  <span className="px">Uniswap ↗</span>
                 </div>
               </Link>
-            </article>
 
-            {featuredCards !== null && featuredCards.length === 0 && (
-              <StateBlock
-                variant="empty"
-                boxed
-                testId="collections-empty"
-                className={styles.gridSpan}
-              >
-                nothing featured yet — run the seed script to populate.
-              </StateBlock>
-            )}
+              {featuredCards !== null && featuredCards.length === 0 && (
+                <StateBlock
+                  variant="empty"
+                  boxed
+                  testId="collections-empty"
+                  className={styles.gridSpan}
+                >
+                  this wall is empty — run the seed script to populate.
+                </StateBlock>
+              )}
 
-            {featuredCards !== null &&
-              featuredCards.map((c) => <CollectionCard key={c.instance} card={c} />)}
-          </div>
-        )}
-      </section>
+              {featuredCards !== null &&
+                featuredCards.map((c, i) => (
+                  <CollectionCard key={c.instance} card={c} variant={i === 0 ? 'lead' : 'card'} />
+                ))}
+            </div>
+          )}
+        </section>
 
-      <ActivityPreview />
+        <aside className={styles.rail}>
+          <ActivityPreview />
+        </aside>
+      </div>
     </div>
   )
 }

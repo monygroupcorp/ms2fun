@@ -70,21 +70,24 @@ export function TokenDetailPage() {
   }
 
   const collectionName = card?.name || truncateAddress(instance)
+  const tokenProps: TokenProps = {
+    instance,
+    id,
+    collectionName,
+    creator: card?.creator,
+    vaultName: card?.vaultName,
+  }
 
   return (
     <div className={styles.page} data-testid="token-detail" data-type={card?.contractType}>
       <nav className={styles.crumb}>
         <Link href={`/collection/${instance}`} className={styles.back}>
-          ← collection
+          Collections / {collectionName} / #{id.toString()}
         </Link>
       </nav>
 
-      {card?.contractType === 'ERC404' && (
-        <Erc404Token instance={instance} id={id} collectionName={collectionName} />
-      )}
-      {card?.contractType === 'ERC721' && (
-        <Erc721Token instance={instance} id={id} collectionName={collectionName} />
-      )}
+      {card?.contractType === 'ERC404' && <Erc404Token {...tokenProps} />}
+      {card?.contractType === 'ERC721' && <Erc721Token {...tokenProps} />}
       {card?.contractType !== undefined &&
         card.contractType !== 'ERC404' &&
         card.contractType !== 'ERC721' && (
@@ -99,6 +102,8 @@ interface TokenProps {
   instance: `0x${string}`
   id: bigint
   collectionName: string
+  creator?: `0x${string}` | undefined
+  vaultName?: string | undefined
 }
 
 function CollectionBackLink({
@@ -118,18 +123,47 @@ function CollectionBackLink({
   )
 }
 
-function Art({ image, alt }: { image: string | undefined; alt: string }) {
-  if (!image) {
-    return (
-      <div className={styles.artGlyph} data-testid="token-art">
-        ✦
+/** The work, hung — the `.noesis-frame`'s primary home: double 2px molding + corner ticks, the
+ * art filling the inner inset. Colour lives only here; the rest of the placard is mono. */
+function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
+  return (
+    <div className={styles.framewrap}>
+      <div className={`noesis-frame ${styles.frame}`}>
+        <span className="noesis-tick tl" />
+        <span className="noesis-tick tr" />
+        <span className="noesis-tick bl" />
+        <span className="noesis-tick br" />
+        <div className={styles.artInner}>
+          {image ? (
+            <img
+              src={resolveUri(image)}
+              alt={alt}
+              className={`noesis-art ${styles.art}`}
+              data-testid="token-art"
+            />
+          ) : (
+            <div className={styles.artGlyph} data-testid="token-art">
+              ✦
+            </div>
+          )}
+        </div>
       </div>
-    )
-  }
-  return <img src={resolveUri(image)} alt={alt} className={styles.art} data-testid="token-art" />
+    </div>
+  )
 }
 
-function Erc404Token({ instance, id, collectionName }: TokenProps) {
+/** The alignment honesty line — on a token page it states the RESALE bind (every secondary sale),
+ * the token page's reason to exist. The ~20% is the protocol constant. */
+function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {
+  return (
+    <p className={styles.alignLine}>
+      <span aria-hidden>▪ </span>~20% of every resale binds to <b>{vaultName || 'its alignment vault'}</b>
+      , on-chain. The alignment travels with the work, forever — <b>it can&rsquo;t be undone.</b>
+    </p>
+  )
+}
+
+function Erc404Token({ instance, id, collectionName, creator, vaultName }: TokenProps) {
   const client = usePublicClient({ chainId: forkChainId })
   const { data: mirror } = useReadErc404BondingInstanceMirrorErc721({
     address: instance,
@@ -157,30 +191,46 @@ function Erc404Token({ instance, id, collectionName }: TokenProps) {
     },
   })
 
-  if (isPending) return <StateBlock variant="loading">loading token…</StateBlock>
+  if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
     return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
 
   return (
-    <article className={styles.detail}>
-      <Art image={data?.image} alt={`#${id.toString()}`} />
-      <div className={styles.info}>
-        <h1 className={styles.title}>#{id.toString()}</h1>
-        {data?.owner && (
-          <div className={styles.statRow}>
-            <span className={styles.statLabel}>owner</span>
-            <Link href={`/profile/${data.owner}`} className={styles.inlineLink}>
-              {truncateAddress(data.owner)}
-            </Link>
+    <article className={styles.wall}>
+      <FramedArt image={data?.image} alt={`${collectionName} #${id.toString()}`} />
+      <div className={styles.placard}>
+        <p className={styles.artist}>{creator ? truncateAddress(creator) : collectionName}</p>
+        <h1 className={styles.title}>
+          {collectionName} <span className={styles.tokenId}>#{id.toString()}</span>
+        </h1>
+
+        <dl className={styles.label}>
+          <div className={styles.labelRow}>
+            <dt>Standard</dt>
+            <dd>ERC-404</dd>
           </div>
-        )}
-        <CollectionBackLink instance={instance} collectionName={collectionName} />
+          {data?.owner && (
+            <div className={styles.labelRow}>
+              <dt>Owner</dt>
+              <dd>
+                <Link href={`/profile/${data.owner}`} className={styles.inlineLink}>
+                  {truncateAddress(data.owner)}
+                </Link>
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        <div className={styles.acquire}>
+          <CollectionBackLink instance={instance} collectionName={collectionName} />
+          <AlignmentLine vaultName={vaultName} />
+        </div>
       </div>
     </article>
   )
 }
 
-function Erc721Token({ instance, id, collectionName }: TokenProps) {
+function Erc721Token({ instance, id, collectionName, creator, vaultName }: TokenProps) {
   const client = usePublicClient({ chainId: forkChainId })
   const nowSec = useNowSec()
 
@@ -207,7 +257,7 @@ function Erc721Token({ instance, id, collectionName }: TokenProps) {
 
   const { data: bids } = useBidHistory(instance, data ? id : undefined)
 
-  if (isPending) return <StateBlock variant="loading">loading token…</StateBlock>
+  if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError || !data)
     return <StateBlock variant="error">couldn&apos;t load token — is the fork up?</StateBlock>
 
@@ -222,47 +272,68 @@ function Erc721Token({ instance, id, collectionName }: TokenProps) {
     nowSec,
   )
   const hasBidder = a.highBidder.toLowerCase() !== '0x0000000000000000000000000000000000000000'
+  const title = data.name || `${collectionName} #${id.toString()}`
 
   return (
-    <article className={styles.detail}>
-      <Art image={data.image} alt={data.name || `#${id.toString()}`} />
-      <div className={styles.info}>
-        <h1 className={styles.title}>{data.name || `#${id.toString()}`}</h1>
-        <div className={styles.statRow}>
-          <span className={styles.statLabel}>state</span>
-          <span className={`badge ${state === 'active' ? 'badge-solid' : ''}`}>{state}</span>
-        </div>
-        <div className={styles.statRow}>
-          <span className={styles.statLabel}>{hasBidder ? 'high bid' : 'min bid'}</span>
-          <span className={styles.statValue}>
-            {formatEther(hasBidder ? a.highBid : a.minBid)} ETH
-          </span>
-        </div>
-        {hasBidder && (
-          <div className={styles.statRow}>
-            <span className={styles.statLabel}>
-              {state === 'settled' ? 'winner' : 'top bidder'}
-            </span>
-            <Link href={`/profile/${a.highBidder}`} className={styles.inlineLink}>
-              {truncateAddress(a.highBidder)}
-            </Link>
-          </div>
-        )}
-        <CollectionBackLink instance={instance} collectionName={collectionName} />
+    <article className={styles.wall}>
+      <FramedArt image={data.image} alt={title} />
+      <div className={styles.placard}>
+        <p className={styles.artist}>{creator ? truncateAddress(creator) : collectionName}</p>
+        <h1 className={styles.title}>
+          {data.name || collectionName} <span className={styles.tokenId}>#{id.toString()}</span>
+        </h1>
 
+        <dl className={styles.label}>
+          <div className={styles.labelRow}>
+            <dt>Standard</dt>
+            <dd>ERC-721 · auction</dd>
+          </div>
+          <div className={styles.labelRow}>
+            <dt>State</dt>
+            <dd>{state}</dd>
+          </div>
+          {hasBidder && (
+            <div className={styles.labelRow}>
+              <dt>{state === 'settled' ? 'Winner' : 'Top bidder'}</dt>
+              <dd>
+                <Link href={`/profile/${a.highBidder}`} className={styles.inlineLink}>
+                  {truncateAddress(a.highBidder)}
+                </Link>
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        {/* Provenance — the acquisition record. On an auction piece, the bid history IS the
+            custody record; shown as fact (price + actor), newest first. */}
         {bids.length > 0 && (
-          <div className={styles.history} data-testid="token-bid-history">
-            <span className={styles.statLabel}>bids</span>
-            <ul className={styles.historyList}>
+          <div className={styles.sec} data-testid="token-bid-history">
+            <p className={styles.secHead}>Provenance — bids</p>
+            <div className="noesis-prov">
               {bids.slice(0, 10).map((b, i) => (
-                <li key={`${b.blockNumber}-${i}`} className={styles.historyRow}>
-                  <span>{truncateAddress(b.bidder)}</span>
-                  <span>{formatEther(b.amount)} ETH</span>
-                </li>
+                <div className="p" key={`${b.blockNumber}-${i}`}>
+                  <span className="ev">Bid</span>
+                  <span className="val">{formatEther(b.amount)} ETH</span>
+                  <span className="who">{truncateAddress(b.bidder)}</span>
+                  <span className="when">—</span>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
+
+        <div className={styles.acquire}>
+          <div className={styles.priceRow}>
+            <span className={styles.priceLabel}>{hasBidder ? 'High bid' : 'Min bid'}</span>
+            <span className={styles.price}>
+              {formatEther(hasBidder ? a.highBid : a.minBid)} ETH
+            </span>
+          </div>
+          <Link href={`/collection/${instance}`} className={styles.bidLink}>
+            {state === 'active' ? 'Bid on the collection page →' : 'View the collection →'}
+          </Link>
+          <AlignmentLine vaultName={vaultName} />
+        </div>
       </div>
     </article>
   )

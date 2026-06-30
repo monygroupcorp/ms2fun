@@ -1,0 +1,130 @@
+/* Held / Vaults tab bodies. Holdings are data, not pictures — mono cards + the ledger device.
+   Colour stays out of the chrome. */
+
+.claimbox {
+  margin-bottom: var(--space-6);
+}
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.warn {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-md);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  padding: var(--space-4);
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  margin-bottom: var(--space-3);
+}
+
+.cardLink {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.cardAddr {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  flex: 0 0 auto;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--gap-sm);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.stat dt {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+.editions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.edition {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.editionLink {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.editionBal {
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .list {
+    grid-template-columns: 1fr;
+  }
+}

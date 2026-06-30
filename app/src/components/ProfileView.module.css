@@ -66,10 +66,12 @@
 }
 
 .name {
-  font-size: var(--font-size-h2);
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
   margin: 0 0 var(--space-1);
-  line-height: var(--line-height-tight);
+  line-height: 1;
   overflow-wrap: break-word;
 }
 

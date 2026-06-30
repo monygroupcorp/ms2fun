@@ -18,15 +18,16 @@ export function Exec404Page() {
       </nav>
 
       <header className={styles.header}>
-        <div className={styles.icon}>✕</div>
+        <p className={styles.kicker}>The fossil · the origin specimen · past tense</p>
+        <div className={styles.icon} aria-hidden>
+          ✕
+        </div>
         <h1 className={styles.title}>
           CULT EXECUTIVES <span className={styles.ticker}>EXEC</span>
         </h1>
         <div className={styles.meta}>
           <span>DN404 genesis</span>
-          <span>·</span>
           <span>grandfathered fossil</span>
-          <span>·</span>
           <span>graduated → Uniswap V2</span>
         </div>
       </header>

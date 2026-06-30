@@ -58,14 +58,56 @@
   color: var(--text-primary);
 }
 
+/* LAUNCH — the one black filled CTA in the nav (ADR-019). Inverts the link: ink fill, paper text. */
+.navCta {
+  color: var(--bg-primary);
+  background: var(--text-primary);
+  padding: var(--space-2) var(--space-3);
+}
+
+.navCta:hover {
+  color: var(--bg-primary);
+  opacity: 0.85;
+}
+
 .main {
   display: block;
 }
 
+/* Centers the .noesis-404 wall-label card (the device owns the card's own look). */
 .notFound {
-  font-family: var(--font-mono);
+  display: flex;
+  justify-content: center;
   padding: var(--padding-xl) var(--padding-lg);
-  color: var(--text-secondary);
+}
+
+/* The 404's two ways back — black primary + outline secondary, in the NOESIS
+   gate/act button grammar. Tokens resolve inside the data-brand="noesis" subtree. */
+.recoverActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-md);
+  margin-top: var(--space-4);
+}
+
+.recoverPrimary,
+.recoverSecondary {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+  padding: var(--padding-sm) var(--padding-md);
+  text-decoration: none;
+}
+
+.recoverPrimary {
+  color: var(--color-bg);
+  background: var(--color-text);
+}
+
+.recoverSecondary {
+  color: var(--color-text);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
 /* ---- Mobile menu --------------------------------------------------------

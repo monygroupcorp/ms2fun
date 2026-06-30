@@ -60,7 +60,7 @@ export function ProfileView({ address, metadata }: ProfileViewProps) {
 
       {/* Identity */}
       <div className={styles.identity}>
-        <h1 className={`${styles.name} text-chromatic-strong`}>{displayName}</h1>
+        <h1 className={styles.name}>{displayName}</h1>
         {metadata?.handle && <p className={styles.handle}>@{metadata.handle}</p>}
         <p className={styles.addressLine}>{truncateAddress(address)}</p>
       </div>

@@ -1,124 +1,33 @@
-.card {
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-  transition: var(--transition-base);
-  /* As a grid/flex item, default min-width:auto refuses to shrink below content min-content — a wide
-     stat value would then expand the track past the viewport. min-width:0 lets the card shrink to its
-     track and its content ellipsize/wrap instead of overflowing. */
-  min-width: 0;
-}
+/* The card's LOOK is the `.noesis-card` device (vendored signature.css). These rules only
+   handle what the device leaves to the consumer: filling the `.art` tile with the collection's
+   real image (or a centered mono glyph fallback) and clipping the name/byline plate. The art
+   tile's HEIGHT comes from the grid (grid-auto-rows + default stretch), so `.art`'s device
+   `flex: 1` fills it. */
 
-.card:hover {
-  background-color: var(--state-hover-bg);
-}
-
-.cardLink {
-  display: block;
-  color: inherit;
-  text-decoration: none;
-}
-
-.cardImage {
-  width: 100%;
-  aspect-ratio: 1;
-  background-color: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-secondary);
+.art {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-tertiary);
+  background: var(--color-surface-2);
   overflow: hidden;
 }
 
-.cardImg {
+.artImg {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 
-.cardContent {
-  padding: var(--space-3);
-  font-family: var(--font-mono);
-}
-
-.cardHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--gap-sm);
-  margin-bottom: var(--space-2);
-}
-
-.cardTitle {
-  font-size: var(--font-size-h4);
+.artFallback {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* min-width:0 lets a flex child shrink below its content so the ellipsis engages instead of
-     pushing the badge off the card on narrow viewports. */
+  color: var(--color-text-subtle);
+}
+
+.labMain {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-}
-
-/* Keep the type badge at its intrinsic size — the title takes the squeeze, not the badge. */
-.cardHead :global(.badge) {
-  flex-shrink: 0;
-}
-
-.cardDescription {
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  line-height: var(--line-height-normal);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
   overflow: hidden;
-  margin-bottom: var(--space-2);
-}
-
-.cardStats {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-body-sm);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-tertiary);
-}
-
-.statSecondary {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  font-size: var(--font-size-caption);
-}
-
-.statMono {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-bold);
-}
-
-.state {
-  margin-top: var(--space-2);
-}
-
-.cardCreator {
-  margin-top: var(--space-2);
-  padding: 0 var(--space-3) var(--space-3);
-  font-size: var(--font-size-caption);
-  font-family: var(--font-mono);
-}
-
-.creatorLink {
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-}
-
-.creatorLink:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
 }

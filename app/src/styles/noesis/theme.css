@@ -1,0 +1,66 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   NOESIS — the onchain alignment launchpad. The act, to NOEMA's object.
+   "Gallery Brutalism": pure monochrome, 8px grid, 2px max radius, zero
+   decoration — deliberately neutral so each collection/edition can bring its
+   own style to its page without clashing. The platform is the gallery wall.
+   The ONE exception is chromatic aberration (utilities below).
+   Apply with <html data-brand="noesis"> (or class .brand-noesis).
+   ───────────────────────────────────────────────────────────────────────── */
+
+[data-brand="noesis"], .brand-noesis {
+  /* Display: Syne — an open-source (OFL) typeface designed for art/cultural
+     institutions; carries the gallery character. Body: Archivo (neutral, highly
+     readable grotesque) so long text stays legible. Mono: IBM Plex Mono for
+     labels/data. Self-host all WOFF2s in production. */
+  --brand-font-display: "Syne", "Helvetica Neue", Arial, sans-serif;
+  --brand-font-body:    "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --brand-font-mono:    "IBM Plex Mono", "Courier New", monospace;
+
+  /* Monochrome — there is no accent hue. Ink is the accent; the art brings color. */
+  --color-bg:            #ffffff;   /* gallery wall */
+  --color-surface:       #fafafa;
+  --color-surface-2:     #f5f5f5;
+  --color-border:        #000000;   /* hierarchy via weight, not color */
+  --color-border-strong: #000000;
+
+  --color-text:          #000000;
+  --color-text-muted:    #666666;
+  --color-text-subtle:   #999999;
+
+  --color-accent:        #000000;
+  --color-accent-hover:  #000000;
+  --color-focus:         #000000;
+
+  --radius: 2px;   /* 2px max — discipline */
+
+  /* The one exception, kept as tokens so it's never improvised.
+     Warm/cool split (orange + teal): warmth peaking through the brutal system.
+     The cool channel is what makes it read as a split, not a glow. */
+  --chroma-warm: rgba(255, 94, 58, 0.85);   /* orange */
+  --chroma-cool: rgba(0, 200, 180, 0.82);   /* teal  */
+}
+
+[data-brand="noesis"][data-theme="dark"],
+[data-brand="noesis"].dark {
+  --color-bg:            #000000;
+  --color-surface:       #0a0a0a;
+  --color-surface-2:     #141414;
+  --color-border:        #ffffff;
+  --color-border-strong: #ffffff;
+  --color-text:          #ffffff;
+  --color-text-muted:    #999999;
+  --color-text-subtle:   #666666;
+  --color-accent:        #ffffff;
+  --color-accent-hover:  #ffffff;
+  --color-focus:         #ffffff;
+}
+
+/* ── Chromatic aberration — "light peaking through the brutal system." ──
+   Headings/large text use text-shadow; buttons/shapes use box-shadow so the
+   label stays crisp. NEVER on body copy. The canonical wordmark stays clean;
+   chroma is reserved for accent moments. */
+[data-brand="noesis"] .text-chromatic-medium  { text-shadow: -2px 0 0 var(--chroma-warm),  2px 0 0 var(--chroma-cool); }
+[data-brand="noesis"] .text-chromatic-strong  { text-shadow: -3px 0 0 var(--chroma-warm),  3px 0 0 var(--chroma-cool); }
+[data-brand="noesis"] .text-chromatic-extreme { text-shadow: -4px 0 0 var(--chroma-warm),  4px 0 0 var(--chroma-cool); }
+[data-brand="noesis"] .text-chromatic-ultra   { text-shadow: -6px 0 0 var(--chroma-warm),  6px 0 0 var(--chroma-cool); }
+[data-brand="noesis"] .btn-chromatic          { box-shadow: inset -3px 0 0 var(--chroma-warm), 3px 0 0 var(--chroma-cool); }
