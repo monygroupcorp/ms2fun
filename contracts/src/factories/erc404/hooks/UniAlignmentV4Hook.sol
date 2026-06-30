@@ -39,6 +39,14 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
     IAlignmentVault public immutable vault;
     address public immutable weth;
 
+    /// @notice The project instance credited for this pool's swap-fee contributions — immutable, set
+    ///         at deploy. NOT the per-swap `sender`: in Uniswap v4 `afterSwap`'s `sender` is whoever
+    ///         called `poolManager.swap()` inside the unlock callback (the router/periphery locker),
+    ///         never the end trader. Attributing fees to that address misroutes (and can strand) the
+    ///         vault yield and would let a self-routing swapper farm benefactor credit. A hook serves
+    ///         exactly one pool, so its benefactor is a fixed identity, not a per-swap value.
+    address public immutable benefactor;
+
     /// @notice Hook fee in basis points — immutable, set at deploy (e.g., 100 = 1%)
     uint256 public immutable hookFeeBips;
 
@@ -58,6 +66,7 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
         IAlignmentVault _vault,
         address _weth,
         address _owner,
+        address _benefactor,
         uint256 _hookFeeBips,
         uint24 _initialLpFeeRate
     ) {
@@ -65,6 +74,7 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
         if (address(_vault) == address(0)) revert InvalidAddress();
         if (_weth == address(0)) revert InvalidAddress();
         if (_owner == address(0)) revert InvalidAddress();
+        if (_benefactor == address(0)) revert InvalidAddress();
         if (_hookFeeBips > 10000) revert HookFeeTooHigh();
         if (_initialLpFeeRate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeTooHigh();
 
@@ -72,6 +82,7 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
         poolManager = _poolManager;
         vault = _vault;
         weth = _weth;
+        benefactor = _benefactor;
         hookFeeBips = _hookFeeBips;
         lpFeeRate = _initialLpFeeRate;
 
@@ -125,7 +136,7 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
      */
     // slither-disable-next-line reentrancy-events
     function afterSwap(
-        address sender,
+        address, /* sender — v4 passes the router/locker, not the trader; we credit the fixed benefactor */
         PoolKey calldata key,
         IPoolManager.SwapParams calldata,
         BalanceDelta delta,
@@ -141,13 +152,13 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
         if (feeAmount > 0) {
             poolManager.take(key.currency0, address(this), feeAmount);
             (bool ok,) = address(vault).call{value: feeAmount}(
-                abi.encodeCall(IAlignmentVault.receiveContribution, (key.currency0, feeAmount, sender))
+                abi.encodeCall(IAlignmentVault.receiveContribution, (key.currency0, feeAmount, benefactor))
             );
             if (ok) {
-                emit AlignmentFeeCollected(feeAmount, sender);
+                emit AlignmentFeeCollected(feeAmount, benefactor);
             } else {
                 queuedFees += feeAmount;
-                emit AlignmentFeeQueued(feeAmount, sender);
+                emit AlignmentFeeQueued(feeAmount, benefactor);
             }
             return (IHooks.afterSwap.selector, feeAmount.toInt128());
         }
@@ -163,7 +174,8 @@ contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
         uint256 amount = queuedFees;
         if (amount == 0) revert NoQueuedFees();
         queuedFees = 0;
-        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, address(this));
+        // Credit the same fixed benefactor the live afterSwap path would have — not the hook itself.
+        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, benefactor);
         emit QueuedFeesForwarded(amount);
     }
 
