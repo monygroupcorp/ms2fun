@@ -126,7 +126,9 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
                 })
             )
         );
-        instance = ICreateX(CREATEX).deployCreate3(salt, initCode);
+        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
+        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
+        instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, initCode);
         if (agentCreated) {
             ERC721AuctionInstance(payable(instance)).setAgentDelegationFromFactory();
         }
@@ -163,8 +165,9 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
     // ── Utilities ────────────────────────────────────────────────────────────
 
     /// @notice Preview the deterministic address for a given salt.
-    function computeInstanceAddress(bytes32 salt) external view returns (address) {
-        bytes32 guardedSalt = keccak256(abi.encodePacked(uint256(uint160(address(this))), salt));
+    function computeInstanceAddress(address creator, bytes32 salt) external view returns (address) {
+        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
+        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
         return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
     }
 }

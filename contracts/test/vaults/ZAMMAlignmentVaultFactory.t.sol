@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {ZAMMAlignmentVaultFactory} from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
 import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
 import {MockZAMM} from "../mocks/MockZAMM.sol";
 import {MockZRouter} from "../mocks/MockZRouter.sol";
 import {MockEXECToken} from "../mocks/MockEXECToken.sol";
@@ -45,7 +46,8 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
         factory = new ZAMMAlignmentVaultFactory(
             address(mockZamm),
             address(mockZRouter),
-            treasury
+            treasury,
+            IVaultPriceValidator(address(0)) // floor-mechanics covered elsewhere; deploy test only
         );
     }
 

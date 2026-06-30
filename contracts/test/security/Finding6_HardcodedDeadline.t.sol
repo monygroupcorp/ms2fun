@@ -37,7 +37,7 @@ contract Finding6_HardcodedDeadlineTest is Test {
 
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(address(mockZamm), address(mockZRouter), address(token), poolKey, treasury);
+        vault.initialize(address(mockZamm), address(mockZRouter), address(token), poolKey, treasury, address(0));
 
         // Seed: contribute + convert (exercises the swapVZ deadline codepath)
         vm.deal(alice, 100 ether);

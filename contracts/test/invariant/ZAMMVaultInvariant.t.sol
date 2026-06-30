@@ -45,7 +45,8 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
             address(mockZRouter),
             address(alignmentToken),
             poolKey,
-            treasury
+            treasury,
+            address(0)
         );
 
         actors.push(address(0xA11CE));

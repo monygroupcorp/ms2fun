@@ -150,7 +150,6 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         assertEq(newVault.weth(), WETH, "WETH address mismatch");
         assertEq(newVault.poolManager(), UNISWAP_V4_POOL_MANAGER, "Pool manager mismatch");
         assertEq(newVault.alignmentToken(), alignmentToken, "Alignment token mismatch");
-        assertEq(newVault.standardConversionReward(), 0.0012 ether, "Default reward should be 0.0012 ETH");
 
         emit log_string("[PASS] Vault deploys with correct initial state");
     }
@@ -194,15 +193,6 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         emit log_string("[PASS] Owner can update V4 pool key");
     }
 
-    function test_setConversionRewardBps_success() public {
-        uint256 newReward = 0.01 ether;
-
-        vm.prank(owner);
-        vault.setStandardConversionReward(newReward);
-
-        assertEq(vault.standardConversionReward(), newReward, "Reward not updated");
-        emit log_string("[PASS] Owner can update conversion reward");
-    }
 
     // ┌─────────────────────────────────────┐
     // │  B. Contribution Flow Tests         │
@@ -284,23 +274,8 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         assertEq(vault.totalPendingETH(), 0, "Pending should clear");
         assertEq(vault.pendingETH(alice), 0, "Alice pending should clear");
 
-        // Verify caller reward (Alice called, so she gets reward)
-        // M-04: Reward is now gas-based + standard reward (not percentage)
-        // Note: On fork with real gas costs, net balance change = reward - gas used
-        uint256 expectedReward = vault.standardConversionReward(); // 0.0012 ether
-        if (alice.balance >= aliceBalanceBefore) {
-            // Balance increased or stayed same (reward >= gas)
-            assertApproxEqAbs(
-                alice.balance - aliceBalanceBefore,
-                expectedReward,
-                0.001 ether,
-                "Caller reward mismatch"
-            );
-        } else {
-            // Balance decreased (gas > reward) - this is fine on mainnet fork
-            // Just verify reward was attempted
-            emit log_string("[INFO] Gas cost exceeded reward on fork");
-        }
+        // Caller reimbursement was removed: running a conversion never pays the caller.
+        // (alice.balance only moves by gas spent.)
 
         emit log_string("[PASS] Single contributor receives all shares and dragnet clears");
     }
@@ -459,33 +434,17 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         emit log_string("[PASS] Shares accumulate across multiple conversion rounds");
     }
 
-    function test_conversionReward_paidToExecutor() public {
+    function test_conversionPaysNoExecutorReward() public {
         _contribute(alice, 10 ether);
 
-        // Bob executes the conversion (not Alice)
-        uint256 bobBalanceBefore = bob.balance;
+        // Bob executes the conversion (not Alice). With reimbursement removed, Bob is only
+        // out his gas — he receives no reward credit.
+        vm.deal(bob, 0);
         vm.prank(bob);
         vault.convertAndAddLiquidity(1);
 
-        // Bob should receive caller reward
-        // M-04: Reward is now gas-based + standard reward (not percentage)
-        uint256 expectedReward = vault.standardConversionReward(); // 0.0012 ether
-        uint256 bobBalanceAfter = bob.balance;
-
-        if (bobBalanceAfter >= bobBalanceBefore) {
-            // Balance increased or stayed same (reward >= gas)
-            assertApproxEqAbs(
-                bobBalanceAfter - bobBalanceBefore,
-                expectedReward,
-                0.001 ether,
-                "Bob should receive caller reward"
-            );
-        } else {
-            // Gas cost exceeded reward on fork - this is expected
-            emit log_string("[INFO] Gas cost exceeded reward on fork (Bob)");
-        }
-
-        emit log_string("[PASS] Caller reward incentivizes conversion execution");
+        assertEq(bob.balance, 0, "executor must receive no reward");
+        emit log_string("[PASS] Conversion pays the executor no reward");
     }
 
     // ┌─────────────────────────────────────┐

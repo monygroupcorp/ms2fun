@@ -47,8 +47,7 @@ contract UniAlignmentVaultTest is Test {
         uint256 ethSwapped,
         uint256 tokenReceived,
         uint256 lpPositionValue,
-        uint256 sharesIssued,
-        uint256 callerReward
+        uint256 sharesIssued
     );
     event FeesClaimed(address indexed benefactor, uint256 ethAmount);
     event FeesAccumulated(uint256 amount);
@@ -120,7 +119,6 @@ contract UniAlignmentVaultTest is Test {
         assertEq(vault.totalPendingETH(), 0, "Total pending ETH should be 0");
         assertEq(vault.accumulatedFees(), 0, "Accumulated fees should be 0");
         assertEq(vault.totalLPUnits(), 0, "Total LP units should be 0");
-        assertEq(vault.standardConversionReward(), 0.0012 ether, "Standard conversion reward should be 0.0012 ETH");
     }
 
     function _freshClone() internal returns (TestableUniAlignmentVault) {
@@ -409,7 +407,8 @@ contract UniAlignmentVaultTest is Test {
         vault.conversionParticipants(0);
     }
 
-    function test_ConvertAndAddLiquidity_PaysCallerReward() public {
+    /// @dev Caller reimbursement was removed — running a conversion pays the caller nothing.
+    function test_ConvertAndAddLiquidity_PaysNoCallerReward() public {
         vm.prank(alice);
         (bool s1, ) = address(vault).call{value: 10 ether}("");
         assertTrue(s1);
@@ -419,12 +418,7 @@ contract UniAlignmentVaultTest is Test {
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
-        uint256 daveBalanceAfter = dave.balance;
-        // M-04 fix: Reward is now gas-based + standard reward (not percentage)
-        // In test environment with zero gas price: reward = gasCost + standardReward = 0 + 0.0012 ether
-        uint256 expectedReward = vault.standardConversionReward(); // 0.0012 ether
-
-        assertEq(daveBalanceAfter - daveBalanceBefore, expectedReward, "Caller should receive reward");
+        assertEq(dave.balance, daveBalanceBefore, "Caller must receive no reward");
     }
 
     function test_ConvertAndAddLiquidity_UpdatesTotalLPUnits() public {
@@ -448,7 +442,7 @@ contract UniAlignmentVaultTest is Test {
         assertTrue(s1);
 
         vm.expectEmit(false, false, false, false);
-        emit LiquidityAdded(0, 0, 0, 0, 0);
+        emit LiquidityAdded(0, 0, 0, 0);
 
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
@@ -934,39 +928,6 @@ contract UniAlignmentVaultTest is Test {
         vault.setV4PoolKey(newPoolKey);
     }
 
-    function test_SetConversionRewardBps_OwnerCanUpdate() public {
-        vm.prank(owner);
-        vault.setStandardConversionReward(0.01 ether);
-
-        assertEq(vault.standardConversionReward(), 0.01 ether, "Standard conversion reward should be updated");
-    }
-
-    function test_SetConversionRewardBps_RevertsOnTooHighValue() public {
-        vm.prank(owner);
-        vm.expectRevert(UniAlignmentVault.RewardTooHigh.selector);
-        vault.setStandardConversionReward(0.2 ether);
-    }
-
-    function test_SetConversionRewardBps_RevertsWhenNotOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.setStandardConversionReward(0.01 ether);
-    }
-
-    function test_SetConversionRewardBps_CanSetToZero() public {
-        vm.prank(owner);
-        vault.setStandardConversionReward(0);
-
-        assertEq(vault.standardConversionReward(), 0, "Standard conversion reward should be 0");
-    }
-
-    function test_SetConversionRewardBps_CanSetToMax() public {
-        vm.prank(owner);
-        vault.setStandardConversionReward(0.1 ether);
-
-        assertEq(vault.standardConversionReward(), 0.1 ether, "Standard conversion reward should be 0.1 ETH");
-    }
-
     // ========== Reentrancy Protection Tests ==========
 
     function test_Receive_ReentrancyProtection() public {
@@ -1376,5 +1337,114 @@ contract UniAlignmentVaultTest is Test {
         // It accumulates in accumulatedProtocolFees and is only sent on withdrawal.
         // We verify by checking the default state allows accumulation in the split logic.
         // (Full integration test would require real LP yield path)
+    }
+
+    // ========================================================================
+    // AUDIT REGRESSION — F4 (no fee dilution)
+    // ========================================================================
+
+    /// @dev F4: an earlier benefactor's accrued-but-unclaimed yield must NOT shrink when a later
+    ///      benefactor converts. Pre-fix Alice's 10 ETH entitlement halved to 5 ETH and 5 ETH stranded.
+    function test_F4_NoDilution_EarlierBenefactorClaimableStableAcrossConversions() public {
+        // Alice contributes and gets all initial shares.
+        vm.prank(alice);
+        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        assertTrue(s1);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        // Fees accrue entirely to Alice's batch.
+        vm.prank(owner);
+        vault.depositFees{value: 10 ether}();
+        uint256 aliceBefore = vault.getUnclaimedFees(alice);
+        assertApproxEqRel(aliceBefore, 10 ether, 0.01e18, "Alice should be owed ~10 ETH");
+
+        // Bob converts later, growing totalShares.
+        vm.prank(bob);
+        (bool s2, ) = address(vault).call{value: 10 ether}("");
+        assertTrue(s2);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        // Alice's entitlement is preserved; Bob starts at zero.
+        assertApproxEqRel(vault.getUnclaimedFees(alice), aliceBefore, 0.0001e18, "Alice must NOT be diluted");
+        assertEq(vault.getUnclaimedFees(bob), 0, "Bob cannot claim pre-existing fees");
+
+        // Alice can actually claim her full entitlement; nothing stranded.
+        vm.prank(alice);
+        uint256 aliceClaimed = vault.claimFees();
+        assertApproxEqRel(aliceClaimed, 10 ether, 0.01e18, "Alice claims her full ~10 ETH");
+    }
+
+    /// @dev F4: sum of claimable across benefactors must not exceed accumulatedFees (no over-issuance).
+    function test_F4_SumClaimableLEAccumulatedFees() public {
+        vm.prank(alice);
+        (bool s1, ) = address(vault).call{value: 7 ether}("");
+        assertTrue(s1);
+        vm.prank(bob);
+        (bool s2, ) = address(vault).call{value: 3 ether}("");
+        assertTrue(s2);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        vm.prank(owner);
+        vault.depositFees{value: 11 ether}();
+
+        // Charlie joins in a later conversion.
+        vm.prank(charlie);
+        (bool s3, ) = address(vault).call{value: 5 ether}("");
+        assertTrue(s3);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        uint256 sumClaimable = vault.getUnclaimedFees(alice)
+            + vault.getUnclaimedFees(bob)
+            + vault.getUnclaimedFees(charlie);
+        assertLe(sumClaimable, vault.accumulatedFees(), "claimable must never exceed accrued fees");
+    }
+
+    // ========================================================================
+    // AUDIT REGRESSION — F7 (convert minOut oracle floor)
+    // ========================================================================
+
+    /// @dev F7: with a TWAP source wired, a loose caller minOut cannot let a degraded (sandwiched)
+    ///      swap through — the oracle-derived floor forces a higher minimum and the swap reverts.
+    function test_F7_ConvertFloorBlocksSandwich() public {
+        mockValidator.setEthPer1e18Tokens(1e15);   // 0.001 ETH/token TWAP (1000 tokens/ETH)
+        mockZRouter.setOutRatio(5e20);              // degraded swap rate (~half fair) → sandwich
+        vm.prank(alice);
+        (bool s, ) = address(vault).call{value: 10 ether}("");
+        assertTrue(s);
+
+        vm.prank(dave);
+        vm.expectRevert(bytes("MockZRouter: insufficient output"));
+        vault.convertAndAddLiquidity(1); // caller minOut=1, but floor enforces the TWAP minimum
+    }
+
+    /// @dev F7: an honest swap that meets the oracle floor still succeeds.
+    function test_F7_ConvertFloorAllowsHonestSwap() public {
+        mockValidator.setEthPer1e18Tokens(1e15);
+        mockZRouter.setOutRatio(1e21);              // fair rate, at/above the floor
+        vm.prank(alice);
+        (bool s, ) = address(vault).call{value: 10 ether}("");
+        assertTrue(s);
+
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+        assertGt(vault.totalShares(), 0, "honest conversion should succeed");
+    }
+
+    /// @dev F7: when no reliable price source exists (quote == 0), the floor is skipped and the
+    ///      caller's minOut governs (documented edge case, mirrors the fee-conversion path).
+    function test_F7_NoFloorWhenNoPriceSource() public {
+        // mockValidator.ethPer1e18Tokens stays 0 → quoteEthForTokens returns 0 → no floor.
+        mockZRouter.setOutRatio(5e20);
+        vm.prank(alice);
+        (bool s, ) = address(vault).call{value: 10 ether}("");
+        assertTrue(s);
+
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1); // succeeds despite degraded rate — no oracle to floor against
+        assertGt(vault.totalShares(), 0);
     }
 }

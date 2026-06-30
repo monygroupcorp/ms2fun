@@ -165,7 +165,7 @@ contract ERC721AuctionFactoryTest is Test {
 
     function test_computeInstanceAddress() public view {
         bytes32 salt = bytes32(uint256(1));
-        address predicted = factory.computeInstanceAddress(salt);
+        address predicted = factory.computeInstanceAddress(address(this), salt);
         assertTrue(predicted != address(0));
     }
 
@@ -665,11 +665,17 @@ contract ERC721AuctionFactoryTest is Test {
     // │  Non-Receiver Safety    │
     // └─────────────────────────┘
 
-    function test_SettleAuction_ContractBidderWithoutERC721Receiver_Reverts() public {
+    /// @dev Regression for the auction-DoS finding: settlement must NOT depend on the winner's
+    ///      ERC721 receiver callback. A non-receiver (or reverting-receiver) winner must still settle,
+    ///      the NFT lands with the winner via plain _mint, and the line advances to the next piece.
+    function test_SettleAuction_ContractBidderWithoutERC721Receiver_Settles() public {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
-        vm.prank(artist);
+        // Queue two pieces on the same line so we can prove the line advances past the stuck winner.
+        vm.startPrank(artist);
         inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{value: 0.1 ether}("ipfs://piece2");
+        vm.stopPrank();
 
         NonReceiverBidder bidder = new NonReceiverBidder();
         vm.deal(address(bidder), 10 ether);
@@ -681,8 +687,38 @@ contract ERC721AuctionFactoryTest is Test {
 
         vm.warp(auction.endTime);
 
-        vm.expectRevert();
+        // Settlement succeeds despite the winner lacking IERC721Receiver.
         inst.settleAuction(1);
+
+        // NFT delivered to the winner, auction marked settled.
+        assertEq(inst.ownerOf(1), address(bidder));
+        assertTrue(inst.getAuction(1).settled);
+
+        // Line advanced: piece 2's auction has started (not frozen behind the stuck winner).
+        ERC721AuctionInstance.Auction memory next = inst.getAuction(2);
+        assertTrue(next.startTime != 0, "line did not advance to piece 2");
+    }
+
+    /// @dev Stronger variant: a winner that ACTIVELY REVERTS in onERC721Received must not brick
+    ///      settlement either (a maliciously reverting receiver is stronger than a passive one).
+    function test_SettleAuction_RevertingReceiverWinner_StillSettles() public {
+        ERC721AuctionInstance inst = _createDefaultInstance();
+
+        vm.startPrank(artist);
+        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{value: 0.1 ether}("ipfs://piece2");
+        vm.stopPrank();
+
+        RevertingReceiverBidder bidder = new RevertingReceiverBidder();
+        vm.deal(address(bidder), 10 ether);
+        bidder.bid(address(inst), 1, 0.2 ether);
+
+        vm.warp(inst.getAuction(1).endTime);
+        inst.settleAuction(1); // must not revert
+
+        assertEq(inst.ownerOf(1), address(bidder));
+        assertTrue(inst.getAuction(1).settled);
+        assertTrue(inst.getAuction(2).startTime != 0, "line did not advance past reverting winner");
     }
 }
 
@@ -690,6 +726,19 @@ contract ERC721AuctionFactoryTest is Test {
 contract NonReceiverBidder {
     function bid(address instance, uint24 tokenId, uint256 amount) external {
         ERC721AuctionInstance(payable(instance)).createBid{value: amount}(tokenId, bytes(""));
+    }
+
+    receive() external payable {}
+}
+
+/// @dev A contract that bids and reverts inside onERC721Received — the hostile-DoS case.
+contract RevertingReceiverBidder {
+    function bid(address instance, uint24 tokenId, uint256 amount) external {
+        ERC721AuctionInstance(payable(instance)).createBid{value: amount}(tokenId, bytes(""));
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        revert("no NFTs for me");
     }
 
     receive() external payable {}

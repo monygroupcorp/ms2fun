@@ -7,6 +7,8 @@ import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.so
 contract MockVaultPriceValidator is IVaultPriceValidator {
     bool public shouldRevert;
     uint256 public fixedProportion = 5e17; // 50% default
+    /// @notice ETH returned for 1e18 tokens (TWAP price). 0 = "no reliable source" (default).
+    uint256 public ethPer1e18Tokens;
 
     function setShouldRevert(bool _shouldRevert) external {
         shouldRevert = _shouldRevert;
@@ -14,6 +16,11 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
 
     function setFixedProportion(uint256 _proportion) external {
         fixedProportion = _proportion;
+    }
+
+    /// @notice Set the TWAP rate as ETH per 1e18 tokens (e.g. 1e15 = 0.001 ETH/token).
+    function setEthPer1e18Tokens(uint256 rate) external {
+        ethPer1e18Tokens = rate;
     }
 
     function validatePrice(address, uint256) external view override {
@@ -26,8 +33,9 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
         return fixedProportion;
     }
 
-    // Returns 0 by default so existing tests are unaffected (no token fees collected in mocks).
-    function quoteEthForTokens(address, uint256) external pure override returns (uint256) {
-        return 0;
+    // Linear TWAP quote: ethOut = tokenAmount * ethPer1e18Tokens / 1e18.
+    // Returns 0 when unset so existing tests are unaffected (no oracle floor applied).
+    function quoteEthForTokens(address, uint256 tokenAmount) external view override returns (uint256) {
+        return tokenAmount * ethPer1e18Tokens / 1e18;
     }
 }

@@ -31,7 +31,9 @@ contract CypherAlignmentVaultFactory {
             vaultImplementation,
             hex"5af43d82803e903d91602b57fd5bf3"
         );
-        vault = CypherAlignmentVault(payable(ICreateX(CREATEX).deployCreate3(salt, proxyCreationCode)));
+        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
+        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
+        vault = CypherAlignmentVault(payable(ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode)));
         vault.initialize(
             positionManager, swapRouterAddr, weth, alignmentToken,
             protocolTreasury, liquidityDeployer
@@ -40,8 +42,9 @@ contract CypherAlignmentVaultFactory {
     }
 
     /// @notice Preview the deterministic address for a given salt
-    function computeVaultAddress(bytes32 salt) external view returns (address) {
-        bytes32 guardedSalt = keccak256(abi.encodePacked(uint256(uint160(address(this))), salt));
+    function computeVaultAddress(address creator, bytes32 salt) external view returns (address) {
+        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
+        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
         return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
     }
 }
