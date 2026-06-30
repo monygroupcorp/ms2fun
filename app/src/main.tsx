@@ -5,6 +5,8 @@ import './styles/system.css'
 // [data-brand="noesis"] so nothing leaks onto :root. See styles/noesis/VENDORED.md.
 import './styles/noesis/theme.css'
 import './styles/noesis/signature.css'
+// Bridge the legacy :root tokens to the NOESIS white-wall tokens (single-brand, light-only).
+import './styles/noesis-bridge.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './App'

@@ -1,0 +1,47 @@
+/* NOESIS is a single-brand WHITE-WALL surface — there is no dark variant in the app (the brand's
+ * dark tokens only arm with an explicit [data-theme="dark"], which we never set). But the app's
+ * legacy token system (tokens.css) flips :root to dark under `prefers-color-scheme: dark`, which
+ * fights the brand: white NOESIS components on a dark shell, and text inheriting the shell's light
+ * ink onto white chips (the "invisible white rectangle" status chips).
+ *
+ * This bridge maps the legacy token names to the NOESIS tokens on the app root and pins the colour
+ * scheme to light, so EVERY component — reskinned or not — renders on the gallery wall regardless
+ * of OS preference. Defined on [data-brand="noesis"] (the <html> root), so it overrides the :root
+ * dark-mode media block for the whole document. Remove if NOESIS ever ships a real dark theme. */
+
+[data-brand="noesis"] {
+  color-scheme: light;
+  background: var(--color-bg);
+  color: var(--color-text);
+
+  /* Backgrounds */
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-surface);
+  --bg-tertiary: var(--color-surface-2);
+
+  /* Text */
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-muted);
+  --text-tertiary: var(--color-text-subtle);
+  --text-disabled: color-mix(in srgb, var(--color-text-subtle) 55%, var(--color-bg));
+
+  /* Borders */
+  --border-primary: var(--color-border);
+  --border-secondary: color-mix(in srgb, var(--color-border) 16%, var(--color-bg));
+  --border-tertiary: color-mix(in srgb, var(--color-border) 10%, var(--color-bg));
+
+  /* Semantic — mono, like the brand (ink is the accent). */
+  --semantic-error: var(--color-text);
+  --semantic-success: var(--color-text);
+  --semantic-warning: var(--color-text);
+
+  /* Interactive states */
+  --state-hover-bg: var(--color-surface-2);
+  --state-active-bg: color-mix(in srgb, var(--color-border) 12%, var(--color-bg));
+  --state-focus-outline: var(--color-focus);
+
+  /* Gallery Brutalism forbids shadows. */
+  --shadow-subtle: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+}
