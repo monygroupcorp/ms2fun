@@ -127,8 +127,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     uint256 public maxPriceDeviationBps;  // default 500 (5%)
 
     // ── Principal tracking ────────────────────────────────────────────────
-    uint256 public principalETH;
-    uint256 public principalToken;
+    uint256 public principalETH;    // nominal cumulative ETH deposited (reporting)
+    uint256 public principalToken;  // nominal cumulative token deposited (reporting)
+    /// @notice Geometric-mean (constant-product) invariant baseline of the vault's LP principal:
+    ///         Σ sqrt(ethUsed_i * tokenUsed_i) over every deposit. Fee detection compares the pool's
+    ///         current per-share invariant against this fixed baseline so that price movement (which
+    ///         leaves sqrt(k)/share unchanged) is NOT mistaken for fee growth. Never reduced on harvest —
+    ///         a full-fee harvest pulls currentInvariant back down to exactly this value.
+    uint256 public principalInvariant;
 
     // ── Pending (between conversions) ─────────────────────────────────────
     uint256 public pendingETH;
@@ -265,6 +271,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         lpMinted = r.lp;
         principalETH += r.ethUsed;
         principalToken += r.tokenUsed;
+        // Liquidity is added at the pool ratio, so this deposit's LP claim has invariant value
+        // sqrt(ethUsed * tokenUsed). Accumulating it gives a price-history-independent baseline.
+        principalInvariant += FixedPointMathLib.sqrt(r.ethUsed * r.tokenUsed);
 
         for (uint256 i = 0; i < benefactors.length; i++) {
             address b = benefactors[i];
@@ -317,11 +326,18 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 totalSupply = pool.supply;
         if (totalSupply == 0) return 0;
 
-        uint256 currentETH = uint256(pool.reserve0) * lpHeld / totalSupply; // round down: conservative ETH valuation
-        uint256 ethFees = currentETH > principalETH ? currentETH - principalETH : 0;
-        if (ethFees == 0) return 0;
+        // Measure fee growth by the constant-product invariant, NOT the ETH-side reserve share.
+        // In a constant-product pool reserve0 (the ETH side) rises and falls with price, so a
+        // reserve-share comparison mislabels impermanent loss / price appreciation as "fees" and
+        // would burn principal LP to pay it out. Real LP fees are the only thing that grows
+        // sqrt(k)/share, so the vault's per-share invariant value minus its deposit baseline is
+        // exactly the accrued fee (price movement cancels out).
+        uint256 rootK = FixedPointMathLib.sqrt(uint256(pool.reserve0) * uint256(pool.reserve1));
+        uint256 currentInvariant = rootK * lpHeld / totalSupply; // round down: conservative valuation
+        uint256 invFees = currentInvariant > principalInvariant ? currentInvariant - principalInvariant : 0;
+        if (invFees == 0) return 0;
 
-        uint256 feeLP = lpHeld * ethFees / currentETH; // round down: slightly fewer LP tokens burned
+        uint256 feeLP = lpHeld * invFees / currentInvariant; // round down: slightly fewer LP tokens burned
         if (feeLP == 0) return 0;
 
         feesCollected = _removeFeeLP(feeLP, minEthOut);
@@ -337,8 +353,11 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             accRewardPerContribution += benefactorFees * 1e18 / totalContributions; // round down: dust stays in vault
         }
 
-        principalETH -= (principalETH * feeLP / lpHeld); // round down: slightly over-estimates remaining principal
-        principalToken -= (principalToken * feeLP / lpHeld); // round down: slightly over-estimates remaining principal
+        // Deliberately do NOT touch principal here. feeLP is exactly the LP whose invariant value
+        // exceeds the baseline, so removing it pulls currentInvariant back down to principalInvariant;
+        // reducing the baseline would make the next harvest see phantom fees and bleed principal —
+        // the very flaw this invariant rework closes. principalETH/principalToken stay as the nominal
+        // cumulative-deposit record for reporting.
 
         emit Harvested(feesCollected, benefactorFees);
         emit FeesAccumulated(benefactorFees);
