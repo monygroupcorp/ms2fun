@@ -129,7 +129,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
           </span>
         </span>
         <button
-          className="btn btn-primary btn-chromatic"
+          className={styles.mintBtn}
           onClick={handleMint}
           disabled={isBusy || costData === undefined}
         >

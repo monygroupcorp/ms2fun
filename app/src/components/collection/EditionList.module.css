@@ -189,3 +189,23 @@
   color: var(--text-primary);
   font-weight: var(--font-weight-bold);
 }
+
+/* The mint CTA — its border is the edition's accent SEAM (the artist's colour entering the chrome,
+   one of the two sanctioned edition seams). `--edition-accent` cascades from the edition page root
+   (.noesis-edition); inline in the edition list it falls back to mono. */
+.mintBtn {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  background: var(--color-text);
+  border: 2px solid var(--edition-accent, var(--color-text));
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+}
+
+.mintBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
