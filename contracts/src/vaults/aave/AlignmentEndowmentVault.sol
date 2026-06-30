@@ -210,13 +210,28 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
         bool matured = block.timestamp >= depositTime[benefactor] + MATURITY_DURATION;
 
-        // Redeem from Aave FIRST (trusted calls only) so we never clear accounting for funds we
-        // couldn't recover: a shortfall beyond rounding dust is an Aave liquidity event → revert so
-        // the benefactor retries later, rather than losing the unredeemed remainder to phantom yield.
-        uint256 got = _redeem(p);
-        if (got + REDEEM_DUST < p) revert RedeemShortfall();
+        // All benefactors share ONE Aave position, so if it is ever impaired (worth less than the sum
+        // of principals — e.g. an Aave bad-debt event) a benefactor redeeming their FULL nominal `p`
+        // would drain the position and leave latecomers unable to redeem at all: a first-mover bank
+        // run where the loss falls entirely on whoever withdraws last. Instead, socialize the loss
+        // pro-rata: when the position is impaired, this benefactor's fair claim is their slice of the
+        // CURRENT value. Redeeming `claim` while clearing the full nominal `p` from the ledger leaves
+        // value/principal unchanged for everyone remaining, so no withdrawal order is advantaged.
+        uint256 totalValue = _stataValue();
+        uint256 claim = p;
+        if (totalValue < totalPrincipal) {
+            claim = (p * totalValue) / totalPrincipal; // round down: dust stays for remaining benefactors
+        }
 
-        // effects (clear state) before the untrusted distribution interactions
+        // Redeem from Aave FIRST (trusted calls only) so we never clear accounting for funds we
+        // couldn't recover: a shortfall below the (already pro-rated) claim beyond rounding dust is an
+        // Aave *liquidity* event → revert so the benefactor retries later, rather than losing the
+        // unredeemed remainder to phantom yield. (A solvency haircut is already reflected in `claim`.)
+        uint256 got = _redeem(claim);
+        if (got + REDEEM_DUST < claim) revert RedeemShortfall();
+
+        // effects (clear state) before the untrusted distribution interactions. The full nominal `p`
+        // leaves the ledger even under a haircut — the shortfall is a realized loss, not a deferred debt.
         principal[benefactor] = 0;
         depositTime[benefactor] = 0;
         totalPrincipal -= p;
