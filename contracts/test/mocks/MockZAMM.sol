@@ -119,11 +119,19 @@ contract MockZAMM {
     ) external returns (uint256 amount0, uint256 amount1) {
         uint256 poolId = uint256(keccak256(abi.encode(poolKey)));
         require(lpBalances[msg.sender][poolId] >= liquidity, "insufficient LP");
+        uint256 supplyBefore = pools[poolId].supply;
         lpBalances[msg.sender][poolId] -= liquidity;
 
         amount0 = liquidity * ethPerLp / 1 ether;
         amount1 = liquidity * tokenPerLp / 1 ether;
 
+        // Burning LP withdraws a proportional slice of the reserves (constant-product behavior):
+        // this keeps sqrt(k)/share intact and lets the vault's invariant detection converge across
+        // harvests instead of re-detecting the same fee growth forever.
+        if (supplyBefore > 0) {
+            pools[poolId].reserve0 -= uint112(uint256(pools[poolId].reserve0) * liquidity / supplyBefore);
+            pools[poolId].reserve1 -= uint112(uint256(pools[poolId].reserve1) * liquidity / supplyBefore);
+        }
         pools[poolId].supply -= liquidity;
 
         // Send ETH via call (transfer only forwards 2300 gas, not enough for vault receive())

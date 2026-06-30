@@ -268,6 +268,81 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.harvest(0);
     }
 
+    // ── harvest: IL-as-fees mislabel regression (audit #36 Tier-2) ──────────
+    //
+    // The vault holds the entire LP supply at a known 1:1 ratio so the invariant math is exact.
+    // setOutRatio(1e18) makes the convert swap 1 ETH-wei → 1 token-wei, so after convert the pool
+    // is reserves=(2e18, 2e18), supply=1000e18, lpHeld=1000e18 → principalInvariant = 2e18.
+    function _seedSoleLP() internal {
+        uint256 pid = vault.poolId();
+        mockZamm.setPool(pid, 0, 0, 0);     // empty pool: vault becomes the sole LP
+        mockZRouter.setOutRatio(1e18);      // 1 ETH-wei : 1 token-wei
+        _receiveFromAlice(4 ether);
+        vault.convertAndAddLiquidity(0, 0, 0);
+    }
+
+    /// @dev THE fix: pure price movement (token appreciates → ETH-side reserve rises) at constant k
+    ///      must NOT be harvested as fees. Under the old `reserve0*share > principalETH` heuristic this
+    ///      paid out impermanent loss / principal as phantom "yield", bleeding the alignment LP.
+    function test_harvest_ignoresPurePriceMovement() public {
+        _seedSoleLP();
+        uint256 accBefore = vault.accRewardPerContribution();
+        uint256 lpBefore = mockZamm.lpBalances(address(vault), vault.poolId());
+
+        // Move price hard while holding k constant: 2*2 = 4 == 4*1. sqrt(k)/share is unchanged,
+        // but the ETH-side reserve doubled — exactly the IL signal the old code mistook for fees.
+        mockZamm.setPool(vault.poolId(), 4 ether, 1 ether, 1000 ether);
+
+        vm.roll(block.number + 1);
+        uint256 fees = vault.harvest(0);
+
+        assertEq(fees, 0, "pure price movement must yield zero fees");
+        assertEq(vault.accRewardPerContribution(), accBefore, "accumulator must not move on IL");
+        assertEq(
+            mockZamm.lpBalances(address(vault), vault.poolId()),
+            lpBefore,
+            "no principal LP may be burned on pure price movement"
+        );
+    }
+
+    /// @dev Counterpart: genuine fee growth (k rises, supply fixed) IS detected and harvested.
+    function test_harvest_detectsInvariantGrowth() public {
+        _seedSoleLP();
+        uint256 accBefore = vault.accRewardPerContribution();
+        vm.deal(address(mockZamm), 100 ether);
+
+        // Real LP fees retained in the pool: both reserves +10% → k grows, sqrt(k)/share rises.
+        mockZamm.setPool(vault.poolId(), 2.2 ether, 2.2 ether, 1000 ether);
+
+        vm.roll(block.number + 1);
+        uint256 fees = vault.harvest(0);
+
+        assertGt(fees, 0, "invariant growth must be harvested as fees");
+        assertGt(vault.accRewardPerContribution(), accBefore, "accumulator must grow on real fees");
+    }
+
+    /// @dev Fee detection is price-agnostic: the same k-growth at a wildly different price ratio
+    ///      yields fees, and a second harvest with no further growth converges to zero (the baseline
+    ///      is never reduced, so it cannot be re-mined).
+    function test_harvest_convergesAfterFeesPriceAgnostic() public {
+        _seedSoleLP();
+        vm.deal(address(mockZamm), 100 ether);
+
+        // k grows to 4.84e36 (sqrt = 2.2e18) but at a skewed 4.84 : 1 ratio — price moved AND fees
+        // accrued. Only the invariant delta (0.2e18) should be paid, not the price-driven reserve swing.
+        mockZamm.setPool(vault.poolId(), 4.84 ether, 1 ether, 1000 ether);
+
+        vm.roll(1000);
+        uint256 first = vault.harvest(0);
+        assertGt(first, 0, "k-growth must be harvested regardless of price ratio");
+
+        // No new fees since: the proportional-burn mock has pulled the per-share invariant back to the
+        // baseline, so a second harvest finds nothing.
+        vm.roll(2000);
+        uint256 second = vault.harvest(0);
+        assertEq(second, 0, "baseline must not be re-mineable after a full-fee harvest");
+    }
+
     // ── claimFees + delegation ────────────────────────────────────────────
 
     function _triggerHarvestWithFees() internal {
