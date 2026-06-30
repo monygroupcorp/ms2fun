@@ -7,173 +7,173 @@
 }
 
 .back {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--text-primary);
+  color: var(--color-text);
+}
+
+/* Header — Collections · N registered, with the Grid/List toggle on the right. */
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--space-5);
+}
+
+.headLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .title {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
   letter-spacing: var(--letter-spacing-tight);
-  margin-bottom: var(--space-6);
+  line-height: 1;
+  margin: 0;
 }
 
-/* Filters bar */
+.count {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+}
+
+/* Grid/List toggle — buttons mirroring the .noesis-viewtoggle a look (device styles <a>). */
+.toggleBtn {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  border-right: var(--border-width-thick, 2px) solid var(--color-border);
+  cursor: pointer;
+}
+.toggleBtn:last-child {
+  border-right: 0;
+}
+.toggleOn {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+/* Filters — search + segmented chip groups, mono, ink-active. */
 .filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--gap-lg);
-  align-items: flex-end;
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--border-secondary);
-  border-bottom: 1px solid var(--border-secondary);
-  margin-bottom: var(--space-4);
-}
-
-.filterGroup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-xs);
-}
-
-.filterLabel {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
-}
-
-.filterButtons {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 0; /* segmented — borders collapse via margin-right: -1px */
-  row-gap: var(--space-1); /* breathing room when the group wraps on mobile */
-}
-
-.filterBtn {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  background-color: var(--bg-secondary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-secondary);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-  transition: var(--transition-base);
-  margin-right: -1px; /* collapse borders */
-}
-
-.filterBtn:hover {
-  background-color: var(--state-hover-bg);
-  color: var(--text-primary);
-  z-index: 1;
-  position: relative;
-}
-
-.filterBtnActive {
-  background-color: var(--text-primary);
-  color: var(--bg-primary);
-  z-index: 2;
-  position: relative;
-}
-
-.filterBtnActive:hover {
-  background-color: var(--text-primary);
-  color: var(--bg-primary);
+  gap: var(--gap-md);
+  align-items: center;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
 .searchInput {
-  font-family: var(--font-mono);
+  flex: 1 1 18rem;
+  min-width: 0;
+  font-family: var(--brand-font-body);
   font-size: var(--font-size-body-sm);
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-secondary);
-  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
   outline: none;
-  width: 14rem;
-  transition: var(--transition-base);
 }
-
 .searchInput::placeholder {
-  color: var(--text-tertiary);
+  color: var(--color-text-subtle);
 }
 
-.searchInput:focus {
-  border-color: var(--text-primary);
+.chips {
+  display: flex;
+  border: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
-/* Results header */
-.resultsHeader {
+.chip {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  background: none;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+.chip:last-child {
+  border-right: 0;
+}
+.chipOn {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+/* Registry list — the de-arted view. Columns are consumer-owned (the device only sets the grid
+   display + row chrome); set the same template on the header and the rows. */
+.reg :global(.colhead),
+.reg :global(.row) {
+  grid-template-columns: minmax(0, 1.7fr) 0.8fr 0.9fr 0.7fr 1.2fr auto;
+}
+
+.regName {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-  gap: var(--gap-md);
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-.resultsCount {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  font-weight: var(--font-weight-medium);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
+.regNameText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.clearBtn {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
-  background-color: transparent;
-  border: 1px solid var(--border-secondary);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-  transition: var(--transition-base);
+.regThumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-.clearBtn:hover {
-  color: var(--text-primary);
-  border-color: var(--border-primary);
-}
-
-.resultsNote {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  color: var(--text-tertiary);
+.regPriceHead,
+.regPrice {
   text-align: right;
 }
 
+.regPrice {
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
-  .filters {
-    flex-direction: column;
-    align-items: flex-start;
+  /* Registry collapses: thumbnail + name + price are the non-negotiable columns; type/minted/
+     status/aligned drop first (their cells hide). */
+  .reg :global(.colhead),
+  .reg :global(.row) {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
-
-  .searchInput {
-    width: 100%;
-  }
-
-  .resultsHeader {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .resultsNote {
-    text-align: left;
+  .reg :global(.colhead) > :nth-child(2),
+  .reg :global(.colhead) > :nth-child(3),
+  .reg :global(.colhead) > :nth-child(4),
+  .reg :global(.colhead) > :nth-child(5),
+  .reg :global(.row) > :nth-child(2),
+  .reg :global(.row) > :nth-child(3),
+  .reg :global(.row) > :nth-child(4),
+  .reg :global(.row) > :nth-child(5) {
+    display: none;
   }
 }
