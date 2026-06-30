@@ -54,7 +54,11 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
     ///      canMint data encoding: abi.encode(bytes32 passwordHash, uint256 openTime)
     function configureFor(address instance, TierConfig calldata config) external override {
         if (!configured[instance]) {
-            if (!masterRegistry.isFactoryRegistered(msg.sender) && msg.sender != Ownable(instance).owner()) {
+            // Least privilege (D1): the caller must be THE factory that registered this specific
+            // instance (not merely any registered factory) — or the instance owner doing post-create
+            // setup. Using factory-of-instance closes the latent cross-factory pre-seal surface.
+            if (masterRegistry.getInstanceInfo(instance).factory != msg.sender
+                && msg.sender != Ownable(instance).owner()) {
                 revert Unauthorized();
             }
         } else {

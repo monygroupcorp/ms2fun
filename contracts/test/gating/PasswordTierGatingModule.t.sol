@@ -9,15 +9,6 @@ import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
 import {IComponentRegistry} from "../../src/registry/interfaces/IComponentRegistry.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
-/// @dev Registry that rejects one specific address (for Unauthorized path testing).
-contract MockRejectRegistry {
-    address public immutable rejected;
-    constructor(address _rejected) { rejected = _rejected; }
-    function isFactoryRegistered(address factory) external view returns (bool) {
-        return factory != rejected;
-    }
-}
-
 contract PasswordTierGatingModuleTest is Test {
     PasswordTierGatingModule module;
     MockMasterRegistry mockRegistry;
@@ -28,6 +19,10 @@ contract PasswordTierGatingModuleTest is Test {
     function setUp() public {
         mockRegistry = new MockMasterRegistry();
         module = new PasswordTierGatingModule(address(mockRegistry));
+        // D1: first-config auth now checks factory-OF-instance. The test contract acts as the
+        // registering factory for the standard instances, mirroring createInstance(address(this)).
+        mockRegistry.setInstanceFactory(instance1, address(this));
+        mockRegistry.setInstanceFactory(instance2, address(this));
     }
 
     function _volumeCapConfig() internal pure returns (TierConfig memory) {
@@ -55,30 +50,36 @@ contract PasswordTierGatingModuleTest is Test {
 
     function test_configureFor_revertsIfUnauthorizedCaller() public {
         address attacker = address(0xDEAD);
-        // MockMasterRegistry returns true for all addresses, so we need a registry
-        // that returns false for the attacker to test the Unauthorized path.
-        // Deploy a registry that rejects the attacker specifically.
-        MockRejectRegistry rejectRegistry = new MockRejectRegistry(attacker);
-        PasswordTierGatingModule strictModule = new PasswordTierGatingModule(address(rejectRegistry));
-
-        // First-config now also accepts the instance owner, so owner() must resolve to
-        // someone other than the attacker for the Unauthorized path to hold.
+        // instance1's registered factory is address(this) (setUp); the attacker is neither that
+        // factory nor the instance owner → Unauthorized. owner() must resolve to someone else.
         vm.mockCall(instance1, abi.encodeWithSignature("owner()"), abi.encode(address(0xC0FFEE)));
         vm.prank(attacker);
         vm.expectRevert(Ownable.Unauthorized.selector);
-        strictModule.configureFor(instance1, _volumeCapConfig());
+        module.configureFor(instance1, _volumeCapConfig());
+    }
+
+    /// @dev D1 least-privilege: a DIFFERENT registered factory (not the one that registered this
+    ///      instance) cannot author its first config. Pre-hardening any registered factory could.
+    function test_configureFor_rejectsWrongFactory() public {
+        address otherInstance = address(0xCCCC);
+        address otherFactory = address(0xF00D);
+        mockRegistry.setInstanceFactory(otherInstance, otherFactory); // registered to a DIFFERENT factory
+
+        // address(this) is a registered factory (of instance1/2) but NOT of otherInstance, and not its owner.
+        vm.mockCall(otherInstance, abi.encodeWithSignature("owner()"), abi.encode(address(0xC0FFEE)));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        module.configureFor(otherInstance, _volumeCapConfig());
     }
 
     function test_configureFor_ownerCanAuthorFirstConfig() public {
-        // Caller is NOT a registered factory, but IS the instance owner → first config allowed.
+        // Caller is NOT the instance's factory, but IS the instance owner → first config allowed.
         address creator = address(0xC0FFEE);
-        MockRejectRegistry rejectRegistry = new MockRejectRegistry(creator);
-        PasswordTierGatingModule strictModule = new PasswordTierGatingModule(address(rejectRegistry));
+        address freshInstance = address(0xD00D); // no registered factory → factory == address(0)
 
-        vm.mockCall(instance1, abi.encodeWithSignature("owner()"), abi.encode(creator));
+        vm.mockCall(freshInstance, abi.encodeWithSignature("owner()"), abi.encode(creator));
         vm.prank(creator);
-        strictModule.configureFor(instance1, _volumeCapConfig());
-        assertTrue(strictModule.configured(instance1));
+        module.configureFor(freshInstance, _volumeCapConfig());
+        assertTrue(module.configured(freshInstance));
     }
 
     function test_configureFor_ownerCanReconfigure() public {
@@ -172,7 +173,8 @@ contract PasswordTierGatingModuleTest is Test {
             tierUnlockTimes: unlockTimes
         });
 
-        // Called from test contract — MockMasterRegistry treats any address as a registered factory.
+        // Test contract is the registered factory of `instance` (D1 factory-of-instance auth).
+        mockRegistry.setInstanceFactory(instance, address(this));
         module.configureFor(instance, config);
     }
 
@@ -285,7 +287,8 @@ contract PasswordTierGatingModuleTest is Test {
             tierUnlockTimes: new uint256[](0)
         });
 
-        // Called from test contract — MockMasterRegistry treats any address as a registered factory.
+        // Test contract is the registered factory of `inst` (D1 factory-of-instance auth).
+        mockRegistry.setInstanceFactory(inst, address(this));
         module.configureFor(inst, config);
 
         bytes32 tier1Hash = keccak256("vippass");

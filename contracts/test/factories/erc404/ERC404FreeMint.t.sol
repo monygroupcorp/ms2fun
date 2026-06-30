@@ -66,6 +66,11 @@ contract ERC404FreeMintTest is Test {
         curveComp    = new CurveParamsComputer(protocol);
         tierGatingModule = new PasswordTierGatingModule(address(mockRegistry));
         mockDeployer = new MockDeployerFM();
+        // These tests pre-seed gating config under the sentinel instance address(0) directly from the
+        // test contract. With D1 factory-of-instance auth, the test contract must be recorded as that
+        // sentinel's registered factory so the first-config short-circuit fires (otherwise the module
+        // would call owner() on the codeless address(0) and revert).
+        mockRegistry.setInstanceFactory(address(0), address(this));
 
         ComponentRegistry impl = new ComponentRegistry();
         address proxy = LibClone.deployERC1967(address(impl));
