@@ -27,17 +27,24 @@
   display: block;
 }
 
-/* ── Avatar ─────────────────────────────────────────────────── */
-.avatarWrap {
-  margin-top: calc(var(--space-3) * -3);
-  margin-left: var(--space-3);
-  width: 5rem;
-  height: 5rem;
-  border: 2px solid var(--bg-secondary);
-  background-color: var(--bg-secondary);
+/* ── Avatar (hung in the .noesis-frame) ─────────────────────── */
+.avatarFrame {
   position: relative;
+  width: 9rem;
+  height: 9rem;
+  flex: 0 0 auto;
+  margin-top: calc(var(--space-8) * -1);
+  margin-left: var(--space-4);
+  background: var(--color-bg);
   z-index: 1;
+}
+
+/* The work fills inside the frame's inner molding (device ::before is at inset 18px). */
+.avatarInner {
+  position: absolute;
+  inset: 22px;
   overflow: hidden;
+  background: var(--color-surface-2);
 }
 
 .avatarImage {
@@ -50,14 +57,29 @@
 .avatarGlyph {
   width: 100%;
   height: 100%;
-  background-color: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-display);
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h2);
   font-weight: var(--font-weight-bold);
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
+  color: var(--color-text-subtle);
+}
+
+.avatarEdit {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  z-index: 3;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  background: var(--color-text);
+  border: 0;
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
 }
 
 /* ── Identity block ─────────────────────────────────────────── */
