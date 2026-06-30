@@ -7,12 +7,13 @@ import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVaul
 import {MockZAMM} from "../mocks/MockZAMM.sol";
 import {MockZRouter} from "../mocks/MockZRouter.sol";
 import {MockEXECToken} from "../mocks/MockEXECToken.sol";
+import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 
 contract ZAMMAlignmentVaultTest is Test {
     // Mirror events for expectEmit matching
     event ContributionReceived(address indexed benefactor, uint256 amount);
-    event Harvested(uint256 totalFees, uint256 benefactorFees, uint256 callerReward);
+    event Harvested(uint256 totalFees, uint256 benefactorFees);
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
     ZAMMAlignmentVault public vault;
@@ -57,7 +58,8 @@ contract ZAMMAlignmentVaultTest is Test {
             address(mockZRouter),
             address(alignmentToken),
             poolKey,
-            treasury
+            treasury,
+            address(0)
         );
 
         vm.deal(alice, 100 ether);
@@ -89,7 +91,8 @@ contract ZAMMAlignmentVaultTest is Test {
             address(mockZRouter),
             address(alignmentToken),
             poolKey,
-            treasury
+            treasury,
+            address(0)
         );
     }
 
@@ -203,20 +206,17 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(0, 0, 0);
     }
 
-    function test_convertAndAddLiquidity_paysCallerReward() public {
+    /// @dev Caller reimbursement was removed — conversion pays the caller nothing.
+    function test_convertAndAddLiquidity_paysNoCallerReward() public {
         _receiveFromAlice(10 ether);
         _setupPool(10 ether, 10_000e18);
-
-        // Set a non-zero conversion reward
-        vm.prank(vault.owner());
-        vault.setConversionReward(0.01 ether);
 
         address caller = address(0xCAFE);
         vm.deal(caller, 0);
         vm.prank(caller);
         vault.convertAndAddLiquidity(0, 0, 0);
 
-        assertEq(caller.balance, 0.01 ether, "caller should receive reward");
+        assertEq(caller.balance, 0, "caller must receive no reward");
     }
 
     // ── harvest ───────────────────────────────────────────────────────────
@@ -241,11 +241,9 @@ contract ZAMMAlignmentVaultTest is Test {
         assertGt(vault.accRewardPerContribution(), accBefore, "accumulator should grow");
     }
 
-    function test_harvest_paysCallerReward() public {
+    /// @dev Caller reimbursement was removed — harvest pays the caller nothing.
+    function test_harvest_paysNoCallerReward() public {
         _setupWithLiquidity();
-
-        vm.prank(vault.owner());
-        vault.setHarvestReward(0.005 ether);
 
         vm.deal(address(mockZamm), 10 ether);
         mockZamm.setEthPerLp(0.002 ether);
@@ -255,7 +253,7 @@ contract ZAMMAlignmentVaultTest is Test {
         vm.prank(caller);
         vault.harvest(0);
 
-        assertEq(caller.balance, 0.005 ether);
+        assertEq(caller.balance, 0, "caller must receive no reward");
     }
 
     function test_harvest_emitsFeesAccumulated() public {
@@ -266,7 +264,7 @@ contract ZAMMAlignmentVaultTest is Test {
         alignmentToken.transfer(address(mockZamm), 50_000e18);
 
         vm.expectEmit(false, false, false, false);
-        emit Harvested(0, 0, 0); // values ignored, just check event fires
+        emit Harvested(0, 0); // values ignored, just check event fires
         vault.harvest(0);
     }
 
@@ -449,7 +447,7 @@ contract ZAMMAlignmentVaultTest is Test {
             mockZamm.setTokenPerLp(feeGrowth);
             vm.deal(address(mockZamm), 1000 ether);
 
-            vm.roll(block.number + 1); // avoid HarvestSameBlock revert
+            vm.roll(block.number + 1 + i); // unique block per round (naive +1 collided across rounds)
             vault.harvest(0);
 
             uint256 currentAcc = vault.accRewardPerContribution();
@@ -493,7 +491,7 @@ contract ZAMMAlignmentVaultTest is Test {
             mockZamm.setTokenPerLp(0.002 ether);
             vm.deal(address(mockZamm), 1000 ether);
 
-            vm.roll(block.number + 1); // avoid HarvestSameBlock revert
+            vm.roll(block.number + 1 + i); // unique block per round (naive +1 collided across rounds)
             uint256 fees = vault.harvest(0);
             totalFeesHarvested += fees;
 
@@ -522,4 +520,47 @@ contract ZAMMAlignmentVaultTest is Test {
         );
     }
 
+    // ========================================================================
+    // AUDIT REGRESSION — F5 (convert/harvest oracle floor on ZAMM swaps)
+    // ========================================================================
+
+    function _wireValidator(uint256 ethPer1e18Tokens) internal returns (MockVaultPriceValidator val) {
+        val = new MockVaultPriceValidator();
+        val.setEthPer1e18Tokens(ethPer1e18Tokens);
+        vm.prank(vault.owner());
+        vault.setPriceValidator(address(val));
+    }
+
+    /// @dev F5: with a price validator wired, a permissionless caller passing minTokenOut=0 cannot
+    ///      push a degraded (flash-sandwiched) ETH->token swap through — the floor reverts it.
+    function test_F5_ConvertFloorBlocksSandwich() public {
+        _wireValidator(1e15);          // 0.001 ETH/token TWAP
+        mockZRouter.setOutRatio(1e20); // degraded rate → sandwich
+        _receiveFromAlice(10 ether);
+        _setupPool(10 ether, 10_000e18);
+
+        vm.expectRevert(bytes("MockZRouter: insufficient output"));
+        vault.convertAndAddLiquidity(0, 0, 0); // caller minOut=0, but oracle floor enforces
+    }
+
+    /// @dev F5: an honest swap that clears the oracle floor still succeeds.
+    function test_F5_ConvertFloorAllowsHonestSwap() public {
+        _wireValidator(1e15);
+        mockZRouter.setOutRatio(2e21); // fair/high rate, above the floor
+        _receiveFromAlice(10 ether);
+        _setupPool(10 ether, 10_000e18);
+
+        vault.convertAndAddLiquidity(0, 0, 0);
+        assertGt(vault.totalContributions(), 0, "honest conversion should succeed");
+    }
+
+    /// @dev F5: with no validator wired (default), behaviour is unchanged — caller minimums govern.
+    function test_F5_NoFloorWhenValidatorUnset() public {
+        mockZRouter.setOutRatio(1e20); // degraded, but no oracle floor configured
+        _receiveFromAlice(10 ether);
+        _setupPool(10 ether, 10_000e18);
+
+        vault.convertAndAddLiquidity(0, 0, 0); // succeeds — no validator to floor against
+        assertGt(vault.totalContributions(), 0);
+    }
 }

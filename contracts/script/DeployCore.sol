@@ -244,7 +244,8 @@ contract DeployCore is Script {
 
         if (cfg.zamm != address(0)) {
             zammVaultFactory = new ZAMMAlignmentVaultFactory(
-                cfg.zamm, address(zrouter), address(treasury)
+                cfg.zamm, address(zrouter), address(treasury),
+                IVaultPriceValidator(address(priceValidator))
             );
         }
 

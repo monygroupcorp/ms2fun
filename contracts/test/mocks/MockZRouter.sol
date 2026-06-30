@@ -55,11 +55,13 @@ contract MockZRouter {
         uint256 /*idIn*/,
         uint256 /*idOut*/,
         uint256 swapAmount,
-        uint256 /*amountLimit*/,
+        uint256 amountLimit,
         uint256 /*deadline*/
     ) external payable returns (uint256 amountIn, uint256 amountOut) {
         amountIn = swapAmount;
         amountOut = swapAmount * outRatio / 1e18;
+
+        require(amountOut >= amountLimit, "MockZRouter: insufficient output");
 
         if (tokenIn == address(0)) {
             // ETH → token: ETH arrives as msg.value, send tokenOut to recipient

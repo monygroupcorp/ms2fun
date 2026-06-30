@@ -82,7 +82,8 @@ contract VaultInterfaceComplianceTest is Test {
             address(mockZRouter),
             address(alignmentToken),
             poolKey,
-            address(0x99)
+            address(0x99),
+            address(0)
         );
 
         // Deploy MockVault

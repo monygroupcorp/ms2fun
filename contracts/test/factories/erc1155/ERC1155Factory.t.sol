@@ -189,7 +189,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
     function test_computeInstanceAddress() public {
         bytes32 salt = _nextSalt();
-        address predicted = factory.computeInstanceAddress(salt);
+        // Salt is bound to the creator (deployer) — preview must pass the same creator.
+        address predicted = factory.computeInstanceAddress(creator, salt);
 
         vm.deal(creator, 1 ether);
         vm.prank(creator);
@@ -1145,5 +1146,15 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         factory.setDynamicPricingModule(address(0));
         assertEq(factory.dynamicPricingModule(), address(0));
         vm.stopPrank();
+    }
+
+    /// @dev F6: the deployment salt is bound to the creator, so the same salt resolves to a
+    ///      different deterministic address per creator — a front-runner cannot squat the victim's
+    ///      address by copying their salt.
+    function test_F6_SaltBoundToCreator_DifferentPerCaller() public view {
+        bytes32 salt = bytes32(uint256(0xABCDEF));
+        address forCreator = factory.computeInstanceAddress(creator, salt);
+        address forAttacker = factory.computeInstanceAddress(address(0xBAD), salt);
+        assertTrue(forCreator != forAttacker, "same salt must map to different address per creator");
     }
 }

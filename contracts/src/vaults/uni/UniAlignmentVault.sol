@@ -75,7 +75,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     error NotBenefactor();
     error NotDelegate();
     error PendingETHNotConverted();
-    error RewardTooHigh();
     error DeviationTooHigh();
     error ExceedsMaxBps();
     error TreasuryNotSet();
@@ -117,6 +116,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     uint256 public totalShares;
     uint256 public totalPendingETH;
     uint256 public accumulatedFees;
+    /// @notice Cumulative fees-per-share scaled by 1e18 (MasterChef accumulator).
+    ///         `shareValueAtLastClaim[b]` is reinterpreted as benefactor b's reward debt.
+    uint256 public accFeesPerShare;
     uint256 public totalLPUnits;
     uint256 public totalEthLocked;
     uint256 public totalUniqueBenefactors;
@@ -160,10 +162,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // ========== Configuration ==========
 
-    uint256 public constant CONVERSION_BASE_GAS = 100_000;
-    uint256 public constant GAS_PER_BENEFACTOR = 15_000;
-    uint256 public standardConversionReward = 0.0012 ether;
-
     uint24 public v3PreferredFee = 3000;
     uint256 public maxPriceDeviationBps = 500;
 
@@ -177,14 +175,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         uint256 ethSwapped,
         uint256 tokenReceived,
         uint256 lpPositionValue,
-        uint256 sharesIssued,
-        uint256 callerReward
+        uint256 sharesIssued
     );
     event DustDistributed(address indexed recipient, uint256 dustShares);
-
-    event ConversionRewardPaid(address indexed caller, uint256 totalReward, uint256 gasCost, uint256 standardReward);
-    event ConversionRewardRejected(address indexed caller, uint256 rewardAmount);
-    event InsufficientRewardBalance(address indexed caller, uint256 rewardAmount, uint256 contractBalance);
 
     event ProtocolYieldCollected(uint256 amount);
     event ProtocolYieldCutUpdated(uint256 newBps);
@@ -193,7 +186,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     event AlignmentTokenUpdated(address indexed oldToken, address indexed newToken);
     event V4PoolKeyUpdated(bytes32 indexed poolId);
-    event ConversionRewardUpdated(uint256 newReward);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event DustDistributionThresholdUpdated(uint256 newThreshold);
     event BenefactorDelegateSet(address indexed benefactor, address indexed delegate);
@@ -249,7 +241,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         // Initialize defaults that can't use declaration initializers with clones
         protocolYieldCutBps = 100;
-        standardConversionReward = 0.0012 ether;
         v3PreferredFee = 3000;
         maxPriceDeviationBps = 500;
         vaultFeeCollectionInterval = 1 days;
@@ -342,14 +333,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         );
         uint256 ethToSwap = (ethToAdd * proportionToSwap) / 1e18; // round down: excess stays as ethForLP
 
-        SwapLPResult memory r = _doSwapAndLP(ethToAdd, ethToSwap, minOutTarget, tickLower, tickUpper);
+        // Floor the caller's slippage bound to an oracle-derived minimum so a permissionless caller
+        // cannot pass loose minOut and sandwich the vault's own ETH->token swap (F7).
+        uint256 effMinOut = _floorTokenOut(ethToSwap, minOutTarget);
+        SwapLPResult memory r = _doSwapAndLP(ethToAdd, ethToSwap, effMinOut, tickLower, tickUpper);
 
         address[] memory activeBenefactors = _getActiveBenefactors();
         _distributeSharesAndCleanup(ethToAdd, r.liquidityUnitsAdded, activeBenefactors);
 
         lpPositionValue = ethToSwap + r.targetTokenReceived;
-        uint256 callerReward = _payCallerReward(activeBenefactors.length);
-        emit LiquidityAdded(ethToSwap, r.targetTokenReceived, lpPositionValue, r.liquidityUnitsAdded, callerReward);
+        emit LiquidityAdded(ethToSwap, r.targetTokenReceived, lpPositionValue, r.liquidityUnitsAdded);
     }
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-benign,unused-return
@@ -398,6 +391,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
             benefactorShares[benefactor] += sharesToIssue;
             totalShares += sharesToIssue;
+            // New shares carry debt at the current accumulator → cannot claim pre-existing fees,
+            // and prior holders are NOT diluted (accFeesPerShare is unchanged by minting).
+            shareValueAtLastClaim[benefactor] += (sharesToIssue * accFeesPerShare) / 1e18;
             totalSharesActuallyIssued += sharesToIssue;
             pendingETH[benefactor] = 0;
         }
@@ -409,41 +405,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
             uint256 dustToDistribute = accumulatedDustShares;
             benefactorShares[largestContributor] += dustToDistribute;
             totalShares += dustToDistribute;
+            shareValueAtLastClaim[largestContributor] += (dustToDistribute * accFeesPerShare) / 1e18;
             accumulatedDustShares = 0;
             emit DustDistributed(largestContributor, dustToDistribute);
         }
 
-        // Initialize watermarks so new shares cannot retroactively claim pre-existing fees.
-        // Must run after all share mutations (including dust distribution) are finalized.
-        if (accumulatedFees > 0 && totalShares > 0) {
-            for (uint256 i = 0; i < activeBenefactors.length; i++) {
-                address benefactor = activeBenefactors[i];
-                shareValueAtLastClaim[benefactor] =
-                    (accumulatedFees * benefactorShares[benefactor]) / totalShares;
-            }
-        }
-
+        // Reward debt for newly-issued shares is set inline at issuance above (MasterChef pattern);
+        // existing holders are not re-watermarked, so their accrued entitlement is preserved.
         totalEthLocked += ethToAdd;
         totalPendingETH = 0;
         _clearConversionParticipants();
-    }
-
-    // slither-disable-next-line arbitrary-send-eth
-    function _payCallerReward(uint256 activeBenefactorsLen) private returns (uint256 callerReward) {
-        uint256 estimatedGas = CONVERSION_BASE_GAS + (activeBenefactorsLen * GAS_PER_BENEFACTOR);
-        uint256 gasCost = estimatedGas * tx.gasprice;
-        callerReward = gasCost + standardConversionReward;
-
-        if (address(this).balance >= callerReward && callerReward > 0) {
-            (bool success, ) = payable(msg.sender).call{value: callerReward}("");
-            if (success) {
-                emit ConversionRewardPaid(msg.sender, callerReward, gasCost, standardConversionReward);
-            } else {
-                emit ConversionRewardRejected(msg.sender, callerReward);
-            }
-        } else if (callerReward > 0) {
-            emit InsufficientRewardBalance(msg.sender, callerReward, address(this).balance);
-        }
     }
 
     // ========== Fee Claims ==========
@@ -488,6 +459,19 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     // slither-disable-next-line unused-return
+    /// @dev Floor a caller-supplied token-out minimum to an oracle-derived value for the vault's
+    ///      ETH->token swap. Falls back to the caller value when no reliable price source exists
+    ///      (mirrors the no-source behaviour of _convertVaultFeesToEth). 1e18 is the reference token
+    ///      amount; quoteEthForTokens is linear so the per-unit price cancels the decimals.
+    function _floorTokenOut(uint256 ethIn, uint256 callerMin) internal view returns (uint256) {
+        if (address(priceValidator) == address(0)) return callerMin;
+        uint256 ethPerTokenUnit = priceValidator.quoteEthForTokens(alignmentToken, 1e18);
+        if (ethPerTokenUnit == 0) return callerMin;
+        uint256 expectedOut = ethIn * 1e18 / ethPerTokenUnit;
+        uint256 floor = expectedOut * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
+        return callerMin > floor ? callerMin : floor;
+    }
+
     function _convertVaultFeesToEth(uint256 tokenAmount) internal returns (uint256 ethReceived) {
         if (tokenAmount == 0) return 0;
 
@@ -529,7 +513,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
                 uint256 protocolCut = (totalCollected * protocolYieldCutBps) / 10000; // round down: favors benefactors
                 uint256 benefactorAmount = totalCollected - protocolCut;
 
-                accumulatedFees += benefactorAmount;
+                _accrueFees(benefactorAmount);
                 accumulatedProtocolFees += protocolCut;
 
                 lastVaultFeeCollectionTime = block.timestamp;
@@ -552,7 +536,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (benefactorShares[benefactor] == 0) revert NoShares();
         if (accumulatedFees == 0) revert NoFeesToClaim();
 
-        uint256 currentShareValue = (accumulatedFees * benefactorShares[benefactor]) / totalShares; // round down: favors vault
+        uint256 currentShareValue = (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
 
         ethClaimed = currentShareValue > shareValueAtLastClaim[benefactor]
             ? currentShareValue - shareValueAtLastClaim[benefactor]
@@ -581,8 +565,21 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @param feeAmount ETH amount to add to accumulatedFees
     function recordAccumulatedFees(uint256 feeAmount) external onlyOwner {
         if (feeAmount == 0) revert AmountMustBePositive();
-        accumulatedFees += feeAmount;
+        _accrueFees(feeAmount);
         emit FeesAccumulated(feeAmount);
+    }
+
+    /// @dev Accrue fees into both the lifetime total and the per-share accumulator.
+    ///      Existing holders' entitlement (shares*accFeesPerShare - debt) is preserved when new
+    ///      shares mint later, because minting only raises the new holder's debt, not accPerShare.
+    ///      NOTE: if totalShares == 0 the amount is recorded in accumulatedFees but not attributable;
+    ///      fees only accrue after a conversion has minted shares, so this path should not occur in
+    ///      normal operation. Consider reverting here if that assumption must be enforced.
+    function _accrueFees(uint256 amount) private {
+        accumulatedFees += amount;
+        if (totalShares > 0) {
+            accFeesPerShare += (amount * 1e18) / totalShares;
+        }
     }
 
     // ========== Internal Helpers ==========
@@ -748,7 +745,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         returns (uint256)
     {
         if (totalShares == 0 || accumulatedFees == 0) return 0;
-        return (accumulatedFees * benefactorShares[benefactor]) / totalShares; // round down: favors vault
+        return (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
     }
 
     /// @notice Get the unclaimed fee delta for a benefactor since their last claim
@@ -759,7 +756,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         view
         returns (uint256)
     {
-        uint256 currentShareValue = (accumulatedFees * benefactorShares[benefactor]) / totalShares; // round down: favors vault
+        uint256 currentShareValue = (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
         return currentShareValue > shareValueAtLastClaim[benefactor]
             ? currentShareValue - shareValueAtLastClaim[benefactor]
             : 0;
@@ -820,7 +817,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
             if (accumulatedFees == 0) continue;
 
-            uint256 currentShareValue = (accumulatedFees * benefactorShares[benefactor]) / totalShares; // round down: favors vault
+            uint256 currentShareValue = (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
 
             uint256 ethClaimed = currentShareValue > shareValueAtLastClaim[benefactor]
                 ? currentShareValue - shareValueAtLastClaim[benefactor]
@@ -876,14 +873,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         emit V4PoolKeyUpdated(keccak256(abi.encode(newPoolKey)));
     }
 
-    /// @notice Set the base reward paid to callers of convertAndAddLiquidity
-    /// @param newReward New reward amount in wei (max 0.1 ETH)
-    function setStandardConversionReward(uint256 newReward) external onlyOwner {
-        if (newReward > 0.1 ether) revert RewardTooHigh();
-        standardConversionReward = newReward;
-        emit ConversionRewardUpdated(newReward);
-    }
-
     /// @notice Set maximum allowed price deviation for manipulation protection
     /// @param newBps Deviation in basis points (max 2000 = 20%)
     function setMaxPriceDeviationBps(uint256 newBps) external onlyOwner {
@@ -904,7 +893,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @dev Used for manual fee injection outside of LP yield collection.
     function depositFees() external payable onlyOwner {
         if (msg.value == 0) revert AmountMustBePositive();
-        accumulatedFees += msg.value;
+        _accrueFees(msg.value);
         emit FeesAccumulated(msg.value);
     }
 

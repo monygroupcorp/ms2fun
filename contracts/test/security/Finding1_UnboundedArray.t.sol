@@ -30,7 +30,7 @@ contract Finding1_ZAMMUnboundedArrayTest is Test {
 
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(address(mockZamm), address(mockZRouter), address(token), poolKey, address(0x99));
+        vault.initialize(address(mockZamm), address(mockZRouter), address(token), poolKey, address(0x99), address(0));
     }
 
     /// @notice Contributions below MIN_CONTRIBUTION must revert

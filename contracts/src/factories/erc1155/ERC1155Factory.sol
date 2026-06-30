@@ -137,7 +137,9 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         CreateParams calldata params,
         bool agentCreated
     ) private returns (address instance) {
-        instance = ICreateX(CREATEX).deployCreate3(salt, _buildInitCode(params, agentCreated));
+        // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
+        bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
+        instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, _buildInitCode(params, agentCreated));
         masterRegistry.registerInstance(
             instance,
             address(this),
@@ -211,9 +213,11 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
 
     // ── Utilities ────────────────────────────────────────────────────────────
 
-    /// @notice Preview the deterministic address for a given salt.
-    function computeInstanceAddress(bytes32 salt) external view returns (address) {
-        bytes32 guardedSalt = keccak256(abi.encodePacked(uint256(uint160(address(this))), salt));
+    /// @notice Preview the deterministic address for a given creator + salt.
+    /// @dev Salt is bound to the creator (msg.sender at deploy) to prevent front-running.
+    function computeInstanceAddress(address creator, bytes32 salt) external view returns (address) {
+        bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
+        bytes32 guardedSalt = keccak256(abi.encode(senderBoundSalt)); // CreateX RandomBytes guard path
         return ICreateX(CREATEX).computeCreate3Address(guardedSalt, CREATEX);
     }
 }

@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
+import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
 
 /// @notice Minimal ZAMM interface (mirrors ZAMM.sol ABI without requiring its compiler version)
 interface IZAMM {
@@ -99,12 +100,12 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     uint256 public constant MAX_PENDING_BENEFACTORS = 500;
 
     // ── Events ────────────────────────────────────────────────────────────
-    event LiquidityAdded(uint256 ethSwapped, uint256 tokenReceived, uint256 lpMinted, uint256 callerReward);
-    event Harvested(uint256 totalFees, uint256 benefactorFees, uint256 callerReward);
+    event LiquidityAdded(uint256 ethSwapped, uint256 tokenReceived, uint256 lpMinted);
+    event Harvested(uint256 totalFees, uint256 benefactorFees);
     event DelegateSet(address indexed benefactor, address indexed delegate);
-    event ConversionRewardUpdated(uint256 newReward);
-    event HarvestRewardUpdated(uint256 newReward);
     event ProtocolYieldCutUpdated(uint256 newBps);
+    event PriceValidatorUpdated(address indexed validator);
+    event MaxPriceDeviationUpdated(uint256 newBps);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
 
@@ -118,6 +119,12 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── Protocol economics ────────────────────────────────────────────────
     address public protocolTreasury;
     uint256 public protocolYieldCutBps;  // default 100 (1%)
+
+    // ── Price-manipulation guard (F5) ─────────────────────────────────────
+    /// @notice Independent price source (Uniswap TWAP) used to floor swap slippage on the
+    ///         permissionless convert/harvest paths. address(0) = no floor (caller minOut only).
+    IVaultPriceValidator public priceValidator;
+    uint256 public maxPriceDeviationBps;  // default 500 (5%)
 
     // ── Principal tracking ────────────────────────────────────────────────
     uint256 public principalETH;
@@ -140,9 +147,6 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── Protocol fee bucket ───────────────────────────────────────────────
     uint256 public accumulatedProtocolFees;
 
-    // ── Caller incentives ─────────────────────────────────────────────────
-    uint256 public conversionReward;
-    uint256 public harvestReward;
 
     // ── Flash-loan / same-block harvest guard ────────────────────────────
     uint256 private _lastHarvestBlock;
@@ -157,7 +161,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         address _zRouter,
         address _alignmentToken,
         IZAMM.PoolKey calldata key,
-        address _protocolTreasury
+        address _protocolTreasury,
+        address _priceValidator
     ) external {
         if (_initialized) revert VaultAlreadyInitialized();
         if (_protocolTreasury == address(0)) revert TreasuryNotSet();
@@ -171,6 +176,10 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
         protocolTreasury = _protocolTreasury;
         protocolYieldCutBps = 100;
+        maxPriceDeviationBps = 500;
+        // F5: wire the oracle floor at init (mirrors Uni). address(0) → floor inert (back-compat);
+        // production deploys pass the shared UniswapVaultPriceValidator so swaps are TWAP-floored.
+        priceValidator = IVaultPriceValidator(_priceValidator);
 
         _initializeOwner(msg.sender);
     }
@@ -236,9 +245,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         pendingETH = 0;
         delete _pendingBenefactors;
 
-        uint256 reward = conversionReward;
-        if (reward > totalEth) reward = totalEth;
-        uint256 deployETH = totalEth - reward;
+        uint256 deployETH = totalEth;
 
         IZAMM.Pool memory pool = IZAMM(zamm).pools(poolId);
         uint256 ethToSwap;
@@ -250,7 +257,10 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         }
         uint256 ethForLP = deployETH - ethToSwap;
 
-        SwapLPResult memory r = _swapAndAddLiquidity(ethToSwap, ethForLP, minTokenOut, minEth, minToken);
+        // Floor the caller's slippage bound to an oracle-derived minimum so a permissionless caller
+        // cannot pass loose minTokenOut and sandwich the vault's own ETH->token swap (F5).
+        uint256 effMinTokenOut = _floorTokenOut(ethToSwap, minTokenOut);
+        SwapLPResult memory r = _swapAndAddLiquidity(ethToSwap, ethForLP, effMinTokenOut, minEth, minToken);
 
         lpMinted = r.lp;
         principalETH += r.ethUsed;
@@ -268,12 +278,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             totalContributions += settled;
         }
 
-        if (reward > 0) {
-            (bool ok,) = msg.sender.call{value: reward}("");
-            if (!ok) revert TransferFailed();
-        }
-
-        emit LiquidityAdded(ethToSwap, r.tokenBought, lpMinted, reward);
+        emit LiquidityAdded(ethToSwap, r.tokenBought, lpMinted);
     }
 
     function _swapAndAddLiquidity(
@@ -295,15 +300,6 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         );
     }
 
-    function setConversionReward(uint256 amount) external onlyOwner {
-        conversionReward = amount;
-        emit ConversionRewardUpdated(amount);
-    }
-
-    function setHarvestReward(uint256 amount) external onlyOwner {
-        harvestReward = amount;
-        emit HarvestRewardUpdated(amount);
-    }
 
     // ── harvest ───────────────────────────────────────────────────────────
 
@@ -330,9 +326,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
         feesCollected = _removeFeeLP(feeLP, minEthOut);
 
-        uint256 reward = harvestReward;
-        if (reward > feesCollected) reward = feesCollected;
-        uint256 afterReward = feesCollected - reward;
+        uint256 afterReward = feesCollected;
 
         uint256 protocolCut = afterReward * protocolYieldCutBps / 10000; // round down: favors benefactors
         uint256 benefactorFees = afterReward - protocolCut;
@@ -346,12 +340,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         principalETH -= (principalETH * feeLP / lpHeld); // round down: slightly over-estimates remaining principal
         principalToken -= (principalToken * feeLP / lpHeld); // round down: slightly over-estimates remaining principal
 
-        if (reward > 0) {
-            (bool ok,) = msg.sender.call{value: reward}("");
-            if (!ok) revert TransferFailed();
-        }
-
-        emit Harvested(feesCollected, benefactorFees, reward);
+        emit Harvested(feesCollected, benefactorFees);
         emit FeesAccumulated(benefactorFees);
     }
 
@@ -361,11 +350,13 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         );
         uint256 swappedEth;
         if (tokRemoved > 0) {
+            // Floor the caller's slippage bound to an oracle-derived minimum (F5).
+            uint256 effMinEthOut = _floorEthOut(tokRemoved, minEthOut);
             IERC20(alignmentToken).forceApprove(zRouter, tokRemoved);
             (, swappedEth) = IzRouterV2(zRouter).swapVZ(
                 address(this), false, _poolKey.feeOrHook,
                 alignmentToken, address(0), 0, 0,
-                tokRemoved, minEthOut, block.timestamp + 15 minutes
+                tokRemoved, effMinEthOut, block.timestamp + 15 minutes
             );
         }
         feesCollected = ethRemoved + swappedEth;
@@ -434,6 +425,39 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         address old = protocolTreasury;
         protocolTreasury = treasury_;
         emit ProtocolTreasuryUpdated(old, treasury_);
+    }
+
+    /// @notice Wire the independent price validator used to floor convert/harvest swap slippage (F5).
+    ///         Pass address(0) to disable the floor (caller-supplied minimums only).
+    function setPriceValidator(address validator) external onlyOwner {
+        priceValidator = IVaultPriceValidator(validator);
+        emit PriceValidatorUpdated(validator);
+    }
+
+    function setMaxPriceDeviationBps(uint256 bps) external onlyOwner {
+        if (bps > 2000) revert ExceedsMaxBps();
+        maxPriceDeviationBps = bps;
+        emit MaxPriceDeviationUpdated(bps);
+    }
+
+    /// @dev Floor a caller-supplied token-out minimum (ETH->token swap) to an oracle-derived value.
+    ///      Falls back to the caller value when no validator is wired or no reliable price exists.
+    function _floorTokenOut(uint256 ethIn, uint256 callerMin) internal view returns (uint256) {
+        if (address(priceValidator) == address(0)) return callerMin;
+        uint256 ethPerTokenUnit = priceValidator.quoteEthForTokens(alignmentToken, 1e18);
+        if (ethPerTokenUnit == 0) return callerMin;
+        uint256 expectedOut = ethIn * 1e18 / ethPerTokenUnit;
+        uint256 floor = expectedOut * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
+        return callerMin > floor ? callerMin : floor;
+    }
+
+    /// @dev Floor a caller-supplied ETH-out minimum (token->ETH swap) to an oracle-derived value.
+    function _floorEthOut(uint256 tokenIn, uint256 callerMin) internal view returns (uint256) {
+        if (address(priceValidator) == address(0)) return callerMin;
+        uint256 expectedEth = priceValidator.quoteEthForTokens(alignmentToken, tokenIn);
+        if (expectedEth == 0) return callerMin;
+        uint256 floor = expectedEth * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
+        return callerMin > floor ? callerMin : floor;
     }
 
     function withdrawProtocolFees() external {
