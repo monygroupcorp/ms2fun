@@ -38,6 +38,7 @@ export function useAllCollections(filters?: CollectionFilters): {
 
       // status
       if (filters?.status === 'active' && !c.isActive) return false
+      if (filters?.status === 'ended' && c.isActive) return false
 
       // vault (exact address match)
       if (filters?.vault !== undefined && c.vault !== filters.vault) return false

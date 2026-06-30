@@ -20,7 +20,7 @@ export type { ProjectCard } from '../../components/useCreatorCollections'
  */
 export interface CollectionFilters {
   type?: 'ALL' | 'ERC1155' | 'ERC721' | 'ERC404'
-  status?: 'ALL' | 'active'
+  status?: 'ALL' | 'active' | 'ended'
   vault?: `0x${string}`
   search?: string
   sort?: 'recent' | 'tvl' | 'name'
