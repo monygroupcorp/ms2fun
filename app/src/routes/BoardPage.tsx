@@ -17,10 +17,6 @@ import type { FeedMessage } from '../components/useMessageFeed'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './BoardPage.module.css'
 
-const MESSAGE_TYPE_LABELS: Record<number, string> = {
-  2: 'QUOTE',
-}
-
 /** The board's two honest views: the threaded salon, and the flat on-chain register. (The spec's
  * third "All" stream would fold in mint/align/list events, which the board feed doesn't emit yet.) */
 type BoardView = 'discourse' | 'activity'
@@ -28,8 +24,53 @@ type BoardView = 'discourse' | 'activity'
 /** Register verbs for the flat Activity view — the on-chain event, stated plainly. */
 const ACTIVITY_VERB: Record<number, string> = { 0: 'posted', 1: 'replied', 2: 'quoted', 3: 'endorsed' }
 
+/** Channels rail — the distinct walls in the feed (All · per-collection · your wall). Each carries
+ * a swatch (mono until the work's colour is wired) + its post count; selecting one filters the
+ * salon. Composed app-side (the brand bible names .noesis-channels but it isn't vendored yet). */
+function ChannelsRail({
+  channels,
+  active,
+  onSelect,
+  connected,
+}: {
+  channels: [`0x${string}`, number][]
+  active: 'all' | `0x${string}`
+  onSelect: (c: 'all' | `0x${string}`) => void
+  connected: `0x${string}` | undefined
+}) {
+  return (
+    <nav className={styles.channels}>
+      <p className={styles.channelsHead}>Channels</p>
+      <button
+        type="button"
+        className={`${styles.channel} ${active === 'all' ? styles.channelOn : ''}`}
+        onClick={() => onSelect('all')}
+      >
+        <span className={styles.swatch} aria-hidden />
+        <span className={styles.channelName}>All discourse</span>
+      </button>
+      {channels.map(([inst, count]) => (
+        <button
+          key={inst}
+          type="button"
+          className={`${styles.channel} ${active === inst ? styles.channelOn : ''}`}
+          onClick={() => onSelect(inst)}
+        >
+          <span className={styles.swatch} aria-hidden />
+          <span className={styles.channelName}>
+            {connected && inst.toLowerCase() === connected.toLowerCase()
+              ? 'Your wall'
+              : truncateAddress(inst)}
+          </span>
+          <span className={styles.channelCount}>{count}</span>
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 /** Featured — the contained, honestly-labelled paid-placement module (never the lead). Reads the
- * same featured set as Home/discovery; rendered as the board's right rail. */
+ * same featured set as Home/discovery; rendered in the board's left rail under Channels. */
 function FeaturedRail() {
   const { data } = useReadQueryAggregatorGetHomePageData({
     address: forkAddresses.QueryAggregator,
@@ -116,6 +157,19 @@ export function BoardPage() {
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
 
+  // Channels — distinct walls drawn from the feed (a collection, or a sender's own address). The
+  // rail filters the salon to one channel; "All" is the default. Ordered by post volume.
+  const [channel, setChannel] = useState<'all' | `0x${string}`>('all')
+  const channels = useMemo(() => {
+    const counts = new Map<`0x${string}`, number>()
+    for (const m of data ?? []) counts.set(m.instance, (counts.get(m.instance) ?? 0) + 1)
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  }, [data])
+  const visibleThreads = view.threads.filter(
+    (t) => channel === 'all' || t.message.instance === channel,
+  )
+  const activityRows = (data ?? []).filter((m) => channel === 'all' || m.instance === channel)
+
   const refetch = () => {
     void queryClient.invalidateQueries({ queryKey: ['message-feed'] })
   }
@@ -136,6 +190,16 @@ export function BoardPage() {
       </header>
 
       <div className={styles.layout}>
+        <aside className={styles.rail}>
+          <ChannelsRail
+            channels={channels}
+            active={channel}
+            onSelect={setChannel}
+            connected={connected}
+          />
+          <FeaturedRail />
+        </aside>
+
         <div className={styles.main}>
           <div className={styles.toolbar}>
             <nav className="noesis-viewtoggle">
@@ -186,10 +250,10 @@ export function BoardPage() {
               </StateBlock>
             )}
 
-            {/* Discourse — the threaded salon. */}
-            {!isPending && !isError && boardView === 'discourse' && view.threads.length > 0 && (
+            {/* Discourse — the threaded salon (filtered to the active channel). */}
+            {!isPending && !isError && boardView === 'discourse' && visibleThreads.length > 0 && (
               <div className={styles.list}>
-                {view.threads.map((thread) => (
+                {visibleThreads.map((thread) => (
                   <article
                     key={String(thread.message.messageId)}
                     className="noesis-post"
@@ -224,7 +288,7 @@ export function BoardPage() {
             {/* Activity — the flat on-chain register, every event attributed, newest first. */}
             {!isPending && !isError && boardView === 'activity' && data !== undefined && (
               <ul className={styles.register} data-testid="board-activity">
-                {data.map((m) => (
+                {activityRows.map((m) => (
                   <li key={String(m.messageId)} className={styles.regRow}>
                     <Link href={`/profile/${m.sender}`} className={styles.regWho}>
                       {truncateAddress(m.sender)}
@@ -242,8 +306,6 @@ export function BoardPage() {
             )}
           </section>
         </div>
-
-        <FeaturedRail />
       </div>
     </div>
   )
@@ -273,11 +335,15 @@ function BoardMessage({
         <Link href={`/collection/${message.instance}`} className={`ch ${styles.channelLink}`}>
           → {truncateAddress(message.instance)}
         </Link>
-
-        {MESSAGE_TYPE_LABELS[message.messageType] !== undefined && (
-          <span className="badge">{MESSAGE_TYPE_LABELS[message.messageType]}</span>
-        )}
       </div>
+
+      {/* Quote — a card carrying the referenced work's swatch (mono until colour is wired). */}
+      {message.messageType === 2 && (
+        <Link href={`/collection/${message.instance}`} className={styles.quoteCard}>
+          <span className={styles.swatch} aria-hidden />
+          <span className={styles.quoteRef}>re: {truncateAddress(message.instance)}</span>
+        </Link>
+      )}
 
       {message.content.length > 0 && <p className="ptext">{message.content}</p>}
 
