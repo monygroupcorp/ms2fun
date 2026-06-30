@@ -20,6 +20,7 @@ import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
 import { fetchJson, isResolvableUri, resolveUri } from '../lib/metadata'
 import { StateBlock } from '../components/ui/StateBlock'
+import { MintBar } from '../components/ui/MintBar'
 import styles from './EditionDetailPage.module.css'
 
 interface EditionMetadata {
@@ -215,11 +216,18 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
             </div>
           </div>
 
-          <section className={styles.mint} data-testid="edition-mint">
+          <section className={styles.mint} id="mint" data-testid="edition-mint">
             <MintPanel instance={instance} edition={edition} refetch={refetch} />
           </section>
         </div>
       </div>
+
+      {/* Mobile: the sticky mint bar keeps the impression in thumb reach. */}
+      <MintBar
+        price={`${formatEther(edition.currentPrice)} ETH`}
+        sub={limited ? `${remaining.toString()} left` : 'open'}
+        action={<a href="#mint">Mint</a>}
+      />
     </div>
   )
 }

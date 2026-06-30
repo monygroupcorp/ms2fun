@@ -218,6 +218,11 @@
 }
 
 @media (max-width: 960px) {
+  /* Clear the sticky mint bar. */
+  .page {
+    padding-bottom: 6rem;
+  }
+
   .shell {
     grid-template-columns: 1fr;
   }

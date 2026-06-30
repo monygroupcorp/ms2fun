@@ -1,0 +1,23 @@
+/* Mobile-only: hidden on desktop (the action lives in the page rail there). The wrapper gates
+   visibility so the device's fixed positioning doesn't need a specificity fight. */
+.wrap {
+  display: none;
+}
+
+.price {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+}
+
+.sub {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 960px) {
+  .wrap {
+    display: block;
+  }
+}

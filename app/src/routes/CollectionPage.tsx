@@ -13,6 +13,7 @@ import { ProjectStyle } from '../components/collection/ProjectStyle'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
+import { MintBar } from '../components/ui/MintBar'
 import styles from './CollectionPage.module.css'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
@@ -166,7 +167,7 @@ export function CollectionPage() {
               </dl>
             </aside>
 
-            <section className={styles.works}>
+            <section className={styles.works} id="mint">
               <div className={styles.ghead}>The collection</div>
               {/* The cover stands in as the lead piece when present; the type component renders the
                   actual works + the working mint/buy/swap controls. */}
@@ -206,6 +207,13 @@ export function CollectionPage() {
           <FeaturedPanel instance={instance} />
 
           <MessageFeed filter={{ instance }} />
+
+          {/* Mobile: the mint moment stays in thumb reach (the rail's job on desktop). */}
+          <MintBar
+            price={`${formatGwei(card.currentPrice)} gwei`}
+            sub={cap > 0n ? `${(cap - minted).toString()} left` : card.isActive ? 'open' : 'ended'}
+            action={<a href="#mint">Mint</a>}
+          />
         </>
       )}
     </div>
