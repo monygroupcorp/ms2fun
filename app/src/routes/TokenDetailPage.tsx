@@ -25,6 +25,7 @@ import { forkChainId } from '../lib/addresses'
 import { fetchJson, resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
+import { MintBar } from '../components/ui/MintBar'
 import styles from './TokenDetailPage.module.css'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
@@ -335,6 +336,13 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
           <AlignmentLine vaultName={vaultName} />
         </div>
       </div>
+
+      {/* Mobile: the acquire action stays in thumb reach; bidding lives on the collection. */}
+      <MintBar
+        price={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}
+        sub={hasBidder ? 'high bid' : 'min bid'}
+        action={<Link href={`/collection/${instance}`}>{state === 'active' ? 'Bid' : 'View'}</Link>}
+      />
     </article>
   )
 }

@@ -216,6 +216,11 @@
 }
 
 @media (max-width: 960px) {
+  /* Clear the sticky mint bar. */
+  .page {
+    padding-bottom: 6rem;
+  }
+
   .wall {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-6);
