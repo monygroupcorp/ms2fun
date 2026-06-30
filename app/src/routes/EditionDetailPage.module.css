@@ -129,8 +129,9 @@
 }
 
 .mint {
-  /* Accent seam reappears on the mint frame (the device sets the CTA accent inside). */
-  border: var(--border-width-thick, 2px) solid var(--edition-accent, var(--color-border));
+  /* Mono frame — the accent seam lives on the mint CTA button inside (MintPanel), not here, so the
+     "one seam" rule holds (title underline + CTA border only). */
+  border: var(--border-width-thick, 2px) solid var(--color-border);
   padding: var(--space-4);
 }
 
