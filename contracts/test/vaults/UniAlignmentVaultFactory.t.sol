@@ -176,4 +176,14 @@ contract UniAlignmentVaultFactoryTest is Test {
         assertEq(address(factory.alignmentRegistry()), address(mockRegistry));
         assertTrue(factory.vaultImplementation() != address(0));
     }
+
+    /// @dev F6: the deployment salt is bound to the caller — the same salt resolves to a different
+    ///      deterministic address per creator, so a front-runner cannot squat the victim's address.
+    function test_F6_SaltBoundToCreator_DifferentPerCaller() public view {
+        bytes32 salt = bytes32(uint256(0xABCDEF));
+        assertTrue(
+            factory.computeVaultAddress(address(0xA11CE), salt) != factory.computeVaultAddress(address(0xBAD), salt),
+            "same salt must map to different address per creator"
+        );
+    }
 }

@@ -54,4 +54,14 @@ contract CypherAlignmentVaultFactoryTest is Test {
         );
         assertNotEq(address(v1), address(v2));
     }
+
+    /// @dev F6: the deployment salt is bound to the caller — the same salt resolves to a different
+    ///      deterministic address per creator, so a front-runner cannot squat the victim's address.
+    function test_F6_SaltBoundToCreator_DifferentPerCaller() public view {
+        bytes32 salt = bytes32(uint256(0xABCDEF));
+        assertTrue(
+            factory.computeVaultAddress(address(0xA11CE), salt) != factory.computeVaultAddress(address(0xBAD), salt),
+            "same salt must map to different address per creator"
+        );
+    }
 }
