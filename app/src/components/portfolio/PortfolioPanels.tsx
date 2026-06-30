@@ -134,21 +134,41 @@ export function HeldPanel({ data, isPending, isError, truncated }: PanelProps) {
   )
 }
 
-export function VaultsPanel({ data, isPending, isError }: PanelProps) {
+/** Per-vault Claim affordance. The real write (`claimFees`) lands with the Aave alignment vault
+ * (pending T4) — the current ABI stubs it as `pure`, so the action is shown but honestly disabled
+ * rather than faked against a stub. Wire it to `useTxAction` once the vault ships. */
+function ClaimButton() {
+  return (
+    <button
+      type="button"
+      className={styles.claimBtn}
+      disabled
+      title="Claims land with the Aave alignment vault (pending T4)"
+      data-testid="vault-claim"
+    >
+      Claim
+    </button>
+  )
+}
+
+export function VaultsPanel({ data, isPending, isError, isOwn }: PanelProps & { isOwn?: boolean }) {
   if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
   if (isError)
     return <StateBlock variant="error">could not reach the aggregator — is the fork up?</StateBlock>
 
   const positions: readonly VaultPosition[] = data?.[2] ?? []
-  const held = positions.filter((v) => v.contribution > 0n || v.shares > 0n || v.claimable > 0n)
   const claimable = data?.[3] ?? 0n
+  // Two-sided: inbound = works aligned TO you (fees owed → claimable); outbound = what YOU align to
+  // (your contribution / inspiration). The alignment economy made legible at the person level.
+  const inbound = positions.filter((v) => v.claimable > 0n)
+  const outbound = positions.filter((v) => v.contribution > 0n || v.shares > 0n)
 
   return (
     <div data-testid="portfolio-vaults">
       {/* Claimable hero — the bind grammar at the person level: aligned-to-you → claimable. */}
       <div className={`noesis-claimbox ${styles.claimbox}`}>
         <div className="cell">
-          aligned to you<b>{held.length}</b>
+          aligned to you<b>{inbound.length}</b>
         </div>
         <div className="arrow">→</div>
         <div className="cell got">
@@ -156,33 +176,60 @@ export function VaultsPanel({ data, isPending, isError }: PanelProps) {
         </div>
       </div>
 
-      {held.length === 0 ? (
-        <StateBlock variant="empty" boxed>
-          no vault positions yet — what aligns to you, and what you align to, shows here.
-        </StateBlock>
-      ) : (
-        <section className={styles.section}>
-          <p className={styles.sectionTitle}>Vault positions</p>
+      <section className={styles.section}>
+        <p className={styles.sectionTitle}>Inbound · aligned to you</p>
+        {inbound.length === 0 ? (
+          <StateBlock variant="empty" boxed>
+            nothing aligns to you yet — when a collection binds to your work, its fees land here.
+          </StateBlock>
+        ) : (
           <div className="noesis-ledger">
             <div className="noesis-ledger-head">
               <span>Vault</span>
-              <span>Contribution · Claimable</span>
+              <span>Claimable</span>
             </div>
-            {held.map((v) => (
+            {inbound.map((v) => (
               <div className="noesis-ledger-row" key={v.vault}>
                 <span className="n" />
                 <span>
                   {v.name || truncateAddress(v.vault)}
                   <small>{truncateAddress(v.vault)}</small>
                 </span>
-                <span className="v">
-                  {fmtEth(v.contribution)} · {fmtEth(v.claimable)} ETH
+                <span className={`v ${styles.claimCell}`}>
+                  {fmtEth(v.claimable)} ETH
+                  {isOwn && <ClaimButton />}
                 </span>
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
+
+      <section className={styles.section}>
+        <p className={styles.sectionTitle}>Outbound · what you align to</p>
+        {outbound.length === 0 ? (
+          <StateBlock variant="empty" boxed>
+            you haven&rsquo;t bound to anything — what you align to (your inspiration) shows here.
+          </StateBlock>
+        ) : (
+          <div className="noesis-ledger">
+            <div className="noesis-ledger-head">
+              <span>Vault</span>
+              <span>Contribution</span>
+            </div>
+            {outbound.map((v) => (
+              <div className="noesis-ledger-row" key={v.vault}>
+                <span className="n" />
+                <span>
+                  {v.name || truncateAddress(v.vault)}
+                  <small>{truncateAddress(v.vault)}</small>
+                </span>
+                <span className="v">{fmtEth(v.contribution)} ETH</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

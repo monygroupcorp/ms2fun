@@ -230,6 +230,7 @@ export function ProfilePage() {
                 data={portfolio.data}
                 isPending={portfolio.isPending}
                 isError={portfolio.isError}
+                isOwn={isOwn}
               />
             )}
           </div>
