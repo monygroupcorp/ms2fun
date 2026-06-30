@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {ERC404BondingInstance, MaxCostExceeded, BondingNotConfigured, OnlyOwnerBeforeMaturity, NoReserve} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import {ERC404BondingInstance, MaxCostExceeded, BondingNotConfigured, OnlyOwnerBeforeMaturity, NoReserve, InvalidRefund} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import {BondingCurveMath} from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
@@ -241,7 +241,9 @@ contract ERC404BondingInstanceTest is Test {
         vm.warp(futureTime);
     }
 
-    function test_BuyBondingWithFee_TreasurySentFee() public {
+    /// @dev Buying charges exactly the curve cost — no buy-side fee reaches the treasury (the protocol
+    ///      fee is taken on exit only, see the sell tests).
+    function test_BuyBonding_NoTreasuryFee() public {
         _activateBonding();
 
         address treasury = address(0xFEE);
@@ -251,13 +253,12 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
-        uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
-        uint256 totalWithFee = cost + fee;
 
-        instance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
-        assertEq(treasury.balance - treasuryBalanceBefore, fee, "Treasury should receive fee");
+        assertEq(treasury.balance, treasuryBalanceBefore, "buy must not pay any fee to the treasury");
+        assertEq(instance.reserve(), cost, "reserve receives the full cost");
     }
 
     function test_BuyBondingWithFee_ReserveOnlyGetsCost() public {
@@ -277,34 +278,39 @@ contract ERC404BondingInstanceTest is Test {
         assertEq(instance.reserve() - reserveBefore, cost, "Reserve should only increase by cost, not fee");
     }
 
-    function test_BuyBondingWithFee_RefundExcess() public {
+    function test_BuyBonding_RefundsExcessAboveCost() public {
         _activateBonding();
 
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
-        uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
-        uint256 totalWithFee = cost + fee;
 
         uint256 overpay = 1 ether;
         uint256 balanceBefore = user1.balance;
-        instance.buyBonding{value: totalWithFee + overpay}(buyAmount, totalWithFee + overpay, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{value: cost + overpay}(buyAmount, cost + overpay, false, bytes32(0), bytes(""), 0);
         uint256 balanceAfter = user1.balance;
 
-        assertEq(balanceBefore - balanceAfter, totalWithFee, "Should refund excess beyond totalWithFee");
+        assertEq(balanceBefore - balanceAfter, cost, "buyer pays exactly the curve cost; excess refunded");
         vm.stopPrank();
     }
 
-    function test_BuyBondingWithFee_MaxCostMustCoverFee() public {
+    /// @dev With no buy fee, maxCost == cost is sufficient; maxCost below cost still reverts.
+    function test_BuyBonding_MaxCostEqualsCostSucceeds() public {
         _activateBonding();
 
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
+
+        // maxCost just below cost reverts.
         vm.expectRevert(MaxCostExceeded.selector);
-        instance.buyBonding{value: 10 ether}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{value: 10 ether}(buyAmount, cost - 1, false, bytes32(0), bytes(""), 0);
+
+        // maxCost exactly cost succeeds.
+        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        assertEq(instance.reserve(), cost, "reserve equals cost after buy");
         vm.stopPrank();
     }
 
@@ -373,19 +379,108 @@ contract ERC404BondingInstanceTest is Test {
         vm.stopPrank();
     }
 
-    function test_BondingFeePaidEvent() public {
+    // ── Bonding sell fee (F3 follow-up: skim curve exits into protocol revenue) ─────────
+
+    /// @dev sellBonding skims bondingFeeBps from the gross refund to the treasury; the seller receives
+    ///      the net, the reserve is debited the FULL gross refund, and reserve == balance is preserved.
+    function test_SellBondingWithFee_SkimsToTreasuryAndPreservesSolvency() public {
         _activateBonding();
+        address treasury = address(0xFEE);
 
         vm.deal(user1, 10 ether);
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
-        uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
-        uint256 totalWithFee = cost + fee;
+        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+
+        uint256 refund = _getRefund(instance, buyAmount);
+        uint256 sellFee = (refund * instance.bondingFeeBps()) / 10000;
+        uint256 netRefund = refund - sellFee;
+        assertGt(sellFee, 0, "precondition: nonzero sell fee");
+
+        uint256 treasuryBefore = treasury.balance;
+        uint256 reserveBefore = instance.reserve();
+        uint256 userBefore = user1.balance;
 
         vm.expectEmit(true, false, false, true);
-        emit ERC404BondingInstance.BondingFeePaid(user1, fee);
-        instance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
+        emit ERC404BondingInstance.BondingFeePaid(user1, sellFee);
+        // minRefund is the seller's NET floor — passing exactly netRefund must succeed.
+        instance.sellBonding(buyAmount, netRefund, bytes32(0), bytes(""), 0);
+        vm.stopPrank();
+
+        assertEq(treasury.balance - treasuryBefore, sellFee, "treasury receives the sell skim");
+        assertEq(user1.balance - userBefore, netRefund, "seller receives refund net of fee");
+        assertEq(reserveBefore - instance.reserve(), refund, "reserve debited the full gross refund");
+        assertEq(instance.reserve(), address(instance).balance, "reserve == balance after sell");
+    }
+
+    /// @dev minRefund is enforced against the NET (post-fee) proceeds: a floor above net reverts.
+    function test_SellBondingWithFee_MinRefundIsNetOfFee() public {
+        _activateBonding();
+        vm.deal(user1, 10 ether);
+        vm.startPrank(user1);
+        uint256 buyAmount = 1000 * 1e18;
+        uint256 cost = _getCost(instance, buyAmount);
+        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+
+        uint256 refund = _getRefund(instance, buyAmount);
+        // Asking for the full gross refund as the floor must revert — the seller only nets refund-fee.
+        vm.expectRevert(InvalidRefund.selector);
+        instance.sellBonding(buyAmount, refund, bytes32(0), bytes(""), 0);
+        vm.stopPrank();
+    }
+
+    /// @dev Zero fee rate ⇒ no skim: the seller receives the full curve refund.
+    function test_SellBonding_NoFeeWhenRateZero() public {
+        vm.startPrank(owner);
+        ERC404BondingInstance zeroImpl = new ERC404BondingInstance();
+        ERC404BondingInstance zeroFeeInstance = ERC404BondingInstance(payable(LibClone.clone(address(zeroImpl))));
+        _initInstance(zeroFeeInstance, address(0xBEEF), address(0xFEE), 0); // bondingFeeBps = 0
+        zeroFeeInstance.initializeMetadata("Zero Fee Token", "ZFT", "", "");
+        uint256 futureTime = block.timestamp + 1 days;
+        zeroFeeInstance.setBondingOpenTime(futureTime);
+        zeroFeeInstance.setBondingActive(true);
+        vm.stopPrank();
+        vm.warp(futureTime);
+
+        address treasury = address(0xFEE);
+        vm.deal(user1, 10 ether);
+        vm.startPrank(user1);
+        uint256 buyAmount = 1000 * 1e18;
+        uint256 cost = _getCost(zeroFeeInstance, buyAmount);
+        zeroFeeInstance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+
+        uint256 refund = _getRefund(zeroFeeInstance, buyAmount);
+        uint256 treasuryBefore = treasury.balance;
+        uint256 userBefore = user1.balance;
+        zeroFeeInstance.sellBonding(buyAmount, refund, bytes32(0), bytes(""), 0);
+        vm.stopPrank();
+
+        assertEq(treasury.balance, treasuryBefore, "no skim when fee rate is zero");
+        assertEq(user1.balance - userBefore, refund, "seller receives the full refund");
+    }
+
+    /// @dev BondingFeePaid is emitted on the SELL (exit) path only — buying is fee-free.
+    function test_BondingFeePaid_OnSellNotBuy() public {
+        _activateBonding();
+        address treasury = address(0xFEE);
+
+        vm.deal(user1, 10 ether);
+        vm.startPrank(user1);
+        uint256 buyAmount = 1000 * 1e18;
+        uint256 cost = _getCost(instance, buyAmount);
+
+        // Buy is fee-free: the treasury balance does not move.
+        uint256 treasuryBefore = treasury.balance;
+        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        assertEq(treasury.balance, treasuryBefore, "buy must not pay a fee");
+
+        // Sell pays the protocol fee → BondingFeePaid fires.
+        uint256 refund = _getRefund(instance, buyAmount);
+        uint256 sellFee = (refund * instance.bondingFeeBps()) / 10000;
+        vm.expectEmit(true, false, false, true);
+        emit ERC404BondingInstance.BondingFeePaid(user1, sellFee);
+        instance.sellBonding(buyAmount, refund - sellFee, bytes32(0), bytes(""), 0);
         vm.stopPrank();
     }
 

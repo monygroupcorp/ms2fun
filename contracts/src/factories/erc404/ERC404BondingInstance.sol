@@ -432,10 +432,10 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
 
         uint256 totalCost = BondingCurveMath.calculateCost(curveParams, totalBondingSupply, amount);
         if (totalCost == 0) revert PurchaseTooSmall();
-        uint256 bondingFee = (totalCost * bondingFeeBps) / 10000; // round down: favors buyer
-        uint256 totalWithFee = totalCost + bondingFee;
-        if (maxCost < totalWithFee) revert MaxCostExceeded();
-        if (msg.value < totalWithFee) revert LowETHValue();
+        // No buy-side fee: entering the curve costs exactly the curve price. The protocol fee
+        // (bondingFeeBps) is taken on exit only — see sellBonding.
+        if (maxCost < totalCost) revert MaxCostExceeded();
+        if (msg.value < totalCost) revert LowETHValue();
 
         bool originalSkipNFT = mintNFT ? getSkipNFT(msg.sender) : false;
         if (originalSkipNFT) {
@@ -446,11 +446,6 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         _transfer(address(this), msg.sender, amount);
         reserve += totalCost;
 
-        if (bondingFee > 0 && protocolTreasury != address(0)) {
-            SafeTransferLib.safeTransferETH(protocolTreasury, bondingFee);
-            emit BondingFeePaid(msg.sender, bondingFee);
-        }
-
         if (messageData.length > 0) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
@@ -459,11 +454,11 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
             _setSkipNFT(msg.sender, true);
         }
 
-        if (msg.value > totalWithFee) {
-            SmartTransferLib.smartTransferETH(msg.sender, msg.value - totalWithFee, weth);
+        if (msg.value > totalCost) {
+            SmartTransferLib.smartTransferETH(msg.sender, msg.value - totalCost, weth);
         }
 
-        emit BondingSale(msg.sender, amount, totalWithFee, true);
+        emit BondingSale(msg.sender, amount, totalCost, true);
     }
 
     // slither-disable-next-line timestamp
@@ -490,18 +485,32 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         if (balance < amount) revert InsufficientBalance();
 
         uint256 refund = BondingCurveMath.calculateRefund(curveParams, totalBondingSupply, amount);
-        if (refund < minRefund || reserve < refund) revert InvalidRefund();
+        // Bonding sell fee (F3 follow-up): take bondingFeeBps from the seller's proceeds into protocol
+        // revenue. The protocol fee is charged on curve EXIT only — buys are fee-free. This monetizes
+        // exits, including free-mint redemptions that dilute the reserve (F3, risk-accepted), without
+        // touching curve solvency: the full `refund` still leaves `reserve`, split between seller and
+        // treasury, so reserve == balance is preserved. No treasury set ⇒ no skim (seller gets full refund).
+        uint256 sellFee = protocolTreasury != address(0) ? (refund * bondingFeeBps) / 10000 : 0; // round down: favors seller
+        uint256 netRefund = refund - sellFee;
+        // minRefund is the seller's slippage floor on what they RECEIVE (net of fee); `reserve` must
+        // still cover the gross `refund` it is debited by.
+        if (netRefund < minRefund || reserve < refund) revert InvalidRefund();
 
         _transfer(msg.sender, address(this), amount);
         totalBondingSupply -= amount;
         reserve -= refund;
 
+        if (sellFee > 0) {
+            SafeTransferLib.safeTransferETH(protocolTreasury, sellFee);
+            emit BondingFeePaid(msg.sender, sellFee);
+        }
+
         if (messageData.length > 0) {
             globalMessageRegistry.postForAction(msg.sender, address(this), messageData);
         }
 
-        SmartTransferLib.smartTransferETH(msg.sender, refund, weth);
-        emit BondingSale(msg.sender, amount, refund, false);
+        SmartTransferLib.smartTransferETH(msg.sender, netRefund, weth);
+        emit BondingSale(msg.sender, amount, netRefund, false);
     }
 
     // ┌─────────────────────────┐
