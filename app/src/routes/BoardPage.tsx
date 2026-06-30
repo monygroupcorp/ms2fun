@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
+import { formatGwei } from 'viem'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
-import { globalMessageRegistryAbi } from '../generated/contracts'
+import {
+  globalMessageRegistryAbi,
+  useReadQueryAggregatorGetHomePageData,
+} from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
@@ -15,6 +19,40 @@ import styles from './BoardPage.module.css'
 
 const MESSAGE_TYPE_LABELS: Record<number, string> = {
   2: 'QUOTE',
+}
+
+/** The board's two honest views: the threaded salon, and the flat on-chain register. (The spec's
+ * third "All" stream would fold in mint/align/list events, which the board feed doesn't emit yet.) */
+type BoardView = 'discourse' | 'activity'
+
+/** Register verbs for the flat Activity view — the on-chain event, stated plainly. */
+const ACTIVITY_VERB: Record<number, string> = { 0: 'posted', 1: 'replied', 2: 'quoted', 3: 'endorsed' }
+
+/** Featured — the contained, honestly-labelled paid-placement module (never the lead). Reads the
+ * same featured set as Home/discovery; rendered as the board's right rail. */
+function FeaturedRail() {
+  const { data } = useReadQueryAggregatorGetHomePageData({
+    address: forkAddresses.QueryAggregator,
+    chainId: forkChainId,
+    args: [0n, 6n],
+  })
+  const cards = data?.[0] ?? []
+  if (cards.length === 0) return null
+  return (
+    <aside className="noesis-featured">
+      <p className="fk">
+        Featured · <b>paid placement</b> — labelled, not an endorsement
+      </p>
+      {cards.slice(0, 5).map((c) => (
+        <Link key={c.instance} href={`/collection/${c.instance}`} className="fcard">
+          <div>
+            <div className="fn">{c.name || truncateAddress(c.instance)}</div>
+          </div>
+          <span className="fp">{formatGwei(c.currentPrice)} gwei</span>
+        </Link>
+      ))}
+    </aside>
+  )
 }
 
 function useGlobalFeed(): {
@@ -74,6 +112,7 @@ export function BoardPage() {
   const { data, isPending, isError } = useGlobalFeed()
   const { address: connected } = useAccount()
   const queryClient = useQueryClient()
+  const [boardView, setBoardView] = useState<BoardView>('discourse')
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
 
@@ -89,57 +128,84 @@ export function BoardPage() {
         </Link>
       </nav>
 
-      <h1 className={`${styles.title} text-chromatic-medium`}>BOARD</h1>
+      <header className={styles.salonHead}>
+        <h1 className={styles.title}>The salon</h1>
+        <p className={styles.sub}>
+          Discourse on the work — every voice attributed on-chain, permanent. No anonymous posts.
+        </p>
+      </header>
 
-      {connected !== undefined && (
-        <section className={styles.composeSection}>
-          <h2 className={styles.sectionHeading}>POST TO YOUR WALL</h2>
-          <p className={styles.composeNote}>
-            posts appear in the platform feed and on your profile
-          </p>
-          {/* channel = sender's own address — the established per-wall convention */}
-          <MessageComposer channel={connected} />
-        </section>
-      )}
-
-      {connected === undefined && (
-        <StateBlock variant="empty">connect your wallet to post</StateBlock>
-      )}
-
-      <section className={styles.feedSection}>
-        <h2 className={styles.sectionHeading}>ALL ACTIVITY</h2>
-
-        {isPending && <StateBlock variant="loading">loading activity…</StateBlock>}
-
-        {isError && (
-          <StateBlock variant="error">couldn&apos;t load activity — is the fork up?</StateBlock>
-        )}
-
-        {!isPending && !isError && data !== undefined && data.length === 0 && (
-          <StateBlock variant="empty">no activity yet</StateBlock>
-        )}
-
-        {!isPending && !isError && view.threads.length > 0 && (
-          <ul className={styles.list}>
-            {view.threads.map((thread) => (
-              <li
-                key={String(thread.message.messageId)}
-                className={styles.item}
-                data-testid="board-thread"
+      <div className={styles.layout}>
+        <div className={styles.main}>
+          <div className={styles.toolbar}>
+            <nav className="noesis-viewtoggle">
+              <button
+                type="button"
+                className={`${styles.toggleBtn} ${boardView === 'discourse' ? styles.toggleOn : ''}`}
+                onClick={() => setBoardView('discourse')}
               >
-                <BoardMessage
-                  message={thread.message}
-                  view={view}
-                  connected={connected !== undefined}
-                  onChanged={refetch}
-                />
+                Discourse
+              </button>
+              <button
+                type="button"
+                className={`${styles.toggleBtn} ${boardView === 'activity' ? styles.toggleOn : ''}`}
+                onClick={() => setBoardView('activity')}
+              >
+                Activity
+              </button>
+            </nav>
+          </div>
 
-                {thread.replies.length > 0 && (
-                  <ul className={styles.replies}>
+          {connected !== undefined && (
+            <section className={styles.composeSection}>
+              {/* channel = sender's own address — the established per-wall convention */}
+              <MessageComposer channel={connected} />
+              <p className={styles.composeNote}>
+                signed by {truncateAddress(connected)} · permanent — posts appear in the feed and on
+                your profile
+              </p>
+            </section>
+          )}
+
+          {connected === undefined && (
+            <StateBlock variant="empty" boxed>
+              connect your wallet to post — every voice on the board is attributed.
+            </StateBlock>
+          )}
+
+          <section className={styles.feedSection}>
+            {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
+
+            {isError && (
+              <StateBlock variant="error">couldn&apos;t load activity — is the fork up?</StateBlock>
+            )}
+
+            {!isPending && !isError && data !== undefined && data.length === 0 && (
+              <StateBlock variant="empty" boxed>
+                this wall is empty — be the first to say something considered.
+              </StateBlock>
+            )}
+
+            {/* Discourse — the threaded salon. */}
+            {!isPending && !isError && boardView === 'discourse' && view.threads.length > 0 && (
+              <div className={styles.list}>
+                {view.threads.map((thread) => (
+                  <article
+                    key={String(thread.message.messageId)}
+                    className="noesis-post"
+                    data-testid="board-thread"
+                  >
+                    <BoardMessage
+                      message={thread.message}
+                      view={view}
+                      connected={connected !== undefined}
+                      onChanged={refetch}
+                    />
+
                     {thread.replies.map((reply) => (
-                      <li
+                      <div
                         key={String(reply.messageId)}
-                        className={styles.reply}
+                        className="reply"
                         data-testid="board-reply"
                       >
                         <BoardMessage
@@ -148,15 +214,37 @@ export function BoardPage() {
                           connected={connected !== undefined}
                           onChanged={refetch}
                         />
-                      </li>
+                      </div>
                     ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {/* Activity — the flat on-chain register, every event attributed, newest first. */}
+            {!isPending && !isError && boardView === 'activity' && data !== undefined && (
+              <ul className={styles.register} data-testid="board-activity">
+                {data.map((m) => (
+                  <li key={String(m.messageId)} className={styles.regRow}>
+                    <Link href={`/profile/${m.sender}`} className={styles.regWho}>
+                      {truncateAddress(m.sender)}
+                    </Link>
+                    <span className={styles.regVerb}>
+                      {ACTIVITY_VERB[m.messageType] ?? 'posted'}
+                    </span>
+                    <Link href={`/collection/${m.instance}`} className={styles.regCh}>
+                      {truncateAddress(m.instance)}
+                    </Link>
+                    {m.content.length > 0 && <span className={styles.regContent}>{m.content}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <FeaturedRail />
+      </div>
     </div>
   )
 }
@@ -177,15 +265,13 @@ function BoardMessage({
 
   return (
     <>
-      <div className={styles.meta}>
-        <Link href={`/profile/${message.sender}`} className={styles.senderLink}>
+      <div className="phead">
+        <Link href={`/profile/${message.sender}`} className={`name ${styles.senderLink}`}>
           {truncateAddress(message.sender)}
         </Link>
 
-        <span className={styles.arrow}>→</span>
-
-        <Link href={`/collection/${message.instance}`} className={styles.channelLink}>
-          {truncateAddress(message.instance)}
+        <Link href={`/collection/${message.instance}`} className={`ch ${styles.channelLink}`}>
+          → {truncateAddress(message.instance)}
         </Link>
 
         {MESSAGE_TYPE_LABELS[message.messageType] !== undefined && (
@@ -193,7 +279,7 @@ function BoardMessage({
         )}
       </div>
 
-      {message.content.length > 0 && <p className={styles.content}>{message.content}</p>}
+      {message.content.length > 0 && <p className="ptext">{message.content}</p>}
 
       <div className={styles.actions}>
         <div className={styles.actionBar}>
@@ -211,7 +297,7 @@ function BoardMessage({
               onClick={() => setReplying(true)}
               data-testid="board-reply-toggle"
             >
-              reply
+              Reply
             </button>
           )}
         </div>

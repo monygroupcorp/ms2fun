@@ -7,19 +7,19 @@ interface Stat {
 }
 
 /**
- * Stats bar for the home landing surface. Pure presentational — the page owns the data so home
- * paints from the fast featured path first and the (slower) full-registry scan fills in its number
- * when ready, without blocking the rest of the page.
+ * Stats bar for the home landing surface — the room's vital signs. Pure presentational: the page
+ * owns the data so home paints from the fast featured path first and the (slower) full-registry
+ * scan fills its number when ready (`pending` → `··`) without blocking the rest of the page.
+ * Visual layer is the `.noesis-stats` device (vendored signature.css): mono cells, one rule
+ * between them, the value in display type over a mono label.
  */
 export function HomeStats({ stats }: { stats: Stat[] }) {
   return (
-    <dl className={styles.bar} data-testid="home-stats">
+    <dl className="noesis-stats" data-testid="home-stats">
       {stats.map((s) => (
-        <div key={s.label} className={styles.stat}>
-          <dt className={styles.label}>{s.label}</dt>
-          <dd className={`${styles.value} ${s.pending ? styles.pending : ''}`}>
-            {s.pending ? '··' : s.value}
-          </dd>
+        <div key={s.label} className="s">
+          <dd className={`v ${s.pending ? styles.pending : ''}`}>{s.pending ? '··' : s.value}</dd>
+          <dt className="k">{s.label}</dt>
         </div>
       ))}
     </dl>

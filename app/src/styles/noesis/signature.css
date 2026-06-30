@@ -1,0 +1,537 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   NOESIS signature language — "the honest wall."
+   Museum precision + onchain transparency. The ownable devices that emerged
+   from the hero crit (v0.1.7). Gallery Brutalism: pure monochrome, 2px rules,
+   8px grid, zero decoration. The platform is a neutral wall; the mechanic — not
+   color — is the differentiator. Scoped to [data-brand="noesis"].
+
+   RULE OF USE: the work brings the color; the chrome stays mono. State the
+   alignment mechanic as *data you can read*, never as a pitch. One headline
+   chromatic moment per surface, display only — never on body or the ledger.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Wall-label kicker — mono, tracked, reserved. Sits above a headline.
+   The museum specimen label: what this is, stated flat. */
+[data-brand="noesis"] .noesis-kicker {
+  font-family: var(--brand-font-mono);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* The frame — solid molding (double 2px border) with corner ticks. The mark
+   made architecture: wraps a hero/section, the transparent center is where a
+   collection brings its own style. Primary home is the collection/gallery page;
+   on the hero it framishes a panel. */
+[data-brand="noesis"] .noesis-frame {
+  position: relative;
+  border: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-frame::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 2px solid var(--color-border);
+  pointer-events: none;
+}
+[data-brand="noesis"] .noesis-tick {
+  position: absolute;
+  width: 13px; height: 13px;
+  border: 2px solid var(--color-border);
+  pointer-events: none;
+}
+[data-brand="noesis"] .noesis-tick.tl { top: 30px;    left: 30px;  border-right: 0; border-bottom: 0; }
+[data-brand="noesis"] .noesis-tick.tr { top: 30px;    right: 30px; border-left: 0;  border-bottom: 0; }
+[data-brand="noesis"] .noesis-tick.bl { bottom: 30px; left: 30px;  border-right: 0; border-top: 0; }
+[data-brand="noesis"] .noesis-tick.br { bottom: 30px; right: 30px; border-left: 0;  border-top: 0; }
+
+/* The work is hung in .noesis-frame on the TOKEN page (the frame's primary home —
+   collection/gallery use is secondary). MOBILE RULE: the frame relaxes — on phones
+   the work goes edge-to-edge (no gallery margins, which waste scarce pixels); the
+   double molding + ticks are a desktop gallery-wall conceit only. */
+
+/* Provenance — the acquisition record (museum-style), newest first. Each row:
+   event + price + actor + age. Shown as fact, never a vague "verified" badge. */
+[data-brand="noesis"] .noesis-prov .p {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: baseline;
+  padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-family: var(--brand-font-mono); font-size: 12px;
+}
+[data-brand="noesis"] .noesis-prov .p .ev,
+[data-brand="noesis"] .noesis-prov .p .val { font-weight: 600; }
+[data-brand="noesis"] .noesis-prov .p .val { text-align: right; }
+[data-brand="noesis"] .noesis-prov .p .who { font-size: 11px; color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-prov .p .when { font-size: 11px; color: var(--color-text-subtle); text-align: right; }
+
+/* The alignment ledger — the mechanic as honest, numbered onchain data.
+   Mono throughout; a 2px header rule, hairline row dividers. "How alignment
+   works", shown not promised. Pairs with .noesis-bind below. */
+[data-brand="noesis"] .noesis-ledger {
+  font-family: var(--brand-font-mono);
+}
+[data-brand="noesis"] .noesis-ledger-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-ledger-row {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-size: 13px;
+}
+[data-brand="noesis"] .noesis-ledger-row .n { color: var(--color-text-subtle); font-size: 11px; }
+[data-brand="noesis"] .noesis-ledger-row .v { font-weight: 600; text-align: right; }
+[data-brand="noesis"] .noesis-ledger-row small {
+  display: block;
+  font-family: var(--brand-font-body);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  letter-spacing: 0;
+  text-transform: none;
+  margin-top: 3px;
+}
+
+/* The binding block — THE signature device. The forced-alignment mechanic as a
+   single read: your fees → the alignment vault, the vault cell inverted (ink
+   fill) so the commitment is the loudest thing. The number is mono, not
+   display, so the tilde/percent stay crisp. "The mechanic is the marketing." */
+[data-brand="noesis"] .noesis-bind {
+  display: flex;
+  align-items: stretch;
+  border: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-bind .cell {
+  flex: 1;
+  padding: 18px 16px;
+  font-family: var(--brand-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+[data-brand="noesis"] .noesis-bind .cell b {
+  display: block;
+  font-family: var(--brand-font-mono);
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 26px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+[data-brand="noesis"] .noesis-bind .arrow {
+  flex: 0 0 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 2px solid var(--color-border);
+  border-right: 2px solid var(--color-border);
+  font-size: 18px;
+}
+[data-brand="noesis"] .noesis-bind .vault {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+/* Chromatic moment — display only, one phrase per surface. The utilities
+   themselves live in theme.css (.text-chromatic-*). Reserve for the single
+   load-bearing word in a headline. NEVER on body, labels, or the ledger. */
+
+/* ── Collection-page devices (from the collection crit, v0.1.8) ──────────────
+   The shell is a neutral wall; colour lives ONLY inside .noesis-art (the work).
+   RESPONSIVE RULES that apply to every NOESIS surface:
+   1. The primary action stays in thumb reach — in a side rail on desktop, a
+      sticky bottom bar on mobile (.noesis-mintbar). Never let it scroll away.
+   2. .noesis-bind is responsive by construction — it holds 3-up from 390px up;
+      never stack it.
+   3. Transparency-forward stacking on mobile — disclosure (the alignment block)
+      sits ABOVE the catalogue of goods, never below. */
+
+/* Mint-state block — price (display) + supply count + progress meter. The honest
+   mint readout: how far the drop has gone, stated flat. */
+[data-brand="noesis"] .noesis-mintstate { border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-mintstate .meter {
+  height: 7px; background: var(--color-surface-2);
+  border-top: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-mintstate .meter > i {
+  display: block; height: 100%; background: var(--color-text); /* width = minted/supply */
+}
+
+/* The work tile — the ONLY place colour is allowed. Mono 2px frame, the
+   collection's own art fills it. Tag = mono id, bottom-left. */
+[data-brand="noesis"] .noesis-piece {
+  position: relative; overflow: hidden;
+  border: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-piece > .noesis-art { position: absolute; inset: 0; }
+[data-brand="noesis"] .noesis-piece > .tag {
+  position: absolute; left: 0; bottom: 0; z-index: 3;
+  font-family: var(--brand-font-mono); font-size: 10px; letter-spacing: 0.08em;
+  background: var(--color-bg);
+  border-top: 2px solid var(--color-border); border-right: 2px solid var(--color-border);
+  padding: 5px 9px;
+}
+
+/* Sticky mint bar — mobile primary action. price/N-left cell | full-width MINT. */
+[data-brand="noesis"] .noesis-mintbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  display: flex; align-items: stretch;
+  background: var(--color-bg); border-top: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-mintbar > .info {
+  flex: 0 0 auto; padding: 0 16px;
+  display: flex; flex-direction: column; justify-content: center;
+  border-right: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-mintbar > a {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-family: var(--brand-font-mono); font-size: 13px; letter-spacing: 0.14em;
+  text-transform: uppercase; text-decoration: none;
+  background: var(--color-text); color: var(--color-bg);
+}
+
+/* ── Launch-wizard devices (from the launch crit, v0.1.11) ───────────────────
+   A three-register system on one chassis: A = workhorse backbone (stepper +
+   manifest), B = reverent big-question panel at the Contract/Alignment steps,
+   C = live collection-page preview at the Page/Review steps. The stepper ADAPTS
+   to the chosen contract (ERC-1155 hides Liquidity; ERC-721 auction hides
+   Modules/Gating/Liquidity) — N/A steps grey out, never silently vanish. */
+
+/* The stepper — a mono specimen index of the steps. done / active / pending / na. */
+[data-brand="noesis"] .noesis-stepper .step {
+  display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: center;
+  padding: 9px 0; font-family: var(--brand-font-mono); font-size: 13px;
+}
+[data-brand="noesis"] .noesis-stepper .step .n { font-size: 11px; color: var(--color-text-subtle); }
+[data-brand="noesis"] .noesis-stepper .step.done .n,
+[data-brand="noesis"] .noesis-stepper .step.active .n { color: var(--color-text); }
+[data-brand="noesis"] .noesis-stepper .step.active { font-weight: 600; border-left: 2px solid var(--color-border); margin-left: -24px; padding-left: 22px; }
+[data-brand="noesis"] .noesis-stepper .step.pending { color: var(--color-text-subtle); }
+[data-brand="noesis"] .noesis-stepper .step.na,
+[data-brand="noesis"] .noesis-stepper .step.na .n { color: color-mix(in srgb, var(--color-text-subtle) 55%, var(--color-bg)); } /* greyed, still present */
+[data-brand="noesis"] .noesis-stepper .step .lab small {
+  display: block; font-family: var(--brand-font-body); font-size: 11px;
+  color: var(--color-text-subtle); letter-spacing: 0; text-transform: none; margin-top: 1px;
+}
+
+/* The manifest — the truthful running summary (contract · supply · modules · gas).
+   It is the contract, not marketing. Always visible: rail on desktop, Review on mobile. */
+[data-brand="noesis"] .noesis-manifest { padding-top: 18px; border-top: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-manifest .mr {
+  display: flex; justify-content: space-between; padding: 4px 0;
+  font-family: var(--brand-font-mono); font-size: 11px; color: var(--color-text-muted);
+}
+[data-brand="noesis"] .noesis-manifest .mr b { color: var(--color-text); font-weight: 600; }
+
+/* Mobile progress — the stepper collapses to a segmented bar + "Step n / N · name"
+   (full stepper becomes a drawer). Same sticky-action footer as .noesis-mintbar. */
+[data-brand="noesis"] .noesis-progress { display: flex; gap: 4px; }
+[data-brand="noesis"] .noesis-progress .seg {
+  flex: 1; height: 5px; background: var(--color-surface-2); border: 1px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-progress .seg.done,
+[data-brand="noesis"] .noesis-progress .seg.on { background: var(--color-text); }
+
+/* ── Board / salon devices (from the board crit, v0.1.12) ────────────────────
+   The board transforms an imageboard heritage into a museum-grade salon. THREE
+   BRAND RULES wherever discourse appears: (1) endorsement, not emoji — the
+   on-chain reaction renders "▪ endorsed · N" (brand forbids emoji); (2) no
+   anonymous posts — every post attributed on-chain + permanent, stated in the
+   composer; (3) paid placement is always labelled "not an endorsement". Colour
+   comes only from the work (channel swatches / quote thumbnails). */
+
+/* A post = a wall label: mono byline + channel swatch + age, Archivo body. */
+[data-brand="noesis"] .noesis-post { padding: 20px 0; border-bottom: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-post .phead { display: flex; align-items: center; gap: 12px; font-family: var(--brand-font-mono); font-size: 12px; }
+[data-brand="noesis"] .noesis-post .phead .name { color: var(--color-text); font-weight: 600; }
+[data-brand="noesis"] .noesis-post .phead .ch { color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-post .phead .age { margin-left: auto; color: var(--color-text-subtle); }
+[data-brand="noesis"] .noesis-post .ptext { font-size: 17px; line-height: 1.5; margin-top: 12px; max-width: 66ch; }
+[data-brand="noesis"] .noesis-post .reply { margin-top: 16px; margin-left: 26px; padding-left: 18px; border-left: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-post .reply .ptext { font-size: 15px; }
+
+/* Endorsement — the ONE reaction, mono. Never an emoji, never a tray. */
+[data-brand="noesis"] .noesis-endorse {
+  font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.06em;
+  color: var(--color-text); font-weight: 600;
+}
+[data-brand="noesis"] .noesis-endorse::before { content: "\25AA\00A0"; } /* ▪ + nbsp */
+
+/* View toggle — Discourse · Activity · All. The Salon is default; Activity is the
+   honest on-chain register; same segmented grammar as the wizard step tabs. */
+[data-brand="noesis"] .noesis-viewtoggle { display: flex; border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-viewtoggle a {
+  font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 9px 16px; color: var(--color-text-muted); text-decoration: none; border-right: 2px solid var(--color-border);
+}
+[data-brand="noesis"] .noesis-viewtoggle a:last-child { border-right: 0; }
+[data-brand="noesis"] .noesis-viewtoggle a.on { background: var(--color-text); color: var(--color-bg); }
+
+/* Featured — the contained, honestly-labelled paid-placement module. NEVER the
+   lead: a rail card-set (desktop) / a bottom strip (mobile). The label
+   "paid placement — not an endorsement" is non-negotiable on every surface. */
+[data-brand="noesis"] .noesis-featured .fk {
+  font-family: var(--brand-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--color-text-muted); margin-bottom: 11px; line-height: 1.4;
+}
+[data-brand="noesis"] .noesis-featured .fk b { color: var(--color-text); }
+[data-brand="noesis"] .noesis-featured .fcard {
+  display: flex; align-items: center; gap: 9px; border: 2px solid var(--color-border);
+  padding: 8px; margin-bottom: 9px; text-decoration: none; color: inherit;
+}
+[data-brand="noesis"] .noesis-featured .fcard > div { min-width: 0; }
+[data-brand="noesis"] .noesis-featured .fcard .fn { font-family: var(--brand-font-display); font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-brand="noesis"] .noesis-featured .fcard .fp { margin-left: auto; font-family: var(--brand-font-mono); font-size: 11px; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
+
+/* ── Profile / plate devices (from the profile crit, v0.1.14) ────────────────
+   A profile is a catalogued person in the gallery: a wall-label identity PLATE
+   that LEADS WITH THE WORK (Made/Held galleries), carries alignment STANDING as
+   its own tab, and hangs a WALL beneath like a comment section. Two rules:
+   (1) avatar = a user-set image URI (uploaded/linked on profile create, updated
+   like social media — NOT auto-derived from their work), shown in .noesis-frame
+   with an Edit affordance on one's own profile; (2) the alignment economy is
+   legible at the person level (aligned-to-you → claimable; vault positions in/out)
+   — the bind grammar extended from collections/tokens to people. Colour comes only
+   from the work; the avatar is a neutral user image; the chrome stays mono. */
+
+/* The standing strip — the at-a-glance plate summary; last row = inverted
+   Claimable, which links into the Vaults tab. */
+[data-brand="noesis"] .noesis-standing { border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-standing .sr {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 12px 15px; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-family: var(--brand-font-mono); font-size: 12px;
+}
+[data-brand="noesis"] .noesis-standing .sr:last-child { border-bottom: 0; }
+[data-brand="noesis"] .noesis-standing .sr .k { color: var(--color-text-subtle); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; }
+[data-brand="noesis"] .noesis-standing .sr .v { font-weight: 600; font-size: 15px; }
+[data-brand="noesis"] .noesis-standing .sr.claim { background: var(--color-text); color: var(--color-bg); }
+[data-brand="noesis"] .noesis-standing .sr.claim .k { color: color-mix(in srgb, var(--color-bg) 70%, var(--color-text)); }
+
+/* Profile tabs — Made · Held · Vaults (the wall is NOT a tab; it sits below). */
+[data-brand="noesis"] .noesis-tabs { display: flex; border-bottom: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-tabs a {
+  font-family: var(--brand-font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 15px 0; margin-right: 30px; color: var(--color-text-muted); text-decoration: none;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+}
+[data-brand="noesis"] .noesis-tabs a.on { color: var(--color-text); font-weight: 600; border-bottom-color: var(--color-text); }
+[data-brand="noesis"] .noesis-tabs a .ct { color: var(--color-text-subtle); font-weight: 400; }
+
+/* Claimable hero — the Vaults-tab lead, in the bind grammar: aligned-to-you →
+   claimable · Claim. The vault cell is inverted; the number is mono. Always
+   pair a claimable figure with WHERE it comes from (the inbound ledger below). */
+[data-brand="noesis"] .noesis-claimbox { display: flex; align-items: stretch; border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-claimbox .cell {
+  flex: 1; padding: 16px 18px; font-family: var(--brand-font-mono);
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted);
+}
+[data-brand="noesis"] .noesis-claimbox .cell b {
+  display: block; font-family: var(--brand-font-mono); font-size: 24px;
+  color: var(--color-text); margin-top: 5px; letter-spacing: 0; text-transform: none;
+}
+[data-brand="noesis"] .noesis-claimbox .arrow {
+  flex: 0 0 50px; display: flex; align-items: center; justify-content: center;
+  border-left: 2px solid var(--color-border); border-right: 2px solid var(--color-border); font-size: 15px;
+}
+[data-brand="noesis"] .noesis-claimbox .got { background: var(--color-text); color: var(--color-bg); }
+[data-brand="noesis"] .noesis-claimbox .got b { color: var(--color-bg); }
+
+/* ---- Collection card · the discovery unit (browse / featured / list) -------
+   ONE scalable unit. The mono shell is the frame; the WORK fills it edge-to-edge
+   (`.art`, the artist's own color); the label strip is a 2px-bordered mono
+   plate below. Three corner data points, never more: status (top-left chip),
+   aligned-to (top-right swatch = the work this collection binds fees toward),
+   name + creator + price (bottom plate). The art tile must vary per collection
+   — put the variant on the .art element itself (`<div class="art v3">`), never
+   on an empty child, or every tile renders the identical default roll.
+   Sizes are the same component at three scales:
+     .noesis-card.lead — Home/featured hero (display name 24–26px)
+     .noesis-card      — browse contact-sheet default (name 15–16px, 4-up)
+   The list/registry row (.noesis-reg) is the same data, de-arted to a 30px
+   thumbnail; toggle the two with .noesis-viewtoggle (Grid · List). */
+[data-brand="noesis"] .noesis-card {
+  position: relative; border: 2px solid var(--color-border); overflow: hidden;
+  text-decoration: none; color: inherit; display: flex; flex-direction: column;
+}
+[data-brand="noesis"] .noesis-card .art { position: relative; flex: 1; min-height: 0; }
+[data-brand="noesis"] .noesis-card .st {
+  position: absolute; left: 8px; top: 8px; z-index: 3;
+  font-family: var(--brand-font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--color-bg); border: 2px solid var(--color-border); padding: 3px 6px;
+}
+[data-brand="noesis"] .noesis-card .al {
+  position: absolute; right: 8px; top: 8px; z-index: 3;
+  width: 16px; height: 16px; border: 2px solid var(--color-bg);
+}
+[data-brand="noesis"] .noesis-card .lab {
+  flex: 0 0 auto; border-top: 2px solid var(--color-border); padding: 9px 12px;
+  display: flex; justify-content: space-between; align-items: flex-end;
+}
+[data-brand="noesis"] .noesis-card .nm { font-family: var(--brand-font-display); font-weight: 800; font-size: 16px; }
+[data-brand="noesis"] .noesis-card .by { font-family: var(--brand-font-mono); font-size: 9px; color: var(--color-text-muted); margin-top: 2px; }
+[data-brand="noesis"] .noesis-card .px { font-family: var(--brand-font-mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+[data-brand="noesis"] .noesis-card.lead .nm { font-size: 26px; letter-spacing: -0.01em; }
+[data-brand="noesis"] .noesis-card.lead .lab { padding: 13px 15px; }
+
+/* Registry row — de-arted list mode of the same collection. The art survives as
+   a 30px thumbnail; everything else is mono columns. Keep the aligned-to swatch
+   in its column so the alignment economy stays legible at a glance. */
+[data-brand="noesis"] .noesis-reg .row,
+[data-brand="noesis"] .noesis-reg .colhead {
+  display: grid; gap: 16px; align-items: center; padding: 13px 0;
+  font-family: var(--brand-font-mono); font-size: 13px;
+}
+[data-brand="noesis"] .noesis-reg .colhead {
+  border-bottom: 2px solid var(--color-border);
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text-muted);
+}
+[data-brand="noesis"] .noesis-reg .row { border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, var(--color-bg)); text-decoration: none; color: inherit; }
+[data-brand="noesis"] .noesis-reg .row .sw { width: 30px; height: 30px; border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-reg .row .nm { font-family: var(--brand-font-display); font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
+[data-brand="noesis"] .noesis-reg .row .by { color: var(--color-text-muted); font-size: 11px; margin-top: 2px; }
+[data-brand="noesis"] .noesis-reg .row .al { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-reg .row .al .s { width: 13px; height: 13px; border: 2px solid var(--color-border); }
+
+/* Stats bar — the room's vital signs, mono, one rule between cells. Reused on
+   Home: collections / live now / aligned works / Ξ bound in vaults. */
+[data-brand="noesis"] .noesis-stats { display: flex; border-bottom: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-stats .s { flex: 1; padding: 14px 40px; border-right: 1px solid color-mix(in srgb, var(--color-border) 14%, var(--color-bg)); font-family: var(--brand-font-mono); }
+[data-brand="noesis"] .noesis-stats .s:last-child { border-right: 0; }
+[data-brand="noesis"] .noesis-stats .s .v { font-family: var(--brand-font-display); font-weight: 800; font-size: 26px; letter-spacing: -0.01em; }
+[data-brand="noesis"] .noesis-stats .s .k { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted); margin-top: 3px; }
+
+/* ---- The fossil · CULT EXECUTIVES / EXEC — the origin specimen ------------
+   The ONE surface that is past-tense. The platform's grandfathered DN404 genesis
+   token (graduated → trades on Uniswap, read-only in-app). Its colour is
+   DELIBERATELY DRAINED — the `.fossil` art is cold ash-and-teal, the single thing
+   on NOESIS whose hue has gone, so it reads as a relic against the living wall of
+   creators. Three modules inside one reverent shell:
+     1. .noesis-specimen — the vitrine (art under a 2px case) + plaque + market
+        ledger; Trade links OUT (never re-listed here).
+     2. .noesis-pieces   — holder area: the DN404-mirror NFTs as a gallery, each a
+        `.piece` (id chip); `.kept` = an `exemptedNFTIds[]`-protected piece (bordered
+        + a "kept" pin). Holder actions Send / Reroll sit beside it; Reroll is the
+        gacha relic, always labelled as chance.
+     3. .noesis-archive  — the CLOSED bonding-era chat: historical data, read-only,
+        sealed (✕ Closed), no composer. We display the past, we don't reopen it.
+   The `.fossil` art class is defined per-surface (cold radial gradients + the ✕
+   mark at low opacity), NOT here — signature.css owns the mono chrome, the surface
+   owns the drained art, same split as living-collection `.art`. */
+[data-brand="noesis"] .noesis-specimen .case { border: 2px solid var(--color-border); padding: 16px; }
+[data-brand="noesis"] .noesis-specimen .specimen { position: relative; aspect-ratio: 4/3; border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-specimen .specimen .tk,
+[data-brand="noesis"] .noesis-specimen .specimen .yr { position: absolute; z-index: 3; font-family: var(--brand-font-mono); color: rgba(180, 220, 214, 0.62); }
+[data-brand="noesis"] .noesis-specimen .specimen .tk { left: 12px; bottom: 12px; font-size: 11px; letter-spacing: 0.14em; border: 2px solid rgba(180, 220, 214, 0.4); padding: 4px 8px; }
+[data-brand="noesis"] .noesis-specimen .specimen .yr { right: 12px; top: 12px; font-size: 10px; letter-spacing: 0.1em; }
+[data-brand="noesis"] .noesis-specimen .meta span { font-family: var(--brand-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-muted); border: 2px solid var(--color-border); padding: 5px 9px; }
+
+/* Holder pieces — the DN404 mirror gallery. `.kept` protects a piece from reroll. */
+[data-brand="noesis"] .noesis-pieces .piece { position: relative; border: 2px solid var(--color-border); aspect-ratio: 1; }
+[data-brand="noesis"] .noesis-pieces .piece .id { position: absolute; left: 7px; bottom: 7px; font-family: var(--brand-font-mono); font-size: 10px; letter-spacing: 0.04em; color: rgba(180, 220, 214, 0.78); background: rgba(8, 10, 12, 0.6); padding: 2px 6px; }
+[data-brand="noesis"] .noesis-pieces .piece.kept { border-color: var(--color-text); }
+[data-brand="noesis"] .noesis-pieces .piece.kept .pin { position: absolute; right: 7px; top: 7px; font-family: var(--brand-font-mono); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; background: var(--color-text); color: var(--color-bg); padding: 2px 5px; }
+
+/* Closed archive — the bonding-era chat, read-only. Sealed header (✕ Closed),
+   no composer. The anti-board: discourse preserved, not revived. */
+[data-brand="noesis"] .noesis-archive { border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-archive .seal { display: flex; justify-content: space-between; align-items: center; padding: 13px 18px; border-bottom: 2px solid var(--color-border); background: var(--color-surface); }
+[data-brand="noesis"] .noesis-archive .seal .lf { font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-archive .seal .lf b { color: var(--color-text); font-weight: 600; }
+[data-brand="noesis"] .noesis-archive .seal .cl { font-family: var(--brand-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-text); border: 2px solid var(--color-border); padding: 5px 10px; white-space: nowrap; }
+[data-brand="noesis"] .noesis-archive .foot { padding: 14px 18px; border-top: 2px solid var(--color-border); font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.03em; color: var(--color-text-muted); text-align: center; }
+
+/* ---- System states · Gallery Brutalism --------------------------------------
+   Loading / empty / error / connect-gate / 404. Reskins the shared StateBlock
+   (variant + boxed), the wallet gate, and the catch-all route. The museum voice
+   is held all the way into the failure states: loading is "hanging the work…",
+   empty is "this wall is empty", 404 is "not on view" (the gallery term for a
+   work that exists but isn't currently displayed). Honesty rule: never claim a
+   thing was deleted/lost when it was simply never here.
+   .noesis-state mirrors StateBlock 1:1 — `.loading` (mono, pulses opacity only,
+   reduced-motion static), plain empty (muted, in-flow), `.error` (full contrast
+   + ✕ + a 3px solid left accent — reads as a problem, role=alert), `.boxed`
+   (2px-DASHED frame = the only dashed border in the system, reserved for framed
+   zero-states so they never read as a solid module). */
+[data-brand="noesis"] .noesis-state { font-family: var(--brand-font-mono); font-size: 13px; line-height: 1.6; color: var(--color-text-subtle); margin: 0; }
+[data-brand="noesis"] .noesis-state.loading { color: var(--color-text-muted); animation: noesis-state-pulse 1.2s ease-in-out infinite; }
+[data-brand="noesis"] .noesis-state.loading::before { content: "\25AA\00A0"; color: var(--color-text-subtle); }
+@keyframes noesis-state-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { [data-brand="noesis"] .noesis-state.loading { animation: none; } }
+[data-brand="noesis"] .noesis-state.error { color: var(--color-text); border-left: 3px solid var(--color-text); padding-left: 13px; }
+[data-brand="noesis"] .noesis-state.error::before { content: "\2715\00A0\00A0"; font-weight: 700; }
+[data-brand="noesis"] .noesis-state.boxed { display: block; padding: 30px; text-align: center; border: 2px dashed color-mix(in srgb, var(--color-border) 45%, var(--color-bg)); }
+[data-brand="noesis"] .noesis-state .big { display: block; font-family: var(--brand-font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; color: var(--color-text); margin-bottom: 7px; }
+[data-brand="noesis"] .noesis-state .cap { display: block; font-family: var(--brand-font-body); font-size: 13px; color: var(--color-text-subtle); line-height: 1.5; max-width: 36ch; margin: 0 auto; }
+[data-brand="noesis"] .noesis-state .act { display: inline-block; margin-top: 15px; font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text); border: 2px solid var(--color-border); padding: 9px 14px; text-decoration: none; }
+
+/* Connect-wallet gate — the disconnected state for wallet-bound regions (vaults,
+   holdings, claimable). The one black CTA, in the bind grammar's voice. */
+[data-brand="noesis"] .noesis-gate { text-align: center; }
+[data-brand="noesis"] .noesis-gate .big { display: block; font-family: var(--brand-font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; margin-bottom: 7px; }
+[data-brand="noesis"] .noesis-gate .cap { display: block; font-family: var(--brand-font-body); font-size: 13px; color: var(--color-text-subtle); line-height: 1.5; max-width: 34ch; margin: 0 auto; }
+[data-brand="noesis"] .noesis-gate .cta { display: inline-block; margin-top: 16px; font-family: var(--brand-font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-bg); background: var(--color-text); padding: 13px 20px; text-decoration: none; }
+
+/* 404 · "Not on view" — the catch-all route as a wall-label card: a mono plate
+   header (404 · not found) over a big Syne 404, the museum-voice title + honest
+   copy, and two ways back (black primary + outline secondary). */
+[data-brand="noesis"] .noesis-404 { max-width: 560px; width: 100%; border: 2px solid var(--color-border); }
+[data-brand="noesis"] .noesis-404 .plate { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 2px solid var(--color-border); background: var(--color-surface); }
+[data-brand="noesis"] .noesis-404 .plate .k { font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-404 .plate .e { font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.1em; color: var(--color-text); border: 2px solid var(--color-border); padding: 4px 9px; }
+[data-brand="noesis"] .noesis-404 .inner { padding: 48px 44px; }
+[data-brand="noesis"] .noesis-404 .big { font-family: var(--brand-font-display); font-weight: 800; font-size: 104px; line-height: 0.9; letter-spacing: -0.03em; }
+[data-brand="noesis"] .noesis-404 .ttl { font-family: var(--brand-font-display); font-weight: 800; font-size: 26px; letter-spacing: -0.01em; margin-top: 18px; }
+[data-brand="noesis"] .noesis-404 .cap { font-size: 14.5px; line-height: 1.6; color: var(--color-text-subtle); margin-top: 12px; max-width: 42ch; }
+
+/* ---- Edition detail · "the edition plate" — the ERC-1155 drop page -----------
+   The token placard's sibling: ONE edition (a numbered multiple) hung in a frame
+   beside a wall-label column. The signature hook is the per-edition THEME SEAM —
+   the only NOESIS surface where the artist's colour enters the CHROME, not just
+   the artwork tile. Metadata may carry `theme:{accent,background}` (strict hex,
+   sanitized) → set as `--edition-accent` / `--edition-bg` on the page root
+   (matches the real `editionThemeStyle` custom-prop names exactly, so this is a
+   drop-in reskin). The accent recolors a SINGLE seam — the title underline + the
+   mint-CTA border — and the background tints the stats panel; everything else
+   stays mono. Absent/invalid theme → falls through to default monochrome via the
+   `var(--edition-accent, <mono-fallback>)` pattern. Keep it to one seam: this is
+   a controlled chromatic exception, not a licence to colour the page.
+   The edition COUNTER (`.noesis-counter`: minted / supply + remaining + a fill
+   track) is the hero data device — an edition's identity is its number. Reuses
+   the mint grammar (qty stepper + accent-bordered CTA); on mobile the CTA goes to
+   a sticky bottom bar (the thumb-reach rule). The optional on-chain mint note is
+   a dashed affordance — "sign the impression". */
+[data-brand="noesis"] .noesis-edition { --edition-accent: var(--color-text); --edition-bg: var(--color-bg); }
+[data-brand="noesis"] .noesis-edition .ed-title {
+  font-family: var(--brand-font-display); font-weight: 800; letter-spacing: -0.02em; line-height: 1.02;
+  padding-bottom: 12px; border-bottom: 3px solid var(--edition-accent);
+}
+[data-brand="noesis"] .noesis-edition .ed-stats { border: 2px solid var(--color-border); background: var(--edition-bg); }
+[data-brand="noesis"] .noesis-edition .ed-stats .r { display: flex; justify-content: space-between; align-items: baseline; padding: 11px 15px; border-bottom: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent); font-family: var(--brand-font-mono); font-size: 13px; }
+[data-brand="noesis"] .noesis-edition .ed-stats .r:last-child { border-bottom: 0; }
+[data-brand="noesis"] .noesis-edition .ed-stats .r .k { color: var(--color-text-muted); font-size: 11px; letter-spacing: 0.04em; }
+[data-brand="noesis"] .noesis-edition .ed-stats .r .v { font-weight: 600; }
+/* mint CTA — the accent seam's second appearance */
+[data-brand="noesis"] .noesis-edition .ed-mintbtn { background: var(--color-text); color: var(--color-bg); border: 2px solid var(--edition-accent); display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-family: var(--brand-font-mono); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; }
+/* the on-chain mint note — "sign the impression" (the one dashed affordance here) */
+[data-brand="noesis"] .noesis-edition .ed-note { border: 2px dashed color-mix(in srgb, var(--color-border) 40%, var(--color-bg)); padding: 10px 13px; font-family: var(--brand-font-body); font-size: 12.5px; color: var(--color-text-subtle); }
+
+/* Edition counter — minted / supply + remaining + fill track. The hero data
+   device of the edition (its identity is its number). Track fill stays MONO
+   (var(--color-text)) — the accent is reserved for the title/CTA seam only. */
+[data-brand="noesis"] .noesis-counter { display: flex; align-items: baseline; gap: 14px; }
+[data-brand="noesis"] .noesis-counter .n { font-family: var(--brand-font-display); font-weight: 800; font-size: 44px; letter-spacing: -0.02em; line-height: 1; }
+[data-brand="noesis"] .noesis-counter .of { font-family: var(--brand-font-mono); font-size: 14px; color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-counter .left { margin-left: auto; font-family: var(--brand-font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-muted); }
+[data-brand="noesis"] .noesis-counter + .track { height: 8px; border: 2px solid var(--color-border); position: relative; }
+[data-brand="noesis"] .noesis-counter + .track .fill { position: absolute; top: 0; bottom: 0; left: 0; background: var(--color-text); }

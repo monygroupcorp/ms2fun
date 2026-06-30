@@ -8,6 +8,9 @@ import { CreatorCollections } from '../components/CreatorCollections'
 import { MessageFeed } from '../components/MessageFeed'
 import { MessageComposer } from '../components/MessageComposer'
 import { useProfileMetadata } from '../components/useProfileMetadata'
+import { usePortfolio } from '../components/portfolio/usePortfolio'
+import { HeldPanel, VaultsPanel } from '../components/portfolio/PortfolioPanels'
+import { heldCount, fmtEth } from '../components/portfolio/portfolioFormat'
 import { TxButton } from '../components/ui/TxButton'
 import { useTxAction } from '../components/ui/useTxAction'
 import {
@@ -77,6 +80,11 @@ export function ProfilePage() {
 
   const isOwn = !!connected && !!target && connected.toLowerCase() === target.toLowerCase()
 
+  // Held / Vaults tabs read the target's portfolio (own or a visitor's — the aggregator is
+  // address-parameterized). The plate leads with the work, so Made is the default tab.
+  const portfolio = usePortfolio(target)
+  const [tab, setTab] = useState<'made' | 'held' | 'vaults'>('made')
+
   const [editing, setEditing] = useState(false)
 
   function handleSave(m: ProfileMetadata) {
@@ -88,7 +96,7 @@ export function ProfilePage() {
     setEditing(false)
   }
 
-  // No wallet and no param — prompt to connect
+  // No wallet and no param — the region-level connect gate (NOESIS .noesis-gate device).
   if (!target) {
     return (
       <div className={styles.page}>
@@ -97,8 +105,10 @@ export function ProfilePage() {
             ← ms2.fun
           </Link>
         </nav>
-        <h1 className={`${styles.title} text-chromatic-medium`}>PROFILE</h1>
-        <StateBlock variant="empty">connect your wallet to view your profile</StateBlock>
+        <div className={`noesis-gate ${styles.gate}`}>
+          <span className="big">Connect to see your plate</span>
+          <span className="cap">Your made work, your holdings, and your alignment standing.</span>
+        </div>
       </div>
     )
   }
@@ -112,11 +122,15 @@ export function ProfilePage() {
             ← ms2.fun
           </Link>
         </nav>
-        <h1 className={`${styles.title} text-chromatic-medium`}>PROFILE</h1>
         <StateBlock variant="empty">invalid address in URL</StateBlock>
       </div>
     )
   }
+
+  const claimable = portfolio.data?.[3] ?? 0n
+  const vaultCount = (portfolio.data?.[2] ?? []).filter(
+    (v) => v.contribution > 0n || v.shares > 0n || v.claimable > 0n,
+  ).length
 
   return (
     <div className={styles.page}>
@@ -125,41 +139,111 @@ export function ProfilePage() {
           ← ms2.fun
         </Link>
       </nav>
-      <h1 className={`${styles.title} text-chromatic-medium`}>PROFILE</h1>
 
-      {isPending && <StateBlock variant="loading">loading profile…</StateBlock>}
+      {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
       {isError && (
         <StateBlock variant="error">could not reach registry — is the fork up?</StateBlock>
       )}
 
       {/* Own profile, not yet set up: show setup CTA or the form front-and-centre */}
       {isOwn && !uri && !isPending && !isError && !editing && (
-        <div className={styles.setupCta}>
-          <p className={styles.setupPrompt}>You haven't set up your profile yet.</p>
-          <button className="btn btn-primary btn-chromatic" onClick={() => setEditing(true)}>
+        <StateBlock variant="empty" boxed>
+          <span className="big">You haven&rsquo;t hung anything</span>
+          <span className="cap">Set up your plate so collectors can find your work.</span>
+          <button className={styles.setupBtn} onClick={() => setEditing(true)}>
             Set up your profile
           </button>
-        </div>
+        </StateBlock>
       )}
 
       {isOwn && !uri && !isPending && !isError && editing && (
         <ProfileEditForm key="new" saving={isSaving} onSave={handleSave} />
       )}
 
-      {/* Profile view: visitors always; own only when already set up */}
+      {/* The plate: framed identity + a standing strip, then the tabbed galleries. */}
       {!isPending && !isError && (!isOwn || !!uri) && (
-        <ProfileView address={target} metadata={metadata} />
-      )}
-
-      {!isPending && !isError && (
-        <div data-testid="profile-collections">
-          <CreatorCollections creator={target} />
+        <div className={styles.plate}>
+          <ProfileView address={target} metadata={metadata} />
+          <div className="noesis-standing">
+            <div className="sr">
+              <span className="k">Works held</span>
+              <span className="v">{heldCount(portfolio.data)}</span>
+            </div>
+            <div className="sr">
+              <span className="k">Vault positions</span>
+              <span className="v">{vaultCount}</span>
+            </div>
+            <button
+              type="button"
+              className={`sr claim ${styles.claimRow}`}
+              onClick={() => setTab('vaults')}
+            >
+              <span className="k">Claimable →</span>
+              <span className="v">{fmtEth(claimable)} ETH</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {!isPending && !isError && <MessageFeed filter={{ sender: target }} />}
+      {!isPending && !isError && (
+        <>
+          <nav className="noesis-tabs">
+            <button
+              type="button"
+              className={`${styles.tab} ${tab === 'made' ? styles.tabOn : ''}`}
+              onClick={() => setTab('made')}
+            >
+              Made
+            </button>
+            <button
+              type="button"
+              className={`${styles.tab} ${tab === 'held' ? styles.tabOn : ''}`}
+              onClick={() => setTab('held')}
+            >
+              Held
+            </button>
+            <button
+              type="button"
+              className={`${styles.tab} ${tab === 'vaults' ? styles.tabOn : ''}`}
+              onClick={() => setTab('vaults')}
+            >
+              Vaults
+            </button>
+          </nav>
 
-      {isOwn && !isPending && !isError && <MessageComposer channel={target} />}
+          <div className={styles.tabBody}>
+            {tab === 'made' && (
+              <div data-testid="profile-collections">
+                <CreatorCollections creator={target} />
+              </div>
+            )}
+            {tab === 'held' && (
+              <HeldPanel
+                data={portfolio.data}
+                isPending={portfolio.isPending}
+                isError={portfolio.isError}
+                truncated={portfolio.truncated}
+              />
+            )}
+            {tab === 'vaults' && (
+              <VaultsPanel
+                data={portfolio.data}
+                isPending={portfolio.isPending}
+                isError={portfolio.isError}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {/* The wall — a comment section beneath the work (reuses the salon devices). */}
+      {!isPending && !isError && (
+        <section className={styles.wall}>
+          <h2 className={styles.wallHead}>The wall</h2>
+          {isOwn && <MessageComposer channel={target} />}
+          <MessageFeed filter={{ sender: target }} />
+        </section>
+      )}
 
       {/* Edit bar: only when the profile is already set up */}
       {isOwn && !!uri && !isPending && !isError && (

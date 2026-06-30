@@ -7,134 +7,227 @@
 }
 
 .back {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--text-primary);
+  color: var(--color-text);
+}
+
+/* The gallery hang — specimen rail (the disclosure) | works (the goods). Pure mono shell; colour
+   lives only inside the works. */
+.shell {
+  display: grid;
+  grid-template-columns: 25rem minmax(0, 1fr);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  margin-bottom: var(--space-8);
+}
+
+.specimen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-right: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.kicker {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .title {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
-  text-transform: uppercase;
   letter-spacing: var(--letter-spacing-tight);
-  margin-bottom: var(--space-6);
+  line-height: 1;
+  margin: 0;
 }
 
-.banner {
-  width: 100%;
-  max-height: 320px;
-  object-fit: cover;
+.by {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.byLink {
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.byLink:hover {
+  color: var(--color-text);
+}
+
+.desc {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* Mint-state readout — price (display) + supply count + meter. Pairs with the device meter. */
+.mintstate {
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.mintTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+.price {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+}
+
+.count {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  text-align: right;
+}
+
+.count small {
   display: block;
-  border: 1px solid var(--border-secondary);
-  margin-bottom: var(--space-6);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
 }
 
-.imageGlyph {
-  width: 120px;
-  height: 120px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-secondary);
+.meter {
+  height: 7px;
+  background: var(--color-surface-2);
+  border-top: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.meter > i {
+  display: block;
+  height: 100%;
+  background: var(--color-text);
+}
+
+.alignment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.alignHead {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.who {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+/* Facts — pinned to the rail bottom, the onchain record stated flat. */
+.facts {
+  margin: auto 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fact {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--gap-md);
+  padding: var(--space-2) 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 14%, transparent);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.fact dt {
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.fact dd {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+/* Works column — the wall (surface tint); the type component renders the actual works + mint. */
+.works {
+  min-width: 0;
+  background: var(--color-surface);
+  padding: var(--space-6);
+}
+
+.ghead {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.cover {
+  aspect-ratio: 16 / 9;
+  margin-bottom: var(--space-6);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-mono);
+  background: var(--color-surface-2);
+}
+
+.cover .coverGlyph {
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-6);
+  color: var(--color-text-subtle);
 }
 
-.description {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  line-height: var(--line-height-normal);
-  margin-bottom: var(--space-6);
+.cover :global(.noesis-art) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.stats {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-bottom: var(--space-6);
-  padding: var(--space-4);
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-}
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
 
-.statRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-tertiary);
-}
+  .specimen {
+    border-right: 0;
+    border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+  }
 
-.statRow:first-child {
-  border-top: none;
-  padding-top: 0;
-}
-
-.statLabel {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  font-size: var(--font-size-caption);
-}
-
-.statValue {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-bold);
-}
-
-.creatorSection {
-  margin-bottom: var(--space-6);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-}
-
-.creatorLabel {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  font-size: var(--font-size-caption);
-}
-
-.creatorLink {
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-}
-
-.creatorLink:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
-}
-
-.editions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap-md);
-  padding-top: var(--padding-md);
-  border-top: 1px solid var(--border-secondary);
-}
-
-.editionsTitle {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  margin: 0;
+  .facts {
+    margin-top: var(--space-4);
+  }
 }

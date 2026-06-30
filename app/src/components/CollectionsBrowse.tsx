@@ -1,6 +1,7 @@
 import { useReadQueryAggregatorGetHomePageData } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { CollectionCard } from './CollectionCard'
+import { StateBlock } from './ui/StateBlock'
 import styles from './CollectionsBrowse.module.css'
 
 /**
@@ -17,16 +18,17 @@ export function CollectionsBrowse() {
     args: [0n, 24n],
   })
 
-  if (isPending) return <p className={styles.note}>loading collections…</p>
-  if (isError) return <p className={styles.note}>discovery unreachable — is the fork up?</p>
+  if (isPending) return <StateBlock variant="loading">hanging the work…</StateBlock>
+  if (isError)
+    return <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>
 
   const [cards] = data
   if (cards.length === 0) {
     return (
-      <p className={styles.note} data-testid="collections-empty">
-        nothing featured yet — featured placements appear here (full browse needs the indexed domain
+      <StateBlock variant="empty" boxed testId="collections-empty">
+        this wall is empty — featured placements appear here (full browse needs the indexed domain
         layer, Phase 2/3).
-      </p>
+      </StateBlock>
     )
   }
 

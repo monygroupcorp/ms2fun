@@ -19,11 +19,20 @@ export type HomePageCard = ContractFunctionReturnType<
   'getProjectCardsBatch'
 >[number]
 
+/**
+ * The NOESIS collection card — one component at two grid scales (the registry list row is the
+ * same data in a different device, owned by the browse list-toggle). `lead` is the Home/featured
+ * hero size; the default is the browse contact-sheet tile. Visual layer is the `.noesis-card`
+ * device (vendored signature.css): art fills, a top-left status chip, and a bottom name·creator·
+ * price plate — the three corner data points, never more. The art is the collection's own
+ * `metadata.image` (`resolveUri`), with a mono glyph fallback. Routing/reads are unchanged.
+ */
 interface CollectionCardProps {
   card: HomePageCard
+  variant?: 'card' | 'lead'
 }
 
-export function CollectionCard({ card }: CollectionCardProps) {
+export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) {
   const metadata = useCollectionMetadata(card.metadataURI)
   const [imgError, setImgError] = useState(false)
 
@@ -31,47 +40,32 @@ export function CollectionCard({ card }: CollectionCardProps) {
   const fallbackGlyph = card.name.slice(0, 1).toUpperCase() || '✦'
 
   return (
-    <article className={styles.card}>
-      <Link href={`/collection/${card.instance}`} className={styles.cardLink}>
-        <div className={styles.cardImage}>
-          {metadata?.image && !imgError ? (
-            <img
-              src={resolveUri(metadata.image)}
-              alt={title}
-              className={styles.cardImg}
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            fallbackGlyph
-          )}
-        </div>
-        <div className={styles.cardContent}>
-          <div className={styles.cardHead}>
-            <h3 className={styles.cardTitle}>{title}</h3>
-            <span className="badge">{card.contractType}</span>
-          </div>
-          {metadata?.description && (
-            <p className={styles.cardDescription}>{metadata.description}</p>
-          )}
-          <div className={styles.cardStats}>
-            <span className={styles.statSecondary}>price</span>
-            <span className={styles.statMono}>{formatGwei(card.currentPrice)} gwei</span>
-          </div>
-          <div className={styles.cardStats}>
-            <span className={styles.statSecondary}>supply</span>
-            <span className={styles.statMono}>{card.totalSupply.toString()}</span>
-          </div>
-          <span className={`badge ${card.isActive ? 'badge-solid' : ''} ${styles.state}`}>
-            {card.isActive ? 'active' : 'inactive'}
+    <Link
+      href={`/collection/${card.instance}`}
+      className={variant === 'lead' ? 'noesis-card lead' : 'noesis-card'}
+    >
+      <div className={`art ${styles.art}`}>
+        {metadata?.image && !imgError ? (
+          <img
+            src={resolveUri(metadata.image)}
+            alt={title}
+            className={styles.artImg}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <span className={styles.artFallback} aria-hidden>
+            {fallbackGlyph}
           </span>
-        </div>
-      </Link>
-      <div className={styles.cardCreator}>
-        <span className={styles.statSecondary}>by</span>{' '}
-        <Link href={`/profile/${card.creator}`} className={styles.creatorLink}>
-          {truncateAddress(card.creator)}
-        </Link>
+        )}
+        <span className="st">{card.isActive ? 'Live' : 'Ended'}</span>
       </div>
-    </article>
+      <div className="lab">
+        <div className={styles.labMain}>
+          <span className="nm">{title}</span>
+          <span className="by">by {truncateAddress(card.creator)}</span>
+        </div>
+        <span className="px">{formatGwei(card.currentPrice)} gwei</span>
+      </div>
+    </Link>
   )
 }

@@ -1,46 +1,13 @@
-.bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0;
-  border: 1px solid var(--border-secondary);
-  margin: 0 0 var(--space-8);
-}
+/* The bar's LOOK is the `.noesis-stats` device (vendored signature.css). Only the pending tint
+   (the slower full-registry scan hasn't filled its value yet) is consumer-owned. `dd`/`dt` ship
+   with browser default margins — zero them so the device's spacing reads true. The device sets
+   no colour on `.v`, so this low-specificity tint wins cleanly when pending. */
 
-.stat {
-  flex: 1 1 0;
-  min-width: 8rem;
-  padding: var(--space-3) var(--space-4);
-  border-right: 1px solid var(--border-secondary);
-}
-
-.stat:last-child {
-  border-right: none;
-}
-
-.label {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-caption);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-1);
-}
-
-.value {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-h3);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
+:global(.noesis-stats) dd,
+:global(.noesis-stats) dt {
   margin: 0;
 }
 
 .pending {
-  color: var(--text-tertiary);
-}
-
-@media (max-width: 640px) {
-  .stat {
-    flex-basis: 50%;
-    border-bottom: 1px solid var(--border-secondary);
-  }
+  color: var(--color-text-subtle);
 }

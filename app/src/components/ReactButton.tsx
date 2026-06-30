@@ -46,20 +46,19 @@ export function ReactButton({
     })
   }
 
-  const label = tx.isBusy ? '…' : '👍'
-
+  // Endorsement, not emoji — the one dignified reaction, rendered as the mono "▪ endorsed · N"
+  // mark (the ▪ comes from the .noesis-endorse device). The brand forbids emoji reactions.
   return (
     <button
       type="button"
-      className={styles.reactBtn}
+      className={`${styles.reactBtn} noesis-endorse`}
       onClick={react}
       disabled={disabled}
       data-testid="board-react"
       aria-pressed={reactedByMe}
-      title={reactedByMe ? 'you reacted' : 'react'}
+      title={reactedByMe ? 'you endorsed this' : 'endorse'}
     >
-      <span aria-hidden>{label}</span>
-      <span className={styles.reactCount}>{count}</span>
+      {tx.isBusy ? 'endorsing…' : <>endorsed · <span className={styles.reactCount}>{count}</span></>}
     </button>
   )
 }

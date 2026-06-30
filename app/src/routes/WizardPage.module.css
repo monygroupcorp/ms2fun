@@ -4,23 +4,33 @@
 }
 
 .crumb {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
 }
 
 .back {
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 .back:hover {
-  color: var(--text-primary);
+  color: var(--color-text);
+}
+
+.kicker {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .title {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-display);
   font-size: var(--font-size-h1);
   font-weight: var(--font-weight-bold);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1;
   margin: 0;
 }
 
@@ -28,16 +38,16 @@
   display: flex;
   flex-direction: column;
   gap: var(--gap-md);
-  padding-top: var(--padding-md);
-  border-top: 1px solid var(--border-secondary);
+  padding-top: var(--space-5);
+  border-top: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
 .sectionTitle {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
+  letter-spacing: 0.12em;
+  color: var(--color-text-muted);
   margin: 0;
 }
 
@@ -45,21 +55,21 @@
 .moduleConfig {
   margin-top: var(--space-4);
   padding-top: var(--space-4);
-  border-top: 1px solid var(--border-secondary);
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 20%, transparent);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
 .error {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
-  color: var(--text-primary);
-  border-left: 2px solid var(--text-primary);
-  padding-left: var(--padding-sm);
+  color: var(--color-text);
+  border-left: var(--border-width-thick, 2px) solid var(--color-text);
+  padding-left: var(--space-3);
 }
 
-/* Project type + vault cards share the selectable-card pattern */
+/* Project type + vault cards — NOESIS selectable cards: 2px mono frame, selected = inverted ink. */
 .typeRow,
 .vaultRow {
   display: grid;
@@ -73,35 +83,76 @@
   flex-direction: column;
   gap: var(--gap-xs);
   text-align: left;
-  padding: var(--padding-md);
+  padding: var(--space-4);
   background: transparent;
-  border: 1px solid var(--border-secondary);
-  color: var(--text-primary);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  color: var(--color-text);
   cursor: pointer;
   font: inherit;
 }
 .typeCard:hover,
 .vaultCard:hover {
-  border-color: var(--text-primary);
+  background: var(--color-surface);
 }
 
 .typeSelected,
-.vaultSelected {
-  border-color: var(--text-primary);
-  border-left-width: 4px;
+.typeSelected:hover,
+.vaultSelected,
+.vaultSelected:hover {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: var(--color-text);
 }
 
 .typeName,
 .vaultName {
-  font-weight: 600;
+  font-family: var(--brand-font-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-h4);
 }
 
 .typeSummary,
 .vaultMeta {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   line-height: var(--line-height-relaxed);
+}
+
+/* Selected card flips to ink — keep the muted sub-text legible on the dark fill. */
+.typeSelected .typeSummary,
+.vaultSelected .vaultMeta {
+  color: color-mix(in srgb, var(--color-bg) 75%, var(--color-text));
+}
+
+.bind {
+  margin-top: var(--space-2);
+}
+
+.bindNote {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.launchBtn {
+  align-self: flex-start;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-bg);
+  background: var(--color-text);
+  border: 0;
+  padding: var(--space-4) var(--space-6);
+  cursor: pointer;
+}
+
+.launchBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .connect {

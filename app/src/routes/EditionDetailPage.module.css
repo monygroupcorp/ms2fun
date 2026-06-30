@@ -1,10 +1,9 @@
-/* EditionDetailPage — standalone ERC1155 "drop" page.
+/* EditionDetailPage — the NOESIS "edition plate" (the token placard's sibling).
  *
- * Metadata-driven theming: the page container may receive two custom properties from inline
- * styles (see editionTheme.ts) — `--edition-accent` and `--edition-bg`. Every consumer reads
- * them through `var(--edition-accent, <monochrome default>)`, so an edition with no theme keeps
- * the pure Gallery Brutalism look, and a themed edition recolors exactly one seam (title
- * underline + mint border) and tints the stats panel. Single accent only; no gradients/shadows. */
+ * Theme seam: the page root may receive `--edition-accent` / `--edition-bg` from inline styles
+ * (editionTheme.ts). The `.noesis-edition` device consumes the SAME prop names — the accent
+ * recolors ONE seam (the .ed-title underline) and `--edition-bg` tints the .ed-stats panel; the
+ * counter track stays mono. Absent/invalid theme → mono fallback via the device defaults. */
 
 .page {
   composes: pageStack from '../styles/layout.module.css';
@@ -18,17 +17,67 @@
 }
 
 .back {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
+  color: var(--color-text);
+}
+
+/* Two columns: framed work | label column (counter + stats + mint). Stacks on mobile, work first. */
+.plate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24rem;
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.framewrap {
+  min-width: 0;
+}
+
+.frame {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--color-bg);
+}
+
+.artInner {
+  position: absolute;
+  inset: 20px;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+
+.art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.artGlyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-display);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-subtle);
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .header {
@@ -39,106 +88,55 @@
   flex-wrap: wrap;
 }
 
+/* The .ed-title device owns the accent underline; this sizes it. */
 .title {
-  font-family: var(--font-primary);
   font-size: var(--font-size-h1);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-tight);
-  line-height: var(--line-height-tight);
   margin: 0;
-  padding-bottom: var(--space-2);
-  /* Accent seam #1: the title underline. */
-  border-bottom: 2px solid var(--edition-accent, var(--border-primary));
+  min-width: 0;
 }
 
 .share {
-  font-family: var(--font-mono);
+  font-family: var(--brand-font-mono);
   font-size: var(--font-size-caption);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
+  color: var(--color-text-muted);
   background: transparent;
-  border: 1px solid var(--border-secondary);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
   padding: var(--space-1) var(--space-2);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .share:hover {
-  color: var(--text-primary);
-  border-color: var(--edition-accent, var(--border-primary));
-}
-
-.hero {
-  width: 100%;
-  max-height: 480px;
-  object-fit: cover;
-  display: block;
-  border: 1px solid var(--border-secondary);
-}
-
-.heroGlyph {
-  width: 100%;
-  height: 280px;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-tertiary);
+  color: var(--color-text);
+  border-color: var(--edition-accent, var(--color-border));
 }
 
 .description {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  line-height: var(--line-height-normal);
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
   margin: 0;
   max-width: 60ch;
 }
 
-.stats {
+.counterWrap {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  /* Tinted by `--edition-bg` when themed; default elevated surface otherwise. */
-  background-color: var(--edition-bg, var(--bg-secondary));
-  border: 1px solid var(--border-secondary);
-}
-
-.statRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border-tertiary);
-}
-
-.statRow:first-child {
-  border-top: none;
-  padding-top: 0;
-}
-
-.statLabel {
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-  font-size: var(--font-size-caption);
-}
-
-.statValue {
-  color: var(--text-primary);
-  font-weight: var(--font-weight-bold);
 }
 
 .mint {
-  /* Accent seam #2: the mint call-to-action border. */
-  border: 1px solid var(--edition-accent, var(--border-primary));
+  /* Accent seam reappears on the mint frame (the device sets the CTA accent inside). */
+  border: var(--border-width-thick, 2px) solid var(--edition-accent, var(--color-border));
   padding: var(--space-4);
+}
+
+@media (max-width: 960px) {
+  .plate {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
 }
