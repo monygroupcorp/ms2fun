@@ -1,8 +1,9 @@
 # Project Status — resume here
 
-**As of 2026-06-24.** Single pickup point for the ms2.fun rebuild. The detailed interface map is
+**As of 2026-06-30.** Single pickup point for the ms2.fun rebuild. The detailed interface map is
 `contract-surface-coverage.md`; the methodology/plan is `attack-plan.md`. Everything below is on
-**`main`**, gate-green (330 frontend tests; `forge build` clean).
+**`main`**, gate-green (347 frontend tests; `forge build` clean; 1162 forge tests green).
+**Security audit closed out 2026-06-30 — see the audit section below.**
 
 ---
 
@@ -98,6 +99,40 @@ into the contract-surface reframe — so it's an unscheduled gap, NOT optional p
 - Benefits from Mony's eye (visual judgment). Likely a fan-out: review surfaces → list inconsistencies
   → fix → sign-off.
 - **Distinct from the "style renderer" backlog item** (creator-supplied per-page `styleUri` CSS).
+
+## ► Security audit — CLOSED OUT (2026-06-30)
+Full `sc-auditor` (Map-Hunt-Attack) pass over `contracts/src`. Report: `.sc-auditor-work/REPORT.md`;
+PoCs in `.sc-auditor-work/pocs/` (a PoC that PASSES = the attack succeeds). Every fix shipped with a
+regression test **verified to fail under the pre-fix code**. All on **`main`** (FF'd from
+`feat/metadata-resolver-modules`), `forge test` green (1162). Verify: `forge test --match-path "test/security/*"`.
+
+| # | Severity | Status |
+|---|---|---|
+| **F1** | CRITICAL | FIXED — Uni `_payCallerReward` tx.gasprice drain removed wholesale (`2724079`) |
+| **F2** | HIGH | FIXED — ERC721 settle-brick: `_mint` + try/catch + pendingVaultCut (`2724079`) |
+| **F3** | HIGH | **RISK-ACCEPTED** by owner — free-mint = dilutive-by-design, bounded by allocation+allowlist. Follow-up #40 below. |
+| **F4** | HIGH | FIXED — Uni watermark dilution → MasterChef `accFeesPerShare`/rewardDebt (`2724079`) |
+| **F5** | HIGH | FIXED — ZAMM oracle floor wired through init/factory/DeployCore (`2724079`) |
+| **F6** | MED | FIXED — CREATE3 sender-bound salt across all factories (`2724079`) |
+| **F7** | MED | FIXED — Uni convert minOut oracle floor `_floorTokenOut` (`2724079`) |
+
+**#36 lower-severity triage** (4 parallel auditor lanes; nothing REAL-EXPLOITABLE):
+- **Tier-1** FIXED (`870f7dc`): Cypher harvest oracle floor; `claimAllFees` Aave-vault try/catch + `nonReentrant`; `sellBonding` cap `>=`→`>`; real `withdrawDust`.
+- **Tier-2** (design-level) all FIXED:
+  - ZAMM IL-as-fees mislabel → constant-product invariant fee detection (`f11f5dd`)
+  - V4-hook router-stranding/misattribution → credit a fixed benefactor, not swap `sender` (`91fbd3d`)
+  - Aave shared-position first-mover bank-run → pro-rata loss socialization on impairment (`f146a7c`)
+- **Tier-3** LOW/NOT-A-BUG: no action (trusted-token returns, owner-keyed V4 salt, etc. — see REPORT §6).
+
+**D1 (#37)** — least-privilege hardening: config/seal modules now use factory-**of**-instance auth
+(`getInstanceInfo(inst).factory == msg.sender`). Gating-module portion committed (`4da4b66`); the 3
+metadata modules (TierReveal/ResolverRouter/Overlay) are hardened in-place and land with the metadata feature.
+
+**#40 (F3 follow-up)** — bonding fee moved to **exit-only** (`c57ce30`): buys are fee-free; `sellBonding`
+skims `bondingFeeBps` → treasury; graduation 1/19/80 split unchanged. Monetizes curve exits incl. free-mint
+redemptions without taxing entrants.
+
+Tracking detail + the stash-pop/hunk-staging gotchas live in the `audit-status` memory.
 
 ## Not yet verified / open
 - **Fork-verify Phase 2 + Phase 3 end-to-end** — on main + gate-green but not fully walked (portfolio
