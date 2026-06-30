@@ -58,6 +58,8 @@ error PurchaseTooSmall();
 error OnlyFactory();
 error NotInitialized();
 error MetadataAlreadySet();
+error NothingToWithdraw();
+error WithdrawFailed();
 
 /**
  * @title ERC404BondingInstance
@@ -341,16 +343,34 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     }
 
     // slither-disable-next-line calls-loop,unused-return
-    function claimAllFees() external onlyOwner {
+    function claimAllFees() external onlyOwner nonReentrant {
         uint256 before = address(this).balance;
         address[] memory allVaults = masterRegistry.getInstanceVaults(address(this));
         for (uint256 i = 0; i < allVaults.length; i++) {
-            IAlignmentVault(payable(allVaults[i])).claimFees();
+            // Some vaults (e.g. AlignmentEndowmentVault) intentionally revert NotSupported() on
+            // claimFees() — they have no pull-claim model. Skip those silently so one such vault
+            // can't brick fee delivery for the whole instance; the balance-delta below still
+            // credits whatever the supporting vaults DID push.
+            try IAlignmentVault(payable(allVaults[i])).claimFees() {} catch {}
         }
         if (stakingActive) {
             uint256 delta = address(this).balance - before;
             if (delta > 0) stakingModule.recordFeesReceived(delta);
         }
+    }
+
+    /// @notice Recover ETH held by the instance that is NOT part of the bonding `reserve`.
+    /// @dev Surplus ETH can accumulate here — e.g. staking fees pushed by a vault while
+    ///      totalStaked == 0 (the staking module can't distribute them, so they sit in the
+    ///      instance balance). Only the balance ABOVE the tracked `reserve` is withdrawable;
+    ///      `reserve` is never touched because it backs sellBonding refunds.
+    function withdrawDust() external onlyOwner nonReentrant {
+        uint256 bal = address(this).balance;
+        // Guard against underflow: never withdraw if balance is at/below tracked reserve.
+        if (bal <= reserve) revert NothingToWithdraw();
+        uint256 surplus = bal - reserve;
+        (bool ok, ) = payable(owner()).call{value: surplus}("");
+        if (!ok) revert WithdrawFailed();
     }
 
     // ┌─────────────────────────┐
@@ -458,8 +478,13 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         if (!bondingActive) revert BondingNotActive();
         if (graduated) revert BondingEnded();
 
+        // A sell only DECREASES supply, so the bonding cap is not a sell constraint: a holder who
+        // bought exactly to the cap must still be able to sell back down the curve before graduation.
+        // The "no trading after graduation" concern is already covered by the `graduated` check above.
+        // Use strict `>` (never true in practice, since buys cap supply AT maxBondingSupply) so reaching
+        // the cap exactly does not strand sellers.
         uint256 maxBondingSupply = maxSupply - liquidityReserve - (freeMintAllocation * unit);
-        if (totalBondingSupply >= maxBondingSupply) revert ExceedsBonding();
+        if (totalBondingSupply > maxBondingSupply) revert ExceedsBonding();
 
         uint256 balance = balanceOf(msg.sender);
         if (balance < amount) revert InsufficientBalance();

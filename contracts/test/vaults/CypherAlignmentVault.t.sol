@@ -6,6 +6,7 @@ import {LibClone} from "solady/utils/LibClone.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockAlgebraPositionManager, MockAlgebraSwapRouter} from "../mocks/MockCypherAlgebra.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
+import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
 import {TestableCypherAlignmentVault} from "../helpers/TestableCypherAlignmentVault.sol";
 import {CypherAlignmentVault} from "../../src/vaults/cypher/CypherAlignmentVault.sol";
 import {Currency} from "v4-core/types/Currency.sol";
@@ -39,7 +40,8 @@ contract CypherAlignmentVaultTest is Test {
             address(weth),
             address(alignmentToken),
             protocolTreasury,
-            liquidityDeployer
+            liquidityDeployer,
+            address(0) // priceValidator inert by default; floor test wires one explicitly
         );
     }
 
@@ -85,7 +87,7 @@ contract CypherAlignmentVaultTest is Test {
         vm.expectRevert();
         vault.initialize(
             address(positionManager), address(swapRouter), address(weth),
-            address(alignmentToken), protocolTreasury, liquidityDeployer
+            address(alignmentToken), protocolTreasury, liquidityDeployer, address(0)
         );
     }
 
@@ -261,6 +263,72 @@ contract CypherAlignmentVaultTest is Test {
         vault.harvest(0);
 
         assertGt(vault.accRewardPerContribution(), accAfterFirst);
+    }
+
+    // ── harvest oracle-floor (sandwich) regression ───────────────────────
+    // Mirrors ZAMM's F5 floor tests: with a price validator wired, a permissionless caller
+    // passing minAmountOut=0 cannot push a degraded (sandwiched) token->WETH swap through.
+
+    /// @dev Wire a TWAP oracle (1 token == 1 ETH) and stage `alignmentFees` token0 fees on the LP.
+    function _wireValidatorAndStageFees(uint256 alignmentFees) internal returns (MockVaultPriceValidator val) {
+        vm.prank(liquidityDeployer);
+        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
+        vault.setPositionForTest(1, makeAddr("pool"), true);
+
+        // alignment = token0; stage `alignmentFees` collectable fees on the position manager.
+        positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
+        alignmentToken.mint(address(positionManager), alignmentFees);
+        positionManager.setFees(1, alignmentFees, 0);
+
+        // TWAP says 1e18 tokens == 1 ETH → floor (5% dev) = 0.95 WETH per token.
+        val = new MockVaultPriceValidator();
+        val.setEthPer1e18Tokens(1e18);
+        vault.setPriceValidator(address(val)); // test contract is the vault owner
+    }
+
+    function test_HarvestFloorBlocksSandwich() public {
+        _wireValidatorAndStageFees(1e18);
+
+        // Sandwiched pool: the swap only yields 0.5 WETH per token — below the 0.95 oracle floor.
+        swapRouter.setRate(address(alignmentToken), address(weth), 0.5e18);
+        weth.mint(address(swapRouter), 0.5e18);
+
+        // Caller passes minAmountOut = 0, but the oracle floor is enforced and the swap reverts.
+        vm.expectRevert(bytes("Slippage"));
+        vault.harvest(0);
+    }
+
+    function test_HarvestFloorAllowsHonestSwap() public {
+        vm.deal(address(this), 1 ether);
+        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, bob);
+        _wireValidatorAndStageFees(1e18);
+
+        // Honest pool: swap yields ~1 WETH per token (rate 1.0), above the 0.95 floor → succeeds.
+        swapRouter.setRate(address(alignmentToken), address(weth), 1e18);
+        weth.mint(address(swapRouter), 1e18);
+        vm.deal(address(weth), 1e18);
+
+        uint256 feesETH = vault.harvest(0);
+        assertGt(feesETH, 0, "honest harvest should clear the floor");
+        assertGt(vault.accRewardPerContribution(), 0);
+    }
+
+    function test_HarvestNoFloorWhenValidatorUnset() public {
+        // No validator wired (default address(0)) → caller minimums govern, swap is not floored.
+        vm.prank(liquidityDeployer);
+        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
+        vault.setPositionForTest(1, makeAddr("pool"), true);
+        positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
+        alignmentToken.mint(address(positionManager), 1e18);
+        positionManager.setFees(1, 1e18, 0);
+
+        // Degraded rate, but with no oracle floor the swap clears (caller minAmountOut = 0).
+        swapRouter.setRate(address(alignmentToken), address(weth), 0.5e18);
+        weth.mint(address(swapRouter), 0.5e18);
+        vm.deal(address(weth), 0.5e18);
+
+        uint256 feesETH = vault.harvest(0);
+        assertGt(feesETH, 0, "unfloored harvest should succeed");
     }
 
     // ── claimFees tests ───────────────────────────────────────────────────
