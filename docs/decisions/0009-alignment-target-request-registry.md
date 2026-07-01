@@ -33,11 +33,16 @@ Locked sub-decisions (from the task's O1–O4):
   **forfeited to the protocol treasury on a spam-reject** (`rejectRequest(id, forfeit=true)`), with a
   plain **reject-and-refund** (`forfeit=false`) for good-faith-but-declined proposals. Second line of
   defense: a bounded pending list (`maxPending`) + permissionless `pruneExpired` past `requestTTL`.
-- **D7 — Two admin txs (v1).** `approveRequest(id)` (refunds the deposit, delists) and
-  `registerAlignmentTarget(...)` (prefilled from the request in the admin UI) are **separate**
-  transactions. This keeps the core registry untouched. A one-tx path (a narrow `authorizedRegistrar`
-  role on `AlignmentRegistryV1` so approval registers directly) is a **v2** upgrade, deliberately out of
-  scope — it would touch the Safe/Timelock contract.
+- **D7 — Two admin txs (v1), order enforced on-chain.** `approveRequest(id)` (refunds the deposit,
+  delists) and `registerAlignmentTarget(...)` (prefilled from the request in the admin UI) are
+  **separate** transactions. This keeps the core registry untouched. To make the split safe,
+  **`approveRequest` reverts (`TargetNotRegistered`) unless the request's token is now in an active
+  target** — so an admin can't refund + delist a request without having registered it (a "register THEN
+  approve" invariant, not just UI label ordering). Reject has no such requirement (declining ≠
+  registering). Submit correspondingly requires the primary token to be among the proposed assets, so
+  registering makes it active. A one-tx path (a narrow `authorizedRegistrar` role on
+  `AlignmentRegistryV1` so approval registers directly) is a **v2** upgrade, deliberately out of scope —
+  it would touch the Safe/Timelock contract.
 - **D8 — Minimal browse surface.** A public request form + a requester "my requests" status view + the
   `/admin` pending list. **No** full public targets/requests directory in v1 (targets are surfaced only
   indirectly via vaults today; a directory is deferred to backlog).
