@@ -16,6 +16,7 @@ export default defineConfig({
       include: [
         'MasterRegistryV1.sol/**',
         'AlignmentRegistryV1.sol/**',
+        'AlignmentTargetRequestRegistry.sol/**',
         'GlobalMessageRegistry.sol/**',
         'ComponentRegistry.sol/**',
         'ProfileRegistry.sol/**',

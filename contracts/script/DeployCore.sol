@@ -7,6 +7,7 @@ import {MasterRegistry} from "../src/master/MasterRegistry.sol";
 import {AlignmentRegistryV1} from "../src/master/AlignmentRegistryV1.sol";
 import {IAlignmentRegistry} from "../src/master/interfaces/IAlignmentRegistry.sol";
 import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
+import {AlignmentTargetRequestRegistry} from "../src/master/AlignmentTargetRequestRegistry.sol";
 import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ComponentRegistry} from "../src/registry/ComponentRegistry.sol";
 import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
@@ -123,6 +124,7 @@ contract DeployCore is Script {
     GlobalMessageRegistry public globalMessageRegistryImpl;
     AlignmentRegistryV1 public alignmentRegistry;
     AlignmentRegistryV1 public alignmentRegistryImpl;
+    AlignmentTargetRequestRegistry public targetRequestRegistry;
     ComponentRegistry public componentRegistry;
     ComponentRegistry public componentRegistryImpl;
     ProfileRegistry public profileRegistry;
@@ -220,6 +222,16 @@ contract DeployCore is Script {
 
         // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
         profileRegistry = new ProfileRegistry();
+
+        // Alignment-target request intake (docs/phases/alignment-target-requests.md) — standalone,
+        // Ownable, escrows a refundable deposit while Pending. Owner = deployer (handed to ADMIN via
+        // the 2-step handover in deploy.ts). Defaults are owner-tunable post-deploy.
+        targetRequestRegistry = new AlignmentTargetRequestRegistry(
+            deployer, IAlignmentRegistry(address(alignmentRegistry)), address(treasury),
+            0.05 ether, // requestDeposit
+            50,         // maxPending
+            30 days     // requestTTL
+        );
 
         // ── Phase 2: Safe ────────────────────────────────────────────────────
 
@@ -521,6 +533,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "AlignmentRegistry",          address(alignmentRegistry));
         vm.serializeAddress(c, "ComponentRegistry",          address(componentRegistry));
         vm.serializeAddress(c, "ProfileRegistry",            address(profileRegistry));
+        vm.serializeAddress(c, "AlignmentTargetRequestRegistry", address(targetRequestRegistry));
         vm.serializeAddress(c, "QueryAggregator",            address(queryAggregator));
         vm.serializeAddress(c, "zRouter",                    address(zrouter));
         vm.serializeAddress(c, "LaunchManager",              address(launchManager));
