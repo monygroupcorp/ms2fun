@@ -1398,7 +1398,9 @@ export const alignmentTargetRequestRegistryAbi = [
   { type: 'error', inputs: [], name: 'NotPending' },
   { type: 'error', inputs: [], name: 'QueueFull' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'TargetNotRegistered' },
   { type: 'error', inputs: [], name: 'TokenAlreadyActive' },
+  { type: 'error', inputs: [], name: 'TokenNotInAssets' },
   { type: 'error', inputs: [], name: 'TransferFailed' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const

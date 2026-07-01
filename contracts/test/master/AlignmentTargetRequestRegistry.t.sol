@@ -39,6 +39,13 @@ contract AlignmentTargetRequestRegistryTest is Test {
         id = reg.submitRequest{value: DEPOSIT}(tok, "Cult DAO", "desc", "ipfs://x", a);
     }
 
+    /// @dev Simulate the admin having registered a target for `tok` (the register step of the two-tx
+    ///      approve flow) so `approveRequest` sees the token as active.
+    function _register(address tok, uint256 targetId) internal {
+        registry.pushTokenTarget(tok, targetId);
+        registry.setTargetActive(targetId, true);
+    }
+
     // ── Submit ────────────────────────────────────────────────────────────────
 
     function test_submit_storesPendingRequest() public {
@@ -82,6 +89,15 @@ contract AlignmentTargetRequestRegistryTest is Test {
         reg.submitRequest{value: DEPOSIT}(address(0), "t", "d", "u", a);
     }
 
+    function test_submit_revertsWhenPrimaryTokenNotInAssets() public {
+        // assets list exists but none of its tokens is the primary token.
+        IAlignmentRegistry.AlignmentAsset[] memory a = new IAlignmentRegistry.AlignmentAsset[](1);
+        a[0] = IAlignmentRegistry.AlignmentAsset({token: makeAddr("other"), symbol: "OTH", info: "", metadataURI: ""});
+        vm.prank(alice);
+        vm.expectRevert(AlignmentTargetRequestRegistry.TokenNotInAssets.selector);
+        reg.submitRequest{value: DEPOSIT}(token, "t", "d", "u", a);
+    }
+
     function test_submit_revertsWhenQueueFull() public {
         _submit(alice, makeAddr("t1"));
         _submit(alice, makeAddr("t2"));
@@ -114,6 +130,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
 
     function test_approve_refundsAndDelists() public {
         uint256 id = _submit(alice, token);
+        _register(token, 99); // admin registered the target (register step) → approve is now allowed
         uint256 balBefore = alice.balance;
 
         vm.prank(owner);
@@ -136,11 +153,22 @@ contract AlignmentTargetRequestRegistryTest is Test {
 
     function test_approve_revertsIfNotPending() public {
         uint256 id = _submit(alice, token);
+        _register(token, 99);
         vm.startPrank(owner);
         reg.approveRequest(id);
         vm.expectRevert(AlignmentTargetRequestRegistry.NotPending.selector);
         reg.approveRequest(id);
         vm.stopPrank();
+    }
+
+    function test_approve_revertsIfTargetNotRegistered() public {
+        uint256 id = _submit(alice, token);
+        // No register step → the target doesn't exist yet → approve must not refund + delist.
+        vm.prank(owner);
+        vm.expectRevert(AlignmentTargetRequestRegistry.TargetNotRegistered.selector);
+        reg.approveRequest(id);
+        assertEq(reg.pendingCount(), 1, "request stays pending");
+        assertEq(address(reg).balance, DEPOSIT, "deposit still escrowed");
     }
 
     // ── Reject ────────────────────────────────────────────────────────────────
@@ -232,6 +260,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         uint256 id3 = _submit(alice, makeAddr("c"));
         assertEq(reg.pendingCount(), 3);
 
+        _register(makeAddr("b"), 99);
         vm.prank(owner);
         reg.approveRequest(id2); // remove middle
 

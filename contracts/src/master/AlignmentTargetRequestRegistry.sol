@@ -31,6 +31,8 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     error QueueFull();
     error NotPending();
     error TokenAlreadyActive();
+    error TokenNotInAssets();
+    error TargetNotRegistered();
     error NotExpired();
     error TransferFailed();
 
@@ -117,9 +119,15 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
         if (token == address(0)) revert InvalidAddress();
         if (bytes(title).length == 0 || bytes(title).length > 256) revert InvalidTitle();
         if (assets.length == 0) revert NoAssets();
+        bool tokenInAssets;
         for (uint256 i = 0; i < assets.length; i++) {
             if (assets[i].token == address(0)) revert InvalidAddress();
+            if (assets[i].token == token) tokenInAssets = true;
         }
+        // The primary token must be one of the proposed assets, so registering the assets makes THIS
+        // token active (satisfying approveRequest's target-exists check) and the scout/dup-guard token
+        // is a real aligned asset, not arbitrary.
+        if (!tokenInAssets) revert TokenNotInAssets();
         if (msg.value != requestDeposit) revert IncorrectDeposit();
         if (_pending.length >= maxPending) revert QueueFull();
         if (_tokenHasActiveTarget(token)) revert TokenAlreadyActive();
@@ -152,6 +160,11 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     function approveRequest(uint256 id) external onlyOwner nonReentrant {
         Request storage r = _requests[id];
         if (r.status != Status.Pending) revert NotPending();
+        // Enforce the two-tx order (register THEN approve, D7): approve is the "you made this a target,
+        // here's your deposit back" step, so the target must actually exist first. Without this an admin
+        // could silently refund + delist a request without ever registering it, leaving the requester
+        // "approved" with no target. (Reject — declining to make a target — has no such requirement.)
+        if (!_tokenHasActiveTarget(r.token)) revert TargetNotRegistered();
         r.status = Status.Approved;
         _removePending(id);
         uint256 amount = r.deposit;

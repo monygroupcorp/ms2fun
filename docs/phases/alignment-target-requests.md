@@ -130,6 +130,12 @@ requester can now align to it.**
 `app/e2e/target-requests.spec.ts` submit→approve walk; manual `/admin` review of a seeded pending request.
 
 ## Decision log
+- **2026-07-01 (review hardening)** — Accuracy pass on the two-tx flow: `approveRequest` now reverts
+  `TargetNotRegistered` unless the request's token is already in an active target, enforcing "register
+  THEN approve" on-chain (previously only UI label ordering) — an admin can't silently refund + delist a
+  request without a target existing. Submit now requires the primary token to be one of the proposed
+  assets (`TokenNotInAssets`) so registering makes it active. +2 forge tests (19 total); e2e still green
+  (it registers before approving). Full forge 1187.
 - **2026-07-01 (build — backend done, fork-verified)** — Shipped T1 (contract, 17 forge tests) + T2
   (DeployCore + deploy.ts ADMIN handover + addresses.ts + wagmi bindings) + T6 (ADR-0009) on
   `feat/alignment-target-requests`. Fork round-trip verified (non-owner submit w/ 0.05 ETH escrow →
