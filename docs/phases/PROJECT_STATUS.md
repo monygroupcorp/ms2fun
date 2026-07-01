@@ -100,6 +100,84 @@ into the contract-surface reframe — so it's an unscheduled gap, NOT optional p
   → fix → sign-off.
 - **Distinct from the "style renderer" backlog item** (creator-supplied per-page `styleUri` CSS).
 
+## ► GREENLIT — metadata resolver modules (BEFORE testnet)
+**Greenlit 2026-06-25 (Mony). Must be live before the testnet deploy.** Two stacking ERC404 metadata
+modules behind one generalized, defensive `_tokenURI` seam. Full designs (source-verified) in
+**[ADR-0006](../decisions/0006-metadata-overlay-module.md)** (overlay/augmentation) +
+**[ADR-0007](../decisions/0007-tiered-metadata-and-resolver-composition.md)** (tier reveal + the
+`IMetadataResolver`/router composition). Build order:
+
+1. **Seam (immutable impl, once) — `ERC404BondingInstance`:** add a **generic** `mapping(bytes32 => address)
+   public modules` (ONE keyed slot for all known + future module pointers — no per-category slot overfit;
+   decided 2026-06-26) + `initModule(bytes32 role, address)` **factory-only, set-once — NO owner setter**
+   (mechanism sealed at construction; only module *content* is mutable, and it lives in the modules). The
+   resolver lives at `modules[METADATA_RESOLVER]`, registry-validated by the factory at create. Add the
+   **defensive** `_tokenURI` branch (the ONLY new call-site;
+   `try/catch`, uses `_ownerAt(id)` NOT `_ownerOf` — preserves no-revert-on-unminted) + public
+   `ownerOf(id) → _ownerOf(id)` (module write-auth). **No speculative hooks** — new call-sites later are an
+   accepted impl/factory upgrade. Existing `gating/staking/liquidity` slots stay as-is (not retrofitted).
+   (STAKERS payout / `fundStakers` DROPPED 2026-06-26 to keep the seam feature-free; re-add later as a general primitive.)
+   Not yet deployed, so this is a clean impl bump — but it IS a **new implementation + factory version**
+   (already-live EXEC404 won't get the seam; fine, fossil). Cut it alongside any other pre-testnet
+   factory/impl change so it's one new version, not two.
+2. **`IMetadataResolver`** (`resolve(instance,id,holder)→string`) + **`MetadataResolverRouter`** (ordered
+   per-instance resolvers, **sealed at construction set-once, auth `masterRegistry.isFactoryRegistered`**
+   — NOT a hardcoded factory; survives upgrades + blocks seal-front-run on deterministic CREATE3 addrs),
+   defensive, first-non-empty). ComponentRegistry tag `resolver`.
+   **Create-flow orchestration (H7):** the new factory version wires, in ONE create tx — `instance.initModule
+   (METADATA_RESOLVER, router)` + `router.initResolvers(inst, [overlay,tier])` + `tier.initTiers(inst, …)`
+   + overlay create-config — via a new create-params struct (tier URIs make the payload large). Ordering:
+   register instance, then module seals under `isFactoryRegistered` auth.
+3. **`MetadataOverlayModule`** (ADR-0006): commission + event-wave state, version-pointer selection
+   (AUTO/BASE/COMMISSION/wave#), `unlock`/`select` (sets selection on pay), Payout routing — **module-side
+   only**: ARTIST direct · SPLIT via `RevenueSplitLib` + vault `receiveContribution` (STAKERS deferred).
+   **Content mutable-forever / additive** (safe: serves over an indestructible holder-selectable base).
+   ComponentRegistry tag `overlay`.
+4. **`TierRevealModule`** (ADR-0007): id-range tiers, reveal when **effective holdings**
+   (`balanceOf + stakingModule.stakedBalance`) ≥ threshold. **Config FROZEN at construction** (`initTiers`
+   factory-only, set-once — mutable rarity = rug; frozen rules, dynamic reveal). ComponentRegistry tag `tier`.
+5. **Wizard/UI** (per ADR-0005): overlay `configType` `metadata-overlay` (create-time policy + post-create
+   ops for waves/commissions); tier `configType` `metadata-tier` — **full tier table is create-time only,
+   sealed** (no post-create tier authoring). Creator-admin: publish wave / set commission (overlay, ongoing);
+   holder pin/unlock control (tier reveal is automatic). Router order chosen at create, frozen.
+6. **Deploy + seed integration** (the feature isn't done until it deploys + seeds like every other module):
+   - **`FeatureUtils.sol`** — add tag constants `RESOLVER` / `OVERLAY` / `TIER` (or `bytes32("…")` inline,
+     as `curve_computer` does).
+   - **`script/DeployCore.sol`** (Phase 7/7b region, ~L345–425) — deploy the 3 **real** modules
+     (`MetadataResolverRouter`, `MetadataOverlayModule`, `TierRevealModule`, each `new …(masterRegistry)`),
+     `approveComponent` each under its tag, and **set real wizard metadata** (`data:application/json` with
+     `configType`) on overlay + tier directly — **NOT MockComponentModule stubs.** Lesson from the gating
+     fork-walk (`[[parity-program]]`): a mock approved in place of the real module (missing `configureFor`)
+     shipped a latent bug; these modules have real `initResolvers`/`initTiers`/`initModule` wiring, so the
+     approved component MUST be the functional contract. Mirror `passwordTierGatingModule` exactly.
+   - **New ERC404 factory+implementation version** wired in DeployCore (the seam bump from step 1); confirm
+     `ValidateSepolia`/equivalent asserts the 3 modules approved.
+   - **`script/SeedAnvil.s.sol`** — create one ERC404 collection wired with the full stack
+     (resolver→`[overlay,tier]`, tiers seeded, one overlay wave + one paid commission published), owned by
+     the dev wallet `0x54Ef…`, and **`rentFeatured`** it so it lands in discovery (`[[dev-fork-seed]]`:
+     discovery = featured queue). This is what the fork-walk drives.
+   - **`app/scripts/dev-chain/deploy.ts` + `local-deployment.json`** — surface the 3 new module addresses
+     into app config so the wizard lists them (live `getApprovedComponentsByTag`).
+7. **Tests + gate:**
+   - **Forge unit** — one suite per contract under `test/factories/erc404/` + `test/metadata/` (pattern:
+     `ERC404StakingModule.t.sol`, `ComponentRegistry.t.sol`): resolve precedence, auto-latest **for
+     open/NONE waves too — not staked-gated**, pin, **BASE-falls-through-to-tier**, sellable-unlock-on-
+     transfer, effective-holdings reveal, **staking↔rarity** interaction, **commission-locks-on-pay**,
+     **unlock reentrancy/CEI**, **seal-front-run blocked** (`isFactoryRegistered` auth), defensive
+     `try/catch` → base on a reverting module.
+   - **Frontend unit** — `metadata-overlay` + `metadata-tier` `configType` `SchemaForm`s (per ADR-0005),
+     holder pin/unlock control, creator publish-wave/commission panel.
+   - **Fork-walk ✅ (2026-06-30)** — `app/e2e/metadata.spec.ts` drives the REAL stepped wizard with the
+     injected wallet (`app/e2e/fixtures/anvilWallet.ts`) to create a stacked ERC404 in ONE create tx, then
+     asserts on-chain via viem: resolver→[overlay,tier] sealed in precedence order + tier table sealed;
+     tier reveal FLIPS WITH BALANCE (buy 1 unit → `tokenURI(1)=="locked-"`; buy a 2nd → `"rare-1"`);
+     overlay-over-base (PAY commission on id 3 unlocks → `"commission-3"`, holder BASE pin → base `"3"`).
+     Three integration facts the walk pinned down: the reskinned wizard needs prefix-regex labels
+     (asterisk in label text); `tokenURI` is served by the DN404 **mirror** (`mirrorERC721()`), not the
+     base; preset-1 `unit = 1e24`. Passes on `pnpm chain:fork` + `pnpm chain:deploy` → `pnpm test:e2e`.
+   - **Green bar ✅:** `forge build` clean · `forge test` 1162 green (metadata suites 77) · frontend 371
+     tests + lint green · the new fork-walk green.
+
 ## ► Security audit — CLOSED OUT (2026-06-30)
 Full `sc-auditor` (Map-Hunt-Attack) pass over `contracts/src`. Report: `.sc-auditor-work/REPORT.md`;
 PoCs in `.sc-auditor-work/pocs/` (a PoC that PASSES = the attack succeeds). Every fix shipped with a

@@ -1,17 +1,19 @@
-import { expect, test } from '@playwright/test'
+import { test, expect } from '@playwright/test'
 
-test('home links to the featured collections discovery page', async ({ page }) => {
+test('the home hero links to the collections discovery page', async ({ page }) => {
   await page.goto('/')
-  await page.getByTestId('collections-link').click()
+  // Disconnected home = the marketing hero; its secondary CTA is "Browse" → /collections.
+  await page.getByRole('link', { name: 'Browse', exact: true }).click()
   await expect(page).toHaveURL(/\/collections$/)
-  await expect(page.getByRole('heading', { name: 'FEATURED' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Collections', level: 1 })).toBeVisible()
 })
 
 /**
- * @fork — the discovery read resolves off the fork via QueryAggregator.getHomePageData. The fork
- * has no seeded collections yet, so we assert the honest empty state renders (not the error state).
+ * @fork — the discovery read resolves off the fork via QueryAggregator + the registry scan. The fork
+ * is SEEDED (chain:deploy rents featured collections), so we assert the list renders (not the empty
+ * or error state).
  */
 test('collections discovery read resolves off the fork @fork', async ({ page }) => {
   await page.goto('/collections')
-  await expect(page.getByTestId('collections-empty')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('collections-list')).toBeVisible({ timeout: 15_000 })
 })
