@@ -170,6 +170,25 @@
   color: color-mix(in srgb, var(--color-bg) 75%, var(--color-text));
 }
 
+/* A venue card's third line — the resolved vault/target, or the O2 "not yet wired" gating note. */
+.unreadyNote {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* O2: an LP venue that isn't liquidity-ready is shown but not selectable. */
+.cardDisabled,
+.cardDisabled:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: transparent;
+}
+.cardDisabled .unreadyNote {
+  color: var(--color-text);
+}
+
 /* A register — the dense config blocks. */
 .formBlock {
   display: flex;

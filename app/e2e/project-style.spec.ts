@@ -21,6 +21,7 @@ test('a collection styleUri is fetched and applied to its page @fork', async ({ 
   // Contract → Gating (skip) → Alignment → Collection page → Review. The stepper skips N/A steps.
   await page.getByRole('button', { name: /Continue/ }).click() // → Gating
   await page.getByRole('button', { name: /Continue/ }).click() // → Alignment
+  await page.getByRole('button', { name: /^Yield/ }).click() // family → venue picker
   await page.getByRole('button', { name: /target #/ }).first().click()
   await page.getByRole('button', { name: /Continue/ }).click() // → Collection page
   await page.locator('#cmf-name').fill(name)

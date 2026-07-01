@@ -354,6 +354,29 @@ contract UniAlignmentVaultTest is Test {
         assertTrue(lpValue > 0, "LP value should be positive");
     }
 
+    /// @notice Regression: the real zRouter refunds leftover ETH to the vault during the swap, which
+    ///         lands in receive() while convertAndAddLiquidity holds the reentrancy guard. receive()
+    ///         must silently accept it — otherwise the refund reverts (Reentrancy) and the real
+    ///         zRouter's SafeTransferLib bubbles ETHTransferFailed, bricking the entire conversion.
+    ///         Fails under the pre-fix vault (receive() unconditionally tracked → nonReentrant revert).
+    function test_ConvertAndAddLiquidity_acceptsZRouterDustRefund() public {
+        mockZRouter.setRefundWei(0.0003 ether); // mimic real zRouter returning swap dust to the vault
+
+        vm.prank(alice);
+        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        assertTrue(s1);
+
+        // Completing at all is the fix: under the pre-fix vault the dust refund reverts here.
+        vm.prank(dave);
+        uint256 lpValue = vault.convertAndAddLiquidity(1);
+
+        assertGt(lpValue, 0, "conversion must complete despite the dust refund");
+        assertGt(vault.benefactorShares(alice), 0, "alice earns shares");
+        // The refund was silently accepted, NOT mis-tracked as a fresh benefactor contribution.
+        assertEq(vault.totalPendingETH(), 0, "refund not mis-tracked as a new pending contribution");
+        assertEq(vault.benefactorTotalETH(address(mockZRouter)), 0, "router not credited as a benefactor");
+    }
+
     function test_ConvertAndAddLiquidity_IssuesSharesProportionally() public {
         // Alice: 10 ETH (33.33%), Bob: 20 ETH (66.66%)
         vm.prank(alice);

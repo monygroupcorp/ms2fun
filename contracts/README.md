@@ -1,11 +1,18 @@
 # ms2fun-contracts
 
-> **⚠️ Legacy / fossil reference.** This describes the alignment-vault + Uniswap-LP
-> model we are RETIRING (replaced by a simple Aave vault; DAO/governance replaced by a
-> thin owner-operated multisig wrapper). It is kept because **EXEC404 / Cult Executives
-> — the one live deployment — runs on this model and is grandfathered forever.** See the
-> root `CLAUDE.md` "North Star" for current direction. Treat this as reference for the
-> live fossil, not the plan of record.
+> **⚠️ Partial fossil reference — read the direction note.** This doc predates the current
+> lean, onchain-only direction. Two things it gets wrong as *current* state:
+> - **The Uniswap-LP alignment vaults are NOT retired.** As of 2026-07-01 the design is **two vault
+>   families, creator's choice** — a **Liquidity family** (`UniswapV4LP` / `ZAMMLP` / `CypherLP`, all
+>   first-class, running the 1/19/80 graduation split) alongside a **Yield family**
+>   (`AlignmentEndowmentVault`, the Aave endowment, running principal-deposit + tithe-out). Neither
+>   replaces the other. See [ADR-0008](../docs/decisions/0008-two-vault-families.md) +
+>   [ADR-0003](../docs/decisions/0003-aave-alignment-vault.md) + `docs/phases/vault-flavors.md`.
+> - **The DAO/governance layer IS retired** (GrandCentral, Safe/Timelock voting, ShareOffering,
+>   RevenueConductor) — the DAO-heavy governance/registration architecture documented below is the
+>   fossil, kept because **EXEC404 / Cult Executives — the one live deployment — runs on this model
+>   and is grandfathered forever.** Treat the governance sections as reference for the live fossil,
+>   not the plan of record; the vault/LP mechanics are current.
 
 Solidity contracts for the ms2.fun protocol — a curated launchpad for derivative art and tokens aligned to established crypto communities. Artists create projects bound to alignment vaults that buy and LP the target community's token via Uniswap V4.
 
@@ -17,7 +24,7 @@ Solidity contracts for the ms2.fun protocol — a curated launchpad for derivati
 4. **Users buy/mint** — fees flow to the vault
 5. **Vault converts fees** to the alignment token and deposits full-range V4 LP — creating permanent buying pressure and liquidity
 
-A single fee rule applies at every settlement: **1% protocol treasury, 19% alignment vault, 80% artist**. Artists contribute 20% toward the community they're aligned with and earn back vault LP yield proportional to their contributions over time.
+For the **Liquidity (LP) vault family**, a single fee rule applies at every settlement: **1% protocol treasury, 19% alignment vault, 80% artist**. Artists contribute 20% toward the community they're aligned with and earn back vault LP yield proportional to their contributions over time. The **Yield vault family** (Aave endowment) runs a different, coexisting model — principal-deposit + tithe-out ([ADR-0003](../docs/decisions/0003-aave-alignment-vault.md)) — and the creator's family choice is the economic-model choice ([ADR-0008](../docs/decisions/0008-two-vault-families.md)).
 
 ## Repository Structure
 

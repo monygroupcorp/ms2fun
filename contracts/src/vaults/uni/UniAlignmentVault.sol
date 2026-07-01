@@ -86,6 +86,18 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
     uint256 public constant MAX_CONVERSION_PARTICIPANTS = 500;
 
+    // ── Solady ReentrancyGuard slot mirror ────────────────────────────────
+    // Solady stores address(this) in this slot while a nonReentrant call is active (codesize() when
+    // idle), so `sload(_RG_SLOT) == address(this)` means "mid-operation". Compile-time asserted so a
+    // Solady change that moves the slot breaks the build instead of silently disabling the check.
+    uint256 private constant _RG_SLOT = 0x929eee149b4bd21268;
+    uint256 private constant _RG_SLOT_ASSERT =
+        1 / (_RG_SLOT == uint256(uint72(bytes9(keccak256("_REENTRANCY_GUARD_SLOT")))) ? 1 : 0);
+
+    function _isLocked() internal view returns (bool locked) {
+        assembly { locked := eq(sload(_RG_SLOT), address()) }
+    }
+
     // ========== Data Structures ==========
 
     /// @notice Callback data for V4 modifyLiquidity operations
@@ -255,9 +267,14 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // ========== Fee Reception ==========
 
-    /// @notice Accept direct ETH contributions, crediting msg.sender as the benefactor
+    /// @notice Accept direct ETH contributions, crediting msg.sender as the benefactor.
+    /// @dev Silently accepts ETH that arrives DURING an active vault operation (the reentrancy guard
+    ///      is held) — e.g. zRouter refunding swap dust, or the V4 PoolManager settling native ETH
+    ///      back to the vault. Only ETH arriving OUTSIDE an operation is tracked as a contribution.
+    ///      Without this, a zRouter swap-dust refund reverts here mid-convertAndAddLiquidity and
+    ///      bricks the entire conversion (mirrors ZAMMAlignmentVault.receive).
     receive() external payable {
-        _receiveExternalContribution();
+        if (!_isLocked()) _receiveExternalContribution();
     }
 
     function _receiveExternalContribution() private nonReentrant {
@@ -716,6 +733,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     function validateCurrentPoolKey() external view {
         PoolKey memory key = v4PoolKey;
         _validateV4Pool(key);
+    }
+
+    /// @notice Whether this vault is operationally wired for liquidity provision (O2 gate).
+    /// @dev True once a V4 pool key (token side set) AND a price validator are configured, so the
+    ///      wizard can safely offer this venue — a creator cannot pick a vault whose graduation LP
+    ///      add would revert on missing config. `currency1` is the alignment-token side (native ETH
+    ///      is always `currency0 == address(0)`); an unset pool key leaves both currencies zero.
+    function isLiquidityReady() external view returns (bool) {
+        return Currency.unwrap(v4PoolKey.currency1) != address(0)
+            && address(priceValidator) != address(0);
     }
 
     // ========== Query Functions ==========

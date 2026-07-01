@@ -25,14 +25,84 @@ contract ValidateSepolia is Script {
     LaunchManager lm     = LaunchManager(LAUNCH_MANAGER);
     MasterRegistryV1 mr  = MasterRegistryV1(MASTER_REGISTRY);
 
+    /// @dev One `vaults` entry as emitted by DeployCore. Foundry maps JSON keys to struct fields in
+    ///      ALPHABETICAL key order: address, alignmentToken, targetId, type.
+    struct VaultRecord {
+        address vaultAddress;
+        address alignmentToken;
+        uint256 targetId;
+        string  vaultType;
+    }
+
     function run() public view {
         console.log("\n=== Sepolia Protocol Validation ===\n");
 
         _checkFactory();
         _checkComponentRegistry();
         _checkLaunchManager();
+        _checkVaults();
 
         console.log("\n=== Done ===");
+    }
+
+    /// @notice Assert every deployed alignment vault is registered, self-reports the expected
+    ///         `vaultType()` discriminator, and — for the LP families — is operationally
+    ///         liquidity-ready (pool key + validator wired, O2). Reads the `vaults` array from the
+    ///         deployment JSON, so it covers whichever families the network config enabled: Uni-only
+    ///         today, and all four (Yield + Uni/ZAMM/Cypher LP) once Sepolia's config promotes them.
+    /// @dev Targets the current DeployCore output where `.vaults` is a JSON-encoded STRING (mirrors
+    ///      SeedAnvil). Run against a fresh `deployments/sepolia.json` from the current DeployCore.
+    function _checkVaults() internal view {
+        console.log("-- Alignment vaults --");
+        string memory json = vm.readFile("./deployments/sepolia.json");
+        string memory vaultsJson = vm.parseJsonString(json, ".vaults");
+        VaultRecord[] memory vaults = abi.decode(vm.parseJson(vaultsJson), (VaultRecord[]));
+        console.log("  total vaults:", vaults.length);
+
+        for (uint256 i = 0; i < vaults.length; i++) {
+            address v = vaults[i].vaultAddress;
+            require(mr.isVaultRegistered(v), "vault not registered");
+
+            string memory onchainType = _readString(v, "vaultType()");
+            string memory expected = _expectedType(vaults[i].vaultType);
+            require(
+                keccak256(bytes(onchainType)) == keccak256(bytes(expected)),
+                "vaultType mismatch"
+            );
+
+            bool lp = _endsWithLP(onchainType);
+            if (lp) require(_readBool(v, "isLiquidityReady()"), "LP vault not liquidity-ready");
+
+            console.log("    ", v);
+            console.log("      type:", onchainType);
+        }
+        console.log("");
+    }
+
+    /// @dev Map the deploy JSON's short vault tag to the on-chain vaultType() string.
+    function _expectedType(string memory tag) internal pure returns (string memory) {
+        bytes32 h = keccak256(bytes(tag));
+        if (h == keccak256("UNIv4"))  return "UniswapV4LP";
+        if (h == keccak256("ZAMM"))   return "ZAMMLP";
+        if (h == keccak256("CYPHER")) return "CypherLP";
+        return "AaveEndowment"; // "AaveEndowment" tag passes through unchanged
+    }
+
+    function _endsWithLP(string memory s) internal pure returns (bool) {
+        bytes memory b = bytes(s);
+        return b.length >= 2 && b[b.length - 2] == "L" && b[b.length - 1] == "P";
+    }
+
+    function _readString(address target, string memory sig) internal view returns (string memory) {
+        (bool ok, bytes memory ret) = target.staticcall(abi.encodeWithSignature(sig));
+        require(ok, "vault read failed");
+        return abi.decode(ret, (string));
+    }
+
+    function _readBool(address target, string memory sig) internal view returns (bool) {
+        (bool ok, bytes memory ret) = target.staticcall(abi.encodeWithSignature(sig));
+        require(ok, "vault read failed");
+        return abi.decode(ret, (bool));
     }
 
     function _checkFactory() internal view {

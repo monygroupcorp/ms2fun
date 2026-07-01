@@ -163,11 +163,11 @@ contract SeedAnvil is Script {
         d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
         d.overlay        = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
         d.tier           = vm.parseJsonAddress(json, ".contracts.TierRevealModule");
-        // `vaults` is serialized as a JSON-encoded STRING (DeployCore builds it by hand): parse it
-        // out first, then index the inner array. [0]=first Uni vault, [2]=first Aave endowment vault.
-        string memory vaultsJson = vm.parseJsonString(json, ".vaults");
-        d.vault = vm.parseJsonAddress(vaultsJson, "[0].address");
-        d.endowmentVault = vm.parseJsonAddress(vaultsJson, "[2].address");
+        // Resolve the seed's vaults by FAMILY via DeployCore's convenience pointers, not by index
+        // into the `vaults` array — that array's ordering shifts as LP families (ZAMM/Cypher) are
+        // enabled per network, so a fixed index silently binds to the wrong vault type.
+        d.vault = vm.parseJsonAddress(json, ".contracts.SeedUniVault");
+        d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
     }
 
     // ─────────────────────────── Phase A: ERC1155 ───────────────────────────

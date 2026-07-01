@@ -14,10 +14,12 @@ import {
   validateTierConfig,
   encodeMetadataConfig,
   validateMetadataConfig,
+  groupVaultsByFamily,
   type MetadataModuleSelection,
   type ModuleSlot,
   type ProjectTypeSchema,
   type SelectedModules,
+  type VaultFamily,
 } from '../lib/wizard'
 import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
 import { SchemaForm } from '../components/wizard/SchemaForm'
@@ -66,6 +68,31 @@ const TYPE_LABEL: Record<string, string> = {
   erc721: 'ERC-721',
 }
 
+/** Alignment family choice (D3) — the economic model, surfaced not hidden. Yield parks WETH for
+ *  yield (refundable); Liquidity builds a real tradeable market on the 1/19/80 graduation split. */
+const FAMILY_META: Record<VaultFamily, { label: string; tag: string; tradeoff: string }> = {
+  yield: {
+    label: 'Yield',
+    tag: 'Aave endowment',
+    tradeoff:
+      'Parks WETH in Aave earning yield — principal stays refundable. No tradeable market is made.',
+  },
+  lp: {
+    label: 'Liquidity',
+    tag: 'Tradeable market',
+    tradeoff:
+      'Builds a real tradeable market — price discovery + exit liquidity, on a 1/19/80 graduation split.',
+  },
+}
+
+/** Per-venue one-line tradeoff (D4) — Uni is the default workhorse; ZAMM/Cypher are situational. */
+const VENUE_TRADEOFF: Record<string, string> = {
+  UniswapV4: 'Deepest, most-real liquidity — the default.',
+  ZAMM: 'Constant-product AMM — situational.',
+  Cypher: 'Algebra concentrated liquidity — situational.',
+  AaveEndowment: 'WETH endowment earning Aave yield; principal-refundable.',
+}
+
 /**
  * Launch wizard (Phase 3 / T2). Drives the ADR-0005 option schema → a real `createInstance`:
  * project type → core fields (generic `SchemaForm`) → module slots → alignment vault → collection
@@ -82,6 +109,9 @@ export function WizardPage() {
   const projectType = getProjectType(typeKey)
   const [values, setValues] = useState<Record<string, string>>({})
   const [vault, setVault] = useState<`0x${string}` | undefined>(undefined)
+  // Alignment: which family (Yield/Liquidity) the venue picker is expanded to. Falls back to the
+  // selected vault's own family (so navigating back re-opens the right group).
+  const [alignFamily, setAlignFamily] = useState<VaultFamily | undefined>(undefined)
   const [modules, setModules] = useState<Record<string, `0x${string}`>>({})
   // The gating module's metadata `configType` (drives which config form to show) + its form values.
   const [gatingConfigType, setGatingConfigType] = useState('')
@@ -116,7 +146,10 @@ export function WizardPage() {
   )
   const gatingErrors =
     attempted && showGatingForm && gatingSchema
-      ? { ...validateFields(gatingSchema.fields, gatingValues), ...validateTierConfig(gatingValues) }
+      ? {
+          ...validateFields(gatingSchema.fields, gatingValues),
+          ...validateTierConfig(gatingValues),
+        }
       : {}
 
   // Metadata-resolution stack: the selected resolver/overlay/tier module addresses + validation.
@@ -132,6 +165,8 @@ export function WizardPage() {
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
     setValues({})
+    setVault(undefined)
+    setAlignFamily(undefined)
     setModules({})
     setGatingConfigType('')
     setGatingValues({})
@@ -224,7 +259,9 @@ export function WizardPage() {
 
   const selectedVault = vaults.data?.find((v) => v.address === vault)
   const vaultLabel = selectedVault?.name || (vault ? truncateAddress(vault) : '—')
-  const metaCount = ['stakingModule', 'resolver', 'overlay', 'tier'].filter((k) => modules[k]).length
+  const metaCount = ['stakingModule', 'resolver', 'overlay', 'tier'].filter(
+    (k) => modules[k],
+  ).length
   const moduleChips =
     [
       modules.gatingModule && 'gating',
@@ -250,7 +287,9 @@ export function WizardPage() {
   function renderSlot(slot: ModuleSlot) {
     const isMetaSlot = (META_CONFIG_SLOTS as readonly string[]).includes(slot.key)
     const metaSchema =
-      isMetaSlot && metaConfigTypes[slot.key] ? getConfigSchema(metaConfigTypes[slot.key]!) : undefined
+      isMetaSlot && metaConfigTypes[slot.key]
+        ? getConfigSchema(metaConfigTypes[slot.key]!)
+        : undefined
     const showMetaForm = Boolean(
       isMetaSlot && modules[slot.key] && metaSchema && metaSchema.fields.length > 0,
     )
@@ -380,14 +419,25 @@ export function WizardPage() {
         )
       }
 
-      case 'alignment':
+      case 'alignment': {
+        // Family → venue picker. Group all registered vaults by family/venue; the expanded family
+        // falls back to the selected vault's own family so back-navigation re-opens the right group.
+        const groups = vaults.data ? groupVaultsByFamily(vaults.data) : []
+        const activeFamily = alignFamily ?? selectedVault?.family
+        const activeGroup = groups.find((g) => g.family === activeFamily)
+        const pickFamily = (f: VaultFamily) => {
+          setAlignFamily(f)
+          // Switching to a different family invalidates a selection made under the old one.
+          if (selectedVault && selectedVault.family !== f) setVault(undefined)
+        }
         return (
           <div className={styles.body}>
             <div className={styles.decision}>
-              <h2 className={styles.question}>Who inspired this?</h2>
+              <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
-                Every launch binds <b>~20% of its fees</b> to the work that inspired it — on mint and
-                every resale, forever. Choose that work. This is what makes it not a grift.
+                Every launch binds <b>~20% of its fees</b> to an alignment vault — on mint and every
+                resale, forever. First the <b>model</b>, then the <b>venue</b>. This is what makes
+                it not a grift.
               </p>
               {vaults.isPending && <StateBlock variant="loading">loading vaults…</StateBlock>}
               {vaults.isError && (
@@ -398,22 +448,62 @@ export function WizardPage() {
                   no alignment vaults registered yet.
                 </StateBlock>
               )}
+              {/* Level 1 — family (economic model). */}
               <div className={styles.cards}>
-                {vaults.data?.map((v) => (
-                  <button
-                    key={v.address}
-                    type="button"
-                    className={`${styles.bigCard} ${v.address === vault ? styles.bigSelected : ''}`}
-                    onClick={() => setVault(v.address)}
-                    aria-pressed={v.address === vault}
-                  >
-                    <span className={styles.bigCardName}>
-                      {v.name || truncateAddress(v.address)}
-                    </span>
-                    <span className={styles.bigCardSummary}>target #{v.targetId.toString()}</span>
-                  </button>
-                ))}
+                {groups.map((g) => {
+                  const meta = FAMILY_META[g.family]
+                  const on = g.family === activeFamily
+                  return (
+                    <button
+                      key={g.family}
+                      type="button"
+                      className={`${styles.bigCard} ${on ? styles.bigSelected : ''}`}
+                      onClick={() => pickFamily(g.family)}
+                      aria-pressed={on}
+                    >
+                      <span className={styles.bigCardName}>{meta.label}</span>
+                      <span className={styles.bigCardSummary}>{meta.tradeoff}</span>
+                    </button>
+                  )
+                })}
               </div>
+              {/* Level 2 — venue within the chosen family. */}
+              {activeGroup && activeFamily && (
+                <>
+                  <h3 className={styles.sectionTitle}>Venue — {FAMILY_META[activeFamily].tag}</h3>
+                  <div className={styles.cards}>
+                    {activeGroup.venues.map((opt) => {
+                      const addr = opt.vault.address
+                      const on = addr === vault
+                      const tradeoff = VENUE_TRADEOFF[opt.venue] ?? opt.vault.description
+                      return (
+                        <button
+                          key={opt.venue}
+                          type="button"
+                          className={`${styles.bigCard} ${on ? styles.bigSelected : ''} ${
+                            opt.disabled ? styles.cardDisabled : ''
+                          }`}
+                          onClick={() => !opt.disabled && setVault(addr)}
+                          disabled={opt.disabled}
+                          aria-pressed={on}
+                          aria-disabled={opt.disabled}
+                        >
+                          <span className={styles.bigCardName}>{opt.venueLabel}</span>
+                          <span className={styles.bigCardSummary}>{tradeoff}</span>
+                          {opt.disabled ? (
+                            <span className={styles.unreadyNote}>not yet wired for liquidity</span>
+                          ) : (
+                            <span className={styles.unreadyNote}>
+                              {opt.vault.name || truncateAddress(addr)} · target #
+                              {opt.vault.targetId.toString()}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
               {vault && (
                 <>
                   <div className={`noesis-bind ${styles.bind}`}>
@@ -434,16 +524,22 @@ export function WizardPage() {
             </div>
           </div>
         )
+      }
 
       case 'page':
         return (
           <div className={styles.body}>
             <p className={styles.lede}>
-              The collection&rsquo;s page — name, description, and imagery. This is what visitors meet.
+              The collection&rsquo;s page — name, description, and imagery. This is what visitors
+              meet.
             </p>
             <CollectionMetaForm onChange={setMetadata} />
             {missingName && <p className={styles.error}>a collection name is required</p>}
-            <CollectionPreview name={metadata.name} typeLabel={TYPE_LABEL[typeKey] ?? typeKey} vaultLabel={vault ? vaultLabel : undefined} />
+            <CollectionPreview
+              name={metadata.name}
+              typeLabel={TYPE_LABEL[typeKey] ?? typeKey}
+              vaultLabel={vault ? vaultLabel : undefined}
+            />
           </div>
         )
 
@@ -483,7 +579,8 @@ export function WizardPage() {
               </dl>
               <div className={styles.permanence}>
                 <span aria-hidden>▪ </span>Deploying is <b>permanent</b>. The contract, the modules,
-                and the <b>~20% alignment</b> are fixed on-chain — <b>they can&rsquo;t be undone.</b>
+                and the <b>~20% alignment</b> are fixed on-chain —{' '}
+                <b>they can&rsquo;t be undone.</b>
               </div>
             </aside>
           </div>
@@ -629,7 +726,8 @@ function CollectionPreview({
             </div>
             <div className="arrow">→</div>
             <div className="cell vault">
-              {vaultLabel}<b>~20%</b>
+              {vaultLabel}
+              <b>~20%</b>
             </div>
           </div>
         )}

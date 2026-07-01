@@ -338,6 +338,14 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return "AaveEndowment";
     }
 
+    /// @notice Whether this vault is operationally wired (O2 gate — parity with the LP vaults).
+    /// @dev The endowment needs no pool key or DEX wiring: the Aave stataToken position is set at
+    ///      initialize and never requires post-deploy operational config. Always ready, so the
+    ///      wizard's Yield family is always selectable.
+    function isLiquidityReady() external pure returns (bool) {
+        return true;
+    }
+
     /// @inheritdoc IAlignmentVault
     function description() external pure override returns (string memory) {
         return "Perpetual community endowment: refundable creator principal in Aave, yield to the community.";

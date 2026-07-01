@@ -94,6 +94,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error ContributionBelowMinimum();
     error TooManyPendingBenefactors();
     error HarvestSameBlock();
+    error PoolKeyLocked();
 
     // ── Anti-DoS constants ────────────────────────────────────────────────
     uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
@@ -108,6 +109,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     event MaxPriceDeviationUpdated(uint256 newBps);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
+    event PoolKeyUpdated(uint256 indexed poolId);
 
     // ── Core config (locked post-init) ───────────────────────────────────
     address public zamm;
@@ -227,6 +229,27 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── View: pool key ────────────────────────────────────────────────────
     function getPoolKey() external view returns (IZAMM.PoolKey memory) {
         return _poolKey;
+    }
+
+    /// @notice Whether this vault is operationally wired for liquidity provision (O2 gate).
+    /// @dev True once the ZAMM pool key (token1 side set) AND a price validator are configured, so
+    ///      the wizard can safely offer the ZAMM venue. A vault deployed with a zero pool key
+    ///      (pre-wiring) reports false and is hidden/disabled in the picker.
+    function isLiquidityReady() external view returns (bool) {
+        return _poolKey.token1 != address(0) && address(priceValidator) != address(0);
+    }
+
+    /// @notice Set the ZAMM pool key for liquidity operations (owner = deploying factory).
+    /// @dev Fills the post-init wiring gap: the vault can be deployed against a zero pool key and
+    ///      wired once the ETH/token ZAMM pool is chosen. Only allowed while no liquidity has been
+    ///      deployed yet (principalInvariant == 0) so an active position's key can never be swapped
+    ///      out from under it. `poolId` is re-derived to stay consistent with the key.
+    /// @param key ZAMM pool key for the ETH/alignmentToken pool
+    function setPoolKey(IZAMM.PoolKey calldata key) external onlyOwner {
+        if (principalInvariant != 0) revert PoolKeyLocked();
+        _poolKey = key;
+        poolId = uint256(keccak256(abi.encode(key)));
+        emit PoolKeyUpdated(poolId);
     }
 
     // ── convertAndAddLiquidity ────────────────────────────────────────────

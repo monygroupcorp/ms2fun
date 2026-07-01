@@ -79,9 +79,11 @@ consume, and add the one new economic piece (the Aave vault).
 ## T1 — Inventory & classification (2026-06-22)
 
 Read-only survey of the contracts the local deploy (`DeployAnvil.s.sol` → `DeployCore.sol`,
-mirrored in `contracts/deployments/anvil.json`) currently stands up, classified against the locked
-direction (lean Aave-vault platform; legacy alignment-vault/LP + DAO retired). Paths are under
-`contracts/src/`.
+mirrored in `contracts/deployments/anvil.json`) currently stands up, classified against the
+then-locked direction (lean Aave-vault platform; legacy alignment-vault/LP + DAO retired). Paths are
+under `contracts/src/`. *(Dated-history note, 2026-07-01: the "LP retired" half of this was reversed —
+LP vaults are now a first-class family; see the RETIRE section's reversal banner + ADR-0008. DAO
+retirement stands.)*
 
 ### KEEP — go-forward platform (user- or agent-facing)
 | Contract | Path | Role | Key surface (frontend/NOEMA) |
@@ -103,6 +105,14 @@ direction (lean Aave-vault platform; legacy alignment-vault/LP + DAO retired). P
 > the whitelist seam alongside password tiers.
 
 ### RETIRE — only the legacy alignment **vault** (the Aave vault replaces it)
+> **⚠️ Reversed 2026-07-01 (dated history — this Phase-2 classification is superseded):** the "retire
+> the LP alignment vaults, replace with a single Aave vault" call below is **no longer the direction.**
+> The current direction is **two vault families, creator's choice** — the LP vaults
+> (`UniAlignmentVault` / `ZAMMAlignmentVault` / `CypherAlignmentVault`) are **first-class and NOT
+> retired**, alongside the Aave endowment. The code never removed them; they were re-audited this
+> cycle and Uni V4 is live on the fork. See [ADR-0008](../decisions/0008-two-vault-families.md) +
+> `docs/phases/vault-flavors.md`. The DAO/governance retirement below still holds. The section is kept
+> as the dated Phase-2 record.
 > **Corrected 2026-06-23 (Mony):** the earlier draft wrongly retired the liquidity deployers/LP
 > backends. The **collection's bonding→DEX LP is NECESSARY and stays** — "lean kills the LP *vault*,
 > not the LP." Only the alignment-vault contracts retire; everything that builds the collection's

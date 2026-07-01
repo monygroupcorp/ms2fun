@@ -20,6 +20,9 @@ import {ZAMMAlignmentVaultFactory} from "../src/vaults/zamm/ZAMMAlignmentVaultFa
 import {AlignmentEndowmentVaultFactory} from "../src/vaults/aave/AlignmentEndowmentVaultFactory.sol";
 import {UniswapVaultPriceValidator} from "../src/peripherals/UniswapVaultPriceValidator.sol";
 import {IVaultPriceValidator} from "../src/interfaces/IVaultPriceValidator.sol";
+import {PoolKey} from "v4-core/types/PoolKey.sol";
+import {Currency} from "v4-core/types/Currency.sol";
+import {IHooks} from "v4-core/interfaces/IHooks.sol";
 import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
 import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
 import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
@@ -96,6 +99,9 @@ contract DeployCore is Script {
         // Vault pool params (used for UniAlignmentVault V4 pool key per target)
         uint24  zrouterFee;
         int24   zrouterTickSpacing;
+        // ZAMM pool fee/hook selector — baked into each ZAMM vault's pool key at deploy so the
+        // ETH/alignmentToken ZAMM pool is wired (matches the feeOrHook the vault swaps/LPs against).
+        uint256 zammFeeOrHook;
 
         // One or more alignment targets — each can have 1-3 vault types
         AlignmentTargetConfig[] alignmentTargets;
@@ -303,8 +309,18 @@ contract DeployCore is Script {
                 address vault = uniVaultFactory.deployVault(
                     salt, t.token, targetId, IVaultPriceValidator(address(0))
                 );
-                // Note: setV4PoolKey must be called by the vault owner (the factory).
-                // Pool key is operational config set post-deploy via a separate governance call.
+                // Operational LP wiring (T2): set the V4 pool key so the vault can actually LP.
+                // The factory owns the vault, so the key routes through the factory. Native ETH is
+                // currency0 (address(0) < any token → ordering holds); the alignment token is
+                // currency1; fee/tickSpacing come from the network's V4 config. This flips the
+                // vault's isLiquidityReady() → true so the wizard offers the Uni venue.
+                uniVaultFactory.setVaultPoolKey(vault, PoolKey({
+                    currency0:   Currency.wrap(address(0)),
+                    currency1:   Currency.wrap(t.token),
+                    fee:         cfg.zrouterFee,
+                    tickSpacing: cfg.zrouterTickSpacing,
+                    hooks:       IHooks(address(0))
+                }));
                 MasterRegistryV1(masterRegistry).registerVault(
                     vault, deployer, string.concat(t.symbol, " UNIv4 Vault"),
                     "https://ms2.fun", targetId
@@ -327,7 +343,15 @@ contract DeployCore is Script {
 
             if (t.deployZAMMVault && address(zammVaultFactory) != address(0)) {
                 bytes32 salt = _vaultSalt(cfg.chainId, i, "ZAMM", cfg.saltNonce);
-                IZAMM.PoolKey memory poolKey; // zero poolKey — configure post-deploy when live
+                // Operational LP wiring (T2): bake the real ETH/alignmentToken ZAMM pool key at
+                // deploy (token0 = native ETH = address(0), token1 = alignment token, feeOrHook from
+                // config) so the vault is liquidity-ready immediately. (Post-deploy re-wiring is also
+                // available via ZAMMAlignmentVaultFactory.setVaultPoolKey while no liquidity exists.)
+                IZAMM.PoolKey memory poolKey = IZAMM.PoolKey({
+                    id0: 0, id1: 0,
+                    token0: address(0), token1: t.token,
+                    feeOrHook: cfg.zammFeeOrHook
+                });
                 address vault = zammVaultFactory.deployVault(salt, t.token, poolKey);
                 MasterRegistryV1(masterRegistry).registerVault(
                     vault, deployer, string.concat(t.symbol, " ZAMM Vault"),
@@ -511,6 +535,13 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "MetadataResolverRouter",     address(metadataResolverRouter));
         vm.serializeAddress(c, "MetadataOverlayModule",      address(metadataOverlayModule));
         vm.serializeAddress(c, "TierRevealModule",           address(tierRevealModule));
+        // Convenience pointers for the seed script — the first Uni LP vault and the first Aave
+        // endowment vault, resolved by family rather than by a fragile index into the `vaults`
+        // array (whose ordering shifts as LP families are enabled/disabled per network).
+        vm.serializeAddress(c, "SeedUniVault",
+            uniVaults.length  > 0 ? uniVaults[0]  : address(0));
+        vm.serializeAddress(c, "SeedAaveVault",
+            aaveVaults.length > 0 ? aaveVaults[0] : address(0));
         string memory contracts = vm.serializeAddress(c,
             "UniswapVaultPriceValidator", address(priceValidator));
 

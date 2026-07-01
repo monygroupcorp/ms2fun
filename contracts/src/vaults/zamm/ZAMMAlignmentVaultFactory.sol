@@ -4,10 +4,13 @@ pragma solidity ^0.8.24;
 import {IZAMM, ZAMMAlignmentVault} from "./ZAMMAlignmentVault.sol";
 import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
 import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 
 /// @title ZAMMAlignmentVaultFactory
 /// @notice Deploys ZAMMAlignmentVault clones via CREATE3. No peripherals — just zamm + zRouter singletons.
-contract ZAMMAlignmentVaultFactory {
+///         The factory owns every vault it deploys, so post-deploy pool-key wiring routes through
+///         setVaultPoolKey (onlyOwner), mirroring UniAlignmentVaultFactory.
+contract ZAMMAlignmentVaultFactory is Ownable {
     address public immutable vaultImplementation;
     address public immutable zamm;
     address public immutable zRouter;
@@ -29,6 +32,7 @@ contract ZAMMAlignmentVaultFactory {
         protocolTreasury = _protocolTreasury;
         defaultPriceValidator = _defaultPriceValidator;
         vaultImplementation = address(new ZAMMAlignmentVault());
+        _initializeOwner(msg.sender);
     }
 
     /// @notice Deploy a new ZAMM-backed vault clone via CREATE3
@@ -58,6 +62,17 @@ contract ZAMMAlignmentVaultFactory {
             address(defaultPriceValidator)
         );
         emit VaultDeployed(vault, alignmentToken);
+    }
+
+    /// @notice Set the ZAMM pool key on a vault deployed by this factory.
+    /// @dev The factory is the owner of every vault it deploys, so post-deploy pool-key wiring must
+    ///      route through the factory. onlyOwner (the deployer/protocol) to prevent a front-runner
+    ///      from wiring a manipulated pool before the real key is set. Mirrors
+    ///      UniAlignmentVaultFactory.setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param poolKey The ZAMM pool key to configure on the vault
+    function setVaultPoolKey(address vault, IZAMM.PoolKey calldata poolKey) external onlyOwner {
+        ZAMMAlignmentVault(payable(vault)).setPoolKey(poolKey);
     }
 
     /// @notice Preview the deterministic address for a given salt
