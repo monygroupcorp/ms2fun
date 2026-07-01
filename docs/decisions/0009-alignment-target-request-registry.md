@@ -28,11 +28,15 @@ Locked sub-decisions (from the task's O1–O4):
   mirroring the `FeaturedQueueManager` pay-to-enter idiom. **Zero changes to the Safe/Timelock-owned
   `AlignmentRegistryV1`** (no UUPS upgrade, no new role). Isolated and disposable. The request layer only
   *reads* the registry (a best-effort dup guard) and holds escrow; the owner does the actual registration.
-- **D6 — Refundable ETH deposit for anti-spam.** `submitRequest` escrows exactly `requestDeposit`
-  (owner-tunable; 0 disables). **Refunded on approve and on TTL-expiry** (expiry isn't spam);
-  **forfeited to the protocol treasury on a spam-reject** (`rejectRequest(id, forfeit=true)`), with a
-  plain **reject-and-refund** (`forfeit=false`) for good-faith-but-declined proposals. Second line of
-  defense: a bounded pending list (`maxPending`) + permissionless `pruneExpired` past `requestTTL`.
+- **D6 — Refundable ETH deposit for anti-spam, refunded via pull-payment.** `submitRequest` escrows
+  exactly `requestDeposit` (owner-tunable; 0 disables). **Refunded on approve and on TTL-expiry** (expiry
+  isn't spam); **forfeited to the protocol treasury on a spam-reject** (`rejectRequest(id, forfeit=true)`),
+  with a plain **reject-and-refund** (`forfeit=false`) for good-faith-but-declined proposals. Refunds are
+  **pull-payment**: approve/reject-refund/expiry credit a `refunds[requester]` ledger, claimed via
+  `withdrawRefund()` — so a requester that can't receive ETH can only revert its OWN claim, never an admin
+  action (forfeit still pushes to the trusted treasury directly). The deposit is the spam lever: if abused,
+  the owner raises it (stronger deterrent + more revenue), so no per-request asset cap is needed. Second
+  line of defense: a bounded pending list (`maxPending`) + permissionless `pruneExpired` past `requestTTL`.
 - **D7 — Two admin txs (v1), order enforced on-chain.** `approveRequest(id)` (refunds the deposit,
   delists) and `registerAlignmentTarget(...)` (prefilled from the request in the admin UI) are
   **separate** transactions. This keeps the core registry untouched. To make the split safe,
@@ -60,9 +64,9 @@ so multi-target tokens are only partially covered; the admin still dedupes on re
   end-to-end "request → scan → approve → wire" runbook. Ownership follows the platform pattern (owner =
   deployer at deploy, handed to ADMIN via the 2-step Solady handover in `deploy.ts`).
 - **Negative / trade-offs:** approval is two txs (mild admin friction, addressed in v2); the dup guard is
-  best-effort; escrowed deposits mean the contract custodies ETH while Pending (mitigated by
-  `nonReentrant` + checks-effects-interactions on every payout). Approval still bottlenecks on a single
-  owner — intentional (curation is the product), not delegated in v1.
+  best-effort; escrowed deposits mean the contract custodies ETH while Pending + owed refunds (mitigated by
+  pull-payment + `nonReentrant` + checks-effects-interactions on every payout). Approval still bottlenecks
+  on a single owner — intentional (curation is the product), not delegated in v1.
 
 ## Alternatives considered
 - **Extend `AlignmentRegistryV1`** with a pending mapping + internal register on approve — atomic, but a
