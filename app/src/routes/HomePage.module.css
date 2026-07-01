@@ -20,11 +20,16 @@
 
 .heroTitle {
   font-family: var(--brand-font-display);
-  font-size: clamp(3rem, 8vw, 6rem);
+  font-size: clamp(2.5rem, 6vw, 5rem);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.03em;
   line-height: 0.95;
   margin: 0;
+  /* The reset applies overflow-wrap: break-word globally; on this display-size headline that
+   * breaks mid-word ("alignmen"/"t"). Wrap only at the space between words. */
+  overflow-wrap: normal;
+  word-break: keep-all;
+  text-wrap: balance;
 }
 
 .heroSub {

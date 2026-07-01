@@ -14,6 +14,12 @@
   background: var(--color-bg);
   color: var(--color-text);
 
+  /* Base font for the whole shell. Nothing else sets a document font-family, so any element
+   * that relies on inheritance (message/post/activity body copy) would otherwise fall back to
+   * the UA serif default. Pin the brand body face here; components with their own font-family
+   * (mono labels, Syne display) still override. */
+  font-family: var(--brand-font-body);
+
   /* Backgrounds */
   --bg-primary: var(--color-bg);
   --bg-secondary: var(--color-surface);
@@ -44,4 +50,18 @@
   --shadow-subtle: none;
   --shadow-sm: none;
   --shadow-md: none;
+}
+
+/* The vendored stats device packs three cells at 40px padding + a 26px display value — too wide
+ * for three cells at phone widths, so the last (EXEC404 fossil) cell overflows and .app's
+ * overflow-x clips it. Tighten padding + value size on narrow viewports. Same specificity as the
+ * vendored rule; this bridge is imported after signature.css, so it wins on source order. */
+@media (max-width: 640px) {
+  [data-brand="noesis"] .noesis-stats .s {
+    padding: 10px 11px;
+  }
+
+  [data-brand="noesis"] .noesis-stats .s .v {
+    font-size: var(--font-size-body);
+  }
 }
