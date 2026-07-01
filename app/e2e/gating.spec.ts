@@ -95,6 +95,8 @@ test('gating config: set a tier at create, then replace it from creator admin @f
   expect(await tier(instance, 'alpha')).toBe(1n)
 
   // ── Edit path: replace the tiers from the creator-admin panel (owner-authored configureFor).
+  // Creator-admin (incl. the gating row) now lives in a collapsed CREATOR ADMIN disclosure — open it.
+  await page.getByText('CREATOR ADMIN', { exact: true }).click()
   const gatingRow = page
     .locator('[class*="row"]')
     .filter({ has: page.getByText('password tiers') })

@@ -11,9 +11,8 @@ import { useAccount } from 'wagmi'
 import { globalMessageRegistryAbi } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { useTxAction } from './ui/useTxAction'
+import { useBoardCart, ZERO_BYTES32 } from './board/boardCart'
 import styles from './MessageFeed.module.css'
-
-const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000' as const
 
 export function ReactButton({
   targetId,
@@ -31,7 +30,11 @@ export function ReactButton({
 }) {
   const { address: connected } = useAccount()
   const tx = useTxAction({ onSuccess: onReacted })
+  const { add, items } = useBoardCart()
 
+  const queued = items.some(
+    (i) => i.messageType === 3 && i.refId === targetId && i.instance === channel,
+  )
   const disabled = connected === undefined || reactedByMe || tx.isBusy
 
   function react() {
@@ -46,19 +49,51 @@ export function ReactButton({
     })
   }
 
+  function addToBatch() {
+    add({
+      instance: channel,
+      messageType: 3,
+      refId: targetId,
+      actionRef: ZERO_BYTES32,
+      metadata: ZERO_BYTES32,
+      content: '',
+      label: `#${targetId.toString()}`,
+    })
+  }
+
   // Endorsement, not emoji — the one dignified reaction, rendered as the mono "▪ endorsed · N"
   // mark (the ▪ comes from the .noesis-endorse device). The brand forbids emoji reactions.
   return (
-    <button
-      type="button"
-      className={`${styles.reactBtn} noesis-endorse`}
-      onClick={react}
-      disabled={disabled}
-      data-testid="board-react"
-      aria-pressed={reactedByMe}
-      title={reactedByMe ? 'you endorsed this' : 'endorse'}
-    >
-      {tx.isBusy ? 'endorsing…' : <>endorsed · <span className={styles.reactCount}>{count}</span></>}
-    </button>
+    <span className={styles.reactWrap}>
+      <button
+        type="button"
+        className={`${styles.reactBtn} noesis-endorse`}
+        onClick={react}
+        disabled={disabled}
+        data-testid="board-react"
+        aria-pressed={reactedByMe}
+        title={reactedByMe ? 'you endorsed this' : 'endorse'}
+      >
+        {tx.isBusy ? (
+          'endorsing…'
+        ) : (
+          <>
+            endorsed · <span className={styles.reactCount}>{count}</span>
+          </>
+        )}
+      </button>
+      {connected !== undefined && !reactedByMe && (
+        <button
+          type="button"
+          className={styles.reactBatch}
+          onClick={addToBatch}
+          disabled={queued || tx.isBusy}
+          title={queued ? 'queued in batch' : 'add endorsement to batch'}
+          data-testid="board-react-batch"
+        >
+          {queued ? 'queued' : '+ batch'}
+        </button>
+      )}
+    </span>
   )
 }

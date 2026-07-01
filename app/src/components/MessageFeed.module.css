@@ -128,6 +128,35 @@
   font-variant-numeric: tabular-nums;
 }
 
+.reactWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.reactBatch {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  background-color: transparent;
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  border-radius: var(--radius-none);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.reactBatch:hover:not(:disabled) {
+  border-color: var(--border-primary);
+  color: var(--text-primary);
+}
+
+.reactBatch:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
 .replyBtn {
   font-family: var(--font-mono);
   font-size: var(--font-size-caption);

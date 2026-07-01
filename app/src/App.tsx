@@ -4,6 +4,8 @@ import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
 import { WrongNetworkBanner } from './components/ui/WrongNetworkBanner'
+import { BoardCartProvider } from './components/board/BoardCartProvider'
+import { BoardCartBar } from './components/board/BoardCartBar'
 import { config } from './lib/wagmi'
 import { queryClient } from './lib/queryClient'
 import { HomePage } from './routes/HomePage'
@@ -85,95 +87,98 @@ export function App() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <div className={styles.app} data-brand="noesis">
-          <header className={styles.topBar}>
-            <Link href="/" className={styles.logo} onClick={closeMenu}>
-              ms2<span className={styles.logoTld}>.fun</span>
-            </Link>
-            <nav className={styles.nav}>
-              <NavLinks linkClassName={styles.navLink} ctaClassName={styles.navCta} />
-              <WalletButton />
-            </nav>
-            <button
-              type="button"
-              className={styles.menuButton}
-              onClick={() => setMenuOpen(true)}
-              aria-label="open menu"
-            >
-              MENU <span aria-hidden>☰</span>
-            </button>
-          </header>
-          <WrongNetworkBanner />
-          {menuOpen && (
-            <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
-              <div className={styles.overlayBar}>
-                <Link href="/" className={styles.logo} onClick={closeMenu}>
-                  ms2<span className={styles.logoTld}>.fun</span>
-                </Link>
-                <button
-                  type="button"
-                  className={styles.menuButton}
-                  onClick={closeMenu}
-                  aria-label="close menu"
-                >
-                  <span aria-hidden>✕</span>
-                </button>
-              </div>
-              <nav className={styles.overlayNav}>
-                <NavLinks linkClassName={styles.overlayLink} onNavigate={closeMenu} />
-                <div className={styles.overlayWallet}>
-                  <WalletButton />
-                </div>
+        <BoardCartProvider>
+          <div className={styles.app} data-brand="noesis">
+            <header className={styles.topBar}>
+              <Link href="/" className={styles.logo} onClick={closeMenu}>
+                ms2<span className={styles.logoTld}>.fun</span>
+              </Link>
+              <nav className={styles.nav}>
+                <NavLinks linkClassName={styles.navLink} ctaClassName={styles.navCta} />
+                <WalletButton />
               </nav>
-            </div>
-          )}
-          <main className={styles.main}>
-            <Switch>
-              <Route path="/" component={HomePage} />
-              <Route path="/exec404" component={Exec404Page} />
-              <Route path="/launch" component={WizardPage} />
-              <Route path="/collections" component={CollectionsPage} />
-              <Route path="/board" component={BoardPage} />
-              <Route path="/request-target" component={RequestTargetPage} />
-              {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
+              <button
+                type="button"
+                className={styles.menuButton}
+                onClick={() => setMenuOpen(true)}
+                aria-label="open menu"
+              >
+                MENU <span aria-hidden>☰</span>
+              </button>
+            </header>
+            <WrongNetworkBanner />
+            {menuOpen && (
+              <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
+                <div className={styles.overlayBar}>
+                  <Link href="/" className={styles.logo} onClick={closeMenu}>
+                    ms2<span className={styles.logoTld}>.fun</span>
+                  </Link>
+                  <button
+                    type="button"
+                    className={styles.menuButton}
+                    onClick={closeMenu}
+                    aria-label="close menu"
+                  >
+                    <span aria-hidden>✕</span>
+                  </button>
+                </div>
+                <nav className={styles.overlayNav}>
+                  <NavLinks linkClassName={styles.overlayLink} onNavigate={closeMenu} />
+                  <div className={styles.overlayWallet}>
+                    <WalletButton />
+                  </div>
+                </nav>
+              </div>
+            )}
+            <main className={styles.main}>
+              <Switch>
+                <Route path="/" component={HomePage} />
+                <Route path="/exec404" component={Exec404Page} />
+                <Route path="/launch" component={WizardPage} />
+                <Route path="/collections" component={CollectionsPage} />
+                <Route path="/board" component={BoardPage} />
+                <Route path="/request-target" component={RequestTargetPage} />
+                {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
                   the connected wallet's own plate. */}
-              <Route path="/portfolio" component={ProfilePage} />
-              <Route path="/admin" component={AdminPage} />
-              <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
-              <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
-              <Route path="/collection/:instance" component={CollectionPage} />
-              <Route path="/profile" component={ProfilePage} />
-              <Route path="/profile/:address" component={ProfilePage} />
-              <Route>
-                <section className={styles.notFound}>
-                  <div className="noesis-404">
-                    <div className="plate">
-                      <span className="k">Wall label</span>
-                      <span className="e">404 · not found</span>
-                    </div>
-                    <div className="inner">
-                      <div className="big">404</div>
-                      <div className="ttl">Not on view</div>
-                      <p className="cap">
-                        There&rsquo;s nothing hung at this address. The piece may have been moved, or
-                        the link mistyped. Nothing here left the building — it was never on this
-                        wall.
-                      </p>
-                      <div className={styles.recoverActions}>
-                        <Link href="/collections" className={styles.recoverPrimary}>
-                          ← Back to collections
-                        </Link>
-                        <Link href="/board" className={styles.recoverSecondary}>
-                          Open the board
-                        </Link>
+                <Route path="/portfolio" component={ProfilePage} />
+                <Route path="/admin" component={AdminPage} />
+                <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
+                <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
+                <Route path="/collection/:instance" component={CollectionPage} />
+                <Route path="/profile" component={ProfilePage} />
+                <Route path="/profile/:address" component={ProfilePage} />
+                <Route>
+                  <section className={styles.notFound}>
+                    <div className="noesis-404">
+                      <div className="plate">
+                        <span className="k">Wall label</span>
+                        <span className="e">404 · not found</span>
+                      </div>
+                      <div className="inner">
+                        <div className="big">404</div>
+                        <div className="ttl">Not on view</div>
+                        <p className="cap">
+                          There&rsquo;s nothing hung at this address. The piece may have been moved,
+                          or the link mistyped. Nothing here left the building — it was never on
+                          this wall.
+                        </p>
+                        <div className={styles.recoverActions}>
+                          <Link href="/collections" className={styles.recoverPrimary}>
+                            ← Back to collections
+                          </Link>
+                          <Link href="/board" className={styles.recoverSecondary}>
+                            Open the board
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </section>
-              </Route>
-            </Switch>
-          </main>
-        </div>
+                  </section>
+                </Route>
+              </Switch>
+            </main>
+            <BoardCartBar />
+          </div>
+        </BoardCartProvider>
       </QueryClientProvider>
     </WagmiProvider>
   )

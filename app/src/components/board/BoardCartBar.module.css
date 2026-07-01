@@ -1,0 +1,99 @@
+/* Sticky bottom cart — present on every surface where you can queue board actions. Ink-bordered
+   plate on the gallery wall; sits above content via z-index. */
+.bar {
+  position: fixed;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  left: auto;
+  z-index: 200;
+  max-width: min(24rem, calc(100vw - 2 * var(--space-3)));
+  background: var(--color-bg);
+  border: 2px solid var(--color-text);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.clear {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.clear:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  border-top: 1px solid var(--border-secondary);
+  padding-top: var(--space-1);
+}
+
+.verb {
+  flex: 0 0 auto;
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: var(--font-size-body-sm);
+}
+
+.remove:hover:not(:disabled) {
+  color: var(--color-text);
+}
