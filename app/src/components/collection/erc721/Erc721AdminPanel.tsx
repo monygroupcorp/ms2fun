@@ -13,6 +13,7 @@
 import { useState } from 'react'
 import { erc721AuctionInstanceAbi } from '../../../generated/contracts'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
+import { Disclosure } from '../../ui/Disclosure'
 import { AmountField } from '../../ui/AmountField'
 import { TxButton } from '../../ui/TxButton'
 import { parseAmount } from '../../ui/parseAmount'
@@ -27,13 +28,15 @@ export function Erc721AdminPanel({ instance }: { instance: `0x${string}` }) {
   if (!isOwner) return null
 
   return (
-    <AdminSection title="creator actions" testId="erc721-admin">
-      <QueuePieceRow instance={instance} />
-      <ClaimVaultFeesRow instance={instance} />
-      <MigrateVaultRow instance={instance} />
-      <ClaimAllFeesRow instance={instance} />
-      <DelegationRow instance={instance} />
-    </AdminSection>
+    <Disclosure summary="CREATOR ADMIN" testId="erc721-creator-admin">
+      <AdminSection title="creator actions" testId="erc721-admin">
+        <QueuePieceRow instance={instance} />
+        <ClaimVaultFeesRow instance={instance} />
+        <MigrateVaultRow instance={instance} />
+        <ClaimAllFeesRow instance={instance} />
+        <DelegationRow instance={instance} />
+      </AdminSection>
+    </Disclosure>
   )
 }
 

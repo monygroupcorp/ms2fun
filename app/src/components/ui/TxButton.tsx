@@ -21,6 +21,11 @@ export interface TxButtonProps {
   /** Global button classes; defaults to the primary CTA. */
   className?: string
   errorText?: string
+  /**
+   * Shown under the button while it's disabled and idle — so a button that's greyed *pending an
+   * input* (e.g. "enter an amount") reads as "here's what to do", not "this capability is unavailable".
+   */
+  disabledHint?: string
   testId?: string
 }
 
@@ -35,6 +40,7 @@ export function TxButton({
   disabled = false,
   className = 'btn btn-primary',
   errorText = 'transaction failed — try again',
+  disabledHint,
   testId,
 }: TxButtonProps) {
   const busy = state === 'signing' || state === 'confirming'
@@ -68,6 +74,9 @@ export function TxButton({
         {state === 'signing' ? signingLabel : state === 'confirming' ? confirmingLabel : label}
       </button>
       {state === 'error' && <p className={`${styles.status} ${styles.error}`}>{errorText}</p>}
+      {disabled && !busy && state === 'idle' && disabledHint !== undefined && (
+        <p className={styles.hint}>{disabledHint}</p>
+      )}
     </div>
   )
 }

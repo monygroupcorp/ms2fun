@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { EditionList } from '../EditionList'
 import { AddEditionForm } from '../AddEditionForm'
 import { CreatorAdminPanel } from '../erc1155/CreatorAdminPanel'
+import { Disclosure } from '../../ui/Disclosure'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import styles from './TypeSection.module.css'
 
@@ -27,10 +28,10 @@ export function Erc1155Collection({ instance }: Erc1155CollectionProps) {
       <h2 className={styles.title}>EDITIONS</h2>
       <EditionList key={editionsKey} instance={instance} />
       {isOwner && (
-        <>
+        <Disclosure summary="CREATOR ADMIN" testId="erc1155-creator-admin">
           <AddEditionForm instance={instance} onAdded={() => setEditionsKey((k) => k + 1)} />
           <CreatorAdminPanel instance={instance} />
-        </>
+        </Disclosure>
       )}
     </section>
   )

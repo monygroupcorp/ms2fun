@@ -18,6 +18,7 @@ import {
   useWriteErc1155InstanceClaimFreeMint,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
+import { txErrorReason } from '../../ui/useTxAction'
 import { encodeFreeMintGatingData, isFreeMintGated } from './gatingMint'
 import styles from './Erc1155Actions.module.css'
 
@@ -59,6 +60,7 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
     data: txHash,
     isPending: sigPending,
     isError: writeError,
+    error: writeErrObj,
     reset: resetWrite,
   } = useWriteErc1155InstanceClaimFreeMint()
 
@@ -66,7 +68,10 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
     isLoading: isConfirming,
     isSuccess,
     isError: waitError,
+    error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash: txHash })
+
+  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
 
   const gated = isFreeMintGated(gatingModule, gatingScope)
   const allocationOpen = allocation !== undefined && allocation > 0n
@@ -102,7 +107,7 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
         <p className={styles.label}>FREE MINT</p>
         <p className={styles.txStatus}>free mint claimed — tx confirmed.</p>
         <button className="btn btn-secondary" onClick={handleReset}>
-          reset
+          done
         </button>
       </div>
     )
@@ -114,10 +119,10 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
     <div className={styles.panel} data-testid="erc1155-freemint">
       <p className={styles.label}>FREE MINT</p>
       <p className={styles.context}>
-        you have an unclaimed free mint
+        Open free-mint pool — first come, first served
         {allocation !== undefined &&
           claimedCount !== undefined &&
-          ` (${claimedCount.toString()}/${allocation.toString()} claimed)`}
+          ` · ${claimedCount.toString()}/${allocation.toString()} claimed`}
       </p>
       {gated && (
         <input
@@ -139,7 +144,9 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
         {sigPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'claim free mint'}
       </button>
       {(writeError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>claim failed — try again</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>
+          {failureReason ?? 'claim failed — try again'}
+        </p>
       )}
     </div>
   )

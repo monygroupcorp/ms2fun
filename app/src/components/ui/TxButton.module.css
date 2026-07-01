@@ -19,3 +19,10 @@
 .error {
   color: var(--text-primary);
 }
+
+.hint {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  margin: 0;
+}
