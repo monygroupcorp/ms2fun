@@ -125,6 +125,83 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
     // choice. No per-instance inputs — the wizard shows the title/description from module metadata.
     fields: [],
   },
+  {
+    configType: 'metadata-overlay',
+    title: 'Artist overlay',
+    // On-chain shape: initConfig(instance, autoLatest, defaultPayout). The overlay's CONTENT (event
+    // waves, paid commissions) is authored POST-create by the creator-admin panel, never here — only
+    // the two immutable-at-create policy flags are set in the create tx.
+    fields: [
+      {
+        key: 'overlayAutoLatest',
+        label: 'Auto-apply latest wave',
+        kind: 'bool',
+        default: false,
+        help: 'When on, the newest eligible event wave shows automatically until a holder pins a version',
+      },
+      {
+        key: 'overlayDefaultPayout',
+        label: 'Default commission payout',
+        kind: 'select',
+        default: '0',
+        options: [
+          { value: '0', label: 'Artist', description: 'Commission revenue goes entirely to the artist' },
+          {
+            value: '1',
+            label: 'Split',
+            description: 'Apply the protocol/vault/artist revenue split',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    configType: 'metadata-tier',
+    // On-chain shape: initTiers(instance, Tier[]) where Tier{ idStart, idEnd, minBalance, baseURI,
+    // lockedURI }. The renderer has no list-of-group, so the table is captured as PARALLEL lists
+    // zipped by row index at submit (mirrors password-tier-gating). Ranges must be ascending and
+    // non-overlapping; the encoder/validator enforces it before submit. Frozen at create — no
+    // post-create authoring (mutable rarity = rug).
+    title: 'Tier reveal table',
+    fields: [
+      {
+        key: 'tierIdStarts',
+        label: 'Range start (token id)',
+        kind: 'list',
+        help: 'One row per tier; ranges ascending + non-overlapping',
+        item: { key: 'tierIdStart', label: 'Start id', kind: 'number' },
+        validation: { min: 1 },
+      },
+      {
+        key: 'tierIdEnds',
+        label: 'Range end (token id)',
+        kind: 'list',
+        help: 'Inclusive end id, paired with each start row',
+        item: { key: 'tierIdEnd', label: 'End id', kind: 'number' },
+      },
+      {
+        key: 'tierMinBalances',
+        label: 'Min holdings to reveal',
+        kind: 'list',
+        help: 'Effective holdings (wallet + staked), in token base units (wei-scale)',
+        item: { key: 'tierMinBalance', label: 'Min balance', kind: 'bigint', unit: 'tokens' },
+      },
+      {
+        key: 'tierBaseURIs',
+        label: 'Revealed base URI',
+        kind: 'list',
+        help: 'Token id is appended to this prefix when the holder clears the threshold',
+        item: { key: 'tierBaseURI', label: 'Revealed URI', kind: 'text' },
+      },
+      {
+        key: 'tierLockedURIs',
+        label: 'Locked URI',
+        kind: 'list',
+        help: 'Teaser shown below the threshold; leave blank to fall through to the collection base',
+        item: { key: 'tierLockedURI', label: 'Locked URI', kind: 'text' },
+      },
+    ],
+  },
 ]
 
 // ── Lookup ───────────────────────────────────────────────────────────────────

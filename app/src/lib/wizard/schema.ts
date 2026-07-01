@@ -28,7 +28,15 @@ export type FieldKind =
   | 'group'
 
 /** ComponentRegistry feature tags (preimages of the on-chain `keccak256` labels in FeatureUtils). */
-export type ComponentTag = 'gating' | 'liquidity' | 'dynamic_pricing' | 'staking' | 'vault'
+export type ComponentTag =
+  | 'gating'
+  | 'liquidity'
+  | 'dynamic_pricing'
+  | 'staking'
+  | 'vault'
+  | 'resolver'
+  | 'overlay'
+  | 'tier'
 
 export interface SelectOption {
   value: string

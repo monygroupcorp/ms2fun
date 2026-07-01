@@ -76,6 +76,26 @@ contract ValidateSepolia is Script {
         for (uint256 i = 0; i < stakingModules.length; i++) {
             console.log("    ", stakingModules[i]);
         }
+
+        // Metadata-resolution stack (ADR-0006/0007) — resolver router + overlay + tier
+        address[] memory resolvers = cr.getApprovedComponentsByTag(FeatureUtils.RESOLVER);
+        console.log("  metadata resolvers:", resolvers.length);
+        for (uint256 i = 0; i < resolvers.length; i++) {
+            console.log("    ", resolvers[i]);
+        }
+        address[] memory overlays = cr.getApprovedComponentsByTag(FeatureUtils.OVERLAY);
+        console.log("  overlay modules:", overlays.length);
+        for (uint256 i = 0; i < overlays.length; i++) {
+            console.log("    ", overlays[i]);
+        }
+        address[] memory tiers = cr.getApprovedComponentsByTag(FeatureUtils.TIER);
+        console.log("  tier modules:", tiers.length);
+        for (uint256 i = 0; i < tiers.length; i++) {
+            console.log("    ", tiers[i]);
+        }
+        require(resolvers.length > 0, "no metadata resolver approved");
+        require(overlays.length > 0, "no overlay module approved");
+        require(tiers.length > 0, "no tier module approved");
         console.log("");
     }
 

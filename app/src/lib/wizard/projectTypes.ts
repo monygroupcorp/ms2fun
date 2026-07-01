@@ -142,6 +142,31 @@ const erc404: ProjectTypeSchema = {
       tag: 'staking',
       required: false,
     },
+    // ── Metadata-resolution stack (ADR-0006/0007) ──────────────────────────────
+    // All optional. The resolver (router) is the instance's METADATA_RESOLVER target; overlay/tier
+    // are its children, wired + frozen at create. Selecting the resolver turns the feature on; the
+    // overlay/tier slots supply the concrete modules the router stacks (precedence: overlay→tier).
+    {
+      key: 'resolver',
+      label: 'Metadata resolver',
+      tag: 'resolver',
+      required: false,
+      help: 'Router that stacks dynamic-metadata modules (overlay/tier). Off when unset.',
+    },
+    {
+      key: 'overlay',
+      label: 'Artist overlay',
+      tag: 'overlay',
+      required: false,
+      help: 'Augmentation layer: event waves + paid commissions (configured post-create)',
+    },
+    {
+      key: 'tier',
+      label: 'Tier reveal',
+      tag: 'tier',
+      required: false,
+      help: 'Rarity-by-ownership reveal; tier table is set at create (immutable)',
+    },
   ],
 }
 

@@ -80,3 +80,9 @@ scripts/debug-*.mjs
 # Playwright artifacts (when run from repo root by mistake)
 test-results/
 playwright-report/
+
+# Security-auditor skill scratch dirs (Map-Hunt-Attack work products)
+.sc-auditor-work/
+
+# Stray Foundry fuzz cache when forge is run from the repo root (contracts/cache is already ignored)
+/cache/

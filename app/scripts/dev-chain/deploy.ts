@@ -203,6 +203,11 @@ async function main(): Promise<void> {
       ERC721AuctionFactory: required(f, 'ERC721'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
       ProfileRegistry: required(c, 'ProfileRegistry'),
+      // Metadata-resolution stack singletons (ADR-0006/0007) — the wizard lists them live via
+      // ComponentRegistry, but surfacing the addresses here lets e2e/tests reach them directly.
+      MetadataResolverRouter: required(c, 'MetadataResolverRouter'),
+      MetadataOverlayModule: required(c, 'MetadataOverlayModule'),
+      TierRevealModule: required(c, 'TierRevealModule'),
     },
   }
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)

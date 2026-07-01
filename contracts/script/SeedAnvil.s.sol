@@ -14,7 +14,10 @@ import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
 import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
 import {FreeMintParams} from "../src/interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../src/gating/IGatingModule.sol";
+import {TierConfig} from "../src/gating/IPasswordTierGatingModule.sol";
 import {IAlignmentVault} from "../src/interfaces/IAlignmentVault.sol";
+import {TierRevealModule} from "../src/metadata/TierRevealModule.sol";
+import {MetadataOverlayModule} from "../src/metadata/MetadataOverlayModule.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 
 /// @dev Minimal Solady-Ownable surface — instances + registries all expose this single-step transfer.
@@ -64,6 +67,9 @@ contract SeedAnvil is Script {
         address endowmentVault; // first Aave endowment vault (index 2)
         address stakingModule;  // ERC404StakingModule (approved STAKING component)
         address zammDeployer;   // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
+        address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
+        address overlay;        // MetadataOverlayModule (approved OVERLAY)
+        address tier;           // TierRevealModule (approved TIER)
     }
 
     uint256 deployerKey;
@@ -94,6 +100,9 @@ contract SeedAnvil is Script {
         _seedErc404PreOpen(d);
         _seedErc404MidCurve(d);
         _seedErc404ReadyToGraduate(d);
+
+        // ── ERC404 with a stacked metadata-resolution stack (overlay + tier) ──
+        _seedErc404Stacked(d);
 
         // ── ERC721 live (1-day duration -> stays ACTIVE after the advance) ──
         _seedErc721Live(d);
@@ -151,6 +160,9 @@ contract SeedAnvil is Script {
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
         d.zammDeployer  = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
+        d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
+        d.overlay        = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
+        d.tier           = vm.parseJsonAddress(json, ".contracts.TierRevealModule");
         // `vaults` is serialized as a JSON-encoded STRING (DeployCore builds it by hand): parse it
         // out first, then index the inner array. [0]=first Uni vault, [2]=first Aave endowment vault.
         string memory vaultsJson = vm.parseJsonString(json, ".vaults");
@@ -377,6 +389,94 @@ contract SeedAnvil is Script {
         vm.stopBroadcast();
         // _buyBonding manages its own broadcast — call it OUTSIDE the block above (no nesting).
         _buyBonding(b, deployerKey, 1e23);
+    }
+
+    /// @dev STACKED METADATA: an ERC404 created via the factory's metadata overload (NOT the gating
+    ///      param), wiring resolver(router) → [overlay, tier]. The tier table is sealed at create
+    ///      (ids 1-2 reveal "rare-" art once the holder clears 1 unit; teaser "locked-" otherwise).
+    ///      Post-create the deployer (artist) publishes an opt-in event wave and a PAY commission on
+    ///      id 3, then — as the holder of id 3 — unlocks + pins it. Token URIs (tokenBaseURI "" → base
+    ///      is the bare id) demonstrate precedence: id1/2 → "rare-N", id3 → "commission-3", else "N".
+    function _seedErc404Stacked(Deployed memory d) internal {
+        // Build the sealed tier table: ids 1-2 are the rare subset, threshold = 1 unit (1e24 for preset 1).
+        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
+        tiers[0] = TierRevealModule.Tier({
+            idStart: 1, idEnd: 2, minBalance: 1e24, baseURI: "rare-", lockedURI: "locked-"
+        });
+
+        address[] memory children = new address[](2);
+        children[0] = d.overlay; // precedence: holder pins/events win over...
+        children[1] = d.tier;    // ...ambient rarity reveal
+
+        ERC404Factory.MetadataConfig memory meta = ERC404Factory.MetadataConfig({
+            resolver: d.resolverRouter,
+            childResolvers: children,
+            overlay: d.overlay,
+            tier: d.tier,
+            tiers: tiers,
+            autoLatest: false, // opt-in events — keeps tier reveal visible by default
+            defaultPayout: MetadataOverlayModule.Payout.ARTIST
+        });
+
+        vm.startBroadcast(deployerKey);
+        ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
+            salt: keccak256(abi.encode(block.timestamp, "prism-stacked", "ERC404")),
+            name: "prism-stacked",
+            symbol: "PRISM",
+            styleUri: "",
+            tokenBaseURI: "", // base tokenURI is the bare id, so prefixes above read clearly
+            owner: deployer,
+            vault: d.vault,
+            nftCount: 10,
+            presetId: 1,
+            stakingModule: address(0)
+        });
+        TierConfig memory noGating;
+        address inst = d.erc404.createInstance(
+            params,
+            _collectionMeta("Prism", "Stacked overlay + rarity tiers.", "PR"),
+            d.zammDeployer,
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH}),
+            noGating,
+            meta
+        );
+        _instances.push(inst);
+
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingActive(true);
+        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.035 ether);
+        vm.stopBroadcast();
+
+        // Deployer buys 3 whole units WITH NFTs minted → owns ids 1,2,3 (balance 3e24 clears the tier).
+        _buyBondingMint(b, deployerKey, 3e24);
+
+        // Artist (deployer) authoring + holder unlock — all owner/holder writes before _transferAdmin.
+        vm.startBroadcast(deployerKey);
+        MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
+        // An opt-in open event wave (holders select it; not auto because autoLatest=false).
+        ov.publishWave(inst, "event-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        // A paid commission on id 3 (outside the tier range), then unlock+pin it as the holder.
+        ov.setCommission(inst, 3, "commission-3", MetadataOverlayModule.CommCond.PAY, 0.01 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.unlock{value: 0.01 ether}(inst, 3);
+        vm.stopBroadcast();
+
+        console.log("STACKED prism instance:", inst);
+        console.log("  overlay:", d.overlay);
+        console.log("  tier   :", d.tier);
+        console.log("  router :", d.resolverRouter);
+    }
+
+    /// @dev Same exact-cost math as _buyBonding but mints NFTs (mintNFT=true) so the buyer owns ids.
+    function _buyBondingMint(ERC404BondingInstance b, uint256 key, uint256 amount) internal {
+        BondingCurveMath.Params memory params = _curveParams(b);
+        uint256 cost = BondingCurveMath.calculateCost(params, b.totalBondingSupply(), amount);
+        uint256 fee = (cost * b.bondingFeeBps()) / 10000;
+        uint256 total = cost + fee;
+        vm.startBroadcast(key);
+        b.buyBonding{value: total}(amount, total, true, bytes32(0), "", 0);
+        vm.stopBroadcast();
     }
 
     /// @dev Compute the EXACT cost the instance will charge and pay it, so buyBonding never reverts.

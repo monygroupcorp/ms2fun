@@ -16,6 +16,7 @@ import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessage
 import { IInstanceLifecycle, TYPE_ERC404, STATE_BONDING, STATE_PAUSED, STATE_GRADUATED } from "../../interfaces/IInstanceLifecycle.sol";
 import { IGatingModule, GatingScope } from "../../gating/IGatingModule.sol";
 import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol";
+import { IMetadataResolver } from "../../metadata/IMetadataResolver.sol";
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 error AlreadyInitialized();
@@ -58,6 +59,7 @@ error PurchaseTooSmall();
 error OnlyFactory();
 error NotInitialized();
 error MetadataAlreadySet();
+error ModuleAlreadySet();
 error NothingToWithdraw();
 error WithdrawFailed();
 
@@ -142,6 +144,11 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     IERC404StakingModule public stakingModule;
     bool public stakingActive;
 
+    // Generic keyed module slots (ADR-0006/0007). One slot for all known + future module pointers
+    // (role => module; 0 = absent). Wired ONCE by the factory at create, then sealed — no owner setter.
+    mapping(bytes32 => address) public modules;
+    bytes32 internal constant METADATA_RESOLVER = keccak256("metadata.resolver");
+
     // ── Events ────────────────────────────────────────────────────────────────
     event BondingSale(address indexed user, uint256 amount, uint256 cost, bool isBuy);
     event BondingOpenTimeSet(uint256 openTime);
@@ -157,6 +164,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     event Staked(address indexed user, uint256 amount);
     event Unstaked(address indexed user, uint256 amount, uint256 rewardPaid);
     event StakingRewardsClaimed(address indexed user, uint256 amount);
+    event ModuleSet(bytes32 indexed role, address module);
 
     // ┌─────────────────────────┐
     // │      Constructor        │
@@ -259,6 +267,23 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     function initializeStaking(address _stakingModule) external {
         if (msg.sender != factory) revert OnlyFactory();
         stakingModule = IERC404StakingModule(_stakingModule);
+    }
+
+    /// @notice Wire a generic keyed module pointer (e.g. METADATA_RESOLVER). Factory-only, set-once
+    ///         per role — the resolution mechanism is sealed at construction (ADR-0006/0007). The
+    ///         factory registry-validates `m` before calling; the read path stays defensive (try/catch).
+    function initModule(bytes32 role, address m) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        if (modules[role] != address(0)) revert ModuleAlreadySet();
+        modules[role] = m;
+        emit ModuleSet(role, m);
+    }
+
+    /// @notice Expose the NFT owner so metadata modules can authorize holder writes.
+    /// @dev DN404 tracks this internally and only the mirror exposes it today. Reverts on unminted
+    ///      ids (TokenDoesNotExist) — correct for holder-write auth (can't act on a nonexistent token).
+    function ownerOf(uint256 id) public view returns (address) {
+        return _ownerOf(id);
     }
 
     /// @notice Toggle agent delegation for this instance
@@ -616,8 +641,21 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     function name() public view override returns (string memory) { return _name; }
     function symbol() public view override returns (string memory) { return _symbol; }
     function _unit() internal view override returns (uint256) { return unit; }
+    /// @dev Defensive metadata-resolution seam (ADR-0006/0007): if a resolver is wired and returns
+    ///      a non-empty augmentation, it wins; ANY revert/empty falls back to base — tokenURI can
+    ///      never be bricked by a misbehaving module. Uses _ownerAt (revert-free), NOT _ownerOf.
+    ///      The `m.code.length` guard is load-bearing: a high-level call to a code-less address (a
+    ///      self-destructed resolver) reverts UNCATCHABLY on the extcodesize check, which the
+    ///      try/catch would NOT swallow — so it is checked explicitly to keep the never-brick promise.
     function _tokenURI(uint256 tokenId) internal view override returns (string memory) {
-        return string.concat(metadataURI, LibString.toString(tokenId));
+        string memory base = string.concat(metadataURI, LibString.toString(tokenId));
+        address m = modules[METADATA_RESOLVER];
+        if (m != address(0) && m.code.length != 0) {
+            try IMetadataResolver(m).resolve(address(this), tokenId, _ownerAt(tokenId)) returns (string memory aug) {
+                if (bytes(aug).length != 0) return aug;   // augmented wins
+            } catch {}                                     // any revert/gas issue → base, marketplaces safe
+        }
+        return base;
     }
     function _skipNFTDefault(address) internal pure override returns (bool) { return false; }
 

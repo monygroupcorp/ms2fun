@@ -2890,6 +2890,16 @@ export const erc404BondingInstanceAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'role', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'm', internalType: 'address', type: 'address' },
+    ],
+    name: 'initModule',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
       { name: 'owner', internalType: 'address', type: 'address' },
       { name: 'vault_', internalType: 'address', type: 'address' },
       {
@@ -3066,6 +3076,13 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'modules',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'name',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
@@ -3076,6 +3093,13 @@ export const erc404BondingInstanceAbi = [
     inputs: [],
     name: 'owner',
     outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'ownerOf',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
   {
@@ -3465,6 +3489,20 @@ export const erc404BondingInstanceAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      { name: 'role', internalType: 'bytes32', type: 'bytes32', indexed: true },
+      {
+        name: 'module',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+    ],
+    name: 'ModuleSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       {
         name: 'pendingOwner',
         internalType: 'address',
@@ -3677,6 +3715,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'MaxCostExceeded' },
   { type: 'error', inputs: [], name: 'MetadataAlreadySet' },
   { type: 'error', inputs: [], name: 'MirrorAddressIsZero' },
+  { type: 'error', inputs: [], name: 'ModuleAlreadySet' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoReserve' },
@@ -3804,6 +3843,95 @@ export const erc404FactoryAbi = [
     name: 'computeInstanceAddress',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'params',
+        internalType: 'struct ERC404Factory.CreateParams',
+        type: 'tuple',
+        components: [
+          { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'symbol', internalType: 'string', type: 'string' },
+          { name: 'styleUri', internalType: 'string', type: 'string' },
+          { name: 'tokenBaseURI', internalType: 'string', type: 'string' },
+          { name: 'owner', internalType: 'address', type: 'address' },
+          { name: 'vault', internalType: 'address', type: 'address' },
+          { name: 'nftCount', internalType: 'uint256', type: 'uint256' },
+          { name: 'presetId', internalType: 'uint8', type: 'uint8' },
+          { name: 'stakingModule', internalType: 'address', type: 'address' },
+        ],
+      },
+      { name: 'metadataURI', internalType: 'string', type: 'string' },
+      { name: 'liquidityDeployer', internalType: 'address', type: 'address' },
+      { name: 'gatingModule', internalType: 'address', type: 'address' },
+      {
+        name: 'freeMint',
+        internalType: 'struct FreeMintParams',
+        type: 'tuple',
+        components: [
+          { name: 'allocation', internalType: 'uint256', type: 'uint256' },
+          { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
+        ],
+      },
+      {
+        name: 'gatingConfig',
+        internalType: 'struct TierConfig',
+        type: 'tuple',
+        components: [
+          { name: 'tierType', internalType: 'enum TierType', type: 'uint8' },
+          {
+            name: 'passwordHashes',
+            internalType: 'bytes32[]',
+            type: 'bytes32[]',
+          },
+          { name: 'volumeCaps', internalType: 'uint256[]', type: 'uint256[]' },
+          {
+            name: 'tierUnlockTimes',
+            internalType: 'uint256[]',
+            type: 'uint256[]',
+          },
+        ],
+      },
+      {
+        name: 'metadataConfig',
+        internalType: 'struct ERC404Factory.MetadataConfig',
+        type: 'tuple',
+        components: [
+          { name: 'resolver', internalType: 'address', type: 'address' },
+          {
+            name: 'childResolvers',
+            internalType: 'address[]',
+            type: 'address[]',
+          },
+          { name: 'overlay', internalType: 'address', type: 'address' },
+          { name: 'tier', internalType: 'address', type: 'address' },
+          {
+            name: 'tiers',
+            internalType: 'struct TierRevealModule.Tier[]',
+            type: 'tuple[]',
+            components: [
+              { name: 'idStart', internalType: 'uint256', type: 'uint256' },
+              { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
+              { name: 'minBalance', internalType: 'uint256', type: 'uint256' },
+              { name: 'baseURI', internalType: 'string', type: 'string' },
+              { name: 'lockedURI', internalType: 'string', type: 'string' },
+            ],
+          },
+          { name: 'autoLatest', internalType: 'bool', type: 'bool' },
+          {
+            name: 'defaultPayout',
+            internalType: 'enum MetadataOverlayModule.Payout',
+            type: 'uint8',
+          },
+        ],
+      },
+    ],
+    name: 'createInstance',
+    outputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    stateMutability: 'payable',
   },
   {
     type: 'function',
@@ -4247,6 +4375,7 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'UnapprovedCurveComputer' },
   { type: 'error', inputs: [], name: 'UnapprovedGatingModule' },
   { type: 'error', inputs: [], name: 'UnapprovedLiquidityDeployer' },
+  { type: 'error', inputs: [], name: 'UnapprovedResolver' },
   { type: 'error', inputs: [], name: 'UnapprovedStakingModule' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'VaultMustBeContract' },
@@ -6673,6 +6802,65 @@ export const iMasterRegistryMinAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IOverlayInstance
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iOverlayInstanceAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'ownerOf',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stakingModule',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'vault',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IOverlayStakedReader
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iOverlayStakedReaderAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'holder', internalType: 'address', type: 'address' },
+    ],
+    name: 'stakedBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IOwnable
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -6682,6 +6870,23 @@ export const iOwnableAbi = [
     inputs: [],
     name: 'owner',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IStakedBalanceReader
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iStakedBalanceReaderAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'holder', internalType: 'address', type: 'address' },
+    ],
+    name: 'stakedBalance',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
 ] as const
@@ -6739,6 +6944,27 @@ export const iStataTokenAbi = [
     name: 'withdraw',
     outputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'nonpayable',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ITierInstance
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iTierInstanceAbi = [
+  {
+    type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stakingModule',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
   },
 ] as const
 
@@ -7602,6 +7828,755 @@ export const masterRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'VaultMismatch' },
   { type: 'error', inputs: [], name: 'VaultMustBeContract' },
   { type: 'error', inputs: [], name: 'VaultNotDeployed' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// MetadataOverlayModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const metadataOverlayModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'autoLatest',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'commissionTerms',
+    outputs: [
+      {
+        name: 'cond',
+        internalType: 'enum MetadataOverlayModule.CommCond',
+        type: 'uint8',
+      },
+      { name: 'price', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'payout',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'commissionURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'commissionVisible',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'configured',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'defaultPayout',
+    outputs: [
+      {
+        name: '',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'autoLatest_', internalType: 'bool', type: 'bool' },
+      {
+        name: 'defaultPayout_',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+      },
+    ],
+    name: 'initConfig',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'paid',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'baseURI', internalType: 'string', type: 'string' },
+      {
+        name: 'cond',
+        internalType: 'enum MetadataOverlayModule.WaveCond',
+        type: 'uint8',
+      },
+      { name: 'threshold', internalType: 'uint256', type: 'uint256' },
+      { name: 'price', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'payout',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+      },
+    ],
+    name: 'publishWave',
+    outputs: [{ name: 'wIdx', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'holder', internalType: 'address', type: 'address' },
+    ],
+    name: 'resolve',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'ptr', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'select',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'selection',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'v', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'setAutoLatest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'uri', internalType: 'string', type: 'string' },
+      {
+        name: 'cond',
+        internalType: 'enum MetadataOverlayModule.CommCond',
+        type: 'uint8',
+      },
+      { name: 'price', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'payout',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+      },
+    ],
+    name: 'setCommission',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'unlock',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'w', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'unlockWave',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'inst', internalType: 'address', type: 'address' }],
+    name: 'waveCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'w', internalType: 'uint256', type: 'uint256' },
+      { name: 'holder', internalType: 'address', type: 'address' },
+    ],
+    name: 'waveEligible',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'wavePaid',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'waves',
+    outputs: [
+      { name: 'baseURI', internalType: 'string', type: 'string' },
+      {
+        name: 'cond',
+        internalType: 'enum MetadataOverlayModule.WaveCond',
+        type: 'uint8',
+      },
+      { name: 'threshold', internalType: 'uint256', type: 'uint256' },
+      { name: 'price', internalType: 'uint256', type: 'uint256' },
+      {
+        name: 'payout',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'autoLatest',
+        internalType: 'bool',
+        type: 'bool',
+        indexed: false,
+      },
+    ],
+    name: 'AutoLatestSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+    ],
+    name: 'CommissionSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'autoLatest',
+        internalType: 'bool',
+        type: 'bool',
+        indexed: false,
+      },
+      {
+        name: 'defaultPayout',
+        internalType: 'enum MetadataOverlayModule.Payout',
+        type: 'uint8',
+        indexed: false,
+      },
+    ],
+    name: 'OverlayConfigured',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      { name: 'ptr', internalType: 'uint256', type: 'uint256', indexed: false },
+    ],
+    name: 'SelectionChanged',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      { name: 'who', internalType: 'address', type: 'address', indexed: false },
+      { name: 'kind', internalType: 'uint8', type: 'uint8', indexed: false },
+    ],
+    name: 'Unlocked',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'wIdx',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'WavePublished',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyConfigured' },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AlreadyPaid' },
+  { type: 'error', inputs: [], name: 'CommissionLocked' },
+  { type: 'error', inputs: [], name: 'EmptyURI' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidSelection' },
+  { type: 'error', inputs: [], name: 'InvalidWave' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoCommission' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotHolder' },
+  { type: 'error', inputs: [], name: 'NotInstanceOwner' },
+  { type: 'error', inputs: [], name: 'NotPayCommission' },
+  { type: 'error', inputs: [], name: 'NotPayWave' },
+  { type: 'error', inputs: [], name: 'NotRegisteredFactory' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'WrongPayment' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// MetadataResolverRouter
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const metadataResolverRouterAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'rs', internalType: 'address[]', type: 'address[]' },
+    ],
+    name: 'initResolvers',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'holder', internalType: 'address', type: 'address' },
+    ],
+    name: 'resolve',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'inst', internalType: 'address', type: 'address' }],
+    name: 'resolverCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'resolvers',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'sealed_',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'resolvers',
+        internalType: 'address[]',
+        type: 'address[]',
+        indexed: false,
+      },
+    ],
+    name: 'ResolversSealed',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AlreadySealed' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotRegisteredFactory' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8925,6 +9900,244 @@ export const queryAggregatorAbi = [
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
   { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TierRevealModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const tierRevealModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      {
+        name: 'ts',
+        internalType: 'struct TierRevealModule.Tier[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'idStart', internalType: 'uint256', type: 'uint256' },
+          { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
+          { name: 'minBalance', internalType: 'uint256', type: 'uint256' },
+          { name: 'baseURI', internalType: 'string', type: 'string' },
+          { name: 'lockedURI', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    name: 'initTiers',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'holder', internalType: 'address', type: 'address' },
+    ],
+    name: 'resolve',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'sealed_',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'inst', internalType: 'address', type: 'address' }],
+    name: 'tierCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'tiers',
+    outputs: [
+      { name: 'idStart', internalType: 'uint256', type: 'uint256' },
+      { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
+      { name: 'minBalance', internalType: 'uint256', type: 'uint256' },
+      { name: 'baseURI', internalType: 'string', type: 'string' },
+      { name: 'lockedURI', internalType: 'string', type: 'string' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'count',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'TiersSealed',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AlreadySealed' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidRange' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotRegisteredFactory' },
+  { type: 'error', inputs: [], name: 'RangesNotAscending' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -11938,6 +13151,15 @@ export const useReadErc404BondingInstanceMirrorErc721 =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"modules"`
+ */
+export const useReadErc404BondingInstanceModules =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'modules',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"name"`
  */
 export const useReadErc404BondingInstanceName =
@@ -11953,6 +13175,15 @@ export const useReadErc404BondingInstanceOwner =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"ownerOf"`
+ */
+export const useReadErc404BondingInstanceOwnerOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'ownerOf',
   })
 
 /**
@@ -12148,6 +13379,15 @@ export const useWriteErc404BondingInstanceDeployLiquidity =
   /*#__PURE__*/ createUseWriteContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initModule"`
+ */
+export const useWriteErc404BondingInstanceInitModule =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initModule',
   })
 
 /**
@@ -12442,6 +13682,15 @@ export const useSimulateErc404BondingInstanceDeployLiquidity =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initModule"`
+ */
+export const useSimulateErc404BondingInstanceInitModule =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initModule',
   })
 
 /**
@@ -12745,6 +13994,15 @@ export const useWatchErc404BondingInstanceLiquidityDeployedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404BondingInstanceAbi,
     eventName: 'LiquidityDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"ModuleSet"`
+ */
+export const useWatchErc404BondingInstanceModuleSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'ModuleSet',
   })
 
 /**
@@ -15844,6 +17102,70 @@ export const useReadIMasterRegistryMinIsRegisteredInstance =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__
+ */
+export const useReadIOverlayInstance = /*#__PURE__*/ createUseReadContract({
+  abi: iOverlayInstanceAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadIOverlayInstanceOwner = /*#__PURE__*/ createUseReadContract(
+  { abi: iOverlayInstanceAbi, functionName: 'owner' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__ and `functionName` set to `"ownerOf"`
+ */
+export const useReadIOverlayInstanceOwnerOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iOverlayInstanceAbi,
+    functionName: 'ownerOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadIOverlayInstanceProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iOverlayInstanceAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__ and `functionName` set to `"stakingModule"`
+ */
+export const useReadIOverlayInstanceStakingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iOverlayInstanceAbi,
+    functionName: 'stakingModule',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__ and `functionName` set to `"vault"`
+ */
+export const useReadIOverlayInstanceVault = /*#__PURE__*/ createUseReadContract(
+  { abi: iOverlayInstanceAbi, functionName: 'vault' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayStakedReaderAbi}__
+ */
+export const useReadIOverlayStakedReader = /*#__PURE__*/ createUseReadContract({
+  abi: iOverlayStakedReaderAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayStakedReaderAbi}__ and `functionName` set to `"stakedBalance"`
+ */
+export const useReadIOverlayStakedReaderStakedBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iOverlayStakedReaderAbi,
+    functionName: 'stakedBalance',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOwnableAbi}__
  */
 export const useReadIOwnable = /*#__PURE__*/ createUseReadContract({
@@ -15857,6 +17179,22 @@ export const useReadIOwnableOwner = /*#__PURE__*/ createUseReadContract({
   abi: iOwnableAbi,
   functionName: 'owner',
 })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStakedBalanceReaderAbi}__
+ */
+export const useReadIStakedBalanceReader = /*#__PURE__*/ createUseReadContract({
+  abi: iStakedBalanceReaderAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStakedBalanceReaderAbi}__ and `functionName` set to `"stakedBalance"`
+ */
+export const useReadIStakedBalanceReaderStakedBalance =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iStakedBalanceReaderAbi,
+    functionName: 'stakedBalance',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__
@@ -15944,6 +17282,31 @@ export const useSimulateIStataTokenWithdraw =
   /*#__PURE__*/ createUseSimulateContract({
     abi: iStataTokenAbi,
     functionName: 'withdraw',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iTierInstanceAbi}__
+ */
+export const useReadITierInstance = /*#__PURE__*/ createUseReadContract({
+  abi: iTierInstanceAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iTierInstanceAbi}__ and `functionName` set to `"balanceOf"`
+ */
+export const useReadITierInstanceBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iTierInstanceAbi,
+    functionName: 'balanceOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iTierInstanceAbi}__ and `functionName` set to `"stakingModule"`
+ */
+export const useReadITierInstanceStakingModule =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iTierInstanceAbi,
+    functionName: 'stakingModule',
   })
 
 /**
@@ -16794,6 +18157,775 @@ export const useWatchMasterRegistryV1VaultRegisteredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: masterRegistryV1Abi,
     eventName: 'VaultRegistered',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__
+ */
+export const useReadMetadataOverlayModule = /*#__PURE__*/ createUseReadContract(
+  { abi: metadataOverlayModuleAbi },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"autoLatest"`
+ */
+export const useReadMetadataOverlayModuleAutoLatest =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'autoLatest',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"commissionTerms"`
+ */
+export const useReadMetadataOverlayModuleCommissionTerms =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'commissionTerms',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"commissionURI"`
+ */
+export const useReadMetadataOverlayModuleCommissionUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'commissionURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"commissionVisible"`
+ */
+export const useReadMetadataOverlayModuleCommissionVisible =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'commissionVisible',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"configured"`
+ */
+export const useReadMetadataOverlayModuleConfigured =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'configured',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"defaultPayout"`
+ */
+export const useReadMetadataOverlayModuleDefaultPayout =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'defaultPayout',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadMetadataOverlayModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadMetadataOverlayModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadMetadataOverlayModuleOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadMetadataOverlayModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"paid"`
+ */
+export const useReadMetadataOverlayModulePaid =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'paid',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"resolve"`
+ */
+export const useReadMetadataOverlayModuleResolve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'resolve',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"selection"`
+ */
+export const useReadMetadataOverlayModuleSelection =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'selection',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"waveCount"`
+ */
+export const useReadMetadataOverlayModuleWaveCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'waveCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"waveEligible"`
+ */
+export const useReadMetadataOverlayModuleWaveEligible =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'waveEligible',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"wavePaid"`
+ */
+export const useReadMetadataOverlayModuleWavePaid =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'wavePaid',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"waves"`
+ */
+export const useReadMetadataOverlayModuleWaves =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'waves',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__
+ */
+export const useWriteMetadataOverlayModule =
+  /*#__PURE__*/ createUseWriteContract({ abi: metadataOverlayModuleAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteMetadataOverlayModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteMetadataOverlayModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"initConfig"`
+ */
+export const useWriteMetadataOverlayModuleInitConfig =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'initConfig',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"publishWave"`
+ */
+export const useWriteMetadataOverlayModulePublishWave =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'publishWave',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteMetadataOverlayModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteMetadataOverlayModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"select"`
+ */
+export const useWriteMetadataOverlayModuleSelect =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'select',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"setAutoLatest"`
+ */
+export const useWriteMetadataOverlayModuleSetAutoLatest =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'setAutoLatest',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"setCommission"`
+ */
+export const useWriteMetadataOverlayModuleSetCommission =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'setCommission',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteMetadataOverlayModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteMetadataOverlayModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"unlock"`
+ */
+export const useWriteMetadataOverlayModuleUnlock =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'unlock',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"unlockWave"`
+ */
+export const useWriteMetadataOverlayModuleUnlockWave =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'unlockWave',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__
+ */
+export const useSimulateMetadataOverlayModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: metadataOverlayModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateMetadataOverlayModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateMetadataOverlayModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"initConfig"`
+ */
+export const useSimulateMetadataOverlayModuleInitConfig =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'initConfig',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"publishWave"`
+ */
+export const useSimulateMetadataOverlayModulePublishWave =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'publishWave',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateMetadataOverlayModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateMetadataOverlayModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"select"`
+ */
+export const useSimulateMetadataOverlayModuleSelect =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'select',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"setAutoLatest"`
+ */
+export const useSimulateMetadataOverlayModuleSetAutoLatest =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'setAutoLatest',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"setCommission"`
+ */
+export const useSimulateMetadataOverlayModuleSetCommission =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'setCommission',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateMetadataOverlayModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateMetadataOverlayModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"unlock"`
+ */
+export const useSimulateMetadataOverlayModuleUnlock =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'unlock',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `functionName` set to `"unlockWave"`
+ */
+export const useSimulateMetadataOverlayModuleUnlockWave =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataOverlayModuleAbi,
+    functionName: 'unlockWave',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__
+ */
+export const useWatchMetadataOverlayModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: metadataOverlayModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"AutoLatestSet"`
+ */
+export const useWatchMetadataOverlayModuleAutoLatestSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'AutoLatestSet',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"CommissionSet"`
+ */
+export const useWatchMetadataOverlayModuleCommissionSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'CommissionSet',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchMetadataOverlayModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"OverlayConfigured"`
+ */
+export const useWatchMetadataOverlayModuleOverlayConfiguredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'OverlayConfigured',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchMetadataOverlayModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchMetadataOverlayModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchMetadataOverlayModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"SelectionChanged"`
+ */
+export const useWatchMetadataOverlayModuleSelectionChangedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'SelectionChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"Unlocked"`
+ */
+export const useWatchMetadataOverlayModuleUnlockedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'Unlocked',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"WavePublished"`
+ */
+export const useWatchMetadataOverlayModuleWavePublishedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'WavePublished',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__
+ */
+export const useReadMetadataResolverRouter =
+  /*#__PURE__*/ createUseReadContract({ abi: metadataResolverRouterAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadMetadataResolverRouterMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadMetadataResolverRouterMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadMetadataResolverRouterOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadMetadataResolverRouterOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"resolve"`
+ */
+export const useReadMetadataResolverRouterResolve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'resolve',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"resolverCount"`
+ */
+export const useReadMetadataResolverRouterResolverCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'resolverCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"resolvers"`
+ */
+export const useReadMetadataResolverRouterResolvers =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'resolvers',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"sealed_"`
+ */
+export const useReadMetadataResolverRouterSealed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'sealed_',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__
+ */
+export const useWriteMetadataResolverRouter =
+  /*#__PURE__*/ createUseWriteContract({ abi: metadataResolverRouterAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteMetadataResolverRouterCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteMetadataResolverRouterCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"initResolvers"`
+ */
+export const useWriteMetadataResolverRouterInitResolvers =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'initResolvers',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteMetadataResolverRouterRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteMetadataResolverRouterRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteMetadataResolverRouterSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteMetadataResolverRouterTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__
+ */
+export const useSimulateMetadataResolverRouter =
+  /*#__PURE__*/ createUseSimulateContract({ abi: metadataResolverRouterAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateMetadataResolverRouterCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateMetadataResolverRouterCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"initResolvers"`
+ */
+export const useSimulateMetadataResolverRouterInitResolvers =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'initResolvers',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateMetadataResolverRouterRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateMetadataResolverRouterRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateMetadataResolverRouterSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateMetadataResolverRouterTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: metadataResolverRouterAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataResolverRouterAbi}__
+ */
+export const useWatchMetadataResolverRouterEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: metadataResolverRouterAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchMetadataResolverRouterMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataResolverRouterAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchMetadataResolverRouterOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataResolverRouterAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchMetadataResolverRouterOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataResolverRouterAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchMetadataResolverRouterOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataResolverRouterAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataResolverRouterAbi}__ and `eventName` set to `"ResolversSealed"`
+ */
+export const useWatchMetadataResolverRouterResolversSealedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataResolverRouterAbi,
+    eventName: 'ResolversSealed',
   })
 
 /**
@@ -18130,4 +20262,269 @@ export const useWatchQueryAggregatorUpgradedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: queryAggregatorAbi,
     eventName: 'Upgraded',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__
+ */
+export const useReadTierRevealModule = /*#__PURE__*/ createUseReadContract({
+  abi: tierRevealModuleAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadTierRevealModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadTierRevealModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadTierRevealModuleOwner = /*#__PURE__*/ createUseReadContract(
+  { abi: tierRevealModuleAbi, functionName: 'owner' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadTierRevealModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"resolve"`
+ */
+export const useReadTierRevealModuleResolve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'resolve',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"sealed_"`
+ */
+export const useReadTierRevealModuleSealed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'sealed_',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"tierCount"`
+ */
+export const useReadTierRevealModuleTierCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'tierCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"tiers"`
+ */
+export const useReadTierRevealModuleTiers = /*#__PURE__*/ createUseReadContract(
+  { abi: tierRevealModuleAbi, functionName: 'tiers' },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__
+ */
+export const useWriteTierRevealModule = /*#__PURE__*/ createUseWriteContract({
+  abi: tierRevealModuleAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteTierRevealModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteTierRevealModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"initTiers"`
+ */
+export const useWriteTierRevealModuleInitTiers =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'initTiers',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteTierRevealModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteTierRevealModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteTierRevealModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteTierRevealModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__
+ */
+export const useSimulateTierRevealModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: tierRevealModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateTierRevealModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateTierRevealModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"initTiers"`
+ */
+export const useSimulateTierRevealModuleInitTiers =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'initTiers',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateTierRevealModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateTierRevealModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateTierRevealModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateTierRevealModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tierRevealModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tierRevealModuleAbi}__
+ */
+export const useWatchTierRevealModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: tierRevealModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchTierRevealModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tierRevealModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchTierRevealModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tierRevealModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchTierRevealModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tierRevealModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchTierRevealModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tierRevealModuleAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tierRevealModuleAbi}__ and `eventName` set to `"TiersSealed"`
+ */
+export const useWatchTierRevealModuleTiersSealedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tierRevealModuleAbi,
+    eventName: 'TiersSealed',
   })
