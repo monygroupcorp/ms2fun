@@ -1,7 +1,7 @@
 /**
  * @fork — write-path walk of password-tier gating (interface B).
  *
- * Drives the REAL wizard UI with an injected, auto-signing anvil wallet:
+ * Drives the REAL stepped launch wizard with an injected, auto-signing anvil wallet:
  *   1. create an ERC1155 collection WITH a password tier in the same create tx, and
  *   2. edit the tiers afterwards from the creator-admin panel.
  * Each step is verified by reading the on-chain PasswordTierGatingModule directly with viem, so this
@@ -11,7 +11,7 @@
  * `pnpm test:e2e` (this is tagged @fork, not @archive — it only reads locally-deployed contracts).
  */
 import { createPublicClient, http, keccak256, toHex, type Address } from 'viem'
-import { test, expect, connectWallet, ANVIL_RPC } from './fixtures/anvilWallet'
+import { test, expect, connectWallet, ANVIL_RPC, TEST_ACCOUNT } from './fixtures/anvilWallet'
 
 const forkChain = {
   id: 1337,
@@ -59,36 +59,33 @@ test('gating config: set a tier at create, then replace it from creator admin @f
   await page.goto('/launch')
   await connectWallet(page)
 
-  // ── Core details (ERC1155 is the default type). metadataURI/creator are validated-but-derived;
-  //    fill them just to pass the form. Randomize the on-chain name to avoid isNameTaken collisions.
-  // On-chain name rules (MetadataUtils.isValidName): [A-Za-z0-9_-], ≤64 chars, no spaces.
+  // ── STEP 01 · Contract — ERC-1155 is the wizard's default type; fill core details. Labels carry a
+  //    required-asterisk span, so match by prefix. Randomize the on-chain name to dodge isNameTaken.
+  //    On-chain name rules (MetadataUtils.isValidName): [A-Za-z0-9_-], ≤64 chars, no spaces.
   const name = `E2E-Gated-${Date.now()}`
-  const details = page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Details', exact: true }) })
-  await details.getByLabel(/^Name/).fill(name)
-  await details.getByLabel(/^Collection metadata/).fill('data:application/json,{}')
-  await details.getByLabel(/^Creator/).fill('0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266')
+  await page.getByLabel(/^Name/).fill(name)
+  await page.getByLabel(/^Collection metadata/).fill('data:application/json,{}')
+  await page.getByLabel(/^Creator/).fill(TEST_ACCOUNT)
+  await page.getByRole('button', { name: /Continue/ }).click() // → Gating
 
-  // ── Alignment vault — pick the first registered vault card.
-  const vaultSection = page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Alignment vault' }) })
-  await expect(vaultSection.getByRole('button').first()).toBeVisible({ timeout: 15_000 })
-  await vaultSection.getByRole('button').first().click()
-
-  // ── Gating module — select the real Password Tier Gating module, then fill one volume-cap tier.
-  await page.getByRole('button', { name: /Password Tier Gating/ }).first().click()
+  // ── STEP · Gating — select the real Password Tier Gating module, then fill one volume-cap tier.
+  await page.getByRole('button', { name: 'Password Tier Gating' }).click()
   await page.getByRole('button', { name: '+ Add Password' }).click()
-  await page.getByRole('textbox', { name: 'Password 1' }).fill('alpha')
+  await page.getByLabel('Password 1', { exact: true }).fill('alpha')
   await page.getByRole('button', { name: '+ Add Volume cap' }).click()
-  await page.getByRole('textbox', { name: 'Volume cap 1' }).fill('100')
+  await page.getByLabel('Volume cap 1', { exact: true }).fill('100')
+  await page.getByRole('button', { name: /Continue/ }).click() // → Alignment
 
-  // ── Collection metadata name (separate from the on-chain name field).
+  // ── STEP · Alignment — pick the first registered vault.
+  await page.getByRole('button', { name: /target #/ }).first().click()
+  await page.getByRole('button', { name: /Continue/ }).click() // → Collection page
+
+  // ── STEP · Collection page — a name is required to deploy.
   await page.locator('#cmf-name').fill(name)
+  await page.getByRole('button', { name: /Continue/ }).click() // → Review & deploy
 
-  // ── Launch — the injected wallet auto-signs; wait for the redirect to the new collection.
-  await page.getByRole('button', { name: 'Launch collection' }).click()
+  // ── STEP · Review — the injected wallet auto-signs; wait for the redirect to the new collection.
+  await page.getByRole('button', { name: 'Deploy collection' }).click()
   await page.waitForURL(/\/collection\/0x[0-9a-fA-F]{40}/, { timeout: 30_000 })
   const instance = page.url().match(/\/collection\/(0x[0-9a-fA-F]{40})/)![1] as Address
 
@@ -104,9 +101,9 @@ test('gating config: set a tier at create, then replace it from creator admin @f
     timeout: 15_000,
   })
   await gatingRow.getByRole('button', { name: '+ Add Password' }).click()
-  await gatingRow.getByRole('textbox', { name: 'Password 1' }).fill('beta')
+  await gatingRow.getByLabel('Password 1', { exact: true }).fill('beta')
   await gatingRow.getByRole('button', { name: '+ Add Volume cap' }).click()
-  await gatingRow.getByRole('textbox', { name: 'Volume cap 1' }).fill('250')
+  await gatingRow.getByLabel('Volume cap 1', { exact: true }).fill('250')
   await gatingRow.getByRole('button', { name: 'save tiers' }).click()
 
   await expect(page.getByText('tiers saved — tx confirmed.')).toBeVisible({ timeout: 30_000 })

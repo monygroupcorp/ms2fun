@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 
-test('home links to the EXEC404 fossil page with a Uniswap trade link-out', async ({ page }) => {
-  await page.goto('/')
-  await page.getByTestId('exec404-link').click()
-  await expect(page).toHaveURL(/\/exec404$/)
+test('the EXEC404 fossil page shows a Uniswap trade link-out', async ({ page }) => {
+  // The exec404-link card lives on the connected discovery home (see hello-chain.spec); this test
+  // covers the fossil page itself, which is static (no chain needed) and reachable directly.
+  await page.goto('/exec404')
   await expect(page.getByRole('heading', { level: 1, name: /CULT EXECUTIVES/ })).toBeVisible()
-  // Graduated fossil trades on Uniswap — the page links out there (static, no chain needed).
+  // Graduated fossil trades on Uniswap — the page links out there.
   const link = page.getByTestId('exec404-uniswap-link')
   await expect(link).toBeVisible()
   await expect(link).toHaveAttribute('href', /app\.uniswap\.org\/swap/)
