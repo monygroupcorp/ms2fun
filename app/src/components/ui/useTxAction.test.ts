@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveTxState } from './useTxAction'
+import { deriveTxState, txErrorReason } from './useTxAction'
 
 const base = { signing: false, confirming: false, success: false, error: false }
 
@@ -21,5 +21,26 @@ describe('deriveTxState', () => {
   })
   it('success beats error (a confirmed receipt is terminal-good)', () => {
     expect(deriveTxState({ ...base, success: true, error: true })).toBe('success')
+  })
+})
+
+describe('txErrorReason', () => {
+  it('returns undefined for no error', () => {
+    expect(txErrorReason(null)).toBeUndefined()
+    expect(txErrorReason(undefined)).toBeUndefined()
+  })
+  it('appends the decoded custom error from metaMessages to the base shortMessage', () => {
+    // Shape of a viem ContractFunctionExecutionError on a custom-error revert.
+    const err = {
+      shortMessage: 'The contract function "mint" reverted.',
+      metaMessages: ['Error: EditionNotFound()', 'Contract Call:', '  address: 0x…'],
+    }
+    expect(txErrorReason(err)).toBe('The contract function "mint" reverted. (EditionNotFound())')
+  })
+  it('falls back to shortMessage / details / message in order', () => {
+    expect(txErrorReason({ shortMessage: 'Chain mismatch: expected 1337' })).toBe(
+      'Chain mismatch: expected 1337',
+    )
+    expect(txErrorReason({ message: 'User rejected the request.' })).toBe('User rejected the request.')
   })
 })

@@ -370,8 +370,10 @@ export function WizardPage() {
             </div>
             <div className={styles.formBlock}>
               <h3 className={styles.sectionTitle}>Details</h3>
+              {/* styleUri is a page concern, not a contract concern — it's rendered on the
+                  Collection-page step instead (same `values` state). */}
               <SchemaForm
-                fields={pt.coreFields}
+                fields={pt.coreFields.filter((f) => f.key !== 'styleUri')}
                 values={values}
                 onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                 errors={coreErrors}
@@ -504,6 +506,10 @@ export function WizardPage() {
                   </div>
                 </>
               )}
+              <p className={styles.lede}>
+                Don&rsquo;t see the community you want to align to?{' '}
+                <Link href="/request-target">Request a new alignment target →</Link>
+              </p>
               {vault && (
                 <>
                   <div className={`noesis-bind ${styles.bind}`}>
@@ -535,6 +541,17 @@ export function WizardPage() {
             </p>
             <CollectionMetaForm onChange={setMetadata} />
             {missingName && <p className={styles.error}>a collection name is required</p>}
+            {pt.coreFields.some((f) => f.key === 'styleUri') && (
+              <div className={styles.formBlock}>
+                <h3 className={styles.sectionTitle}>Page style (optional)</h3>
+                <SchemaForm
+                  fields={pt.coreFields.filter((f) => f.key === 'styleUri')}
+                  values={values}
+                  onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
+                  errors={coreErrors}
+                />
+              </div>
+            )}
             <CollectionPreview
               name={metadata.name}
               typeLabel={TYPE_LABEL[typeKey] ?? typeKey}

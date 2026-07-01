@@ -16,6 +16,7 @@ import {
   useWriteErc721AuctionInstanceSettleAuction,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
+import { txErrorReason } from '../../ui/useTxAction'
 import { fetchJson, resolveUri } from '../../../lib/metadata'
 import { truncateAddress } from '../../../lib/format'
 import { deriveAuctionState } from './auctionState'
@@ -169,13 +170,16 @@ function BidForm({
     data: txHash,
     isPending,
     isError,
+    error: writeErrObj,
     reset,
   } = useWriteErc721AuctionInstanceCreateBid()
   const {
     isLoading,
     isSuccess,
     isError: waitError,
+    error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash: txHash })
+  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
 
   let amountWei: bigint | undefined
   try {
@@ -242,7 +246,7 @@ function BidForm({
       <span className={styles.minNote}>min next bid: {formatEther(min)} ETH</span>
       {tooLow && <p className={`${styles.txStatus} ${styles.txError}`}>below the minimum bid</p>}
       {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>bid failed — try again</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>{failureReason ?? 'bid failed — try again'}</p>
       )}
     </div>
   )
@@ -262,13 +266,16 @@ function SettleButton({
     data: txHash,
     isPending,
     isError,
+    error: writeErrObj,
     reset,
   } = useWriteErc721AuctionInstanceSettleAuction()
   const {
     isLoading,
     isSuccess,
     isError: waitError,
+    error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash: txHash })
+  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
   const isBusy = isPending || isLoading
 
   if (isSuccess) {
@@ -302,7 +309,7 @@ function SettleButton({
         {isPending ? 'confirm in wallet…' : isLoading ? 'settling…' : 'settle auction'}
       </button>
       {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>settle failed — try again</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>{failureReason ?? 'settle failed — try again'}</p>
       )}
     </div>
   )
@@ -322,13 +329,16 @@ function ReclaimButton({
     data: txHash,
     isPending,
     isError,
+    error: writeErrObj,
     reset,
   } = useWriteErc721AuctionInstanceReclaimUnsold()
   const {
     isLoading,
     isSuccess,
     isError: waitError,
+    error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash: txHash })
+  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
   const isBusy = isPending || isLoading
 
   if (isSuccess) {
@@ -362,7 +372,7 @@ function ReclaimButton({
         {isPending ? 'confirm in wallet…' : isLoading ? 'reclaiming…' : 'reclaim unsold'}
       </button>
       {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>reclaim failed — try again</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>{failureReason ?? 'reclaim failed — try again'}</p>
       )}
     </div>
   )

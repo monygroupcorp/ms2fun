@@ -13,6 +13,7 @@ import {
   useWriteErc1155InstanceMint,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
+import { txErrorReason } from '../../ui/useTxAction'
 import { encodeMintMessage, isPaidMintGated, passwordToBytes32, ZERO_BYTES32 } from './gatingMint'
 import type { EditionView } from '../useEditions'
 import styles from '../EditionList.module.css'
@@ -54,6 +55,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     data: txHash,
     isPending: sigPending,
     isError: writeError,
+    error: writeErrObj,
     reset: resetWrite,
   } = useWriteErc1155InstanceMint()
 
@@ -61,7 +63,10 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     isLoading: isConfirming,
     isSuccess,
     isError: waitError,
+    error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash: txHash })
+
+  const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
 
   function handleMint(): void {
     if (costData === undefined) return
@@ -101,7 +106,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
       <div className={styles.mintPanel}>
         <p className={styles.txStatus}>minted — tx confirmed.</p>
         <button className="btn btn-secondary" onClick={handleSuccess}>
-          reset
+          mint again
         </button>
       </div>
     )
@@ -159,7 +164,9 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
         data-testid="erc1155-mint-message"
       />
       {(writeError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>transaction failed — try again</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>
+          {failureReason ?? 'transaction failed — try again'}
+        </p>
       )}
     </div>
   )

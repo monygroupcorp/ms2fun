@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
+import { WrongNetworkBanner } from './components/ui/WrongNetworkBanner'
 import { config } from './lib/wagmi'
 import { queryClient } from './lib/queryClient'
 import { HomePage } from './routes/HomePage'
@@ -44,9 +45,9 @@ function NavLinks({
       <Link href="/board" className={linkClassName} onClick={onNavigate}>
         BOARD
       </Link>
-      <Link href="/request-target" className={linkClassName} onClick={onNavigate}>
-        REQUEST TARGET
-      </Link>
+      {/* REQUEST TARGET intentionally NOT in the top nav (ADR-019 canonical set is
+          COLLECTIONS · BOARD · LAUNCH · CONNECT). The /request-target route stays; it's linked
+          from the launch flow instead. */}
       <AdminNavLink linkClassName={linkClassName} onNavigate={onNavigate} />
       <Link
         href="/launch"
@@ -102,6 +103,7 @@ export function App() {
               MENU <span aria-hidden>☰</span>
             </button>
           </header>
+          <WrongNetworkBanner />
           {menuOpen && (
             <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
               <div className={styles.overlayBar}>

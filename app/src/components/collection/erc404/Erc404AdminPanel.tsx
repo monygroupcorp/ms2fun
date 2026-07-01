@@ -19,6 +19,7 @@ import {
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
+import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
@@ -43,7 +44,8 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
   if (!isOwner) return null
 
   return (
-    <AdminSection title="creator admin" testId="erc404-admin">
+    <Disclosure summary="CREATOR ADMIN" testId="erc404-creator-admin">
+      <AdminSection title="creator admin" testId="erc404-admin">
       <SetBondingActiveRow instance={instance} />
       <SetTimeRow
         instance={instance}
@@ -81,7 +83,8 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
       <MigrateVaultRow instance={instance} />
       <ClaimAllFeesRow instance={instance} />
       <SetAgentDelegationRow instance={instance} />
-    </AdminSection>
+      </AdminSection>
+    </Disclosure>
   )
 }
 

@@ -157,6 +157,10 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
 
   return (
     <Disclosure summary="FEATURED QUEUE" testId="featured-panel">
+      <p className={styles.note}>
+        Featuring puts this collection on the <b>front-page featured row</b> — paid placement, ranked
+        by how much ETH is boosted. Permissionless: anyone can rent a slot or boost the rank.
+      </p>
       {/* ---- Status ---------------------------------------------------- */}
       <div className={styles.status}>
         {featured ? (
@@ -236,6 +240,7 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           onClick={handleRent}
           label="rent featured"
           disabled={rentDurationSecs === undefined || rentValue === undefined}
+          disabledHint={`enter a duration (${MIN_DAYS}–${MAX_DAYS} days) above to rent`}
           onReset={rentTx.reset}
           successLabel="featured slot rented ✓"
           testId="featured-rent"
@@ -264,6 +269,7 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           label="boost rank"
           className="btn btn-secondary"
           disabled={boostWei === undefined || boostWei === 0n}
+          disabledHint="enter an ETH amount above to boost"
           onReset={boostTx.reset}
           successLabel="rank boosted ✓"
           testId="featured-boost"
@@ -302,6 +308,7 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
           label="renew duration"
           className="btn btn-secondary"
           disabled={renewSecs === undefined || renewQuote === undefined}
+          disabledHint={`enter additional days (${MIN_DAYS}–${MAX_DAYS}) above to renew`}
           onReset={renewTx.reset}
           successLabel="duration renewed ✓"
           testId="featured-renew"

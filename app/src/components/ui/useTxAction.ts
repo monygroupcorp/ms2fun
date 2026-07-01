@@ -18,6 +18,32 @@ import { useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 
 export type TxState = 'idle' | 'signing' | 'confirming' | 'success' | 'error'
 
+/**
+ * Human-readable reason from a wagmi/viem write or receipt error. viem's BaseError carries a concise
+ * `shortMessage` (e.g. "Chain mismatch…", the decoded revert like `EditionNotFound()`, or "User
+ * rejected"); we fall back to `details`/`message`. Returning this instead of swallowing the error is
+ * the difference between a silent "try again" and an actionable failure the tester can act on.
+ */
+export function txErrorReason(error: unknown): string | undefined {
+  if (error == null) return undefined
+  const e = error as {
+    shortMessage?: string
+    details?: string
+    message?: string
+    metaMessages?: string[]
+  }
+  const base = (e.shortMessage || e.details || e.message)?.trim()
+  // For a contract revert, viem's shortMessage is the generic "…reverted." and the DECODED custom
+  // error (e.g. "Error: EditionNotFound()") lands in metaMessages — surface it so the reason is
+  // actionable, not just "reverted".
+  const decoded = e.metaMessages
+    ?.find((m) => /error:|reverted|custom error/i.test(m))
+    ?.replace(/^error:\s*/i, '')
+    .trim()
+  if (base && decoded && !base.includes(decoded)) return `${base} (${decoded})`
+  return base || decoded || undefined
+}
+
 /** Pure state derivation (tested) — checked signing → confirming → success → error → idle. */
 export function deriveTxState(flags: {
   signing: boolean
@@ -38,15 +64,20 @@ export function useTxAction(opts: { onSuccess?: () => void } = {}) {
     data: hash,
     isPending: signing,
     isError: writeError,
+    error: writeErrObj,
     reset: resetWrite,
   } = useWriteContract()
   const {
     isLoading: confirming,
     isSuccess: success,
     isError: waitError,
+    error: waitErrObj,
   } = useWaitForTransactionReceipt({ hash })
 
   const state = deriveTxState({ signing, confirming, success, error: writeError || waitError })
+  // Expose only the parsed string (not the raw viem error union — its type isn't portable across
+  // the inferred return, and the string is all any caller needs to render).
+  const reason = txErrorReason(writeErrObj ?? waitErrObj)
 
   // Fire onSuccess exactly once per confirmed receipt (not on every render while success is true).
   const { onSuccess } = opts
@@ -66,7 +97,7 @@ export function useTxAction(opts: { onSuccess?: () => void } = {}) {
 
   // `send` is wagmi's writeContract verbatim — returning it inferred (not via an explicit interface)
   // preserves its abi/functionName/chainId generics at the call site.
-  return { send: writeContract, reset, state, isBusy: signing || confirming, hash }
+  return { send: writeContract, reset, state, isBusy: signing || confirming, hash, reason }
 }
 
 /** The shape returned by {@link useTxAction} (derived from the impl to keep wagmi's generics intact). */
