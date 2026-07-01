@@ -7,6 +7,9 @@ import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry
 contract MockAlignmentRegistry is IAlignmentRegistry {
     mapping(uint256 => bool) public activeTargets;
     mapping(uint256 => mapping(address => bool)) public tokenInTarget;
+    /// @notice Mirrors AlignmentRegistryV1's public `tokenToTargetIds` (reverse index) for the
+    ///         request registry's best-effort dup guard.
+    mapping(address => uint256[]) public tokenToTargetIds;
 
     function setTargetActive(uint256 targetId, bool active) external {
         activeTargets[targetId] = active;
@@ -14,6 +17,10 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
 
     function setTokenInTarget(uint256 targetId, address token, bool inTarget) external {
         tokenInTarget[targetId][token] = inTarget;
+    }
+
+    function pushTokenTarget(address token, uint256 targetId) external {
+        tokenToTargetIds[token].push(targetId);
     }
 
     // ── IAlignmentRegistry implementation ──

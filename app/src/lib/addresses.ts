@@ -25,6 +25,7 @@ export const forkAddresses = {
   ERC721AuctionFactory: c.ERC721AuctionFactory as `0x${string}`,
   ComponentRegistry: c.ComponentRegistry as `0x${string}`,
   ProfileRegistry: c.ProfileRegistry as `0x${string}`,
+  AlignmentTargetRequestRegistry: c.AlignmentTargetRequestRegistry as `0x${string}`,
   // Metadata-resolution stack singletons (ADR-0006/0007).
   MetadataResolverRouter: c.MetadataResolverRouter as `0x${string}`,
   MetadataOverlayModule: c.MetadataOverlayModule as `0x${string}`,

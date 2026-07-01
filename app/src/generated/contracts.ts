@@ -151,6 +151,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'isLiquidityReady',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'masterRegistry',
     outputs: [
       { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
@@ -933,6 +940,470 @@ export const alignmentRegistryV1Abi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// AlignmentTargetRequestRegistry
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const alignmentTargetRequestRegistryAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_owner', internalType: 'address', type: 'address' },
+      {
+        name: '_alignmentRegistry',
+        internalType: 'contract IAlignmentRegistry',
+        type: 'address',
+      },
+      { name: '_protocolTreasury', internalType: 'address', type: 'address' },
+      { name: '_requestDeposit', internalType: 'uint256', type: 'uint256' },
+      { name: '_maxPending', internalType: 'uint256', type: 'uint256' },
+      { name: '_requestTTL', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'alignmentRegistry',
+    outputs: [
+      {
+        name: '',
+        internalType: 'contract IAlignmentRegistry',
+        type: 'address',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'approveRequest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getPending',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'getRequest',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct AlignmentTargetRequestRegistry.Request',
+        type: 'tuple',
+        components: [
+          { name: 'requester', internalType: 'address', type: 'address' },
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'title', internalType: 'string', type: 'string' },
+          { name: 'description', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+          { name: 'deposit', internalType: 'uint256', type: 'uint256' },
+          { name: 'submittedAt', internalType: 'uint40', type: 'uint40' },
+          {
+            name: 'status',
+            internalType: 'enum AlignmentTargetRequestRegistry.Status',
+            type: 'uint8',
+          },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'getRequestAssets',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IAlignmentRegistry.AlignmentAsset[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'symbol', internalType: 'string', type: 'string' },
+          { name: 'info', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'maxPending',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'nextRequestId',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'pendingCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    name: 'pruneExpired',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'forfeit', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'rejectRequest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestDeposit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestTTL',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'v', internalType: 'uint256', type: 'uint256' }],
+    name: 'setMaxPending',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'v', internalType: 'address', type: 'address' }],
+    name: 'setProtocolTreasury',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'v', internalType: 'uint256', type: 'uint256' }],
+    name: 'setRequestDeposit',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'v', internalType: 'uint256', type: 'uint256' }],
+    name: 'setRequestTTL',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'title', internalType: 'string', type: 'string' },
+      { name: 'description', internalType: 'string', type: 'string' },
+      { name: 'metadataURI', internalType: 'string', type: 'string' },
+      {
+        name: 'assets',
+        internalType: 'struct IAlignmentRegistry.AlignmentAsset[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'symbol', internalType: 'string', type: 'string' },
+          { name: 'info', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    name: 'submitRequest',
+    outputs: [{ name: 'id', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newMax',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'MaxPendingUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldTreasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newTreasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'ProtocolTreasuryUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'requester',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'refunded',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RequestApproved',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newDeposit',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RequestDepositUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'requester',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'refunded',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RequestExpired',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'requester',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'forfeited', internalType: 'bool', type: 'bool', indexed: false },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RequestRejected',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'id', internalType: 'uint256', type: 'uint256', indexed: true },
+      {
+        name: 'requester',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'title', internalType: 'string', type: 'string', indexed: false },
+      {
+        name: 'deposit',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RequestSubmitted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newTTL',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RequestTTLUpdated',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'IncorrectDeposit' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidTitle' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoAssets' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotExpired' },
+  { type: 'error', inputs: [], name: 'NotPending' },
+  { type: 'error', inputs: [], name: 'QueueFull' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'TokenAlreadyActive' },
+  { type: 'error', inputs: [], name: 'TransferFailed' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ComponentRegistry
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1472,7 +1943,10 @@ export const erc1155FactoryAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'salt', internalType: 'bytes32', type: 'bytes32' }],
+    inputs: [
+      { name: 'creator', internalType: 'address', type: 'address' },
+      { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
+    ],
     name: 'computeInstanceAddress',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -3332,6 +3806,13 @@ export const erc404BondingInstanceAbi = [
     stateMutability: 'view',
   },
   {
+    type: 'function',
+    inputs: [],
+    name: 'withdrawDust',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -3721,6 +4202,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'NoReserve' },
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
   { type: 'error', inputs: [], name: 'NotInitialized' },
+  { type: 'error', inputs: [], name: 'NothingToWithdraw' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
   { type: 'error', inputs: [], name: 'OnlyOwnerBeforeMaturity' },
   { type: 'error', inputs: [], name: 'OpenTimeMustBeSetFirst' },
@@ -3749,6 +4231,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'TransferFromIncorrectOwner' },
   { type: 'error', inputs: [], name: 'TransferToZeroAddress' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'WithdrawFailed' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -4685,7 +5168,10 @@ export const erc721AuctionFactoryAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'salt', internalType: 'bytes32', type: 'bytes32' }],
+    inputs: [
+      { name: 'creator', internalType: 'address', type: 'address' },
+      { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
+    ],
     name: 'computeInstanceAddress',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -6580,6 +7066,30 @@ export const globalMessageRegistryAbi = [
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
   { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IAlignmentRegistryDup
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iAlignmentRegistryDupAbi = [
+  {
+    type: 'function',
+    inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
+    name: 'isAlignmentTargetActive',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'index', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'tokenToTargetIds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -10277,6 +10787,15 @@ export const useReadAlignmentEndowmentVaultGetBenefactorShares =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"isLiquidityReady"`
+ */
+export const useReadAlignmentEndowmentVaultIsLiquidityReady =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'isLiquidityReady',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"masterRegistry"`
  */
 export const useReadAlignmentEndowmentVaultMasterRegistry =
@@ -11182,6 +11701,479 @@ export const useWatchAlignmentRegistryV1UpgradedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentRegistryV1Abi,
     eventName: 'Upgraded',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__
+ */
+export const useReadAlignmentTargetRequestRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"alignmentRegistry"`
+ */
+export const useReadAlignmentTargetRequestRegistryAlignmentRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'alignmentRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"getPending"`
+ */
+export const useReadAlignmentTargetRequestRegistryGetPending =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'getPending',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"getRequest"`
+ */
+export const useReadAlignmentTargetRequestRegistryGetRequest =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'getRequest',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"getRequestAssets"`
+ */
+export const useReadAlignmentTargetRequestRegistryGetRequestAssets =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'getRequestAssets',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"maxPending"`
+ */
+export const useReadAlignmentTargetRequestRegistryMaxPending =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'maxPending',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"nextRequestId"`
+ */
+export const useReadAlignmentTargetRequestRegistryNextRequestId =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'nextRequestId',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadAlignmentTargetRequestRegistryOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadAlignmentTargetRequestRegistryOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"pendingCount"`
+ */
+export const useReadAlignmentTargetRequestRegistryPendingCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'pendingCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadAlignmentTargetRequestRegistryProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"requestDeposit"`
+ */
+export const useReadAlignmentTargetRequestRegistryRequestDeposit =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'requestDeposit',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"requestTTL"`
+ */
+export const useReadAlignmentTargetRequestRegistryRequestTtl =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'requestTTL',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__
+ */
+export const useWriteAlignmentTargetRequestRegistry =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"approveRequest"`
+ */
+export const useWriteAlignmentTargetRequestRegistryApproveRequest =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'approveRequest',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteAlignmentTargetRequestRegistryCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteAlignmentTargetRequestRegistryCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"pruneExpired"`
+ */
+export const useWriteAlignmentTargetRequestRegistryPruneExpired =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'pruneExpired',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"rejectRequest"`
+ */
+export const useWriteAlignmentTargetRequestRegistryRejectRequest =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'rejectRequest',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteAlignmentTargetRequestRegistryRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteAlignmentTargetRequestRegistryRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setMaxPending"`
+ */
+export const useWriteAlignmentTargetRequestRegistrySetMaxPending =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setMaxPending',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setProtocolTreasury"`
+ */
+export const useWriteAlignmentTargetRequestRegistrySetProtocolTreasury =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setProtocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setRequestDeposit"`
+ */
+export const useWriteAlignmentTargetRequestRegistrySetRequestDeposit =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setRequestDeposit',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setRequestTTL"`
+ */
+export const useWriteAlignmentTargetRequestRegistrySetRequestTtl =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setRequestTTL',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"submitRequest"`
+ */
+export const useWriteAlignmentTargetRequestRegistrySubmitRequest =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'submitRequest',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteAlignmentTargetRequestRegistryTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__
+ */
+export const useSimulateAlignmentTargetRequestRegistry =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"approveRequest"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryApproveRequest =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'approveRequest',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"pruneExpired"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryPruneExpired =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'pruneExpired',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"rejectRequest"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryRejectRequest =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'rejectRequest',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setMaxPending"`
+ */
+export const useSimulateAlignmentTargetRequestRegistrySetMaxPending =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setMaxPending',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setProtocolTreasury"`
+ */
+export const useSimulateAlignmentTargetRequestRegistrySetProtocolTreasury =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setProtocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setRequestDeposit"`
+ */
+export const useSimulateAlignmentTargetRequestRegistrySetRequestDeposit =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setRequestDeposit',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"setRequestTTL"`
+ */
+export const useSimulateAlignmentTargetRequestRegistrySetRequestTtl =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'setRequestTTL',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"submitRequest"`
+ */
+export const useSimulateAlignmentTargetRequestRegistrySubmitRequest =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'submitRequest',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__
+ */
+export const useWatchAlignmentTargetRequestRegistryEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"MaxPendingUpdated"`
+ */
+export const useWatchAlignmentTargetRequestRegistryMaxPendingUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'MaxPendingUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchAlignmentTargetRequestRegistryOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchAlignmentTargetRequestRegistryOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchAlignmentTargetRequestRegistryOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"ProtocolTreasuryUpdated"`
+ */
+export const useWatchAlignmentTargetRequestRegistryProtocolTreasuryUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'ProtocolTreasuryUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RequestApproved"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRequestApprovedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RequestApproved',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RequestDepositUpdated"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRequestDepositUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RequestDepositUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RequestExpired"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRequestExpiredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RequestExpired',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RequestRejected"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRequestRejectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RequestRejected',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RequestSubmitted"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRequestSubmittedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RequestSubmitted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RequestTTLUpdated"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRequestTtlUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RequestTTLUpdated',
   })
 
 /**
@@ -13598,6 +14590,15 @@ export const useWriteErc404BondingInstanceUnstake =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"withdrawDust"`
+ */
+export const useWriteErc404BondingInstanceWithdrawDust =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'withdrawDust',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__
  */
 export const useSimulateErc404BondingInstance =
@@ -13898,6 +14899,15 @@ export const useSimulateErc404BondingInstanceUnstake =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'unstake',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"withdrawDust"`
+ */
+export const useSimulateErc404BondingInstanceWithdrawDust =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'withdrawDust',
   })
 
 /**
@@ -16876,6 +17886,31 @@ export const useWatchGlobalMessageRegistryUpgradedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: globalMessageRegistryAbi,
     eventName: 'Upgraded',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iAlignmentRegistryDupAbi}__
+ */
+export const useReadIAlignmentRegistryDup = /*#__PURE__*/ createUseReadContract(
+  { abi: iAlignmentRegistryDupAbi },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iAlignmentRegistryDupAbi}__ and `functionName` set to `"isAlignmentTargetActive"`
+ */
+export const useReadIAlignmentRegistryDupIsAlignmentTargetActive =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iAlignmentRegistryDupAbi,
+    functionName: 'isAlignmentTargetActive',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iAlignmentRegistryDupAbi}__ and `functionName` set to `"tokenToTargetIds"`
+ */
+export const useReadIAlignmentRegistryDupTokenToTargetIds =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iAlignmentRegistryDupAbi,
+    functionName: 'tokenToTargetIds',
   })
 
 /**
