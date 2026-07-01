@@ -2,11 +2,16 @@
 
 **Last Updated:** 2026-03-12
 
-> **⚠️ Legacy / fossil reference.** Documents the alignment-vault + Uniswap-LP + DAO
-> model we are RETIRING. Kept because **EXEC404 / Cult Executives (the one live, forever-
-> grandfathered deployment) runs on it.** New direction: simple Aave vault, thin
-> owner-operated multisig wrapper (no DAO). See root `CLAUDE.md` "North Star". Reference
-> for the fossil, not the plan of record.
+> **⚠️ Partial fossil reference — read the direction note.** The **DAO/governance** layer
+> documented here (GrandCentral, Safe/Timelock voting, conductors) **is** retired — kept because
+> **EXEC404 / Cult Executives (the one live, forever-grandfathered deployment) runs on it.** But the
+> **alignment-vault + Uniswap-LP model is NOT retired.** As of 2026-07-01 the direction is **two
+> vault families, creator's choice**: a first-class **Liquidity family** (`UniswapV4LP` / `ZAMMLP` /
+> `CypherLP`, 1/19/80 graduation split) alongside a **Yield family** (`AlignmentEndowmentVault`, Aave
+> endowment, principal-deposit + tithe-out). Neither replaces the other. See
+> [ADR-0008](../docs/decisions/0008-two-vault-families.md) +
+> [ADR-0003](../docs/decisions/0003-aave-alignment-vault.md) + `docs/phases/vault-flavors.md`. Treat the
+> governance sections as fossil; the vault/LP mechanics are current.
 
 ---
 

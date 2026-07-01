@@ -184,7 +184,8 @@ test('metadata stack: wizard-create seals resolver→[overlay,tier], reveal flip
   await page.getByRole('button', { name: 'ZAMM Deployer' }).click()
   await page.getByRole('button', { name: /Continue/ }).click()
 
-  // ── STEP 05 · Alignment — pick the first registered vault ────────────────────
+  // ── STEP 05 · Alignment — family → venue picker: pick Yield (Aave), then its venue ───
+  await page.getByRole('button', { name: /^Yield/ }).click()
   await page.getByRole('button', { name: /target #/ }).first().click()
   await page.getByRole('button', { name: /Continue/ }).click()
 

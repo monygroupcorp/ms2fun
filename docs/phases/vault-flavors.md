@@ -1,6 +1,11 @@
 # Task — Vault Flavors (Yield + LP families in the wizard)
 
-**Status:** Not started (design Locked)
+**Status:** ✅ **COMPLETE — all exit criteria met, gate-green** (forge **1168** + a fork-gated
+graduation test, frontend **380**, e2e **16**). All four families deploy/register/type-check with
+`isLiquidityReady()=true` on the fork (exit #1); the family→venue picker walk is green (exit #3); and a
+**live Uni V4 LP position** is created on the real mainnet-fork PoolManager via the real zRouter
+(exit #2). The exit-#2 fork-walk **caught + fixed a real bug** — the Uni vault's `receive()` bricked
+`convertAndAddLiquidity` when zRouter refunds swap dust (see decision log). (design Locked)
 **Depends on:** T4 Aave endowment vault (✅ done), metadata stack (✅ shipped). Slots **before / into
 Phase 4** (testnet) — see Open decision O5.
 **Exit gate owner:** Mony (human acceptance)
@@ -74,29 +79,41 @@ list instead of the family→venue tree.
 ## Task units
 Agent-runnable where noted; the wiring unit (T2) is lead-owned (drift-prone, like T4 was).
 
-- [ ] **T1 — Deploy/config (mechanical).** Flip `deployCypherVault` + `deployZAMMVault` → `true` in
-      `DeployAnvil.s.sol` + `DeploySepolia.s.sol` (and the mainnet config when it lands) so all four
-      vaults register per target. Confirm `ValidateSepolia.s.sol` asserts all four are registered per
-      target. *(shared: DeployCore config structs — serialize with T2.)*
-- [ ] **T2 — LP functional wiring (lead).** Make each LP family actually LP: Uni `setV4PoolKey` +
-      price validator; ZAMM `poolKey`; Cypher position-manager/router + validator. Design the
-      per-target flow (O1), script it into `DeployCore`/`SeedAnvil` so a fork collection can graduate
-      and add liquidity end-to-end. **This is the load-bearing unit.**
-- [ ] **T3 — Wizard data (agent).** Extend `app/src/components/wizard/useRegisteredVaults.ts` to read
-      `vaultType()` per registered vault and derive `{ family: 'yield' | 'lp', venue }`. Optionally
-      read `description()` for the tradeoff copy.
-- [ ] **T4 — Wizard UX (agent).** Rework the alignment step (`WizardPage.tsx`) into the two-level
-      picker: target → family → venue, with per-option tradeoff copy. Selection still resolves to a
-      single `modules.vault` address — **`submit.ts` is unchanged** (it already just takes the vault
-      address). Honor O2 (hide/disable un-wired venues).
-- [ ] **T5 — Tests (agent).** Forge: all four vaults register per target + `vaultType()` returns the
-      four strings + `ValidateSepolia` asserts them. Frontend unit: picker groups correctly from
-      `vaultType()`. Fork-walk: create a collection against a Uni LP vault and run to graduation/LP
-      add, asserting a live position (off the `anvilWallet` + `@fork` template, like
-      `metadata.spec.ts`). ZAMM/Cypher smoke behind their flags.
-- [ ] **T6 — Docs (agent).** Un-retire the LP model: `contracts/CLAUDE.md`, `ADR-0003` (or a new ADR
-      "two vault families"), and the `new-direction` framing. Document the flavor taxonomy + the
-      per-target LP wiring runbook from T2.
+- [x] **T1 — Deploy/config (mechanical).** ✅ `deployZAMMVault` + `deployCypherVault → true` on both
+      Anvil targets. Real singletons wired: ZAMM (`cfg.zamm`) and **Cypher = Algebra Integral on ETH
+      mainnet** (`cfg.cypherPositionManager` `0x0a984a…2f7c` / `cfg.cypherRouter` `0x20C5…0b0Ab`, from
+      the live camel404 deployment, verified on the fork). `DeployCore` gained `zammFeeOrHook` +
+      per-target LP wiring.
+      `ValidateSepolia._checkVaults()` now reads the deployment `vaults` array and asserts each is
+      registered + on-chain `vaultType()` matches + LP families are liquidity-ready (auto-covers all
+      four once a network enables them).
+- [x] **T2 — LP functional wiring (lead).** ✅ Uni: `setVaultPoolKey` (ETH/token, fee/spacing) wired
+      in `DeployCore`. ZAMM: **filled the init-only pool-key gap** — added `setPoolKey` (owner) +
+      factory `setVaultPoolKey` (onlyOwner, factory now `Ownable`), and DeployCore bakes the real
+      ETH/token key at deploy. Cypher: position-manager/router wiring is config-driven and ready to
+      activate. Added `isLiquidityReady()` to all four vaults as the uniform O2 signal. **Verified
+      on a live fork:** deploy+seed succeeds; all 6 vaults (Uni/ZAMM/Aave × 2 targets) report the
+      right `vaultType()` and `isLiquidityReady()=true`. **Remaining:** the live Uni graduation LP
+      round-trip (exit #2) needs a seeded V4 ETH/token pool — not yet walked.
+- [x] **T3 — Wizard data.** ✅ `useRegisteredVaults.ts` multicalls `vaultType()`/`isLiquidityReady()`/
+      `description()` per vault; new pure `lib/wizard/vaultFlavor.ts` derives `{ family, venue, ready }`.
+- [x] **T4 — Wizard UX.** ✅ `WizardPage.tsx` alignment step is now family → venue with tradeoff copy;
+      resolves to a single `vault` address (`submit.ts` unchanged); un-ready LP venues render disabled
+      with a note (O2).
+- [x] **T5 — Tests.** ✅ Forge `test/vaults/VaultFlavors.t.sol` (4-family register + `vaultType()` +
+      `isLiquidityReady()` + ZAMM pool-key wiring gate + onlyOwner). ✅ Frontend `vaultFlavor.test.ts`
+      (grouping/ordering/O2). ✅ `app/e2e/vault-flavors.spec.ts` fork-walk — the alignment step renders
+      the family→venue picker (Liquidity ⇒ Uni/ZAMM/Cypher, Yield ⇒ Aave), and a Liquidity→Uni pick
+      creates a collection whose on-chain bound vault is `UniswapV4LP`. (Patched the 3 existing wizard
+      specs — gating/project-style/metadata — for the new two-click alignment step.) ✅ **Fork
+      graduation** `test/fork/VaultUniGraduationFork.t.sol` — a wired Uni vault converts alignment ETH
+      into a **live V4 LP position** on the real mainnet PoolManager (real Native ETH/USDC 0.3% pool)
+      via the real zRouter; asserts `getPositionInfo` liquidity > 0 == the vault's booked LP units.
+      Fork-gated (skips without `--fork-url`). Plus regression
+      `test_ConvertAndAddLiquidity_acceptsZRouterDustRefund` (verified to fail pre-fix).
+- [x] **T6 — Docs.** ✅ New `ADR-0008 two-vault-families`; amended `ADR-0003`; un-retired the banners
+      in `contracts/README.md` + `ARCHITECTURE.md` + `contracts/CLAUDE.md`; annotated the
+      `phase-2-reconciliation` "retire" history. No current "retire LP" guidance remains (exit #4).
 - [ ] **T7 — Audit scope (note, → Phase 4).** Fold the three LP vaults + the pool-key/validator
       wiring into the pre-mainnet vault review. Incremental (they were audited once) but the deeper
       pass now covers V4 LP mechanics, not just Aave.
@@ -119,6 +136,40 @@ graduation path (lead, per T2). Mainnet-shaped price-validator/pool-key values v
 archive fork before Phase 4.
 
 ## Decision log
+- **2026-07-01 (exit #2 — live Uni graduation + BUG FIX)** — Proved a wired Uni vault creates a **real
+  on-chain V4 LP position** end-to-end (`test/fork/VaultUniGraduationFork.t.sol`, against the real Native
+  ETH/USDC 0.3% pool via the real zRouter + PoolManager). The fork-walk **caught a real, mainnet-blocking
+  bug**: `UniAlignmentVault.receive()` was unconditionally `nonReentrant`, so when zRouter refunds
+  leftover swap dust (and when the PoolManager settles native ETH) *during* `convertAndAddLiquidity`, the
+  refund reverted `Reentrancy()` → zRouter's `SafeTransferLib` bubbled `ETHTransferFailed()` → the whole
+  conversion bricked. Every real Uni-vault conversion on mainnet would have failed. **Fix:** `receive()`
+  now silently accepts ETH while the reentrancy guard is held (mirrors `ZAMMAlignmentVault.receive`;
+  Cypher's `receive()` is already a no-op) — only ETH arriving outside an operation is a contribution.
+  Regression `test_ConvertAndAddLiquidity_acceptsZRouterDustRefund` (via a `MockZRouter.refundWei` dust
+  refund) verified to FAIL pre-fix. All four exit criteria now met; gate-green (forge 1168 + fork test,
+  frontend 380, e2e 16). Cypher enabled with real Algebra Integral addresses (see prior entry).
+- **2026-07-01 (implementation pass)** — Shipped T1/T3/T4/T6 + the T2 wiring + T5 unit/forge coverage,
+  all gate-green (forge 1167 · frontend 380 · deploy+seed fork-walked). Resolved the open decisions:
+  - **O1** — per-target LP wiring is an owner-run deploy step, scripted into `DeployCore` Phase 5
+    (Uni `setVaultPoolKey`, ZAMM key baked at deploy). ZAMM's init-only gap fixed with a `setPoolKey`
+    setter (+ onlyOwner factory proxy) so re-wiring is possible pre-liquidity.
+  - **O2** — gate on wiring completeness via a new `isLiquidityReady()` view on every vault; the wizard
+    hides/disables an LP venue until its pool key + validator are set. Aave = always ready.
+  - **O3** — fork uses the shared `UniswapVaultPriceValidator` (factory default, non-zero) for Uni/ZAMM;
+    **mainnet-shaped oracle/floor + pool-key values (incl. `zammFeeOrHook`) still to be confirmed on the
+    archive fork before Phase 4** (unchanged from the Verification note).
+  - **O4** — a target may opt into a subset: families are per-`AlignmentTargetConfig` flags, and the
+    wizard only offers venues that are both deployed AND liquidity-ready.
+  - **O5** — run as a standalone pre-Phase-4 pass (this one). Deeper vault review stays T7 → Phase 4.
+  - **Cypher IS live (corrected):** an earlier pass assumed no Algebra on ETH mainnet and kept Cypher
+    off. **Wrong** — Cypher = Algebra Integral is deployed on mainnet (positionManager `0x0a984a…2f7c`,
+    swapRouter `0x20C5…0b0Ab`, factory `0xfb8Ed3…b0f0`; source: the live camel404 mainnet deployment,
+    all three verified to have code on the fork). Cypher is now enabled on Anvil with the real
+    addresses; all four families deploy + register + type-check + report `isLiquidityReady()=true`.
+  - **Exit-criteria status:** #1 **met** (four families/target on the fork, 8 vaults, correct
+    `vaultType()` + readiness); #3 **met** (family→venue picker walk green on the fork); #4 **met**;
+    #5 green (forge 1168 · frontend 380 · e2e 16). #2 later **met** in the exit-#2 entry above (used the
+    real Native ETH/USDC V4 pool — no seeding needed).
 - **2026-07-01** — Task opened. Locked D1–D4. Confirmed (source): all four vault families present +
   `IAlignmentVault` + audited; `vaultType()` returns the four discriminator strings; DeployCore
   instantiates all four factories and registers per-target behind `deployUniVault`/`deployCypherVault`/

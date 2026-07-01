@@ -20,6 +20,12 @@ contract DeployAnvil is DeployCore {
     // aave-dao/aave-address-book; pinned here (verified live on the fork) to avoid dragging the whole
     // Aave protocol into compilation for one address. Update from the address-book if Aave migrates.
     address constant WETH_STATA_TOKEN = 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202;
+    // ZAMM singleton (mainnet) — present on the mainnet fork. Enables the ZAMM LP vault family.
+    address constant ZAMM = 0x000000000000040470635EB91b7CE4D132D616eD;
+    // Cypher = Algebra Integral on Ethereum mainnet (live — verified on the fork; addresses from the
+    // camel404 mainnet deployment). Enables the Cypher LP vault family.
+    address constant CYPHER_POSITION_MANAGER = 0x0a984a446A116335ac90425d2D1E69A7199A2f7c;
+    address constant CYPHER_SWAP_ROUTER      = 0x20C5893f69F635f55b0367C519F3f95e59c0b0Ab;
 
     function run() public {
         uint256 pk = vm.envUint("PRIVATE_KEY");
@@ -34,14 +40,14 @@ contract DeployAnvil is DeployCore {
         targets[0] = AlignmentTargetConfig({
             token: MS2_TOKEN, symbol: "MS2",
             name: "Milady-Station-2", description: "MS2 community alignment target",
-            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false,
+            deployUniVault: true, deployCypherVault: true, deployZAMMVault: true,
             // local-only deterministic placeholder community payout (a real deploy passes the actual address)
             communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", MS2_TOKEN)))))
         });
         targets[1] = AlignmentTargetConfig({
             token: CULT_TOKEN, symbol: "CULT",
             name: "Cult-DAO", description: "Cult DAO community alignment target",
-            deployUniVault: true, deployCypherVault: false, deployZAMMVault: false,
+            deployUniVault: true, deployCypherVault: true, deployZAMMVault: true,
             communityPayout: address(uint160(uint256(keccak256(abi.encode("ms2.community", CULT_TOKEN)))))
         });
 
@@ -51,9 +57,9 @@ contract DeployAnvil is DeployCore {
         cfg.v4PoolManager    = V4_PM;
         cfg.v3Factory        = V3_FACTORY;
         cfg.v2Factory        = V2_FACTORY;
-        cfg.cypherPositionManager = address(0);
-        cfg.cypherRouter     = address(0);
-        cfg.zamm             = address(0);
+        cfg.cypherPositionManager = CYPHER_POSITION_MANAGER; // Cypher (Algebra Integral) — live on the fork
+        cfg.cypherRouter     = CYPHER_SWAP_ROUTER;
+        cfg.zamm             = ZAMM; // ZAMM LP family — live on the mainnet fork
         cfg.aaveStataToken   = WETH_STATA_TOKEN; // waEthWETH (mainnet fork)
         cfg.zrouter          = address(0);
         cfg.safe             = address(0);
@@ -70,6 +76,7 @@ contract DeployAnvil is DeployCore {
         cfg.twapSeconds        = 1800;
         cfg.zrouterFee         = 3000;
         cfg.zrouterTickSpacing = 60;
+        cfg.zammFeeOrHook      = 100; // ZAMM standard 1% pool fee selector (mainnet-shaped value confirmed pre-Phase-4)
         cfg.alignmentTargets   = targets;
         cfg.jsonOutputPath     = "./deployments/anvil.json";
     }

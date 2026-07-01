@@ -320,6 +320,14 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         return benefactorContribution[benefactor];
     }
 
+    /// @notice Whether this vault is operationally wired for liquidity provision (O2 gate).
+    /// @dev True once the Algebra position manager AND a price validator are configured, so the
+    ///      wizard can safely offer the Cypher venue. A vault deployed without a real Algebra
+    ///      position manager / validator reports false and is hidden/disabled in the picker.
+    function isLiquidityReady() external view returns (bool) {
+        return address(positionManager) != address(0) && address(priceValidator) != address(0);
+    }
+
     function vaultType() external pure override returns (string memory) { return "CypherLP"; }
     function description() external pure override returns (string memory) {
         return "Full-range liquidity provision on Algebra V2 (Cypher AMM)";

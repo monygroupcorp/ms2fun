@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 /// @notice Mock zRouter for unit testing ZAMMAlignmentVault
 /// Handles both swap directions:
@@ -10,12 +11,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract MockZRouter {
     // Output amount = swapAmount * outRatio / 1e18 (default 1:1)
     uint256 public outRatio = 1e18;
+    /// @notice Wei of ETH refunded to `to` after an ETH→token swap, mirroring the real zRouter
+    ///         returning leftover ETH via SafeTransferLib (reverts ETHTransferFailed on failure).
+    ///         Default 0 = no refund (back-compat). A locked-guard vault must silently accept this.
+    uint256 public refundWei;
 
     receive() external payable {}
 
     function setOutRatio(uint256 ratio) external { outRatio = ratio; }
     // Keep old name as alias for backwards compat with tests that call setEthOutRatio
     function setEthOutRatio(uint256 ratio) external { outRatio = ratio; }
+    function setRefundWei(uint256 w) external { refundWei = w; }
 
     /// @notice Simulates swapV4: same bidirectional logic as swapVZ
     function swapV4(
@@ -38,6 +44,9 @@ contract MockZRouter {
             // ETH → token
             require(tokenOut != address(0), "MockZRouter: tokenOut must be token");
             IERC20(tokenOut).transfer(to, amountOut);
+            // Real zRouter returns leftover ETH to the caller; this refund lands in the vault's
+            // receive() while its reentrancy guard is held (mid convertAndAddLiquidity).
+            if (refundWei > 0) SafeTransferLib.safeTransferETH(to, refundWei);
         } else {
             // token → ETH
             IERC20(tokenIn).transferFrom(msg.sender, address(this), swapAmount);

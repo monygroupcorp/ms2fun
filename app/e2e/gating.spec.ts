@@ -76,7 +76,8 @@ test('gating config: set a tier at create, then replace it from creator admin @f
   await page.getByLabel('Volume cap 1', { exact: true }).fill('100')
   await page.getByRole('button', { name: /Continue/ }).click() // → Alignment
 
-  // ── STEP · Alignment — pick the first registered vault.
+  // ── STEP · Alignment — family → venue picker: pick Yield (Aave), then its venue.
+  await page.getByRole('button', { name: /^Yield/ }).click()
   await page.getByRole('button', { name: /target #/ }).first().click()
   await page.getByRole('button', { name: /Continue/ }).click() // → Collection page
 

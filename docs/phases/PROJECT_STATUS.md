@@ -5,10 +5,10 @@
 **`main`**, gate-green (371 frontend tests; `forge build` clean; 1162 forge tests green; 15 e2e).
 **Security audit closed out + metadata resolver stack shipped to `main` — 2026-06-30 (see below).**
 
-**► RESUME HERE:** the metadata resolver stack is done. Remaining pre-testnet tracks: the **holistic
-design/style pass**, a **full end-to-end fork-verify**, and the newly-scoped **vault flavors** task
-(promote all 3 LP vaults to first-class alongside Aave, family→venue wizard picker — see
-`vault-flavors.md`). After those, the real **testnet deploy** (Phase 4).
+**► RESUME HERE:** the metadata resolver stack **and vault flavors are done** (four vault families,
+family→venue wizard, live Uni V4 graduation fork-verified — see `vault-flavors.md`). Remaining
+pre-testnet tracks: the **holistic design/style pass** and a **full end-to-end fork-verify** (portfolio/
+featured/admin write paths). After those, the real **testnet deploy** (Phase 4).
 
 ---
 
@@ -166,14 +166,32 @@ redemptions without taxing entrants.
 
 Tracking detail + the stash-pop/hunk-staging gotchas live in the `audit-status` memory.
 
-## ► QUEUED — vault flavors (pre-testnet task) — see `vault-flavors.md`
-**Scoped 2026-07-01.** Promote the 3 LP vaults (Uniswap V4 / ZAMM / Cypher) back to **first-class**
-alongside the Aave endowment, expressed in the wizard as **family → venue** (Yield vs LP → which LP),
-grouped off the on-chain `vaultType()`. This is a **promotion + wiring** task, not a rebuild — all four
-families already exist, implement `IAlignmentVault`, and were re-audited this cycle; Uni V4 is already
-deployed + selectable on the fork. The real work is the **per-target LP wiring** (pool key + price
-validator per venue — load-bearing, lead-owned) and folding the 3 LP vaults into Phase-4's deeper vault
-review. Full design + task units + open decisions (O1–O5) in **[`vault-flavors.md`](./vault-flavors.md)**.
+## ✅ SHIPPED — vault flavors (pre-testnet task) — see `vault-flavors.md`
+**Scoped + implemented + fork-verified 2026-07-01. All exit criteria met.** Promoted the LP vaults to
+**first-class** alongside the Aave endowment, expressed in the wizard as **family → venue**, grouped off
+on-chain `vaultType()`. Landed (gate-green: forge **1168** + a fork-gated graduation test, frontend
+**380**, e2e **16** — incl. the new `vault-flavors.spec.ts` picker fork-walk; deploy+seed fork-walked
+with on-chain vaultType/readiness verified):
+- **Contracts (T1/T2):** `isLiquidityReady()` on all 4 vaults (O2 signal); **filled the ZAMM init-only
+  pool-key gap** (`setPoolKey` + onlyOwner factory proxy, factory now `Ownable`); `DeployCore` per-target
+  LP wiring (Uni `setVaultPoolKey`, ZAMM key baked at deploy) + `zammFeeOrHook`; `DeployAnvil` deploys
+  ZAMM (real singleton) **and Cypher (real Algebra Integral, live on mainnet)** → **4 families × 2
+  targets = 8 vaults, all correct `vaultType()` + `isLiquidityReady()=true` on the fork** (exit #1 met);
+  `ValidateSepolia._checkVaults()` asserts registered + type + readiness; SeedAnvil now resolves vaults
+  by family (`SeedUniVault`/`SeedAaveVault`), not fragile array index.
+- **Wizard (T3/T4):** `useRegisteredVaults` reads `vaultType()`/`isLiquidityReady()`; new
+  `lib/wizard/vaultFlavor.ts` derives family/venue; `WizardPage` is a family→venue picker (un-ready LP
+  venues disabled); `submit.ts` unchanged.
+- **Docs (T6):** ADR-0008 (two families) + ADR-0003 amend + un-retired banners; no current "retire LP"
+  guidance remains.
+- **Cypher:** Algebra Integral is live on mainnet (real addresses from camel404, verified on the fork) —
+  `deployCypherVault=true`, registers + type-checks alongside the others.
+- **Exit #2 (live Uni graduation) DONE + a real bug fixed:** `test/fork/VaultUniGraduationFork.t.sol`
+  creates a **live V4 LP position** on the real mainnet PoolManager via the real zRouter. The walk caught
+  a **mainnet-blocking bug** — `UniAlignmentVault.receive()` was unconditionally `nonReentrant`, so
+  zRouter's swap-dust refund (and PoolManager native-ETH settlement) reverted mid-`convertAndAddLiquidity`
+  and bricked every real conversion. Fixed to silently accept ETH while the guard is held (mirrors ZAMM);
+  regression `test_ConvertAndAddLiquidity_acceptsZRouterDustRefund` verified to fail pre-fix.
 
 ## Not yet verified / open
 - **Fork-verify Phase 2 + Phase 3 end-to-end** — on main + gate-green but not fully walked (portfolio

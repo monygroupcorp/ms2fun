@@ -1,8 +1,15 @@
 # ADR-0003 — Aave Alignment Vault (the endowment model)
 
 **Status:** Economics LOCKED 2026-06-23 (Mony). Architecture proposed; implementation = Phase 2 T4.
-**Supersedes:** the legacy alignment-vault + Uniswap-LP model (RETIRE). **Does NOT touch** the
-collection's own bonding→DEX LP, which stays (lean kills the LP *vault*, not the LP).
+**Amended 2026-07-01** ([ADR-0008](0008-two-vault-families.md)): the "Supersedes … (RETIRE)" line
+below is **corrected** — the Uniswap-LP alignment vaults are **NOT** retired. This vault (the Aave
+endowment) is now the **Yield family**, one of two vault families; the LP vaults are the first-class
+**Liquidity family** (`UniswapV4LP` / `ZAMMLP` / `CypherLP`), creator's choice. This ADR's economics
+(principal-deposit + tithe-out) stand unchanged as the Yield family's model — it just no longer
+replaces the LP model. See ADR-0008 for the two-family taxonomy + `vaultType()` grouping.
+**Supersedes (superseded — see amendment above):** the legacy alignment-vault + Uniswap-LP model
+(RETIRE). **Does NOT touch** the collection's own bonding→DEX LP, which stays (lean kills the LP
+*vault*, not the LP).
 
 ## Context & north star
 The optimization target is **alignment targets (communities like Cult/Milady) championing ms2fun as
