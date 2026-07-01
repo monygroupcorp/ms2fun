@@ -1,0 +1,125 @@
+.page {
+  composes: pageStack from '../styles/layout.module.css';
+  --page-max: var(--page-max-content);
+}
+
+.title {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
+.sub {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 60ch;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  border: 1px solid var(--border-secondary);
+  padding: var(--padding-md, var(--padding-sm));
+}
+
+.sectionTitle {
+  font-family: var(--font-primary);
+  font-size: var(--font-size-h3, var(--font-size-h2));
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: stretch;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+}
+
+.assetCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  border: 1px dashed var(--border-secondary);
+  padding: var(--padding-sm);
+}
+
+.assetHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.linkBtn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.linkBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.deposit {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reqRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  border: 1px solid var(--border-tertiary, var(--border-secondary));
+  padding: var(--padding-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  flex-wrap: wrap;
+}
+
+.reqTitle {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+}
+
+.reqMeta {
+  color: var(--text-secondary);
+}
+
+.status {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}

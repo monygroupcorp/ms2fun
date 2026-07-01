@@ -14,6 +14,7 @@ import { EditionDetailPage } from './routes/EditionDetailPage'
 import { TokenDetailPage } from './routes/TokenDetailPage'
 import { WizardPage } from './routes/WizardPage'
 import { BoardPage } from './routes/BoardPage'
+import { RequestTargetPage } from './routes/RequestTargetPage'
 import { AdminPage } from './routes/AdminPage'
 import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
@@ -42,6 +43,9 @@ function NavLinks({
       </Link>
       <Link href="/board" className={linkClassName} onClick={onNavigate}>
         BOARD
+      </Link>
+      <Link href="/request-target" className={linkClassName} onClick={onNavigate}>
+        REQUEST TARGET
       </Link>
       <AdminNavLink linkClassName={linkClassName} onNavigate={onNavigate} />
       <Link
@@ -128,6 +132,7 @@ export function App() {
               <Route path="/launch" component={WizardPage} />
               <Route path="/collections" component={CollectionsPage} />
               <Route path="/board" component={BoardPage} />
+              <Route path="/request-target" component={RequestTargetPage} />
               {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
                   the connected wallet's own plate. */}
               <Route path="/portfolio" component={ProfilePage} />

@@ -9,7 +9,7 @@
 import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkAddresses } from '../lib/addresses'
 import { MasterRegistryPanel } from '../components/admin/MasterRegistryPanel'
-import { AlignmentPanel } from '../components/admin/AlignmentPanel'
+import { AlignmentPanel, TargetRequestsPanel } from '../components/admin/AlignmentPanel'
 import { ComponentRegistryPanel } from '../components/admin/ComponentRegistryPanel'
 import { PlatformConfigPanel } from '../components/admin/PlatformConfigPanel'
 import { TreasuryPanel } from '../components/admin/TreasuryPanel'
@@ -30,6 +30,7 @@ export function AdminPage() {
       <div className={styles.panels}>
         <MasterRegistryPanel />
         <AlignmentPanel />
+        <TargetRequestsPanel />
         <ComponentRegistryPanel />
         <PlatformConfigPanel />
         <TreasuryPanel />
