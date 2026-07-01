@@ -46,7 +46,9 @@ function freshToken(): Address {
 const REQ_ABI = [
   { type: 'function', name: 'requestDeposit', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'nextRequestId', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'refunds', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] },
   { type: 'function', name: 'approveRequest', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }], outputs: [] },
+  { type: 'function', name: 'withdrawRefund', stateMutability: 'nonpayable', inputs: [], outputs: [{ type: 'uint256' }] },
   {
     type: 'function', name: 'getRequest', stateMutability: 'view', inputs: [{ type: 'uint256' }],
     outputs: [{
@@ -89,6 +91,8 @@ const REGISTRY_ABI = [
 const publicClient = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
 const testClient = createTestClient({ chain: forkChain, mode: 'anvil', transport: http(ANVIL_RPC) })
 const adminWallet = createWalletClient({ account: ADMIN, chain: forkChain, transport: http(ANVIL_RPC) })
+// anvil account #0 is unlocked → anvil signs its txs (the requester claiming the refund).
+const userWallet = createWalletClient({ account: TEST_ACCOUNT, chain: forkChain, transport: http(ANVIL_RPC) })
 
 test('target request: submit via the form, admin register+approve, target goes active + refunded @fork', async ({
   page,
@@ -163,5 +167,13 @@ test('target request: submit via the form, admin register+approve, target goes a
   const after = (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'getRequest', args: [id] })) as { deposit: bigint; status: number }
   expect(after.status).toBe(2) // Approved
   expect(after.deposit).toBe(0n)
-  expect(await publicClient.getBalance({ address: REQ })).toBe(escrowBefore) // my deposit refunded out
+  // Pull-payment: the deposit is CREDITED to the requester, still held by the contract until claimed.
+  expect(await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'refunds', args: [TEST_ACCOUNT] })).toBe(deposit)
+  expect(await publicClient.getBalance({ address: REQ })).toBe(escrowBefore + deposit)
+
+  // ── Requester claims the refund (withdrawRefund) ────────────────────────────
+  const wHash = await userWallet.writeContract({ address: REQ, abi: REQ_ABI, functionName: 'withdrawRefund', chain: forkChain, account: TEST_ACCOUNT })
+  await publicClient.waitForTransactionReceipt({ hash: wHash })
+  expect(await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'refunds', args: [TEST_ACCOUNT] })).toBe(0n)
+  expect(await publicClient.getBalance({ address: REQ })).toBe(escrowBefore) // escrow drained on claim
 })

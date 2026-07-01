@@ -130,6 +130,13 @@ requester can now align to it.**
 `app/e2e/target-requests.spec.ts` submit→approve walk; manual `/admin` review of a seeded pending request.
 
 ## Decision log
+- **2026-07-01 (review — pull-payment refund)** — Switched deposit refunds from push to **pull-payment**:
+  approve / good-faith-reject / expiry credit a `refunds[requester]` ledger, claimed via `withdrawRefund()`
+  (+ a "claim refund" action on `/request-target`). A requester that can't receive ETH can now only revert
+  its own claim, never an admin action (forfeit still pushes to the trusted treasury). Per-request asset
+  cap deemed unnecessary — the deposit is the spam lever (raise it if abused; it's revenue). +2 forge tests
+  (21 total, incl. a `RevertingReceiver` proving approve can't be bricked); e2e extended to claim the
+  refund. Full forge 1189.
 - **2026-07-01 (review hardening)** — Accuracy pass on the two-tx flow: `approveRequest` now reverts
   `TargetNotRegistered` unless the request's token is already in an active target, enforcing "register
   THEN approve" on-chain (previously only UI label ordering) — an admin can't silently refund + delist a

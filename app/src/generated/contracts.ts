@@ -1102,6 +1102,13 @@ export const alignmentTargetRequestRegistryAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'refunds',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'id', internalType: 'uint256', type: 'uint256' },
       { name: 'forfeit', internalType: 'bool', type: 'bool' },
@@ -1197,6 +1204,13 @@ export const alignmentTargetRequestRegistryAbi = [
     stateMutability: 'payable',
   },
   {
+    type: 'function',
+    inputs: [],
+    name: 'withdrawRefund',
+    outputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -1272,6 +1286,20 @@ export const alignmentTargetRequestRegistryAbi = [
       },
     ],
     name: 'ProtocolTreasuryUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'RefundWithdrawn',
   },
   {
     type: 'event',
@@ -1394,6 +1422,7 @@ export const alignmentTargetRequestRegistryAbi = [
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoAssets' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoRefund' },
   { type: 'error', inputs: [], name: 'NotExpired' },
   { type: 'error', inputs: [], name: 'NotPending' },
   { type: 'error', inputs: [], name: 'QueueFull' },
@@ -1401,7 +1430,6 @@ export const alignmentTargetRequestRegistryAbi = [
   { type: 'error', inputs: [], name: 'TargetNotRegistered' },
   { type: 'error', inputs: [], name: 'TokenAlreadyActive' },
   { type: 'error', inputs: [], name: 'TokenNotInAssets' },
-  { type: 'error', inputs: [], name: 'TransferFailed' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
@@ -11804,6 +11832,15 @@ export const useReadAlignmentTargetRequestRegistryProtocolTreasury =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"refunds"`
+ */
+export const useReadAlignmentTargetRequestRegistryRefunds =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'refunds',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"requestDeposit"`
  */
 export const useReadAlignmentTargetRequestRegistryRequestDeposit =
@@ -11947,6 +11984,15 @@ export const useWriteAlignmentTargetRequestRegistryTransferOwnership =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"withdrawRefund"`
+ */
+export const useWriteAlignmentTargetRequestRegistryWithdrawRefund =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'withdrawRefund',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__
  */
 export const useSimulateAlignmentTargetRequestRegistry =
@@ -12072,6 +12118,15 @@ export const useSimulateAlignmentTargetRequestRegistryTransferOwnership =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `functionName` set to `"withdrawRefund"`
+ */
+export const useSimulateAlignmentTargetRequestRegistryWithdrawRefund =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentTargetRequestRegistryAbi,
+    functionName: 'withdrawRefund',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__
  */
 export const useWatchAlignmentTargetRequestRegistryEvent =
@@ -12122,6 +12177,15 @@ export const useWatchAlignmentTargetRequestRegistryProtocolTreasuryUpdatedEvent 
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentTargetRequestRegistryAbi,
     eventName: 'ProtocolTreasuryUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentTargetRequestRegistryAbi}__ and `eventName` set to `"RefundWithdrawn"`
+ */
+export const useWatchAlignmentTargetRequestRegistryRefundWithdrawnEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentTargetRequestRegistryAbi,
+    eventName: 'RefundWithdrawn',
   })
 
 /**

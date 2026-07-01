@@ -34,7 +34,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     error TokenNotInAssets();
     error TargetNotRegistered();
     error NotExpired();
-    error TransferFailed();
+    error NoRefund();
 
     // ── Types ───────────────────────────────────────────────────────────────
     enum Status { None, Pending, Approved, Rejected, Expired }
@@ -65,6 +65,11 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     mapping(uint256 => Request) internal _requests;
     mapping(uint256 => IAlignmentRegistry.AlignmentAsset[]) internal _requestAssets;
 
+    /// @notice Pull-payment refund ledger — ETH owed to a requester from an approved / good-faith-
+    ///         rejected / expired request. Credited by those paths, claimed via `withdrawRefund`, so a
+    ///         requester that can't receive ETH can never revert an admin action (only its own claim).
+    mapping(address => uint256) public refunds;
+
     // Bounded list of Pending ids (swap-and-pop; index is 1-based, 0 = not present).
     uint256[] internal _pending;
     mapping(uint256 => uint256) internal _pendingIndex;
@@ -74,6 +79,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     event RequestApproved(uint256 indexed id, address indexed requester, uint256 refunded);
     event RequestRejected(uint256 indexed id, address indexed requester, bool forfeited, uint256 amount);
     event RequestExpired(uint256 indexed id, address indexed requester, uint256 refunded);
+    event RefundWithdrawn(address indexed to, uint256 amount);
     event RequestDepositUpdated(uint256 newDeposit);
     event MaxPendingUpdated(uint256 newMax);
     event RequestTTLUpdated(uint256 newTTL);
@@ -169,7 +175,7 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
         _removePending(id);
         uint256 amount = r.deposit;
         r.deposit = 0;
-        if (amount > 0) SafeTransferLib.safeTransferETH(r.requester, amount);
+        if (amount > 0) refunds[r.requester] += amount; // pull-payment (claim via withdrawRefund)
         emit RequestApproved(id, r.requester, amount);
     }
 
@@ -183,8 +189,9 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
         uint256 amount = r.deposit;
         r.deposit = 0;
         if (amount > 0) {
-            address to = forfeit ? protocolTreasury : r.requester;
-            SafeTransferLib.safeTransferETH(to, amount);
+            // Forfeit → straight to the (trusted) treasury; good-faith → pull-payment for the requester.
+            if (forfeit) SafeTransferLib.safeTransferETH(protocolTreasury, amount);
+            else refunds[r.requester] += amount;
         }
         emit RequestRejected(id, r.requester, forfeit, amount);
     }
@@ -201,8 +208,19 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
         _removePending(id);
         uint256 amount = r.deposit;
         r.deposit = 0;
-        if (amount > 0) SafeTransferLib.safeTransferETH(r.requester, amount);
+        if (amount > 0) refunds[r.requester] += amount; // pull-payment (claim via withdrawRefund)
         emit RequestExpired(id, r.requester, amount);
+    }
+
+    /// @notice Claim ETH owed to the caller from an approved / good-faith-rejected / expired request.
+    /// @dev Pull-payment: state cleared before the send (CEI) + nonReentrant. A caller that can't
+    ///      receive ETH only reverts its OWN claim — it can never brick an admin action.
+    function withdrawRefund() external nonReentrant returns (uint256 amount) {
+        amount = refunds[msg.sender];
+        if (amount == 0) revert NoRefund();
+        refunds[msg.sender] = 0;
+        SafeTransferLib.safeTransferETH(msg.sender, amount);
+        emit RefundWithdrawn(msg.sender, amount);
     }
 
     // ── Views ─────────────────────────────────────────────────────────────────

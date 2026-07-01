@@ -16,6 +16,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAccount, usePublicClient } from 'wagmi'
 import {
   alignmentTargetRequestRegistryAbi,
+  useReadAlignmentTargetRequestRegistryRefunds,
   useReadAlignmentTargetRequestRegistryRequestDeposit,
 } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
@@ -301,6 +302,48 @@ function useMyRequests(): {
   return { data, isPending, isError }
 }
 
+function ClaimRefund() {
+  const { address, isConnected } = useAccount()
+  const queryClient = useQueryClient()
+  const { data: owed, refetch } = useReadAlignmentTargetRequestRegistryRefunds({
+    address: REQUEST_REGISTRY,
+    args: address ? [address] : undefined,
+    chainId: forkChainId,
+    query: { enabled: !!address },
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      void refetch()
+      void queryClient.invalidateQueries({ queryKey: ['my-target-requests'] })
+    },
+  })
+
+  if (!isConnected || owed === undefined || owed === 0n) return null
+
+  return (
+    <div className={styles.claim} data-testid="claim-refund">
+      <span>
+        <b>{formatEther(owed)} ETH</b> refund available — from an approved, rejected, or expired request.
+      </span>
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: REQUEST_REGISTRY,
+            abi: alignmentTargetRequestRegistryAbi,
+            functionName: 'withdrawRefund',
+            chainId: forkChainId,
+          })
+        }
+        label="claim refund"
+        successLabel="refund claimed."
+        onReset={tx.reset}
+        testId="withdraw-refund"
+      />
+    </div>
+  )
+}
+
 function MyRequests() {
   const { isConnected } = useAccount()
   const { data, isPending, isError } = useMyRequests()
@@ -308,6 +351,7 @@ function MyRequests() {
   return (
     <section className={styles.section} data-testid="my-requests">
       <h2 className={styles.sectionTitle}>My requests</h2>
+      <ClaimRefund />
       {!isConnected && (
         <StateBlock variant="empty" boxed>
           connect your wallet to see your requests.

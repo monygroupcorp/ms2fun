@@ -139,9 +139,40 @@ contract AlignmentTargetRequestRegistryTest is Test {
         AlignmentTargetRequestRegistry.Request memory r = reg.getRequest(id);
         assertEq(uint8(r.status), uint8(AlignmentTargetRequestRegistry.Status.Approved));
         assertEq(r.deposit, 0);
-        assertEq(alice.balance, balBefore + DEPOSIT, "deposit refunded on approve");
         assertEq(reg.pendingCount(), 0, "delisted");
+        // Pull-payment: refund is CREDITED, not sent, until the requester claims it.
+        assertEq(reg.refunds(alice), DEPOSIT, "refund credited");
+        assertEq(alice.balance, balBefore, "not sent until withdrawn");
+        assertEq(address(reg).balance, DEPOSIT, "still held until withdrawn");
+
+        vm.prank(alice);
+        reg.withdrawRefund();
+        assertEq(alice.balance, balBefore + DEPOSIT, "withdrawn");
+        assertEq(reg.refunds(alice), 0);
         assertEq(address(reg).balance, 0);
+    }
+
+    function test_withdrawRefund_revertsWhenNothingOwed() public {
+        vm.prank(bob);
+        vm.expectRevert(AlignmentTargetRequestRegistry.NoRefund.selector);
+        reg.withdrawRefund();
+    }
+
+    /// @dev A requester that can't receive ETH can't brick approve — only its own claim reverts.
+    function test_pullPayment_badReceiverCannotBrickApprove() public {
+        RevertingReceiver bad = new RevertingReceiver();
+        vm.deal(address(bad), 1 ether);
+        uint256 id = bad.submit(reg, token, _assets(), DEPOSIT);
+        _register(token, 99);
+
+        vm.prank(owner);
+        reg.approveRequest(id); // must NOT revert despite the bad receiver
+        assertEq(reg.refunds(address(bad)), DEPOSIT, "credited");
+
+        // The bad receiver's own claim reverts (its problem, not the protocol's).
+        vm.prank(address(bad));
+        vm.expectRevert();
+        reg.withdrawRefund();
     }
 
     function test_approve_onlyOwner() public {
@@ -194,8 +225,13 @@ contract AlignmentTargetRequestRegistryTest is Test {
         vm.prank(owner);
         reg.rejectRequest(id, false);
 
-        assertEq(alice.balance, aBefore + DEPOSIT, "refunded on good-faith reject");
+        assertEq(reg.refunds(alice), DEPOSIT, "credited on good-faith reject");
+        assertEq(alice.balance, aBefore, "not sent until withdrawn");
         assertEq(treasury.balance, 0);
+
+        vm.prank(alice);
+        reg.withdrawRefund();
+        assertEq(alice.balance, aBefore + DEPOSIT, "withdrawn");
     }
 
     function test_reject_onlyOwner() public {
@@ -219,9 +255,13 @@ contract AlignmentTargetRequestRegistryTest is Test {
         vm.prank(bob);
         reg.pruneExpired(id);
 
-        assertEq(alice.balance, aBefore + DEPOSIT, "expiry refunds requester");
+        assertEq(reg.refunds(alice), DEPOSIT, "expiry credits requester");
         assertEq(uint8(reg.getRequest(id).status), uint8(AlignmentTargetRequestRegistry.Status.Expired));
         assertEq(reg.pendingCount(), 0);
+
+        vm.prank(alice);
+        reg.withdrawRefund();
+        assertEq(alice.balance, aBefore + DEPOSIT, "expiry refunds requester on claim");
     }
 
     // ── Config ────────────────────────────────────────────────────────────────
@@ -269,5 +309,21 @@ contract AlignmentTargetRequestRegistryTest is Test {
         // id1 and id3 remain, id2 gone
         assertTrue((pend[0] == id1 || pend[1] == id1), "id1 present");
         assertTrue((pend[0] == id3 || pend[1] == id3), "id3 present");
+    }
+}
+
+/// @dev A requester contract that rejects incoming ETH — used to prove pull-payment can't be griefed.
+contract RevertingReceiver {
+    function submit(
+        AlignmentTargetRequestRegistry reg,
+        address token,
+        IAlignmentRegistry.AlignmentAsset[] memory assets,
+        uint256 deposit
+    ) external returns (uint256) {
+        return reg.submitRequest{value: deposit}(token, "Cult DAO", "desc", "ipfs://x", assets);
+    }
+
+    receive() external payable {
+        revert("no eth");
     }
 }
