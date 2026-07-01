@@ -12,9 +12,8 @@ import { useAccount } from 'wagmi'
 import { globalMessageRegistryAbi } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
 import { useTxAction } from './ui/useTxAction'
+import { useBoardCart, ZERO_BYTES32 } from './board/boardCart'
 import composer from './MessageComposer.module.css'
-
-const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000' as const
 
 export function ReplyComposer({
   parentId,
@@ -31,6 +30,23 @@ export function ReplyComposer({
   const { address: connected } = useAccount()
   const [content, setContent] = useState('')
   const tx = useTxAction({ onSuccess: onPosted })
+  const { add } = useBoardCart()
+
+  function addToBatch() {
+    const trimmed = content.trim()
+    if (!trimmed) return
+    add({
+      instance: channel,
+      messageType: 1,
+      refId: parentId,
+      actionRef: ZERO_BYTES32,
+      metadata: ZERO_BYTES32,
+      content: trimmed,
+      label: `reply: ${trimmed}`,
+    })
+    setContent('')
+    onCancel()
+  }
 
   // Collapse the composer once the reply confirms.
   useEffect(() => {
@@ -79,11 +95,19 @@ export function ReplyComposer({
         <span className={composer.status}>
           {tx.state === 'signing' && 'confirm in wallet…'}
           {tx.state === 'confirming' && 'posting…'}
-          {tx.state === 'error' && 'failed — try again'}
+          {tx.state === 'error' && (tx.reason ?? 'failed — try again')}
         </span>
         <div style={{ display: 'flex', gap: 'var(--gap-md)' }}>
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
             cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={addToBatch}
+            disabled={content.trim().length === 0 || tx.isBusy}
+          >
+            add to batch
           </button>
           <button type="submit" className="btn btn-primary" disabled={!canPost}>
             Reply

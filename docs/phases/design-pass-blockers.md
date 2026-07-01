@@ -136,14 +136,19 @@ Board post ✓, free-mint claim ✓, mint-with-message ✓, settle auction ✓.
   is boosted. Permissionless: anyone can rent a slot or boost."
 - **Status:** **fixed.**
 
-### B13 — Board should batch actions into a transaction "cart" (BIG)
-- **Ask:** board writes (post/reply/react) are cheap and foldable — use the contract's
-  native multi-op capability so a session of board actions becomes **one** finalizing
-  transaction. Adding an action opens a **cart**; you execute when ready. Warn on page
-  leave that there's un-finalized work / that you haven't yet hit the chain.
-- **Needs:** confirm the registry's batch/multicall entrypoint; cart state; a
-  `beforeunload` guard; clear "pending / not yet on-chain" affordances.
-- **Status:** open — **scope + propose before building.**
+### B13 — Board transaction "cart" (opt-in) — **BUILT + verified**
+- The registry has a native `postBatch(tuple[])` (preserves `msg.sender` — Multicall3
+  would not), so batching is a pure frontend build.
+- **Opt-in model:** each composer keeps its immediate action (Post / Reply / Endorse);
+  a secondary **"add to batch"** queues it instead. `boardCart.ts` (context/hook) +
+  `BoardCartProvider` (state + `beforeunload` guard) + `<BoardCartBar>` (sticky
+  bottom-right plate: "BATCH · N NOT YET ON-CHAIN", removable items, "FINALIZE N
+  ON-CHAIN →") commit the whole queue in ONE `postBatch` tx, then clear + refetch.
+- Wired into MessageComposer (post), ReplyComposer (reply), ReactButton (endorse,
+  with a queued-guard so you can't double-add). Mounted app-wide.
+- **Verified:** `e2e/board-cart.spec.ts` — two queued posts finalize in one tx and
+  both land. Full serial suite 18/19 green.
+- **Status:** **built + verified.**
 
 ### B14 — Creator-admin must leave the mint headline, get its own dropdown — **FIXED**
 - Wrapped the owner-only creator-admin (all 3 types) in a collapsed `CREATOR ADMIN`
