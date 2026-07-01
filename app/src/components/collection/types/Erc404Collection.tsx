@@ -20,10 +20,12 @@ export function Erc404Collection({ instance }: Erc404CollectionProps) {
     <section className={styles.section} data-testid="erc404-collection">
       <h2 className={styles.title}>BONDING</h2>
       <BondingSurface instance={instance} />
+      {/* W-D3: a DN404 is also an NFT collection — the mirror art (→ token page). Kept directly under
+          the bonding surface (above the collapsed admin) so the work leads, especially post-graduation
+          when the trading surface is just the link-out + history. */}
+      <Erc404NftGallery instance={instance} />
       {/* W-E: creator admin (bonding lifecycle, style, vault, delegation) — self-hides unless owner. */}
       <Erc404AdminPanel instance={instance} />
-      {/* W-D3: a DN404 is also an NFT collection — show the mirror art (→ token page). */}
-      <Erc404NftGallery instance={instance} />
     </section>
   )
 }

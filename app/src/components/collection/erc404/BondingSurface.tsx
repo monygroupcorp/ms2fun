@@ -89,17 +89,34 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
   }
 
   if (phase === 'graduated') {
+    // The curve is closed, but the token is still an ERC-20 that trades on its graduated pool — keep
+    // an in-site trade path (link-out, like the EXEC404 fossil) rather than a dead end. A live DEX
+    // price chart needs a pool data source we don't have on the fork; the candles below are the
+    // pre-graduation bonding history, and the link-out carries live price/depth.
+    const swapUrl = `https://app.uniswap.org/swap?outputCurrency=${instance}&chain=mainnet`
     return (
       <div className={styles.surface} data-testid="erc404-phase-graduated">
         <div className={styles.banner}>
           <span className={styles.bannerLabel}>status</span>
           <span className={styles.bannerValue}>graduated to DEX</span>
           <span className={styles.countdown}>
-            the bonding curve is closed — trading has moved to the liquidity pool.
+            the bonding curve is closed — this token now trades on its liquidity pool.
           </span>
         </div>
-        {/* Curve is closed; show the trade-history candles for the now-graduated instance. */}
+        <div>
+          <a
+            className="btn btn-primary btn-chromatic"
+            href={swapUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="erc404-graduated-trade"
+          >
+            Trade on Uniswap ↗
+          </a>
+        </div>
+        {/* Bonding-curve history (pre-graduation trades). Live price/depth is on the pool (link above). */}
         <div data-testid="erc404-pool-mount">
+          <p className={styles.note}>bonding history</p>
           <BondingChart
             instance={instance}
             curveParams={curveParams}
