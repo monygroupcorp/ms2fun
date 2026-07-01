@@ -209,9 +209,11 @@ with on-chain vaultType/readiness verified):
 - **Admin pool-liquidity scout** — `contracts/script/ScanAlignmentPools.s.sol` (built, fork-proven):
   per-alignment-token, ranks ETH/token pools across venues + recommends the deepest V4 pool key to wire
   (resolves vault-flavors O3 by measurement). Uncommitted in the working tree.
-- **Request an alignment target** — SCOPED + decisions locked (`docs/phases/alignment-target-requests.md`):
-  standalone `AlignmentTargetRequestRegistry` (FeaturedQueueManager pattern) + refundable deposit +
-  two-tx admin approve + minimal browse UI. Build-ready (T1 lead). Pairs with the scout.
+- **Request an alignment target** — BUILT + fork-verified on `feat/alignment-target-requests`
+  (`docs/phases/alignment-target-requests.md`, ADR-0009): standalone `AlignmentTargetRequestRegistry`
+  (refundable deposit, two-tx admin approve) + admin review panel + public `/request-target` form.
+  Gate-green: forge 1185, frontend 398, e2e 17 (incl. the submit→approve fork-walk). Pairs with the
+  scout. Not yet on `main` (feature branch, ready for PR).
 - **Style renderer** — `styleUri` is write-only today; a scoped-CSS renderer for collection + edition
   pages. Nomenclature locked (content URI vs style URI); edition style → content-JSON `styleURI` field.
   Design captured in `[[improvements-backlog]]`.

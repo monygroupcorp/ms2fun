@@ -1,7 +1,8 @@
 # Task — Request an Alignment Target (user proposes → admin reviews → approves)
 
-**Status:** Scoped — **architecture decisions locked** (O1–O4 resolved 2026-07-01; only O5 dedup detail
-open). Ready to build (T1 lead-owned). Not started.
+**Status:** **In progress** — T1 (contract) + T2 (deploy wiring) + contract-level T5 (17 forge tests) +
+T6 (ADR-0009) DONE and **fork-verified**; T3/T4 (UI) in progress; e2e fork-walk pending. On branch
+`feat/alignment-target-requests`. Architecture decisions locked (O1–O4). Full forge suite 1185 green.
 **Surfaced by:** the vault-flavors pool-scout work — targets are admin-curated, so a user/creator has
 no path to propose one (e.g. "please add CULT"). Pairs with `ScanAlignmentPools.s.sol` (the admin runs
 the scout on a requested token before approving + wiring).
@@ -94,27 +95,26 @@ requester can now align to it.**
   dedupe on review. Lean: cheap submit-time dup check (skip the deposit path for a known-active token).
 
 ## Task units
-- [ ] **T1 — Request contract (lead).** Per O1(a): `AlignmentTargetRequestRegistry` — `submitRequest`
-      (payable, deposit per O2, stores {requester, token, title, description, metadataURI, assets,
-      status, deposit}), `approveRequest`/`rejectRequest` (`onlyOwner`, deposit handling per O2),
-      `withdrawRefund`/auto-refund, bounded pending list + lazy prune (FeaturedQueueManager pattern),
-      dup guard per O5. Events for indexing. `nonReentrant`. `onlyOwner` config (deposit, bounds).
-- [ ] **T2 — Deploy wiring.** Deploy + wire the request registry in `DeployCore` (treasury for forfeited
-      deposits; owner = deployer/Safe); surface its address into the app config + `ValidateSepolia`.
-- [ ] **T3 — Admin UI (agent).** Extend `AlignmentPanel`: a "target requests" `AdminSection` — list
-      pending (event-indexed), per-request Approve (prefilled `registerAlignmentTarget` call, honoring
-      ≥1 asset) / Reject rows via `TxButton`/`useTxAction`, gated by `useOwnerGate`. Fix the empty-assets
-      copy bug.
-- [ ] **T4 — Requester UI (agent).** A public "request an alignment target" form (token + metadata +
-      asset(s) + deposit) using the write primitives, and a "my requests" status view (Pending/Approved/
-      Rejected + refund action). Entry point in nav/discovery.
-- [ ] **T5 — Tests.** Forge: submit/approve/reject/refund/forfeit + dup guard + deposit accounting +
-      onlyOwner; the approve path ends in a real `registerAlignmentTarget` + `isAlignmentTargetActive`.
-      Frontend unit: form validation + request-list rendering. Fork-walk (off `anvilWallet` + `@fork`):
-      submit a request → approve from `/admin` → assert the target is registered + active on-chain, then
-      a vault can bind to it (the choke-point end-to-end).
-- [ ] **T6 — Docs/ADR.** ADR for the request lifecycle + the request-layer-vs-core-registry split;
-      document the request → scout → approve → wire runbook.
+- [x] **T1 — Request contract (lead).** ✅ `contracts/src/master/AlignmentTargetRequestRegistry.sol` —
+      `submitRequest` (payable, exact `requestDeposit` escrow, stores requester/token/title/description/
+      metadataURI/assets/status/deposit), `approveRequest`/`rejectRequest(forfeit)` (`onlyOwner`),
+      `pruneExpired` (permissionless, past TTL), bounded pending list + swap-and-pop delist, best-effort
+      dup guard (O5), events, `nonReentrant`, `onlyOwner` config.
+- [x] **T2 — Deploy wiring.** ✅ `DeployCore` deploys it (owner=deployer, escrow→treasury, defaults
+      0.05 ETH / 50 / 30d) + serializes the address; `deploy.ts` hands it to ADMIN via the 2-step
+      handover; `addresses.ts` + wagmi bindings regenerated. **Fork-verified:** owned by ADMIN;
+      non-owner submit (0.05 ETH escrow) → ADMIN approve → Approved + deposit refunded.
+- [~] **T3 — Admin UI.** In progress — extend `AlignmentPanel` with a "target requests" `AdminSection`
+      (list pending, per-request Register-target (prefilled `registerAlignmentTarget`, ≥1 asset) +
+      Approve + Reject(forfeit) via `TxButton`/`useTxAction`, `useOwnerGate`); fix the empty-assets copy.
+- [~] **T4 — Requester UI.** In progress — public "request a target" form (token + metadata + assets +
+      deposit) + a "my requests" status view (indexed `RequestSubmitted`). New route + nav entry.
+- [~] **T5 — Tests.** ✅ Forge `test/master/AlignmentTargetRequestRegistry.t.sol` (17: submit/approve/
+      reject/forfeit/expiry/dup/queue-cap/onlyOwner/delist). Frontend unit tests: with T3/T4. **Pending:**
+      the fork-walk (off `anvilWallet` + `@fork`) — submit a request → Register+Approve from `/admin` →
+      assert the target is registered + active on-chain, then a vault can bind to it (choke-point e2e).
+- [x] **T6 — Docs/ADR.** ✅ [ADR-0009](../decisions/0009-alignment-target-request-registry.md) — request
+      lifecycle + the request-layer-vs-core-registry split + the request→scout→approve→wire runbook.
 
 ## Exit criteria
 1. A non-owner submits a target request on the fork (deposit taken per O2); it appears in `/admin`.
@@ -130,6 +130,13 @@ requester can now align to it.**
 `app/e2e/target-requests.spec.ts` submit→approve walk; manual `/admin` review of a seeded pending request.
 
 ## Decision log
+- **2026-07-01 (build — backend done, fork-verified)** — Shipped T1 (contract, 17 forge tests) + T2
+  (DeployCore + deploy.ts ADMIN handover + addresses.ts + wagmi bindings) + T6 (ADR-0009) on
+  `feat/alignment-target-requests`. Fork round-trip verified (non-owner submit w/ 0.05 ETH escrow →
+  ADMIN approve → refund). O5 resolved: **best-effort submit-time dup guard** (reject if the token's
+  first registered target is active; multi-target tokens only partially covered — registry exposes no
+  array length for `tokenToTargetIds`; admin dedupes on review). Full forge suite 1185 green. T3/T4 UI
+  in progress.
 - **2026-07-01 (decisions locked)** — Resolved the load-bearing decisions with Mony: **D5** standalone
   `AlignmentTargetRequestRegistry` (no core-registry upgrade), **D6** refundable ETH deposit
   (refund-on-approve / forfeit-on-spam-reject / reject-and-refund), **D7** two admin txs in v1
