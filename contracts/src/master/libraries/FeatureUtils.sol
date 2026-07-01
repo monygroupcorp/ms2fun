@@ -19,6 +19,11 @@ library FeatureUtils {
     bytes32 public constant DYNAMIC_PRICING    = keccak256("dynamic_pricing");
     bytes32 public constant STAKING            = keccak256("staking");
 
+    // Metadata-resolution component tags (ADR-0006 / ADR-0007)
+    bytes32 public constant RESOLVER           = keccak256("resolver");
+    bytes32 public constant OVERLAY            = keccak256("overlay");
+    bytes32 public constant TIER               = keccak256("tier");
+
     /**
      * @notice Check if a feature array contains a specific feature
      * @param features Array of feature IDs

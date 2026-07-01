@@ -9,6 +9,9 @@
  *   'dynamic_pricing'→ keccak256('dynamic_pricing')
  *   'staking'        → keccak256('staking')
  *   'vault'          → keccak256('vault')   ← returns [] until Aave vault ships (expected)
+ *   'resolver'       → keccak256('resolver') ← MetadataResolverRouter (ADR-0006/0007)
+ *   'overlay'        → keccak256('overlay')  ← MetadataOverlayModule
+ *   'tier'           → keccak256('tier')     ← TierRevealModule
  */
 
 import { useQuery } from '@tanstack/react-query'

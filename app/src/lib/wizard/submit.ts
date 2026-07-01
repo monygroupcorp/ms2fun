@@ -19,6 +19,8 @@ import {
 } from '../../generated/contracts'
 import type { ProjectTypeSchema } from './schema'
 import type { TierConfigValue } from './gatingConfig'
+import { EMPTY_TIER_CONFIG } from './gatingConfig'
+import { hasMetadataConfig, type MetadataConfigValue } from './metadataConfig'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
@@ -28,6 +30,10 @@ export interface SelectedModules {
   liquidityDeployer?: `0x${string}` // ERC404 only (required there)
   gatingModule?: `0x${string}`
   stakingModule?: `0x${string}` // ERC404 only
+  // ── Metadata-resolution stack (ERC404 only, ADR-0006/0007) — all optional ──
+  resolver?: `0x${string}` // MetadataResolverRouter
+  overlay?: `0x${string}` // MetadataOverlayModule
+  tier?: `0x${string}` // TierRevealModule
 }
 
 /** Everything the builder needs beyond the raw form values. */
@@ -47,6 +53,13 @@ export interface CreateContext {
    * overload is used and the instance is open/unconfigured.
    */
   gatingConfig?: TierConfigValue
+  /**
+   * Optional metadata-resolution stack (ADR-0006/0007), applied to the ERC404 instance in the SAME
+   * create tx via the factory's 7-arg overload. Omitted / off (resolver == zero) → a non-metadata
+   * overload is used and the instance has no metadata augmentation. Build it with
+   * `encodeMetadataConfig`. Ignored by the ERC1155/721 builders.
+   */
+  metadataConfig?: MetadataConfigValue
 }
 
 type Erc1155Args = ContractFunctionArgs<typeof erc1155FactoryAbi, 'payable', 'createInstance'>
@@ -157,8 +170,18 @@ export function buildErc404Create(c: CreateContext): CreateCall {
     addr(c.modules.gatingModule),
     freeMint(c),
   ] as const
-  // Gated overload appends the tier config as the 6th arg; otherwise the 5-arg legacy create.
-  const args = (cfg ? [...head, cfg] : [...head]) as Erc404Args
+  // Overload selection by arity:
+  //   - metadata stack on  → 7-arg overload (gating + metadata). The 7-arg form REQUIRES the gating
+  //     slot too, so an empty TierConfig is passed when no gating is configured.
+  //   - gating only        → 6-arg overload.
+  //   - neither            → 5-arg legacy create.
+  const meta = c.metadataConfig
+  let args: Erc404Args
+  if (meta && hasMetadataConfig(meta)) {
+    args = [...head, cfg ?? EMPTY_TIER_CONFIG, meta] as Erc404Args
+  } else {
+    args = (cfg ? [...head, cfg] : [...head]) as Erc404Args
+  }
   return { type: 'erc404', factory: 'ERC404Factory', args, value: 0n }
 }
 

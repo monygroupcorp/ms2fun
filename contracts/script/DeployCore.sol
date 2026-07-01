@@ -25,6 +25,9 @@ import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstan
 import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
 import {CurveParamsComputer} from "../src/factories/erc404/CurveParamsComputer.sol";
 import {ERC404StakingModule} from "../src/factories/erc404/ERC404StakingModule.sol";
+import {MetadataResolverRouter} from "../src/metadata/MetadataResolverRouter.sol";
+import {MetadataOverlayModule} from "../src/metadata/MetadataOverlayModule.sol";
+import {TierRevealModule} from "../src/metadata/TierRevealModule.sol";
 import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
 import {DynamicPricingModule} from "../src/factories/erc1155/DynamicPricingModule.sol";
 import {ERC721AuctionFactory} from "../src/factories/erc721/ERC721AuctionFactory.sol";
@@ -142,6 +145,9 @@ contract DeployCore is Script {
     LaunchManager public launchManager;
     CurveParamsComputer public curveParamsComputer;
     ERC404StakingModule public erc404StakingModule;
+    MetadataResolverRouter public metadataResolverRouter;
+    MetadataOverlayModule public metadataOverlayModule;
+    TierRevealModule public tierRevealModule;
     ERC1155Factory public erc1155Factory;
     DynamicPricingModule public dynamicPricingModule;
     ERC721AuctionFactory public erc721Factory;
@@ -424,6 +430,25 @@ contract DeployCore is Script {
         erc404StakingModule = new ERC404StakingModule(masterRegistry);
         componentRegistry.approveComponent(address(erc404StakingModule), FeatureUtils.STAKING, "ERC404 Staking");
 
+        // ── Metadata-resolution stack (ADR-0006/0007) — functional modules, not stubs ─────
+        // Router (resolver slot), overlay (augmentation), tier (rarity-by-ownership). Each carries
+        // its own wizard metadata; the ERC404 factory's metadata overload wires + seals them per instance.
+        metadataResolverRouter = new MetadataResolverRouter(masterRegistry);
+        metadataOverlayModule  = new MetadataOverlayModule(masterRegistry);
+        tierRevealModule       = new TierRevealModule(masterRegistry);
+
+        string memory resolverMeta = "data:application/json,{\"name\":\"Metadata Resolver\",\"subtitle\":\"Composable \\u00b7 Stacked Resolvers\",\"description\":\"Compose stacking metadata modules (overlay, tier) behind one resolver - first non-empty wins.\",\"configType\":\"metadata-resolver\"}";
+        string memory overlayMeta  = "data:application/json,{\"name\":\"Artist Overlay\",\"subtitle\":\"Augmentation \\u00b7 Commissions & Events\",\"description\":\"Artist-authored augmentation served over the base art: per-id commissions and cohort event waves, holder-selectable.\",\"configType\":\"metadata-overlay\"}";
+        string memory tierMeta     = "data:application/json,{\"name\":\"Rarity Tiers\",\"subtitle\":\"Rarity \\u00b7 Hold-to-Reveal\",\"description\":\"Id-range tiers reveal rarer art only while the holder's effective holdings clear a threshold. Frozen at launch.\",\"configType\":\"metadata-tier\"}";
+
+        metadataResolverRouter.setMetadataURI(resolverMeta);
+        metadataOverlayModule.setMetadataURI(overlayMeta);
+        tierRevealModule.setMetadataURI(tierMeta);
+
+        componentRegistry.approveComponent(address(metadataResolverRouter), FeatureUtils.RESOLVER, "Metadata Resolver");
+        componentRegistry.approveComponent(address(metadataOverlayModule),  FeatureUtils.OVERLAY,  "Artist Overlay");
+        componentRegistry.approveComponent(address(tierRevealModule),       FeatureUtils.TIER,     "Rarity Tiers");
+
         // ── Phase 8: ERC721AuctionFactory ────────────────────────────────────
 
         erc721Factory = new ERC721AuctionFactory(
@@ -483,6 +508,9 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "ModuleZAMMDeployer",         address(moduleZAMMDeployer));
         vm.serializeAddress(c, "ModuleCypherDeployer",       address(moduleCypherDeployer));
         vm.serializeAddress(c, "ERC404StakingModule",        address(erc404StakingModule));
+        vm.serializeAddress(c, "MetadataResolverRouter",     address(metadataResolverRouter));
+        vm.serializeAddress(c, "MetadataOverlayModule",      address(metadataOverlayModule));
+        vm.serializeAddress(c, "TierRevealModule",           address(tierRevealModule));
         string memory contracts = vm.serializeAddress(c,
             "UniswapVaultPriceValidator", address(priceValidator));
 

@@ -13,6 +13,8 @@ import {
   buildErc721Create,
 } from './submit'
 import type { CreateContext } from './submit'
+import { EMPTY_TIER_CONFIG } from './gatingConfig'
+import { EMPTY_METADATA_CONFIG, encodeMetadataConfig } from './metadataConfig'
 
 // ── shared fixtures ───────────────────────────────────────────────────────────
 
@@ -221,6 +223,76 @@ describe('gating config threading', () => {
     expect(() =>
       encodeFunctionData({ abi: erc404FactoryAbi, functionName: 'createInstance', args: call.args }),
     ).not.toThrow()
+  })
+})
+
+// ── Metadata-resolution stack threading (ADR-0006/0007) ───────────────────────
+
+describe('metadata config threading', () => {
+  const RESOLVER = '0x1111111111111111111111111111111111111111' as const
+  const OVERLAY = '0x2222222222222222222222222222222222222222' as const
+  const TIER = '0x3333333333333333333333333333333333333333' as const
+
+  // A fully-wired stack: router pointer + [overlay, tier] children + one tier row + overlay flags.
+  function stackCtx(extra: Partial<CreateContext> = {}): CreateContext {
+    const meta = encodeMetadataConfig(
+      { resolver: RESOLVER, overlay: OVERLAY, tier: TIER },
+      {
+        overlayAutoLatest: 'true',
+        overlayDefaultPayout: '1',
+        'tierIdStarts.0': '1',
+        'tierIdEnds.0': '3',
+        'tierMinBalances.0': '1000000000000000000000000',
+        'tierBaseURIs.0': 'rare-',
+        'tierLockedURIs.0': 'locked-',
+      },
+    )
+    return baseCtx({ metadataConfig: meta, ...extra })
+  }
+
+  it('off (empty config) → falls back to the non-metadata overload', () => {
+    const call = buildErc404Create(baseCtx({ metadataConfig: EMPTY_METADATA_CONFIG }))
+    expect(call.args.length).toBe(5)
+  })
+
+  it('on, no gating → 7-arg overload with an EMPTY tier config at args[5]', () => {
+    const call = buildErc404Create(stackCtx())
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args.length).toBe(7)
+    expect(call.args[5]).toEqual(EMPTY_TIER_CONFIG) // gating slot filled with empty
+    expect(call.args[6]?.resolver).toBe(RESOLVER)
+    expect(call.args[6]?.childResolvers).toEqual([OVERLAY, TIER])
+    expect(call.args[6]?.autoLatest).toBe(true)
+    expect(call.args[6]?.defaultPayout).toBe(1)
+    expect(call.args[6]?.tiers[0]?.baseURI).toBe('rare-')
+  })
+
+  it('on, with gating → 7-arg overload carries BOTH the tier config and the metadata config', () => {
+    const call = buildErc404Create(stackCtx({ gatingConfig: TIER_CONFIG }))
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args.length).toBe(7)
+    expect(call.args[5]).toEqual(TIER_CONFIG)
+    expect(call.args[6]?.resolver).toBe(RESOLVER)
+  })
+
+  it('the 7-arg metadata args encode against the factory ABI', () => {
+    const call = buildErc404Create(stackCtx({ gatingConfig: TIER_CONFIG }))
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(() =>
+      encodeFunctionData({ abi: erc404FactoryAbi, functionName: 'createInstance', args: call.args }),
+    ).not.toThrow()
+  })
+
+  it('single module, no router → instance points directly at it (no children)', () => {
+    const meta = encodeMetadataConfig(
+      { tier: TIER },
+      { 'tierIdStarts.0': '1', 'tierIdEnds.0': '3', 'tierMinBalances.0': '1', 'tierBaseURIs.0': 'r-' },
+    )
+    const call = buildErc404Create(baseCtx({ metadataConfig: meta }))
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args.length).toBe(7)
+    expect(call.args[6]?.resolver).toBe(TIER)
+    expect(call.args[6]?.childResolvers).toEqual([])
   })
 })
 

@@ -16,6 +16,9 @@ import {FreeMintParams} from "../../interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../../gating/IGatingModule.sol";
 import {IPasswordTierGatingModule, TierConfig} from "../../gating/IPasswordTierGatingModule.sol";
 import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
+import {MetadataResolverRouter} from "../../metadata/MetadataResolverRouter.sol";
+import {TierRevealModule} from "../../metadata/TierRevealModule.sol";
+import {MetadataOverlayModule} from "../../metadata/MetadataOverlayModule.sol";
 
 /**
  * @title ERC404Factory
@@ -55,6 +58,23 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         uint8 presetId;
         address stakingModule; // address(0) = staking not available for this instance
     }
+
+    /// @notice Metadata-resolution stack config (ADR-0006/0007). Empty (resolver == address(0)) = feature off.
+    /// @dev `resolver` is what the instance's METADATA_RESOLVER slot points at — a MetadataResolverRouter
+    ///      (then `childResolvers` is its ordered list) or a single resolver module (then childResolvers
+    ///      empty). `overlay`/`tier` are the concrete module addresses to seal per-instance config on
+    ///      (address(0) = skip that module). Everything is registry-validated, wired once, then frozen.
+    struct MetadataConfig {
+        address resolver;                          // instance modules[METADATA_RESOLVER] target
+        address[] childResolvers;                  // router's ordered children (empty if no router)
+        address overlay;                           // overlay module to initConfig (address(0) = skip)
+        address tier;                              // tier module to initTiers (address(0) = skip)
+        TierRevealModule.Tier[] tiers;             // tier table (sealed at create)
+        bool autoLatest;                           // overlay initial policy
+        MetadataOverlayModule.Payout defaultPayout;
+    }
+
+    bytes32 internal constant METADATA_RESOLVER = keccak256("metadata.resolver");
 
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
@@ -97,6 +117,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error UnapprovedGatingModule();
     error UnapprovedStakingModule();
     error UnapprovedCurveComputer();
+    error UnapprovedResolver();
     error MaxBondingFeeExceeded();
     error NotAuthorizedAgent();
 
@@ -148,7 +169,8 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         FreeMintParams calldata freeMint
     ) external payable nonReentrant returns (address instance) {
         TierConfig memory empty;
-        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, empty);
+        MetadataConfig memory emptyMeta;
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, empty, emptyMeta);
     }
 
     /// @notice Create an instance and apply tier-gating config in the same tx.
@@ -162,7 +184,23 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         FreeMintParams calldata freeMint,
         TierConfig calldata gatingConfig
     ) external payable nonReentrant returns (address instance) {
-        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig);
+        MetadataConfig memory emptyMeta;
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig, emptyMeta);
+    }
+
+    /// @notice Create an instance and wire a metadata-resolution stack (ADR-0006/0007) in the same tx.
+    /// @param metadataConfig Resolver pointer + router children + sealed tier/overlay config.
+    ///        Empty (resolver == address(0)) leaves the instance with no metadata augmentation.
+    function createInstance(
+        CreateParams calldata params,
+        string calldata metadataURI,
+        address liquidityDeployer,
+        address gatingModule,
+        FreeMintParams calldata freeMint,
+        TierConfig calldata gatingConfig,
+        MetadataConfig calldata metadataConfig
+    ) external payable nonReentrant returns (address instance) {
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig, metadataConfig);
     }
 
     function _createInstance(
@@ -171,7 +209,8 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address liquidityDeployer,
         address gatingModule,
         FreeMintParams calldata freeMint,
-        TierConfig memory gatingConfig
+        TierConfig memory gatingConfig,
+        MetadataConfig memory metadataConfig
     ) private returns (address instance) {
         if (gatingModule != address(0)) {
             if (!componentRegistry.isApprovedComponent(gatingModule)) revert UnapprovedGatingModule();
@@ -227,7 +266,38 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (gatingModule != address(0) && gatingConfig.passwordHashes.length > 0) {
             IPasswordTierGatingModule(gatingModule).configureFor(instance, gatingConfig);
         }
+        // Metadata-resolution stack — its OWN wiring path (NOT routed through gatingModule).
+        // Empty config (resolver == address(0)) = feature off.
+        _wireMetadata(instance, metadataConfig);
         emit InstanceCreated(instance, params.owner, params.name, params.symbol, params.vault);
+    }
+
+    /// @dev Validate (registry) and seal the metadata-resolution stack onto `instance`. All pointers
+    ///      are registry-validated; the instance slot + router list + tier table + overlay config are
+    ///      each wired exactly once here, then frozen (sealed mechanism — no owner setter).
+    function _wireMetadata(address instance, MetadataConfig memory cfg) private {
+        if (cfg.resolver == address(0)) return; // feature off
+
+        if (!componentRegistry.isApprovedComponent(cfg.resolver)) revert UnapprovedResolver();
+        ERC404BondingInstance(payable(instance)).initModule(METADATA_RESOLVER, cfg.resolver);
+
+        // Router children (precedence order), validated + sealed. Empty when resolver is a single module.
+        if (cfg.childResolvers.length > 0) {
+            for (uint256 i = 0; i < cfg.childResolvers.length; i++) {
+                if (!componentRegistry.isApprovedComponent(cfg.childResolvers[i])) revert UnapprovedResolver();
+            }
+            MetadataResolverRouter(cfg.resolver).initResolvers(instance, cfg.childResolvers);
+        }
+
+        // Per-module sealed config.
+        if (cfg.tier != address(0)) {
+            if (!componentRegistry.isApprovedComponent(cfg.tier)) revert UnapprovedResolver();
+            TierRevealModule(cfg.tier).initTiers(instance, cfg.tiers);
+        }
+        if (cfg.overlay != address(0)) {
+            if (!componentRegistry.isApprovedComponent(cfg.overlay)) revert UnapprovedResolver();
+            MetadataOverlayModule(cfg.overlay).initConfig(instance, cfg.autoLatest, cfg.defaultPayout);
+        }
     }
 
     function _deployAndInitialize(
