@@ -175,19 +175,20 @@
 
 /* EXEC404 fossil tile — the past specimen: its colour is deliberately drained (cold ash), the
    single thing on the wall whose hue has gone. */
+/* Match the seeded featured cards (black tile + light monogram) so the fossil reads as a first-class
+   featured entry, not a light-tile sore thumb. The ✕ + "Fossil" chip keep its specimen identity. */
 .execArt {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-surface-2);
+  background: var(--color-text);
 }
 
 .execGlyph {
   font-family: var(--brand-font-display);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text-subtle);
-  opacity: 0.5;
+  color: var(--color-bg);
 }
 
 .execLabMain {

@@ -85,12 +85,14 @@ Legend for Status: `open` → `investigating` → `root-caused` → `fixed` → 
   the model stays permissionless.)
 - **Status:** **fixed + verified.**
 
-### B9 — ERC-404: no trading after graduation + no DEX chart
-- **Symptom:** post-graduation the panel says "graduated / unable to trade" and the
-  piece gallery is dumped below the bonding block. We should (a) keep a **trade
-  affordance after graduation** (route to the DEX/pool) and (b) **show the DEX
-  chart** post-graduation, not a dead bonding chart.
-- **Status:** open
+### B9 — ERC-404: no trading after graduation + no DEX chart — **FIXED (chart deferred)**
+- Graduated state now carries a **"Trade on Uniswap ↗"** link-out (token preselected
+  via `outputCurrency`), like the EXEC404 fossil. Banner reframed; candles relabelled
+  **"bonding history"** (pre-graduation trades). `Erc404NftGallery` pulled **above** the
+  collapsed creator-admin so the work leads post-graduation.
+- **Deferred:** a live DEX price chart needs a pool data source (subgraph) we don't have
+  on the fork — the link-out carries live price/depth for now. Verified on graduated Vapor.
+- **Status:** **fixed** (live DEX chart deferred, documented).
 
 ---
 
@@ -167,10 +169,13 @@ Board post ✓, free-mint claim ✓, mint-with-message ✓, settle auction ✓.
   Only the MasterRegistry owner (the platform operator) sees ADMIN.
 - **Status:** **confirmed.**
 
-### B17 — EXEC404 (Cult Executives) should be the first *featured* entry, not a special card
-- **Ask:** write the fossil into the featured queue (contract/seed) so it flows as
-  featured #1 instead of a hardcoded sore-thumb card. (Relates to B7.)
-- **Status:** open (moderate — seed/contract wiring).
+### B17 — EXEC404 should read as a first-class featured entry, not a sore thumb — **FIXED**
+- The fossil stuck out (light tile + faint ✕ vs the black-tile monogram cards). Restyled
+  `execArt`/`execGlyph` to a black tile + white ✕ so it reads as a normal pinned-first
+  featured card; FOSSIL chip + "Uniswap ↗" keep its identity. Verified on home.
+- **Note:** kept frontend-side — the grandfathered DN404 isn't a registered platform
+  instance, so it can't join the on-chain featured queue without a factory/registry change.
+- **Status:** **fixed + verified.**
 
 ### B18 — Launch wizard: STYLE URI belongs on the "Collection page" step — **FIXED**
 - Filtered `styleUri` out of the Contract-step Details form; rendered it under a "Page
