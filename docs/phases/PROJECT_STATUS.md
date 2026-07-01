@@ -5,9 +5,10 @@
 **`main`**, gate-green (371 frontend tests; `forge build` clean; 1162 forge tests green; 15 e2e).
 **Security audit closed out + metadata resolver stack shipped to `main` — 2026-06-30 (see below).**
 
-**► RESUME HERE:** the metadata resolver stack (the last pre-testnet *feature*) is done. The two
-remaining pre-testnet tracks are the **holistic design/style pass (Phase 4)** and a **full
-end-to-end fork-verify** — both below. After those, the real **testnet deploy**.
+**► RESUME HERE:** the metadata resolver stack is done. Remaining pre-testnet tracks: the **holistic
+design/style pass**, a **full end-to-end fork-verify**, and the newly-scoped **vault flavors** task
+(promote all 3 LP vaults to first-class alongside Aave, family→venue wizard picker — see
+`vault-flavors.md`). After those, the real **testnet deploy** (Phase 4).
 
 ---
 
@@ -164,6 +165,15 @@ skims `bondingFeeBps` → treasury; graduation 1/19/80 split unchanged. Monetize
 redemptions without taxing entrants.
 
 Tracking detail + the stash-pop/hunk-staging gotchas live in the `audit-status` memory.
+
+## ► QUEUED — vault flavors (pre-testnet task) — see `vault-flavors.md`
+**Scoped 2026-07-01.** Promote the 3 LP vaults (Uniswap V4 / ZAMM / Cypher) back to **first-class**
+alongside the Aave endowment, expressed in the wizard as **family → venue** (Yield vs LP → which LP),
+grouped off the on-chain `vaultType()`. This is a **promotion + wiring** task, not a rebuild — all four
+families already exist, implement `IAlignmentVault`, and were re-audited this cycle; Uni V4 is already
+deployed + selectable on the fork. The real work is the **per-target LP wiring** (pool key + price
+validator per venue — load-bearing, lead-owned) and folding the 3 LP vaults into Phase-4's deeper vault
+review. Full design + task units + open decisions (O1–O5) in **[`vault-flavors.md`](./vault-flavors.md)**.
 
 ## Not yet verified / open
 - **Fork-verify Phase 2 + Phase 3 end-to-end** — on main + gate-green but not fully walked (portfolio
