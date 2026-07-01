@@ -136,6 +136,18 @@ graduation path (lead, per T2). Mainnet-shaped price-validator/pool-key values v
 archive fork before Phase 4.
 
 ## Decision log
+- **2026-07-01 (O3 tooling — pool-liquidity scout)** — Added `script/ScanAlignmentPools.s.sol`, an
+  **admin, per-target** read-only scan: given an alignment token, it enumerates the ETH/token pools per
+  venue (Uni V4 native-ETH across all 4 fee tiers = the wireable target, Uni V3 reference, ZAMM
+  best-effort, Cypher/Algebra) with active liquidity, and **recommends the deepest V4 pool key** to wire.
+  Replaces the hardcoded fee tier (which the deploy bakes for every target) with measurement — the actual
+  resolution path for O3. Proven on the archive fork: for **CULT the 0.3% native-ETH V4 pool is empty
+  (L=0) while the 1% tier is deep (L≈3.67e20)** → the scout recommends `fee 10000 / tickSpacing 200`,
+  where a hardcoded 3000 would have wired the vault to an empty pool. Run:
+  `forge script script/ScanAlignmentPools.s.sol --sig "run(address)" <token> --fork-url $MAINNET_RPC_URL`.
+  (Actor confirmed: pool-key wiring is `onlyOwner`/admin, per alignment target — not a creator choice.)
+  **Follow-on surfaced:** targets are admin-curated, so users/creators need a **request-an-alignment-target
+  path** — captured as the next task.
 - **2026-07-01 (exit #2 — live Uni graduation + BUG FIX)** — Proved a wired Uni vault creates a **real
   on-chain V4 LP position** end-to-end (`test/fork/VaultUniGraduationFork.t.sol`, against the real Native
   ETH/USDC 0.3% pool via the real zRouter + PoolManager). The fork-walk **caught a real, mainnet-blocking
