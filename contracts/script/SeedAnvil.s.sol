@@ -558,10 +558,16 @@ contract SeedAnvil is Script {
     // JSON double-quoted string and renders monochrome (Gallery Brutalism).
 
     function _svg(string memory glyph) internal pure returns (string memory) {
+        // Monospace glyphs are ~0.6em wide; at 150px a >4-char symbol overruns the 400px art and
+        // gets cover-cropped in the card. Step the font down by length so the whole symbol fits.
+        uint256 len = bytes(glyph).length;
+        string memory size = len <= 4 ? "150" : len == 5 ? "120" : "96";
         return string.concat(
             "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>",
             "<rect width='400' height='400' fill='black'/>",
-            "<text x='200' y='250' fill='white' font-family='monospace' font-size='150' text-anchor='middle'>",
+            "<text x='200' y='250' fill='white' font-family='monospace' font-size='",
+            size,
+            "' text-anchor='middle'>",
             glyph,
             "</text></svg>"
         );

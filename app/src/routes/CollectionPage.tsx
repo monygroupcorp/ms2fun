@@ -209,10 +209,12 @@ export function CollectionPage() {
           <MessageFeed filter={{ instance }} />
 
           {/* Mobile: the mint moment stays in thumb reach (the rail's job on desktop). */}
+          {/* ERC721 collections are auctions — the action is a bid, not a mint (the same #mint
+              section wraps the auction surface, so the anchor is still correct). */}
           <MintBar
             price={`${formatGwei(card.currentPrice)} gwei`}
             sub={cap > 0n ? `${(cap - minted).toString()} left` : card.isActive ? 'open' : 'ended'}
-            action={<a href="#mint">Mint</a>}
+            action={<a href="#mint">{card.contractType === 'ERC721' ? 'Bid' : 'Mint'}</a>}
           />
         </>
       )}

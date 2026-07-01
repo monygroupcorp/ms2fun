@@ -37,7 +37,7 @@ export function MessageFeed({ filter }: { filter: FeedFilter }) {
 
   return (
     <div className={styles.section}>
-      <h2 className={`${styles.heading} text-chromatic-medium`}>ACTIVITY</h2>
+      <h2 className={styles.heading}>ACTIVITY</h2>
 
       {isPending && <p className={styles.note}>loading activity…</p>}
 

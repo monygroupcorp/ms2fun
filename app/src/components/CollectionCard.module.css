@@ -22,7 +22,9 @@
   font-family: var(--brand-font-display);
   font-size: var(--font-size-display);
   font-weight: var(--font-weight-bold);
-  color: var(--color-text-subtle);
+  /* --color-text-subtle (#999) on the #f5f5f5 tile is ~2.5:1 — washed out. Muted (#666) reads
+     as a deliberate placeholder without competing with real art cards. */
+  color: var(--color-text-muted);
 }
 
 .labMain {
