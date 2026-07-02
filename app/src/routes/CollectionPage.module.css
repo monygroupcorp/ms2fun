@@ -36,6 +36,13 @@
   border-right: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
+/* The pieces gallery gets real breathing room below the shell and a generous lead before the
+   secondary panels (vault / featured-queue dropdown) so the work doesn't crowd the chrome. */
+.gallerySlot {
+  margin-top: var(--space-4);
+  margin-bottom: var(--space-12);
+}
+
 .kicker {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-caption);

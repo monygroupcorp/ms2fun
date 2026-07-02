@@ -196,8 +196,13 @@ export function CollectionPage() {
             </section>
           </div>
 
-          {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment). */}
-          {surfaces?.Gallery && <surfaces.Gallery instance={instance} creator={card.creator} />}
+          {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment).
+              Given generous head/tail space so the work breathes before the secondary panels. */}
+          {surfaces?.Gallery && (
+            <div className={styles.gallerySlot}>
+              <surfaces.Gallery instance={instance} creator={card.creator} />
+            </div>
+          )}
 
           {/* Secondary, demoted below the hang and collapsed by default (self-rendered as
               <Disclosure> inside each panel, so a null vault doesn't leave an empty box). */}
