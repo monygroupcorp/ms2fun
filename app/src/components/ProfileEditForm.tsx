@@ -169,7 +169,7 @@ export function ProfileEditForm({ initial, onSave, saving }: ProfileEditFormProp
             {links.map((link, idx) => (
               <div key={idx} className={styles.row}>
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${styles.rowLabel}`}
                   type="text"
                   value={link.label}
                   onChange={(e) => updateLink(idx, 'label', e.target.value)}
@@ -215,7 +215,7 @@ export function ProfileEditForm({ initial, onSave, saving }: ProfileEditFormProp
             {socials.map((social, idx) => (
               <div key={idx} className={styles.row}>
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${styles.rowLabel}`}
                   type="text"
                   value={social.key}
                   onChange={(e) => updateSocial(idx, 'key', e.target.value)}

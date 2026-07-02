@@ -105,8 +105,19 @@
   gap: var(--gap-sm);
 }
 
+/* The label/platform field is short and fixed; the value/URL field takes the rest. `.input` sets
+   width:100% (full-width for standalone fields), so in a row we must reset the basis here or the
+   label claims the whole row and squeezes the value input. */
+.rowLabel {
+  flex: 0 0 8rem;
+  width: auto;
+  min-width: 0;
+}
+
 .rowUrl {
-  flex: 1;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
 }
 
 .removeBtn {
