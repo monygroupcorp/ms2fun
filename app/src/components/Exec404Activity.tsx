@@ -6,6 +6,7 @@
 import { useReadContract } from 'wagmi'
 import { exec404Contract } from '../lib/exec404'
 import { truncateAddress } from '../lib/format'
+import { Linkify } from './ui/Linkify'
 import styles from './Exec404Activity.module.css'
 
 /** How many of the most recent legacy messages to surface. */
@@ -105,7 +106,9 @@ export function Exec404Activity() {
                 </span>
                 <span className={styles.time}>{timeAgo(m.timestamp)}</span>
               </div>
-              <p className={styles.body}>{m.message}</p>
+              <p className={styles.body}>
+                <Linkify text={m.message} />
+              </p>
             </li>
           ))}
         </ul>

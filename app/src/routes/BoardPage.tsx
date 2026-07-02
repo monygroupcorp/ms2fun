@@ -15,6 +15,7 @@ import { ReactButton } from '../components/ReactButton'
 import { type ThreadView, reactionFor, threadMessages } from '../components/threadMessages'
 import type { FeedMessage } from '../components/useMessageFeed'
 import { StateBlock } from '../components/ui/StateBlock'
+import { Linkify } from '../components/ui/Linkify'
 import styles from './BoardPage.module.css'
 
 /** The board's two honest views: the threaded salon, and the flat on-chain register. (The spec's
@@ -374,7 +375,11 @@ function BoardMessage({
         </Link>
       )}
 
-      {message.content.length > 0 && <p className="ptext">{message.content}</p>}
+      {message.content.length > 0 && (
+        <p className="ptext">
+          <Linkify text={message.content} />
+        </p>
+      )}
 
       <div className={styles.actions}>
         <div className={styles.actionBar}>
