@@ -123,7 +123,9 @@ interface ActionProps {
   refetch: () => void
 }
 
-function AuctionAction({ instance, auction, config, state, isOwner, refetch }: ActionProps) {
+/** State→action switch (bid / settle / reclaim / sold). Exported so the per-token detail page can
+ *  mount the SAME auction action inline (N13) without duplicating the card's art/stats. */
+export function AuctionAction({ instance, auction, config, state, isOwner, refetch }: ActionProps) {
   switch (state) {
     case 'active':
       return <BidForm instance={instance} auction={auction} config={config} refetch={refetch} />
