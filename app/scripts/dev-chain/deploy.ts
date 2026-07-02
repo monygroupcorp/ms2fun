@@ -210,6 +210,13 @@ async function main(): Promise<void> {
       MetadataResolverRouter: required(c, 'MetadataResolverRouter'),
       MetadataOverlayModule: required(c, 'MetadataOverlayModule'),
       TierRevealModule: required(c, 'TierRevealModule'),
+      // Graduated-swap (B19): the zRouter singleton drives the embedded post-graduation swaps, and
+      // the per-family LP deployer modules identify a graduated instance's venue + carry its pool
+      // params (Uni-V4 poolFee/tickSpacing, ZAMM feeOrHook).
+      zRouter: required(c, 'zRouter'),
+      ModuleUniV4Deployer: required(c, 'ModuleUniV4Deployer'),
+      ModuleZAMMDeployer: required(c, 'ModuleZAMMDeployer'),
+      ModuleCypherDeployer: required(c, 'ModuleCypherDeployer'),
     },
   }
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)

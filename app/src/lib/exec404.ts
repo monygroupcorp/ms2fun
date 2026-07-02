@@ -51,6 +51,28 @@ export const exec404Abi = [
     inputs: [{ name: 'owner', type: 'address' }],
     outputs: [{ type: 'uint256' }],
   },
+  // Sells route through zRouter, which pulls EXEC via transferFrom — so the embedded swap needs the
+  // standard ERC-20 allowance/approve surface (DN404 exposes it on the base token).
+  {
+    type: 'function',
+    name: 'allowance',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'approve',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
 ] as const
 
 /** Uniswap V2 router — just the read we need for a spot price. */

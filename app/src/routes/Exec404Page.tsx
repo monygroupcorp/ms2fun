@@ -1,12 +1,13 @@
 import { Link } from 'wouter'
 import { Exec404Stats } from '../components/Exec404Stats'
-import { Exec404TradeLink } from '../components/Exec404TradeLink'
+import { Exec404SwapPanel } from '../components/Exec404SwapPanel'
 import styles from './Exec404Page.module.css'
 
 /**
  * The fossil: view EXEC404 / CULT EXECUTIVES against real on-chain state on the anvil mainnet-fork
- * (live market price from its graduated Uniswap V2 pool). Read-only — the bonding curve is closed,
- * so trading links out to Uniswap (see docs/HUMAN_GATES.md G-D). Ported from the project-erc404 demo.
+ * (live market price from its graduated Uniswap V2 pool). Trading is embedded in-site (B19) — EXEC
+ * swaps route through zRouter's swapV2 against the graduated pool, with a Uniswap link-out kept as a
+ * secondary escape hatch. Ported from the project-erc404 demo.
  */
 export function Exec404Page() {
   return (
@@ -37,7 +38,7 @@ export function Exec404Page() {
           <Exec404Stats />
         </div>
         <aside className={styles.sidebar}>
-          <Exec404TradeLink />
+          <Exec404SwapPanel />
         </aside>
       </div>
     </div>
