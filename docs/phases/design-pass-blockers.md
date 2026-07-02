@@ -12,6 +12,46 @@ Legend for Status: `open` → `investigating` → `root-caused` → `fixed` → 
 
 ---
 
+## ► STEP 1 AFTER HANDOFF — embed graduated-token swaps (B19)
+
+**Decision pending (Mony): which venues in the first cut.** Do NOT link out — the user
+wants trading **in-site** on the graduated collection page. Everything below is
+investigated + grounded; the next session should confirm scope, then build.
+
+**Where it goes:** the ERC-404 `graduated` branch of
+`app/src/components/collection/erc404/BondingSurface.tsx` (currently a "Trade on
+Uniswap ↗" link-out — replace with an embedded swap; keep the link-out only as a
+fallback for a venue not yet embedded).
+
+**Router = zRouter** (mainnet singleton `0x0000000000404FECAf36E6184245475eE1254835`,
+present on the fork; ABI at `contracts/out/zRouter.sol/zRouter.json`):
+- Uni-V4 graduate → `swapV4(to,exactOut,swapFee,tickSpace,tokenIn,tokenOut,swapAmount,amountLimit,deadline)` → returns `(amountIn,amountOut)`.
+- ZAMM graduate → `swapVZ(...)`; Uni-V2 (the EXEC404 fossil) → `swapV2(...)`.
+- **Quote by `eth_call`-simulating the swap** (it returns the output) — no manual V4/tick math. Slippage = `amountLimit`.
+
+**Pool params (readable):** `instance.liquidityDeployer()` → the deployer;
+`LiquidityDeployerModule.poolFee()` (uint24) + `.tickSpacing()` (int24). The tradable
+token is the **instance itself** (DN404 base ERC-20), paired with ETH (zRouter ETH
+sentinel — confirm `address(0)` vs WETH from `IzRouterV4` usage in
+`contracts/src/vaults/uni/UniAlignmentVault.sol`).
+
+**Venue detection:** three deployer families — `factories/erc404` (Uni V4),
+`factories/erc404zamm` (ZAMM), `factories/erc404cypher` (Cypher/**Algebra** — NOT
+zRouter; needs Algebra `IAlgebraSwapRouter.exactInputSingle`, a separate path).
+
+**UI:** clone the bonding `SwapPanel` shape (direction toggle · amount · live quote ·
+slippage · approve-then-swap for token→ETH). New component, e.g. `GraduatedSwapPanel`.
+
+**Scope options put to Mony (unanswered):** (1) Uni-V4 + ZAMM now via zRouter, Cypher
+fast-follow [recommended]; (2) all three now (adds Algebra router); (3) Uni-V4 only
+first. Fossil (EXEC404) is a Uni-V2 pool → `swapV2` could embed it too.
+
+**Verify:** de-risked but NOT yet proven end-to-end — simulate a `swapV4` for a
+graduated Uni-V4 instance (e.g. Vapor) on the fork to confirm quote + execute before
+wiring the UI. Add an `@fork` e2e.
+
+---
+
 ## P0 — transaction failures (glaring; must patch)
 
 > **Diagnosis (2026-07-01):** reproduced every P0 on the fork via `simulateContract`
