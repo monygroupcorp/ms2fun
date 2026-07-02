@@ -66,6 +66,26 @@
   color: var(--color-text);
 }
 
+/* Shielded reroll: a disclosure so the destructive-ish reshuffle is a deliberate open-then-act. */
+.shielded {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-secondary);
+}
+
+.shieldedSummary {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: revert;
+}
+
+.shieldedSummary:hover {
+  color: var(--color-text);
+}
+
 .hint,
 .note {
   font-family: var(--font-mono);
