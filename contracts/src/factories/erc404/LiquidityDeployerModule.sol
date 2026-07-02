@@ -15,16 +15,9 @@ import {CurrencySettler} from "../../libraries/v4/CurrencySettler.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IERC20} from "../../shared/interfaces/IERC20.sol";
 import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
 import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
-
-interface IWETH {
-    function deposit() external payable;
-    function transfer(address to, uint256 value) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
-}
 
 /**
  * @title LiquidityDeployerModule
@@ -32,6 +25,7 @@ interface IWETH {
  *         Called externally by ERC404BondingInstance at graduation time.
  *         Owns the unlockCallback so V4 bytecode is not embedded in the instance.
  *         Pool fee and tick spacing are fixed at construction time.
+ *         Graduated tokens are paired against native ETH (V4 currency address(0)).
  */
 contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, Ownable {
     using CurrencyLibrary for Currency;
@@ -111,12 +105,16 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         ILiquidityDeployerModule.DeployParams calldata p,
         AmountsResult memory r
     ) private returns (PoolSetupResult memory setup) {
+        // Pair the graduated token against NATIVE ETH (currency address(0)), matching the pools that
+        // zRouter.swapV4 (tokenIn=address(0)) and UniAlignmentVault trade — NOT a WETH-keyed pool,
+        // which would leave the token untradeable through the standard native-ETH path. address(0) is
+        // numerically smaller than any token, so ETH is always currency0.
         Currency currencyToken = Currency.wrap(p.token);
-        Currency currencyWETH  = Currency.wrap(weth);
-        setup.token0IsThis = currencyToken < currencyWETH;
+        Currency currencyETH   = Currency.wrap(address(0));
+        setup.token0IsThis = currencyToken < currencyETH; // false: address(0) < token
 
-        Currency currency0 = setup.token0IsThis ? currencyToken : currencyWETH;
-        Currency currency1 = setup.token0IsThis ? currencyWETH  : currencyToken;
+        Currency currency0 = setup.token0IsThis ? currencyToken : currencyETH;
+        Currency currency1 = setup.token0IsThis ? currencyETH   : currencyToken;
 
         uint160 sqrtPriceX96 = _computeSqrtPrice(r.ethForPool, r.tokensForPool, setup.token0IsThis);
 
@@ -131,10 +129,8 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
             hooks:       IHooks(address(0))
         });
 
-        // Wrap ETH and approve pool manager
-        IWETH(weth).deposit{value: r.ethForPool}();
-        IWETH(weth).approve(address(v4PoolManager), r.ethForPool);
-
+        // No WETH wrap/approve: the module holds native ETH (from msg.value) and settles the ETH leg
+        // natively (CurrencySettler routes isAddressZero() → manager.settle{value: amount}()).
         // Initialize pool
         v4PoolManager.initialize(setup.poolKey, sqrtPriceX96);
 
