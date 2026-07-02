@@ -73,6 +73,32 @@ export const exec404Abi = [
     ],
     outputs: [{ type: 'bool' }],
   },
+  // Legacy on-chain activity: the genesis DN404 baked a trade-message log into the bonding curve.
+  // `totalMessages()` counts them; `getMessagesBatch(start, end)` (end INCLUSIVE, end <= total-1)
+  // returns 5 parallel arrays — the fossil's historical chatter, preserved on-chain.
+  {
+    type: 'function',
+    name: 'totalMessages',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getMessagesBatch',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'startIndex', type: 'uint256' },
+      { name: 'endIndex', type: 'uint256' },
+    ],
+    outputs: [
+      { name: 'senders', type: 'address[]' },
+      { name: 'timestamps', type: 'uint256[]' },
+      { name: 'amounts', type: 'uint256[]' },
+      { name: 'isBuys', type: 'bool[]' },
+      { name: 'messages', type: 'string[]' },
+    ],
+  },
 ] as const
 
 /** Uniswap V2 router — just the read we need for a spot price. */

@@ -26,3 +26,15 @@ test('EXEC404 page reads the live V2 market price off the fork @archive', async 
   await expect(stats).toBeVisible()
   await expect(stats).toContainText('gwei', { timeout: 15_000 })
 })
+
+/**
+ * B7: the fossil's legacy on-chain chatter (getMessagesBatch) is rendered. @archive — the message
+ * log is forked-mainnet state (same archive-RPC reasoning as the price read above).
+ */
+test('EXEC404 page renders legacy on-chain activity off the fork @archive', async ({ page }) => {
+  await page.goto('/exec404')
+  const activity = page.getByTestId('exec404-activity')
+  await expect(activity).toBeVisible()
+  // A known genesis message preserved on-chain in the EXEC404 message log.
+  await expect(activity).toContainText('War. War never changes.', { timeout: 15_000 })
+})

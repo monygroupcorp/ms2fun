@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatGwei } from 'viem'
+import { useAccount } from 'wagmi'
 import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
+import { MessageComposer } from '../components/MessageComposer'
 import { MessageFeed } from '../components/MessageFeed'
 import { VaultPanel } from '../components/collection/VaultPanel'
 import { FeaturedPanel } from '../components/featured/FeaturedPanel'
@@ -30,6 +32,7 @@ export function CollectionPage() {
 
   const { data: card, isPending, isError } = useCollection(instance)
   const metadata = useCollectionMetadata(card?.metadataURI)
+  const { address: connected } = useAccount()
 
   // Reset the broken-image fallback when navigating to a different collection (the route component
   // is reused across `/collection/:instance` params, so local state would otherwise persist).
@@ -169,24 +172,30 @@ export function CollectionPage() {
 
             <section className={styles.works} id="mint">
               <div className={styles.ghead}>The collection</div>
-              {/* The cover stands in as the lead piece when present; the type component renders the
-                  actual works + the working mint/buy/swap controls. */}
-              {metadata?.image && !imgError ? (
-                <div className={`noesis-piece ${styles.cover}`}>
-                  <img
-                    src={resolveUri(metadata.image)}
-                    alt={title}
-                    className="noesis-art"
-                    onError={() => setImgError(true)}
-                  />
-                </div>
-              ) : (
-                <div className={`noesis-piece ${styles.cover}`}>
-                  <span className={styles.coverGlyph} aria-hidden>
-                    {fallbackGlyph}
-                  </span>
-                </div>
-              )}
+              {/* B11: caption the cover as a COVER (figure/figcaption) so it doesn't read as a
+                  mintable piece — the actual works + mint/buy/swap controls are the type component
+                  below. */}
+              <figure className={styles.coverFigure}>
+                {metadata?.image && !imgError ? (
+                  <div className={`noesis-piece ${styles.cover}`}>
+                    <img
+                      src={resolveUri(metadata.image)}
+                      alt={`${title} cover`}
+                      className="noesis-art"
+                      onError={() => setImgError(true)}
+                    />
+                  </div>
+                ) : (
+                  <div className={`noesis-piece ${styles.cover}`}>
+                    <span className={styles.coverGlyph} aria-hidden>
+                      {fallbackGlyph}
+                    </span>
+                  </div>
+                )}
+                <figcaption className={styles.coverCaption}>
+                  Collection cover — scroll for the {card.contractType === 'ERC721' ? 'auction' : 'mintable pieces'} below
+                </figcaption>
+              </figure>
 
               {card.contractType === 'ERC1155' && (
                 <Erc1155Collection instance={instance} creator={card.creator} />
@@ -205,6 +214,22 @@ export function CollectionPage() {
           {instance && <VaultPanel vault={card.vault} benefactor={instance} />}
           {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}
           <FeaturedPanel instance={instance} />
+
+          {/* B6: post to THIS collection's channel from its page (channel = the instance address).
+              Gated on a connected wallet — posts are attributed on-chain. */}
+          {instance && connected !== undefined && (
+            <section className={styles.composeSection}>
+              <MessageComposer channel={instance} />
+              <p className={styles.composeNote}>
+                signed by {truncateAddress(connected)} · posts to this collection's activity
+              </p>
+            </section>
+          )}
+          {instance && connected === undefined && (
+            <StateBlock variant="empty" boxed>
+              connect your wallet to post to this collection's activity.
+            </StateBlock>
+          )}
 
           <MessageFeed filter={{ instance }} />
 
