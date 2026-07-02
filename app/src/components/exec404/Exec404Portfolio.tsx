@@ -172,8 +172,16 @@ export function Exec404Portfolio() {
       </div>
 
       <BalanceMint balance={balance} onDone={refetchAll} />
-      <RerollButton owner={address} balance={balance} onDone={refetchAll} />
       <SendExec balance={balance} onDone={refetchAll} />
+
+      {/* Reroll is destructive-ish (it re-shuffles which ids you hold) — shield it behind a
+          disclosure so it's a deliberate choice, not a stray tap. */}
+      <details className={styles.shielded}>
+        <summary className={styles.shieldedSummary} data-testid="exec404-reroll-disclosure">
+          Advanced · reroll pieces
+        </summary>
+        <RerollButton owner={address} balance={balance} onDone={refetchAll} />
+      </details>
 
       {selected && (
         <PieceModal
