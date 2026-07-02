@@ -111,6 +111,128 @@
   padding: var(--space-2);
 }
 
+/* The whole tile is a button opening the piece detail. */
+.tileView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.tileView:hover .thumb {
+  opacity: 0.85;
+}
+
+/* ---- Piece detail modal ------------------------------------ */
+
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-ink, #000) 72%, transparent);
+}
+
+.modal {
+  position: relative;
+  width: min(28rem, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--color-bg, #fff);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modalClose {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.modalArt {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.modalArtGlyph {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--color-ink, #000);
+  color: var(--color-paper, #fff);
+  font-size: 3rem;
+}
+
+.modalTitle {
+  font-family: var(--brand-font-mono, var(--font-mono));
+  font-size: var(--font-size-h4, 1.25rem);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
+.modalId {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.modalDesc {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: var(--line-height-relaxed, 1.5);
+}
+
+.traits {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.trait {
+  border: 1px solid var(--color-border);
+  padding: var(--space-2);
+}
+
+.trait dt {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.trait dd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
 .thumb {
   width: 100%;
   aspect-ratio: 1 / 1;

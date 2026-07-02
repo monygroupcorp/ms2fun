@@ -23,11 +23,12 @@ import { AmountField } from '../ui/AmountField'
 import { IpfsImage } from '../ui/IpfsImage'
 import { parseAmount } from '../ui/parseAmount'
 import { txErrorReason } from '../ui/useTxAction'
-import { useExec404Nfts } from './useExec404Nfts'
+import { useExec404Nfts, type Exec404Nft } from './useExec404Nfts'
 import styles from './Exec404Portfolio.module.css'
 
 export function Exec404Portfolio() {
   const { address, isConnected } = useAccount()
+  const [selected, setSelected] = useState<Exec404Nft | null>(null)
 
   const balanceRead = useReadContract({
     address: EXEC404_ADDRESS,
@@ -59,7 +60,7 @@ export function Exec404Portfolio() {
   if (!isConnected) {
     return (
       <section className={styles.card} data-testid="exec404-portfolio">
-        <h2 className={styles.title}>Your position</h2>
+        <h2 className={styles.title}>Portfolio</h2>
         <p className={styles.note}>connect wallet to see your EXEC balance and pieces.</p>
       </section>
     )
@@ -67,7 +68,7 @@ export function Exec404Portfolio() {
 
   return (
     <section className={styles.card} data-testid="exec404-portfolio">
-      <h2 className={styles.title}>Your position</h2>
+      <h2 className={styles.title}>Portfolio</h2>
 
       <div className={styles.figures}>
         <div className={styles.figure}>
@@ -82,10 +83,7 @@ export function Exec404Portfolio() {
         </div>
       </div>
 
-      <BalanceMint balance={balance} onDone={refetchAll} />
-      <RerollButton owner={address} balance={balance} onDone={refetchAll} />
-      <SendExec balance={balance} onDone={refetchAll} />
-
+      {/* Pieces lead the portfolio — the work first, the actions (mint/reroll/send) below. */}
       <div className={styles.pieces}>
         <p className={styles.piecesHead}>Pieces</p>
         {nftsPending ? (
@@ -97,11 +95,27 @@ export function Exec404Portfolio() {
         ) : (
           <ul className={styles.grid} data-testid="exec404-portfolio-nfts">
             {nfts.map((nft) => (
-              <NftCard key={nft.id.toString()} owner={address} nft={nft} onDone={refetchAll} />
+              <NftCard key={nft.id.toString()} nft={nft} onView={() => setSelected(nft)} />
             ))}
           </ul>
         )}
       </div>
+
+      <BalanceMint balance={balance} onDone={refetchAll} />
+      <RerollButton owner={address} balance={balance} onDone={refetchAll} />
+      <SendExec balance={balance} onDone={refetchAll} />
+
+      {selected && (
+        <PieceModal
+          owner={address}
+          nft={selected}
+          onClose={() => setSelected(null)}
+          onDone={() => {
+            refetchAll()
+            setSelected(null)
+          }}
+        />
+      )}
     </section>
   )
 }
@@ -282,18 +296,43 @@ function SendExec({ balance, onDone }: { balance: bigint; onDone: () => void }) 
   )
 }
 
-function NftCard({
+/** A piece in the grid — click to open its detail (art + metadata + send). */
+function NftCard({ nft, onView }: { nft: Exec404Nft; onView: () => void }) {
+  return (
+    <li className={styles.tile}>
+      <button
+        type="button"
+        className={styles.tileView}
+        onClick={onView}
+        data-testid="exec404-nft-view"
+        aria-label={`view EXEC #${nft.id.toString()}`}
+      >
+        <IpfsImage
+          uri={nft.image ?? ''}
+          alt={nft.name || `EXEC #${nft.id.toString()}`}
+          className={styles.thumb}
+          fallback={<div className={styles.thumbGlyph}>✕</div>}
+        />
+        <span className={styles.tileId}>{nft.name || `#${nft.id.toString()}`}</span>
+      </button>
+    </li>
+  )
+}
+
+/** Piece detail — large art, on-chain metadata (name/description/traits), and the per-NFT send. */
+function PieceModal({
   owner,
   nft,
+  onClose,
   onDone,
 }: {
   owner: `0x${string}`
-  nft: { id: bigint; image: string | undefined }
+  nft: Exec404Nft
+  onClose: () => void
   onDone: () => void
 }) {
   const [to, setTo] = useState('')
-  const [open, setOpen] = useState(false)
-  const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
+  const { writeContract, data: hash, isPending, error } = useWriteContract()
   const { isLoading, isSuccess } = useWaitForTransactionReceipt({ hash })
   const reason = txErrorReason(error)
   const busy = isPending || isLoading
@@ -310,25 +349,49 @@ function NftCard({
     })
   }
 
+  // A confirmed send closes the modal + refetches (the modal unmounts, discarding the write state).
   useEffect(() => {
-    if (!isSuccess) return
-    reset()
-    setTo('')
-    setOpen(false)
-    onDone()
-  }, [isSuccess, reset, onDone])
+    if (isSuccess) onDone()
+  }, [isSuccess, onDone])
 
   return (
-    <li className={styles.tile}>
-      <IpfsImage
-        uri={nft.image ?? ''}
-        alt={`EXEC #${nft.id.toString()}`}
-        className={styles.thumb}
-        fallback={<div className={styles.thumbGlyph}>✕</div>}
-      />
-      <span className={styles.tileId}>#{nft.id.toString()}</span>
-      {open ? (
-        <div className={styles.tileSend}>
+    <div
+      className={styles.modalScrim}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`EXEC #${nft.id.toString()}`}
+      onClick={onClose}
+      data-testid="exec404-piece-modal"
+    >
+      {/* Stop clicks inside the panel from closing the modal. */}
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <button className={styles.modalClose} onClick={onClose} aria-label="close">
+          ✕
+        </button>
+        <IpfsImage
+          uri={nft.image ?? ''}
+          alt={nft.name || `EXEC #${nft.id.toString()}`}
+          className={styles.modalArt}
+          loading="eager"
+          fallback={<div className={styles.modalArtGlyph}>✕</div>}
+        />
+        <h3 className={styles.modalTitle}>{nft.name || `EXEC #${nft.id.toString()}`}</h3>
+        <p className={styles.modalId}>#{nft.id.toString()}</p>
+        {nft.description && <p className={styles.modalDesc}>{nft.description}</p>}
+
+        {nft.attributes.length > 0 && (
+          <dl className={styles.traits} data-testid="exec404-piece-traits">
+            {nft.attributes.map((a, i) => (
+              <div key={`${a.trait_type}-${i}`} className={styles.trait}>
+                <dt>{a.trait_type || 'trait'}</dt>
+                <dd>{a.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        <div className={styles.action}>
+          <p className={styles.actionTitle}>send this piece</p>
           <input
             className={styles.addrInput}
             type="text"
@@ -344,15 +407,11 @@ function NftCard({
             disabled={!toValid || busy}
             data-testid="exec404-nft-send"
           >
-            {isPending ? 'confirm…' : isLoading ? 'sending…' : 'send'}
+            {isPending ? 'confirm in wallet…' : isLoading ? 'sending…' : 'send'}
           </button>
-          {reason && <p className={`${styles.note} ${styles.err}`}>{reason}</p>}
+          {reason && <p className={`${styles.note} ${styles.err}`}>send failed: {reason}</p>}
         </div>
-      ) : (
-        <button className={styles.tileSendToggle} onClick={() => setOpen(true)}>
-          send
-        </button>
-      )}
-    </li>
+      </div>
+    </div>
   )
 }

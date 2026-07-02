@@ -17,9 +17,33 @@ import {
 } from '../../lib/exec404'
 import { fetchJson } from '../../lib/metadata'
 
+export interface Exec404Trait {
+  trait_type: string
+  value: string
+}
+
 export interface Exec404Nft {
   id: bigint
   image: string | undefined
+  name: string | undefined
+  description: string | undefined
+  attributes: Exec404Trait[]
+}
+
+/** Coerce arbitrary metadata `attributes` into safe {trait_type, value} string pairs. */
+function normalizeAttributes(raw: unknown): Exec404Trait[] {
+  if (!Array.isArray(raw)) return []
+  const out: Exec404Trait[] = []
+  for (const a of raw) {
+    if (a && typeof a === 'object') {
+      const t = (a as Record<string, unknown>).trait_type
+      const v = (a as Record<string, unknown>).value
+      if (v !== undefined && v !== null) {
+        out.push({ trait_type: typeof t === 'string' ? t : '', value: String(v) })
+      }
+    }
+  }
+  return out
 }
 
 export interface UseExec404NftsResult {
@@ -78,8 +102,21 @@ export function useExec404Nfts(owner: `0x${string}` | undefined): UseExec404Nfts
         ids.map(async (id, i) => {
           const uriRes = uris[i]
           const uri = uriRes && uriRes.status === 'success' ? uriRes.result : ''
-          const meta = uri ? await fetchJson<{ image?: string }>(uri) : null
-          return { id, image: meta?.image }
+          const meta = uri
+            ? await fetchJson<{
+                image?: string
+                name?: string
+                description?: string
+                attributes?: unknown
+              }>(uri)
+            : null
+          return {
+            id,
+            image: meta?.image,
+            name: meta?.name,
+            description: meta?.description,
+            attributes: normalizeAttributes(meta?.attributes),
+          }
         }),
       )
     },
