@@ -139,14 +139,21 @@ wiring the UI. Add an `@fork` e2e.
 
 ## P1 — missing capability
 
-### B6 — No way to post to a collection's board/activity
+### B6 — No way to post to a collection's board/activity — **FIXED**
 - **Symptom:** collection shows "no activity yet" with no composer to write a post
   to that collection's channel.
-- **Status:** open
+- **Fix:** mounted the existing `MessageComposer` (channel = the instance) above the
+  collection's `MessageFeed`, gated on a connected wallet (connect prompt otherwise).
+  Posts land in the collection's activity + the poster's profile.
+- **Status:** **fixed.**
 
-### B7 — EXEC404 (cult execs) shows no legacy activity/messages
+### B7 — EXEC404 (cult execs) shows no legacy activity/messages — **FIXED**
 - **Symptom:** the fossil's historical messages aren't rendered.
-- **Status:** open
+- **Fix:** the genesis DN404 baked a trade-message log into its curve
+  (`totalMessages()` / `getMessagesBatch(start,end)` — end INCLUSIVE). New
+  `Exec404Activity` reads the tail + renders it read-only on the fossil page. `@archive`
+  e2e asserts a known genesis message ("War. War never changes."). 31 messages on the fork.
+- **Status:** **fixed + verified.**
 
 ### B8 — Featured buttons "look dead" — **FIXED**
 - **Symptom:** boost/rent/renew read as unavailable capabilities; they're actually
@@ -177,11 +184,15 @@ wiring the UI. Add an `@fork` e2e.
   menu (disclosure or dedicated panel)**, not raw forms stacked on the page.
 - **Status:** open
 
-### B11 — Editions are confusing / below the fold; cover art mistaken for a piece
+### B11 — Editions are confusing / below the fold; cover art mistaken for a piece — **FIXED**
 - **Symptom:** on ghost-mint it was unclear whether editions existed; the
   collection cover image was mistaken for a mintable piece, and reaching editions
   requires scrolling. Editions/pieces need clearer hierarchy and placement.
-- **Status:** open
+- **Fix:** wrapped the cover in a `figure`/`figcaption` — "Collection cover — scroll
+  for the mintable pieces below" (auction-aware wording for ERC721) — so it stops
+  reading as a mintable piece and points at the editions/pieces (already under an
+  EDITIONS heading in the type section).
+- **Status:** **fixed.**
 
 ---
 
