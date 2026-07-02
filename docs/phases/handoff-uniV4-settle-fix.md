@@ -1,5 +1,20 @@
 # Handoff — fix Uni-V4 graduation settle bug in `LiquidityDeployerModule`
 
+> **Progress (2026-07-02):**
+> - **Round 1 — settle payer (DONE, on main branch as cherry-pick `2db2b41`).** Root cause: settled
+>   the V4 deltas against `ctx.instance`, but the **module** holds both currencies at graduation →
+>   `transferFrom` from an instance holding nothing → revert. Fix: settle/take against `address(this)`.
+>   Graduation now succeeds on the fork.
+> - **Round 2 — native-ETH pool (IN PROGRESS, agent).** The settle fix exposed a second issue: the
+>   module creates a **WETH-paired** V4 pool (wraps ETH→WETH), but the embedded swap + zRouter +
+>   `UniAlignmentVault` all use **native-ETH** pools (currency `address(0)`). So `swapV4(address(0),…)`
+>   reverts `PoolNotInitialized()` — graduated token untradeable through the standard path. Fix in
+>   progress: create a native-ETH pool (no WETH wrap; `Currency.wrap(address(0))`; settle native ETH),
+>   mirroring `UniAlignmentVault`. Verified by extending the fork test with a native `swapV4` buy.
+>
+> Original brief below.
+
+
 **Owner:** spun-off agent · **Context:** B19 embedded graduated swaps (see
 `docs/phases/design-pass-blockers.md` → STEP 1). ZAMM + fossil verified; **Uni-V4 is the only
 gap.** The swapV4 UI (`GraduatedSwapPanel`) is built and encoding-correct — it just can't be
