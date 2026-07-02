@@ -101,6 +101,16 @@ export const exec404Abi = [
     inputs: [{ name: 'id', type: 'uint256' }],
     outputs: [{ type: 'string' }],
   },
+  // Balance-mint: materialize `count` whole-token NFTs from the caller's fungible balance (reverts
+  // "NFTs over balance" past floor(balance / ONE_EXEC)). The one holder action EXEC has that the new
+  // instances fold into buyBonding's mintNFT flag.
+  {
+    type: 'function',
+    name: 'balanceMint',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'count', type: 'uint256' }],
+    outputs: [],
+  },
   // Legacy on-chain activity: the genesis DN404 baked a trade-message log into the bonding curve.
   // `totalMessages()` counts them; `getMessagesBatch(start, end)` (end INCLUSIVE, end <= total-1)
   // returns 5 parallel arrays — the fossil's historical chatter, preserved on-chain.
