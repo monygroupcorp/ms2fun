@@ -14,6 +14,7 @@ import {
   EXEC404_ADDRESS,
   EXEC404_CHAIN_ID,
   EXEC404_MIRROR_ADDRESS,
+  ONE_EXEC,
   exec404Abi,
   exec404MirrorAbi,
 } from '../../lib/exec404'
@@ -81,6 +82,7 @@ export function Exec404Portfolio() {
         </div>
       </div>
 
+      <BalanceMint balance={balance} onDone={refetchAll} />
       <RerollButton owner={address} balance={balance} onDone={refetchAll} />
       <SendExec balance={balance} onDone={refetchAll} />
 
@@ -101,6 +103,68 @@ export function Exec404Portfolio() {
         )}
       </div>
     </section>
+  )
+}
+
+/** Balance-mint: materialize whole-token NFTs from the fungible EXEC balance (EXEC's balanceMint).
+ *  `count` is a number of NFTs, capped at floor(balance / 1 EXEC) — the contract enforces the rest. */
+function BalanceMint({ balance, onDone }: { balance: bigint; onDone: () => void }) {
+  const maxMintable = balance / ONE_EXEC
+  const [count, setCount] = useState('1')
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract()
+  const { isLoading, isSuccess } = useWaitForTransactionReceipt({ hash })
+  const reason = txErrorReason(error)
+  const busy = isPending || isLoading
+
+  const parsed = /^\d+$/.test(count.trim()) ? BigInt(count.trim()) : undefined
+  const valid = parsed !== undefined && parsed > 0n && parsed <= maxMintable
+
+  function handleMint(): void {
+    if (parsed === undefined) return
+    writeContract({
+      address: EXEC404_ADDRESS,
+      abi: exec404Abi,
+      functionName: 'balanceMint',
+      chainId: EXEC404_CHAIN_ID,
+      args: [parsed],
+    })
+  }
+
+  useEffect(() => {
+    if (!isSuccess) return
+    reset()
+    setCount('1')
+    onDone()
+  }, [isSuccess, reset, onDone])
+
+  return (
+    <div className={styles.action}>
+      <p className={styles.actionTitle}>mint pieces from balance</p>
+      <input
+        className={styles.addrInput}
+        type="number"
+        min={1}
+        max={maxMintable.toString()}
+        inputMode="numeric"
+        value={count}
+        onChange={(e) => setCount(e.target.value)}
+        disabled={busy || maxMintable === 0n}
+        aria-label="number of pieces to mint from balance"
+        data-testid="exec404-balancemint-count"
+      />
+      <span className={styles.hint}>
+        materialize NFTs you already hold as EXEC · up to {maxMintable.toString()} from this balance.
+      </span>
+      <button
+        className="btn btn-primary"
+        onClick={handleMint}
+        disabled={!valid || busy}
+        data-testid="exec404-balancemint"
+      >
+        {isPending ? 'confirm in wallet…' : isLoading ? 'minting…' : 'mint pieces'}
+      </button>
+      {reason && <p className={`${styles.note} ${styles.err}`}>mint failed: {reason}</p>}
+    </div>
   )
 }
 
