@@ -91,6 +91,14 @@
   align-items: start;
 }
 
+/* Stack the market readout, portfolio, and legacy activity with room to breathe (the portfolio was
+   jamming straight up against the market stats). */
+.mainCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
 .sidebar {
   position: sticky;
   top: var(--space-6);

@@ -1,8 +1,12 @@
 /**
- * useExec404Nfts — the connected wallet's EXEC (DN404) NFT holdings, reconstructed from the mirror's
- * Transfer log (the mirror exposes no enumerable view). We pull only the logs that touch the wallet
- * (indexed `to == owner` and `from == owner` filters — cheap even over full history), replay them to
- * the live id set (ownedIdsFromTransfers), then read each id's art via base `tokenURI` + fetchJson.
+ * EXEC (DN404) NFT holdings for the connected wallet, split so the view can PAGINATE:
+ *   useExec404NftIds(owner)  — the full owned id set, reconstructed from the mirror's Transfer log
+ *                              (the mirror exposes no enumerable view). Cheap: only the indexed
+ *                              `to==owner`/`from==owner` logs, replayed by ownedIdsFromTransfers.
+ *   useExec404NftPage(ids)   — metadata (art/name/description/traits) for ONE page of ids only, via
+ *                              base `tokenURI` + fetchJson. This is the expensive part (N fetches),
+ *                              so the caller passes just the current page's ids — a wallet with 300
+ *                              NFTs never fetches 300 metadata blobs at once.
  */
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
@@ -46,21 +50,22 @@ function normalizeAttributes(raw: unknown): Exec404Trait[] {
   return out
 }
 
-export interface UseExec404NftsResult {
-  nfts: Exec404Nft[]
+export interface UseExec404NftIdsResult {
+  ids: bigint[]
   isPending: boolean
   isError: boolean
   refetch: () => void
 }
 
-export function useExec404Nfts(owner: `0x${string}` | undefined): UseExec404NftsResult {
+/** The wallet's owned EXEC NFT ids (all of them — enumeration is cheap; metadata is not). */
+export function useExec404NftIds(owner: `0x${string}` | undefined): UseExec404NftIdsResult {
   const client = usePublicClient({ chainId: EXEC404_CHAIN_ID })
 
   const { data, isPending, isError, refetch } = useQuery({
-    queryKey: ['exec404-nfts', owner ?? null],
+    queryKey: ['exec404-nft-ids', owner ?? null],
     enabled: !!client && !!owner,
     staleTime: 15_000,
-    queryFn: async (): Promise<Exec404Nft[]> => {
+    queryFn: async (): Promise<bigint[]> => {
       if (!client || !owner) return []
       const base = {
         address: EXEC404_MIRROR_ADDRESS,
@@ -84,10 +89,37 @@ export function useExec404Nfts(owner: `0x${string}` | undefined): UseExec404Nfts
         transfers.push({ from, to, id, blockNumber: log.blockNumber, logIndex: log.logIndex })
       }
 
-      const ids = ownedIdsFromTransfers(transfers, owner)
-      if (ids.length === 0) return []
+      return ownedIdsFromTransfers(transfers, owner)
+    },
+  })
 
-      // Per-id art from the base's tokenURI, then resolve the metadata image.
+  return {
+    ids: data ?? [],
+    isPending: isPending && !!owner,
+    isError,
+    refetch: () => void refetch(),
+  }
+}
+
+export interface UseExec404NftPageResult {
+  nfts: Exec404Nft[]
+  isPending: boolean
+  isError: boolean
+}
+
+/** Metadata for ONE page of ids (caller slices). Keyed on the exact ids so paging refetches. */
+export function useExec404NftPage(ids: readonly bigint[]): UseExec404NftPageResult {
+  const client = usePublicClient({ chainId: EXEC404_CHAIN_ID })
+  const key = ids.map((id) => id.toString()).join(',')
+
+  const { data, isPending, isError } = useQuery({
+    queryKey: ['exec404-nft-page', key],
+    enabled: !!client && ids.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Exec404Nft[]> => {
+      if (!client || ids.length === 0) return []
+
+      // Per-id art from the base's tokenURI, then resolve the metadata.
       const uris = await client.multicall({
         allowFailure: true,
         contracts: ids.map((id) => ({
@@ -124,8 +156,7 @@ export function useExec404Nfts(owner: `0x${string}` | undefined): UseExec404Nfts
 
   return {
     nfts: data ?? [],
-    isPending: isPending && !!owner,
+    isPending: isPending && ids.length > 0,
     isError,
-    refetch: () => void refetch(),
   }
 }

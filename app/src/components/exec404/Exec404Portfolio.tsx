@@ -7,7 +7,7 @@
  *   send piece → mirror.transferFrom(self, to, id)             (move one NFT)
  * Balances/holdings refetch after every confirmed action so the panel stays live.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { isAddress } from 'viem'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import {
@@ -23,12 +23,16 @@ import { AmountField } from '../ui/AmountField'
 import { IpfsImage } from '../ui/IpfsImage'
 import { parseAmount } from '../ui/parseAmount'
 import { txErrorReason } from '../ui/useTxAction'
-import { useExec404Nfts, type Exec404Nft } from './useExec404Nfts'
+import { useExec404NftIds, useExec404NftPage, type Exec404Nft } from './useExec404Nfts'
 import styles from './Exec404Portfolio.module.css'
+
+const PAGE_SIZES = [12, 24, 48, 96] as const
 
 export function Exec404Portfolio() {
   const { address, isConnected } = useAccount()
   const [selected, setSelected] = useState<Exec404Nft | null>(null)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState<number>(24)
 
   const balanceRead = useReadContract({
     address: EXEC404_ADDRESS,
@@ -46,15 +50,30 @@ export function Exec404Portfolio() {
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   })
-  const { nfts, isPending: nftsPending, refetch: refetchNfts } = useExec404Nfts(address)
+  const { ids, isPending: idsPending, refetch: refetchIds } = useExec404NftIds(address)
+
+  // Paginate the (cheap) id list; only the current page's metadata is fetched.
+  const total = ids.length
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const clampedPage = Math.min(page, pageCount - 1)
+  const pageIds = useMemo(
+    () => ids.slice(clampedPage * pageSize, clampedPage * pageSize + pageSize),
+    [ids, clampedPage, pageSize],
+  )
+  const { nfts, isPending: nftsPending } = useExec404NftPage(pageIds)
 
   const balance = balanceRead.data ?? 0n
   const nftCount = nftCountRead.data ?? 0n
 
+  // Reset to the first page when the wallet or page size changes.
+  useEffect(() => {
+    setPage(0)
+  }, [address, pageSize])
+
   function refetchAll(): void {
     void balanceRead.refetch()
     void nftCountRead.refetch()
-    refetchNfts()
+    refetchIds()
   }
 
   if (!isConnected) {
@@ -85,19 +104,70 @@ export function Exec404Portfolio() {
 
       {/* Pieces lead the portfolio — the work first, the actions (mint/reroll/send) below. */}
       <div className={styles.pieces}>
-        <p className={styles.piecesHead}>Pieces</p>
-        {nftsPending ? (
+        <div className={styles.piecesHeadRow}>
+          <p className={styles.piecesHead}>Pieces {total > 0 && <span>· {total}</span>}</p>
+          {total > pageSize && (
+            <label className={styles.perPage}>
+              per page
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                data-testid="exec404-page-size"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+
+        {idsPending ? (
           <p className={styles.note}>loading pieces…</p>
-        ) : nfts.length === 0 ? (
+        ) : total === 0 ? (
           <p className={styles.note} data-testid="exec404-portfolio-empty">
             no EXEC NFTs held. Buy ≥ 1 whole EXEC (with skip-NFT off) to mint pieces.
           </p>
         ) : (
-          <ul className={styles.grid} data-testid="exec404-portfolio-nfts">
-            {nfts.map((nft) => (
-              <NftCard key={nft.id.toString()} nft={nft} onView={() => setSelected(nft)} />
-            ))}
-          </ul>
+          <>
+            <ul className={styles.grid} data-testid="exec404-portfolio-nfts">
+              {pageIds.map((id) => {
+                const nft = nfts.find((n) => n.id === id)
+                return nft ? (
+                  <NftCard key={id.toString()} nft={nft} onView={() => setSelected(nft)} />
+                ) : (
+                  <li key={id.toString()} className={styles.tile}>
+                    <div className={styles.thumbGlyph}>{nftsPending ? '…' : '✕'}</div>
+                    <span className={styles.tileId}>#{id.toString()}</span>
+                  </li>
+                )
+              })}
+            </ul>
+            {pageCount > 1 && (
+              <div className={styles.pager} data-testid="exec404-pager">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={clampedPage === 0}
+                >
+                  ← prev
+                </button>
+                <span className={styles.pagerLabel}>
+                  {clampedPage * pageSize + 1}–{Math.min(total, (clampedPage + 1) * pageSize)} of{' '}
+                  {total}
+                </span>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={clampedPage >= pageCount - 1}
+                >
+                  next →
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
