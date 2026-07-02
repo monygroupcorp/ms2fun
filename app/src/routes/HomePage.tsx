@@ -143,12 +143,12 @@ export function HomePage() {
           },
           {
             label: 'featured',
-            // +1 for the pinned EXEC404 fossil, which is not in the queue.
+            // +1 for the pinned EXEC404 genesis collection, which is not in the queue.
             value: featuredCount !== undefined ? String(featuredCount + 1) : '—',
             pending: isPending,
           },
           {
-            label: 'fossil',
+            label: 'genesis',
             value: 'EXEC404',
           },
         ]}
@@ -177,19 +177,19 @@ export function HomePage() {
 
           {!isPending && !isError && (
             <div className={styles.featuredGrid}>
-              {/* EXEC404 / CULT EXECUTIVES — grandfathered fossil, always pinned first.
-                  Read-only specimen; trading lives on Uniswap (its full surface is the fossil page). */}
+              {/* EXEC404 / CULT EXECUTIVES — the genesis collection, always pinned first.
+                  Its full trading + holder surface is the EXEC404 page. */}
               <Link href="/exec404" className="noesis-card" data-testid="exec404-link">
                 <div className={`art ${styles.execArt}`}>
                   <span className={styles.execGlyph} aria-hidden>
                     ✕
                   </span>
-                  <span className="st">Fossil</span>
+                  <span className="st">Genesis</span>
                 </div>
                 <div className="lab">
                   <div className={styles.execLabMain}>
                     <span className="nm">CULT EXECUTIVES</span>
-                    <span className="by">EXEC · grandfathered</span>
+                    <span className="by">EXEC · the origin collection</span>
                   </div>
                   <span className="px">Uniswap ↗</span>
                 </div>
