@@ -12,10 +12,11 @@
  *  - ETH is the zRouter native sentinel `address(0)`; sells (EXEC→ETH) are approve-then-swap.
  */
 import { useEffect, useState } from 'react'
-import { erc20Abi, formatEther, formatUnits, maxUint256, parseEther, zeroAddress } from 'viem'
+import { erc20Abi, maxUint256, parseEther, zeroAddress } from 'viem'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { useSimulateZRouterSwapV2, useWriteZRouterSwapV2 } from '../generated/contracts'
 import { forkAddresses } from '../lib/addresses'
+import { formatTokenAmount } from '../lib/format'
 import { EXEC404_ADDRESS, EXEC404_CHAIN_ID, UNISWAP_SWAP_URL, exec404Abi } from '../lib/exec404'
 import { txErrorReason } from './ui/useTxAction'
 import cardStyles from './Exec404TradeLink.module.css'
@@ -108,6 +109,21 @@ export function Exec404SwapPanel() {
     if (approveConfirmed) void refetchAllowance()
   }, [approveConfirmed, refetchAllowance])
 
+  // N3: reset NATURALLY once a swap confirms — no redundant "trade again" button. Clear the amount,
+  // refresh the balance/allowance so the new position shows, and reset the mutation so the panel
+  // returns to trade mode. `lastTrade` keeps a one-line confirmation until the next edit.
+  const [lastTrade, setLastTrade] = useState<Direction | null>(null)
+  const refetchBalance = balanceRead.refetch
+  const swapReset = swap.reset
+  useEffect(() => {
+    if (!isSuccess) return
+    setLastTrade(direction)
+    setAmountStr('')
+    void refetchBalance()
+    void refetchAllowance()
+    swapReset()
+  }, [isSuccess, direction, refetchBalance, refetchAllowance, swapReset])
+
   function handleApprove(): void {
     approve.writeContract({
       address: EXEC404_ADDRESS,
@@ -128,19 +144,11 @@ export function Exec404SwapPanel() {
     })
   }
 
-  function handleReset(): void {
-    swap.reset()
-    setAmountStr('')
-    void balanceRead.refetch()
-    void allowanceRead.refetch()
-  }
-
   const inLabel = isBuy ? 'amount (ETH)' : 'amount (EXEC)'
   const outLabel = isBuy ? 'EXEC' : 'ETH'
+  // Cap the receive quote at 4 fraction digits so a raw 18-decimal value doesn't overflow the panel (N2).
   const quoteValue =
-    quoteOut !== undefined
-      ? `${isBuy ? formatUnits(quoteOut, 18) : formatEther(quoteOut)} ${outLabel}`
-      : '—'
+    quoteOut !== undefined ? `${formatTokenAmount(quoteOut, 18, 4)} ${outLabel}` : '—'
   const isBusy = swap.isPending || isConfirming
   const swapError = txErrorReason(swap.error)
   const quoteError = sim.error && quoteReady ? txErrorReason(sim.error) : undefined
@@ -152,13 +160,6 @@ export function Exec404SwapPanel() {
 
       {!isConnected ? (
         <p className={styles.connectNote}>connect wallet to trade</p>
-      ) : isSuccess ? (
-        <>
-          <p className={styles.txStatus}>{isBuy ? 'bought' : 'sold'} EXEC — tx confirmed.</p>
-          <button className="btn btn-secondary" onClick={handleReset} data-testid="exec404-swap-again">
-            trade again
-          </button>
-        </>
       ) : (
         <div className={styles.panel}>
           <div className={styles.toggle}>
@@ -195,8 +196,12 @@ export function Exec404SwapPanel() {
               disabled={isBusy}
               data-testid="exec404-amount-input"
             />
-            {!isBuy && balanceRead.data !== undefined && (
-              <span className={styles.note}>balance: {formatUnits(balanceRead.data, 18)} EXEC</span>
+            {/* N3: show the EXEC balance in BOTH directions (it's your position either way) and it
+                refetches on every confirmed swap, so it stays live. */}
+            {balanceRead.data !== undefined && (
+              <span className={styles.note} data-testid="exec404-balance">
+                balance: {formatTokenAmount(balanceRead.data, 18, 4)} EXEC
+              </span>
             )}
           </div>
 
@@ -223,6 +228,14 @@ export function Exec404SwapPanel() {
             <span className={styles.quoteLabel}>receive</span>
             <span className={styles.quoteValue}>{sim.isFetching && quoteReady ? '…' : quoteValue}</span>
           </div>
+
+          {/* N3: natural reset — a confirmed swap clears the form and shows this one-liner until the
+              next edit, instead of a dead-end "trade again" screen. */}
+          {lastTrade && amountStr.trim() === '' && (
+            <p className={styles.txStatus} data-testid="exec404-swap-confirmed">
+              ✓ {lastTrade === 'buy' ? 'bought' : 'sold'} EXEC — balance updated.
+            </p>
+          )}
 
           {needsApproval ? (
             <button
