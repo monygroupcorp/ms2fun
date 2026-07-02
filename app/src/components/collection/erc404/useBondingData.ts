@@ -10,7 +10,6 @@ import {
   useReadErc404BondingInstanceBondingOpenTime,
   useReadErc404BondingInstanceCurveParams,
   useReadErc404BondingInstanceGraduated,
-  useReadErc404BondingInstanceLiquidityDeployer,
   useReadErc404BondingInstanceMaxSupply,
   useReadErc404BondingInstanceReserve,
   useReadErc404BondingInstanceTotalBondingSupply,
@@ -33,8 +32,6 @@ export interface BondingData {
   refetch: () => void
 }
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
-
 export function useBondingData(instance: `0x${string}`): BondingData {
   const opts = { address: instance, chainId: forkChainId } as const
 
@@ -42,7 +39,6 @@ export function useBondingData(instance: `0x${string}`): BondingData {
   const openTime = useReadErc404BondingInstanceBondingOpenTime(opts)
   const maturityTime = useReadErc404BondingInstanceBondingMaturityTime(opts)
   const graduated = useReadErc404BondingInstanceGraduated(opts)
-  const deployer = useReadErc404BondingInstanceLiquidityDeployer(opts)
   const totalSupply = useReadErc404BondingInstanceTotalBondingSupply(opts)
   const maxSupply = useReadErc404BondingInstanceMaxSupply(opts)
   const curve = useReadErc404BondingInstanceCurveParams(opts)
@@ -55,7 +51,6 @@ export function useBondingData(instance: `0x${string}`): BondingData {
     openTime,
     maturityTime,
     graduated,
-    deployer,
     totalSupply,
     maxSupply,
     curve,
@@ -76,7 +71,6 @@ export function useBondingData(instance: `0x${string}`): BondingData {
     openTime.data !== undefined &&
     maturityTime.data !== undefined &&
     graduated.data !== undefined &&
-    deployer.data !== undefined &&
     totalSupply.data !== undefined &&
     maxSupply.data !== undefined
   ) {
@@ -85,7 +79,6 @@ export function useBondingData(instance: `0x${string}`): BondingData {
       bondingOpenTime: openTime.data,
       bondingMaturityTime: maturityTime.data,
       graduated: graduated.data,
-      liquidityDeployer: (deployer.data ?? ZERO_ADDRESS) as `0x${string}`,
       totalBondingSupply: totalSupply.data,
       maxSupply: maxSupply.data,
     }

@@ -1,16 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { type BondingView, canDeployLiquidity, derivePhase, isGraduated } from './bondingPhase'
 
-const ZERO = '0x0000000000000000000000000000000000000000' as const
-const DEPLOYER = '0x2222222222222222222222222222222222222222' as const
-
 function bonding(over: Partial<BondingView> = {}): BondingView {
   return {
     bondingActive: true,
     bondingOpenTime: 100n,
     bondingMaturityTime: 1000n,
     graduated: false,
-    liquidityDeployer: ZERO,
     totalBondingSupply: 0n,
     maxSupply: 1000n,
     ...over,
@@ -19,14 +15,13 @@ function bonding(over: Partial<BondingView> = {}): BondingView {
 
 describe('isGraduated', () => {
   it('false before deploy', () => {
-    expect(isGraduated({ graduated: false, liquidityDeployer: ZERO })).toBe(false)
+    expect(isGraduated({ graduated: false })).toBe(false)
   })
   it('true via the graduated flag', () => {
-    expect(isGraduated({ graduated: true, liquidityDeployer: ZERO })).toBe(true)
+    expect(isGraduated({ graduated: true })).toBe(true)
   })
-  it('true via a non-zero deployer', () => {
-    expect(isGraduated({ graduated: false, liquidityDeployer: DEPLOYER })).toBe(true)
-  })
+  // A configured (non-zero) liquidityDeployer must NOT read as graduated: it is set at construction,
+  // so it is always non-zero even mid-curve. Only the `graduated` flag closes the curve.
 })
 
 describe('derivePhase', () => {
