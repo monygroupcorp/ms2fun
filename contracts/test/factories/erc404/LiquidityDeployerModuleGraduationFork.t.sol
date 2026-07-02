@@ -5,6 +5,7 @@ import { ForkTestBase } from "../../fork/helpers/ForkTestBase.sol";
 import { LiquidityDeployerModule } from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
+import { zRouter } from "../../../src/peripherals/zRouter.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { PoolId, PoolIdLibrary } from "v4-core/types/PoolId.sol";
@@ -15,15 +16,19 @@ import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 /**
  * @title LiquidityDeployerModuleGraduationFork
  * @notice Proves an ERC-404 Uni-V4 graduation completes end-to-end against the REAL mainnet V4
- *         PoolManager: the module wraps the raise into WETH, initializes a fresh pool, adds
- *         full-range liquidity, and settles the owed deltas without reverting.
- * @dev Reproduces the graduation settle bug fixed in LiquidityDeployerModule.unlockCallback: the
- *      module — not the bonding instance — holds both the LP tokens (transferred to it by
- *      ERC404BondingInstance.deployLiquidity) and the WETH (wrapped into itself before the unlock),
- *      so the V4 settle must pay from address(this). Before the fix, settle used ctx.instance and
- *      CurrencySettler took the transferFrom branch against an instance holding neither currency,
- *      reverting mid-settlement. This test drives deployLiquidity directly (minting the LP tokens to
- *      the module to mirror the instance transfer) and asserts a live V4 pool holds the liquidity.
+ *         PoolManager: the module initializes a fresh NATIVE-ETH pool, adds full-range liquidity,
+ *         settles the owed deltas without reverting, and the pool is immediately tradable through
+ *         the exact zRouter.swapV4 path the frontend uses.
+ * @dev Covers two fixes in LiquidityDeployerModule:
+ *      1. Settle payer — the module (not ctx.instance) holds both currencies at graduation (the
+ *         instance transfers the LP tokens to the module; the ETH arrives as msg.value), so the V4
+ *         settle must pay from address(this). Before the fix, settle used ctx.instance and
+ *         CurrencySettler took the transferFrom branch against an instance holding neither currency,
+ *         reverting mid-settlement.
+ *      2. Native-ETH pool — graduation now pairs the token against native ETH (V4 currency
+ *         address(0)), matching zRouter.swapV4(tokenIn=address(0)) and UniAlignmentVault. A
+ *         WETH-keyed pool left the token untradeable (swapV4 reverted PoolNotInitialized) because the
+ *         native-ETH pool key did not exist.
  *
  *      Fork-gated: ForkTestBase.loadAddresses() calls vm.skip(true) when WETH has no code (no
  *      --fork-url), so this is inert in the default `forge test` run.
@@ -40,6 +45,7 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
     LiquidityDeployerModule module;
     IPoolManager poolManager;
     MockERC20 token;
+    zRouter router;
 
     function setUp() public {
         loadAddresses(); // vm.skip(true) when not on a fork
@@ -49,13 +55,16 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
         // pool exists for it — the module initializes one at graduation, so nothing needs seeding.
         token = new MockERC20("Grad Token", "GRAD");
         module = new LiquidityDeployerModule(UNISWAP_V4_POOL_MANAGER, WETH, FEE, TICK_SPACING);
+        // Real zRouter (its V4_POOL_MANAGER constant is the mainnet PM) — the exact swap path the UI uses.
+        router = new zRouter();
 
         vm.label(address(module), "LiquidityDeployerModule");
         vm.label(address(token), "GRAD");
+        vm.label(address(router), "zRouter");
     }
 
-    /// @notice Graduating a Uni-V4 ERC-404 instance creates a real V4 pool that holds the LP.
-    function test_graduation_createsLiveV4Pool_andSettlesWithoutReverting() public {
+    /// @notice Graduation creates a real NATIVE-ETH V4 pool, holds the LP, and is tradable via zRouter.
+    function test_graduation_createsNativeV4Pool_holdsLP_andIsTradable() public {
         uint256 ethReserve = 10 ether;
         uint256 tokenReserve = 1_000_000e18; // liquidityReserve tokens
 
@@ -75,29 +84,68 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
             })
         );
 
-        // Rebuild the pool key exactly as the module orders currencies (token vs WETH by address).
-        bool token0IsThis = Currency.wrap(address(token)) < Currency.wrap(WETH);
+        // The graduated pool is keyed on NATIVE ETH (currency0 == address(0)), NOT WETH. address(0)
+        // sorts below any token, so ETH is currency0 and the token is currency1.
         PoolKey memory key = PoolKey({
-            currency0:   token0IsThis ? Currency.wrap(address(token)) : Currency.wrap(WETH),
-            currency1:   token0IsThis ? Currency.wrap(WETH)           : Currency.wrap(address(token)),
+            currency0:   Currency.wrap(address(0)),
+            currency1:   Currency.wrap(address(token)),
             fee:         FEE,
             tickSpacing: TICK_SPACING,
             hooks:       IHooks(address(0))
         });
         PoolId poolId = key.toId();
 
+        assertEq(Currency.unwrap(key.currency0), address(0), "graduated pool must be native-ETH keyed");
+
         // The pool was initialized (non-zero price) and holds the deployed liquidity.
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(poolId);
-        assertGt(sqrtPriceX96, 0, "pool must be initialized");
+        assertGt(sqrtPriceX96, 0, "native-ETH pool must be initialized");
 
         uint128 poolLiquidity = poolManager.getLiquidity(poolId);
         assertGt(poolLiquidity, 0, "a live V4 pool must hold the graduated LP");
 
-        // Settlement transferred the module's WETH and LP tokens into the PoolManager. Full-range
-        // liquidity math leaves at most a few wei of token dust on the module; effectively all of the
-        // reserve was settled (this is what reverted before the payer fix).
+        // A WETH-keyed pool must NOT exist — proving the deploy no longer creates the wrong pool.
+        PoolKey memory wethKey = _wethKey();
+        (uint160 wethSqrtPrice,,,) = poolManager.getSlot0(wethKey.toId());
+        assertEq(wethSqrtPrice, 0, "no WETH-keyed pool should be created");
+
+        // All LP tokens settled into the pool (a few wei of dust may remain from full-range math).
         assertLt(token.balanceOf(address(module)), 1e6, "LP tokens settled into the pool (dust only)");
 
+        // ── The graduated pool is tradable through the exact frontend path: zRouter.swapV4 with a
+        //    native-ETH input (tokenIn=address(0)) and a FINITE deadline (deadline==max is a Sushi
+        //    selector in zRouter). This reverted PoolNotInitialized against a WETH-keyed pool. ──
+        address buyer = makeAddr("buyer");
+        uint256 ethIn = 0.5 ether;
+        vm.deal(buyer, ethIn);
+        vm.prank(buyer);
+        (, uint256 amountOut) = router.swapV4{value: ethIn}(
+            buyer,                 // to
+            false,                 // exactOut = false (exact ETH in)
+            FEE,
+            TICK_SPACING,
+            address(0),            // tokenIn = native ETH
+            address(token),        // tokenOut = graduated token
+            ethIn,                 // swapAmount
+            0,                     // amountLimit (min out)
+            block.timestamp + 1    // finite deadline
+        );
+
+        assertGt(amountOut, 0, "swapV4 buy must return tokens from the graduated pool");
+        assertEq(token.balanceOf(buyer), amountOut, "buyer received the swapped tokens");
+
         emit log_named_uint("Live V4 pool liquidity", poolLiquidity);
+        emit log_named_uint("swapV4 amountOut (tokens for 0.5 ETH)", amountOut);
+    }
+
+    function _wethKey() internal view returns (PoolKey memory) {
+        bool tokenIsCurrency0 = Currency.wrap(address(token)) < Currency.wrap(WETH);
+        return PoolKey({
+            currency0:   tokenIsCurrency0 ? Currency.wrap(address(token)) : Currency.wrap(WETH),
+            currency1:   tokenIsCurrency0 ? Currency.wrap(WETH)           : Currency.wrap(address(token)),
+            fee:         FEE,
+            tickSpacing: TICK_SPACING,
+            hooks:       IHooks(address(0))
+        });
     }
 }
