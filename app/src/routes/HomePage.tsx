@@ -3,9 +3,7 @@ import { Link } from 'wouter'
 import { useAccount } from 'wagmi'
 import { useReadQueryAggregatorGetHomePageData } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
-import { useAllCollections } from '../lib/discovery'
 import { CollectionCard, type HomePageCard } from '../components/CollectionCard'
-import { HomeStats } from '../components/home/HomeStats'
 import { ActivityPreview } from '../components/home/ActivityPreview'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './HomePage.module.css'
@@ -99,12 +97,7 @@ export function HomePage() {
     args: [0n, 24n],
   })
 
-  // Full-registry total for the stats bar. Independent query — its own loading state, so the
-  // (slower) event scan never blocks the featured fast path above.
-  const { total: totalCollections, isPending: totalPending } = useAllCollections()
-
   const featuredRaw = data?.[0] ?? null
-  const totalFeatured = data?.[1]
 
   // Featured ordering: ascending featuredRank (the queue's effective rank; lower = higher).
   // Cards with rank 0 (unranked) sort to the end so genuinely-boosted entries lead.
@@ -119,8 +112,6 @@ export function HomePage() {
     })
   }, [featuredRaw])
 
-  const featuredCount = totalFeatured !== undefined ? Number(totalFeatured) : featuredCards?.length
-
   // Pre-connect: the marketing hero leads. Connected: the discovery home (below).
   if (!connected) {
     return (
@@ -132,36 +123,12 @@ export function HomePage() {
 
   return (
     <div className={styles.page}>
-      {/* No bespoke hero — Home reuses the discovery grammar (collections-spec). The vital-signs
-          bar leads; the work, not a banner, carries the page. */}
-      <HomeStats
-        stats={[
-          {
-            label: 'collections',
-            value: String(totalCollections),
-            pending: totalPending,
-          },
-          {
-            label: 'featured',
-            // +1 for the pinned EXEC404 genesis collection, which is not in the queue.
-            value: featuredCount !== undefined ? String(featuredCount + 1) : '—',
-            pending: isPending,
-          },
-          {
-            label: 'genesis',
-            value: 'EXEC404',
-          },
-        ]}
-      />
-
+      {/* No bespoke hero, no stats bar — the work, not a banner, carries the page. */}
       <div className={styles.body}>
         <section className={styles.featured}>
           <div className={styles.featuredHeader}>
             <h2 className={styles.sectionTitle}>Featured</h2>
             <span className={styles.paidLabel}>· paid placement, labelled — not an endorsement</span>
-            <Link href="/collections" className={styles.browseLink} data-testid="collections-link">
-              Browse all collections →
-            </Link>
           </div>
 
           {isPending && (
@@ -210,6 +177,18 @@ export function HomePage() {
                 featuredCards.map((c, i) => (
                   <CollectionCard key={c.instance} card={c} variant={i === 0 ? 'lead' : 'card'} />
                 ))}
+
+              {/* Browse-all closes the row inline (was a disruptive standalone header link). */}
+              <Link
+                href="/collections"
+                className={styles.browseTile}
+                data-testid="collections-link"
+              >
+                <span className={styles.browseTileLabel}>Browse all collections</span>
+                <span className={styles.browseTileArrow} aria-hidden>
+                  →
+                </span>
+              </Link>
             </div>
           )}
         </section>
