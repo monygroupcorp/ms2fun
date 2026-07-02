@@ -11,14 +11,15 @@
  * Note: the on-chain EditionView (QueryAggregator batch) does NOT expose `openTime`, so this page
  * does not render an "opens <when>" stat — it works only from the fields the aggregator returns.
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatEther } from 'viem'
 import { useQuery } from '@tanstack/react-query'
 import { useEditions, type EditionView } from '../components/collection/useEditions'
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
-import { fetchJson, isResolvableUri, resolveUri } from '../lib/metadata'
+import { fetchJson, isResolvableUri } from '../lib/metadata'
+import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
 import styles from './EditionDetailPage.module.css'
@@ -83,12 +84,6 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
 
   const meta = useEditionMetadata(edition?.metadataURI)
 
-  // Reset the broken-image fallback when navigating between editions (route component is reused).
-  const [imgError, setImgError] = useState(false)
-  useEffect(() => {
-    setImgError(false)
-  }, [id])
-
   const [copied, setCopied] = useState(false)
   function handleShare(): void {
     const url = typeof window !== 'undefined' ? window.location.href : ''
@@ -140,7 +135,6 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
   const fallbackGlyph = (meta?.name || edition.pieceTitle || '✦').slice(0, 1).toUpperCase()
   const pricingLabel = PRICING_MODEL_LABELS[edition.pricingModel] ?? `model-${edition.pricingModel}`
   const supplyLabel = edition.supply === 0n ? 'unlimited' : edition.supply.toString()
-  const hasImage = !!meta?.image && !imgError
   const limited = edition.supply > 0n
   const remaining = limited ? edition.supply - edition.minted : 0n
   const fillPct = limited ? Math.min(100, Number((edition.minted * 100n) / edition.supply)) : 0
@@ -162,16 +156,13 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
             <span className="noesis-tick bl" />
             <span className="noesis-tick br" />
             <div className={styles.artInner}>
-              {hasImage ? (
-                <img
-                  src={resolveUri(meta!.image as string)}
-                  alt={title}
-                  className={styles.art}
-                  onError={() => setImgError(true)}
-                />
-              ) : (
-                <div className={styles.artGlyph}>{fallbackGlyph}</div>
-              )}
+              <IpfsImage
+                uri={meta?.image ?? ''}
+                alt={title}
+                className={styles.art}
+                loading="eager"
+                fallback={<div className={styles.artGlyph}>{fallbackGlyph}</div>}
+              />
             </div>
           </div>
         </div>

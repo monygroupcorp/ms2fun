@@ -13,7 +13,8 @@ import {
   useReadErc721AuctionInstanceNextTokenId,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
-import { fetchJson, resolveUri } from '../../../lib/metadata'
+import { fetchJson } from '../../../lib/metadata'
+import { IpfsImage } from '../../ui/IpfsImage'
 import { deriveAuctionState } from './auctionState'
 import { useNowSec } from './useNowSec'
 import styles from './Erc721PieceGallery.module.css'
@@ -120,20 +121,17 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
       {data.map((piece) => {
         const state = deriveAuctionState(piece, nowSec)
         return (
-          <li key={piece.id.toString()} className={styles.tile}>
+          <li key={piece.id.toString()} className={styles.tile} data-state={state}>
             <Link
               href={`/collection/${instance}/token/${piece.id.toString()}`}
               className={styles.link}
             >
-              {piece.image ? (
-                <img
-                  src={resolveUri(piece.image)}
-                  alt={`#${piece.id.toString()}`}
-                  className={styles.thumb}
-                />
-              ) : (
-                <div className={styles.thumbGlyph}>✦</div>
-              )}
+              <IpfsImage
+                uri={piece.image ?? ''}
+                alt={`#${piece.id.toString()}`}
+                className={styles.thumb}
+                fallback={<div className={styles.thumbGlyph}>✦</div>}
+              />
               <div className={styles.meta}>
                 <span className={styles.id}>#{piece.id.toString()}</span>
                 <span className={`badge ${state === 'active' ? 'badge-solid' : ''}`}>{state}</span>

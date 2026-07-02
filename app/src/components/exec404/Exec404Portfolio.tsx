@@ -19,8 +19,8 @@ import {
   exec404MirrorAbi,
 } from '../../lib/exec404'
 import { formatTokenAmount } from '../../lib/format'
-import { resolveUri } from '../../lib/metadata'
 import { AmountField } from '../ui/AmountField'
+import { IpfsImage } from '../ui/IpfsImage'
 import { parseAmount } from '../ui/parseAmount'
 import { txErrorReason } from '../ui/useTxAction'
 import { useExec404Nfts } from './useExec404Nfts'
@@ -320,11 +320,12 @@ function NftCard({
 
   return (
     <li className={styles.tile}>
-      {nft.image ? (
-        <img src={resolveUri(nft.image)} alt={`EXEC #${nft.id.toString()}`} className={styles.thumb} />
-      ) : (
-        <div className={styles.thumbGlyph}>✕</div>
-      )}
+      <IpfsImage
+        uri={nft.image ?? ''}
+        alt={`EXEC #${nft.id.toString()}`}
+        className={styles.thumb}
+        fallback={<div className={styles.thumbGlyph}>✕</div>}
+      />
       <span className={styles.tileId}>#{nft.id.toString()}</span>
       {open ? (
         <div className={styles.tileSend}>

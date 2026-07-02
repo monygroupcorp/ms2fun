@@ -1,6 +1,8 @@
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-auto-flow: row dense;
+  align-items: start;
   gap: var(--gap-sm);
   list-style: none;
   margin: 0;
@@ -9,6 +11,13 @@
 
 .tile {
   display: flex;
+}
+
+/* P4: a LIVE auction is the decision — give it a 2×2 feature tile; ended/settled pieces stay small.
+   `dense` flow backfills the small tiles around the big one. Clamps to 1 column on narrow screens. */
+.tile[data-state='active'] {
+  grid-column: span 2;
+  grid-row: span 2;
 }
 
 .link {

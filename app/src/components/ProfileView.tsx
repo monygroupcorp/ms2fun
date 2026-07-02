@@ -1,6 +1,6 @@
-import { useState } from 'react'
 import type { ProfileMetadata } from '../lib/metadata'
-import { isResolvableUri, resolveUri } from '../lib/metadata'
+import { isResolvableUri } from '../lib/metadata'
+import { IpfsImage } from './ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import styles from './ProfileView.module.css'
 
@@ -20,14 +20,12 @@ function GlyphAvatar({ char }: { char: string }) {
 }
 
 export function ProfileView({ address, metadata, onEdit }: ProfileViewProps) {
-  const [bannerError, setBannerError] = useState(false)
-  const [avatarError, setAvatarError] = useState(false)
-
   const displayName = metadata?.name || truncateAddress(address)
   const glyphChar = metadata?.name?.slice(0, 1) || address.charAt(2) // first hex char after '0x'
 
-  const hasBanner = !bannerError && isResolvableUri(metadata?.banner)
-  const hasAvatar = !avatarError && isResolvableUri(metadata?.avatar)
+  // IpfsImage rotates gateways and falls back internally, so gate only on a resolvable pointer.
+  const hasBanner = isResolvableUri(metadata?.banner)
+  const hasAvatar = isResolvableUri(metadata?.avatar)
 
   const hasLinks = (metadata?.links?.length ?? 0) > 0
   const socialEntries = metadata?.socials ? Object.entries(metadata.socials) : []
@@ -37,12 +35,7 @@ export function ProfileView({ address, metadata, onEdit }: ProfileViewProps) {
       {/* Banner */}
       <div className={`${styles.banner} ${hasBanner ? styles.bannerImg : styles.bannerBlank}`}>
         {hasBanner && metadata != null && metadata.banner !== '' && (
-          <img
-            src={resolveUri(metadata.banner)}
-            alt=""
-            className={styles.bannerImage}
-            onError={() => setBannerError(true)}
-          />
+          <IpfsImage uri={metadata.banner} alt="" className={styles.bannerImage} loading="eager" />
         )}
       </div>
 
@@ -51,11 +44,12 @@ export function ProfileView({ address, metadata, onEdit }: ProfileViewProps) {
       <div className={`noesis-frame ${styles.avatarFrame}`}>
         <div className={styles.avatarInner}>
           {hasAvatar && metadata != null && metadata.avatar !== '' ? (
-            <img
-              src={resolveUri(metadata.avatar)}
+            <IpfsImage
+              uri={metadata.avatar}
               alt={displayName}
               className={styles.avatarImage}
-              onError={() => setAvatarError(true)}
+              loading="eager"
+              fallback={<GlyphAvatar char={glyphChar} />}
             />
           ) : (
             <GlyphAvatar char={glyphChar} />

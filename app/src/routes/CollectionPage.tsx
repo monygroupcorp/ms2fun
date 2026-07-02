@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import { formatGwei } from 'viem'
 import { useAccount } from 'wagmi'
@@ -10,7 +9,7 @@ import { VaultPanel } from '../components/collection/VaultPanel'
 import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { resolveCollectionSurfaces } from '../components/collection/types/collectionSurfaces'
 import { ProjectStyle } from '../components/collection/ProjectStyle'
-import { resolveUri } from '../lib/metadata'
+import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
@@ -31,13 +30,6 @@ export function CollectionPage() {
   const { data: card, isPending, isError } = useCollection(instance)
   const metadata = useCollectionMetadata(card?.metadataURI)
   const { address: connected } = useAccount()
-
-  // Reset the broken-image fallback when navigating to a different collection (the route component
-  // is reused across `/collection/:instance` params, so local state would otherwise persist).
-  const [imgError, setImgError] = useState(false)
-  useEffect(() => {
-    setImgError(false)
-  }, [instance])
 
   if (!instance) {
     return (
@@ -178,22 +170,19 @@ export function CollectionPage() {
                   mintable piece — the actual works + mint/buy/swap controls are the type component
                   below. */}
               <figure className={styles.coverFigure}>
-                {metadata?.image && !imgError ? (
-                  <div className={`noesis-piece ${styles.cover}`}>
-                    <img
-                      src={resolveUri(metadata.image)}
-                      alt={`${title} cover`}
-                      className="noesis-art"
-                      onError={() => setImgError(true)}
-                    />
-                  </div>
-                ) : (
-                  <div className={`noesis-piece ${styles.cover}`}>
-                    <span className={styles.coverGlyph} aria-hidden>
-                      {fallbackGlyph}
-                    </span>
-                  </div>
-                )}
+                <div className={`noesis-piece ${styles.cover}`}>
+                  <IpfsImage
+                    uri={metadata?.image ?? ''}
+                    alt={`${title} cover`}
+                    className="noesis-art"
+                    loading="eager"
+                    fallback={
+                      <span className={styles.coverGlyph} aria-hidden>
+                        {fallbackGlyph}
+                      </span>
+                    }
+                  />
+                </div>
                 <figcaption className={styles.coverCaption}>
                   Collection cover — scroll for the {card.contractType === 'ERC721' ? 'auction' : 'mintable pieces'} below
                 </figcaption>

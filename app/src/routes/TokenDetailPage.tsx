@@ -25,7 +25,8 @@ import { useNowSec } from '../components/collection/erc721/useNowSec'
 import { deriveAuctionState } from '../components/collection/erc721/auctionState'
 import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
-import { fetchJson, resolveUri } from '../lib/metadata'
+import { fetchJson } from '../lib/metadata'
+import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
@@ -138,18 +139,18 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
         <span className="noesis-tick bl" />
         <span className="noesis-tick br" />
         <div className={styles.artInner}>
-          {image ? (
-            <img
-              src={resolveUri(image)}
-              alt={alt}
-              className={`noesis-art ${styles.art}`}
-              data-testid="token-art"
-            />
-          ) : (
-            <div className={styles.artGlyph} data-testid="token-art">
-              ✦
-            </div>
-          )}
+          <IpfsImage
+            uri={image ?? ''}
+            alt={alt}
+            className={`noesis-art ${styles.art}`}
+            loading="eager"
+            testId="token-art"
+            fallback={
+              <div className={styles.artGlyph} data-testid="token-art">
+                ✦
+              </div>
+            }
+          />
         </div>
       </div>
     </div>

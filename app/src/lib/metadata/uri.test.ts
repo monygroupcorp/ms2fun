@@ -1,5 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fetchJson, getIpfsGateways, IPFS_GATEWAYS, isResolvableUri, resolveUri } from './uri'
+import {
+  fetchJson,
+  getIpfsGateways,
+  IPFS_GATEWAYS,
+  isResolvableUri,
+  resolveUri,
+  resolveUriCandidates,
+} from './uri'
+
+describe('resolveUriCandidates', () => {
+  it('ipfs:// → every public gateway, in order', () => {
+    expect(resolveUriCandidates('ipfs://QmFoo/a.png')).toEqual(
+      IPFS_GATEWAYS.map((g) => `${g}QmFoo/a.png`),
+    )
+  })
+  it('strips the redundant ipfs/ prefix across all gateways', () => {
+    expect(resolveUriCandidates('ipfs://ipfs/QmBar')).toEqual(IPFS_GATEWAYS.map((g) => `${g}QmBar`))
+  })
+  it('non-ipfs resolves to a single URL', () => {
+    expect(resolveUriCandidates('https://x.com/a.png')).toEqual(['https://x.com/a.png'])
+    expect(resolveUriCandidates('ar://tx1')).toEqual(['https://arweave.net/tx1'])
+  })
+})
 
 // ── resolveUri ────────────────────────────────────────────────────────────────
 

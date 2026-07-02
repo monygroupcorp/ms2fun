@@ -1,9 +1,8 @@
-import { useState } from 'react'
 import type { ContractFunctionReturnType } from 'viem'
 import { formatGwei } from 'viem'
 import { Link } from 'wouter'
 import { queryAggregatorAbi } from '../generated/contracts'
-import { resolveUri } from '../lib/metadata'
+import { IpfsImage } from './ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { useCollectionMetadata } from './useCollectionMetadata'
 import styles from './CollectionCard.module.css'
@@ -34,8 +33,6 @@ interface CollectionCardProps {
 
 export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) {
   const metadata = useCollectionMetadata(card.metadataURI)
-  const [imgError, setImgError] = useState(false)
-
   const title = metadata?.name || card.name
   const fallbackGlyph = card.name.slice(0, 1).toUpperCase() || '✦'
 
@@ -45,18 +42,16 @@ export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) 
       className={variant === 'lead' ? 'noesis-card lead' : 'noesis-card'}
     >
       <div className={`art ${styles.art}`}>
-        {metadata?.image && !imgError ? (
-          <img
-            src={resolveUri(metadata.image)}
-            alt={title}
-            className={styles.artImg}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <span className={styles.artFallback} aria-hidden>
-            {fallbackGlyph}
-          </span>
-        )}
+        <IpfsImage
+          uri={metadata?.image ?? ''}
+          alt={title}
+          className={styles.artImg}
+          fallback={
+            <span className={styles.artFallback} aria-hidden>
+              {fallbackGlyph}
+            </span>
+          }
+        />
         <span className="st">{card.isActive ? 'Live' : 'Ended'}</span>
       </div>
       <div className="lab">
