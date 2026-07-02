@@ -195,13 +195,26 @@
   border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
 }
 
+.coverFigure {
+  margin: 0 0 var(--space-6);
+}
+
 .cover {
   aspect-ratio: 16 / 9;
-  margin-bottom: var(--space-6);
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--color-surface-2);
+}
+
+.coverCaption {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding-top: var(--space-2);
+  text-align: center;
 }
 
 .cover .coverGlyph {
@@ -235,4 +248,19 @@
   .facts {
     margin-top: var(--space-4);
   }
+}
+
+/* B6: composer to post to this collection's channel (mirrors the board's compose section). */
+.composeSection {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.composeNote {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  letter-spacing: 0.06em;
+  margin: var(--space-3) 0 0;
 }
