@@ -13,6 +13,14 @@ import { forkChainId } from './addresses'
  */
 export const EXEC404_ADDRESS = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2' as const
 
+/**
+ * EXEC's DN404 NFT mirror (the ERC-721 half). Fixed fossil address — same on mainnet and the fork.
+ * `owned()`/`tokenOfOwnerByIndex` are NOT available (the base reverts FnSelectorNotRecognized and the
+ * mirror isn't ERC721Enumerable), so a wallet's NFT ids are reconstructed by replaying the mirror's
+ * Transfer events (see ownedIdsFromTransfers + useExec404Nfts). The count comes straight off
+ * `mirror.balanceOf(owner)`. NFT art is `base.tokenURI(id)` (the base serves tokenURI). */
+export const EXEC404_MIRROR_ADDRESS = '0x9e752115Caa8dc00693B8D8f9c2071DdBD6109BD' as const
+
 /** Mainnet WETH + Uniswap V2 router — used to read the real (graduated) market price of EXEC. */
 export const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
 export const UNISWAP_V2_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D' as const
@@ -73,6 +81,26 @@ export const exec404Abi = [
     ],
     outputs: [{ type: 'bool' }],
   },
+  // Fungible send + the reroll primitive: a DN404 self-transfer of the full balance re-shuffles the
+  // holder's NFT id assignment (transfer(self, balanceOf(self))). Also used for plain EXEC sends.
+  {
+    type: 'function',
+    name: 'transfer',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
+  // The base serves the NFT mirror's tokenURI (per-piece art) — verified on the fork.
+  {
+    type: 'function',
+    name: 'tokenURI',
+    stateMutability: 'view',
+    inputs: [{ name: 'id', type: 'uint256' }],
+    outputs: [{ type: 'string' }],
+  },
   // Legacy on-chain activity: the genesis DN404 baked a trade-message log into the bonding curve.
   // `totalMessages()` counts them; `getMessagesBatch(start, end)` (end INCLUSIVE, end <= total-1)
   // returns 5 parallel arrays — the fossil's historical chatter, preserved on-chain.
@@ -130,3 +158,78 @@ export const uniswapV2RouterContract = {
 
 /** Path for pricing 1 EXEC into ETH (sell direction) on the V2 pool. */
 export const EXEC_TO_ETH_PATH = [EXEC404_ADDRESS, WETH_ADDRESS] as const
+
+/** Minimal ERC-721 surface of EXEC's DN404 mirror: NFT count, per-id owner, per-id send + the
+ *  Transfer event we replay to enumerate a wallet's ids. */
+export const exec404MirrorAbi = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'ownerOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'id', type: 'uint256' }],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'transferFrom',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'id', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'event',
+    name: 'Transfer',
+    inputs: [
+      { name: 'from', type: 'address', indexed: true },
+      { name: 'to', type: 'address', indexed: true },
+      { name: 'id', type: 'uint256', indexed: true },
+    ],
+  },
+] as const
+
+/** One replayable NFT transfer — the fields ownedIdsFromTransfers needs, in chain order. */
+export interface MirrorTransfer {
+  from: `0x${string}`
+  to: `0x${string}`
+  id: bigint
+  /** Chain order key (block number, then log index) — logs MUST be pre-sorted ascending by this. */
+  blockNumber: bigint
+  logIndex: number
+}
+
+/**
+ * Reconstruct the set of NFT ids a wallet currently owns by replaying its Transfer history — the
+ * mirror exposes no `owned()`/enumerable view. Feed EVERY transfer that touches `owner` (both
+ * `to == owner` and `from == owner`), sorted ascending by (blockNumber, logIndex); an inbound
+ * transfer adds the id, an outbound removes it. The final set is the live holdings. Pure + tested.
+ */
+export function ownedIdsFromTransfers(
+  transfers: readonly MirrorTransfer[],
+  owner: `0x${string}`,
+): bigint[] {
+  const lower = owner.toLowerCase()
+  const sorted = [...transfers].sort((a, b) =>
+    a.blockNumber === b.blockNumber
+      ? a.logIndex - b.logIndex
+      : a.blockNumber < b.blockNumber
+        ? -1
+        : 1,
+  )
+  const held = new Set<bigint>()
+  for (const t of sorted) {
+    if (t.to.toLowerCase() === lower) held.add(t.id)
+    else if (t.from.toLowerCase() === lower) held.delete(t.id)
+  }
+  return [...held].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+}
