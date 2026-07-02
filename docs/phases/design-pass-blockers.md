@@ -317,3 +317,19 @@ his state). Commits noted inline.
 
 ### ALL 13 NOTES CLOSED (first design-walk batch). Follow-ups: N12 build (spec'd), and a live
 ### holder check of the EXEC portfolio gallery/reroll.
+
+## Design-walk pass — second batch (M1–M4) — 2026-07-02
+
+- **M1 (feat, `30e68b8`)** — surfaced EXEC's `balanceMint(count)` (materialize NFTs from fungible
+  balance) as a "mint pieces from balance" control in the portfolio. New bonding instances already
+  expose the equivalent as buyBonding's "mint NFT on buy" toggle (`SwapPanel.tsx:262`).
+- **M2 (feat, `a605e84`)** — linkify http(s) URLs in board posts, replies, and the EXEC legacy
+  chatter (pure `splitLinks` + `<Linkify>`, safe external anchors; never javascript:/data:). Unit-tested.
+- **M3 (feat, `a4b104d`)** — 1155 edition cards now LEAD with their cover art in a responsive grid
+  (were text-only); 404 mirror + 721 piece gallery tiles bumped 120px→200px min. Art-forward below shell.
+- **M4 (refactor, `bcdb2b0`)** — all board actions AUTO-BATCH: endorse/reply/post each queue into the
+  app-global cart (toggle for endorse) and the sticky <BoardCartBar> is the one postBatch commit. Dropped
+  the redundant "+ batch"/"add to batch" buttons + the now-dead per-action refetch threading. e2e updated.
+
+Verify: tsc + eslint + 420 unit tests green. Not run against the live fork (M4 e2e would post to it;
+EXEC balanceMint needs a real EXEC holder). Both need a live eyeball on the running app.
