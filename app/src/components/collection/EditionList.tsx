@@ -4,11 +4,25 @@
  * ERC1155Instance.mint with msg.value equal to the calculated cost.
  */
 import { formatEther } from 'viem'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'wouter'
 import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
 import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
+import { fetchJson, isResolvableUri, resolveUri } from '../../lib/metadata'
 import styles from './EditionList.module.css'
+
+/** Fetch an edition's cover image from its metadata JSON (cached; skipped for unresolvable URIs). */
+function useEditionArt(uri: string | undefined): string | undefined {
+  const { data } = useQuery({
+    queryKey: ['edition-art', uri],
+    enabled: isResolvableUri(uri),
+    staleTime: 5 * 60_000,
+    queryFn: async ({ signal }) =>
+      (await fetchJson<{ image?: string }>(uri as string, signal))?.image ?? '',
+  })
+  return data || undefined
+}
 
 const PRICING_MODEL_LABELS: Record<number, string> = {
   0: 'fixed',
@@ -65,12 +79,25 @@ interface EditionCardProps {
 function EditionCard({ edition, instance, refetch }: EditionCardProps) {
   const pricingLabel = PRICING_MODEL_LABELS[edition.pricingModel] ?? `model-${edition.pricingModel}`
   const supplyLabel = edition.supply === 0n ? 'unlimited' : edition.supply.toString()
+  const title = edition.pieceTitle || `edition #${edition.id}`
+  const image = useEditionArt(edition.metadataURI)
+  const editionHref = `/collection/${instance}/edition/${edition.id}`
 
   return (
     <>
+      {/* M3: lead with the art — the edition cover, big, linking to its page (not just a text link). */}
+      <Link href={editionHref} className={styles.artLink} aria-label={title}>
+        {image ? (
+          <img src={resolveUri(image)} alt={title} className={styles.artImg} loading="lazy" />
+        ) : (
+          <div className={styles.artGlyph} aria-hidden>
+            {(title[0] ?? '✦').toUpperCase()}
+          </div>
+        )}
+      </Link>
       <div className={styles.cardHeader}>
-        <Link href={`/collection/${instance}/edition/${edition.id}`} className={styles.titleLink}>
-          <h3 className={styles.title}>{edition.pieceTitle || `edition #${edition.id}`}</h3>
+        <Link href={editionHref} className={styles.titleLink}>
+          <h3 className={styles.title}>{title}</h3>
         </Link>
         <span className={styles.badge}>{pricingLabel}</span>
       </div>

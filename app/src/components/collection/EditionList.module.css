@@ -7,9 +7,14 @@
 }
 
 .list {
-  display: flex;
-  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Art-forward grid — reflows from multi-column down to one as width shrinks. */
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
   gap: var(--space-4);
+  align-items: start;
 }
 
 .note {
@@ -25,6 +30,33 @@
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
   font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Edition art (M3): the cover leads the card ------------ */
+
+.artLink {
+  display: block;
+  border-bottom: 1px solid var(--border-tertiary);
+}
+
+.artImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.artGlyph {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--color-ink, #000);
+  color: var(--color-paper, #fff);
+  font-size: 2.5rem;
+  font-weight: var(--font-weight-bold);
 }
 
 .cardHeader {
