@@ -7,6 +7,25 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { resolveUriCandidates } from '../../lib/metadata'
 
+/**
+ * Session cache of the gateway URL that LOADED for a given pointer. Every <IpfsImage> starts at
+ * gateway 0, so without this a thumbnail that rotated to a working gateway wouldn't share it — the
+ * detail view would start over at gateway 0 and could fail even though the thumb rendered. Once any
+ * instance loads a URL we pin it for that pointer, so all other instances (and revisits) skip
+ * straight to the known-good gateway (also a browser-cache hit). Module-level = shared, per session.
+ */
+const loadedSrc = new Map<string, string>()
+
+/** Best starting URL for `uri`: the cached known-good one if present, else the first candidate. */
+function startSrc(uri: string, candidates: string[]): number {
+  const cached = loadedSrc.get(uri)
+  if (cached) {
+    const i = candidates.indexOf(cached)
+    if (i >= 0) return i
+  }
+  return 0
+}
+
 export function IpfsImage({
   uri,
   alt,
@@ -25,12 +44,12 @@ export function IpfsImage({
   testId?: string
 }) {
   const candidates = useMemo(() => (uri.trim() ? resolveUriCandidates(uri) : []), [uri])
-  const [idx, setIdx] = useState(0)
+  const [idx, setIdx] = useState(() => startSrc(uri, candidates))
 
-  // Restart from the first gateway whenever the pointer changes (component instances are reused).
+  // Re-seed from the cache whenever the pointer changes (component instances are reused).
   useEffect(() => {
-    setIdx(0)
-  }, [uri])
+    setIdx(startSrc(uri, candidates))
+  }, [uri, candidates])
 
   const src = candidates[idx]
   if (src === undefined) return <>{fallback}</>
@@ -42,6 +61,8 @@ export function IpfsImage({
       className={className}
       loading={loading}
       data-testid={testId}
+      // Pin the gateway that actually loaded so every other instance skips straight to it.
+      onLoad={() => loadedSrc.set(uri, src)}
       // Advance to the next gateway; when they're exhausted idx passes the end → fallback renders.
       onError={() => setIdx((i) => i + 1)}
     />
