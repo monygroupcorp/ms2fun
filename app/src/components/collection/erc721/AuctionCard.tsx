@@ -17,7 +17,8 @@ import {
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
 import { txErrorReason } from '../../ui/useTxAction'
-import { fetchJson, resolveUri } from '../../../lib/metadata'
+import { fetchJson } from '../../../lib/metadata'
+import { IpfsImage } from '../../ui/IpfsImage'
 import { truncateAddress } from '../../../lib/format'
 import { deriveAuctionState } from './auctionState'
 import { minNextBid } from './bidMath'
@@ -69,11 +70,12 @@ export function AuctionCard({
   return (
     <li className={styles.card} data-testid="erc721-auction" data-state={state}>
       <div className={styles.cardHeader}>
-        {meta?.image ? (
-          <img src={resolveUri(meta.image)} alt={title} className={styles.thumb} />
-        ) : (
-          <div className={styles.thumbGlyph}>✦</div>
-        )}
+        <IpfsImage
+          uri={meta?.image ?? ''}
+          alt={title}
+          className={styles.thumb}
+          fallback={<div className={styles.thumbGlyph}>✦</div>}
+        />
         <div className={styles.cardMeta}>
           <h3 className={styles.title}>{title}</h3>
           <span className={styles.line}>line {auction.line}</span>

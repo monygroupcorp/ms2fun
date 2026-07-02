@@ -14,7 +14,8 @@ import { Link } from 'wouter'
 import { usePublicClient } from 'wagmi'
 import { useReadErc404BondingInstanceMirrorErc721 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
-import { fetchJson, resolveUri } from '../../../lib/metadata'
+import { fetchJson } from '../../../lib/metadata'
+import { IpfsImage } from '../../ui/IpfsImage'
 import styles from './Erc404NftGallery.module.css'
 
 /** Pragmatic cap on the sequential id scan — galleries show a representative window, not the chain. */
@@ -134,15 +135,12 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
             href={`/collection/${instance}/token/${piece.id.toString()}`}
             className={styles.link}
           >
-            {piece.image ? (
-              <img
-                src={resolveUri(piece.image)}
-                alt={`#${piece.id.toString()}`}
-                className={styles.thumb}
-              />
-            ) : (
-              <div className={styles.thumbGlyph}>✦</div>
-            )}
+            <IpfsImage
+              uri={piece.image ?? ''}
+              alt={`#${piece.id.toString()}`}
+              className={styles.thumb}
+              fallback={<div className={styles.thumbGlyph}>✦</div>}
+            />
             <span className={styles.id}>#{piece.id.toString()}</span>
           </Link>
         </li>

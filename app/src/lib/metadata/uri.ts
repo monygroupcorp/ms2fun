@@ -31,6 +31,21 @@ export function resolveUri(uri: string, gatewayIndex = 0): string {
   return trimmed
 }
 
+/**
+ * Ordered list of fetchable URLs to try for a pointer, best-first. For ipfs:// this is EVERY gateway
+ * (custom override first, then the public set) so an `<img>` can rotate to the next on a load
+ * error/timeout instead of dying on gateway 0 — the image analogue of fetchJson's gateway race.
+ * ar:/http/data resolve to a single URL.
+ */
+export function resolveUriCandidates(uri: string): string[] {
+  const trimmed = uri.trim()
+  if (trimmed.startsWith('ipfs://')) {
+    const path = ipfsPath(trimmed)
+    return getIpfsGateways().map((g) => `${g}${path}`)
+  }
+  return [resolveUri(trimmed)]
+}
+
 /** True for pointers we can resolve/fetch; empty/garbage returns false (callers show a fallback). */
 export function isResolvableUri(uri: string | undefined | null): uri is string {
   if (!uri) return false

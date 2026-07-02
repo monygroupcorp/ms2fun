@@ -4,7 +4,7 @@ import { formatGwei } from 'viem'
 import { useAllCollections } from '../lib/discovery'
 import type { CollectionFilters, ProjectCard } from '../lib/discovery'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
-import { resolveUri } from '../lib/metadata'
+import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { CollectionCard } from '../components/CollectionCard'
 import { StateBlock } from '../components/ui/StateBlock'
@@ -198,7 +198,7 @@ function RegistryRow({ card }: { card: ProjectCard }) {
       <span className={styles.regName}>
         <span className="sw">
           {metadata?.image && (
-            <img src={resolveUri(metadata.image)} alt="" className={styles.regThumb} />
+            <IpfsImage uri={metadata.image} alt="" className={styles.regThumb} />
           )}
         </span>
         <span className={styles.regNameText}>

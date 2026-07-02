@@ -9,7 +9,8 @@ import { Link } from 'wouter'
 import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
 import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
-import { fetchJson, isResolvableUri, resolveUri } from '../../lib/metadata'
+import { fetchJson, isResolvableUri } from '../../lib/metadata'
+import { IpfsImage } from '../ui/IpfsImage'
 import styles from './EditionList.module.css'
 
 /** Fetch an edition's cover image from its metadata JSON (cached; skipped for unresolvable URIs). */
@@ -87,13 +88,16 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
     <>
       {/* M3: lead with the art — the edition cover, big, linking to its page (not just a text link). */}
       <Link href={editionHref} className={styles.artLink} aria-label={title}>
-        {image ? (
-          <img src={resolveUri(image)} alt={title} className={styles.artImg} loading="lazy" />
-        ) : (
-          <div className={styles.artGlyph} aria-hidden>
-            {(title[0] ?? '✦').toUpperCase()}
-          </div>
-        )}
+        <IpfsImage
+          uri={image ?? ''}
+          alt={title}
+          className={styles.artImg}
+          fallback={
+            <div className={styles.artGlyph} aria-hidden>
+              {(title[0] ?? '✦').toUpperCase()}
+            </div>
+          }
+        />
       </Link>
       <div className={styles.cardHeader}>
         <Link href={editionHref} className={styles.titleLink}>
