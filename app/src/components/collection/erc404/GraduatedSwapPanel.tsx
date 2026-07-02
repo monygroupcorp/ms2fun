@@ -13,7 +13,7 @@
  *  - ETH is the zRouter native sentinel `address(0)` (the router wraps/unwraps WETH internally);
  *  - token→ETH sells pull via `transferFrom`, so they're approve-then-swap (buys need no approval).
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatEther, formatUnits, maxUint256, parseUnits, zeroAddress } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
@@ -33,8 +33,13 @@ import styles from './BondingSurface.module.css'
 
 type Direction = 'buy' | 'sell'
 
-/** 24h deadline buffer — matches the bonding panel; generous for local-fork timestamp drift. */
+/** 24h deadline buffer for the executed swap — matches the bonding panel. */
 const DEADLINE_BUFFER_SEC = 86_400n
+/** Stable far-future deadline for the quote SIMULATION only: a live `Date.now()` deadline would
+ *  change the sim's query key every second and re-run it (quote flicker). Finite (not maxUint256) so
+ *  it never trips zRouter's `deadline==max` → Sushi-pool selector. The executed swap still uses a
+ *  fresh now+buffer deadline. */
+const QUOTE_DEADLINE = 9_999_999_999n
 const BPS_DENOMINATOR = 10_000n
 
 interface GraduatedSwapPanelProps {
@@ -105,7 +110,7 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
     value: buyValue,
     args:
       venue.kind === 'uniV4' && amountIn !== undefined
-        ? [address ?? zeroAddress, false, venue.poolFee, venue.tickSpacing, tokenIn, tokenOut, amountIn, 0n, deadline()]
+        ? [address ?? zeroAddress, false, venue.poolFee, venue.tickSpacing, tokenIn, tokenOut, amountIn, 0n, QUOTE_DEADLINE]
         : undefined,
     query: { enabled: quoteReady && venue.kind === 'uniV4' },
   })
@@ -116,7 +121,7 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
     value: buyValue,
     args:
       venue.kind === 'zamm' && amountIn !== undefined
-        ? [address ?? zeroAddress, false, venue.feeOrHook, tokenIn, tokenOut, 0n, 0n, amountIn, 0n, deadline()]
+        ? [address ?? zeroAddress, false, venue.feeOrHook, tokenIn, tokenOut, 0n, 0n, amountIn, 0n, QUOTE_DEADLINE]
         : undefined,
     query: { enabled: quoteReady && venue.kind === 'zamm' },
   })
@@ -131,14 +136,21 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
   const vzSwap = useWriteZRouterSwapVz()
   const swap = venue.kind === 'uniV4' ? v4Swap : vzSwap
 
-  const { isLoading: isApproving } = useWaitForTransactionReceipt({ hash: approve.data })
+  const { isLoading: isApproving, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
+    hash: approve.data,
+  })
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: swap.data })
 
+  // Re-read the allowance once the approval is MINED (not merely submitted) so `needsApproval` flips
+  // and the quote + sell unlock. `refetch` is referentially stable (react-query), so this runs only
+  // on confirmation.
+  const refetchAllowance = allowanceRead.refetch
+  useEffect(() => {
+    if (approveConfirmed) void refetchAllowance()
+  }, [approveConfirmed, refetchAllowance])
+
   function handleApprove(): void {
-    approve.writeContract(
-      { address: instance, chainId: forkChainId, args: [zRouter, maxUint256] },
-      { onSuccess: () => void allowanceRead.refetch() },
-    )
+    approve.writeContract({ address: instance, chainId: forkChainId, args: [zRouter, maxUint256] })
   }
 
   function handleSwap(): void {

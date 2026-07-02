@@ -4,7 +4,7 @@
  * even though the curve is long closed. We read the most recent slice and render it read-only.
  */
 import { useReadContract } from 'wagmi'
-import { EXEC404_CHAIN_ID, exec404Contract } from '../lib/exec404'
+import { exec404Contract } from '../lib/exec404'
 import { truncateAddress } from '../lib/format'
 import styles from './Exec404Activity.module.css'
 
@@ -33,10 +33,9 @@ function useExec404Messages(): { messages: LegacyMessage[]; isPending: boolean; 
   const end = hasMessages ? total - 1n : 0n
 
   const batchRead = useReadContract({
-    ...exec404Contract,
+    ...exec404Contract, // carries address + abi + chainId
     functionName: 'getMessagesBatch',
     args: [start, end],
-    chainId: EXEC404_CHAIN_ID,
     query: { enabled: hasMessages },
   })
 
