@@ -145,11 +145,14 @@ export function ProfilePage() {
         <StateBlock variant="error">could not reach registry — is the fork up?</StateBlock>
       )}
 
-      {/* Own profile, not yet set up: show setup CTA or the form front-and-centre */}
+      {/* Own profile, not yet set up: prompt to set up the plate. NB this is about the PROFILE, not
+          the work — your made collections still render in the "Made" tab below regardless. */}
       {isOwn && !uri && !isPending && !isError && !editing && (
         <StateBlock variant="empty" boxed>
-          <span className="big">You haven&rsquo;t hung anything</span>
-          <span className="cap">Set up your plate so collectors can find your work.</span>
+          <span className="big">Your profile isn&rsquo;t set up yet</span>
+          <span className="cap">
+            Add a name and avatar so collectors can find you. Your collections are already shown below.
+          </span>
           <button className={styles.setupBtn} onClick={() => setEditing(true)}>
             Set up your profile
           </button>
