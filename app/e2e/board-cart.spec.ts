@@ -1,7 +1,7 @@
 /**
- * Board transaction cart (B13) — opt-in batching. Queue two posts via "add to batch", then finalize
- * them in a SINGLE postBatch tx; assert both land and the cart clears. Reuses the injected anvil
- * wallet. @fork: needs the local deploy (GlobalMessageRegistry).
+ * Board transaction cart (B13 + M4) — board actions AUTO-BATCH. "Post" queues each message into the
+ * cart (no separate "add to batch" button); finalize commits them in a SINGLE postBatch tx. Assert
+ * both land and the cart clears. Reuses the injected anvil wallet. @fork: needs the local deploy.
  */
 import { test, connectWallet, expect } from './fixtures/anvilWallet'
 
@@ -15,10 +15,11 @@ test('board cart: two queued posts finalize in one postBatch @fork', async ({ pa
   const a = `batch-a-${Date.now().toString().slice(-6)}`
   const b = `batch-b-${Date.now().toString().slice(-6)}`
 
+  // Each "Post" auto-queues to the cart (and clears the textarea) rather than posting immediately.
   await ta.fill(a)
-  await page.getByRole('button', { name: 'add to batch' }).first().click()
+  await page.getByRole('button', { name: 'Post' }).first().click()
   await ta.fill(b)
-  await page.getByRole('button', { name: 'add to batch' }).first().click()
+  await page.getByRole('button', { name: 'Post' }).first().click()
 
   const cart = page.getByTestId('board-cart')
   await expect(cart).toBeVisible()

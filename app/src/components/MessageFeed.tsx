@@ -11,7 +11,6 @@
  * message appears immediately (optimistic refetch, not a staleTime wait).
  */
 import { type ReactNode, useMemo, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 import { truncateAddress } from '../lib/format'
 import { type FeedFilter, type FeedMessage, useMessageFeed } from './useMessageFeed'
@@ -36,13 +35,8 @@ export function MessageFeed({
 }) {
   const { data, isPending, isError } = useMessageFeed(filter)
   const { address: connected } = useAccount()
-  const queryClient = useQueryClient()
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
-
-  const refetch = () => {
-    void queryClient.invalidateQueries({ queryKey: ['message-feed'] })
-  }
 
   return (
     <div className={styles.section}>
@@ -70,7 +64,6 @@ export function MessageFeed({
                   message={post}
                   count={reaction.count}
                   reactedByMe={reaction.reactedByMe}
-                  onChanged={refetch}
                   canReply={connected !== undefined}
                 />
 
@@ -89,7 +82,6 @@ export function MessageFeed({
                             message={reply}
                             count={r.count}
                             reactedByMe={r.reactedByMe}
-                            onChanged={refetch}
                             canReply={connected !== undefined}
                           />
                         </li>
@@ -131,13 +123,11 @@ function ReactionRow({
   message,
   count,
   reactedByMe,
-  onChanged,
   canReply,
 }: {
   message: FeedMessage
   count: number
   reactedByMe: boolean
-  onChanged: () => void
   canReply: boolean
 }) {
   const [replying, setReplying] = useState(false)
@@ -149,7 +139,6 @@ function ReactionRow({
           channel={message.instance}
           count={count}
           reactedByMe={reactedByMe}
-          onReacted={onChanged}
         />
         {canReply && !replying && (
           <button
@@ -166,7 +155,6 @@ function ReactionRow({
         <ReplyComposer
           parentId={message.messageId}
           channel={message.instance}
-          onPosted={onChanged}
           onCancel={() => setReplying(false)}
         />
       )}

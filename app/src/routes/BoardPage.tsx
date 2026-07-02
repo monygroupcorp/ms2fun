@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
 import { formatGwei } from 'viem'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
 import {
   globalMessageRegistryAbi,
@@ -170,7 +170,6 @@ function useGlobalFeed(): {
 export function BoardPage() {
   const { data, isPending, isError } = useGlobalFeed()
   const { address: connected } = useAccount()
-  const queryClient = useQueryClient()
   const [boardView, setBoardView] = useState<BoardView>('discourse')
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
@@ -187,10 +186,6 @@ export function BoardPage() {
     (t) => channel === 'all' || t.message.instance === channel,
   )
   const activityRows = (data ?? []).filter((m) => channel === 'all' || m.instance === channel)
-
-  const refetch = () => {
-    void queryClient.invalidateQueries({ queryKey: ['message-feed'] })
-  }
 
   return (
     <div className={styles.page}>
@@ -281,7 +276,6 @@ export function BoardPage() {
                       message={thread.message}
                       view={view}
                       connected={connected !== undefined}
-                      onChanged={refetch}
                     />
 
                     {thread.replies.map((reply) => (
@@ -294,7 +288,6 @@ export function BoardPage() {
                           message={reply}
                           view={view}
                           connected={connected !== undefined}
-                          onChanged={refetch}
                         />
                       </div>
                     ))}
@@ -340,12 +333,10 @@ function BoardMessage({
   message,
   view,
   connected,
-  onChanged,
 }: {
   message: FeedMessage
   view: ThreadView
   connected: boolean
-  onChanged: () => void
 }) {
   const [replying, setReplying] = useState(false)
   const reaction = reactionFor(view, message.messageId)
@@ -388,7 +379,6 @@ function BoardMessage({
             channel={message.instance}
             count={reaction.count}
             reactedByMe={reaction.reactedByMe}
-            onReacted={onChanged}
           />
           {connected && !replying && (
             <button
@@ -405,7 +395,6 @@ function BoardMessage({
           <ReplyComposer
             parentId={message.messageId}
             channel={message.instance}
-            onPosted={onChanged}
             onCancel={() => setReplying(false)}
           />
         )}
