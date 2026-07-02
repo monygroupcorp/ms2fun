@@ -10,7 +10,7 @@
  * Reply/react write to GlobalMessageRegistry.post and then invalidate the feed query so the new
  * message appears immediately (optimistic refetch, not a staleTime wait).
  */
-import { useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 import { truncateAddress } from '../lib/format'
@@ -24,7 +24,15 @@ const MESSAGE_TYPE_LABELS: Record<number, string> = {
   2: 'QUOTE',
 }
 
-export function MessageFeed({ filter }: { filter: FeedFilter }) {
+export function MessageFeed({
+  filter,
+  footer,
+}: {
+  filter: FeedFilter
+  /** Rendered at the bottom of the activity section (e.g. the "write something" composer), so the
+      empty "no activity yet" state sits directly above it. */
+  footer?: ReactNode
+}) {
   const { data, isPending, isError } = useMessageFeed(filter)
   const { address: connected } = useAccount()
   const queryClient = useQueryClient()
@@ -93,6 +101,8 @@ export function MessageFeed({ filter }: { filter: FeedFilter }) {
           })}
         </ul>
       )}
+
+      {footer !== undefined && <div className={styles.footer}>{footer}</div>}
     </div>
   )
 }

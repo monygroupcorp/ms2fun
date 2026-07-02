@@ -8,9 +8,7 @@ import { MessageComposer } from '../components/MessageComposer'
 import { MessageFeed } from '../components/MessageFeed'
 import { VaultPanel } from '../components/collection/VaultPanel'
 import { FeaturedPanel } from '../components/featured/FeaturedPanel'
-import { Erc1155Collection } from '../components/collection/types/Erc1155Collection'
-import { Erc721Collection } from '../components/collection/types/Erc721Collection'
-import { Erc404Collection } from '../components/collection/types/Erc404Collection'
+import { resolveCollectionSurfaces } from '../components/collection/types/collectionSurfaces'
 import { ProjectStyle } from '../components/collection/ProjectStyle'
 import { resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
@@ -68,6 +66,10 @@ export function CollectionPage() {
   const meterPct = cap > 0n ? Math.min(100, Number((minted * 100n) / cap)) : 0
   const hasVault = !!card && card.vault !== ZERO_ADDRESS
   const vaultLabel = card?.vaultName || 'Alignment'
+
+  // Per-type surfaces, split across the page's three regions: Primary (in the shell), Gallery
+  // (pieces grid below the shell, N10), Admin (below the featured queue, N5).
+  const surfaces = card ? resolveCollectionSurfaces(card.contractType) : undefined
 
   return (
     <div className={styles.page} data-testid="collection-detail">
@@ -197,17 +199,16 @@ export function CollectionPage() {
                 </figcaption>
               </figure>
 
-              {card.contractType === 'ERC1155' && (
-                <Erc1155Collection instance={instance} creator={card.creator} />
-              )}
-              {card.contractType === 'ERC721' && (
-                <Erc721Collection instance={instance} creator={card.creator} />
-              )}
-              {card.contractType === 'ERC404' && (
-                <Erc404Collection instance={instance} creator={card.creator} />
+              {/* Primary action stays in the shell (buy/sell for 404, bid for 721). The 1155 has
+                  none — minting is per-edition down in the gallery. */}
+              {surfaces?.Primary && (
+                <surfaces.Primary instance={instance} creator={card.creator} />
               )}
             </section>
           </div>
+
+          {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment). */}
+          {surfaces?.Gallery && <surfaces.Gallery instance={instance} creator={card.creator} />}
 
           {/* Secondary, demoted below the hang and collapsed by default (self-rendered as
               <Disclosure> inside each panel, so a null vault doesn't leave an empty box). */}
@@ -215,23 +216,30 @@ export function CollectionPage() {
           {/* W-H: user-facing featured-queue economics (rent / boost / renew / prune). */}
           <FeaturedPanel instance={instance} />
 
-          {/* B6: post to THIS collection's channel from its page (channel = the instance address).
-              Gated on a connected wallet — posts are attributed on-chain. */}
-          {instance && connected !== undefined && (
-            <section className={styles.composeSection}>
-              <MessageComposer channel={instance} />
-              <p className={styles.composeNote}>
-                signed by {truncateAddress(connected)} · posts to this collection's activity
-              </p>
-            </section>
-          )}
-          {instance && connected === undefined && (
-            <StateBlock variant="empty" boxed>
-              connect your wallet to post to this collection's activity.
-            </StateBlock>
-          )}
+          {/* N5: creator admin, below the featured queue and outside the shell. Self-hides unless
+              the connected wallet owns the instance. */}
+          {surfaces?.Admin && <surfaces.Admin instance={instance} creator={card.creator} />}
 
-          <MessageFeed filter={{ instance }} />
+          {/* N11: the "write something" composer lives INSIDE the activity section (as its footer),
+              so an empty "no activity yet" reads directly above it. B6: posts to THIS collection's
+              channel (channel = instance address); attributed on-chain, gated on a connected wallet. */}
+          <MessageFeed
+            filter={{ instance }}
+            footer={
+              connected !== undefined ? (
+                <section className={styles.composeSection}>
+                  <MessageComposer channel={instance} />
+                  <p className={styles.composeNote}>
+                    signed by {truncateAddress(connected)} · posts to this collection's activity
+                  </p>
+                </section>
+              ) : (
+                <StateBlock variant="empty" boxed>
+                  connect your wallet to post to this collection's activity.
+                </StateBlock>
+              )
+            }
+          />
 
           {/* Mobile: the mint moment stays in thumb reach (the rail's job on desktop). */}
           {/* ERC721 collections are auctions — the action is a bid, not a mint (the same #mint
