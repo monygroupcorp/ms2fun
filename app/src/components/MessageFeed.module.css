@@ -4,6 +4,14 @@
   border-top: 1px solid var(--border-secondary);
 }
 
+/* The "write something" composer, docked at the bottom of the activity section so the empty
+   "no activity yet" state reads directly above it. */
+.footer {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px dashed var(--border-secondary);
+}
+
 .heading {
   font-family: var(--font-mono);
   font-size: var(--font-size-body-sm);
