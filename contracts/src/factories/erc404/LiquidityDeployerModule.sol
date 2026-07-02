@@ -208,12 +208,18 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         int256 delta0 = delta.amount0();
         int256 delta1 = delta.amount1();
 
+        // Settle/take against THIS module: the instance transfers the LP tokens to the module
+        // (ERC404BondingInstance.deployLiquidity) and the ETH is wrapped to WETH into the module
+        // (_setupPoolAndUnlock) before the unlock, so the module — not ctx.instance — holds both
+        // currencies. Using address(this) makes CurrencySettler.settle pay via ERC20 `transfer`
+        // (the payer==address(this) branch) instead of a `transferFrom` from an instance that no
+        // longer holds the funds. Mirrors the fork-verified UniAlignmentVault._settleLPDelta.
         // Settle debts (negative delta = we owe tokens)
-        if (delta0 < 0) ctx.poolKey.currency0.settle(ctx.poolManager, ctx.instance, uint256(-delta0), false);
-        if (delta1 < 0) ctx.poolKey.currency1.settle(ctx.poolManager, ctx.instance, uint256(-delta1), false);
-        // Take credits (positive delta = pool owes us)
-        if (delta0 > 0) ctx.poolKey.currency0.take(ctx.poolManager, ctx.instance, uint256(delta0), false);
-        if (delta1 > 0) ctx.poolKey.currency1.take(ctx.poolManager, ctx.instance, uint256(delta1), false);
+        if (delta0 < 0) ctx.poolKey.currency0.settle(ctx.poolManager, address(this), uint256(-delta0), false);
+        if (delta1 < 0) ctx.poolKey.currency1.settle(ctx.poolManager, address(this), uint256(-delta1), false);
+        // Take credits (positive delta = pool owes us dust)
+        if (delta0 > 0) ctx.poolKey.currency0.take(ctx.poolManager, address(this), uint256(delta0), false);
+        if (delta1 > 0) ctx.poolKey.currency1.take(ctx.poolManager, address(this), uint256(delta1), false);
 
         return abi.encode(liq);
     }
