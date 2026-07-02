@@ -14,23 +14,24 @@
 
 export type BondingPhase = 'preopen' | 'bonding' | 'graduated'
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
-
 /** The reads `derivePhase`/`canDeployLiquidity` need — binding-order-agnostic. */
 export interface BondingView {
   bondingActive: boolean
   bondingOpenTime: bigint
   bondingMaturityTime: bigint
   graduated: boolean
-  /** Set to the deployer address once liquidity is deployed; zero address before. */
-  liquidityDeployer: `0x${string}`
   totalBondingSupply: bigint
   maxSupply: bigint
 }
 
-/** True once liquidity has been deployed (DEX phase), by flag or non-zero deployer. */
-export function isGraduated(b: Pick<BondingView, 'graduated' | 'liquidityDeployer'>): boolean {
-  return b.graduated || b.liquidityDeployer.toLowerCase() !== ZERO_ADDRESS
+/**
+ * True once liquidity has been deployed (DEX phase). Keyed ONLY off the contract's `graduated`
+ * flag — set true inside `deployLiquidity()`. NOT off `liquidityDeployer`: that is the venue module
+ * configured at construction (it reverts if zero), so it is ALWAYS non-zero and says nothing about
+ * whether the curve has closed. (Venue detection lives in `useGraduatedVenue`.)
+ */
+export function isGraduated(b: Pick<BondingView, 'graduated'>): boolean {
+  return b.graduated
 }
 
 /** Derive the bonding phase at time `nowSec` (unix seconds, bigint). */
