@@ -18,6 +18,7 @@ import { type FeedFilter, type FeedMessage, useMessageFeed } from './useMessageF
 import { reactionFor, threadMessages } from './threadMessages'
 import { ReplyComposer } from './ReplyComposer'
 import { ReactButton } from './ReactButton'
+import { Linkify } from './ui/Linkify'
 import styles from './MessageFeed.module.css'
 
 const MESSAGE_TYPE_LABELS: Record<number, string> = {
@@ -116,7 +117,11 @@ function MessageRow({ message }: { message: FeedMessage }) {
           <span className="badge">{MESSAGE_TYPE_LABELS[message.messageType]}</span>
         )}
       </div>
-      {message.content.length > 0 && <p className={styles.content}>{message.content}</p>}
+      {message.content.length > 0 && (
+        <p className={styles.content}>
+          <Linkify text={message.content} />
+        </p>
+      )}
     </>
   )
 }
