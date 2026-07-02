@@ -12,7 +12,7 @@ Legend for Status: `open` → `investigating` → `root-caused` → `fixed` → 
 
 ---
 
-## ► STEP 1 — embed graduated-token swaps (B19) — **BUILT + VERIFIED (ZAMM), Uni-V4 blocked**
+## ► STEP 1 — embed graduated-token swaps (B19) — **DONE + VERIFIED (Uni-V4 + ZAMM + fossil)**
 
 **Scope locked + shipped (2026-07-02):** cut 1 = **Uni-V4 + ZAMM via zRouter**, **Cypher fast-follow**
 (link-out); **fossil (EXEC404) embedded via swapV2** too. What landed:
@@ -35,19 +35,18 @@ Legend for Status: `open` → `investigating` → `root-caused` → `fixed` → 
   AMM config so Sepolia/mainnet unaffected. Cypher stays the stub (fast-follow + needs an Algebra
   factory addr not in cfg).
 
-**Verification (fresh fork redeploy):**
-- **ZAMM: fully verified end-to-end.** `molten-ready` graduates → real ZAMM pool. New `@fork`
-  `graduated-swap.spec.ts` drives the UI buy (quote→write→receipt); on-chain balance grew (1e23→2.5e23).
-  Full non-archive e2e suite 19/19 green. swapVZ quote == executed delta exactly (cast-verified).
+**Verification (fresh fork redeploy) — all three venues green:**
+- **ZAMM + Uni-V4: fully verified end-to-end via the UI.** `molten-ready` (ZAMM) + `cinder-ready`
+  (Uni-V4) both graduate → real pools; `graduated-swap.spec.ts` (@fork) drives the UI buy for each
+  (quote→write→receipt); on-chain balances grow; swap quote == executed delta exactly (cast). Full
+  non-archive e2e suite 20/21 (1 skipped). swapV4: 0.02 ETH → 8.23e22 CINDER; swapVZ likewise.
 - **Fossil swapV2: cast-verified** (0.05 ETH → 3.36e25 EXEC buy succeeds on the fork).
-- **Uni-V4: BLOCKED — pre-existing contract bug (NOT B19).** Graduating a Uni-V4 instance reverts:
-  `LiquidityDeployerModule.unlockCallback` initializes the pool + adds liquidity, then reverts at
-  `sync(WETH)` during settlement. Also `CurrencySettler.settle` is called with `payer=ctx.instance`
-  while the WETH is held by the **module** (`address(this)`) — looks like the settle should pay from
-  the module, plus a V4 PoolManager version/sync issue. The **swapV4 UI path is built + encoding-correct**
-  (matches the fork-verified `UniAlignmentVault` swapV4 signature) — it just can't be exercised on the
-  fork until the graduation module's V4 settle is fixed. **Next task: fix `LiquidityDeployerModule` V4
-  settle**, then a Uni-V4 `@fork` graduated-swap assertion drops in trivially.
+- **Uni-V4 graduation fix (2 contract bugs, both fixed in `LiquidityDeployerModule`, see the handoff
+  doc + `worktree` agent):** (1) settled the V4 deltas against `ctx.instance` but the **module** holds
+  the funds → settle/take against `address(this)`; (2) graduated into a **WETH-keyed** pool while the
+  system trades **native-ETH** pools → build a native-ETH pool (`Currency.wrap(address(0))`, no WETH
+  wrap, native settle), mirroring `UniAlignmentVault`. Both carry a mainnet-fork test proving a live
+  pool + a real `swapV4` buy.
 
 Original grounding notes retained below.
 

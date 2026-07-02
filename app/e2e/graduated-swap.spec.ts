@@ -1,15 +1,14 @@
 /**
  * @fork — embedded post-graduation swap (B19). Proves the graduated ERC-404 surface trades IN-SITE
- * through zRouter instead of linking out. Targets the ZAMM venue: the seed creates `molten-ready`
- * bound to the real ZAMM LP deployer, matured so it can graduate. The spec:
- *   1. (Node/viem) finds molten-ready via the ERC404 factory logs and graduates it (deployLiquidity)
- *      if it hasn't been already — graduation stands up the real ZAMM pool.
- *   2. (UI) opens the collection, asserts the embedded GraduatedSwapPanel renders (not the link-out),
- *      buys with ETH, and asserts the swap confirms — i.e. quote (sim) → write → receipt all wire up.
- *
- * Uni-V4 graduation is NOT exercised here: the Uni-V4 LP deployer module has a pre-existing V4
- * settle bug (reverts at sync(WETH) during settlement) that blocks graduating a Uni-V4 instance on
- * the fork. The swapV4 UI path shares the ZAMM path's machinery and identical zRouter encoding.
+ * through zRouter instead of linking out, for BOTH zRouter-native venues:
+ *   - `molten-ready` → real ZAMM pool (swapVZ)
+ *   - `cinder-ready` → real Uni-V4 native-ETH pool (swapV4)
+ * The seed binds each to its real LP deployer, matured so it can graduate. For each, the spec:
+ *   1. (Node/viem) finds the instance via the ERC404 factory logs and graduates it (deployLiquidity)
+ *      if it hasn't been already — graduation stands up the real pool.
+ *   2. (UI) opens the collection, asserts the embedded GraduatedSwapPanel renders (not the link-out)
+ *      with the right venue label, buys with ETH, and asserts the swap confirms — i.e. quote (sim) →
+ *      write → receipt all wire up.
  *
  * Needs the local fork up + deployed (`pnpm chain:fork` then `pnpm chain:deploy`).
  */
@@ -56,37 +55,47 @@ async function findInstanceByName(target: string): Promise<Address> {
   throw new Error(`seeded instance "${target}" not found — is the fork deployed?`)
 }
 
-test('graduated ERC-404 (ZAMM) trades in-site via zRouter @fork', async ({ page }) => {
-  test.setTimeout(90_000)
-
-  // 1. Ensure molten-ready is graduated (stands up the real ZAMM pool).
-  const molten = await findInstanceByName('molten-ready')
-  const already = await client.readContract({ address: molten, abi: INSTANCE_ABI, functionName: 'graduated' })
+/** Graduate the instance if needed, open its page, and drive a buy through the embedded panel. */
+async function verifyEmbeddedBuy(
+  page: import('@playwright/test').Page,
+  name: string,
+  venueLabel: string,
+): Promise<void> {
+  const instance = await findInstanceByName(name)
+  const already = await client.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'graduated' })
   if (!already) {
     const hash = await wallet.writeContract({
-      address: molten,
+      address: instance,
       abi: INSTANCE_ABI,
       functionName: 'deployLiquidity',
       gas: 9_000_000n,
     })
     await client.waitForTransactionReceipt({ hash })
   }
-  expect(await client.readContract({ address: molten, abi: INSTANCE_ABI, functionName: 'graduated' })).toBe(true)
+  expect(await client.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'graduated' })).toBe(true)
 
-  // 2. Open the graduated collection and connect.
-  await page.goto(`/collection/${molten}`)
+  await page.goto(`/collection/${instance}`)
   await connectWallet(page)
 
-  // The graduated phase should embed the swap panel (in-site), NOT fall back to the Uniswap link-out.
+  // The graduated phase embeds the swap panel (in-site), NOT the Uniswap link-out, and names the venue.
   const swap = page.getByTestId('erc404-graduated-swap')
   await expect(swap).toBeVisible({ timeout: 20_000 })
-  await expect(page.getByTestId('erc404-graduated-trade')).toHaveCount(0) // no link-out
+  await expect(swap).toContainText(venueLabel)
+  await expect(page.getByTestId('erc404-graduated-trade')).toHaveCount(0)
 
-  // 3. Buy with ETH: enter an amount, wait for the live sim quote, submit, assert confirmation.
+  // Buy with ETH: enter an amount, wait for the live sim quote, submit, assert confirmation.
   await page.getByTestId('erc404-graduated-amount-input').fill('0.01')
-  const quote = page.getByTestId('erc404-graduated-quote')
-  await expect(quote).not.toContainText('—', { timeout: 20_000 })
-
+  await expect(page.getByTestId('erc404-graduated-quote')).not.toContainText('—', { timeout: 20_000 })
   await page.getByTestId('erc404-graduated-swap-submit').click()
   await expect(swap).toContainText('tx confirmed', { timeout: 30_000 })
+}
+
+test('graduated ERC-404 (ZAMM) trades in-site via zRouter swapVZ @fork', async ({ page }) => {
+  test.setTimeout(90_000)
+  await verifyEmbeddedBuy(page, 'molten-ready', 'ZAMM')
+})
+
+test('graduated ERC-404 (Uni-V4) trades in-site via zRouter swapV4 @fork', async ({ page }) => {
+  test.setTimeout(90_000)
+  await verifyEmbeddedBuy(page, 'cinder-ready', 'Uniswap V4')
 })

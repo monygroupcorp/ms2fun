@@ -5,12 +5,16 @@
 >   the V4 deltas against `ctx.instance`, but the **module** holds both currencies at graduation →
 >   `transferFrom` from an instance holding nothing → revert. Fix: settle/take against `address(this)`.
 >   Graduation now succeeds on the fork.
-> - **Round 2 — native-ETH pool (IN PROGRESS, agent).** The settle fix exposed a second issue: the
->   module creates a **WETH-paired** V4 pool (wraps ETH→WETH), but the embedded swap + zRouter +
->   `UniAlignmentVault` all use **native-ETH** pools (currency `address(0)`). So `swapV4(address(0),…)`
->   reverts `PoolNotInitialized()` — graduated token untradeable through the standard path. Fix in
->   progress: create a native-ETH pool (no WETH wrap; `Currency.wrap(address(0))`; settle native ETH),
->   mirroring `UniAlignmentVault`. Verified by extending the fork test with a native `swapV4` buy.
+> - **Round 2 — native-ETH pool (DONE, cherry-pick `e382f68`).** The settle fix exposed a second
+>   issue: the module created a **WETH-keyed** V4 pool (wrapped ETH→WETH), but the embedded swap +
+>   zRouter + `UniAlignmentVault` all use **native-ETH** pools (currency `address(0)`) — so
+>   `swapV4(address(0),…)` reverted `PoolNotInitialized()`. Fix: build a native-ETH pool (no WETH wrap;
+>   `Currency.wrap(address(0))`; native settle), mirroring `UniAlignmentVault`. Fork test extended to
+>   assert currency0==address(0) + a real `swapV4` buy returns amountOut>0.
+>
+> **RESOLVED.** Both fixes are on `feat/b19-embedded-graduated-swaps`. Uni-V4 graduation + embedded
+> swapV4 verified end-to-end on the fork (cinder-ready graduates; UI buy in `graduated-swap.spec.ts`).
+> This doc is retained for the root-cause record.
 >
 > Original brief below.
 
