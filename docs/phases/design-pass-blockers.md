@@ -333,3 +333,23 @@ his state). Commits noted inline.
 
 Verify: tsc + eslint + 420 unit tests green. Not run against the live fork (M4 e2e would post to it;
 EXEC balanceMint needs a real EXEC holder). Both need a live eyeball on the running app.
+
+## Design-walk pass — third batch (P1–P6) — 2026-07-02
+
+- **P1 (feat, `fa6d7fc`)** — IPFS gateway ROTATOR. `resolveUri` only pointed <img> at gateway 0, so a
+  timing-out public gateway blanked art (the EXEC pieces etc.). New `<IpfsImage>` + pure
+  `resolveUriCandidates` rotate every gateway on onError (custom→public), fallback only when all fail.
+  Swapped all 12 raw-img sites; removed their per-component imgError state. Unit-tested.
+- **P4 (feat, `fa6d7fc`)** — live auction piece tiles span 2×2 (feature); ended/settled stay small.
+- **P2 (feat, `80e145d`)** — EXEC portfolio moved sidebar→main column, between market stats + legacy activity.
+- **P3 (feat, `80e145d`)** — removed all user-facing "fossil"/"grandfathered"; EXEC now reads as the
+  GENESIS / origin collection (home badge, stat label, page kicker/meta, activity intro).
+- **P5 (fix, `99dd691`)** — profile link/social rows: `.input{width:100%}` made the label claim the row;
+  added `.rowLabel` (fixed 8rem) so the value input gets the width.
+- **P6 (fix, `961f9a1`)** — the own-profile "You haven't hung anything" prompt was FALSE when the wallet
+  had made collections (they render in the Made tab below). Reworded to be about profile setup only.
+  VERIFIED the created-collections path is correct: for the deployer 0xf39F (anvil #0) the hook returns
+  all 10 seed collections. An empty Made tab just means the connected wallet isn't that creator.
+
+Verify: tsc + eslint + 423 unit tests green. IPFS rotator / auction sizing / profile form need a live
+eyeball; P6 collections show only when connected as the seed deployer 0xf39F.
