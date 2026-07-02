@@ -1,5 +1,6 @@
 import { Link } from 'wouter'
 import { Exec404Activity } from '../components/Exec404Activity'
+import { Exec404Portfolio } from '../components/exec404/Exec404Portfolio'
 import { Exec404Stats } from '../components/Exec404Stats'
 import { Exec404SwapPanel } from '../components/Exec404SwapPanel'
 import styles from './Exec404Page.module.css'
@@ -41,6 +42,7 @@ export function Exec404Page() {
         </div>
         <aside className={styles.sidebar}>
           <Exec404SwapPanel />
+          <Exec404Portfolio />
         </aside>
       </div>
     </div>
