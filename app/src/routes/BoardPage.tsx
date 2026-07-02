@@ -24,6 +24,23 @@ type BoardView = 'discourse' | 'activity'
 /** Register verbs for the flat Activity view — the on-chain event, stated plainly. */
 const ACTIVITY_VERB: Record<number, string> = { 0: 'posted', 1: 'replied', 2: 'quoted', 3: 'endorsed' }
 
+/**
+ * A post's channel (`instance`) is EITHER a collection address OR a wall — the sender's own address,
+ * per the profile-wall convention the board composer uses. A wall post links to that profile, NOT a
+ * (non-existent) collection; only a genuine collection channel links to `/collection/…`. Fixes the
+ * dead `/collection/<wallet>` links that general-board posts otherwise render (N6).
+ */
+function channelRef(message: Pick<FeedMessage, 'instance' | 'sender'>): {
+  href: string
+  isWall: boolean
+} {
+  const isWall = message.instance.toLowerCase() === message.sender.toLowerCase()
+  return {
+    href: isWall ? `/profile/${message.instance}` : `/collection/${message.instance}`,
+    isWall,
+  }
+}
+
 /** Channels rail — the distinct walls in the feed (All · per-collection · your wall). Each carries
  * a swatch (mono until the work's colour is wired) + its post count; selecting one filters the
  * salon. Composed app-side (the brand bible names .noesis-channels but it isn't vendored yet). */
@@ -296,9 +313,16 @@ export function BoardPage() {
                     <span className={styles.regVerb}>
                       {ACTIVITY_VERB[m.messageType] ?? 'posted'}
                     </span>
-                    <Link href={`/collection/${m.instance}`} className={styles.regCh}>
-                      {truncateAddress(m.instance)}
-                    </Link>
+                    {(() => {
+                      const { href, isWall } = channelRef(m)
+                      // A wall post has no collection channel — it's a general-board post; show it
+                      // as such (linking to the wall/profile) rather than a dead collection link.
+                      return (
+                        <Link href={href} className={styles.regCh}>
+                          {isWall ? 'the salon' : truncateAddress(m.instance)}
+                        </Link>
+                      )
+                    })()}
                     {m.content.length > 0 && <span className={styles.regContent}>{m.content}</span>}
                   </li>
                 ))}
@@ -324,6 +348,7 @@ function BoardMessage({
 }) {
   const [replying, setReplying] = useState(false)
   const reaction = reactionFor(view, message.messageId)
+  const chan = channelRef(message)
 
   return (
     <>
@@ -332,16 +357,20 @@ function BoardMessage({
           {truncateAddress(message.sender)}
         </Link>
 
-        <Link href={`/collection/${message.instance}`} className={`ch ${styles.channelLink}`}>
-          → {truncateAddress(message.instance)}
+        {/* A wall post is a general-board post (channel = the sender's own wall), not a collection
+            pointer — read it as "· on the salon" linking to their wall, never a dead collection. */}
+        <Link href={chan.href} className={`ch ${styles.channelLink}`}>
+          {chan.isWall ? '· on the salon' : `→ ${truncateAddress(message.instance)}`}
         </Link>
       </div>
 
       {/* Quote — a card carrying the referenced work's swatch (mono until colour is wired). */}
       {message.messageType === 2 && (
-        <Link href={`/collection/${message.instance}`} className={styles.quoteCard}>
+        <Link href={chan.href} className={styles.quoteCard}>
           <span className={styles.swatch} aria-hidden />
-          <span className={styles.quoteRef}>re: {truncateAddress(message.instance)}</span>
+          <span className={styles.quoteRef}>
+            re: {chan.isWall ? 'the salon' : truncateAddress(message.instance)}
+          </span>
         </Link>
       )}
 
