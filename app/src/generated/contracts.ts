@@ -1924,6 +1924,290 @@ export const curveParamsComputerAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// CypherLiquidityDeployerModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const cypherLiquidityDeployerModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_algebraFactory', internalType: 'address', type: 'address' },
+      { name: '_positionManager', internalType: 'address', type: 'address' },
+      { name: '_weth', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'TICK_LOWER',
+    outputs: [{ name: '', internalType: 'int24', type: 'int24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'TICK_UPPER',
+    outputs: [{ name: '', internalType: 'int24', type: 'int24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'algebraFactory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'p',
+        internalType: 'struct ILiquidityDeployerModule.DeployParams',
+        type: 'tuple',
+        components: [
+          { name: 'ethReserve', internalType: 'uint256', type: 'uint256' },
+          { name: 'tokenReserve', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'vault', internalType: 'address', type: 'address' },
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'instance', internalType: 'address', type: 'address' },
+        ],
+      },
+    ],
+    name: 'deployLiquidity',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'positionManager',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationVaultContribution',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'pool',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+      {
+        name: 'tokenId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'ethToLP',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'tokenToLP',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'LiquidityDeployed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'ETHMismatch' },
+  { type: 'error', inputs: [], name: 'InvalidParams' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'ZeroLiquidity' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ERC1155Factory
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -7540,6 +7824,277 @@ export const iwethAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// LiquidityDeployerModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const liquidityDeployerModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_v4PoolManager', internalType: 'address', type: 'address' },
+      { name: '_weth', internalType: 'address', type: 'address' },
+      { name: '_poolFee', internalType: 'uint24', type: 'uint24' },
+      { name: '_tickSpacing', internalType: 'int24', type: 'int24' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'p',
+        internalType: 'struct ILiquidityDeployerModule.DeployParams',
+        type: 'tuple',
+        components: [
+          { name: 'ethReserve', internalType: 'uint256', type: 'uint256' },
+          { name: 'tokenReserve', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'vault', internalType: 'address', type: 'address' },
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'instance', internalType: 'address', type: 'address' },
+        ],
+      },
+    ],
+    name: 'deployLiquidity',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'poolFee',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'tickSpacing',
+    outputs: [{ name: '', internalType: 'int24', type: 'int24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
+    name: 'unlockCallback',
+    outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'v4PoolManager',
+    outputs: [
+      { name: '', internalType: 'contract IPoolManager', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationVaultContribution',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'pool', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amountToken',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'amountETH',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'LiquidityDeployed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'ETHMismatch' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoETHForPool' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'NotPoolManager' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // MasterRegistryV1
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -10681,6 +11236,673 @@ export const tierRevealModuleAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ZAMMLiquidityDeployerModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const zammLiquidityDeployerModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_zamm', internalType: 'address', type: 'address' },
+      { name: '_feeOrHook', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'p',
+        internalType: 'struct ILiquidityDeployerModule.DeployParams',
+        type: 'tuple',
+        components: [
+          { name: 'ethReserve', internalType: 'uint256', type: 'uint256' },
+          { name: 'tokenReserve', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'protocolTreasury',
+            internalType: 'address',
+            type: 'address',
+          },
+          { name: 'vault', internalType: 'address', type: 'address' },
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'instance', internalType: 'address', type: 'address' },
+        ],
+      },
+    ],
+    name: 'deployLiquidity',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'feeOrHook',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'zamm',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationFeePaid',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraduationVaultContribution',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'zamm', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'token0',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+      {
+        name: 'token1',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+      {
+        name: 'liquidity',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'LiquidityDeployed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'ETHMismatch' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoETHForPool' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// zRouter
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const zRouterAbi = [
+  { type: 'constructor', inputs: [], stateMutability: 'payable' },
+  { type: 'fallback', stateMutability: 'payable' },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'poolKey',
+        internalType: 'struct PoolKey',
+        type: 'tuple',
+        components: [
+          { name: 'id0', internalType: 'uint256', type: 'uint256' },
+          { name: 'id1', internalType: 'uint256', type: 'uint256' },
+          { name: 'token0', internalType: 'address', type: 'address' },
+          { name: 'token1', internalType: 'address', type: 'address' },
+          { name: 'feeOrHook', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+      { name: 'amount0Desired', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount1Desired', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount0Min', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount1Min', internalType: 'uint256', type: 'uint256' },
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'addLiquidity',
+    outputs: [
+      { name: 'amount0', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount1', internalType: 'uint256', type: 'uint256' },
+      { name: 'liquidity', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'deposit',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'is6909', internalType: 'bool', type: 'bool' },
+      { name: 'to', internalType: 'address', type: 'address' },
+    ],
+    name: 'ensureAllowance',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ethToExactSTETH',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'ethToExactWSTETH',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'to', internalType: 'address', type: 'address' }],
+    name: 'exactETHToSTETH',
+    outputs: [{ name: 'shares', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'to', internalType: 'address', type: 'address' }],
+    name: 'exactETHToWSTETH',
+    outputs: [{ name: 'wstOut', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'target', internalType: 'address', type: 'address' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'execute',
+    outputs: [{ name: 'result', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'data', internalType: 'bytes[]', type: 'bytes[]' }],
+    name: 'multicall',
+    outputs: [{ name: 'results', internalType: 'bytes[]', type: 'bytes[]' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'onERC721Received',
+    outputs: [{ name: '', internalType: 'bytes4', type: 'bytes4' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+      { name: 'v', internalType: 'uint8', type: 'uint8' },
+      { name: 'r', internalType: 'bytes32', type: 'bytes32' },
+      { name: 's', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'permit',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'permitted',
+        internalType: 'struct IPermit2.TokenPermissions[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'token', internalType: 'address', type: 'address' },
+          { name: 'amount', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+      { name: 'nonce', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+      { name: 'signature', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'permit2BatchTransferFrom',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'nonce', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+      { name: 'signature', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'permit2TransferFrom',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'nonce', internalType: 'uint256', type: 'uint256' },
+      { name: 'expiry', internalType: 'uint256', type: 'uint256' },
+      { name: 'v', internalType: 'uint8', type: 'uint8' },
+      { name: 'r', internalType: 'bytes32', type: 'bytes32' },
+      { name: 's', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'permitDAI',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'label', internalType: 'string', type: 'string' },
+      { name: 'innerSecret', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'to', internalType: 'address', type: 'address' },
+    ],
+    name: 'revealName',
+    outputs: [{ name: 'tokenId', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'safeExecutor',
+    outputs: [
+      { name: '', internalType: 'contract SafeExecutor', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'tokenIn', internalType: 'address', type: 'address' },
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'recipient', internalType: 'address', type: 'address' },
+      { name: 'tokenOut', internalType: 'address', type: 'address' },
+      { name: 'amountOutMin', internalType: 'uint256', type: 'uint256' },
+      { name: 'executor', internalType: 'address', type: 'address' },
+      { name: 'executorData', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'snwap',
+    outputs: [{ name: 'amountOut', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'tokenIn', internalType: 'address', type: 'address' },
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'recipient', internalType: 'address', type: 'address' },
+      { name: 'tokensOut', internalType: 'address[]', type: 'address[]' },
+      { name: 'amountsOutMin', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: 'executor', internalType: 'address', type: 'address' },
+      { name: 'executorData', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'snwapMulti',
+    outputs: [
+      { name: 'amountsOut', internalType: 'uint256[]', type: 'uint256[]' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'bool', type: 'bool' },
+      { name: 'route', internalType: 'address[11]', type: 'address[11]' },
+      {
+        name: 'swapParams',
+        internalType: 'uint256[4][5]',
+        type: 'uint256[4][5]',
+      },
+      { name: 'basePools', internalType: 'address[5]', type: 'address[5]' },
+      { name: 'swapAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountLimit', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'swapCurve',
+    outputs: [
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'bool', type: 'bool' },
+      { name: 'tokenIn', internalType: 'address', type: 'address' },
+      { name: 'tokenOut', internalType: 'address', type: 'address' },
+      { name: 'swapAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountLimit', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'swapV2',
+    outputs: [
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'bool', type: 'bool' },
+      { name: 'swapFee', internalType: 'uint24', type: 'uint24' },
+      { name: 'tokenIn', internalType: 'address', type: 'address' },
+      { name: 'tokenOut', internalType: 'address', type: 'address' },
+      { name: 'swapAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountLimit', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'swapV3',
+    outputs: [
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'bool', type: 'bool' },
+      { name: 'swapFee', internalType: 'uint24', type: 'uint24' },
+      { name: 'tickSpace', internalType: 'int24', type: 'int24' },
+      { name: 'tokenIn', internalType: 'address', type: 'address' },
+      { name: 'tokenOut', internalType: 'address', type: 'address' },
+      { name: 'swapAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountLimit', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'swapV4',
+    outputs: [
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'exactOut', internalType: 'bool', type: 'bool' },
+      { name: 'feeOrHook', internalType: 'uint256', type: 'uint256' },
+      { name: 'tokenIn', internalType: 'address', type: 'address' },
+      { name: 'tokenOut', internalType: 'address', type: 'address' },
+      { name: 'idIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'idOut', internalType: 'uint256', type: 'uint256' },
+      { name: 'swapAmount', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountLimit', internalType: 'uint256', type: 'uint256' },
+      { name: 'deadline', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'swapVZ',
+    outputs: [
+      { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+      { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'to', internalType: 'address', type: 'address' },
+    ],
+    name: 'sweep',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'owner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'target', internalType: 'address', type: 'address' },
+      { name: 'ok', internalType: 'bool', type: 'bool' },
+    ],
+    name: 'trust',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'callbackData', internalType: 'bytes', type: 'bytes' }],
+    name: 'unlockCallback',
+    outputs: [{ name: 'result', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'unwrap',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'wrap',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'from', internalType: 'address', type: 'address', indexed: true },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  { type: 'error', inputs: [], name: 'BadSwap' },
+  { type: 'error', inputs: [], name: 'ETHTransferFailed' },
+  { type: 'error', inputs: [], name: 'Expired' },
+  { type: 'error', inputs: [], name: 'InvalidId' },
+  { type: 'error', inputs: [], name: 'InvalidMsgVal' },
+  { type: 'error', inputs: [], name: 'Slippage' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'token', internalType: 'address', type: 'address' },
+      { name: 'received', internalType: 'uint256', type: 'uint256' },
+      { name: 'minimum', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'SnwapSlippage',
+  },
+  { type: 'error', inputs: [], name: 'SwapExactInFail' },
+  { type: 'error', inputs: [], name: 'SwapExactOutFail' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // React
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -12822,6 +14044,297 @@ export const useWatchCurveParamsComputerOwnershipHandoverRequestedEvent =
 export const useWatchCurveParamsComputerOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: curveParamsComputerAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__
+ */
+export const useReadCypherLiquidityDeployerModule =
+  /*#__PURE__*/ createUseReadContract({ abi: cypherLiquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"TICK_LOWER"`
+ */
+export const useReadCypherLiquidityDeployerModuleTickLower =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'TICK_LOWER',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"TICK_UPPER"`
+ */
+export const useReadCypherLiquidityDeployerModuleTickUpper =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'TICK_UPPER',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"algebraFactory"`
+ */
+export const useReadCypherLiquidityDeployerModuleAlgebraFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'algebraFactory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadCypherLiquidityDeployerModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadCypherLiquidityDeployerModuleOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadCypherLiquidityDeployerModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"positionManager"`
+ */
+export const useReadCypherLiquidityDeployerModulePositionManager =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'positionManager',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadCypherLiquidityDeployerModuleWeth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__
+ */
+export const useWriteCypherLiquidityDeployerModule =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteCypherLiquidityDeployerModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteCypherLiquidityDeployerModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useWriteCypherLiquidityDeployerModuleDeployLiquidity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteCypherLiquidityDeployerModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteCypherLiquidityDeployerModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteCypherLiquidityDeployerModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteCypherLiquidityDeployerModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__
+ */
+export const useSimulateCypherLiquidityDeployerModule =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleDeployLiquidity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__
+ */
+export const useWatchCypherLiquidityDeployerModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationFeePaid"`
+ */
+export const useWatchCypherLiquidityDeployerModuleGraduationFeePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationVaultContribution"`
+ */
+export const useWatchCypherLiquidityDeployerModuleGraduationVaultContributionEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'GraduationVaultContribution',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"LiquidityDeployed"`
+ */
+export const useWatchCypherLiquidityDeployerModuleLiquidityDeployedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'LiquidityDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchCypherLiquidityDeployerModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchCypherLiquidityDeployerModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchCypherLiquidityDeployerModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchCypherLiquidityDeployerModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
   })
 
@@ -18472,6 +19985,300 @@ export const useSimulateIwethWithdraw = /*#__PURE__*/ createUseSimulateContract(
 )
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__
+ */
+export const useReadLiquidityDeployerModule =
+  /*#__PURE__*/ createUseReadContract({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadLiquidityDeployerModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadLiquidityDeployerModuleOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadLiquidityDeployerModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"poolFee"`
+ */
+export const useReadLiquidityDeployerModulePoolFee =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'poolFee',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"tickSpacing"`
+ */
+export const useReadLiquidityDeployerModuleTickSpacing =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'tickSpacing',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"v4PoolManager"`
+ */
+export const useReadLiquidityDeployerModuleV4PoolManager =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'v4PoolManager',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadLiquidityDeployerModuleWeth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__
+ */
+export const useWriteLiquidityDeployerModule =
+  /*#__PURE__*/ createUseWriteContract({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteLiquidityDeployerModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteLiquidityDeployerModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useWriteLiquidityDeployerModuleDeployLiquidity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteLiquidityDeployerModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteLiquidityDeployerModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteLiquidityDeployerModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteLiquidityDeployerModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useWriteLiquidityDeployerModuleUnlockCallback =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__
+ */
+export const useSimulateLiquidityDeployerModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateLiquidityDeployerModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateLiquidityDeployerModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useSimulateLiquidityDeployerModuleDeployLiquidity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateLiquidityDeployerModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateLiquidityDeployerModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateLiquidityDeployerModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateLiquidityDeployerModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useSimulateLiquidityDeployerModuleUnlockCallback =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__
+ */
+export const useWatchLiquidityDeployerModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationFeePaid"`
+ */
+export const useWatchLiquidityDeployerModuleGraduationFeePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationVaultContribution"`
+ */
+export const useWatchLiquidityDeployerModuleGraduationVaultContributionEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'GraduationVaultContribution',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"LiquidityDeployed"`
+ */
+export const useWatchLiquidityDeployerModuleLiquidityDeployedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'LiquidityDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchLiquidityDeployerModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchLiquidityDeployerModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchLiquidityDeployerModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchLiquidityDeployerModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link masterRegistryV1Abi}__
  */
 export const useReadMasterRegistryV1 = /*#__PURE__*/ createUseReadContract({
@@ -21628,4 +23435,771 @@ export const useWatchTierRevealModuleTiersSealedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: tierRevealModuleAbi,
     eventName: 'TiersSealed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__
+ */
+export const useReadZammLiquidityDeployerModule =
+  /*#__PURE__*/ createUseReadContract({ abi: zammLiquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"feeOrHook"`
+ */
+export const useReadZammLiquidityDeployerModuleFeeOrHook =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'feeOrHook',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadZammLiquidityDeployerModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadZammLiquidityDeployerModuleOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadZammLiquidityDeployerModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"zamm"`
+ */
+export const useReadZammLiquidityDeployerModuleZamm =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'zamm',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__
+ */
+export const useWriteZammLiquidityDeployerModule =
+  /*#__PURE__*/ createUseWriteContract({ abi: zammLiquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteZammLiquidityDeployerModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteZammLiquidityDeployerModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useWriteZammLiquidityDeployerModuleDeployLiquidity =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteZammLiquidityDeployerModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteZammLiquidityDeployerModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteZammLiquidityDeployerModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteZammLiquidityDeployerModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__
+ */
+export const useSimulateZammLiquidityDeployerModule =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateZammLiquidityDeployerModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateZammLiquidityDeployerModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"deployLiquidity"`
+ */
+export const useSimulateZammLiquidityDeployerModuleDeployLiquidity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateZammLiquidityDeployerModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateZammLiquidityDeployerModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateZammLiquidityDeployerModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateZammLiquidityDeployerModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__
+ */
+export const useWatchZammLiquidityDeployerModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationFeePaid"`
+ */
+export const useWatchZammLiquidityDeployerModuleGraduationFeePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'GraduationFeePaid',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationVaultContribution"`
+ */
+export const useWatchZammLiquidityDeployerModuleGraduationVaultContributionEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'GraduationVaultContribution',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"LiquidityDeployed"`
+ */
+export const useWatchZammLiquidityDeployerModuleLiquidityDeployedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'LiquidityDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchZammLiquidityDeployerModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchZammLiquidityDeployerModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchZammLiquidityDeployerModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchZammLiquidityDeployerModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__
+ */
+export const useReadZRouter = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"onERC721Received"`
+ */
+export const useReadZRouterOnErc721Received =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zRouterAbi,
+    functionName: 'onERC721Received',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"safeExecutor"`
+ */
+export const useReadZRouterSafeExecutor = /*#__PURE__*/ createUseReadContract({
+  abi: zRouterAbi,
+  functionName: 'safeExecutor',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__
+ */
+export const useWriteZRouter = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"addLiquidity"`
+ */
+export const useWriteZRouterAddLiquidity = /*#__PURE__*/ createUseWriteContract(
+  { abi: zRouterAbi, functionName: 'addLiquidity' },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useWriteZRouterDeposit = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'deposit',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ensureAllowance"`
+ */
+export const useWriteZRouterEnsureAllowance =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'ensureAllowance',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ethToExactSTETH"`
+ */
+export const useWriteZRouterEthToExactSteth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'ethToExactSTETH',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ethToExactWSTETH"`
+ */
+export const useWriteZRouterEthToExactWsteth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'ethToExactWSTETH',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"exactETHToSTETH"`
+ */
+export const useWriteZRouterExactEthToSteth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'exactETHToSTETH',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"exactETHToWSTETH"`
+ */
+export const useWriteZRouterExactEthToWsteth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'exactETHToWSTETH',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"execute"`
+ */
+export const useWriteZRouterExecute = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'execute',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"multicall"`
+ */
+export const useWriteZRouterMulticall = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'multicall',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permit"`
+ */
+export const useWriteZRouterPermit = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'permit',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permit2BatchTransferFrom"`
+ */
+export const useWriteZRouterPermit2BatchTransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'permit2BatchTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permit2TransferFrom"`
+ */
+export const useWriteZRouterPermit2TransferFrom =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'permit2TransferFrom',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permitDAI"`
+ */
+export const useWriteZRouterPermitDai = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'permitDAI',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"revealName"`
+ */
+export const useWriteZRouterRevealName = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'revealName',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"snwap"`
+ */
+export const useWriteZRouterSnwap = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'snwap',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"snwapMulti"`
+ */
+export const useWriteZRouterSnwapMulti = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'snwapMulti',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapCurve"`
+ */
+export const useWriteZRouterSwapCurve = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'swapCurve',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapV2"`
+ */
+export const useWriteZRouterSwapV2 = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'swapV2',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapV3"`
+ */
+export const useWriteZRouterSwapV3 = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'swapV3',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapV4"`
+ */
+export const useWriteZRouterSwapV4 = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'swapV4',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapVZ"`
+ */
+export const useWriteZRouterSwapVz = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'swapVZ',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"sweep"`
+ */
+export const useWriteZRouterSweep = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'sweep',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteZRouterTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"trust"`
+ */
+export const useWriteZRouterTrust = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'trust',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useWriteZRouterUnlockCallback =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zRouterAbi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"unwrap"`
+ */
+export const useWriteZRouterUnwrap = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'unwrap',
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"wrap"`
+ */
+export const useWriteZRouterWrap = /*#__PURE__*/ createUseWriteContract({
+  abi: zRouterAbi,
+  functionName: 'wrap',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__
+ */
+export const useSimulateZRouter = /*#__PURE__*/ createUseSimulateContract({
+  abi: zRouterAbi,
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"addLiquidity"`
+ */
+export const useSimulateZRouterAddLiquidity =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'addLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"deposit"`
+ */
+export const useSimulateZRouterDeposit =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'deposit',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ensureAllowance"`
+ */
+export const useSimulateZRouterEnsureAllowance =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'ensureAllowance',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ethToExactSTETH"`
+ */
+export const useSimulateZRouterEthToExactSteth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'ethToExactSTETH',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"ethToExactWSTETH"`
+ */
+export const useSimulateZRouterEthToExactWsteth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'ethToExactWSTETH',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"exactETHToSTETH"`
+ */
+export const useSimulateZRouterExactEthToSteth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'exactETHToSTETH',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"exactETHToWSTETH"`
+ */
+export const useSimulateZRouterExactEthToWsteth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'exactETHToWSTETH',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"execute"`
+ */
+export const useSimulateZRouterExecute =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'execute',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"multicall"`
+ */
+export const useSimulateZRouterMulticall =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'multicall',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permit"`
+ */
+export const useSimulateZRouterPermit = /*#__PURE__*/ createUseSimulateContract(
+  { abi: zRouterAbi, functionName: 'permit' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permit2BatchTransferFrom"`
+ */
+export const useSimulateZRouterPermit2BatchTransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'permit2BatchTransferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permit2TransferFrom"`
+ */
+export const useSimulateZRouterPermit2TransferFrom =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'permit2TransferFrom',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"permitDAI"`
+ */
+export const useSimulateZRouterPermitDai =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'permitDAI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"revealName"`
+ */
+export const useSimulateZRouterRevealName =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'revealName',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"snwap"`
+ */
+export const useSimulateZRouterSnwap = /*#__PURE__*/ createUseSimulateContract({
+  abi: zRouterAbi,
+  functionName: 'snwap',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"snwapMulti"`
+ */
+export const useSimulateZRouterSnwapMulti =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'snwapMulti',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapCurve"`
+ */
+export const useSimulateZRouterSwapCurve =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'swapCurve',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapV2"`
+ */
+export const useSimulateZRouterSwapV2 = /*#__PURE__*/ createUseSimulateContract(
+  { abi: zRouterAbi, functionName: 'swapV2' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapV3"`
+ */
+export const useSimulateZRouterSwapV3 = /*#__PURE__*/ createUseSimulateContract(
+  { abi: zRouterAbi, functionName: 'swapV3' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapV4"`
+ */
+export const useSimulateZRouterSwapV4 = /*#__PURE__*/ createUseSimulateContract(
+  { abi: zRouterAbi, functionName: 'swapV4' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"swapVZ"`
+ */
+export const useSimulateZRouterSwapVz = /*#__PURE__*/ createUseSimulateContract(
+  { abi: zRouterAbi, functionName: 'swapVZ' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"sweep"`
+ */
+export const useSimulateZRouterSweep = /*#__PURE__*/ createUseSimulateContract({
+  abi: zRouterAbi,
+  functionName: 'sweep',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateZRouterTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"trust"`
+ */
+export const useSimulateZRouterTrust = /*#__PURE__*/ createUseSimulateContract({
+  abi: zRouterAbi,
+  functionName: 'trust',
+})
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"unlockCallback"`
+ */
+export const useSimulateZRouterUnlockCallback =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zRouterAbi,
+    functionName: 'unlockCallback',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"unwrap"`
+ */
+export const useSimulateZRouterUnwrap = /*#__PURE__*/ createUseSimulateContract(
+  { abi: zRouterAbi, functionName: 'unwrap' },
+)
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zRouterAbi}__ and `functionName` set to `"wrap"`
+ */
+export const useSimulateZRouterWrap = /*#__PURE__*/ createUseSimulateContract({
+  abi: zRouterAbi,
+  functionName: 'wrap',
+})
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zRouterAbi}__
+ */
+export const useWatchZRouterEvent = /*#__PURE__*/ createUseWatchContractEvent({
+  abi: zRouterAbi,
+})
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zRouterAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchZRouterOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zRouterAbi,
+    eventName: 'OwnershipTransferred',
   })

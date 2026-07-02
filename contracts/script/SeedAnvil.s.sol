@@ -63,10 +63,14 @@ contract SeedAnvil is Script {
         ProfileRegistry profiles;
         FeaturedQueueManager queue;
         GlobalMessageRegistry messages;
-        address vault;          // first Uni vault (index 0) — generic contract vault
-        address endowmentVault; // first Aave endowment vault (index 2)
+        address vault;          // first Uni LP vault — generic contract vault
+        address zammVault;      // first ZAMM LP vault
+        address cypherVault;    // first Cypher (Algebra) LP vault
+        address endowmentVault; // first Aave endowment vault
         address stakingModule;  // ERC404StakingModule (approved STAKING component)
         address zammDeployer;   // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
+        address uniDeployer;    // ModuleUniV4Deployer (approved LIQUIDITY_DEPLOYER)
+        address cypherDeployer; // ModuleCypherDeployer (approved LIQUIDITY_DEPLOYER)
         address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
         address overlay;        // MetadataOverlayModule (approved OVERLAY)
         address tier;           // TierRevealModule (approved TIER)
@@ -122,7 +126,8 @@ contract SeedAnvil is Script {
         console.log("=== SeedAnvil complete ===");
         console.log("ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions");
         console.log("ERC721 : 2 auctions (gallery=settled+expired, live=active+bid)");
-        console.log("ERC404 : 3 bonding (preopen, mid-curve+staking, ready-to-graduate)");
+        console.log("ERC404 : preopen(cypher) + mid-curve+staking(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + stacked(zamm)");
+        console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
     }
 
@@ -160,6 +165,8 @@ contract SeedAnvil is Script {
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
         d.zammDeployer  = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
+        d.uniDeployer   = vm.parseJsonAddress(json, ".contracts.ModuleUniV4Deployer");
+        d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
         d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
         d.overlay        = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
         d.tier           = vm.parseJsonAddress(json, ".contracts.TierRevealModule");
@@ -167,6 +174,8 @@ contract SeedAnvil is Script {
         // into the `vaults` array — that array's ordering shifts as LP families (ZAMM/Cypher) are
         // enabled per network, so a fixed index silently binds to the wrong vault type.
         d.vault = vm.parseJsonAddress(json, ".contracts.SeedUniVault");
+        d.zammVault = vm.parseJsonAddress(json, ".contracts.SeedZammVault");
+        d.cypherVault = vm.parseJsonAddress(json, ".contracts.SeedCypherVault");
         d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
     }
 
@@ -330,7 +339,10 @@ contract SeedAnvil is Script {
     ///      (UI shows a countdown). No buys.
     function _seedErc404PreOpen(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, "ember-preopen", "Ember", "EMBER", address(0));
+        // Cypher LP venue + Cypher (Algebra) vault — covers the Cypher family (it stays preopen, so
+        // the Algebra pool is never actually deployed; the graduated-swap Cypher path is link-out anyway).
+        address inst = _createBonding(
+            d, "ember-preopen", "Ember", "EMBER", address(0), d.cypherVault, d.cypherDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 days); // strictly future -> preopen
         b.setBondingActive(true);
@@ -343,7 +355,9 @@ contract SeedAnvil is Script {
     ///      staking activated and a position staked. No graduation.
     function _seedErc404MidCurve(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, "vapor-mid", "Vapor", "VAPOR", d.stakingModule);
+        // Uni-V4 LP venue + Uni LP vault (mid-curve; does not graduate).
+        address inst = _createBonding(
+            d, "vapor-mid", "Vapor", "VAPOR", d.stakingModule, d.vault, d.uniDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
         // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
@@ -376,16 +390,34 @@ contract SeedAnvil is Script {
     ///      set so the post-seed +2h chain advance (deploy.ts) crosses it -> deployLiquidity's
     ///      isMatured becomes true and the UI surfaces the graduate button. We do NOT call
     ///      deployLiquidity (it hits an external AMM); the human graduates live. No vm.warp.
+    ///      Two graduate-ready instances are seeded — one per embedded-swap venue — so the
+    ///      post-graduation swap surface can be exercised on both: cinder-ready (Uni-V4 -> swapV4)
+    ///      and molten-ready (ZAMM -> swapVZ).
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
+        // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
+        _seedReadyToGraduate(d, "cinder-ready", "Cinder", "CINDER", d.vault, d.uniDeployer, 0.045 ether);
+        // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
+        _seedReadyToGraduate(d, "molten-ready", "Molten", "MOLTEN", d.zammVault, d.zammDeployer, 0.043 ether);
+    }
+
+    function _seedReadyToGraduate(
+        Deployed memory d,
+        string memory slug,
+        string memory name,
+        string memory symbol,
+        address vault,
+        address deployer_,
+        uint256 rankBoost
+    ) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, "cinder-ready", "Cinder", "CINDER", address(0));
+        address inst = _createBonding(d, slug, name, symbol, address(0), vault, deployer_);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
         // advance the curve is open (bonding) AND matured (graduate unlocked).
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.045 ether);
+        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, rankBoost);
         vm.stopBroadcast();
         // _buyBonding manages its own broadcast — call it OUTSIDE the block above (no nesting).
         _buyBonding(b, deployerKey, 1e23);
@@ -426,7 +458,7 @@ contract SeedAnvil is Script {
             styleUri: "",
             tokenBaseURI: "", // base tokenURI is the bare id, so prefixes above read clearly
             owner: deployer,
-            vault: d.vault,
+            vault: d.zammVault, // ZAMM LP vault — pairs with the ZAMM deployer below
             nftCount: 10,
             presetId: 1,
             stakingModule: address(0)
@@ -516,12 +548,19 @@ contract SeedAnvil is Script {
         });
     }
 
+    /// @param vault    the alignment/endowment vault the instance binds to (any of the 4 flavors)
+    /// @param deployer_ the LP deployer module (Uni-V4 / ZAMM / Cypher) the curve graduates through.
+    ///        Vault flavor and LP venue are independent axes — the seed spreads instances across both
+    ///        so all four vaults and all three AMMs are demonstrated (and the graduated-swap surface
+    ///        can be exercised per venue).
     function _createBonding(
         Deployed memory d,
         string memory slug,
         string memory name,
         string memory symbol,
-        address stakingModule
+        address stakingModule,
+        address vault,
+        address deployer_
     ) internal returns (address instance) {
         ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
             salt: keccak256(abi.encode(block.timestamp, slug, "ERC404")),
@@ -530,7 +569,7 @@ contract SeedAnvil is Script {
             styleUri: "",
             tokenBaseURI: "",
             owner: deployer,
-            vault: d.vault,
+            vault: vault,
             nftCount: 10,
             presetId: 1, // STANDARD: targetETH 25 ether, unitPerNFT 1e6
             stakingModule: stakingModule
@@ -538,7 +577,7 @@ contract SeedAnvil is Script {
         instance = d.erc404.createInstance(
             params,
             _collectionMeta(name, "Bonding-curve ERC404.", symbol),
-            d.zammDeployer,      // approved LIQUIDITY_DEPLOYER
+            deployer_,           // approved LIQUIDITY_DEPLOYER (the LP venue)
             address(0),          // no gating
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
         ); // msg.value 0: no creation fee on anvil

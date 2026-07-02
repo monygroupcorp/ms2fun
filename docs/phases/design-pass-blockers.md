@@ -12,11 +12,44 @@ Legend for Status: `open` → `investigating` → `root-caused` → `fixed` → 
 
 ---
 
-## ► STEP 1 AFTER HANDOFF — embed graduated-token swaps (B19)
+## ► STEP 1 — embed graduated-token swaps (B19) — **BUILT + VERIFIED (ZAMM), Uni-V4 blocked**
 
-**Decision pending (Mony): which venues in the first cut.** Do NOT link out — the user
-wants trading **in-site** on the graduated collection page. Everything below is
-investigated + grounded; the next session should confirm scope, then build.
+**Scope locked + shipped (2026-07-02):** cut 1 = **Uni-V4 + ZAMM via zRouter**, **Cypher fast-follow**
+(link-out); **fossil (EXEC404) embedded via swapV2** too. What landed:
+- **`GraduatedSwapPanel`** (new) — SwapPanel-shaped embedded swap: direction toggle · amount · live
+  **sim quote** (`eth_call` the swap with `amountLimit=0` → returns amountOut; no view-quoter) ·
+  slippage → `amountLimit` min-out · **approve-then-swap** for token→ETH sells (buys need no approval).
+  ETH = zRouter sentinel `address(0)`. Wired into `BondingSurface.tsx` graduated branch; Cypher/unknown
+  fall back to the Uniswap link-out.
+- **`useGraduatedVenue`** (new) — reads `instance.liquidityDeployer()`, matches the 3 module singletons
+  (surfaced in `addresses.ts` + the deploy bridge + `wagmi.config.ts` codegen), reads pool params
+  (Uni poolFee/tickSpacing, ZAMM feeOrHook). Degrades to link-out if a module can't answer (mock).
+- **`Exec404SwapPanel`** (new, replaces `Exec404TradeLink`) — fossil swapV2 in-site. FoT-aware (~4%
+  DN404 tax → wider default slippage; zRouter reads received balance so sells are FoT-safe). **Gotcha
+  baked in:** zRouter reads `deadline==max` as a *Sushi* selector → we pass a finite deadline to hit
+  the real Uniswap V2 pool. Uniswap link-out kept as a secondary escape hatch.
+- **Seed diversified** (`SeedAnvil` + `DeployCore`): the 5 seeded ERC-404s now span **all 3 AMMs**
+  (ember=cypher, vapor=uniV4, cinder=uniV4, molten=zamm[NEW], prism=zamm) and **all 4 vault flavors**
+  (aave/uni/zamm/cypher). **DeployCore now deploys the REAL Uni-V4 + ZAMM LP deployer modules** (was
+  `MockComponentModule` stubs — which is why graduation was a no-op + module getters reverted); gated on
+  AMM config so Sepolia/mainnet unaffected. Cypher stays the stub (fast-follow + needs an Algebra
+  factory addr not in cfg).
+
+**Verification (fresh fork redeploy):**
+- **ZAMM: fully verified end-to-end.** `molten-ready` graduates → real ZAMM pool. New `@fork`
+  `graduated-swap.spec.ts` drives the UI buy (quote→write→receipt); on-chain balance grew (1e23→2.5e23).
+  Full non-archive e2e suite 19/19 green. swapVZ quote == executed delta exactly (cast-verified).
+- **Fossil swapV2: cast-verified** (0.05 ETH → 3.36e25 EXEC buy succeeds on the fork).
+- **Uni-V4: BLOCKED — pre-existing contract bug (NOT B19).** Graduating a Uni-V4 instance reverts:
+  `LiquidityDeployerModule.unlockCallback` initializes the pool + adds liquidity, then reverts at
+  `sync(WETH)` during settlement. Also `CurrencySettler.settle` is called with `payer=ctx.instance`
+  while the WETH is held by the **module** (`address(this)`) — looks like the settle should pay from
+  the module, plus a V4 PoolManager version/sync issue. The **swapV4 UI path is built + encoding-correct**
+  (matches the fork-verified `UniAlignmentVault` swapV4 signature) — it just can't be exercised on the
+  fork until the graduation module's V4 settle is fixed. **Next task: fix `LiquidityDeployerModule` V4
+  settle**, then a Uni-V4 `@fork` graduated-swap assertion drops in trivially.
+
+Original grounding notes retained below.
 
 **Where it goes:** the ERC-404 `graduated` branch of
 `app/src/components/collection/erc404/BondingSurface.tsx` (currently a "Trade on

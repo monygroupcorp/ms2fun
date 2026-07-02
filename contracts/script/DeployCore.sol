@@ -40,6 +40,8 @@ import {zRouter} from "../src/peripherals/zRouter.sol";
 import {PasswordTierGatingModule} from "../src/gating/PasswordTierGatingModule.sol";
 import {FeatureUtils} from "../src/master/libraries/FeatureUtils.sol";
 import {MockComponentModule} from "../test/mocks/MockComponentModule.sol";
+import {LiquidityDeployerModule} from "../src/factories/erc404/LiquidityDeployerModule.sol";
+import {ZAMMLiquidityDeployerModule} from "../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
 import {MockSafe} from "../test/mocks/MockSafe.sol";
 import {ICreateX, CREATEX} from "../src/shared/CreateXConstants.sol";
 
@@ -164,9 +166,11 @@ contract DeployCore is Script {
 
     // Seed component modules — wizard-facing metadata stubs (testnet + local)
     MockComponentModule public moduleMerkleGating;
-    MockComponentModule public moduleUniV4Deployer;
-    MockComponentModule public moduleZAMMDeployer;
-    MockComponentModule public moduleCypherDeployer;
+    // `address` (not a concrete type) so each slot can hold either the real LP deployer module or the
+    // MockComponentModule stub, chosen per-network by whether that AMM's config is present.
+    address public moduleUniV4Deployer;
+    address public moduleZAMMDeployer;
+    address public moduleCypherDeployer;
 
     // ───────────────────────────── Entry Point ──────────────────────────────
 
@@ -452,14 +456,35 @@ contract DeployCore is Script {
         moduleMerkleGating    = new MockComponentModule(deployer, merkleGatingMeta);
         componentRegistry.approveComponent(address(moduleMerkleGating),    FeatureUtils.GATING,             "Merkle Allowlist Gating");
 
-        moduleUniV4Deployer   = new MockComponentModule(deployer, uniV4Meta);
-        componentRegistry.approveComponent(address(moduleUniV4Deployer),   FeatureUtils.LIQUIDITY_DEPLOYER, "Uniswap V4 Deployer");
+        // Uni-V4 + ZAMM: deploy the REAL LP deployer modules where the AMM's config is present (the
+        // mainnet fork + live networks), so graduation actually stands up a pool and the modules
+        // answer their pool-param getters (poolFee/tickSpacing, feeOrHook) the embedded swap reads.
+        // Fall back to the metadata-only stub where the AMM isn't configured (keeps the component
+        // approved for the wizard without a live venue). Real modules carry their own metadataURI().
+        if (cfg.v4PoolManager != address(0) && cfg.weth != address(0)) {
+            LiquidityDeployerModule uniMod =
+                new LiquidityDeployerModule(cfg.v4PoolManager, cfg.weth, cfg.zrouterFee, cfg.zrouterTickSpacing);
+            uniMod.setMetadataURI(uniV4Meta);
+            moduleUniV4Deployer = address(uniMod);
+        } else {
+            moduleUniV4Deployer = address(new MockComponentModule(deployer, uniV4Meta));
+        }
+        componentRegistry.approveComponent(moduleUniV4Deployer,   FeatureUtils.LIQUIDITY_DEPLOYER, "Uniswap V4 Deployer");
 
-        moduleZAMMDeployer    = new MockComponentModule(deployer, zammMeta);
-        componentRegistry.approveComponent(address(moduleZAMMDeployer),    FeatureUtils.LIQUIDITY_DEPLOYER, "ZAMM Deployer");
+        if (cfg.zamm != address(0)) {
+            ZAMMLiquidityDeployerModule zammMod =
+                new ZAMMLiquidityDeployerModule(cfg.zamm, cfg.zammFeeOrHook);
+            zammMod.setMetadataURI(zammMeta);
+            moduleZAMMDeployer = address(zammMod);
+        } else {
+            moduleZAMMDeployer = address(new MockComponentModule(deployer, zammMeta));
+        }
+        componentRegistry.approveComponent(moduleZAMMDeployer,    FeatureUtils.LIQUIDITY_DEPLOYER, "ZAMM Deployer");
 
-        moduleCypherDeployer  = new MockComponentModule(deployer, cypherMeta);
-        componentRegistry.approveComponent(address(moduleCypherDeployer),  FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
+        // Cypher/Algebra stays the stub for now — the embedded-swap Cypher path is a fast-follow
+        // (link-out), and the real module needs an Algebra factory address not yet in the config.
+        moduleCypherDeployer  = address(new MockComponentModule(deployer, cypherMeta));
+        componentRegistry.approveComponent(moduleCypherDeployer,  FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
 
         // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
         // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
@@ -555,6 +580,12 @@ contract DeployCore is Script {
             uniVaults.length  > 0 ? uniVaults[0]  : address(0));
         vm.serializeAddress(c, "SeedAaveVault",
             aaveVaults.length > 0 ? aaveVaults[0] : address(0));
+        // ZAMM + Cypher LP families — same family-resolved convenience pointers so the seed can bind
+        // instances across all four vault flavors (the wizard offers all four; the seed demonstrates them).
+        vm.serializeAddress(c, "SeedZammVault",
+            zammVaults.length   > 0 ? zammVaults[0]   : address(0));
+        vm.serializeAddress(c, "SeedCypherVault",
+            cypherVaults.length > 0 ? cypherVaults[0] : address(0));
         string memory contracts = vm.serializeAddress(c,
             "UniswapVaultPriceValidator", address(priceValidator));
 

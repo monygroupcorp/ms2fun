@@ -27,6 +27,15 @@ export default defineConfig({
         'ERC404BondingInstance.sol/**',
         'ERC404StakingModule.sol/**',
         'CurveParamsComputer.sol/**',
+        // Graduated-swap (B19): the zRouter singleton + the per-family LP deployer modules.
+        // The modules expose the pool params the router needs (Uni-V4 poolFee/tickSpacing,
+        // ZAMM feeOrHook); the instance's liquidityDeployer() identifies which family it graduated to.
+        // Target the exact contract JSONs — the `.sol/**` glob would also pull each file's helper
+        // interfaces (e.g. a duplicate `IWETH`), which wagmi rejects as non-unique.
+        'zRouter.sol/zRouter.json',
+        'LiquidityDeployerModule.sol/LiquidityDeployerModule.json',
+        'ZAMMLiquidityDeployerModule.sol/ZAMMLiquidityDeployerModule.json',
+        'CypherLiquidityDeployerModule.sol/CypherLiquidityDeployerModule.json',
         'ERC1155Factory.sol/**',
         'ERC1155Instance.sol/**',
         'AlignmentEndowmentVault.sol/**',

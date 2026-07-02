@@ -30,4 +30,11 @@ export const forkAddresses = {
   MetadataResolverRouter: c.MetadataResolverRouter as `0x${string}`,
   MetadataOverlayModule: c.MetadataOverlayModule as `0x${string}`,
   TierRevealModule: c.TierRevealModule as `0x${string}`,
+  // Graduated-swap (B19): zRouter drives embedded post-graduation swaps; the three LP deployer
+  // module singletons let the UI detect which venue an instance graduated to (match against
+  // instance.liquidityDeployer()) and read that venue's pool params.
+  zRouter: c.zRouter as `0x${string}`,
+  ModuleUniV4Deployer: c.ModuleUniV4Deployer as `0x${string}`,
+  ModuleZAMMDeployer: c.ModuleZAMMDeployer as `0x${string}`,
+  ModuleCypherDeployer: c.ModuleCypherDeployer as `0x${string}`,
 } as const

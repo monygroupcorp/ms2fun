@@ -18,6 +18,8 @@ import { formatCountdown, formatOpenTime } from './bondingFormat'
 import { BondingChart } from './BondingChart'
 import { FreeMintPanel } from './FreeMintPanel'
 import { GraduateButton } from './GraduateButton'
+import { GraduatedSwapPanel } from './GraduatedSwapPanel'
+import { useGraduatedVenue } from './useGraduatedVenue'
 import { RerollPanel } from './RerollPanel'
 import { StakingPanel } from './StakingPanel'
 import { SwapPanel } from './SwapPanel'
@@ -49,6 +51,9 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
   const decimals = decimalsRead.data ?? DEFAULT_DECIMALS
   const gatingActive = gatingRead.data ?? false
+
+  // Which AMM did this instance graduate to? Drives the embedded post-graduation swap (B19).
+  const { venue } = useGraduatedVenue(instance)
 
   if (isError) {
     return (
@@ -89,10 +94,11 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
   }
 
   if (phase === 'graduated') {
-    // The curve is closed, but the token is still an ERC-20 that trades on its graduated pool — keep
-    // an in-site trade path (link-out, like the EXEC404 fossil) rather than a dead end. A live DEX
-    // price chart needs a pool data source we don't have on the fork; the candles below are the
-    // pre-graduation bonding history, and the link-out carries live price/depth.
+    // The curve is closed, but the token is still an ERC-20 that trades on its graduated pool. For
+    // the zRouter-native venues (Uni-V4, ZAMM) we embed the swap IN-SITE (B19); Cypher/Algebra is a
+    // separate router (fast-follow) and any unrecognised deployer falls back to the Uniswap link-out
+    // rather than a dead end. The candles below are the pre-graduation bonding history.
+    const embeddable = venue?.kind === 'uniV4' || venue?.kind === 'zamm'
     const swapUrl = `https://app.uniswap.org/swap?outputCurrency=${instance}&chain=mainnet`
     return (
       <div className={styles.surface} data-testid="erc404-phase-graduated">
@@ -103,18 +109,22 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
             the bonding curve is closed — this token now trades on its liquidity pool.
           </span>
         </div>
-        <div>
-          <a
-            className="btn btn-primary btn-chromatic"
-            href={swapUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="erc404-graduated-trade"
-          >
-            Trade on Uniswap ↗
-          </a>
-        </div>
-        {/* Bonding-curve history (pre-graduation trades). Live price/depth is on the pool (link above). */}
+        {embeddable ? (
+          <GraduatedSwapPanel instance={instance} venue={venue} decimals={decimals} refetch={refetch} />
+        ) : (
+          <div>
+            <a
+              className="btn btn-primary btn-chromatic"
+              href={swapUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="erc404-graduated-trade"
+            >
+              Trade on Uniswap ↗
+            </a>
+          </div>
+        )}
+        {/* Bonding-curve history (pre-graduation trades). Live price/depth is on the pool above. */}
         <div data-testid="erc404-pool-mount">
           <p className={styles.note}>bonding history</p>
           <BondingChart
