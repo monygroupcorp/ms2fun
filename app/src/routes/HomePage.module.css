@@ -141,18 +141,36 @@
   color: var(--text-tertiary);
 }
 
-.browseLink {
-  margin-left: auto;
+/* Browse-all is the tail cell of the featured grid — a "more" tile, not a header link. */
+.browseTile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--border-width-thick, 2px) dashed var(--color-border);
+  text-decoration: none;
+  color: var(--text-secondary);
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.browseTile:hover {
+  color: var(--text-primary);
+  border-color: var(--color-text);
+}
+
+.browseTileLabel {
   font-family: var(--brand-font-mono);
   font-size: var(--font-size-body-sm);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-wide);
-  color: var(--text-secondary);
-  text-decoration: none;
 }
 
-.browseLink:hover {
-  color: var(--text-primary);
+.browseTileArrow {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h2);
+  line-height: 1;
 }
 
 /* Contact-sheet grid; cards get their height from grid-auto-rows (the device art fills it). The
