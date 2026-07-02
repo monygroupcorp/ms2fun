@@ -21,7 +21,7 @@ export function Exec404Page() {
       </nav>
 
       <header className={styles.header}>
-        <p className={styles.kicker}>The fossil · the origin specimen · past tense</p>
+        <p className={styles.kicker}>The genesis collection · the origin of ms2.fun</p>
         <div className={styles.icon} aria-hidden>
           ✕
         </div>
@@ -30,7 +30,7 @@ export function Exec404Page() {
         </h1>
         <div className={styles.meta}>
           <span>DN404 genesis</span>
-          <span>grandfathered fossil</span>
+          <span>the origin collection</span>
           <span>graduated → Uniswap V2</span>
         </div>
       </header>
@@ -38,11 +38,12 @@ export function Exec404Page() {
       <div className={styles.layout}>
         <div className={styles.mainCol}>
           <Exec404Stats />
+          {/* P2: your holdings sit AFTER the market readout and BEFORE the legacy activity. */}
+          <Exec404Portfolio />
           <Exec404Activity />
         </div>
         <aside className={styles.sidebar}>
           <Exec404SwapPanel />
-          <Exec404Portfolio />
         </aside>
       </div>
     </div>
