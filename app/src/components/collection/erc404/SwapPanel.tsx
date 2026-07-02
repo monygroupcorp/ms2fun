@@ -23,6 +23,7 @@ import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
 import { EMPTY_BYTES, ZERO_BYTES32, resolveBuyPasswordHash } from './gating'
+import { encodeActionMessage } from '../../../lib/actionMessage'
 import styles from './BondingSurface.module.css'
 
 type Direction = 'buy' | 'sell'
@@ -60,6 +61,7 @@ export function SwapPanel({
   const [slippagePct, setSlippagePct] = useState('1')
   const [mintNFT, setMintNFT] = useState(false)
   const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
 
   // Parse amount into token base units. Invalid/empty → undefined (disables quote + actions).
   let amount: bigint | undefined
@@ -137,9 +139,11 @@ export function SwapPanel({
     if (amount === undefined || quote === undefined) return
     const deadline = BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_BUFFER_SEC
     const passwordHash = gatingActive ? resolveBuyPasswordHash(password) : ZERO_BYTES32
-    const messageData = EMPTY_BYTES // comment posting is a separate surface; keep trades lean
 
     if (direction === 'buy') {
+      // Optional buy message → posted to the collection channel atomically with the trade (S5).
+      const trimmedMsg = message.trim()
+      const messageData = trimmedMsg ? encodeActionMessage(trimmedMsg) : EMPTY_BYTES
       const maxCost = applyBuySlippage(quote, slippageBps)
       buy.writeContract({
         address: instance,
@@ -152,7 +156,7 @@ export function SwapPanel({
       sell.writeContract({
         address: instance,
         chainId: forkChainId,
-        args: [amount, minRefund, passwordHash, messageData, deadline],
+        args: [amount, minRefund, passwordHash, EMPTY_BYTES, deadline],
       })
     }
   }
@@ -160,6 +164,7 @@ export function SwapPanel({
   function handleReset(): void {
     activeWrite.reset()
     setAmountStr('')
+    setMessage('')
     void balance.refetch()
     refetch()
   }
@@ -266,6 +271,26 @@ export function SwapPanel({
           />
           mint NFT on buy
         </label>
+      )}
+
+      {direction === 'buy' && (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="erc404-buy-message">
+            message (optional)
+          </label>
+          {/* Rides along as buyBonding's messageData → posts to the collection channel with the buy. */}
+          <input
+            id="erc404-buy-message"
+            className={styles.input}
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="say something with your buy…"
+            disabled={isBusy}
+            maxLength={280}
+            data-testid="erc404-buy-message"
+          />
+        </div>
       )}
 
       {gatingActive && (
