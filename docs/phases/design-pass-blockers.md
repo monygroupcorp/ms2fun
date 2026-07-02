@@ -360,3 +360,26 @@ eyeball; P6 collections show only when connected as the seed deployer 0xf39F.
   (name/description/traits) + per-NFT send. `useExec404Nfts` now fetches full metadata.
 - Collection pieces gallery (`2082667`): `.gallerySlot` margin so the grid breathes before the vault
   + featured-queue panels.
+- EXEC portfolio Q-batch (`1e8141b`): widened piece modal to `min(38rem)` with right padding so the
+  close button isn't crowded; `.mainCol` gap so the portfolio doesn't jam the market stats; `IpfsImage`
+  now PINS the gateway that actually loaded (module `loadedSrc` map) so a thumb-loads-but-detail-fails
+  mismatch can't happen; split `useExec404Nfts`→`useExec404NftIds` (cheap enumeration) + `useExec404NftPage`
+  (metadata for ONE page) and added pagination UI (12/24/48/96 per page + prev/next).
+
+## Design-walk pass — fourth batch (S-notes) — 2026-07-02 — SEEDING FOCUS + 7 observations
+
+**Primary task: flesh out the seed so the app renders with REAL PICTURES** (currently placeholder/text
+art). Everything below is secondary polish Mony flagged while walking:
+
+- **S1** — Home page: the "10 collections / 11 featured / EXEC404 genesis" summary block is a useless
+  feature; remove it.
+- **S2** — "Browse all collections" sits on its own newline, disruptive. Move it to the END of the
+  featured list on the front page (inline as the tail of the row), not a standalone line.
+- **S3** — NEW: a TVL page listing all vaults. Vault DETAIL pages with stats, browsable. People can post
+  about vaults / on vault pages (board channel per vault).
+- **S4** — ERC404 swap cell: add QUICKFILL buttons. Buy(ETH): .005 / .01 / .05 / 0.1. Sell: 25 / 50 / 75
+  / 100 %. Reframe input as amount-to-SPEND, not coin count (no one types coin count on a swap UI).
+- **S5** — Allow leaving a MESSAGE when buying on the bonding curve.
+- **S6** — Reroll should be a SHIELDED menu option within the portfolio section (not a bare button).
+- **S7** — Layout order on the collection/token page: bonding curve goes UNDER the alignment info; price
+  candles go AFTER the trading widget.

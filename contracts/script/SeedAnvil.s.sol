@@ -115,7 +115,7 @@ contract SeedAnvil is Script {
         vm.startBroadcast(ACCOUNT_1_KEY);
         d.profiles.setProfile(_profileMeta(
             "Vela", "vela",
-            "Collector. Aligned to the cult.", "V"));
+            "Collector. Aligned to the cult.", ART_AVATAR_2));
         _post(d.messages, acct1, "minted from monolith. clean.");
         _post(d.messages, c0, "grabbed one from neon-drift. love the aberration.");
         vm.stopBroadcast();
@@ -190,34 +190,34 @@ contract SeedAnvil is Script {
         // c0 binds to the Aave ENDOWMENT vault so its collection page shows the endowment panel.
         c0 = _createCollection(d.erc1155, d.endowmentVault, 0,
             "neon-drift", "Neon Drift",
-            "Generative monochrome fragments. An edition aligned to the MS2 community.", "ND", 0);
+            "Generative monochrome fragments. An edition aligned to the MS2 community.", ART_NEON_DRIFT, 0);
         address c1 = _createCollection(d.erc1155, d.vault, 1,
             "monolith", "Monolith",
-            "One slab, many hands. A minimalist open edition.", "MO", 0);
+            "One slab, many hands. A minimalist open edition.", ART_MONOLITH, 0);
         // c2: free-claim. allocation=5 reserved free mints, configured at creation by the factory
         // (initializeFreeMint is onlyFactory — it is NOT called post-create from this script).
         address c2 = _createCollection(d.erc1155, d.vault, 2,
             "ghost-mint", "Ghost Mint",
-            "Faint signals from the fossil layer. Free-claim editions.", "GM", 5);
+            "Faint signals from the fossil layer. Free-claim editions.", ART_GHOST_MINT, 5);
 
         // Editions. basePrice must be > 0 even for the free-claim collection (addEdition reverts on
         // zero price; claimFreeMint ignores price — the edition just needs to exist as a target).
         // PricingModel: 0=UNLIMITED (open, fixed price, supply MUST be 0), 1=LIMITED_FIXED,
         // 2=LIMITED_DYNAMIC (needs the dynamic module + a non-zero rate). openTime=0 => open now.
         ERC1155Instance(c0).addEdition(
-            "Aberration #1", 0.01 ether, 50, _pieceMeta("Aberration #1", "AB", "neon-drift"),
+            "Aberration #1", 0.01 ether, 50, _pieceMeta("Aberration #1", ART_ABERRATION, "neon-drift"),
             ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
         ERC1155Instance(c0).addEdition(
-            "Drift Open", 0.005 ether, 0, _pieceMeta("Drift Open", "DR", "neon-drift"),
+            "Drift Open", 0.005 ether, 0, _pieceMeta("Drift Open", ART_DRIFT_OPEN, "neon-drift"),
             ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
 
         ERC1155Instance(c1).addEdition(
-            "Slab", 0.002 ether, 0, _pieceMeta("Slab", "SL", "monolith"),
+            "Slab", 0.002 ether, 0, _pieceMeta("Slab", ART_SLAB, "monolith"),
             ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
 
         // ghost-mint needs at least one edition so claimFreeMint has a target.
         ERC1155Instance(c2).addEdition(
-            "Ghost", 0.001 ether, 100, _pieceMeta("Ghost", "GH", "ghost-mint"),
+            "Ghost", 0.001 ether, 100, _pieceMeta("Ghost", ART_GHOST, "ghost-mint"),
             ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
 
         // Feature each (rentFeatured) so it surfaces in getHomePageData. rankBoost descends for a
@@ -235,7 +235,7 @@ contract SeedAnvil is Script {
         // Deployer profile + activity (POST=0 to own wall: instance == sender).
         d.profiles.setProfile(_profileMeta(
             "MS2 Labs", "ms2labs",
-            "Building the lean onchain launchpad. Alignment is the product.", "M"));
+            "Building the lean onchain launchpad. Alignment is the product.", ART_AVATAR_1));
         _post(d.messages, deployer, "gm. neon-drift is live and aligned to MS2.");
         _post(d.messages, deployer, "the vault is the product. alignment compounds.");
         _post(d.messages, c0, "first drop. minting is open.");
@@ -250,12 +250,12 @@ contract SeedAnvil is Script {
         string memory slug,
         string memory displayName,
         string memory description,
-        string memory glyph,
+        string memory image,
         uint256 freeMintAllocation
     ) internal returns (address instance) {
         ERC1155Factory.CreateParams memory params = ERC1155Factory.CreateParams({
             name: slug,
-            metadataURI: _collectionMeta(displayName, description, glyph),
+            metadataURI: _collectionMeta(displayName, description, image),
             creator: deployer,
             vault: vault,
             styleUri: "",
@@ -276,11 +276,11 @@ contract SeedAnvil is Script {
     ///      broadcast time — only after deploy.ts advances the chain).
     function _seedErc721Gallery(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address gallery = _createAuction(d, "gallery-relics", "Gallery Relics", "GAL", "GL", 1 hours);
+        address gallery = _createAuction(d, "gallery-relics", "Gallery Relics", "GAL", ART_GALLERY, 1 hours);
         ERC721AuctionInstance g = ERC721AuctionInstance(payable(gallery));
         // Each queuePiece's msg.value = minBid; first piece per line auto-starts (endTime = now+1h).
-        g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic I", "R1", "gallery-relics"));  // tokenId 1, line 0
-        g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic II", "R2", "gallery-relics")); // tokenId 2, line 1
+        g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic I", ART_RELIC_I, "gallery-relics"));  // tokenId 1, line 0
+        g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic II", ART_RELIC_II, "gallery-relics")); // tokenId 2, line 1
         d.queue.rentFeatured{value: 1 ether}(gallery, 30 days, 0.025 ether);
         vm.stopBroadcast();
 
@@ -297,10 +297,10 @@ contract SeedAnvil is Script {
     ///      form to demo). Both keep counting down (chain-anchored countdown in the UI).
     function _seedErc721Live(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address live = _createAuction(d, "live-salon", "Live Salon", "LIV", "LV", 1 days);
+        address live = _createAuction(d, "live-salon", "Live Salon", "LIV", ART_LIVE_SALON, 1 days);
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));
-        l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon I", "S1", "live-salon"));  // tokenId 1, line 0
-        l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon II", "S2", "live-salon")); // tokenId 2, line 1
+        l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon I", ART_SALON_I, "live-salon"));  // tokenId 1, line 0
+        l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon II", ART_SALON_II, "live-salon")); // tokenId 2, line 1
         d.queue.rentFeatured{value: 1 ether}(live, 30 days, 0.04 ether);
         vm.stopBroadcast();
 
@@ -314,12 +314,12 @@ contract SeedAnvil is Script {
         string memory slug,
         string memory displayName,
         string memory symbol,
-        string memory glyph,
+        string memory image,
         uint40 baseDuration
     ) internal returns (address instance) {
         ERC721AuctionFactory.CreateParams memory params = ERC721AuctionFactory.CreateParams({
             name: slug,
-            metadataURI: _collectionMeta(displayName, "Single-line auction house.", glyph),
+            metadataURI: _collectionMeta(displayName, "Single-line auction house.", image),
             creator: deployer,
             vault: d.vault, // must be a contract; the generic Uni vault qualifies
             symbol: symbol,
@@ -342,7 +342,7 @@ contract SeedAnvil is Script {
         // Cypher LP venue + Cypher (Algebra) vault — covers the Cypher family (it stays preopen, so
         // the Algebra pool is never actually deployed; the graduated-swap Cypher path is link-out anyway).
         address inst = _createBonding(
-            d, "ember-preopen", "Ember", "EMBER", address(0), d.cypherVault, d.cypherDeployer);
+            d, "ember-preopen", "Ember", "EMBER", ART_EMBER, address(0), d.cypherVault, d.cypherDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 days); // strictly future -> preopen
         b.setBondingActive(true);
@@ -357,7 +357,7 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
         // Uni-V4 LP venue + Uni LP vault (mid-curve; does not graduate).
         address inst = _createBonding(
-            d, "vapor-mid", "Vapor", "VAPOR", d.stakingModule, d.vault, d.uniDeployer);
+            d, "vapor-mid", "Vapor", "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
         // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
@@ -395,9 +395,9 @@ contract SeedAnvil is Script {
     ///      and molten-ready (ZAMM -> swapVZ).
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
-        _seedReadyToGraduate(d, "cinder-ready", "Cinder", "CINDER", d.vault, d.uniDeployer, 0.045 ether);
+        _seedReadyToGraduate(d, "cinder-ready", "Cinder", "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether);
         // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
-        _seedReadyToGraduate(d, "molten-ready", "Molten", "MOLTEN", d.zammVault, d.zammDeployer, 0.043 ether);
+        _seedReadyToGraduate(d, "molten-ready", "Molten", "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether);
     }
 
     function _seedReadyToGraduate(
@@ -405,12 +405,13 @@ contract SeedAnvil is Script {
         string memory slug,
         string memory name,
         string memory symbol,
+        string memory image,
         address vault,
         address deployer_,
         uint256 rankBoost
     ) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, slug, name, symbol, address(0), vault, deployer_);
+        address inst = _createBonding(d, slug, name, symbol, image, address(0), vault, deployer_);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
         // advance the curve is open (bonding) AND matured (graduate unlocked).
@@ -466,7 +467,7 @@ contract SeedAnvil is Script {
         TierConfig memory noGating;
         address inst = d.erc404.createInstance(
             params,
-            _collectionMeta("Prism", "Stacked overlay + rarity tiers.", "PR"),
+            _collectionMeta("Prism", "Stacked overlay + rarity tiers.", ART_PRISM),
             d.zammDeployer,
             address(0),
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH}),
@@ -558,6 +559,7 @@ contract SeedAnvil is Script {
         string memory slug,
         string memory name,
         string memory symbol,
+        string memory image,
         address stakingModule,
         address vault,
         address deployer_
@@ -576,7 +578,7 @@ contract SeedAnvil is Script {
         });
         instance = d.erc404.createInstance(
             params,
-            _collectionMeta(name, "Bonding-curve ERC404.", symbol),
+            _collectionMeta(name, "Bonding-curve ERC404.", image),
             deployer_,           // approved LIQUIDITY_DEPLOYER (the LP venue)
             address(0),          // no gating
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
@@ -592,49 +594,62 @@ contract SeedAnvil is Script {
         messages.post(channel, 0, 0, bytes32(0), bytes32(0), content);
     }
 
-    // ── Backend-free metadata builders (data: JSON wrapping a data: SVG image) ───
-    // SVG uses single-quoted attributes + named colors (no '#') so it nests cleanly inside a
-    // JSON double-quoted string and renders monochrome (Gallery Brutalism).
+    // ── Real art (mainnet-harvested, gateway-verified IPFS CIDs) ─────────────────
+    // A fresh, varied set: a coherent style per collection (as a real drop would have). Each CID was
+    // read off a live mainnet collection's tokenURI on the fork and verified to return image bytes,
+    // so it is genuinely pinned. If a public gateway is slow the frontend's IpfsImage rotator falls
+    // through to the next one. To refresh the pool see docs/phases/design-pass-blockers.md.
+    // Azuki (anime) → neon-drift edition · Doodles → gallery-relics auction · Pudgy → live-salon
+    // auction + prism · mfers → monolith + vapor · World of Women → ghost-mint + cinder.
+    string constant ART_NEON_DRIFT = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/7.png";
+    string constant ART_ABERRATION = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
+    string constant ART_DRIFT_OPEN = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/128.png";
+    string constant ART_MONOLITH = "ipfs://Qmd4LiA6qkH64HwKnj28va5EgWSmSTu6WRvq4SwWav2eCx";
+    string constant ART_SLAB = "ipfs://QmUcgEJByHioefXqrhv8LadTJL8TCsC2iBDzvsYqsiAs7k";
+    string constant ART_GHOST_MINT = "ipfs://QmRLxHRC8x92XgVk2RnUs4RmM1WiX1dg6rH8hpRtLoKfJj";
+    string constant ART_GHOST = "ipfs://QmNwxe3ZUd31rm2ejwjRLUB1paoxC2nj76VLbnyFy27CF7";
+    string constant ART_GALLERY = "ipfs://QmcPv7T6QD6sjyu4G1jVgx2Gj8ZtTwEBy71tMRjSHGoZcT";
+    string constant ART_RELIC_I = "ipfs://QmQTkvAKhrTCmSR24zQgDLUiUT6gqWqh9aZJDbX5yWgLMP";
+    string constant ART_RELIC_II = "ipfs://QmVDJ6wg4y7Biy9Wm93ghJJsRithcBNXFUcBbasGYDSpHb";
+    string constant ART_LIVE_SALON = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/7.png";
+    string constant ART_SALON_I = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/42.png";
+    string constant ART_SALON_II = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/128.png";
+    string constant ART_EMBER = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/777.png";
+    string constant ART_VAPOR = "ipfs://QmNg8FE8pgKSCjo54WDNEHaiaUcgW2eNUQ5iWzBYc7ZUKt";
+    string constant ART_CINDER = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";
+    string constant ART_MOLTEN = "ipfs://QmS3XQsKc1FRKV6Q9sn3kgwstdLmgM5sK9gFhiJtRLv7y1";
+    string constant ART_PRISM = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/777.png";
+    string constant ART_AVATAR_1 = "ipfs://QmNewNmsfGgvqptDDDeDC7nwWVM8ReXp5qmySNyBdyRw9M";
+    string constant ART_AVATAR_2 = "ipfs://QmWZqi5xnTcnqa4k7UuzeLd3sm2mCci24wx1yQvKiDq1vm";
 
-    function _svg(string memory glyph) internal pure returns (string memory) {
-        // Monospace glyphs are ~0.6em wide; at 150px a >4-char symbol overruns the 400px art and
-        // gets cover-cropped in the card. Step the font down by length so the whole symbol fits.
-        uint256 len = bytes(glyph).length;
-        string memory size = len <= 4 ? "150" : len == 5 ? "120" : "96";
-        return string.concat(
-            "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>",
-            "<rect width='400' height='400' fill='black'/>",
-            "<text x='200' y='250' fill='white' font-family='monospace' font-size='",
-            size,
-            "' text-anchor='middle'>",
-            glyph,
-            "</text></svg>"
-        );
-    }
+    // ── Backend-free metadata builders (raw data: JSON pointing at a real IPFS image) ───
+    // The metadata JSON is an unencoded `data:application/json,{...}` URI; the image is a plain
+    // ipfs:// pointer (no quotes/backslashes to escape), which the frontend resolver races across
+    // gateways.
 
     function _collectionMeta(
         string memory name,
         string memory description,
-        string memory glyph
+        string memory image
     ) internal pure returns (string memory) {
         return string.concat(
             "data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
             "\",\"description\":\"", description,
-            "\",\"category\":\"edition\",\"image\":\"", _svg(glyph),
+            "\",\"category\":\"edition\",\"image\":\"", image,
             "\"}"
         );
     }
 
-    /// @dev Per-piece/edition metadata (same shape, piece-scoped name + glyph).
+    /// @dev Per-piece/edition metadata (same shape, piece-scoped name + image).
     function _pieceMeta(
         string memory name,
-        string memory glyph,
+        string memory image,
         string memory collection
     ) internal pure returns (string memory) {
         return string.concat(
             "data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
             "\",\"collection\":\"", collection,
-            "\",\"image\":\"", _svg(glyph),
+            "\",\"image\":\"", image,
             "\"}"
         );
     }
@@ -643,13 +658,13 @@ contract SeedAnvil is Script {
         string memory name,
         string memory handle,
         string memory bio,
-        string memory glyph
+        string memory image
     ) internal pure returns (string memory) {
         return string.concat(
             "data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
             "\",\"handle\":\"", handle,
             "\",\"bio\":\"", bio,
-            "\",\"avatar\":\"", _svg(glyph),
+            "\",\"avatar\":\"", image,
             "\"}"
         );
     }
