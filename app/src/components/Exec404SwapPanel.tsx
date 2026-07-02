@@ -11,7 +11,7 @@
  *    finite deadline so it uses the Uniswap V2 pool EXEC actually graduated to.
  *  - ETH is the zRouter native sentinel `address(0)`; sells (EXEC→ETH) are approve-then-swap.
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { erc20Abi, formatEther, formatUnits, maxUint256, parseEther, zeroAddress } from 'viem'
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { useSimulateZRouterSwapV2, useWriteZRouterSwapV2 } from '../generated/contracts'
@@ -24,6 +24,9 @@ import styles from './collection/erc404/BondingSurface.module.css'
 type Direction = 'buy' | 'sell'
 
 const DEADLINE_BUFFER_SEC = 86_400n
+/** Stable far-future deadline for the quote SIMULATION only (see GraduatedSwapPanel) — keeps the sim
+ *  query key from churning every second; finite so it never trips zRouter's Sushi-pool selector. */
+const QUOTE_DEADLINE = 9_999_999_999n
 const BPS_DENOMINATOR = 10_000n
 /** EXEC has a ~4% transfer tax, so a 1% default would revert most buys; start wider. */
 const DEFAULT_SLIPPAGE_PCT = '6'
@@ -84,7 +87,7 @@ export function Exec404SwapPanel() {
     value: buyValue,
     args:
       amountIn !== undefined
-        ? [address ?? zeroAddress, false, tokenIn, tokenOut, amountIn, 0n, deadline()]
+        ? [address ?? zeroAddress, false, tokenIn, tokenOut, amountIn, 0n, QUOTE_DEADLINE]
         : undefined,
     query: { enabled: quoteReady },
   })
@@ -94,14 +97,25 @@ export function Exec404SwapPanel() {
 
   const approve = useWriteContract()
   const swap = useWriteZRouterSwapV2()
-  const { isLoading: isApproving } = useWaitForTransactionReceipt({ hash: approve.data })
+  const { isLoading: isApproving, isSuccess: approveConfirmed } = useWaitForTransactionReceipt({
+    hash: approve.data,
+  })
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: swap.data })
 
+  // Re-read the allowance once the approval is MINED so `needsApproval` flips (see GraduatedSwapPanel).
+  const refetchAllowance = allowanceRead.refetch
+  useEffect(() => {
+    if (approveConfirmed) void refetchAllowance()
+  }, [approveConfirmed, refetchAllowance])
+
   function handleApprove(): void {
-    approve.writeContract(
-      { address: EXEC404_ADDRESS, abi: erc20Abi, functionName: 'approve', chainId, args: [zRouter, maxUint256] },
-      { onSuccess: () => void allowanceRead.refetch() },
-    )
+    approve.writeContract({
+      address: EXEC404_ADDRESS,
+      abi: erc20Abi,
+      functionName: 'approve',
+      chainId,
+      args: [zRouter, maxUint256],
+    })
   }
 
   function handleSwap(): void {
