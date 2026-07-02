@@ -270,3 +270,45 @@ Board post ✓, free-mint claim ✓, mint-with-message ✓, settle auction ✓.
 - Root causes + fixes are appended under each item as we work them.
 - The e2e suite gains a `@fork` write-path spec for each P0 as it's fixed, so these
   paths stop being untested.
+
+---
+
+## Design-walk pass (Mony's live notes N1–N13) — 2026-07-02
+
+Verified per change: `tsc --noEmit` + `eslint` + `vitest` (409 unit tests green). Layout/render
+changes not e2e-run against the live fork (Mony was mid-walk on it; write-path specs would mutate
+his state). Commits noted inline.
+
+- **N9 (fix, `5d831e3`)** — the ERC404 phase machine reported **every** instance as graduated.
+  `isGraduated` OR'd in `liquidityDeployer != 0`, but that's the venue module set at construction
+  (always non-zero), not a graduation signal. Keyed off the real `graduated` flag; dropped the field.
+  Restores bonding/graduate/preopen across all 404s (prism/vapor→bonding, cinder/molten→graduate btn).
+- **N4/N5/N10/N11 (refactor, `3016c9a`)** — CollectionPage split into 3 regions via
+  `resolveCollectionSurfaces → {Primary, Gallery, Admin}`: pieces render as a uniform grid BELOW the
+  shell (global; Mony chose uniform grid over hero), creator admin drops below the featured queue
+  (outside the shell), the composer moved INSIDE the activity section (empty "no activity yet" now
+  sits directly above "write something"). 1155 editions decoupled from admin via query invalidation.
+- **N7** — resolved by the N10 grid choice (721 piece gallery below the shell). No separate work.
+- **N8** — not a bug. FeaturedPanel greys its action buttons until you enter a duration/amount, and
+  gallery-relics is already featured (seed rents it) so it shows "featured" rather than a CTA.
+  Possible polish: clearer waiting-for-input affordance (not done).
+- **N6 (fix, `7617d0f`)** — general-board posts linked to a dead `/collection/<wallet>`. A wall post
+  has `instance == sender`; `channelRef()` now links wall posts to the sender PROFILE ("· on the
+  salon") and only real collection channels to `/collection/…`. Post header, quote card, register.
+- **N2 + N3-swap (fix, `a527181`)** — new shared `formatTokenAmount(v, dec, maxFrac)` caps the EXEC
+  receive quote + balance to 4 decimals (was raw 18-dec overflow). EXEC balance now shows in both
+  directions and refetches on each confirmed swap; the dead-end "trade again" button replaced by a
+  natural reset + one-line confirmation. Unit-tested.
+- **N13 (feat, `d9a349a`)** — inline bid/settle/reclaim on the ERC721 token page (exported
+  `AuctionAction`, fed an ActiveAuction rebuilt from the page's getAuction read + useAuctions config).
+  Edition-mint already existed inline on the 1155 edition page.
+- **N12 (SPEC/HANDOFF, `46908d5`)** — the "post-value threshold / spam lever" does NOT exist in this
+  tree (post() is nonpayable, MessagePosted has no value field). Full build spec written:
+  `docs/phases/spec-N12-post-value-threshold.md`. Someone else builds it (contract change + redeploy).
+
+### STILL OPEN
+- **N1 + N3-portfolio** — cultexecs has no portfolio view; "see/send/reroll minted NFTs." Findings:
+  the EXEC **fossil can't reroll** (reverts `FnSelectorNotRecognized`) and can't enumerate NFTs (no
+  `owned()`); `tokenURI` works. New collections already have a per-collection NFT gallery + reroll
+  (bonding phase) + a profile holdings plate. Recommended default: a compact EXEC "your position"
+  panel (live balance + ERC20 send); reroll is n/a on the fossil. Awaiting Mony's scope call.
