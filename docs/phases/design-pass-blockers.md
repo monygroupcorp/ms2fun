@@ -306,9 +306,14 @@ his state). Commits noted inline.
   tree (post() is nonpayable, MessagePosted has no value field). Full build spec written:
   `docs/phases/spec-N12-post-value-threshold.md`. Someone else builds it (contract change + redeploy).
 
-### STILL OPEN
-- **N1 + N3-portfolio** — cultexecs has no portfolio view; "see/send/reroll minted NFTs." Findings:
-  the EXEC **fossil can't reroll** (reverts `FnSelectorNotRecognized`) and can't enumerate NFTs (no
-  `owned()`); `tokenURI` works. New collections already have a per-collection NFT gallery + reroll
-  (bonding phase) + a profile holdings plate. Recommended default: a compact EXEC "your position"
-  panel (live balance + ERC20 send); reroll is n/a on the fossil. Awaiting Mony's scope call.
+- **N1 + N3-portfolio (feat, `f39b9af`)** — EXEC "Your position" panel. CORRECTION: my first pass
+  wrongly said the fossil couldn't reroll or enumerate. Both work: reroll = `base.transfer(self,
+  balanceOf(self))` (DN404 self-send churns ids); enumeration = replay the **mirror**'s
+  (`0x9e75…09BD`, from `mirrorERC721()`) Transfer log filtered to the wallet — no `owned()`/enumerable
+  view, but `mirror.balanceOf` gives count + pure `ownedIdsFromTransfers` gives ids (6 unit tests);
+  art via `base.tokenURI`. Panel = balance + NFT count + reroll + send EXEC + pieces gallery w/
+  per-NFT send (`mirror.transferFrom`). **NOT runtime-verified**: dev wallet holds 0 EXEC + skip-NFT
+  on, so the gallery/reroll need a live check with a real holder (buy ≥1 EXEC, skipNFT off).
+
+### ALL 13 NOTES CLOSED (first design-walk batch). Follow-ups: N12 build (spec'd), and a live
+### holder check of the EXEC portfolio gallery/reroll.
