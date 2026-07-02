@@ -353,3 +353,10 @@ EXEC balanceMint needs a real EXEC holder). Both need a live eyeball on the runn
 
 Verify: tsc + eslint + 423 unit tests green. IPFS rotator / auction sizing / profile form need a live
 eyeball; P6 collections show only when connected as the seed deployer 0xf39F.
+
+### Follow-up refinements
+- EXEC portfolio (`ef6e39c`): renamed "Your position"→"Portfolio"; pieces lead (gallery ABOVE the
+  mint/reroll/send actions); each piece click-opens a detail modal with large art + on-chain metadata
+  (name/description/traits) + per-NFT send. `useExec404Nfts` now fetches full metadata.
+- Collection pieces gallery (`2082667`): `.gallerySlot` margin so the grid breathes before the vault
+  + featured-queue panels.
