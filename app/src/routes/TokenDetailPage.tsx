@@ -9,7 +9,7 @@
  * bindings, so we read them through the public client with a minimal inline ABI (the read idiom
  * from useMessageFeed/useAuctions). Art is resolved with fetchJson/resolveUri (lib/metadata).
  */
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'wouter'
 import { formatEther } from 'viem'
 import { usePublicClient } from 'wagmi'
@@ -18,9 +18,12 @@ import {
   useReadErc404BondingInstanceMirrorErc721,
 } from '../generated/contracts'
 import { useCollection } from '../components/useCollection'
+import { AuctionAction } from '../components/collection/erc721/AuctionCard'
+import { useAuctions, type ActiveAuction } from '../components/collection/erc721/useAuctions'
 import { useBidHistory } from '../components/collection/erc721/useBidHistory'
 import { useNowSec } from '../components/collection/erc721/useNowSec'
 import { deriveAuctionState } from '../components/collection/erc721/auctionState'
+import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
 import { fetchJson, resolveUri } from '../lib/metadata'
 import { truncateAddress } from '../lib/format'
@@ -234,8 +237,12 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
 function Erc721Token({ instance, id, collectionName, creator, vaultName }: TokenProps) {
   const client = usePublicClient({ chainId: forkChainId })
   const nowSec = useNowSec()
+  const queryClient = useQueryClient()
+  const { isOwner } = useOwnerGate(instance)
+  // The instance-level auction config (bidIncrement etc.) the inline bid form needs (N13).
+  const { data: auctionsData } = useAuctions(instance)
 
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, refetch } = useQuery({
     // NB: do NOT key on nowSec — the auction read is time-independent; deriveAuctionState(a, nowSec)
     // below recomputes the badge each tick without refetching the contract every second.
     queryKey: ['erc721-token', instance, id.toString()],
@@ -274,6 +281,24 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
   )
   const hasBidder = a.highBidder.toLowerCase() !== '0x0000000000000000000000000000000000000000'
   const title = data.name || `${collectionName} #${id.toString()}`
+
+  // Reconstruct the ActiveAuction the inline action needs from this token's getAuction struct — same
+  // shape useAuctions builds (line is display-only and unused by the action). (N13)
+  const activeAuction: ActiveAuction = {
+    line: 0,
+    tokenId: id,
+    tokenURI: a.tokenURI,
+    minBid: a.minBid,
+    highBid: a.highBid,
+    highBidder: a.highBidder,
+    startTime: BigInt(a.startTime),
+    endTime: BigInt(a.endTime),
+    settled: a.settled,
+  }
+  const refetchAuction = () => {
+    void refetch()
+    void queryClient.invalidateQueries({ queryKey: ['erc721-bids', instance, id.toString()] })
+  }
 
   return (
     <article className={styles.wall}>
@@ -323,25 +348,37 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
           </div>
         )}
 
-        <div className={styles.acquire}>
+        <div className={styles.acquire} id="bid">
           <div className={styles.priceRow}>
             <span className={styles.priceLabel}>{hasBidder ? 'High bid' : 'Min bid'}</span>
             <span className={styles.price}>
               {formatEther(hasBidder ? a.highBid : a.minBid)} ETH
             </span>
           </div>
+          {/* N13: bid (and settle/reclaim) INLINE on the token page — the same auction action the
+              collection page uses, without duplicating the card's art/stats. */}
+          {auctionsData?.config && (
+            <AuctionAction
+              instance={instance}
+              auction={activeAuction}
+              config={auctionsData.config}
+              state={state}
+              isOwner={isOwner}
+              refetch={refetchAuction}
+            />
+          )}
           <Link href={`/collection/${instance}`} className={styles.bidLink}>
-            {state === 'active' ? 'Bid on the collection page →' : 'View the collection →'}
+            View the collection →
           </Link>
           <AlignmentLine vaultName={vaultName} />
         </div>
       </div>
 
-      {/* Mobile: the acquire action stays in thumb reach; bidding lives on the collection. */}
+      {/* Mobile: the acquire action stays in thumb reach — jumps to the inline bid form. */}
       <MintBar
         price={`${formatEther(hasBidder ? a.highBid : a.minBid)} ETH`}
         sub={hasBidder ? 'high bid' : 'min bid'}
-        action={<Link href={`/collection/${instance}`}>{state === 'active' ? 'Bid' : 'View'}</Link>}
+        action={<a href="#bid">{state === 'active' ? 'Bid' : 'View'}</a>}
       />
     </article>
   )
