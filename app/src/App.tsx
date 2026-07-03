@@ -39,6 +39,19 @@ import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
 
+/** The NOESIS brand lockup — the picture-frame symbol (the platform frames the work) + the lowercase
+ * `noesis` wordmark. Monochrome `currentColor` so it adapts to the bar's text colour. */
+function NoesisLogo() {
+  return (
+    <span className={styles.logoLockup}>
+      <svg className={styles.logoMark} viewBox="0 0 48 48" aria-hidden="true">
+        <path fillRule="evenodd" fill="currentColor" d="M5,5 H43 V43 H5 Z M15,15 H33 V33 H15 Z" />
+      </svg>
+      <span className={styles.logoWord}>noesis</span>
+    </span>
+  )
+}
+
 /** The site's primary navigation. NOESIS nav (ADR-019 base COLLECTIONS · BOARD · LAUNCH · CONNECT),
  * plus VAULTS (S3) so the alignment vaults / TVL surface is discoverable — a TVL page nobody can
  * reach defeats the point. LAUNCH stays the single black filled CTA — the platform's job is to get
@@ -122,7 +135,7 @@ export function App() {
           <div className={styles.app} data-brand="noesis">
             <header className={styles.topBar}>
               <Link href="/" className={styles.logo} onClick={closeMenu}>
-                ms2<span className={styles.logoTld}>.fun</span>
+                <NoesisLogo />
               </Link>
               <nav className={styles.nav}>
                 <NavLinks linkClassName={styles.navLink} ctaClassName={styles.navCta} />
@@ -142,7 +155,7 @@ export function App() {
               <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="menu">
                 <div className={styles.overlayBar}>
                   <Link href="/" className={styles.logo} onClick={closeMenu}>
-                    ms2<span className={styles.logoTld}>.fun</span>
+                    <NoesisLogo />
                   </Link>
                   <button
                     type="button"

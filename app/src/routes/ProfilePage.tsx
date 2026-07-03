@@ -102,7 +102,7 @@ export function ProfilePage() {
       <div className={styles.page}>
         <nav className={styles.crumb}>
           <Link href="/" className={styles.back}>
-            ← ms2.fun
+            ← noesis
           </Link>
         </nav>
         <div className={`noesis-gate ${styles.gate}`}>
@@ -119,7 +119,7 @@ export function ProfilePage() {
       <div className={styles.page}>
         <nav className={styles.crumb}>
           <Link href="/" className={styles.back}>
-            ← ms2.fun
+            ← noesis
           </Link>
         </nav>
         <StateBlock variant="empty">invalid address in URL</StateBlock>
@@ -136,7 +136,7 @@ export function ProfilePage() {
     <div className={styles.page}>
       <nav className={styles.crumb}>
         <Link href="/" className={styles.back}>
-          ← ms2.fun
+          ← noesis
         </Link>
       </nav>
 
