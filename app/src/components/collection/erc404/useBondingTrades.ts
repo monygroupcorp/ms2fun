@@ -11,7 +11,8 @@ import { useQuery } from '@tanstack/react-query'
 import { formatEther, formatUnits } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { erc404BondingInstanceAbi } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { deployBlock, forkChainId } from '../../../lib/addresses'
+import { scanBackward } from '../../../lib/logScan'
 import type { Trade } from './candleAggregator'
 
 export interface BondingTrade extends Trade {
@@ -35,13 +36,18 @@ export function useBondingTrades(
     staleTime: 10_000,
     queryFn: async (): Promise<BondingTrade[]> => {
       if (!client) return []
-      const logs = await client.getContractEvents({
-        address: instance,
-        abi: erc404BondingInstanceAbi,
-        eventName: 'BondingSale',
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: instance,
+            abi: erc404BondingInstanceAbi,
+            eventName: 'BondingSale',
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
 
       const trades: BondingTrade[] = []
       for (const log of logs) {

@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { globalMessageRegistryAbi } from '../generated/contracts'
-import { forkAddresses, forkChainId } from '../lib/addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
+import { scanBackward } from '../lib/logScan'
 
 export interface FeedFilter {
   instance?: `0x${string}`
@@ -40,14 +41,19 @@ export function useMessageFeed(filter: FeedFilter): {
       if (filter.instance !== undefined) args.instance = filter.instance
       if (filter.sender !== undefined) args.sender = filter.sender
 
-      const logs = await client.getContractEvents({
-        address: forkAddresses.GlobalMessageRegistry,
-        abi: globalMessageRegistryAbi,
-        eventName: 'MessagePosted',
-        args,
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: forkAddresses.GlobalMessageRegistry,
+            abi: globalMessageRegistryAbi,
+            eventName: 'MessagePosted',
+            args,
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
 
       const messages: FeedMessage[] = []
       for (const log of logs) {

@@ -6,7 +6,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { erc721AuctionInstanceAbi } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { deployBlock, forkChainId } from '../../../lib/addresses'
+import { scanBackward } from '../../../lib/logScan'
 
 export interface BidRecord {
   bidder: `0x${string}`
@@ -26,14 +27,19 @@ export function useBidHistory(
     staleTime: 10_000,
     queryFn: async (): Promise<BidRecord[]> => {
       if (!client || tokenId === undefined) return []
-      const logs = await client.getContractEvents({
-        address: instance,
-        abi: erc721AuctionInstanceAbi,
-        eventName: 'BidPlaced',
-        args: { tokenId: Number(tokenId) },
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: instance,
+            abi: erc721AuctionInstanceAbi,
+            eventName: 'BidPlaced',
+            args: { tokenId: Number(tokenId) },
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
 
       const bids: BidRecord[] = []
       for (const log of logs) {

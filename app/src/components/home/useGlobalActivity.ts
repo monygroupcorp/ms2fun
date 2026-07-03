@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { globalMessageRegistryAbi } from '../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../../lib/addresses'
+import { scanBackward } from '../../lib/logScan'
 import type { FeedMessage } from '../useMessageFeed'
 
 /**
@@ -27,13 +28,18 @@ export function useGlobalActivity(): {
     queryFn: async (): Promise<FeedMessage[]> => {
       if (!client) return []
 
-      const logs = await client.getContractEvents({
-        address: forkAddresses.GlobalMessageRegistry,
-        abi: globalMessageRegistryAbi,
-        eventName: 'MessagePosted',
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: forkAddresses.GlobalMessageRegistry,
+            abi: globalMessageRegistryAbi,
+            eventName: 'MessagePosted',
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
 
       const messages: FeedMessage[] = []
       for (const log of logs) {
