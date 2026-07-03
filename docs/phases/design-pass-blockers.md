@@ -383,3 +383,22 @@ art). Everything below is secondary polish Mony flagged while walking:
 - **S6** — Reroll should be a SHIELDED menu option within the portfolio section (not a bare button).
 - **S7** — Layout order on the collection/token page: bonding curve goes UNDER the alignment info; price
   candles go AFTER the trading widget.
+
+### Fourth-batch progress (all but S3 shipped) — 2026-07-02
+- **SEED (feat, `21776a6`)** — real IPFS art across all 10 seeded collections + pieces + avatars. 20
+  mainnet-harvested, gateway-verified CIDs (Azuki/Doodles/Pudgy/mfers/World-of-Women), one coherent
+  style per collection. Dropped `_svg`; builders inline a plain `ipfs://` image. **Needs a fork
+  rebuild to view live** (fresh anvil → deploy → seed).
+- **S1+S2 (feat, `de7b498`)** — dropped the home stats bar; folded "Browse all collections" into the
+  featured grid as a dashed tail tile (was a disruptive standalone header line).
+- **S6+S7 (feat, `93e02cb`)** — candles moved BELOW the trade widget (curve leads); EXEC reroll shielded
+  behind an "Advanced · reroll" <details> disclosure.
+- **S5 (feat, `f598f74`)** — optional message on a bonding BUY → posts to the collection channel atomically
+  (buyBonding messageData; new `encodeActionMessage`, unit-tested).
+- **S4 (feat, `1c15986`)** — swap quickfill: ETH-to-spend buy presets + %-of-balance sell presets on the
+  graduated + EXEC cells; %-sell on the bonding cell. The bonding BUY spend-reframe (needs an on-chain
+  calculateCost inverse) is scoped in `docs/phases/spec-S4-bonding-buy-spend.md`, NOT approximated.
+- **S3 — IN PROGRESS**: TVL page + vault detail pages + per-vault board channel (a new multi-page
+  surface; scoping against vault infra before building).
+Verify so far: tsc + eslint clean; full unit suite 430 green. Live eyeball (esp. the seed art) needs a
+fork rebuild.
