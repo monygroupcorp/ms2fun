@@ -36,7 +36,7 @@ export function CollectionPage() {
       <div className={styles.page}>
         <nav className={styles.crumb}>
           <Link href="/" className={styles.back}>
-            ← ms2.fun
+            ← noesis
           </Link>
         </nav>
         <p className={styles.kicker}>Collections</p>
@@ -67,7 +67,7 @@ export function CollectionPage() {
     <div className={styles.page} data-testid="collection-detail">
       <nav className={styles.crumb}>
         <Link href="/" className={styles.back}>
-          ← ms2.fun
+          ← noesis
         </Link>
       </nav>
 

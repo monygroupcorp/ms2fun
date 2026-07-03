@@ -62,7 +62,7 @@ export function EditionDetailPage() {
       <div className={styles.page}>
         <nav className={styles.crumb}>
           <Link href="/" className={styles.back}>
-            ← ms2.fun
+            ← noesis
           </Link>
         </nav>
         <StateBlock variant="empty">invalid edition reference</StateBlock>

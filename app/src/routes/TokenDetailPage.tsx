@@ -66,7 +66,7 @@ export function TokenDetailPage() {
       <div className={styles.page}>
         <nav className={styles.crumb}>
           <Link href="/" className={styles.back}>
-            ← ms2.fun
+            ← noesis
           </Link>
         </nav>
         <StateBlock variant="empty">invalid token reference</StateBlock>

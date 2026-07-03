@@ -16,12 +16,12 @@ export function Exec404Page() {
     <div className={styles.page}>
       <nav className={styles.crumb}>
         <Link href="/" className={styles.back}>
-          ← ms2.fun
+          ← noesis
         </Link>
       </nav>
 
       <header className={styles.header}>
-        <p className={styles.kicker}>The genesis collection · the origin of ms2.fun</p>
+        <p className={styles.kicker}>The genesis collection · the origin of noesis</p>
         <div className={styles.icon} aria-hidden>
           ✕
         </div>

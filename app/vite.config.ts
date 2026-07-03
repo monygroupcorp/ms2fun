@@ -16,12 +16,12 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['favicon.svg', 'favicon-48.png', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'favicon-16.png', 'favicon-32.png', 'apple-touch-icon.png'],
       manifest: {
-        name: 'ms2.fun',
-        short_name: 'ms2.fun',
+        name: 'noesis',
+        short_name: 'noesis',
         description:
-          'Onchain alignment launchpad — curated art/token releases bound to alignment vaults.',
+          'noesis — onchain alignment launchpad. Curated art/token releases bound to the communities that inspired them.',
         theme_color: '#0a0a0a',
         background_color: '#0a0a0a',
         display: 'standalone',

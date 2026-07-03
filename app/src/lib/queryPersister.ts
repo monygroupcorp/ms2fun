@@ -22,7 +22,7 @@ export const PERSIST_MAX_AGE = 1000 * 60 * 60 // 1 hour
 
 export const queryPersister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: 'ms2.read-cache',
+  key: 'noesis.read-cache',
   serialize,
   deserialize,
 })

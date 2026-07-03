@@ -239,7 +239,7 @@ export function BoardPage() {
     <div className={styles.page}>
       <nav className={styles.crumb}>
         <Link href="/" className={styles.back}>
-          ← ms2.fun
+          ← noesis
         </Link>
       </nav>
 

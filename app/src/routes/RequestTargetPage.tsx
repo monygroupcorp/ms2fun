@@ -42,7 +42,7 @@ export function RequestTargetPage() {
     <div className={styles.page} data-testid="request-target-page">
       <nav>
         <Link href="/" className={styles.reqMeta}>
-          ← ms2.fun
+          ← noesis
         </Link>
       </nav>
       <header>
