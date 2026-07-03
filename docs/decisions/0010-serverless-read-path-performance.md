@@ -151,17 +151,27 @@ the SW. Tracked separately from this ADR.
 2. **Tier 1B — deploy-block floor + reverse-windowed scan** ✅ *(done, `0c3aa84` + `f4f2b82`)* —
    `deploy.ts` records `deployBlock`; `logScan.ts` (`reverseWindows` + `scanBackward`, tested) floors
    every scan at the deploy block (EXEC at its own `EXEC404_DEPLOY_BLOCK`) and splits it into cap-safe
-   reverse windows. **All 11 `fromBlock:0n` sites migrated**, behaviour-preserving. *Remaining follow-up:*
-   feed **early-stop** (`maxWindows`) + **infinite-scroll UI** (`useInfiniteQuery`) — the fetch is already
-   newest-first + cap-safe; this is the UI chrome + the threaded-board parent-resolution nuance. Ownership
-   sets already ride the Tier-0 localStorage cache; an explicit `lastSeen → latest` incremental is a
-   further optional refinement.
-3. **Tier 1A free wins** *(contract change).* Re-add `allInstances` enumeration to `MasterRegistryV1`;
-   point discovery + registered-vaults at it via `QueryAggregator`. Retires those scans entirely.
-4. **Board decision → Option A storage** *(product + contract).* Decide the on-chain-storage gas tradeoff
-   (bucket 2); if yes, add message storage + `getMessagesBatch`, page the tail (newest-first, no logs),
-   retire the board/activity scans.
+   reverse windows. **All 11 `fromBlock:0n` sites migrated**, behaviour-preserving. **Follow-up done
+   (`0580945`):** the board is `useInfiniteQuery` (one reverse window per page; first page = most recent,
+   "load older" walks back to the floor; threads re-reconstruct over accumulated pages, resolving the
+   parent nuance); the home activity preview early-stops (`maxWindows: 2`). Per-channel feeds + charts/bids
+   keep the full floored scan (they're "sets", not recency feeds). *Optional later:* owned-set `lastSeen →
+   latest` incremental (Tier-0 localStorage already caches the whole result).
+
+   **Board storage NOT pursued (decision, 2026-07-03):** we considered moving the board on-chain (Option A
+   bucket 2) for scan-free reads, but rejected it — storage only helps *enumeration* (turning a throttled
+   `eth_getLogs` range-scan into a paginated `eth_call`); an append-only *feed* only needs recent items,
+   which early-stop reverse-scans deliver without paying per-post storage gas forever. Keep the board on
+   events. Storage stays a candidate ONLY for discovery enumeration (Tier 1A), and only if a real-RPC
+   measurement shows that scan hurts.
+3. **Tier 1A discovery enumeration** *(contract change; CONDITIONAL on measurement).* Re-add
+   `allInstances` enumeration to `MasterRegistryV1`; point discovery + registered-vaults at it via
+   `QueryAggregator`. Retires those scans entirely. Do this ONLY if a real-RPC measurement shows the
+   discovery scan hurts — the removed cost (an SSTORE per rare collection creation) is negligible, but
+   don't re-add on principle.
+4. ~~Board on-chain storage~~ **— rejected (see Tier 1B above).** The board stays event-based; early-stop
+   reverse-scans cover the feed without per-post storage gas.
 5. **RPC + SW** — `fallback([...public])` + wallet-preferred at testnet; service worker for the app shell.
 
-Note: 3 & 4 are contract changes → they ride the testnet redeploy and are gated behind the same human
-approval as any deploy. 1 & 2 are pure frontend and ship anytime.
+Note: item 3 is a contract change → rides the testnet redeploy, gated behind the same human approval as
+any deploy. Items 1, 2, and the Tier 1B follow-up are pure frontend and ship anytime.
