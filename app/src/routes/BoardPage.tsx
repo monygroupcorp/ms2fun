@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
 import { formatGwei } from 'viem'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
 import {
   globalMessageRegistryAbi,
   useReadQueryAggregatorGetHomePageData,
 } from '../generated/contracts'
 import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
-import { scanBackward } from '../lib/logScan'
+import { DEFAULT_LOG_WINDOW } from '../lib/logScan'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
@@ -124,33 +124,44 @@ function FeaturedRail() {
   )
 }
 
+/** One page of the board feed = one reverse window of `MessagePosted` logs (ADR-0010 Tier 1B). */
+interface FeedPage {
+  messages: FeedMessage[]
+  /** toBlock for the next (older) page, or null once the deploy-block floor is reached. */
+  nextCursor: bigint | null
+}
+
 function useGlobalFeed(): {
   data: FeedMessage[] | undefined
   isPending: boolean
   isError: boolean
+  fetchNextPage: () => void
+  hasNextPage: boolean
+  isFetchingNextPage: boolean
 } {
   const client = usePublicClient({ chainId: forkChainId })
 
-  return useQuery({
+  // Infinite, newest-first: the first page is the most recent window (fast initial paint — never
+  // scans to the floor), "load older" walks one window back per page down to the deploy block.
+  const q = useInfiniteQuery({
     // Keyed under 'message-feed' so reply/react refetches (which invalidate that key) refresh the board.
     queryKey: ['message-feed', 'global'],
     enabled: !!client,
     staleTime: 15_000,
-    queryFn: async (): Promise<FeedMessage[]> => {
-      if (!client) return []
+    initialPageParam: null as bigint | null,
+    queryFn: async ({ pageParam }): Promise<FeedPage> => {
+      if (!client) return { messages: [], nextCursor: null }
+      const toBlock = pageParam ?? (await client.getBlockNumber())
+      const lo = toBlock - DEFAULT_LOG_WINDOW + 1n
+      const fromBlock = lo > deployBlock ? lo : deployBlock
 
-      const latest = await client.getBlockNumber()
-      const logs = await scanBackward(
-        (fromBlock, toBlock) =>
-          client.getContractEvents({
-            address: forkAddresses.GlobalMessageRegistry,
-            abi: globalMessageRegistryAbi,
-            eventName: 'MessagePosted',
-            fromBlock,
-            toBlock,
-          }),
-        { latest, floor: deployBlock },
-      )
+      const logs = await client.getContractEvents({
+        address: forkAddresses.GlobalMessageRegistry,
+        abi: globalMessageRegistryAbi,
+        eventName: 'MessagePosted',
+        fromBlock,
+        toBlock,
+      })
 
       const messages: FeedMessage[] = []
       for (const log of logs) {
@@ -168,12 +179,27 @@ function useGlobalFeed(): {
         messages.push({ messageId, instance, sender, messageType, refId, content })
       }
 
-      // Newest first — sort by messageId descending
-      messages.sort((a, b) => (a.messageId > b.messageId ? -1 : a.messageId < b.messageId ? 1 : 0))
-
-      return messages
+      return { messages, nextCursor: fromBlock <= deployBlock ? null : fromBlock - 1n }
     },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
+
+  // Flatten pages + sort newest-first (re-threading over the accumulated set as older pages load
+  // keeps replies' parents resolvable).
+  const data = useMemo((): FeedMessage[] | undefined => {
+    if (!q.data) return undefined
+    const all = q.data.pages.flatMap((p) => p.messages)
+    return all.sort((a, b) => (a.messageId > b.messageId ? -1 : a.messageId < b.messageId ? 1 : 0))
+  }, [q.data])
+
+  return {
+    data,
+    isPending: q.isPending,
+    isError: q.isError,
+    fetchNextPage: () => void q.fetchNextPage(),
+    hasNextPage: q.hasNextPage,
+    isFetchingNextPage: q.isFetchingNextPage,
+  }
 }
 
 /**
@@ -183,7 +209,7 @@ function useGlobalFeed(): {
  * Replies (type 1) nest under their parent; reactions (type 3) aggregate into a 👍 count.
  */
 export function BoardPage() {
-  const { data, isPending, isError } = useGlobalFeed()
+  const { data, isPending, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useGlobalFeed()
   const { address: connected } = useAccount()
   const [boardView, setBoardView] = useState<BoardView>('discourse')
 
@@ -350,6 +376,22 @@ export function BoardPage() {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/* Load older — fetches the next window back (ADR-0010 Tier 1B); hidden once the feed
+                reaches the deploy-block floor. */}
+            {!isPending && !isError && data !== undefined && data.length > 0 && hasNextPage && (
+              <div className={styles.loadOlder}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={fetchNextPage}
+                  disabled={isFetchingNextPage}
+                  data-testid="board-load-older"
+                >
+                  {isFetchingNextPage ? 'loading older…' : 'load older'}
+                </button>
+              </div>
             )}
           </section>
         </div>
