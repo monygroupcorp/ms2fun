@@ -276,7 +276,10 @@ contract SeedAnvil is Script {
     ///      broadcast time — only after deploy.ts advances the chain).
     function _seedErc721Gallery(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address gallery = _createAuction(d, "gallery-relics", "Gallery Relics", "GAL", ART_GALLERY, 1 hours);
+        address gallery = _createAuction(
+            d, "gallery-relics", "Gallery Relics",
+            "A single-line auction house for salvaged relics — one piece up at a time, highest bid takes it. ~20% of the hammer binds to the alignment vault.",
+            "GAL", ART_GALLERY, 1 hours);
         ERC721AuctionInstance g = ERC721AuctionInstance(payable(gallery));
         // Each queuePiece's msg.value = minBid; first piece per line auto-starts (endTime = now+1h).
         g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic I", ART_RELIC_I, "gallery-relics"));  // tokenId 1, line 0
@@ -297,7 +300,10 @@ contract SeedAnvil is Script {
     ///      form to demo). Both keep counting down (chain-anchored countdown in the UI).
     function _seedErc721Live(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        address live = _createAuction(d, "live-salon", "Live Salon", "LIV", ART_LIVE_SALON, 1 days);
+        address live = _createAuction(
+            d, "live-salon", "Live Salon",
+            "The Live Salon runs a rolling single-line auction — a new work on the block, bidding open now. Collect the piece, fund the vault.",
+            "LIV", ART_LIVE_SALON, 1 days);
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));
         l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon I", ART_SALON_I, "live-salon"));  // tokenId 1, line 0
         l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon II", ART_SALON_II, "live-salon")); // tokenId 2, line 1
@@ -313,13 +319,14 @@ contract SeedAnvil is Script {
         Deployed memory d,
         string memory slug,
         string memory displayName,
+        string memory description,
         string memory symbol,
         string memory image,
         uint40 baseDuration
     ) internal returns (address instance) {
         ERC721AuctionFactory.CreateParams memory params = ERC721AuctionFactory.CreateParams({
             name: slug,
-            metadataURI: _collectionMeta(displayName, "Single-line auction house.", image),
+            metadataURI: _collectionMeta(displayName, description, image),
             creator: deployer,
             vault: d.vault, // must be a contract; the generic Uni vault qualifies
             symbol: symbol,
@@ -342,7 +349,9 @@ contract SeedAnvil is Script {
         // Cypher LP venue + Cypher (Algebra) vault — covers the Cypher family (it stays preopen, so
         // the Algebra pool is never actually deployed; the graduated-swap Cypher path is link-out anyway).
         address inst = _createBonding(
-            d, "ember-preopen", "Ember", "EMBER", ART_EMBER, address(0), d.cypherVault, d.cypherDeployer);
+            d, "ember-preopen", "Ember",
+            "Ember hasn't caught yet. When the curve opens, each buy mints a glowing shard; ~20% of every trade binds to the alignment vault, by contract.",
+            "EMBER", ART_EMBER, address(0), d.cypherVault, d.cypherDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 days); // strictly future -> preopen
         b.setBondingActive(true);
@@ -357,7 +366,9 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
         // Uni-V4 LP venue + Uni LP vault (mid-curve; does not graduate).
         address inst = _createBonding(
-            d, "vapor-mid", "Vapor", "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer);
+            d, "vapor-mid", "Vapor",
+            "Vapor is live on the curve — trade the coin, hold the piece, stake for a cut of the flow. A DN404 where the token and the art are one asset.",
+            "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
         // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
@@ -395,15 +406,22 @@ contract SeedAnvil is Script {
     ///      and molten-ready (ZAMM -> swapVZ).
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
-        _seedReadyToGraduate(d, "cinder-ready", "Cinder", "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether);
+        _seedReadyToGraduate(
+            d, "cinder-ready", "Cinder",
+            "Cinder's curve is nearly spent — one push from graduating to a Uniswap V4 pool. Late embers, deep discounts.",
+            "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether);
         // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
-        _seedReadyToGraduate(d, "molten-ready", "Molten", "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether);
+        _seedReadyToGraduate(
+            d, "molten-ready", "Molten",
+            "Molten runs hot and ready to pour — matured and one call from a ZAMM pool. The curve's last stretch before the DEX.",
+            "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether);
     }
 
     function _seedReadyToGraduate(
         Deployed memory d,
         string memory slug,
         string memory name,
+        string memory description,
         string memory symbol,
         string memory image,
         address vault,
@@ -411,7 +429,7 @@ contract SeedAnvil is Script {
         uint256 rankBoost
     ) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, slug, name, symbol, image, address(0), vault, deployer_);
+        address inst = _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
         // advance the curve is open (bonding) AND matured (graduate unlocked).
@@ -467,7 +485,10 @@ contract SeedAnvil is Script {
         TierConfig memory noGating;
         address inst = d.erc404.createInstance(
             params,
-            _collectionMeta("Prism", "Stacked overlay + rarity tiers.", ART_PRISM),
+            _collectionMeta(
+                "Prism",
+                "Prism refracts: a rarity-tiered ERC404 where holding enough unlocks the rare face. Overlay + tier metadata, resolved on-chain.",
+                ART_PRISM),
             d.zammDeployer,
             address(0),
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH}),
@@ -558,6 +579,7 @@ contract SeedAnvil is Script {
         Deployed memory d,
         string memory slug,
         string memory name,
+        string memory description,
         string memory symbol,
         string memory image,
         address stakingModule,
@@ -578,7 +600,7 @@ contract SeedAnvil is Script {
         });
         instance = d.erc404.createInstance(
             params,
-            _collectionMeta(name, "Bonding-curve ERC404.", image),
+            _collectionMeta(name, description, image),
             deployer_,           // approved LIQUIDITY_DEPLOYER (the LP venue)
             address(0),          // no gating
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
