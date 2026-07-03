@@ -8,6 +8,7 @@ import {
   useReadQueryAggregatorGetHomePageData,
 } from '../generated/contracts'
 import { forkAddresses, forkChainId } from '../lib/addresses'
+import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
 import { ReplyComposer } from '../components/ReplyComposer'
@@ -26,20 +27,28 @@ type BoardView = 'discourse' | 'activity'
 const ACTIVITY_VERB: Record<number, string> = { 0: 'posted', 1: 'replied', 2: 'quoted', 3: 'endorsed' }
 
 /**
- * A post's channel (`instance`) is EITHER a collection address OR a wall — the sender's own address,
- * per the profile-wall convention the board composer uses. A wall post links to that profile, NOT a
- * (non-existent) collection; only a genuine collection channel links to `/collection/…`. Fixes the
- * dead `/collection/<wallet>` links that general-board posts otherwise render (N6).
+ * A post's channel (`instance`) is one of: a WALL (the sender's own address, the profile-wall
+ * convention), a VAULT (S3 — vaults are postable channels), or a collection. Each routes to its own
+ * page; only a genuine collection links to `/collection/…`. Fixes the dead `/collection/<wallet>`
+ * links general-board posts render (N6) and the equivalent for vault channels (S3). `vaults` is the
+ * set of known vault addresses (lowercased); omit it and vault posts fall back to collection links.
  */
-function channelRef(message: Pick<FeedMessage, 'instance' | 'sender'>): {
+function channelRef(
+  message: Pick<FeedMessage, 'instance' | 'sender'>,
+  vaults?: Set<string>,
+): {
   href: string
   isWall: boolean
+  isVault: boolean
 } {
   const isWall = message.instance.toLowerCase() === message.sender.toLowerCase()
-  return {
-    href: isWall ? `/profile/${message.instance}` : `/collection/${message.instance}`,
-    isWall,
-  }
+  const isVault = !isWall && (vaults?.has(message.instance.toLowerCase()) ?? false)
+  const href = isWall
+    ? `/profile/${message.instance}`
+    : isVault
+      ? `/vault/${message.instance}`
+      : `/collection/${message.instance}`
+  return { href, isWall, isVault }
 }
 
 /** Channels rail — the distinct walls in the feed (All · per-collection · your wall). Each carries
@@ -174,6 +183,13 @@ export function BoardPage() {
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
 
+  // Known vault addresses → route vault-channel posts to /vault/… (not a dead collection link).
+  const { vaults } = useAllVaults()
+  const vaultSet = useMemo(
+    () => new Set(vaults.map((v) => v.address.toLowerCase())),
+    [vaults],
+  )
+
   // Channels — distinct walls drawn from the feed (a collection, or a sender's own address). The
   // rail filters the salon to one channel; "All" is the default. Ordered by post volume.
   const [channel, setChannel] = useState<'all' | `0x${string}`>('all')
@@ -276,6 +292,7 @@ export function BoardPage() {
                       message={thread.message}
                       view={view}
                       connected={connected !== undefined}
+                      vaults={vaultSet}
                     />
 
                     {thread.replies.map((reply) => (
@@ -288,6 +305,7 @@ export function BoardPage() {
                           message={reply}
                           view={view}
                           connected={connected !== undefined}
+                          vaults={vaultSet}
                         />
                       </div>
                     ))}
@@ -308,12 +326,17 @@ export function BoardPage() {
                       {ACTIVITY_VERB[m.messageType] ?? 'posted'}
                     </span>
                     {(() => {
-                      const { href, isWall } = channelRef(m)
+                      const { href, isWall, isVault } = channelRef(m, vaultSet)
                       // A wall post has no collection channel — it's a general-board post; show it
                       // as such (linking to the wall/profile) rather than a dead collection link.
+                      // A vault channel links to the vault page.
                       return (
                         <Link href={href} className={styles.regCh}>
-                          {isWall ? 'the salon' : truncateAddress(m.instance)}
+                          {isWall
+                            ? 'the salon'
+                            : isVault
+                              ? `vault ${truncateAddress(m.instance)}`
+                              : truncateAddress(m.instance)}
                         </Link>
                       )
                     })()}
@@ -333,14 +356,16 @@ function BoardMessage({
   message,
   view,
   connected,
+  vaults,
 }: {
   message: FeedMessage
   view: ThreadView
   connected: boolean
+  vaults?: Set<string>
 }) {
   const [replying, setReplying] = useState(false)
   const reaction = reactionFor(view, message.messageId)
-  const chan = channelRef(message)
+  const chan = channelRef(message, vaults)
 
   return (
     <>
@@ -352,7 +377,9 @@ function BoardMessage({
         {/* A wall post is a general-board post (channel = the sender's own wall), not a collection
             pointer — read it as "· on the salon" linking to their wall, never a dead collection. */}
         <Link href={chan.href} className={`ch ${styles.channelLink}`}>
-          {chan.isWall ? '· on the salon' : `→ ${truncateAddress(message.instance)}`}
+          {chan.isWall
+            ? '· on the salon'
+            : `→ ${chan.isVault ? 'vault ' : ''}${truncateAddress(message.instance)}`}
         </Link>
       </div>
 
