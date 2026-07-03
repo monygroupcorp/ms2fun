@@ -21,6 +21,14 @@ export const EXEC404_ADDRESS = '0x185485bF2e26e0Da48149aee0A8032c8c2060Db2' as c
  * `mirror.balanceOf(owner)`. NFT art is `base.tokenURI(id)` (the base serves tokenURI). */
 export const EXEC404_MIRROR_ADDRESS = '0x9e752115Caa8dc00693B8D8f9c2071DdBD6109BD' as const
 
+/**
+ * Mainnet deploy block of the EXEC mirror (ADR-0010 Tier 1B log-scan floor). EXEC predates our
+ * system, so its holdings enumeration must scan from EXEC's own deploy block, not our deployBlock and
+ * certainly not `0n` (that would replay from Ethereum genesis). Verified on the fork by binary-search
+ * on `eth_getCode`. A conservative floor (≤ actual deploy) stays correct; this is the exact block.
+ */
+export const EXEC404_DEPLOY_BLOCK = 22197831n
+
 /** Mainnet WETH + Uniswap V2 router — used to read the real (graduated) market price of EXEC. */
 export const WETH_ADDRESS = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2' as const
 export const UNISWAP_V2_ROUTER = '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D' as const
