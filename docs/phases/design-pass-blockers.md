@@ -398,7 +398,12 @@ art). Everything below is secondary polish Mony flagged while walking:
 - **S4 (feat, `1c15986`)** — swap quickfill: ETH-to-spend buy presets + %-of-balance sell presets on the
   graduated + EXEC cells; %-sell on the bonding cell. The bonding BUY spend-reframe (needs an on-chain
   calculateCost inverse) is scoped in `docs/phases/spec-S4-bonding-buy-spend.md`, NOT approximated.
-- **S3 — IN PROGRESS**: TVL page + vault detail pages + per-vault board channel (a new multi-page
-  surface; scoping against vault infra before building).
-Verify so far: tsc + eslint clean; full unit suite 430 green. Live eyeball (esp. the seed art) needs a
-fork rebuild.
+- **S3 (feat, `2caf429`)** — DONE. New vaults surface: `/vaults` browse index (vault set derived from
+  collections via pure `dedupeVaults`; honest TVL — real totalPrincipal for endowment, pool badge for
+  LP; header sums endowment principal via one `useVaultsSummary` multicall) + `/vault/:address` detail
+  (family, bound alignment target w/ art, stats, aligned-collections list, and a BOARD CHANNEL — free
+  since post/postBatch accept any address as channel). Added VAULTS to nav (ADR-019 note updated);
+  channelRef routes vault posts to `/vault/…`. Decisions: honest TVL split + nav named "Vaults".
+Verify: tsc + eslint clean; full unit suite 433 green (dedupeVaults + swapPresets + actionMessage new).
+**ALL of the fourth batch (seed + S1–S7) is CODE-COMPLETE + committed on `main`.** Live eyeball — esp.
+the seed art, vault TVL numbers, and target art — needs a FORK REBUILD (fresh anvil → deploy → seed).
