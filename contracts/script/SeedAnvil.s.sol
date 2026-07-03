@@ -278,7 +278,7 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
         address gallery = _createAuction(
             d, "gallery-relics", "Gallery Relics",
-            "A single-line auction house for salvaged relics — one piece up at a time, highest bid takes it. ~20% of the hammer binds to the alignment vault.",
+            "A single-line auction house for salvaged relics - one piece up at a time, highest bid takes it. ~20% of the hammer binds to the alignment vault.",
             "GAL", ART_GALLERY, 1 hours);
         ERC721AuctionInstance g = ERC721AuctionInstance(payable(gallery));
         // Each queuePiece's msg.value = minBid; first piece per line auto-starts (endTime = now+1h).
@@ -302,7 +302,7 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
         address live = _createAuction(
             d, "live-salon", "Live Salon",
-            "The Live Salon runs a rolling single-line auction — a new work on the block, bidding open now. Collect the piece, fund the vault.",
+            "The Live Salon runs a rolling single-line auction - a new work on the block, bidding open now. Collect the piece, fund the vault.",
             "LIV", ART_LIVE_SALON, 1 days);
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));
         l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon I", ART_SALON_I, "live-salon"));  // tokenId 1, line 0
@@ -367,7 +367,7 @@ contract SeedAnvil is Script {
         // Uni-V4 LP venue + Uni LP vault (mid-curve; does not graduate).
         address inst = _createBonding(
             d, "vapor-mid", "Vapor",
-            "Vapor is live on the curve — trade the coin, hold the piece, stake for a cut of the flow. A DN404 where the token and the art are one asset.",
+            "Vapor is live on the curve - trade the coin, hold the piece, stake for a cut of the flow. A DN404 where the token and the art are one asset.",
             "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
@@ -408,12 +408,12 @@ contract SeedAnvil is Script {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
         _seedReadyToGraduate(
             d, "cinder-ready", "Cinder",
-            "Cinder's curve is nearly spent — one push from graduating to a Uniswap V4 pool. Late embers, deep discounts.",
+            "Cinder's curve is nearly spent - one push from graduating to a Uniswap V4 pool. Late embers, deep discounts.",
             "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether);
         // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
         _seedReadyToGraduate(
             d, "molten-ready", "Molten",
-            "Molten runs hot and ready to pour — matured and one call from a ZAMM pool. The curve's last stretch before the DEX.",
+            "Molten runs hot and ready to pour - matured and one call from a ZAMM pool. The curve's last stretch before the DEX.",
             "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether);
     }
 
