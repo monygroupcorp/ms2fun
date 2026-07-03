@@ -16,9 +16,24 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      manifest: false,
+      includeAssets: ['favicon.svg', 'favicon-48.png', 'apple-touch-icon.png'],
+      manifest: {
+        name: 'ms2.fun',
+        short_name: 'ms2.fun',
+        description:
+          'Onchain alignment launchpad — curated art/token releases bound to alignment vaults.',
+        theme_color: '#0a0a0a',
+        background_color: '#0a0a0a',
+        display: 'standalone',
+        start_url: '/',
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,woff2,wasm,svg}'],
+        globPatterns: ['**/*.{js,css,html,woff2,wasm,svg,png}'],
         navigateFallback: 'index.html', // SPA: unknown routes serve the cached shell (wouter routes client-side)
         cleanupOutdatedCaches: true,
       },
