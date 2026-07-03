@@ -7,6 +7,7 @@
  * See `collectionSurfaces` for how the page picks these by contractType.
  */
 import { BondingSurface } from '../erc404/BondingSurface'
+import { Erc404Charts } from '../erc404/Erc404Charts'
 import { Erc404AdminPanel } from '../erc404/Erc404AdminPanel'
 import { Erc404NftGallery } from '../erc404/Erc404NftGallery'
 import styles from './TypeSection.module.css'
@@ -21,6 +22,15 @@ export function Erc404Primary({ instance }: Erc404SurfaceProps) {
     <section className={styles.section} data-testid="erc404-collection">
       <h2 className={styles.title}>BONDING</h2>
       <BondingSurface instance={instance} />
+    </section>
+  )
+}
+
+export function Erc404ChartsSection({ instance }: Erc404SurfaceProps) {
+  return (
+    <section className={styles.section} data-testid="erc404-charts-section">
+      <h2 className={styles.title}>CURVE</h2>
+      <Erc404Charts instance={instance} />
     </section>
   )
 }
