@@ -18,7 +18,6 @@ import { formatCountdown, formatOpenTime } from './bondingFormat'
 import { FreeMintPanel } from './FreeMintPanel'
 import { GraduatedSwapPanel } from './GraduatedSwapPanel'
 import { useGraduatedVenue } from './useGraduatedVenue'
-import { RerollPanel } from './RerollPanel'
 import { StakingPanel } from './StakingPanel'
 import { SwapPanel } from './SwapPanel'
 import { useBondingData } from './useBondingData'
@@ -150,9 +149,8 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
         refetch={refetch}
       />
 
-      <RerollPanel instance={instance} decimals={decimals} refetch={refetch} />
-
-      {/* Graduate (deploy liquidity) is a creator action, moved to the admin menu (T3). */}
+      {/* Reroll moved to the holder portfolio below the shell (T2 — a visual keep-selection over
+          your owned pieces). Graduate (deploy liquidity) is a creator action, moved to admin (T3). */}
 
       {/* W-B7: staking panel (stake / unstake / claim rewards); self-hides when inactive. */}
       <div data-testid="erc404-staking-mount">
