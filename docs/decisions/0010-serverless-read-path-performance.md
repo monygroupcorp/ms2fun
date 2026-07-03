@@ -180,8 +180,13 @@ the SW. Tracked separately from this ADR.
    the production build).
 6. **Route code-splitting** ✅ *(done, `6a15d5e`)* — lazy-load all route pages (HomePage stays eager for
    the landing); initial entry chunk 261 → **113 kB gzip** (halved), ABIs split into a shared `contracts`
-   chunk, per-route chunks fetch on navigation, >500 kB warning gone. **ADR-0010 fully executed.**
-   *Optional remaining:* a PWA manifest + 192/512 icons for installability.
+   chunk, per-route chunks fetch on navigation, >500 kB warning gone.
+7. **PWA manifest + icons** ✅ *(done, `9874d10`)* — installable: framed "MS2" wordmark icon set
+   (favicon.svg + 48/180/192/512 + maskable) + `manifest.webmanifest` via vite-plugin-pwa. **ADR-0010
+   fully executed — nothing outstanding.**
+
+> Verify types with **`pnpm typecheck`** (`tsc -b`), NOT `tsc --noEmit` — `tsconfig.json` is a
+> project-references stub (`files: []`) so `tsc --noEmit` checks nothing. `pnpm build` runs the real gate.
 
 Net: Tier 0 + Tier 1B (+ follow-up) are done and are pure frontend. Both contract-side items (board
 storage, discovery enumeration) were considered and **declined** — the boutique catalog + event-based
