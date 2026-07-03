@@ -407,3 +407,12 @@ art). Everything below is secondary polish Mony flagged while walking:
 Verify: tsc + eslint clean; full unit suite 433 green (dedupeVaults + swapPresets + actionMessage new).
 **ALL of the fourth batch (seed + S1–S7) is CODE-COMPLETE + committed on `main`.** Live eyeball — esp.
 the seed art, vault TVL numbers, and target art — needs a FORK REBUILD (fresh anvil → deploy → seed).
+
+### S4 follow-up shipped — bonding BUY spend-reframe (`587788f`) — 2026-07-03
+The one deferred piece of S4. Bonding buy now takes ETH-to-SPEND (was a token count) with the
+.005/.01/.05/.1 presets. `costInverse.solveBuyAmount` bisects the on-chain `calculateCost` (no
+on-chain inverse exists) for the largest amount whose cost ≤ budget — never overspends; seeded by the
+client curve, capped at the buyable ceiling, treats the PurchaseTooSmall (cost 0) zone as too-small.
+SwapPanel buy path rewritten (debounced solve → amount + exact cost → maxCost/value = cost+slippage).
+Unit-tested (7 cases) + live-fork validated (99.7–99.8% budget utilization, always maximal, never over).
+Fork was rebuilt this morning (`2026-07-03`); app live on :5173. **Only follow-up left: spec-N12.**

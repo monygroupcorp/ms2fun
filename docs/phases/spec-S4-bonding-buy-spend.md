@@ -1,7 +1,8 @@
 # Spec — S4 follow-up: spend-denominated BUY on the bonding curve
 
-**Status:** scoped, not built. The rest of S4 (quickfill on the graduated + EXEC swap cells, and
-%-sell on the bonding panel) shipped; this is the one remaining piece.
+**Status:** ✅ BUILT 2026-07-03 (`587788f`). Implemented as `costInverse.ts` (`solveBuyAmount`,
+unit-tested) + the SwapPanel buy-path rewrite, matching the approach below. Live-fork validated:
+for .005/.01/.05/.1 ETH the solve spends 99.7–99.8% of budget, never over, always maximal.
 
 ## Problem
 
