@@ -128,6 +128,37 @@
   border-color: var(--border-primary);
 }
 
+/* Quick-amount presets (S4): a compact row of buttons that fill the amount input. */
+.quickfill {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quickfill button {
+  flex: 1 1 0;
+  min-width: max-content;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+.quickfill button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-primary);
+}
+
+.quickfill button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .slippageRow {
   display: flex;
   align-items: center;

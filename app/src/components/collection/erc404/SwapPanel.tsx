@@ -24,6 +24,8 @@ import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
 import { EMPTY_BYTES, ZERO_BYTES32, resolveBuyPasswordHash } from './gating'
 import { encodeActionMessage } from '../../../lib/actionMessage'
+import { SwapQuickFill } from './SwapQuickFill'
+import { sellPctPresets } from './swapPresets'
 import styles from './BondingSurface.module.css'
 
 type Direction = 'buy' | 'sell'
@@ -234,6 +236,16 @@ export function SwapPanel({
           disabled={isBusy}
           data-testid="erc404-amount-input"
         />
+        {/* Sell picks a % of the token balance (S4). Buy is a token amount priced by the curve, so
+            ETH-spend presets there need an inverse solve — tracked separately (see design doc). */}
+        {direction === 'sell' && (
+          <SwapQuickFill
+            className={styles.quickfill}
+            disabled={isBusy}
+            onPick={setAmountStr}
+            presets={sellPctPresets(balance.data, decimals)}
+          />
+        )}
         {direction === 'sell' && balance.data !== undefined && (
           <span className={styles.note}>balance: {formatEther(balance.data)}</span>
         )}
