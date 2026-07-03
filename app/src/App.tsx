@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, lazy, useState } from 'react'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
@@ -9,19 +9,32 @@ import { BoardCartBar } from './components/board/BoardCartBar'
 import { config } from './lib/wagmi'
 import { queryClient } from './lib/queryClient'
 import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryPersister } from './lib/queryPersister'
+// HomePage stays eager — it's the landing route, so we don't want a chunk round-trip before first
+// paint. Every other page is a lazy chunk (route code-splitting, ADR-0010) fetched on navigation,
+// so the initial bundle is just the shell + web3 core, not all 13 pages.
 import { HomePage } from './routes/HomePage'
-import { Exec404Page } from './routes/Exec404Page'
-import { CollectionsPage } from './routes/CollectionsPage'
-import { ProfilePage } from './routes/ProfilePage'
-import { CollectionPage } from './routes/CollectionPage'
-import { EditionDetailPage } from './routes/EditionDetailPage'
-import { TokenDetailPage } from './routes/TokenDetailPage'
-import { WizardPage } from './routes/WizardPage'
-import { BoardPage } from './routes/BoardPage'
-import { VaultsPage } from './routes/VaultsPage'
-import { VaultPage } from './routes/VaultPage'
-import { RequestTargetPage } from './routes/RequestTargetPage'
-import { AdminPage } from './routes/AdminPage'
+const Exec404Page = lazy(() => import('./routes/Exec404Page').then((m) => ({ default: m.Exec404Page })))
+const CollectionsPage = lazy(() =>
+  import('./routes/CollectionsPage').then((m) => ({ default: m.CollectionsPage })),
+)
+const ProfilePage = lazy(() => import('./routes/ProfilePage').then((m) => ({ default: m.ProfilePage })))
+const CollectionPage = lazy(() =>
+  import('./routes/CollectionPage').then((m) => ({ default: m.CollectionPage })),
+)
+const EditionDetailPage = lazy(() =>
+  import('./routes/EditionDetailPage').then((m) => ({ default: m.EditionDetailPage })),
+)
+const TokenDetailPage = lazy(() =>
+  import('./routes/TokenDetailPage').then((m) => ({ default: m.TokenDetailPage })),
+)
+const WizardPage = lazy(() => import('./routes/WizardPage').then((m) => ({ default: m.WizardPage })))
+const BoardPage = lazy(() => import('./routes/BoardPage').then((m) => ({ default: m.BoardPage })))
+const VaultsPage = lazy(() => import('./routes/VaultsPage').then((m) => ({ default: m.VaultsPage })))
+const VaultPage = lazy(() => import('./routes/VaultPage').then((m) => ({ default: m.VaultPage })))
+const RequestTargetPage = lazy(() =>
+  import('./routes/RequestTargetPage').then((m) => ({ default: m.RequestTargetPage })),
+)
+const AdminPage = lazy(() => import('./routes/AdminPage').then((m) => ({ default: m.AdminPage })))
 import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
@@ -149,7 +162,10 @@ export function App() {
               </div>
             )}
             <main className={styles.main}>
-              <Switch>
+              {/* Suspense boundary for the lazy route chunks — shows a light placeholder while a
+                  page chunk loads on navigation. */}
+              <Suspense fallback={<div className={styles.routeLoading}>loading…</div>}>
+                <Switch>
                 <Route path="/" component={HomePage} />
                 <Route path="/exec404" component={Exec404Page} />
                 <Route path="/launch" component={WizardPage} />
@@ -194,7 +210,8 @@ export function App() {
                     </div>
                   </section>
                 </Route>
-              </Switch>
+                </Switch>
+              </Suspense>
             </main>
             <BoardCartBar />
           </div>
