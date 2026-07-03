@@ -174,7 +174,12 @@ the SW. Tracked separately from this ADR.
    Only revisit if the catalog ever grows well past a curated wall.
 4. ~~Board on-chain storage~~ **— rejected (see Tier 1B above).** The board stays event-based; early-stop
    reverse-scans cover the feed without per-post storage gas.
-5. **RPC + SW** — `fallback([...public])` + wallet-preferred at testnet; service worker for the app shell.
+5. **RPC + SW** ✅ *(done, `85b80d0` + `f2ea56f`)* — `decentralizedTransport` (rpc.ts): wallet-preferred
+   then health-ranked key-less public pool, all batched (wired for mainnet; anvil stays localhost).
+   `vite-plugin-pwa` service worker precaches the app shell (autoUpdate, `manifest: false`; SW only in
+   the production build). *Remaining "adjacent" item:* **route code-splitting** — the bundle is one ~1 MB
+   JS chunk, so the SW helps repeat loads but not first paint; `import()`-splitting the routes would cut
+   first-load size. Plus (optional) a PWA manifest + 192/512 icons for installability.
 
 Net: Tier 0 + Tier 1B (+ follow-up) are done and are pure frontend. Both contract-side items (board
 storage, discovery enumeration) were considered and **declined** — the boutique catalog + event-based
