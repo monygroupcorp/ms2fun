@@ -2,6 +2,7 @@ import { defineChain } from 'viem'
 import { createConfig, http } from 'wagmi'
 import { mainnet } from 'wagmi/chains'
 import { injected } from 'wagmi/connectors'
+import { decentralizedTransport } from './rpc'
 
 /**
  * The local anvil mainnet-fork. Chain id is 1337 (from the local-chain deploy bridge,
@@ -38,9 +39,9 @@ export const anvilFork = defineChain({
  *    fires ~10 singleton reads becomes 1 call.
  *  - `http(url, { batch: true })` — JSON-RPC batching folds whatever isn't multicall-able (plus the
  *    multicall itself) into a single HTTP POST instead of N round-trips.
- * RPC stays fully decentralized (no keyed endpoints): each chain uses its default public RPC; a
- * testnet/mainnet deploy swaps in `fallback([...public endpoints])` here, preferring the wallet's own
- * transport when connected. See ADR-0010 for the full strategy (Tier 1 log-scan elimination, etc.).
+ * RPC stays fully decentralized (no keyed endpoints, ADR-0010): a real network uses
+ * `decentralizedTransport` — the connected wallet's node preferred, then a health-ranked pool of
+ * key-less public endpoints, all batched. The local anvil fork keeps its single localhost transport.
  */
 export const config = createConfig({
   chains: [mainnet, anvilFork],
@@ -48,7 +49,7 @@ export const config = createConfig({
   multiInjectedProviderDiscovery: true,
   batch: { multicall: true },
   transports: {
-    [mainnet.id]: http(undefined, { batch: true }),
+    [mainnet.id]: decentralizedTransport(mainnet.id) ?? http(undefined, { batch: true }),
     [anvilFork.id]: http(undefined, { batch: true }),
   },
 })
