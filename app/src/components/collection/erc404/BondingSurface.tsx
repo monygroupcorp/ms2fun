@@ -13,10 +13,9 @@ import {
   useReadErc404BondingInstanceGatingActive,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
-import { canDeployLiquidity, derivePhase } from './bondingPhase'
+import { derivePhase } from './bondingPhase'
 import { formatCountdown, formatOpenTime } from './bondingFormat'
 import { FreeMintPanel } from './FreeMintPanel'
-import { GraduateButton } from './GraduateButton'
 import { GraduatedSwapPanel } from './GraduatedSwapPanel'
 import { useGraduatedVenue } from './useGraduatedVenue'
 import { RerollPanel } from './RerollPanel'
@@ -129,8 +128,6 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
   }
 
   // phase === 'bonding'
-  const showGraduate = canDeployLiquidity(view, nowSec)
-
   return (
     <div className={styles.surface} data-testid="erc404-phase-bonding">
       {/* The curve + candles moved OUT to Erc404Charts (full-width, below the shell) — they were
@@ -155,7 +152,7 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
       <RerollPanel instance={instance} decimals={decimals} refetch={refetch} />
 
-      {showGraduate && <GraduateButton instance={instance} refetch={refetch} />}
+      {/* Graduate (deploy liquidity) is a creator action, moved to the admin menu (T3). */}
 
       {/* W-B7: staking panel (stake / unstake / claim rewards); self-hides when inactive. */}
       <div data-testid="erc404-staking-mount">

@@ -14,9 +14,8 @@
  */
 import { useEffect, useState } from 'react'
 import { formatEther, formatUnits, parseUnits } from 'viem'
-import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
+import { useWaitForTransactionReceipt } from 'wagmi'
 import {
-  useWriteErc404BondingInstanceActivateStaking,
   useWriteErc404BondingInstanceClaimStakingRewards,
   useWriteErc404BondingInstanceStake,
   useWriteErc404BondingInstanceUnstake,
@@ -45,10 +44,8 @@ function parseAmount(input: string, decimals: number): bigint | undefined {
 }
 
 export function StakingPanel({ instance, decimals }: StakingPanelProps) {
-  const { isConnected } = useAccount()
   const {
     stakingActive,
-    isOwner,
     tokenBalance,
     userStaked,
     globalTotalStaked,
@@ -59,21 +56,16 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
   const [stakeStr, setStakeStr] = useState('')
   const [unstakeStr, setUnstakeStr] = useState('')
 
-  const activate = useWriteErc404BondingInstanceActivateStaking()
   const stake = useWriteErc404BondingInstanceStake()
   const unstake = useWriteErc404BondingInstanceUnstake()
   const claim = useWriteErc404BondingInstanceClaimStakingRewards()
 
-  const activateRx = useWaitForTransactionReceipt({ hash: activate.data })
   const stakeRx = useWaitForTransactionReceipt({ hash: stake.data })
   const unstakeRx = useWaitForTransactionReceipt({ hash: unstake.data })
   const claimRx = useWaitForTransactionReceipt({ hash: claim.data })
 
   // Refetch reads once each write confirms; clear the corresponding input on stake/unstake.
   // Effects (not in-render side effects) keep this safe across re-renders / strict mode.
-  useEffect(() => {
-    if (activateRx.isSuccess) refetch()
-  }, [activateRx.isSuccess, refetch])
   useEffect(() => {
     if (stakeRx.isSuccess) {
       setStakeStr('')
@@ -91,33 +83,9 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
   }, [claimRx.isSuccess, refetch])
 
   // ---- Visibility gates -------------------------------------------------
-  if (stakingActive === undefined) return null // still resolving
-
-  if (!stakingActive) {
-    if (!isConnected || !isOwner) return null // non-owners see nothing pre-activation
-    const busy = activate.isPending || activateRx.isLoading
-    return (
-      <div className={bonding.panel} data-testid="erc404-staking">
-        <p className={bonding.panelTitle}>staking</p>
-        <p className={bonding.note}>staking is not active on this collection.</p>
-        <button
-          className={`btn btn-primary ${styles.fullWidthBtn}`}
-          onClick={() => activate.writeContract({ address: instance, chainId: forkChainId })}
-          disabled={busy}
-          data-testid="erc404-activate-staking"
-        >
-          {activate.isPending
-            ? 'confirm in wallet…'
-            : activateRx.isLoading
-              ? 'activating…'
-              : 'activate staking'}
-        </button>
-        {activate.isError && (
-          <p className={`${bonding.txStatus} ${bonding.txError}`}>activation failed — try again</p>
-        )}
-      </div>
-    )
-  }
+  // Pre-activation shows nothing here — ACTIVATE STAKING is a creator action, moved to the admin
+  // menu (T4). This panel is the holder-facing stake/unstake/claim surface, live once active.
+  if (stakingActive === undefined || !stakingActive) return null
 
   // ---- Active surface ---------------------------------------------------
   const stakeAmount = parseAmount(stakeStr, decimals)
