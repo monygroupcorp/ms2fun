@@ -16,6 +16,7 @@ import {
   useReadErc404BondingInstanceBondingActive,
   useReadErc404BondingInstanceBondingMaturityTime,
   useReadErc404BondingInstanceBondingOpenTime,
+  useReadErc404BondingInstanceStakingActive,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
@@ -79,6 +80,8 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         placeholder="ipfs://, ar://, https://, or data:"
         testId="erc404-admin-metadata"
       />
+      <ActivateStakingRow instance={instance} />
+      <DeployLiquidityRow instance={instance} />
       <ConfigureGatingRow instance={instance} />
       <MigrateVaultRow instance={instance} />
       <ClaimAllFeesRow instance={instance} />
@@ -271,6 +274,82 @@ function SetUriRow({
           testId={testId}
         />
       </div>
+    </ActionRow>
+  )
+}
+
+// ── activate staking (creator action; onlyOwner on-chain) ──────────────────────
+
+function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
+  const { data: active, refetch } = useReadErc404BondingInstanceStakingActive({
+    address: instance,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({ onSuccess: () => void refetch() })
+
+  return (
+    <ActionRow
+      label="activate staking"
+      hint={
+        active === undefined
+          ? 'open staking so holders can stake for rewards · current: …'
+          : active
+            ? 'staking is already active'
+            : 'open staking so holders can stake for rewards'
+      }
+    >
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: instance,
+            abi: erc404BondingInstanceAbi,
+            functionName: 'activateStaking',
+            args: [],
+            chainId: forkChainId,
+          })
+        }
+        label="activate staking"
+        successLabel="staking activated"
+        onReset={tx.reset}
+        disabled={active === undefined || active === true}
+        className="btn btn-primary"
+        testId="erc404-admin-activate-staking"
+      />
+    </ActionRow>
+  )
+}
+
+// ── deploy liquidity / graduate (creator action) ───────────────────────────────
+// NOTE: deployLiquidity() is currently PERMISSIONLESS on-chain (external nonReentrant). Surfacing it
+// as an owner-only admin action is the intended UX; making it truly owner-gated needs a contract
+// change (add onlyOwner) — tracked in docs/phases/spec-deploy-liquidity-admin.md.
+
+function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
+  const tx = useTxAction()
+
+  return (
+    <ActionRow
+      label="deploy liquidity (graduate)"
+      hint="graduate to the DEX — only succeeds once the curve is full or matured"
+    >
+      <TxButton
+        state={tx.state}
+        onClick={() =>
+          tx.send({
+            address: instance,
+            abi: erc404BondingInstanceAbi,
+            functionName: 'deployLiquidity',
+            args: [],
+            chainId: forkChainId,
+          })
+        }
+        label="deploy liquidity"
+        successLabel="liquidity deployed"
+        onReset={tx.reset}
+        className="btn btn-primary btn-chromatic"
+        testId="erc404-admin-deploy-liquidity"
+      />
     </ActionRow>
   )
 }
