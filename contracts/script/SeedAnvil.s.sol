@@ -25,6 +25,11 @@ interface IOwnable {
     function transferOwnership(address newOwner) external payable;
 }
 
+/// @dev Minimal owner surface for enriching a seeded alignment target's description + logo metadata.
+interface IAlignmentTargetAdmin {
+    function updateAlignmentTarget(uint256 targetId, string memory description, string memory metadataURI) external;
+}
+
 /// @notice Anvil-only FULL-STATE seed: stands up demoable instances of every project type
 ///         (ERC1155 editions, ERC721 auctions, ERC404 bonding) plus profiles + activity, so the
 ///         discovery cards, trading surfaces, candles, staking, and profile pages all light up with
@@ -74,6 +79,7 @@ contract SeedAnvil is Script {
         address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
         address overlay;        // MetadataOverlayModule (approved OVERLAY)
         address tier;           // TierRevealModule (approved TIER)
+        address alignmentRegistry; // AlignmentRegistryV1 proxy (target curation)
     }
 
     uint256 deployerKey;
@@ -119,6 +125,9 @@ contract SeedAnvil is Script {
         _post(d.messages, acct1, "minted from monolith. clean.");
         _post(d.messages, c0, "grabbed one from neon-drift. love the aberration.");
         vm.stopBroadcast();
+
+        // Give the alignment targets a description + logo (Vaults-page targets section).
+        _enrichAlignmentTargets(d);
 
         // Hand everything to the team's testing wallet (LAST — after all owner-only seeding).
         _transferAdmin(d);
@@ -177,6 +186,23 @@ contract SeedAnvil is Script {
         d.zammVault = vm.parseJsonAddress(json, ".contracts.SeedZammVault");
         d.cypherVault = vm.parseJsonAddress(json, ".contracts.SeedCypherVault");
         d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
+        d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
+    }
+
+    /// @dev Enrich the two seeded alignment targets (registered by DeployCore with empty metadataURI)
+    ///      with a richer description + a logo, so the Vaults-page "Alignment targets" section has
+    ///      something to show. Targets are ids 1 (MS2) + 2 (CULT); deployer still owns the registry at
+    ///      seed time (protocol-admin handover is deferred — see _transferAdmin).
+    function _enrichAlignmentTargets(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        IAlignmentTargetAdmin reg = IAlignmentTargetAdmin(d.alignmentRegistry);
+        string memory ms2 =
+            "The MS2 community and its milady-descended aesthetic. Collections aligned here route ~20% of every fee into the MS2 token, by contract.";
+        string memory cult =
+            "Cult DAO and its ragequit-native treasury. Aligned collections bind ~20% of their fees to the CULT token, forever.";
+        reg.updateAlignmentTarget(1, ms2, _collectionMeta("Milady-Station-2", ms2, ART_AVATAR_1));
+        reg.updateAlignmentTarget(2, cult, _collectionMeta("Cult-DAO", cult, ART_AVATAR_2));
+        vm.stopBroadcast();
     }
 
     // ─────────────────────────── Phase A: ERC1155 ───────────────────────────
