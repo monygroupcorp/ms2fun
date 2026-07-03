@@ -26,7 +26,9 @@ Every read the app does is one of three shapes. Only one is a problem on a real 
    owned-NFT enumeration (incl. EXEC on the mainnet-forked mirror), bonding trades, bid history,
    registered vaults, request-target. Real networks cap `eth_getLogs` by block range / result size, so a
    genesis→now scan paginates into dozens of requests or fails — and it re-runs on every load. **This is
-   the only pattern that breaks off a local anvil.**
+   the only pattern that breaks off a local anvil.** Note the literal `0n` is *chain* block 0 — on a
+   mainnet fork / real network that's **Ethereum genesis**, ~20M blocks before our contracts existed. The
+   floor must be our **deploy block** (Tier 1B).
 
 Measured on the local fork: sub-millisecond `eth_call` processing; ~10 ms HTTP round-trip; 10 calls
 batched into one request = ~22 ms. So per-call latency is a non-issue — the strategy is entirely about
@@ -67,16 +69,47 @@ sites split three ways:
    `getMessagesBatch`). That is **gas per post** in exchange for **instant, indexer-free reads**, and it
    makes the board a first-class on-chain object — consistent with a permanent, no-server record.
    *This is a product decision, not just perf* — pending Mony's call on the gas tradeoff.
+   **Payoff — newest-first is free:** with a stored array you page the tail (`getMessagesBatch(count−N,
+   N)`, then `count−2N`…), so the feed is natively reverse-chronological with **no `getLogs`, no range
+   caps, no genesis** — the exact streaming UX we want (see Tier 1B) falls out of the read itself.
 
-3. **Can't lens — bounded incremental scan (Tier 1B), indexer optional.**
+3. **Can't lens — bounded scan (Tier 1B), indexer optional.**
    - **Immutable external contracts:** EXEC404 is a live mainnet DN404 we don't control — no enumeration
-     can be added, and its `Transfer` history is real and long. Owned-set reconstruction stays a
-     **bounded, incremental, cached** scan: pin `fromBlock` to a known block (never `0n`), page the
-     range, persist to IndexedDB, and on reload scan only `lastSeenBlock → latest`.
+     can be added, and its `Transfer` history is real and long. Owned-set reconstruction stays a scan.
    - **Inherently historical series:** price candles / trade / bid history are time-series; a `view`
      gives "now", not the shape over time. Either the contract stores a compact history (gas), or we keep
      a bounded scan. A decentralized indexer (The Graph) is allowed **only** as an optional enhancement
      for charts — never in the critical path.
+   How we run these scans is Tier 1B below (frontend-only, no contract change).
+
+### Tier 1B — how we read logs when we must (deploy-block floor + reverse streaming)
+
+Frontend-only — no contract changes, so this ships independent of the Option-A contract work and is the
+next win after Tier 0. Two rules for every remaining `getLogs`:
+
+- **Floor at the deploy block, never `0n`.** Record the block each contract was deployed at as a
+  build-time constant next to its address (`deploy.ts` already writes `local-deployment.json` — add
+  `deployBlock`; for EXEC404 it's a fixed historical mainnet block). Turns a ~20M-block genesis scan into
+  a few-thousand-block scan.
+
+- **Scan BACKWARD from `latest`, in windows, newest-first.** Instead of one `getLogs(deploy → latest)`
+  call, walk `getLogs(latest−W, latest)`, then `latest−2W…`, down to the deploy block. Within a call the
+  provider returns logs ascending by `(block, logIndex)`, so reverse each window and render
+  newest-window-first. Three wins at once:
+  1. **Most-recent activity appears first and streams in** — `useInfiniteQuery` with a `getNextPageParam`
+     that walks the window backward = infinite scroll.
+  2. **Feeds usually never reach the deploy block** — for "recent activity" you stop after a window or
+     two; you don't fetch the whole history to show the latest.
+  3. **Respects provider range caps for free** — pick `W ≤` the endpoint's `eth_getLogs` limit and every
+     call is in-bounds. (This is *why* reverse-windowing beats one big `fromBlock` call, which fails on
+     caps.)
+
+**Feeds vs. sets — the one distinction.** Reverse-streaming + early-stop is for **append-only feeds**
+(board, activity, trades, bids) where recency is the point. It does **not** help **ownership sets**
+("which NFTs does this wallet hold") — an old mint and a recent transfer both change the final set, so you
+must replay the *entire* deploy-block→latest history and can't early-stop; reverse order saves nothing for
+a set. Sets instead get: deploy-block floor + IndexedDB persist + incremental `lastSeen → latest` on
+reload. So: **reverse-stream the feeds, full-replay-but-cached the sets.**
 
 ### RPC provider — fully decentralized, no keys
 
@@ -113,12 +146,20 @@ the SW. Tracked separately from this ADR.
 
 ## Work items / sequence
 
-1. **Tier 0** — `wagmi.ts` (`batch: true` + `batch: { multicall: true }` + `fallback` scaffold) +
-   react-query IndexedDB persistence. No contract changes. *(this ADR's companion commit)*
-2. **Tier 1A free wins** — re-add `allInstances` enumeration to `MasterRegistryV1`; point discovery +
-   registered-vaults at it via the aggregator. Retire those two log scans.
-3. **Tier 1B** — pin `fromBlock` (deploy block, build-config constant) + IndexedDB incremental persistence
-   for the EXEC mirror + any remaining scans.
-4. **Board decision** — decide the on-chain-storage gas tradeoff (bucket 2); if yes, add message storage
-   + `getMessagesBatch`, retire the board/activity scans.
-5. **RPC + SW** — `fallback` public-endpoint list + wallet-preferred; service worker for the app shell.
+1. **Tier 0** ✅ *(done, `102ad33`)* — `wagmi.ts` `batch: { multicall: true }` + `http(_, { batch: true })`;
+   react-query cache persisted to localStorage (BigInt-safe). No contract changes.
+2. **Tier 1B — deploy-block floor + reverse-windowed feeds** *(NEXT; frontend-only, no redeploy).*
+   `deploy.ts` records each contract's `deployBlock` into the build config; every `getLogs` floors there,
+   never `0n`. Convert the feed-shaped scans (board, activity, trades, bids) to reverse-windowed
+   `useInfiniteQuery` (newest-first, early-stop, `W ≤` provider cap). Ownership sets (EXEC/DN404 mirrors)
+   → deploy-block floor + IndexedDB incremental persist (`lastSeen → latest`). Biggest relief per effort;
+   no contracts touched.
+3. **Tier 1A free wins** *(contract change).* Re-add `allInstances` enumeration to `MasterRegistryV1`;
+   point discovery + registered-vaults at it via `QueryAggregator`. Retires those scans entirely.
+4. **Board decision → Option A storage** *(product + contract).* Decide the on-chain-storage gas tradeoff
+   (bucket 2); if yes, add message storage + `getMessagesBatch`, page the tail (newest-first, no logs),
+   retire the board/activity scans.
+5. **RPC + SW** — `fallback([...public])` + wallet-preferred at testnet; service worker for the app shell.
+
+Note: 3 & 4 are contract changes → they ride the testnet redeploy and are gated behind the same human
+approval as any deploy. 1 & 2 are pure frontend and ship anytime.
