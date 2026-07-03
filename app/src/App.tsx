@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { Link, Route, Switch } from 'wouter'
 import { WagmiProvider } from 'wagmi'
 import { WalletButton } from './components/WalletButton'
@@ -8,6 +8,7 @@ import { BoardCartProvider } from './components/board/BoardCartProvider'
 import { BoardCartBar } from './components/board/BoardCartBar'
 import { config } from './lib/wagmi'
 import { queryClient } from './lib/queryClient'
+import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryPersister } from './lib/queryPersister'
 import { HomePage } from './routes/HomePage'
 import { Exec404Page } from './routes/Exec404Page'
 import { CollectionsPage } from './routes/CollectionsPage'
@@ -92,7 +93,18 @@ export function App() {
 
   return (
     <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: queryPersister,
+          maxAge: PERSIST_MAX_AGE,
+          buster: PERSIST_BUSTER,
+          // Only persist settled, successful reads — never errors or in-flight queries.
+          dehydrateOptions: {
+            shouldDehydrateQuery: (query) => query.state.status === 'success',
+          },
+        }}
+      >
         <BoardCartProvider>
           <div className={styles.app} data-brand="noesis">
             <header className={styles.topBar}>
@@ -187,7 +199,7 @@ export function App() {
             <BoardCartBar />
           </div>
         </BoardCartProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </WagmiProvider>
   )
 }

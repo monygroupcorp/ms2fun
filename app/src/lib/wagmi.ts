@@ -30,13 +30,26 @@ export const anvilFork = defineChain({
  * don't announce via EIP-6963.  WalletModal.dedupeConnectors() hides the generic one whenever any
  * EIP-6963 connector is present, preventing duplicates.  See docs/decisions/0001-web3-stack.md.
  */
+/**
+ * Read-path performance (ADR-0010, Tier 0) — this is a serverless, static, IPFS-hosted client, so the
+ * chain IS the backend and every read must be cheap on a public RPC:
+ *  - `batch: { multicall: true }` — viem coalesces independent `readContract`s across hooks into ONE
+ *    Multicall3 call per tick (our Multicall3 address is declared on the chain above). A page that
+ *    fires ~10 singleton reads becomes 1 call.
+ *  - `http(url, { batch: true })` — JSON-RPC batching folds whatever isn't multicall-able (plus the
+ *    multicall itself) into a single HTTP POST instead of N round-trips.
+ * RPC stays fully decentralized (no keyed endpoints): each chain uses its default public RPC; a
+ * testnet/mainnet deploy swaps in `fallback([...public endpoints])` here, preferring the wallet's own
+ * transport when connected. See ADR-0010 for the full strategy (Tier 1 log-scan elimination, etc.).
+ */
 export const config = createConfig({
   chains: [mainnet, anvilFork],
   connectors: [injected()],
   multiInjectedProviderDiscovery: true,
+  batch: { multicall: true },
   transports: {
-    [mainnet.id]: http(),
-    [anvilFork.id]: http(),
+    [mainnet.id]: http(undefined, { batch: true }),
+    [anvilFork.id]: http(undefined, { batch: true }),
   },
 })
 
