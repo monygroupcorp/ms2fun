@@ -3,6 +3,14 @@ import deployment from '../config/local-deployment.json'
 /** Chain id of the local anvil mainnet-fork (see ./wagmi.ts) — literal-typed for wagmi hooks. */
 export const forkChainId = deployment.chainId as 1337
 
+/**
+ * Log-scan floor (ADR-0010 Tier 1B): our contracts' events all land at/after their deploy block, so
+ * every `getLogs` starts here — NEVER `fromBlock: 0n` (chain genesis, ~20M dead blocks on a fork).
+ * Written by `deploy.ts`; falls back to 0n if an older config predates the field (safe — just
+ * unoptimised until the next reseed).
+ */
+export const deployBlock = BigInt((deployment as { deployBlock?: number }).deployBlock ?? 0)
+
 const c = deployment.contracts
 
 /**

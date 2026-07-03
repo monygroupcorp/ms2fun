@@ -21,7 +21,14 @@ import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createTestClient, createWalletClient, defineChain, http, type Address } from 'viem'
+import {
+  createPublicClient,
+  createTestClient,
+  createWalletClient,
+  defineChain,
+  http,
+  type Address,
+} from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -74,6 +81,13 @@ async function main(): Promise<void> {
     throw err
   }
   console.log(`✓ Cleared EIP-7702 code from ${ANVIL_ACCOUNTS.length} anvil accounts`)
+
+  // Capture the block BEFORE any deploy tx — our contracts' events all land after this, so it's the
+  // log-scan floor the frontend uses instead of `fromBlock: 0n` (ADR-0010 Tier 1B). No anvil_setCode
+  // above mines a block, so this is still the fork block.
+  const publicClient = createPublicClient({ chain: anvilFork, transport: http(RPC) })
+  const deployBlock = await publicClient.getBlockNumber()
+  console.log(`✓ deploy-block floor: ${deployBlock}`)
 
   // 2. Deploy via forge (Solidity owns the deploy).
   console.log('\n▶ forge script DeployAnvil.s.sol --broadcast')
@@ -191,6 +205,8 @@ async function main(): Promise<void> {
   const config = {
     generatedAt: new Date().toISOString(),
     chainId: deployed.chainId,
+    // Log-scan floor (ADR-0010): frontend reads events from here, never block 0.
+    deployBlock: Number(deployBlock),
     deployer: deployed.deployer,
     contracts: {
       MasterRegistryV1: required(c, 'MasterRegistry'),
