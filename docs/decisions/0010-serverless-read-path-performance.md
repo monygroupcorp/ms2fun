@@ -57,11 +57,12 @@ We choose Option A: **stop replaying history; expose current state on-chain and 
 possible per-surface depends on whether the contract *stored* the data or only *emitted* it. Our 11 scan
 sites split three ways:
 
-1. **Free wins — re-add enumeration.** `MasterRegistryV1` used to hold `address[] allInstances` (still
-   in `MasterRegistryV1.sol.backup`); it was removed, so discovery + registered-vaults fall back to the
-   `CreatorInstanceAdded` scan. Re-add the array + `count()` + a paginated getter → the client reads the
-   list and hands it to `QueryAggregator` → whole discovery page in ~1–2 `eth_call`s, no logs. Gas is
-   trivial (paid once at collection creation).
+1. **Enumeration — re-add `allInstances` (CONSIDERED, DECLINED).** `MasterRegistryV1` used to hold
+   `address[] allInstances` (still in `MasterRegistryV1.sol.backup`); it was removed, so discovery +
+   registered-vaults fall back to the `CreatorInstanceAdded` scan. Re-adding it (array + `count()` +
+   paginated getter) would give a whole discovery page in ~1–2 `eth_call`s. **But declined** — see
+   sequence item 3: it only speeds the secondary full-catalog browse, and enumeration storage is a
+   *scale* optimization the boutique catalog doesn't need; the Tier 1B windowed scan is already cheap.
 
 2. **Real tradeoff — append-only storage.** The board / activity. `GlobalMessageRegistry` is
    **emit-only**: it keeps a `messageCount` and nothing else — message content lives *only* in the event
@@ -164,14 +165,18 @@ the SW. Tracked separately from this ADR.
    which early-stop reverse-scans deliver without paying per-post storage gas forever. Keep the board on
    events. Storage stays a candidate ONLY for discovery enumeration (Tier 1A), and only if a real-RPC
    measurement shows that scan hurts.
-3. **Tier 1A discovery enumeration** *(contract change; CONDITIONAL on measurement).* Re-add
-   `allInstances` enumeration to `MasterRegistryV1`; point discovery + registered-vaults at it via
-   `QueryAggregator`. Retires those scans entirely. Do this ONLY if a real-RPC measurement shows the
-   discovery scan hurts — the removed cost (an SSTORE per rare collection creation) is negligible, but
-   don't re-add on principle.
+3. ~~Tier 1A discovery enumeration~~ **— not pursued (decision, 2026-07-03).** Re-adding `allInstances`
+   to `MasterRegistryV1` would only speed the **full-catalog browse** (`/collections`, `/vaults`) — a
+   secondary surface; featured is already a lens read, and no connection-critical path depends on it.
+   And enumeration storage is a **scale** optimization: it pays off at thousands–millions of instances,
+   where a windowed log scan gets expensive. ms2 is a **curated boutique** (dozens–low-hundreds of
+   collections), so the Tier 1B windowed scan is already cheap and public-RPC-safe. Keep it event-only.
+   Only revisit if the catalog ever grows well past a curated wall.
 4. ~~Board on-chain storage~~ **— rejected (see Tier 1B above).** The board stays event-based; early-stop
    reverse-scans cover the feed without per-post storage gas.
 5. **RPC + SW** — `fallback([...public])` + wallet-preferred at testnet; service worker for the app shell.
 
-Note: item 3 is a contract change → rides the testnet redeploy, gated behind the same human approval as
-any deploy. Items 1, 2, and the Tier 1B follow-up are pure frontend and ship anytime.
+Net: Tier 0 + Tier 1B (+ follow-up) are done and are pure frontend. Both contract-side items (board
+storage, discovery enumeration) were considered and **declined** — the boutique catalog + event-based
+feeds don't need them. No contract change is required for the serverless read path as it stands; item 5
+(RPC fallback + service worker) is the only remaining work, and it's frontend/ops.
