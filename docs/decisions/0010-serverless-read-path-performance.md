@@ -148,12 +148,14 @@ the SW. Tracked separately from this ADR.
 
 1. **Tier 0** ✅ *(done, `102ad33`)* — `wagmi.ts` `batch: { multicall: true }` + `http(_, { batch: true })`;
    react-query cache persisted to localStorage (BigInt-safe). No contract changes.
-2. **Tier 1B — deploy-block floor + reverse-windowed feeds** *(NEXT; frontend-only, no redeploy).*
-   `deploy.ts` records each contract's `deployBlock` into the build config; every `getLogs` floors there,
-   never `0n`. Convert the feed-shaped scans (board, activity, trades, bids) to reverse-windowed
-   `useInfiniteQuery` (newest-first, early-stop, `W ≤` provider cap). Ownership sets (EXEC/DN404 mirrors)
-   → deploy-block floor + IndexedDB incremental persist (`lastSeen → latest`). Biggest relief per effort;
-   no contracts touched.
+2. **Tier 1B — deploy-block floor + reverse-windowed scan** ✅ *(done, `0c3aa84` + `f4f2b82`)* —
+   `deploy.ts` records `deployBlock`; `logScan.ts` (`reverseWindows` + `scanBackward`, tested) floors
+   every scan at the deploy block (EXEC at its own `EXEC404_DEPLOY_BLOCK`) and splits it into cap-safe
+   reverse windows. **All 11 `fromBlock:0n` sites migrated**, behaviour-preserving. *Remaining follow-up:*
+   feed **early-stop** (`maxWindows`) + **infinite-scroll UI** (`useInfiniteQuery`) — the fetch is already
+   newest-first + cap-safe; this is the UI chrome + the threaded-board parent-resolution nuance. Ownership
+   sets already ride the Tier-0 localStorage cache; an explicit `lastSeen → latest` incremental is a
+   further optional refinement.
 3. **Tier 1A free wins** *(contract change).* Re-add `allInstances` enumeration to `MasterRegistryV1`;
    point discovery + registered-vaults at it via `QueryAggregator`. Retires those scans entirely.
 4. **Board decision → Option A storage** *(product + contract).* Decide the on-chain-storage gas tradeoff
