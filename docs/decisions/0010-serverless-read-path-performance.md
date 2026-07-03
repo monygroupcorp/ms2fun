@@ -177,9 +177,11 @@ the SW. Tracked separately from this ADR.
 5. **RPC + SW** ✅ *(done, `85b80d0` + `f2ea56f`)* — `decentralizedTransport` (rpc.ts): wallet-preferred
    then health-ranked key-less public pool, all batched (wired for mainnet; anvil stays localhost).
    `vite-plugin-pwa` service worker precaches the app shell (autoUpdate, `manifest: false`; SW only in
-   the production build). *Remaining "adjacent" item:* **route code-splitting** — the bundle is one ~1 MB
-   JS chunk, so the SW helps repeat loads but not first paint; `import()`-splitting the routes would cut
-   first-load size. Plus (optional) a PWA manifest + 192/512 icons for installability.
+   the production build).
+6. **Route code-splitting** ✅ *(done, `6a15d5e`)* — lazy-load all route pages (HomePage stays eager for
+   the landing); initial entry chunk 261 → **113 kB gzip** (halved), ABIs split into a shared `contracts`
+   chunk, per-route chunks fetch on navigation, >500 kB warning gone. **ADR-0010 fully executed.**
+   *Optional remaining:* a PWA manifest + 192/512 icons for installability.
 
 Net: Tier 0 + Tier 1B (+ follow-up) are done and are pure frontend. Both contract-side items (board
 storage, discovery enumeration) were considered and **declined** — the boutique catalog + event-based
