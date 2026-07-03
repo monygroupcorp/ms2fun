@@ -17,15 +17,18 @@ import { EditionDetailPage } from './routes/EditionDetailPage'
 import { TokenDetailPage } from './routes/TokenDetailPage'
 import { WizardPage } from './routes/WizardPage'
 import { BoardPage } from './routes/BoardPage'
+import { VaultsPage } from './routes/VaultsPage'
+import { VaultPage } from './routes/VaultPage'
 import { RequestTargetPage } from './routes/RequestTargetPage'
 import { AdminPage } from './routes/AdminPage'
 import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
 
-/** The site's primary navigation. Canonical NOESIS nav (ADR-019): COLLECTIONS · BOARD · LAUNCH ·
- * CONNECT, with LAUNCH as the single black filled CTA — the platform's job is to get creators to
- * launch. The wallet button (CONNECT) is rendered alongside in the header. PROFILE / PORTFOLIO are
+/** The site's primary navigation. NOESIS nav (ADR-019 base COLLECTIONS · BOARD · LAUNCH · CONNECT),
+ * plus VAULTS (S3) so the alignment vaults / TVL surface is discoverable — a TVL page nobody can
+ * reach defeats the point. LAUNCH stays the single black filled CTA — the platform's job is to get
+ * creators to launch. The wallet button (CONNECT) is rendered alongside in the header. PROFILE / PORTFOLIO are
  * reached via the connected wallet (the merged profile plate); the EXEC404 fossil is linked from
  * Home; ADMIN stays owner-only. Rendered twice — desktop top bar + mobile overlay — so the link set
  * lives in one place. `linkClassName` styles each link for its context; `ctaClassName` (desktop)
@@ -46,6 +49,9 @@ function NavLinks({
       </Link>
       <Link href="/board" className={linkClassName} onClick={onNavigate}>
         BOARD
+      </Link>
+      <Link href="/vaults" className={linkClassName} onClick={onNavigate}>
+        VAULTS
       </Link>
       {/* REQUEST TARGET intentionally NOT in the top nav (ADR-019 canonical set is
           COLLECTIONS · BOARD · LAUNCH · CONNECT). The /request-target route stays; it's linked
@@ -137,6 +143,8 @@ export function App() {
                 <Route path="/launch" component={WizardPage} />
                 <Route path="/collections" component={CollectionsPage} />
                 <Route path="/board" component={BoardPage} />
+                <Route path="/vaults" component={VaultsPage} />
+                <Route path="/vault/:address" component={VaultPage} />
                 <Route path="/request-target" component={RequestTargetPage} />
                 {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
                   the connected wallet's own plate. */}

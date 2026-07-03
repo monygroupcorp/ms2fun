@@ -1,0 +1,154 @@
+.page {
+  composes: page from '../styles/layout.module.css';
+}
+
+.crumb {
+  margin-bottom: var(--space-4);
+}
+
+.back {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--color-text);
+}
+
+.head {
+  margin-bottom: var(--space-6);
+  padding-bottom: var(--space-5);
+  border-bottom: var(--border-width-thick, 2px) solid var(--color-border);
+}
+
+.title {
+  font-family: var(--brand-font-display);
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1;
+  margin: 0 0 var(--space-2);
+}
+
+.sub {
+  font-family: var(--brand-font-body);
+  color: var(--color-text-muted);
+  max-width: 60ch;
+  margin: 0 0 var(--space-5);
+  line-height: var(--line-height-relaxed);
+}
+
+.tvl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tvlLabel {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--color-text-subtle);
+}
+
+.tvlValue {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+}
+
+.tvlNote {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Vault row: name · family badge · TVL · collection count. */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: var(--border-width-thick, 2px) solid var(--color-border);
+  text-decoration: none;
+  color: var(--color-text);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.row:hover {
+  border-color: var(--color-text);
+  background: var(--color-surface-2, transparent);
+}
+
+.rowName {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-family: var(--brand-font-mono);
+  font-weight: var(--font-weight-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowAddr {
+  font-weight: var(--font-weight-normal);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+}
+
+.rowBadge {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+}
+
+.rowTvl {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  text-align: right;
+}
+
+.rowPool {
+  color: var(--color-text-muted);
+}
+
+.rowCount {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr auto;
+    grid-auto-rows: auto;
+    gap: var(--space-2) var(--space-3);
+  }
+  .rowTvl,
+  .rowCount {
+    text-align: left;
+  }
+}
