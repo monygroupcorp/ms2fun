@@ -416,3 +416,24 @@ client curve, capped at the buyable ceiling, treats the PurchaseTooSmall (cost 0
 SwapPanel buy path rewritten (debounced solve → amount + exact cost → maxCost/value = cost+slippage).
 Unit-tested (7 cases) + live-fork validated (99.7–99.8% budget utilization, always maximal, never over).
 Fork was rebuilt this morning (`2026-07-03`); app live on :5173. **Only follow-up left: spec-N12.**
+
+## Design-walk pass — fifth batch (T1–T5, ERC404 page reshape) — 2026-07-03
+Mony: the ERC404 trading column was so tall (it carried the charts) it dwarfed the left specimen rail.
+- **T1 (feat, `054bfbe`)** — pulled the curve + candles OUT of BondingSurface into a full-width
+  `Erc404Charts` region BELOW the shell, above the gallery (new `Charts` page surface). Trading widget
+  now leads a short column; shell stays balanced.
+- **T4 (feat, `14b4a74`)** — activate-staking → creator admin menu. Already onlyOwner on-chain, so a UI
+  move; StakingPanel is now holder-only (stake/unstake/claim), returns null pre-activation.
+- **T3 (feat, `14b4a74`)** — deploy-liquidity (graduate) → creator admin menu; deleted the
+  permissionless GraduateButton. **deployLiquidity() is STILL permissionless on-chain** — owner-gating
+  it is a contract change, specced in `docs/phases/spec-deploy-liquidity-admin.md`.
+- **T2 (feat, `8cd7f81`)** — reroll moved into a new holder `Erc404Portfolio` ("Your pieces", below the
+  shell, self-hides when disconnected/empty). Owned ids via mirror Transfer-log replay
+  (`useErc404OwnedPieces`, reuses the tested `ownedIdsFromTransfers`). Reroll is a shielded dropdown;
+  the keep-ids are chosen by TAPPING pieces in the grid (multiselect) instead of typing. Deleted
+  RerollPanel.
+- **T5 (feat, `fb62047`)** — real collection descriptions threaded through the seed's bonding + auction
+  creators (Ember/Vapor/Cinder/Molten/Prism, Gallery Relics, Live Salon), so the specimen-column
+  description styling has content. **NEEDS A RE-SEED to show** (fresh anvil → `pnpm chain:deploy`).
+Verify: tsc + eslint clean; 440 unit green; forge build clean. T1–T4 + T2 are live via HMR; T5 needs a
+reseed. Two follow-up specs pending: `spec-deploy-liquidity-admin.md`, `spec-N12-post-value-threshold.md`.
