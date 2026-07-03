@@ -196,6 +196,14 @@ export function CollectionPage() {
             </section>
           </div>
 
+          {/* ERC404 curve + candles, full-width below the shell (they made the trading column tower
+              over the specimen rail). Above the gallery. */}
+          {surfaces?.Charts && (
+            <div className={styles.chartSlot}>
+              <surfaces.Charts instance={instance} creator={card.creator} />
+            </div>
+          )}
+
           {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment).
               Given generous head/tail space so the work breathes before the secondary panels. */}
           {surfaces?.Gallery && (

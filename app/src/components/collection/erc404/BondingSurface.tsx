@@ -15,7 +15,6 @@ import {
 import { forkChainId } from '../../../lib/addresses'
 import { canDeployLiquidity, derivePhase } from './bondingPhase'
 import { formatCountdown, formatOpenTime } from './bondingFormat'
-import { BondingChart } from './BondingChart'
 import { FreeMintPanel } from './FreeMintPanel'
 import { GraduateButton } from './GraduateButton'
 import { GraduatedSwapPanel } from './GraduatedSwapPanel'
@@ -124,16 +123,7 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
             </a>
           </div>
         )}
-        {/* Bonding-curve history (pre-graduation trades). Live price/depth is on the pool above. */}
-        <div data-testid="erc404-pool-mount">
-          <p className={styles.note}>bonding history</p>
-          <BondingChart
-            instance={instance}
-            curveParams={curveParams}
-            view="candles"
-            decimals={decimals}
-          />
-        </div>
+        {/* Charts (bonding history) render full-width below the shell — see Erc404Charts. */}
       </div>
     )
   }
@@ -143,19 +133,8 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
 
   return (
     <div className={styles.surface} data-testid="erc404-phase-bonding">
-      {/* W-B5: the bonding curve (with a you-are-here dot) leads — the shape you're buying into,
-          directly under the alignment context. The trade-history CANDLES move BELOW the trading
-          widget (you read the curve, trade, then review the tape). */}
-      <div data-testid="erc404-chart-mount">
-        <BondingChart
-          instance={instance}
-          curveParams={curveParams}
-          view="curve"
-          decimals={decimals}
-          bondingView={view}
-        />
-      </div>
-
+      {/* The curve + candles moved OUT to Erc404Charts (full-width, below the shell) — they were
+          what made this column tower over the specimen rail. The trading widget leads here. */}
       <SwapPanel
         instance={instance}
         view={view}
@@ -166,11 +145,6 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
         gatingActive={gatingActive}
         refetch={refetch}
       />
-
-      {/* Price candles AFTER the trading widget (S7). */}
-      <div data-testid="erc404-candles-mount">
-        <BondingChart instance={instance} curveParams={curveParams} view="candles" decimals={decimals} />
-      </div>
 
       <FreeMintPanel
         instance={instance}

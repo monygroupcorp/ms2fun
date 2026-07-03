@@ -38,6 +38,10 @@
 
 /* The pieces gallery gets real breathing room below the shell and a generous lead before the
    secondary panels (vault / featured-queue dropdown) so the work doesn't crowd the chrome. */
+.chartSlot {
+  margin-top: var(--space-8);
+}
+
 .gallerySlot {
   margin-top: var(--space-4);
   margin-bottom: var(--space-12);
