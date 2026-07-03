@@ -204,6 +204,13 @@ export function CollectionPage() {
             </div>
           )}
 
+          {/* Holder portfolio: your own pieces + reroll (multiselect keep), above the full gallery.
+              Renders with no wrapper — it self-hides (returns null) when disconnected / you hold none,
+              so there's no empty spacer; the card owns its own top margin. */}
+          {surfaces?.Portfolio && (
+            <surfaces.Portfolio instance={instance} creator={card.creator} />
+          )}
+
           {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment).
               Given generous head/tail space so the work breathes before the secondary panels. */}
           {surfaces?.Gallery && (

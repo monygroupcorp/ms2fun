@@ -15,7 +15,13 @@ import {
   type Erc1155SurfaceProps,
 } from './Erc1155Collection'
 import { Erc721Admin, Erc721Gallery, Erc721Primary } from './Erc721Collection'
-import { Erc404Admin, Erc404ChartsSection, Erc404Gallery, Erc404Primary } from './Erc404Collection'
+import {
+  Erc404Admin,
+  Erc404ChartsSection,
+  Erc404Gallery,
+  Erc404PortfolioSection,
+  Erc404Primary,
+} from './Erc404Collection'
 
 export interface CollectionSurfaceProps {
   instance: `0x${string}`
@@ -26,6 +32,8 @@ export interface CollectionSurfaces {
   Primary: ComponentType<CollectionSurfaceProps> | null
   /** Full-width region between the shell and the gallery (ERC404 curve + candles). */
   Charts: ComponentType<CollectionSurfaceProps> | null
+  /** Holder's own pieces + reroll (ERC404); self-hides when disconnected / empty. */
+  Portfolio: ComponentType<CollectionSurfaceProps> | null
   Gallery: ComponentType<CollectionSurfaceProps> | null
   Admin: ComponentType<CollectionSurfaceProps> | null
 }
@@ -37,12 +45,18 @@ type Surface = ComponentType<Erc1155SurfaceProps>
 export function resolveCollectionSurfaces(contractType: string): CollectionSurfaces {
   switch (contractType) {
     case 'ERC1155':
-      return { Primary: Erc1155Primary as Surface, Charts: null, Gallery: Erc1155Gallery, Admin: Erc1155Admin }
+      return { Primary: Erc1155Primary as Surface, Charts: null, Portfolio: null, Gallery: Erc1155Gallery, Admin: Erc1155Admin }
     case 'ERC721':
-      return { Primary: Erc721Primary, Charts: null, Gallery: Erc721Gallery, Admin: Erc721Admin }
+      return { Primary: Erc721Primary, Charts: null, Portfolio: null, Gallery: Erc721Gallery, Admin: Erc721Admin }
     case 'ERC404':
-      return { Primary: Erc404Primary, Charts: Erc404ChartsSection, Gallery: Erc404Gallery, Admin: Erc404Admin }
+      return {
+        Primary: Erc404Primary,
+        Charts: Erc404ChartsSection,
+        Portfolio: Erc404PortfolioSection,
+        Gallery: Erc404Gallery,
+        Admin: Erc404Admin,
+      }
     default:
-      return { Primary: null, Charts: null, Gallery: null, Admin: null }
+      return { Primary: null, Charts: null, Portfolio: null, Gallery: null, Admin: null }
   }
 }
