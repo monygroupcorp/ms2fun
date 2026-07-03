@@ -13,12 +13,14 @@ describe('reverseWindows', () => {
 
   it('covers the range exactly (no gaps, no overlap, no blocks below floor)', () => {
     const ws = reverseWindows(1000n, 137n, 64n)
-    expect(ws[0].toBlock).toBe(1000n) // starts at latest
-    expect(ws[ws.length - 1].fromBlock).toBe(137n) // ends at floor
+    expect(ws[0]!.toBlock).toBe(1000n) // starts at latest
+    expect(ws[ws.length - 1]!.fromBlock).toBe(137n) // ends at floor
     for (let i = 0; i < ws.length - 1; i += 1) {
+      const cur = ws[i]!
+      const next = ws[i + 1]!
       // each window sits directly below the previous one
-      expect(ws[i].fromBlock).toBe(ws[i + 1].toBlock + 1n)
-      expect(ws[i].toBlock - ws[i].fromBlock + 1n).toBeLessThanOrEqual(64n)
+      expect(cur.fromBlock).toBe(next.toBlock + 1n)
+      expect(cur.toBlock - cur.fromBlock + 1n).toBeLessThanOrEqual(64n)
     }
   })
 

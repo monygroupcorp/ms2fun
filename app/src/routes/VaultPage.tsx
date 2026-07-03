@@ -26,7 +26,7 @@ function eth(value: bigint | undefined): string {
   if (value === undefined) return '—'
   const s = formatEther(value)
   const [whole, frac] = s.split('.')
-  return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : whole
+  return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : (whole ?? s)
 }
 
 export function VaultPage() {

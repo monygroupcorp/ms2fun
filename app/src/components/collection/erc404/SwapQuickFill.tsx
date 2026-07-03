@@ -14,8 +14,8 @@ export function SwapQuickFill({
 }: {
   presets: readonly QuickPreset[]
   onPick: (value: string) => void
-  disabled?: boolean
-  className?: string
+  disabled?: boolean | undefined
+  className?: string | undefined
 }) {
   return (
     <div className={className} role="group" aria-label="quick amounts">

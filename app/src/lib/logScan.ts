@@ -54,11 +54,12 @@ export async function scanBackward<T>(
 ): Promise<T[]> {
   const windows = reverseWindows(opts.latest, opts.floor, opts.window ?? DEFAULT_LOG_WINDOW)
   const out: T[] = []
-  for (let i = 0; i < windows.length; i += 1) {
-    const w = windows[i]
+  let count = 0
+  for (const w of windows) {
     const logs = await fetchWindow(w.fromBlock, w.toBlock)
     out.push(...logs)
-    if (opts.maxWindows !== undefined && i + 1 >= opts.maxWindows) break
+    count += 1
+    if (opts.maxWindows !== undefined && count >= opts.maxWindows) break
   }
   return out
 }

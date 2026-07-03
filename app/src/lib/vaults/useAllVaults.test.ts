@@ -26,7 +26,7 @@ describe('dedupeVaults', () => {
       { vault: A, vaultName: 'Real' },
     ])
     expect(rows).toHaveLength(1)
-    expect(rows[0].address).toBe(A)
+    expect(rows[0]!.address).toBe(A)
   })
 
   it('orders most-aligned first', () => {

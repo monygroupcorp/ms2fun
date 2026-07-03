@@ -54,17 +54,17 @@ export function useGraduatedVenue(instance: `0x${string}`): UseGraduatedVenueRes
   // reads fire. (Reading from the deployer address, not the instance: the params are immutable on
   // the module, shared by every instance of that family.)
   const poolFeeRead = useReadLiquidityDeployerModulePoolFee({
-    address: deployer,
+    ...(deployer ? { address: deployer } : {}),
     chainId: forkChainId,
     query: { enabled: isUni && Boolean(deployer) },
   })
   const tickSpacingRead = useReadLiquidityDeployerModuleTickSpacing({
-    address: deployer,
+    ...(deployer ? { address: deployer } : {}),
     chainId: forkChainId,
     query: { enabled: isUni && Boolean(deployer) },
   })
   const feeOrHookRead = useReadZammLiquidityDeployerModuleFeeOrHook({
-    address: deployer,
+    ...(deployer ? { address: deployer } : {}),
     chainId: forkChainId,
     query: { enabled: isZamm && Boolean(deployer) },
   })
