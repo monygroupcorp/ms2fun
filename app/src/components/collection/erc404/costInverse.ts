@@ -32,12 +32,12 @@ export async function solveBuyAmount(opts: {
   /** On-chain cost probe: calculateCost for `amount` (0 = too small, never a revert). */
   costOf: (amount: bigint) => Promise<bigint>
   /** Optional client-curve estimate of the amount, to bracket the search tightly. */
-  seed?: bigint
+  seed?: bigint | undefined
   /** Stop once cost is within this many bps BELOW target (default 0.5%). */
-  toleranceBps?: number
+  toleranceBps?: number | undefined
   /** Bisection iteration cap (default 32). */
-  maxIters?: number
-  signal?: AbortSignal
+  maxIters?: number | undefined
+  signal?: AbortSignal | undefined
 }): Promise<CostInverse | undefined> {
   const { targetSpend, maxAmount, costOf, seed, toleranceBps = 50, maxIters = 32, signal } = opts
   if (targetSpend <= 0n || maxAmount <= 0n) return undefined

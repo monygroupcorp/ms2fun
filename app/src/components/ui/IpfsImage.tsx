@@ -36,12 +36,14 @@ export function IpfsImage({
 }: {
   uri: string
   alt: string
-  className?: string
+  // `| undefined` on the optionals: callers pass CSS-module classes, which are typed `string |
+  // undefined`, and exactOptionalPropertyTypes rejects that against a bare `?: string`.
+  className?: string | undefined
   /** Rendered when the URI is empty or every gateway failed. */
   fallback?: ReactNode
-  loading?: 'lazy' | 'eager'
+  loading?: 'lazy' | 'eager' | undefined
   /** data-testid for the <img> (the fallback node carries its own if the caller needs one). */
-  testId?: string
+  testId?: string | undefined
 }) {
   const candidates = useMemo(() => (uri.trim() ? resolveUriCandidates(uri) : []), [uri])
   const [idx, setIdx] = useState(() => startSrc(uri, candidates))

@@ -24,7 +24,7 @@ export interface VaultRow {
  * non-empty name. Skips the zero address. Most-aligned first, then by name (stable).
  */
 export function dedupeVaults(
-  cards: readonly { vault?: `0x${string}`; vaultName?: string }[],
+  cards: readonly { vault?: `0x${string}` | undefined; vaultName?: string | undefined }[],
 ): VaultRow[] {
   const byAddr = new Map<string, VaultRow>()
   for (const c of cards) {

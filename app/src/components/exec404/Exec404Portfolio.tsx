@@ -76,7 +76,7 @@ export function Exec404Portfolio() {
     refetchIds()
   }
 
-  if (!isConnected) {
+  if (!isConnected || !address) {
     return (
       <section className={styles.card} data-testid="exec404-portfolio">
         <h2 className={styles.title}>Portfolio</h2>

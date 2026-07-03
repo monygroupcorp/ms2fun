@@ -46,8 +46,10 @@ function useExec404Messages(): { messages: LegacyMessage[]; isPending: boolean; 
     for (let i = 0; i < senders.length; i++) {
       const text = texts[i] ?? ''
       if (text.trim() === '') continue // it's a message feed — skip trades that carried no note
+      const sender = senders[i]
+      if (sender === undefined) continue
       messages.push({
-        sender: senders[i],
+        sender,
         message: text,
         timestamp: Number(timestamps[i] ?? 0n),
         amount: amounts[i] ?? 0n,

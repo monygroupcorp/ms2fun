@@ -21,7 +21,7 @@ import styles from './VaultsPage.module.css'
 function eth(value: bigint): string {
   const s = formatEther(value)
   const [whole, frac] = s.split('.')
-  return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : whole
+  return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : (whole ?? s)
 }
 
 /** One alignment-target card: logo (from the target's metadataURI) + title + description. */
