@@ -185,3 +185,15 @@
     display: inline-flex;
   }
 }
+
+/* Route-chunk loading placeholder (lazy pages, ADR-0010 code-split). */
+.routeLoading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-12) var(--space-4);
+  font-family: var(--brand-font-mono, monospace);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
