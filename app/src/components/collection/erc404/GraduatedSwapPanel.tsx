@@ -29,6 +29,8 @@ import {
 import { forkAddresses, forkChainId } from '../../../lib/addresses'
 import { txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
+import { SwapQuickFill } from './SwapQuickFill'
+import { buyEthPresets, sellPctPresets } from './swapPresets'
 import styles from './BondingSurface.module.css'
 
 type Direction = 'buy' | 'sell'
@@ -249,6 +251,12 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
           placeholder="0.0"
           disabled={isBusy}
           data-testid="erc404-graduated-amount-input"
+        />
+        <SwapQuickFill
+          className={styles.quickfill}
+          disabled={isBusy}
+          onPick={setAmountStr}
+          presets={isBuy ? buyEthPresets() : sellPctPresets(balanceRead.data, decimals)}
         />
         {!isBuy && balanceRead.data !== undefined && (
           <span className={styles.note}>

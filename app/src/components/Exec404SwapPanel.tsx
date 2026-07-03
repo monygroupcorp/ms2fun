@@ -19,6 +19,8 @@ import { forkAddresses } from '../lib/addresses'
 import { formatTokenAmount } from '../lib/format'
 import { EXEC404_ADDRESS, EXEC404_CHAIN_ID, UNISWAP_SWAP_URL, exec404Abi } from '../lib/exec404'
 import { txErrorReason } from './ui/useTxAction'
+import { SwapQuickFill } from './collection/erc404/SwapQuickFill'
+import { buyEthPresets, sellPctPresets } from './collection/erc404/swapPresets'
 import cardStyles from './Exec404TradeLink.module.css'
 import styles from './collection/erc404/BondingSurface.module.css'
 
@@ -195,6 +197,12 @@ export function Exec404SwapPanel() {
               placeholder="0.0"
               disabled={isBusy}
               data-testid="exec404-amount-input"
+            />
+            <SwapQuickFill
+              className={styles.quickfill}
+              disabled={isBusy}
+              onPick={setAmountStr}
+              presets={isBuy ? buyEthPresets() : sellPctPresets(balanceRead.data, 18)}
             />
             {/* N3: show the EXEC balance in BOTH directions (it's your position either way) and it
                 refetches on every confirmed swap, so it stays live. */}
