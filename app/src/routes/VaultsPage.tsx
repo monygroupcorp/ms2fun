@@ -10,7 +10,10 @@ import { formatEther } from 'viem'
 import { truncateAddress } from '../lib/format'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { useVaultsSummary } from '../lib/vaults/useVaultsSummary'
+import { type AlignmentTargetRow, useAlignmentTargets } from '../lib/vaults/useAlignmentTargets'
 import { vaultFamilyLabel } from '../components/vault/useVaultOverview'
+import { useCollectionMetadata } from '../components/useCollectionMetadata'
+import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './VaultsPage.module.css'
 
@@ -21,10 +24,32 @@ function eth(value: bigint): string {
   return frac ? `${whole}.${frac.slice(0, 4).replace(/0+$/, '') || '0'}` : whole
 }
 
+/** One alignment-target card: logo (from the target's metadataURI) + title + description. */
+function TargetCard({ target }: { target: AlignmentTargetRow }) {
+  const meta = useCollectionMetadata(target.metadataURI)
+  return (
+    <li className={styles.targetCard} data-testid="alignment-target">
+      <div className={styles.targetLogo}>
+        <IpfsImage
+          uri={meta?.image ?? ''}
+          alt={`${target.title} logo`}
+          className={styles.targetImg}
+          fallback={<span className={styles.targetGlyph} aria-hidden>◈</span>}
+        />
+      </div>
+      <div className={styles.targetBody}>
+        <p className={styles.targetName}>{target.title}</p>
+        {target.description && <p className={styles.targetDesc}>{target.description}</p>}
+      </div>
+    </li>
+  )
+}
+
 export function VaultsPage() {
   const { vaults, isPending, isError } = useAllVaults()
   const addresses = vaults.map((v) => v.address)
   const { byAddress, endowmentTvl, isPending: summaryPending } = useVaultsSummary(addresses)
+  const { targets } = useAlignmentTargets()
 
   return (
     <div className={styles.page}>
@@ -50,6 +75,19 @@ export function VaultsPage() {
           </span>
         </div>
       </header>
+
+      {/* The communities vaults align TO. Descriptions + logos come from each target's metadataURI. */}
+      {targets.length > 0 && (
+        <section className={styles.targets} data-testid="alignment-targets">
+          <h2 className={styles.sectionTitle}>Alignment targets</h2>
+          <p className={styles.sectionSub}>The communities collections bind to — ~20% of fees flow to these.</p>
+          <ul className={styles.targetGrid}>
+            {targets.map((t) => (
+              <TargetCard key={t.id.toString()} target={t} />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {isPending && <StateBlock variant="loading" boxed>reading the vaults…</StateBlock>}
       {isError && (
