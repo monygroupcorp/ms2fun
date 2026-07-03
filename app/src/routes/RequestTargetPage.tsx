@@ -19,7 +19,8 @@ import {
   useReadAlignmentTargetRequestRegistryRefunds,
   useReadAlignmentTargetRequestRegistryRequestDeposit,
 } from '../generated/contracts'
-import { forkAddresses, forkChainId } from '../lib/addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
+import { scanBackward } from '../lib/logScan'
 import {
   pickMyRequestIds,
   requestStatusLabel,
@@ -260,14 +261,19 @@ function useMyRequests(): {
     queryFn: async (): Promise<MyRequest[]> => {
       if (!client || !address) return []
       // requester is an indexed topic, so this filters server-side; pickMyRequestIds is the guard.
-      const logs = await client.getContractEvents({
-        address: REQUEST_REGISTRY,
-        abi: alignmentTargetRequestRegistryAbi,
-        eventName: 'RequestSubmitted',
-        args: { requester: address },
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: REQUEST_REGISTRY,
+            abi: alignmentTargetRequestRegistryAbi,
+            eventName: 'RequestSubmitted',
+            args: { requester: address },
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
       const entries: { id: bigint; requester: string }[] = []
       for (const log of logs) {
         const { id, requester } = log.args

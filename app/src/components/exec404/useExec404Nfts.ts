@@ -13,12 +13,14 @@ import { usePublicClient } from 'wagmi'
 import {
   EXEC404_ADDRESS,
   EXEC404_CHAIN_ID,
+  EXEC404_DEPLOY_BLOCK,
   EXEC404_MIRROR_ADDRESS,
   exec404Abi,
   exec404MirrorAbi,
   ownedIdsFromTransfers,
   type MirrorTransfer,
 } from '../../lib/exec404'
+import { scanBackward } from '../../lib/logScan'
 import { fetchJson } from '../../lib/metadata'
 
 export interface Exec404Trait {
@@ -67,19 +69,27 @@ export function useExec404NftIds(owner: `0x${string}` | undefined): UseExec404Nf
     staleTime: 15_000,
     queryFn: async (): Promise<bigint[]> => {
       if (!client || !owner) return []
-      const base = {
-        address: EXEC404_MIRROR_ADDRESS,
-        abi: exec404MirrorAbi,
-        eventName: 'Transfer',
-        fromBlock: 0n,
-        toBlock: 'latest',
-      } as const
+
+      // Owned-set reconstruction: replay the FULL Transfer history touching this wallet — an old mint
+      // and a recent transfer both change the final set, so we can't early-stop. But we floor at the
+      // mirror's deploy block (ADR-0010 — not `0n`/genesis) and window the scan (cap-safe).
+      const latest = await client.getBlockNumber()
+      const scan = (args: { to: `0x${string}` } | { from: `0x${string}` }) =>
+        scanBackward(
+          (fromBlock, toBlock) =>
+            client.getContractEvents({
+              address: EXEC404_MIRROR_ADDRESS,
+              abi: exec404MirrorAbi,
+              eventName: 'Transfer',
+              args,
+              fromBlock,
+              toBlock,
+            }),
+          { latest, floor: EXEC404_DEPLOY_BLOCK },
+        )
 
       // Only logs that touch this wallet (indexed filters), inbound + outbound.
-      const [inbound, outbound] = await Promise.all([
-        client.getContractEvents({ ...base, args: { to: owner } }),
-        client.getContractEvents({ ...base, args: { from: owner } }),
-      ])
+      const [inbound, outbound] = await Promise.all([scan({ to: owner }), scan({ from: owner })])
 
       const transfers: MirrorTransfer[] = []
       for (const log of [...inbound, ...outbound]) {

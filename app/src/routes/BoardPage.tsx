@@ -7,7 +7,8 @@ import {
   globalMessageRegistryAbi,
   useReadQueryAggregatorGetHomePageData,
 } from '../generated/contracts'
-import { forkAddresses, forkChainId } from '../lib/addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
+import { scanBackward } from '../lib/logScan'
 import { useAllVaults } from '../lib/vaults/useAllVaults'
 import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
@@ -138,13 +139,18 @@ function useGlobalFeed(): {
     queryFn: async (): Promise<FeedMessage[]> => {
       if (!client) return []
 
-      const logs = await client.getContractEvents({
-        address: forkAddresses.GlobalMessageRegistry,
-        abi: globalMessageRegistryAbi,
-        eventName: 'MessagePosted',
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: forkAddresses.GlobalMessageRegistry,
+            abi: globalMessageRegistryAbi,
+            eventName: 'MessagePosted',
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
 
       const messages: FeedMessage[] = []
       for (const log of logs) {

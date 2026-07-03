@@ -2,7 +2,8 @@
  * The wizard's `vault` slot provider: registered alignment vaults are bound to targets in
  * MasterRegistry (NOT ComponentRegistry), so they're enumerated here from the `VaultRegistered`
  * event — distinct from `useApprovedModules` (which reads ComponentRegistry for gating/liquidity/etc).
- * Event-derived like `useCreatorCollections`; `fromBlock: 0n` is fast on the fork.
+ * Event-derived like `useCreatorCollections`; read via the deploy-block-floored reverse-windowed
+ * scanner (ADR-0010 Tier 1B), not a genesis scan.
  *
  * Each event-derived vault is then enriched via one multicall reading its on-chain taxonomy —
  * `vaultType()` (→ family/venue via `deriveVaultFlavor`) + `isLiquidityReady()` (O2 gating) +
@@ -11,7 +12,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { masterRegistryV1Abi } from '../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../../lib/addresses'
+import { scanBackward } from '../../lib/logScan'
 import { deriveVaultFlavor, type VaultFamily } from '../../lib/wizard/vaultFlavor'
 
 /**
@@ -71,13 +73,18 @@ export function useRegisteredVaults(): {
     staleTime: 60_000,
     queryFn: async (): Promise<RegisteredVault[]> => {
       if (!client) return []
-      const logs = await client.getContractEvents({
-        address: forkAddresses.MasterRegistryV1,
-        abi: masterRegistryV1Abi,
-        eventName: 'VaultRegistered',
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: forkAddresses.MasterRegistryV1,
+            abi: masterRegistryV1Abi,
+            eventName: 'VaultRegistered',
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
       const seen = new Set<`0x${string}`>()
       const base: { address: `0x${string}`; name: string; targetId: bigint }[] = []
       for (const log of logs) {

@@ -8,8 +8,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { useReadErc404BondingInstanceMirrorErc721 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { deployBlock, forkChainId } from '../../../lib/addresses'
 import { exec404MirrorAbi, ownedIdsFromTransfers, type MirrorTransfer } from '../../../lib/exec404'
+import { scanBackward } from '../../../lib/logScan'
 import { fetchJson } from '../../../lib/metadata'
 
 /** Minimal `tokenURI` read on the DN404 mirror (exec404MirrorAbi carries the Transfer event + reads,
@@ -50,18 +51,17 @@ export function useErc404OwnedPieces(
     queryFn: async (): Promise<OwnedPiece[]> => {
       if (!client || !mirror || !owner) return []
 
-      const base = {
-        address: mirror,
-        abi: exec404MirrorAbi,
-        eventName: 'Transfer',
-        fromBlock: 0n,
-        toBlock: 'latest',
-      } as const
+      // Owned-set reconstruction: full Transfer replay touching this wallet (can't early-stop), but
+      // floored at our deploy block (ADR-0010, not `0n`) and windowed (cap-safe).
+      const latest = await client.getBlockNumber()
+      const scan = (args: { to: `0x${string}` } | { from: `0x${string}` }) =>
+        scanBackward(
+          (fromBlock, toBlock) =>
+            client.getContractEvents({ address: mirror, abi: exec404MirrorAbi, eventName: 'Transfer', args, fromBlock, toBlock }),
+          { latest, floor: deployBlock },
+        )
 
-      const [inbound, outbound] = await Promise.all([
-        client.getContractEvents({ ...base, args: { to: owner } }),
-        client.getContractEvents({ ...base, args: { from: owner } }),
-      ])
+      const [inbound, outbound] = await Promise.all([scan({ to: owner }), scan({ from: owner })])
 
       const transfers: MirrorTransfer[] = []
       for (const log of [...inbound, ...outbound]) {

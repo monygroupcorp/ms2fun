@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import type { ContractFunctionReturnType } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { masterRegistryV1Abi, queryAggregatorAbi } from '../generated/contracts'
-import { forkAddresses, forkChainId } from '../lib/addresses'
+import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
+import { scanBackward } from '../lib/logScan'
 
 export type ProjectCard = ContractFunctionReturnType<
   typeof queryAggregatorAbi,
@@ -24,14 +25,19 @@ export function useCreatorCollections(creator: `0x${string}` | undefined): {
     queryFn: async (): Promise<ProjectCard[]> => {
       if (!creator || !client) return []
 
-      const logs = await client.getContractEvents({
-        address: forkAddresses.MasterRegistryV1,
-        abi: masterRegistryV1Abi,
-        eventName: 'CreatorInstanceAdded',
-        args: { creator },
-        fromBlock: 0n,
-        toBlock: 'latest',
-      })
+      const latest = await client.getBlockNumber()
+      const logs = await scanBackward(
+        (fromBlock, toBlock) =>
+          client.getContractEvents({
+            address: forkAddresses.MasterRegistryV1,
+            abi: masterRegistryV1Abi,
+            eventName: 'CreatorInstanceAdded',
+            args: { creator },
+            fromBlock,
+            toBlock,
+          }),
+        { latest, floor: deployBlock },
+      )
 
       const seen = new Set<`0x${string}`>()
       const instances: `0x${string}`[] = []
