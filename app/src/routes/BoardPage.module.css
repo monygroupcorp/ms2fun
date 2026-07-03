@@ -278,3 +278,10 @@
 .replyBtn:hover {
   color: var(--color-text);
 }
+
+/* Tier 1B: "load older" pager under the feed — fetches the next reverse window. */
+.loadOlder {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-5) 0 var(--space-2);
+}

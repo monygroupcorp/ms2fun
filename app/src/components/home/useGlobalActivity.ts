@@ -28,6 +28,8 @@ export function useGlobalActivity(): {
     queryFn: async (): Promise<FeedMessage[]> => {
       if (!client) return []
 
+      // Home preview shows only the most-recent handful, so EARLY-STOP after a couple of windows
+      // (ADR-0010 Tier 1B) — never scan to the floor for a preview.
       const latest = await client.getBlockNumber()
       const logs = await scanBackward(
         (fromBlock, toBlock) =>
@@ -38,7 +40,7 @@ export function useGlobalActivity(): {
             fromBlock,
             toBlock,
           }),
-        { latest, floor: deployBlock },
+        { latest, floor: deployBlock, maxWindows: 2 },
       )
 
       const messages: FeedMessage[] = []
