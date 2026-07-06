@@ -22,6 +22,7 @@ import {
   type VaultFamily,
 } from '../lib/wizard'
 import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
+import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { SchemaForm } from '../components/wizard/SchemaForm'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
@@ -378,6 +379,11 @@ export function WizardPage() {
                 onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                 errors={coreErrors}
               />
+              {/* ERC404: the declared-max carve disclosure gets a live allowance/depth preview so
+                  the number being committed to (immutably) is priced in, not abstract. */}
+              {typeKey === 'erc404' && (
+                <CarveDisclosure declaredValue={values['declaredMaxAllowanceBps']} />
+              )}
             </div>
           </div>
         )

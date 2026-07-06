@@ -49,13 +49,16 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     );
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
+    event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
 
     struct PoolSetupResult {
         uint256 tokenId;
         address pool;
         uint256 ethToLP;
-        uint256 protocolFee;  // 1% of raise
-        uint256 vaultCut;     // 19% of raise
+        uint256 protocolFee;  // 1% of raise + 1% of carve
+        uint256 vaultCut;     // 19% of raise + 19% of carve
+        uint256 creatorCut;   // 80% of carve → creator
+        uint256 carvePaid;    // effective gross carve (for CreatorCarvePaid)
         bool tokenIsZero;
     }
 
@@ -73,11 +76,15 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
     // slither-disable-next-line arbitrary-send-eth,incorrect-equality,timestamp,unused-return
     function _setupPool(ILiquidityDeployerModule.DeployParams calldata p) private returns (PoolSetupResult memory r) {
-        // Fixed 1/19/80 split: 1% protocol, 19% vault, 80% LP
-        RevenueSplitLib.Split memory s = RevenueSplitLib.split(p.ethReserve);
-        r.protocolFee = s.protocolCut;
-        r.vaultCut    = s.vaultCut;
-        r.ethToLP     = s.remainder;
+        // 1/19/80 split of the raise + optional tithed creator carve (80/19/1) out of the LP 80.
+        // The instance resolves the effective carve; splitGraduation re-clamps to the LP share.
+        uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
+        RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
+        r.protocolFee = g.protocolCut;
+        r.vaultCut    = g.vaultCut;
+        r.creatorCut  = g.creatorCut;
+        r.carvePaid   = g.carveApplied;
+        r.ethToLP     = g.ethForPool;
 
         // ── Compute sqrtPriceX96 internally from token ordering ──
         bool tokenIsZero = p.token < weth;
@@ -131,12 +138,19 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
             emit GraduationFeePaid(p.protocolTreasury, r.protocolFee);
         }
-        // 19% → alignment vault via receiveContribution
+        // 19% of raise (+ 19% of carve) → alignment vault via receiveContribution
         if (r.vaultCut > 0) {
             CypherAlignmentVault(payable(p.vault)).receiveContribution{value: r.vaultCut}(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
             );
             emit GraduationVaultContribution(p.vault, r.vaultCut);
+        }
+        // 80% of carve → creator
+        if (r.creatorCut > 0) {
+            SafeTransferLib.safeTransferETH(p.creator, r.creatorCut);
+        }
+        if (p.carveEth > 0) {
+            emit CreatorCarvePaid(p.instance, p.creator, p.carveEth, r.carvePaid);
         }
         emit LiquidityDeployed(p.vault, r.pool, r.tokenId, r.ethToLP, p.tokenReserve);
     }

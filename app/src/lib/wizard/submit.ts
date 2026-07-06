@@ -17,6 +17,7 @@ import {
   erc404FactoryAbi,
   erc721AuctionFactoryAbi,
 } from '../../generated/contracts'
+import { parseBps } from '../carve'
 import type { ProjectTypeSchema } from './schema'
 import type { TierConfigValue } from './gatingConfig'
 import { EMPTY_TIER_CONFIG } from './gatingConfig'
@@ -161,6 +162,9 @@ export function buildErc404Create(c: CreateContext): CreateCall {
     nftCount: big(c.values.nftCount), // uint256
     presetId: num(c.values.presetId), // uint8
     stakingModule: addr(c.modules.stakingModule),
+    // uint16, 0–10000. IMMUTABLE creator-carve disclosure. An untouched form submits the schema's
+    // displayed default (10000 = full protocol allowance); the field may lower it, down to 0.
+    declaredMaxAllowanceBps: parseBps(c.values.declaredMaxAllowanceBps, 10_000),
   }
   const cfg = gating(c)
   const head = [

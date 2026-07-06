@@ -115,6 +115,20 @@ const erc404: ProjectTypeSchema = {
       help: 'NFT tokenURI base path',
     },
     {
+      key: 'declaredMaxAllowanceBps',
+      label: 'Creator carve — declared max',
+      kind: 'number',
+      unit: 'bps',
+      default: '10000',
+      help:
+        'IMMUTABLE disclosure, shown to buyers before the first buy: the fraction (bps, 10000 = all) ' +
+        'of the protocol carve allowance you may ever take at graduation. The actual carve is chosen ' +
+        'at graduation, bracket-bounded and pool-floor-clamped. 0 = waive carve rights forever.',
+      // Not `required`: an untouched field submits the displayed default (10000) — the builder
+      // (`buildErc404Create`) applies the same default, so form and calldata agree.
+      validation: { min: 0, max: 10000 },
+    },
+    {
       key: 'styleUri',
       label: 'Style URI',
       kind: 'text',

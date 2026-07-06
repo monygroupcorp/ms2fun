@@ -45,6 +45,7 @@ contract ERC404RerollTest is Test {
             maxSupply: MAX_SUPPLY,
             unit: UNIT,
             liquidityReserveBps: LIQUIDITY_RESERVE_BPS,
+            declaredMaxAllowanceBps: 0,
             curve: curveParams
         });
         token.initialize(owner, address(0xBEEF), bonding, mockLiquidityDeployer, address(0));

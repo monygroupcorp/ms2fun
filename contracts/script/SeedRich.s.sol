@@ -253,7 +253,7 @@ contract SeedRich is Script {
         internal returns (address inst) {
         ERC404Factory.CreateParams memory p = ERC404Factory.CreateParams({
             salt: keccak256(abi.encode(block.timestamp, slug)), name: slug, symbol: sym,
-            styleUri: "", tokenBaseURI: "", owner: deployer, vault: d.vault, nftCount: 10, presetId: 1, stakingModule: staking
+            styleUri: "", tokenBaseURI: "", owner: deployer, vault: d.vault, nftCount: 10, presetId: 1, stakingModule: staking, declaredMaxAllowanceBps: 0
         });
         inst = d.erc404.createInstance(p, _collMeta(name, "Bonding ERC404.", _svg(sym)), d.zammDeployer, gating,
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH}));
@@ -264,7 +264,7 @@ contract SeedRich is Script {
         internal returns (address inst) {
         ERC404Factory.CreateParams memory p = ERC404Factory.CreateParams({
             salt: keccak256(abi.encode(block.timestamp, slug)), name: slug, symbol: sym,
-            styleUri: "", tokenBaseURI: "", owner: deployer, vault: d.vault, nftCount: 10, presetId: 1, stakingModule: address(0)
+            styleUri: "", tokenBaseURI: "", owner: deployer, vault: d.vault, nftCount: 10, presetId: 1, stakingModule: address(0), declaredMaxAllowanceBps: 0
         });
         inst = d.erc404.createInstance(p, _collMeta(name, "Gated bonding.", _svg(sym)), d.zammDeployer, d.gatingModule,
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH}), cfg);

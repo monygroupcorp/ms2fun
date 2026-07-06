@@ -16,6 +16,7 @@ import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeploy
 import {LibClone} from "solady/utils/LibClone.sol";
 import {ICreateX, CREATEX} from "../../../src/shared/CreateXConstants.sol";
 import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import {RevenueSplitLib} from "../../../src/shared/libraries/RevenueSplitLib.sol";
 
 contract MockVault {
     function supportsCapability(bytes32) external pure returns (bool) { return true; }
@@ -28,11 +29,13 @@ contract PlainVault {
     receive() external payable {}
 }
 
-/// @dev Minimal mock liquidity deployer — just accepts the call
+/// @dev Minimal mock liquidity deployer — accepts the call and records the params it received.
 contract MockLiquidityDeployer is ILiquidityDeployerModule {
     bool public called;
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {
+    ILiquidityDeployerModule.DeployParams public lastParams;
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata p) external payable override {
         called = true;
+        lastParams = p;
     }
     function metadataURI() external view override returns (string memory) { return ""; }
     function setMetadataURI(string calldata) external override {}
@@ -138,7 +141,8 @@ contract ERC404FactoryTest is Test {
             symbol: symbol_,
             styleUri: "",
             tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
         });
     }
 
@@ -189,7 +193,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -242,7 +247,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -267,7 +273,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -518,7 +525,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -547,7 +555,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -572,7 +581,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -713,7 +723,8 @@ contract ERC404FactoryTest is Test {
                 symbol: "PVT",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
@@ -721,5 +732,232 @@ contract ERC404FactoryTest is Test {
             FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
         );
         assertTrue(instance != address(0));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Creator carve (graduation carve-out)
+    // ════════════════════════════════════════════════════════════════════════
+
+    function _identityWithCarve(
+        string memory name_,
+        address owner_,
+        uint16 declaredBps
+    ) internal returns (ERC404Factory.CreateParams memory p) {
+        p = _identity(name_, "CRV", owner_);
+        p.declaredMaxAllowanceBps = declaredBps;
+    }
+
+    /// @dev Create a carve-declaring instance via the REAL factory (so deployLiquidity reads the
+    ///      factory's live effectiveCarveEth), open bonding, and warp past open.
+    function _createCarveInstance(string memory name_, uint16 declaredBps)
+        internal
+        returns (ERC404BondingInstance inst)
+    {
+        vm.deal(creator1, 50 ether);
+        vm.startPrank(creator1);
+        address a = factory.createInstance(
+            _identityWithCarve(name_, creator1, declaredBps),
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+        );
+        inst = ERC404BondingInstance(payable(a));
+        inst.setBondingOpenTime(block.timestamp + 1);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 2);
+    }
+
+    function _buyExact(ERC404BondingInstance inst, uint256 amount) internal {
+        (uint256 ip, uint256 qc, uint256 cc, uint256 qd, uint256 nf) = inst.curveParams();
+        uint256 cost = curveComp.calculateCost(
+            BondingCurveMath.Params(ip, qc, cc, qd, nf), inst.totalBondingSupply(), amount
+        );
+        vm.prank(creator1);
+        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+    }
+
+    function _lastCarve() internal view returns (address creatorArg, uint256 carveArg) {
+        (,,,,,, creatorArg, carveArg) = mockDeployer.lastParams();
+    }
+
+    function test_createInstance_declaredMaxOver10000Reverts() public {
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.InvalidDeclaredMaxAllowance.selector);
+        factory.createInstance(
+            _identityWithCarve("BadDeclared", creator1, 10001),
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+        );
+    }
+
+    function test_declaredMax_storedImmutablyOnInstance() public {
+        ERC404BondingInstance inst = _createCarveInstance("DeclaredStored", 7500);
+        assertEq(inst.declaredMaxAllowanceBps(), 7500, "declared max must be stored + readable");
+    }
+
+    function test_setMinPoolEth_protocolRoleOnly() public {
+        assertEq(factory.minPoolEth(), 1 ether, "default pool floor is 1 ETH");
+
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        factory.setMinPoolEth(2 ether);
+
+        vm.prank(protocolAdmin);
+        vm.expectEmit(false, false, false, true);
+        emit ERC404Factory.MinPoolEthUpdated(2 ether);
+        factory.setMinPoolEth(2 ether);
+        assertEq(factory.minPoolEth(), 2 ether);
+    }
+
+    function test_setCarveBrackets_validatesAndStores() public {
+        // Defaults: 50% of first 4 ETH / 25% of next 16 / 10% beyond 20.
+        RevenueSplitLib.BracketParams memory def = factory.carveBracketParams();
+        assertEq(def.b1, 4 ether);
+        assertEq(def.b2, 20 ether);
+        assertEq(def.r1, 5000);
+        assertEq(def.r2, 2500);
+        assertEq(def.r3, 1000);
+
+        RevenueSplitLib.BracketParams memory bad =
+            RevenueSplitLib.BracketParams({b1: 5 ether, b2: 4 ether, r1: 100, r2: 100, r3: 100});
+        vm.prank(protocolAdmin);
+        vm.expectRevert(ERC404Factory.InvalidBracketParams.selector);
+        factory.setCarveBrackets(bad);
+
+        RevenueSplitLib.BracketParams memory good =
+            RevenueSplitLib.BracketParams({b1: 2 ether, b2: 10 ether, r1: 4000, r2: 2000, r3: 500});
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        factory.setCarveBrackets(good);
+
+        vm.prank(protocolAdmin);
+        vm.expectEmit(false, false, false, true);
+        emit ERC404Factory.CarveBracketsUpdated(2 ether, 10 ether, 4000, 2000, 500);
+        factory.setCarveBrackets(good);
+
+        RevenueSplitLib.BracketParams memory got = factory.carveBracketParams();
+        assertEq(got.b1, 2 ether);
+        assertEq(got.r3, 500);
+    }
+
+    function test_effectiveCarveEth_workedPoints() public view {
+        // R=4, full declared, full request: allowance 2.0, LP80 3.2, headroom 2.2 -> 2.0.
+        assertEq(factory.effectiveCarveEth(4 ether, 10000, 10000), 2 ether);
+        // R=2: allowance 1.0, headroom 0.6 -> floor clamps to 0.6.
+        assertEq(factory.effectiveCarveEth(2 ether, 10000, 10000), 0.6 ether);
+        // R=1: LP80 0.8 under the floor -> 0 (clamp, not a revert).
+        assertEq(factory.effectiveCarveEth(1 ether, 10000, 10000), 0);
+        // Declared max halves the allowance axis: R=4, declared 5000 -> 1.0.
+        assertEq(factory.effectiveCarveEth(4 ether, 5000, 10000), 1 ether);
+        // Request below declared wins: R=4, declared 10000, request 2500 -> 0.5.
+        assertEq(factory.effectiveCarveEth(4 ether, 10000, 2500), 0.5 ether);
+        // Zeroes short-circuit.
+        assertEq(factory.effectiveCarveEth(0, 10000, 10000), 0);
+        assertEq(factory.effectiveCarveEth(4 ether, 0, 10000), 0);
+        assertEq(factory.effectiveCarveEth(4 ether, 10000, 0), 0);
+    }
+
+    /// @notice Full-declared instance graduating with a full request: the module receives
+    ///         creator = owner() and carveEth = the factory's live effective carve.
+    function test_deployLiquidity_withCarve_passesCreatorAndCarveEth() public {
+        ERC404BondingInstance inst = _createCarveInstance("CarveFull", 10000);
+        _buyExact(inst, 5e24); // deep buy -> multi-ETH reserve
+
+        uint256 raise = inst.reserve();
+        assertGt(raise, 1.25 ether, "test needs enough raise for carve headroom");
+        uint256 expected = factory.effectiveCarveEth(raise, 10000, 10000);
+        assertGt(expected, 0, "expected carve must be nonzero");
+        assertEq(inst.previewCarve(10000), expected, "previewCarve must match the factory math");
+
+        vm.prank(creator1);
+        inst.deployLiquidity(10000);
+
+        (address creatorArg, uint256 carveArg) = _lastCarve();
+        assertEq(creatorArg, creator1, "creator = instance owner");
+        assertEq(carveArg, expected, "module receives the resolved effective carve");
+        assertTrue(inst.graduated());
+    }
+
+    /// @notice Passing 0 reproduces the historic no-carve graduation exactly.
+    function test_deployLiquidity_zeroRequest_zeroCarve() public {
+        ERC404BondingInstance inst = _createCarveInstance("CarveZeroReq", 10000);
+        _buyExact(inst, 5e24);
+
+        vm.prank(creator1);
+        inst.deployLiquidity(0);
+
+        (, uint256 carveArg) = _lastCarve();
+        assertEq(carveArg, 0, "request 0 -> carve 0");
+        assertTrue(inst.graduated());
+    }
+
+    /// @notice declaredMax = 0 (no carve rights): even a full request carves nothing.
+    function test_deployLiquidity_declaredZero_requestIgnored() public {
+        ERC404BondingInstance inst = _createCarveInstance("CarveDeclZero", 0);
+        _buyExact(inst, 5e24);
+
+        vm.prank(creator1);
+        inst.deployLiquidity(10000);
+
+        (, uint256 carveArg) = _lastCarve();
+        assertEq(carveArg, 0, "declaredMax 0 -> carve always 0");
+        assertTrue(inst.graduated());
+    }
+
+    /// @notice The declared max caps the request on the allowance axis.
+    function test_deployLiquidity_declaredMaxCapsRequest() public {
+        ERC404BondingInstance inst = _createCarveInstance("CarveCapped", 2500);
+        _buyExact(inst, 5e24);
+
+        uint256 raise = inst.reserve();
+        uint256 expected = factory.effectiveCarveEth(raise, 2500, 10000);
+        uint256 uncapped = factory.effectiveCarveEth(raise, 10000, 10000);
+        assertLt(expected, uncapped, "declared 2500 must bind below the full allowance");
+
+        vm.prank(creator1);
+        inst.deployLiquidity(10000);
+
+        (, uint256 carveArg) = _lastCarve();
+        assertEq(carveArg, expected, "carve capped by declaredMax");
+    }
+
+    /// @notice The pool floor CLAMPS the carve (to zero here) but never gates graduation.
+    function test_deployLiquidity_floorClampsCarve_neverGates() public {
+        ERC404BondingInstance inst = _createCarveInstance("CarveFloored", 10000);
+        _buyExact(inst, 5e24);
+
+        // Raise the floor above any possible LP share: headroom -> 0, carve -> 0.
+        vm.prank(protocolAdmin);
+        factory.setMinPoolEth(1000 ether);
+        assertEq(inst.previewCarve(10000), 0, "no headroom -> preview 0");
+
+        vm.prank(creator1);
+        inst.deployLiquidity(10000);
+
+        (, uint256 carveArg) = _lastCarve();
+        assertEq(carveArg, 0, "floor eats the whole carve");
+        assertTrue(inst.graduated(), "floor must NEVER block graduation");
+    }
+
+    /// @notice Partial-reserve graduation (owner's call, small raise) still works with a carve
+    ///         request: the thin raise yields carve 0 and graduates.
+    function test_deployLiquidity_partialReserve_thinRaiseGraduates() public {
+        ERC404BondingInstance inst = _createCarveInstance("CarveThin", 10000);
+        _buyExact(inst, 1e23); // tiny buy -> raise well under the floor's reach
+
+        uint256 raise = inst.reserve();
+        assertLt(raise, 1 ether, "precondition: thin raise");
+
+        vm.prank(creator1);
+        inst.deployLiquidity(10000);
+
+        (, uint256 carveArg) = _lastCarve();
+        assertEq(carveArg, 0, "thin raise -> carve structurally 0");
+        assertTrue(inst.graduated(), "minnows always graduate");
     }
 }

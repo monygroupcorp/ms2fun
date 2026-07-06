@@ -25,9 +25,12 @@
 import { useState } from 'react'
 import { formatEther } from 'viem'
 import {
+  erc404FactoryAbi,
   featuredQueueManagerAbi,
   globalMessageRegistryAbi,
   masterRegistryV1Abi,
+  useReadErc404FactoryCarveBracketParams,
+  useReadErc404FactoryMinPoolEth,
   useReadGlobalMessageRegistryPostThreshold,
 } from '../../generated/contracts'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
@@ -48,6 +51,7 @@ export function PlatformConfigPanel() {
       <FeaturedConfigSection />
       <AgentsSection />
       <MessageBoardSection />
+      <CarveEconomicsSection />
     </div>
   )
 }
@@ -484,6 +488,215 @@ function PostThresholdRow() {
           disabled={!canSubmit}
           errorText="set failed — try again"
           testId="admin-set-post-threshold"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── Section 4: ERC404 graduation economics (ERC404Factory) ───────────────────────
+// The creator-carve levers: the pool floor (a carve-CLAMP, never a graduation gate) and the
+// progressive allowance brackets (50%/25%/10% at 4/20 ETH by default). Gated on the factory's
+// owner() — the PROTOCOL_ROLE holder in practice (same address at deploy).
+
+function CarveEconomicsSection() {
+  const { isOwner } = useOwnerGate(forkAddresses.ERC404Factory)
+  if (!isOwner) return null
+
+  return (
+    <AdminSection title="graduation economics (erc404)" testId="admin-carve-economics">
+      <MinPoolEthRow />
+      <CarveBracketsRow />
+    </AdminSection>
+  )
+}
+
+function MinPoolEthRow() {
+  const [amount, setAmount] = useState('')
+  const { data: current, refetch } = useReadErc404FactoryMinPoolEth({
+    address: forkAddresses.ERC404Factory,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setAmount('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(amount) // ETH → wei
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="graduation pool floor"
+      hint={`minimum ETH the LP pool keeps at graduation — clamps the creator carve, never blocks graduation. current: ${
+        current !== undefined ? formatEther(current) : '…'
+      } ETH`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={amount}
+          onChange={setAmount}
+          placeholder="1"
+          unit="ETH"
+          disabled={tx.isBusy}
+          ariaLabel="graduation pool floor in ETH"
+          testId="admin-min-pool-eth-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: forkAddresses.ERC404Factory,
+              abi: erc404FactoryAbi,
+              functionName: 'setMinPoolEth',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set pool floor"
+          successLabel="pool floor set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-min-pool-eth"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+function CarveBracketsRow() {
+  const [b1, setB1] = useState('')
+  const [b2, setB2] = useState('')
+  const [r1, setR1] = useState('')
+  const [r2, setR2] = useState('')
+  const [r3, setR3] = useState('')
+  const { data: current, refetch } = useReadErc404FactoryCarveBracketParams({
+    address: forkAddresses.ERC404Factory,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setB1('')
+      setB2('')
+      setR1('')
+      setR2('')
+      setR3('')
+      void refetch()
+    },
+  })
+
+  const b1Wei = parseAmount(b1) // ETH breakpoints → wei
+  const b2Wei = parseAmount(b2)
+  const r1Bps = parseAmount(r1, 0) // bps rates, raw
+  const r2Bps = parseAmount(r2, 0)
+  const r3Bps = parseAmount(r3, 0)
+  const canSubmit =
+    b1Wei !== undefined &&
+    b2Wei !== undefined &&
+    r1Bps !== undefined &&
+    r2Bps !== undefined &&
+    r3Bps !== undefined &&
+    b2Wei >= b1Wei &&
+    r1Bps <= 10_000n &&
+    r2Bps <= 10_000n &&
+    r3Bps <= 10_000n
+
+  const currentHint = current
+    ? `current: ${current.r1}/${current.r2}/${current.r3} bps at ${formatEther(current.b1)}/${formatEther(current.b2)} ETH`
+    : 'current: …'
+
+  return (
+    <ActionRow
+      label="carve allowance brackets"
+      hint={`progressive creator-carve rates: r1 of the first b1 ETH, r2 up to b2, r3 beyond. ${currentHint}`}
+    >
+      <div className={styles.form}>
+        <div className={styles.pair}>
+          <AmountField
+            value={b1}
+            onChange={setB1}
+            placeholder="b1"
+            unit="ETH"
+            disabled={tx.isBusy}
+            ariaLabel="first bracket breakpoint in ETH"
+            testId="admin-carve-b1"
+          />
+          <AmountField
+            value={b2}
+            onChange={setB2}
+            placeholder="b2"
+            unit="ETH"
+            disabled={tx.isBusy}
+            ariaLabel="second bracket breakpoint in ETH"
+            testId="admin-carve-b2"
+          />
+        </div>
+        <div className={styles.pair}>
+          <AmountField
+            value={r1}
+            onChange={setR1}
+            placeholder="r1"
+            unit="bps"
+            disabled={tx.isBusy}
+            ariaLabel="first bracket rate in bps"
+            testId="admin-carve-r1"
+          />
+          <AmountField
+            value={r2}
+            onChange={setR2}
+            placeholder="r2"
+            unit="bps"
+            disabled={tx.isBusy}
+            ariaLabel="second bracket rate in bps"
+            testId="admin-carve-r2"
+          />
+          <AmountField
+            value={r3}
+            onChange={setR3}
+            placeholder="r3"
+            unit="bps"
+            disabled={tx.isBusy}
+            ariaLabel="third bracket rate in bps"
+            testId="admin-carve-r3"
+          />
+        </div>
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (
+              b1Wei === undefined ||
+              b2Wei === undefined ||
+              r1Bps === undefined ||
+              r2Bps === undefined ||
+              r3Bps === undefined
+            )
+              return
+            tx.send({
+              address: forkAddresses.ERC404Factory,
+              abi: erc404FactoryAbi,
+              functionName: 'setCarveBrackets',
+              args: [
+                {
+                  b1: b1Wei,
+                  b2: b2Wei,
+                  r1: Number(r1Bps),
+                  r2: Number(r2Bps),
+                  r3: Number(r3Bps),
+                },
+              ],
+              chainId: forkChainId,
+            })
+          }}
+          label="set brackets"
+          className="btn btn-secondary"
+          successLabel="brackets set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-carve-brackets"
         />
       </div>
     </ActionRow>

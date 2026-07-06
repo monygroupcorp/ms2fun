@@ -5,6 +5,20 @@ import {Test} from "forge-std/Test.sol";
 import {LiquidityDeployerModule} from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
 import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 
+/// @dev Exposes the internal amount computation so the carve split can be unit-tested without a
+///      full V4 PoolManager (the payment dispatch itself is fork-tested + mirrored in the ZAMM /
+///      Cypher module tests, which share the identical splitGraduation-driven shape).
+contract LiquidityDeployerModuleHarness is LiquidityDeployerModule {
+    constructor() LiquidityDeployerModule(address(0), address(0x3), 3000, 60) {}
+    function computeAmounts(ILiquidityDeployerModule.DeployParams calldata p)
+        external
+        pure
+        returns (AmountsResult memory)
+    {
+        return _computeAmounts(p);
+    }
+}
+
 /**
  * @title LiquidityDeployerModuleTest
  * @notice Unit tests for LiquidityDeployerModule fee math and amount computations.
@@ -12,9 +26,11 @@ import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeploy
  */
 contract LiquidityDeployerModuleTest is Test {
     LiquidityDeployerModule public module;
+    LiquidityDeployerModuleHarness public harness;
 
     function setUp() public {
         module = new LiquidityDeployerModule(address(0), address(0x3), 3000, 60);
+        harness = new LiquidityDeployerModuleHarness();
     }
 
     // -----------------------------------------------------------------------
@@ -32,7 +48,9 @@ contract LiquidityDeployerModuleTest is Test {
             protocolTreasury: treasury,
             vault: address(0x5),
             token: address(0x4),
-            instance: address(0x4)
+            instance: address(0x4),
+            creator: address(0),
+            carveEth: 0
         });
     }
 
@@ -106,8 +124,70 @@ contract LiquidityDeployerModuleTest is Test {
             protocolTreasury: address(0x1),
             vault: address(0x5),
             token: address(0x4),
-            instance: address(0x4)
+            instance: address(0x4),
+            creator: address(0),
+            carveEth: 0
         });
         assertEq(p.ethReserve, 1 ether);
+    }
+
+    // ── Creator carve (via _computeAmounts harness) ───────────────────────────
+
+    function _carveParams(uint256 ethReserve, address creator, uint256 carveEth)
+        internal
+        pure
+        returns (ILiquidityDeployerModule.DeployParams memory p)
+    {
+        p = _params(ethReserve, 100 ether, address(0x1));
+        p.creator = creator;
+        p.carveEth = carveEth;
+    }
+
+    /// @notice Tithed carve: creator 80% of carve; vault 19% raise + 19% carve; protocol 1% raise
+    ///         + 1% carve; the pool loses exactly the carve.
+    function test_computeAmounts_carveSplit() public view {
+        LiquidityDeployerModule.AmountsResult memory r =
+            harness.computeAmounts(_carveParams(10 ether, address(0xC0FFEE), 1 ether));
+        assertEq(r.protocolFee, 0.1 ether + 0.01 ether, "protocol = 1% raise + 1% carve");
+        assertEq(r.vaultCut, 1.9 ether + 0.19 ether, "vault = 19% raise + 19% carve");
+        assertEq(r.creatorCut, 0.8 ether, "creator = 80% of carve");
+        assertEq(r.carvePaid, 1 ether, "full requested carve applied");
+        assertEq(r.ethForPool, 7 ether, "pool = LP80 - carve");
+        assertEq(
+            r.protocolFee + r.vaultCut + r.creatorCut + r.ethForPool,
+            10 ether,
+            "conservation: parts sum to the raise"
+        );
+    }
+
+    /// @notice Zero carve reproduces the historic 1/19/80 amounts exactly.
+    function test_computeAmounts_zeroCarveMatchesLegacy() public view {
+        LiquidityDeployerModule.AmountsResult memory r =
+            harness.computeAmounts(_carveParams(10 ether, address(0xC0FFEE), 0));
+        assertEq(r.protocolFee, 0.1 ether);
+        assertEq(r.vaultCut, 1.9 ether);
+        assertEq(r.creatorCut, 0);
+        assertEq(r.ethForPool, 8 ether);
+    }
+
+    /// @notice creator == address(0) defensively zeroes the carve.
+    function test_computeAmounts_zeroCreatorZeroesCarve() public view {
+        LiquidityDeployerModule.AmountsResult memory r =
+            harness.computeAmounts(_carveParams(10 ether, address(0), 1 ether));
+        assertEq(r.creatorCut, 0);
+        assertEq(r.carvePaid, 0);
+        assertEq(r.ethForPool, 8 ether, "full LP80 reaches the pool");
+    }
+
+    /// @notice NoETHForPool guard retained: a carve consuming the whole LP share reverts.
+    function test_computeAmounts_carveWholeLpShareReverts() public {
+        vm.expectRevert(LiquidityDeployerModule.NoETHForPool.selector);
+        harness.computeAmounts(_carveParams(10 ether, address(0xC0FFEE), 100 ether));
+    }
+
+    /// @notice NoETHForPool when the raise is ~0 (rounds to nothing for the pool).
+    function test_computeAmounts_zeroRaiseReverts() public {
+        vm.expectRevert(LiquidityDeployerModule.NoETHForPool.selector);
+        harness.computeAmounts(_carveParams(0, address(0xC0FFEE), 0));
     }
 }

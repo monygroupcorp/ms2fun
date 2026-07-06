@@ -1,0 +1,68 @@
+/* ============================================================
+   CarveDisclosure — Gallery Brutalism
+   Monochrome CSS Modules. All color via var(--…) tokens.
+   ============================================================ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  border: 1px dashed var(--border-secondary);
+  padding: var(--padding-lg);
+}
+
+.head {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-primary);
+}
+
+.table th {
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-normal);
+  padding: var(--padding-xs) var(--padding-sm);
+  border-bottom: 1px solid var(--border-secondary);
+}
+
+.table td {
+  text-align: right;
+  padding: var(--padding-xs) var(--padding-sm);
+  border-bottom: 1px dotted var(--border-secondary);
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.note,
+.nudge {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0;
+}
+
+.nudge {
+  color: var(--text-primary);
+}

@@ -123,7 +123,8 @@ contract ERC404AgentDelegationTest is Test {
             symbol: "SYM",
             styleUri: "",
             tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
         });
     }
 

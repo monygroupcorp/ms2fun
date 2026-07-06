@@ -195,6 +195,80 @@ async function main(): Promise<void> {
     `✓ Handed platform registries to ADMIN (${ADMIN}) — /admin operable as the testing wallet`,
   )
 
+  // 3c. Graduate the seeded `carved-demo` 404 WITH a nonzero creator carve. The seed creates it
+  //     with declaredMaxAllowanceBps=10000 and a >=3 ETH reserve, but cannot graduate in-script
+  //     (openTime is strictly-future at seed time and vm.warp is a no-op under --broadcast). The
+  //     +2h advance above crossed its open/maturity, so the now-ADMIN-owned instance graduates
+  //     here with deployLiquidity(10000) — full allowance requested, clamped live by the factory
+  //     brackets + pool floor — standing up a real Uni-V4 pool with the carve actually paid.
+  //     Non-fatal: a missing/already-graduated instance must not fail the deploy.
+  try {
+    const erc404Factory = f['ERC404']
+    if (!erc404Factory) throw new Error('anvil.json missing factories.ERC404')
+    const instanceAbi = [
+      { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+      { type: 'function', name: 'graduated', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
+      {
+        type: 'function',
+        name: 'previewCarve',
+        stateMutability: 'view',
+        inputs: [{ name: 'carveRequestBps', type: 'uint256' }],
+        outputs: [{ type: 'uint256' }],
+      },
+      {
+        type: 'function',
+        name: 'deployLiquidity',
+        stateMutability: 'nonpayable',
+        inputs: [{ name: 'carveRequestBps', type: 'uint256' }],
+        outputs: [],
+      },
+    ] as const
+    // keccak256("InstanceCreated(address,address,address,string,string)") — instance is topic[1].
+    const INSTANCE_CREATED = '0xef385e577da1427cc970a482e2560d72afabebdae40f0b84044f73fe332117cb'
+    const logs = await publicClient.getLogs({ address: erc404Factory, fromBlock: deployBlock })
+    let carved: Address | undefined
+    for (const log of logs) {
+      if (log.topics[0] !== INSTANCE_CREATED || !log.topics[1]) continue
+      const candidate = `0x${log.topics[1].slice(26)}` as Address
+      const name = await publicClient
+        .readContract({ address: candidate, abi: instanceAbi, functionName: 'name' })
+        .catch(() => '')
+      if (name === 'carved-demo') {
+        carved = candidate
+        break
+      }
+    }
+    if (!carved) throw new Error('seeded carved-demo instance not found in factory logs')
+    const already = await publicClient.readContract({
+      address: carved,
+      abi: instanceAbi,
+      functionName: 'graduated',
+    })
+    if (!already) {
+      const carveEth = await publicClient.readContract({
+        address: carved,
+        abi: instanceAbi,
+        functionName: 'previewCarve',
+        args: [10_000n],
+      })
+      await test.impersonateAccount({ address: ADMIN })
+      const hash = await adminWallet.writeContract({
+        address: carved,
+        abi: instanceAbi,
+        functionName: 'deployLiquidity',
+        args: [10_000n],
+        gas: 9_000_000n,
+      })
+      await publicClient.waitForTransactionReceipt({ hash })
+      await test.stopImpersonatingAccount({ address: ADMIN })
+      console.log(`✓ Graduated carved-demo (${carved}) WITH carve ${carveEth} wei — Uni-V4 pool live`)
+    } else {
+      console.log(`✓ carved-demo (${carved}) already graduated`)
+    }
+  } catch (err) {
+    console.warn(`⚠ carved-demo graduation skipped: ${(err as Error).message.split('\n')[0]}`)
+  }
+
   const required = (record: Record<string, Address>, key: string): Address => {
     const value = record[key]
     if (!value) throw new Error(`anvil.json missing expected address: ${key}`)

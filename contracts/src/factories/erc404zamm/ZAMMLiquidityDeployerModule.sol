@@ -53,8 +53,10 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
     struct PoolResult {
         uint256 ethForPool;
-        uint256 protocolFee;  // 1% of raise → protocol treasury
-        uint256 vaultCut;     // 19% of raise → alignment vault
+        uint256 protocolFee;  // 1% of raise + 1% of carve → protocol treasury
+        uint256 vaultCut;     // 19% of raise + 19% of carve → alignment vault
+        uint256 creatorCut;   // 80% of carve → creator
+        uint256 carvePaid;    // effective gross carve (for CreatorCarvePaid)
         bool ethIsToken0;
         address token0;
         address token1;
@@ -64,6 +66,7 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     event LiquidityDeployed(address indexed zamm, address token0, address token1, uint256 liquidity);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
+    event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
 
     /**
      * @notice Deploy ZAMM liquidity on behalf of an ERC404BondingInstance.
@@ -79,10 +82,15 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
     // slither-disable-next-line arbitrary-send-eth,unused-return
     function _deployPool(ILiquidityDeployerModule.DeployParams calldata p) private returns (PoolResult memory r) {
-        RevenueSplitLib.Split memory s = RevenueSplitLib.split(p.ethReserve);
-        r.protocolFee = s.protocolCut;
-        r.vaultCut    = s.vaultCut;
-        r.ethForPool  = s.remainder;
+        // 1/19/80 split of the raise + optional tithed creator carve (80/19/1) out of the LP 80.
+        // The instance resolves the effective carve; splitGraduation re-clamps to the LP share.
+        uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
+        RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
+        r.protocolFee = g.protocolCut;
+        r.vaultCut    = g.vaultCut;
+        r.creatorCut  = g.creatorCut;
+        r.carvePaid   = g.carveApplied;
+        r.ethForPool  = g.ethForPool;
         if (r.ethForPool == 0) revert NoETHForPool();
         if (p.tokenReserve == 0) revert NoTokensForPool();
 
@@ -110,17 +118,24 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events
     function _payFees(ILiquidityDeployerModule.DeployParams calldata p, PoolResult memory r) private {
-        // 1% → protocol treasury
+        // 1% of raise (+ 1% of carve) → protocol treasury
         if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
             emit GraduationFeePaid(p.protocolTreasury, r.protocolFee);
         }
-        // 19% → alignment vault
+        // 19% of raise (+ 19% of carve) → alignment vault
         if (r.vaultCut > 0 && p.vault != address(0)) {
             IAlignmentVault(payable(p.vault)).receiveContribution{value: r.vaultCut}(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
             );
             emit GraduationVaultContribution(p.vault, r.vaultCut);
+        }
+        // 80% of carve → creator
+        if (r.creatorCut > 0) {
+            SafeTransferLib.safeTransferETH(p.creator, r.creatorCut);
+        }
+        if (p.carveEth > 0) {
+            emit CreatorCarvePaid(p.instance, p.creator, p.carveEth, r.carvePaid);
         }
         emit LiquidityDeployed(zamm, r.token0, r.token1, r.liquidity);
     }

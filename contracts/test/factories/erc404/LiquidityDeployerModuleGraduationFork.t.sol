@@ -80,7 +80,9 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
                 protocolTreasury: address(0),
                 vault: address(0),
                 token: address(token),
-                instance: address(this)
+                instance: address(this),
+            creator: address(0),
+            carveEth: 0
             })
         );
 
@@ -136,6 +138,42 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
 
         emit log_named_uint("Live V4 pool liquidity", poolLiquidity);
         emit log_named_uint("swapV4 amountOut (tokens for 0.5 ETH)", amountOut);
+    }
+
+    /// @notice Graduating WITH a creator carve on the real V4 PoolManager: the creator receives
+    ///         80% of the carve, and the carved graduation still stands up a live pool.
+    function test_graduation_withCarve_paysCreator_andPoolStillLive() public {
+        uint256 ethReserve = 10 ether;
+        uint256 tokenReserve = 1_000_000e18;
+        uint256 carve = 1 ether;
+        address creator = makeAddr("carveCreator");
+
+        token.mint(address(module), tokenReserve);
+        vm.deal(address(this), ethReserve);
+
+        module.deployLiquidity{value: ethReserve}(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: tokenReserve,
+                protocolTreasury: address(0),
+                vault: address(0),
+                token: address(token),
+                instance: address(this),
+                creator: creator,
+                carveEth: carve
+            })
+        );
+
+        assertEq(creator.balance, 0.8 ether, "creator receives 80% of the carve");
+
+        PoolKey memory key = PoolKey({
+            currency0:   Currency.wrap(address(0)),
+            currency1:   Currency.wrap(address(token)),
+            fee:         FEE,
+            tickSpacing: TICK_SPACING,
+            hooks:       IHooks(address(0))
+        });
+        assertGt(poolManager.getLiquidity(key.toId()), 0, "carved graduation still stands up a live pool");
     }
 
     function _wethKey() internal view returns (PoolKey memory) {
