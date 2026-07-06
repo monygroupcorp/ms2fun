@@ -10,15 +10,19 @@
  * ABI note: the generated metadata setter is `setMetadataURI` (uppercase URI), not `setMetadataUri`.
  */
 import { useState } from 'react'
+import { formatEther } from 'viem'
 import {
   erc404BondingInstanceAbi,
   useReadErc404BondingInstanceAgentDelegationEnabled,
   useReadErc404BondingInstanceBondingActive,
   useReadErc404BondingInstanceBondingMaturityTime,
   useReadErc404BondingInstanceBondingOpenTime,
+  useReadErc404BondingInstanceDeclaredMaxAllowanceBps,
+  useReadErc404BondingInstancePreviewCarve,
   useReadErc404BondingInstanceStakingActive,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
+import { parseBps } from '../../../lib/carve'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
@@ -320,36 +324,81 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
   )
 }
 
-// ── deploy liquidity / graduate (creator action) ───────────────────────────────
-// NOTE: deployLiquidity() is currently PERMISSIONLESS on-chain (external nonReentrant). Surfacing it
-// as an owner-only admin action is the intended UX; making it truly owner-gated needs a contract
-// change (add onlyOwner) — tracked in docs/phases/spec-deploy-liquidity-admin.md.
+// ── deploy liquidity / graduate (creator action; onlyOwner on-chain) ───────────
+// Graduation takes an optional creator CARVE: deployLiquidity(carveRequestBps) where the request is
+// a fraction of the protocol carve allowance, hard-capped on-chain by the create-time
+// declaredMaxAllowanceBps and the factory's live brackets + pool floor. The control below is capped
+// at the instance's declared max and previews the resolved ETH via the on-chain previewCarve view.
 
 function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
+  const [carveInput, setCarveInput] = useState('0') // bps, default 0 = plain graduation
   const tx = useTxAction()
 
+  const { data: declaredMax } = useReadErc404BondingInstanceDeclaredMaxAllowanceBps({
+    address: instance,
+    chainId: forkChainId,
+  })
+  const maxBps = declaredMax ?? 0
+  const requestBps = Math.min(parseBps(carveInput, 0), maxBps)
+
+  // Live-computed effective max (full request) + the resolved carve for the CURRENT request.
+  const { data: maxCarveWei } = useReadErc404BondingInstancePreviewCarve({
+    address: instance,
+    chainId: forkChainId,
+    args: [10_000n],
+    query: { enabled: maxBps > 0 },
+  })
+  const { data: carveWei } = useReadErc404BondingInstancePreviewCarve({
+    address: instance,
+    chainId: forkChainId,
+    args: [BigInt(requestBps)],
+    query: { enabled: requestBps > 0 },
+  })
+
+  const resolved = requestBps > 0 ? carveWei : 0n
+  const hint =
+    maxBps === 0
+      ? 'graduate to the DEX — this collection declared no carve rights (carve is 0)'
+      : `graduate to the DEX with an optional creator carve — declared max ${maxBps} bps, ` +
+        `effective max ${maxCarveWei !== undefined ? formatEther(maxCarveWei) : '…'} ETH now; ` +
+        `this request carves ${resolved !== undefined ? formatEther(resolved) : '…'} ETH ` +
+        '(tithed 80/19/1 — you / vault / protocol)'
+
   return (
-    <ActionRow
-      label="deploy liquidity (graduate)"
-      hint="graduate to the DEX — only succeeds once the curve is full or matured"
-    >
-      <TxButton
-        state={tx.state}
-        onClick={() =>
-          tx.send({
-            address: instance,
-            abi: erc404BondingInstanceAbi,
-            functionName: 'deployLiquidity',
-            args: [],
-            chainId: forkChainId,
-          })
-        }
-        label="deploy liquidity"
-        successLabel="liquidity deployed"
-        onReset={tx.reset}
-        className="btn btn-primary btn-chromatic"
-        testId="erc404-admin-deploy-liquidity"
-      />
+    <ActionRow label="deploy liquidity (graduate)" hint={hint}>
+      <div className={styles.control}>
+        {maxBps > 0 && (
+          <input
+            className={styles.input}
+            type="number"
+            min={0}
+            max={maxBps}
+            step={100}
+            value={carveInput}
+            onChange={(e) => setCarveInput(e.target.value)}
+            disabled={tx.isBusy}
+            aria-label="carve request in bps (0 = no carve)"
+            data-testid="erc404-admin-carve-bps-input"
+          />
+        )}
+        <TxButton
+          state={tx.state}
+          onClick={() =>
+            tx.send({
+              address: instance,
+              abi: erc404BondingInstanceAbi,
+              functionName: 'deployLiquidity',
+              args: [BigInt(requestBps)],
+              chainId: forkChainId,
+            })
+          }
+          label={requestBps > 0 ? `graduate + carve ${requestBps} bps` : 'deploy liquidity'}
+          successLabel="liquidity deployed"
+          onReset={tx.reset}
+          className="btn btn-primary btn-chromatic"
+          testId="erc404-admin-deploy-liquidity"
+        />
+      </div>
     </ActionRow>
   )
 }

@@ -37,7 +37,9 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
             protocolTreasury: treasury,
             vault: address(vault),
             token: address(token),
-            instance: instance
+            instance: instance,
+            creator: address(0),
+            carveEth: 0
         });
 
         vm.deal(address(this), ethReserve);
@@ -61,11 +63,74 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
             protocolTreasury: treasury,
             vault: address(vault),
             token: address(token),
-            instance: instance
+            instance: instance,
+            creator: address(0),
+            carveEth: 0
         });
 
         vm.deal(address(this), 5 ether);
         vm.expectRevert();
         module.deployLiquidity{value: 5 ether}(p);
+    }
+
+    // ── Creator carve ─────────────────────────────────────────────────────────
+
+    function _carveParams(uint256 ethReserve, address creator, uint256 carveEth)
+        internal
+        view
+        returns (ILiquidityDeployerModule.DeployParams memory p)
+    {
+        p = ILiquidityDeployerModule.DeployParams({
+            ethReserve: ethReserve,
+            tokenReserve: 1000 ether,
+            protocolTreasury: treasury,
+            vault: address(vault),
+            token: address(token),
+            instance: instance,
+            creator: creator,
+            carveEth: carveEth
+        });
+    }
+
+    /// @notice Tithed carve deltas: creator 80% of carve; vault 19% raise + 19% carve; protocol
+    ///         1% raise + 1% carve; the pool loses exactly the carve.
+    function test_deployLiquidity_carve_paysCreatorVaultProtocol() public {
+        address creator = makeAddr("creator");
+        uint256 ethReserve = 10 ether;
+        uint256 carve = 1 ether;
+        token.mint(address(module), 1000 ether);
+
+        vm.expectEmit(true, true, false, true);
+        emit ZAMMLiquidityDeployerModule.CreatorCarvePaid(instance, creator, carve, carve);
+
+        vm.deal(address(this), ethReserve);
+        module.deployLiquidity{value: ethReserve}(_carveParams(ethReserve, creator, carve));
+
+        assertEq(treasury.balance, 0.1 ether + 0.01 ether, "protocol = 1% raise + 1% carve");
+        assertEq(address(vault).balance, 1.9 ether + 0.19 ether, "vault = 19% raise + 19% carve");
+        assertEq(creator.balance, 0.8 ether, "creator = 80% of carve");
+        // Pool ETH = LP80 - carve = 8 - 1 = 7 (held by MockZAMM after addLiquidity).
+        assertEq(address(zamm).balance, 7 ether, "pool loses exactly the carve");
+    }
+
+    /// @notice A carve that would consume the whole LP share leaves nothing for the pool — the
+    ///         NoETHForPool guard semantics are retained.
+    function test_deployLiquidity_carve_wholeLpShareRevertsNoETHForPool() public {
+        address creator = makeAddr("creator");
+        token.mint(address(module), 1000 ether);
+        vm.deal(address(this), 10 ether);
+        vm.expectRevert(ZAMMLiquidityDeployerModule.NoETHForPool.selector);
+        module.deployLiquidity{value: 10 ether}(_carveParams(10 ether, creator, 100 ether));
+    }
+
+    /// @notice creator == address(0) defensively zeroes the carve (everything to the pool).
+    function test_deployLiquidity_carve_zeroCreatorZeroesCarve() public {
+        token.mint(address(module), 1000 ether);
+        vm.deal(address(this), 10 ether);
+        module.deployLiquidity{value: 10 ether}(_carveParams(10 ether, address(0), 1 ether));
+
+        assertEq(treasury.balance, 0.1 ether, "protocol = plain 1%");
+        assertEq(address(vault).balance, 1.9 ether, "vault = plain 19%");
+        assertEq(address(zamm).balance, 8 ether, "full LP80 reaches the pool");
     }
 }

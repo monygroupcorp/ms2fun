@@ -114,7 +114,8 @@ contract ERC404FreeMintTest is Test {
             vault: address(mockVault),
             name: "FreeMintToken", symbol: "FMT", styleUri: "",
             tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
         });
     }
 

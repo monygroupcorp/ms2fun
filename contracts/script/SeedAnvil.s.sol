@@ -125,6 +125,7 @@ contract SeedAnvil is Script {
         _seedErc404PreOpen(d);
         _seedErc404MidCurve(d);
         _seedErc404ReadyToGraduate(d);
+        _seedErc404CarveDemo(d);
 
         // ── ERC404 with a stacked metadata-resolution stack (overlay + tier) ──
         _seedErc404Stacked(d);
@@ -157,6 +158,7 @@ contract SeedAnvil is Script {
         console.log("ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions");
         console.log("ERC721 : 2 auctions (gallery=settled+expired, live=active+bid)");
         console.log("ERC404 : preopen(cypher) + mid-curve+staking(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + stacked(zamm)");
+        console.log("ERC404 : carved-demo (declaredMax=10000, reserve >= 3 ETH) awaits deploy.ts graduation WITH carve");
         console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
     }
@@ -250,7 +252,8 @@ contract SeedAnvil is Script {
             vault: d.vault,
             nftCount: 10,
             presetId: 1,
-            stakingModule: address(0)
+            stakingModule: address(0),
+            declaredMaxAllowanceBps: 0 // agent demo keeps default no-carve economics
         });
         address instance = d.erc404.createInstance(
             params,
@@ -446,7 +449,7 @@ contract SeedAnvil is Script {
         address inst = _createBonding(
             d, "ember-preopen", "Ember",
             "Ember hasn't caught yet. When the curve opens, each buy mints a glowing shard; ~20% of every trade binds to the alignment vault, by contract.",
-            "EMBER", ART_EMBER, address(0), d.cypherVault, d.cypherDeployer);
+            "EMBER", ART_EMBER, address(0), d.cypherVault, d.cypherDeployer, 0);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 days); // strictly future -> preopen
         b.setBondingActive(true);
@@ -463,7 +466,7 @@ contract SeedAnvil is Script {
         address inst = _createBonding(
             d, "vapor-mid", "Vapor",
             "Vapor is live on the curve - trade the coin, hold the piece, stake for a cut of the flow. A DN404 where the token and the art are one asset.",
-            "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer);
+            "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer, 10000);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
         // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
@@ -501,15 +504,17 @@ contract SeedAnvil is Script {
     ///      and molten-ready (ZAMM -> swapVZ).
     function _seedErc404ReadyToGraduate(Deployed memory d) internal {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
+        // Declared max 10000: the creator kept full carve rights (shown pre-buy on the primary surface).
         _seedReadyToGraduate(
             d, "cinder-ready", "Cinder",
             "Cinder's curve is nearly spent - one push from graduating to a Uniswap V4 pool. Late embers, deep discounts.",
-            "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether);
+            "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether, 10000);
         // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
+        // Declared max 2500: a partial-carve disclosure so the UI shows a non-round value too.
         _seedReadyToGraduate(
             d, "molten-ready", "Molten",
             "Molten runs hot and ready to pour - matured and one call from a ZAMM pool. The curve's last stretch before the DEX.",
-            "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether);
+            "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether, 2500);
     }
 
     function _seedReadyToGraduate(
@@ -521,10 +526,11 @@ contract SeedAnvil is Script {
         string memory image,
         address vault,
         address deployer_,
-        uint256 rankBoost
+        uint256 rankBoost,
+        uint16 declaredMaxBps
     ) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_);
+        address inst = _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_, declaredMaxBps);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
         // advance the curve is open (bonding) AND matured (graduate unlocked).
@@ -535,6 +541,36 @@ contract SeedAnvil is Script {
         vm.stopBroadcast();
         // _buyBonding manages its own broadcast — call it OUTSIDE the block above (no nesting).
         _buyBonding(b, deployerKey, 1e23);
+    }
+
+    /// @dev CARVE DEMO: an ERC404 that declared the FULL carve allowance (declaredMax = 10000) and
+    ///      builds a deep-enough reserve (>= 3 ETH) that graduating with a carve is meaningful:
+    ///      allowance(3 ETH) = 1.5 ETH, LP-80 headroom above the 1 ETH pool floor = 1.4 ETH, so a
+    ///      full-request graduation carves ~1.4 ETH (80% creator / 19% vault / 1% protocol).
+    ///      The GRADUATION itself happens in deploy.ts AFTER the +2h chain advance (openTime is
+    ///      strictly-future at seed time, and vm.warp is a no-op under --broadcast), calling
+    ///      deployLiquidity(10000) as ADMIN — so the app boots with a graduated-WITH-carve
+    ///      collection on a real Uni-V4 pool.
+    function _seedErc404CarveDemo(Deployed memory d) internal {
+        vm.startBroadcast(deployerKey);
+        address inst = _createBonding(
+            d, "carved-demo", "Carved",
+            "Carved declared its full creator carve up front - the maximum cut was on the label before the first buy. Graduated with the carve taken; the pool floor held.",
+            "CARVE", ART_CARVED, address(0), d.vault, d.uniDeployer, 10000);
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        b.setBondingMaturityTime(block.timestamp + 90 minutes);
+        b.setBondingActive(true);
+        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.041 ether);
+        vm.stopBroadcast();
+
+        // Walk the curve until the reserve clears 3 ETH so the carve has real headroom above the
+        // 1 ETH pool floor. Bounded: preset 1 targets ~25 ETH over ~9e24 bondable tokens, so 3 ETH
+        // arrives well inside the iteration cap. buyBonding does not gate on openTime.
+        for (uint256 i = 0; i < 24 && b.reserve() < 3 ether; i++) {
+            _buyBonding(b, i % 2 == 0 ? ACCOUNT_1_KEY : deployerKey, 5e23);
+        }
+        require(b.reserve() >= 3 ether, "carve demo: reserve did not reach 3 ETH");
     }
 
     /// @dev STACKED METADATA: an ERC404 created via the factory's metadata overload (NOT the gating
@@ -575,7 +611,8 @@ contract SeedAnvil is Script {
             vault: d.zammVault, // ZAMM LP vault — pairs with the ZAMM deployer below
             nftCount: 10,
             presetId: 1,
-            stakingModule: address(0)
+            stakingModule: address(0),
+            declaredMaxAllowanceBps: 0 // no carve rights — metadata demo, not an economics one
         });
         TierConfig memory noGating;
         address inst = d.erc404.createInstance(
@@ -679,7 +716,8 @@ contract SeedAnvil is Script {
         string memory image,
         address stakingModule,
         address vault,
-        address deployer_
+        address deployer_,
+        uint16 declaredMaxBps
     ) internal returns (address instance) {
         ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
             salt: keccak256(abi.encode(block.timestamp, slug, "ERC404")),
@@ -691,7 +729,8 @@ contract SeedAnvil is Script {
             vault: vault,
             nftCount: 10,
             presetId: 1, // STANDARD: targetETH 25 ether, unitPerNFT 1e6
-            stakingModule: stakingModule
+            stakingModule: stakingModule,
+            declaredMaxAllowanceBps: declaredMaxBps
         });
         instance = d.erc404.createInstance(
             params,
@@ -749,6 +788,8 @@ contract SeedAnvil is Script {
     string constant ART_CINDER = "ipfs://QmbeHAw5nGwSQSZ8pQc8WSdbzxh3rLY8Pg2rqiS1wJRcvQ";
     string constant ART_MOLTEN = "ipfs://QmS3XQsKc1FRKV6Q9sn3kgwstdLmgM5sK9gFhiJtRLv7y1";
     string constant ART_PRISM = "ipfs://QmNf1UsmdGaMbpatQ6toXSkzDpizaGmC9zfunCyoz1enD5/penguin/777.png";
+    // Reuses a gateway-verified CID from the harvested set (512.png is NOT verified; 42.png is).
+    string constant ART_CARVED = "ipfs://QmYDvPAXtiJg7s8JdRBSLWdgSphQdac8j1YuQNNxcGE1hg/42.png";
     string constant ART_AVATAR_1 = "ipfs://QmNewNmsfGgvqptDDDeDC7nwWVM8ReXp5qmySNyBdyRw9M";
     string constant ART_AVATAR_2 = "ipfs://QmWZqi5xnTcnqa4k7UuzeLd3sm2mCci24wx1yQvKiDq1vm";
 

@@ -61,6 +61,18 @@ error MetadataAlreadySet();
 error ModuleAlreadySet();
 error NothingToWithdraw();
 error WithdrawFailed();
+error InvalidDeclaredMaxAllowance();
+
+/// @notice Read-side of the ERC404Factory's graduation-carve math. The instance reads it LIVE at
+///         graduation (not snapshotted at create) so owner-tuned market-regime changes (brackets,
+///         pool floor) apply to every future graduation. The bracket/floor math itself lives in the
+///         factory (EIP-170 headroom: the DN404 instance has none to spare).
+interface ICarveParamsSource {
+    function effectiveCarveEth(uint256 raise, uint256 declaredMaxBps, uint256 carveRequestBps)
+        external
+        view
+        returns (uint256);
+}
 
 /**
  * @title ERC404BondingInstance
@@ -77,6 +89,9 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         uint256 maxSupply;
         uint256 unit;
         uint256 liquidityReserveBps;
+        // Creator's immutable disclosure: fraction (bps, <= 10000) of the protocol carve
+        // allowance this creator may ever take at graduation.
+        uint16 declaredMaxAllowanceBps;
         BondingCurveMath.Params curve;
     }
 
@@ -131,6 +146,9 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
 
     // Graduation flag
     bool public graduated;
+
+    // Creator carve disclosure — set once at initialize, immutable thereafter (public getter).
+    uint16 public declaredMaxAllowanceBps;
 
     // Free mint tranche
     uint256 public freeMintAllocation;   // NFT count reserved (0 = disabled)
@@ -200,10 +218,13 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         factory = msg.sender;
         vault = IAlignmentVault(payable(vault_));
 
+        if (bonding.declaredMaxAllowanceBps > 10000) revert InvalidDeclaredMaxAllowance();
+
         maxSupply = bonding.maxSupply;
         liquidityReserve = (bonding.maxSupply * bonding.liquidityReserveBps) / 10000; // round down: slightly less reserved for LP
         curveParams = bonding.curve;
         unit = bonding.unit;
+        declaredMaxAllowanceBps = bonding.declaredMaxAllowanceBps;
 
         liquidityDeployer = ILiquidityDeployerModule(_liquidityDeployer);
         gatingModule = IGatingModule(_gatingModule);
@@ -587,13 +608,18 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // └─────────────────────────┘
 
     /**
-     * @notice Deploy liquidity via the pluggable ILiquidityDeployerModule.
+     * @notice Deploy liquidity via the pluggable ILiquidityDeployerModule, optionally taking the
+     *         creator carve (tithed 80/19/1 by the module).
      * @dev Owner-only: graduating a collection to the DEX is a creator action (Mony, 2026-07-03),
      *      not something any passerby can trigger. The bonding-open-time guard still applies so a
      *      curve can't be graduated before it opens.
+     * @param carveRequestBps Fraction (bps) of the protocol carve allowance the creator takes NOW,
+     *        on the same axis as `declaredMaxAllowanceBps`. Effective carve ETH =
+     *        min(request, allowance(raise) × declaredMaxAllowanceBps / 10000, headroom above the
+     *        pool floor). Passing 0 reproduces the historic no-carve graduation exactly.
      */
     // slither-disable-next-line reentrancy-eth,timestamp
-    function deployLiquidity() external onlyOwner nonReentrant {
+    function deployLiquidity(uint256 carveRequestBps) external onlyOwner nonReentrant {
         if (bondingOpenTime == 0) revert BondingNotConfigured();
         if (block.timestamp < bondingOpenTime) revert TooEarly();
         if (graduated) revert AlreadyDeployed();
@@ -604,6 +630,8 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         reserve = 0;
         bondingActive = false;
 
+        uint256 carveEth = _effectiveCarve(ethToSend, carveRequestBps);
+
         _transfer(address(this), address(liquidityDeployer), liquidityReserve);
 
         liquidityDeployer.deployLiquidity{value: ethToSend}(
@@ -613,13 +641,30 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
                 protocolTreasury: protocolTreasury,
                 vault: address(vault),
                 token: address(this),
-                instance: address(this)
+                instance: address(this),
+                creator: owner(),
+                carveEth: carveEth
             })
         );
 
         graduated = true;
         emit LiquidityDeployed(address(liquidityDeployer), liquidityReserve, ethToSend);
         emit StateChanged(STATE_GRADUATED);
+    }
+
+    /// @notice Effective carve ETH for a given raise + request. Exposed so the UI can cap the
+    ///         graduation carve control at the live-computed maximum (pass 10000 for the max).
+    /// @dev Zero-request / zero-declared short-circuits BEFORE touching the factory, so a plain
+    ///      deployLiquidity(0) never depends on the factory exposing carve math (exact pre-carve
+    ///      behavior). The pool floor (`minPoolEth`) clamps — it never gates.
+    function previewCarve(uint256 carveRequestBps) external view returns (uint256) {
+        return _effectiveCarve(reserve, carveRequestBps);
+    }
+
+    function _effectiveCarve(uint256 raise, uint256 carveRequestBps) private view returns (uint256) {
+        uint256 declared = declaredMaxAllowanceBps;
+        if (carveRequestBps == 0 || declared == 0 || raise == 0) return 0;
+        return ICarveParamsSource(factory).effectiveCarveEth(raise, declared, carveRequestBps);
     }
 
     // ── IInstanceLifecycle ─────────────────────────────────────────────────────

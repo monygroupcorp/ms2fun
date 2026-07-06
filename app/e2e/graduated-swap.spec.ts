@@ -35,7 +35,13 @@ const INSTANCE_CREATED = '0xef385e577da1427cc970a482e2560d72afabebdae40f0b84044f
 const INSTANCE_ABI = [
   { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
   { type: 'function', name: 'graduated', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'deployLiquidity', stateMutability: 'nonpayable', inputs: [], outputs: [] },
+  {
+    type: 'function',
+    name: 'deployLiquidity',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'carveRequestBps', type: 'uint256' }],
+    outputs: [],
+  },
 ] as const
 
 const client = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
@@ -68,6 +74,7 @@ async function verifyEmbeddedBuy(
       address: instance,
       abi: INSTANCE_ABI,
       functionName: 'deployLiquidity',
+      args: [0n], // no carve — this spec exercises the plain graduation + embedded swap path
       gas: 9_000_000n,
     })
     await client.waitForTransactionReceipt({ hash })

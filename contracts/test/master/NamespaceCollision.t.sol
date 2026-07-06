@@ -179,7 +179,8 @@ contract NamespaceCollisionTest is Test {
             nftCount: 10,
             presetId: uint8(DEFAULT_PRESET_ID),
             tokenBaseURI: "",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
         });
     }
 

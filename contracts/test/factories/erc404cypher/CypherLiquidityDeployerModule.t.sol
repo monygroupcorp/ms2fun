@@ -58,7 +58,9 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 protocolTreasury: protocolTreasury,
                 token: address(token),
                 vault: address(vault),
-                instance: instance
+                instance: instance,
+            creator: address(0),
+            carveEth: 0
             })
         );
 
@@ -90,7 +92,9 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 protocolTreasury: protocolTreasury,
                 token: address(token),
                 vault: address(vault),
-                instance: instance
+                instance: instance,
+            creator: address(0),
+            carveEth: 0
             })
         );
 
@@ -98,5 +102,45 @@ contract CypherLiquidityDeployerModuleTest is Test {
         assertEq(protocolTreasury.balance - treasuryBefore, 0.01 ether, "Protocol should get 1%");
         // Vault gets 19% = 0.19 ETH via receiveContribution
         assertEq(address(vault).balance - vaultBefore, 0.19 ether, "Vault should get 19%");
+    }
+
+    // ── Creator carve ─────────────────────────────────────────────────────────
+
+    /// @notice Tithed carve deltas: creator 80% of carve; vault 19% raise + 19% carve; protocol
+    ///         1% raise + 1% carve; the LP leg loses exactly the carve.
+    function test_deployLiquidity_carve_paysCreatorVaultProtocol() public {
+        address creator = makeAddr("creator");
+        token.mint(address(deployer), 1000e18);
+        uint256 ethReserve = 1 ether;
+        uint256 carve = 0.1 ether;
+
+        vm.deal(address(this), ethReserve);
+        uint256 treasuryBefore = protocolTreasury.balance;
+        uint256 vaultBefore    = address(vault).balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit CypherLiquidityDeployerModule.CreatorCarvePaid(instance, creator, carve, carve);
+
+        deployer.deployLiquidity{value: ethReserve}(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: 1000e18,
+                protocolTreasury: protocolTreasury,
+                token: address(token),
+                vault: address(vault),
+                instance: instance,
+                creator: creator,
+                carveEth: carve
+            })
+        );
+
+        assertEq(protocolTreasury.balance - treasuryBefore, 0.01 ether + 0.001 ether, "protocol = 1% raise + 1% carve");
+        assertEq(address(vault).balance - vaultBefore, 0.19 ether + 0.019 ether, "vault = 19% raise + 19% carve");
+        assertEq(creator.balance, 0.08 ether, "creator = 80% of carve");
+        // The LP leg = LP80 - carve = 0.8 - 0.1 = 0.7 (WETH deposited for the position). The vault
+        // credits the benefactor BOTH the LP registration (0.7) and the receiveContribution
+        // (0.209), so the tracked contribution is their sum.
+        assertEq(weth.balanceOf(address(positionManager)), 0.7 ether, "LP leg loses exactly the carve");
+        assertEq(vault.benefactorContribution(instance), 0.7 ether + 0.209 ether, "contribution = LP leg + vault cut");
     }
 }

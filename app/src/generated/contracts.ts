@@ -1993,6 +1993,8 @@ export const cypherLiquidityDeployerModuleAbi = [
           { name: 'vault', internalType: 'address', type: 'address' },
           { name: 'token', internalType: 'address', type: 'address' },
           { name: 'instance', internalType: 'address', type: 'address' },
+          { name: 'creator', internalType: 'address', type: 'address' },
+          { name: 'carveEth', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -2064,6 +2066,37 @@ export const cypherLiquidityDeployerModuleAbi = [
     name: 'weth',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'requested',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'paid',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'CreatorCarvePaid',
   },
   {
     type: 'event',
@@ -3593,6 +3626,15 @@ export const erc404BondingInstanceAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'declaredMaxAllowanceBps',
+    outputs: [{ name: '', internalType: 'uint16', type: 'uint16' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'carveRequestBps', internalType: 'uint256', type: 'uint256' },
+    ],
     name: 'deployLiquidity',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -3701,6 +3743,11 @@ export const erc404BondingInstanceAbi = [
             name: 'liquidityReserveBps',
             internalType: 'uint256',
             type: 'uint256',
+          },
+          {
+            name: 'declaredMaxAllowanceBps',
+            internalType: 'uint16',
+            type: 'uint16',
           },
           {
             name: 'curve',
@@ -3897,6 +3944,15 @@ export const erc404BondingInstanceAbi = [
     ],
     name: 'ownershipHandoverExpiresAt',
     outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'carveRequestBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'previewCarve',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -4497,6 +4553,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
   { type: 'error', inputs: [], name: 'InsufficientTokenBalance' },
   { type: 'error', inputs: [], name: 'InvalidBounds' },
+  { type: 'error', inputs: [], name: 'InvalidDeclaredMaxAllowance' },
   { type: 'error', inputs: [], name: 'InvalidGlobalMessageRegistry' },
   { type: 'error', inputs: [], name: 'InvalidLiquidityDeployer' },
   { type: 'error', inputs: [], name: 'InvalidMaxSupply' },
@@ -4610,6 +4667,26 @@ export const erc404FactoryAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'carveBracketParams',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct RevenueSplitLib.BracketParams',
+        type: 'tuple',
+        components: [
+          { name: 'b1', internalType: 'uint256', type: 'uint256' },
+          { name: 'b2', internalType: 'uint256', type: 'uint256' },
+          { name: 'r1', internalType: 'uint16', type: 'uint16' },
+          { name: 'r2', internalType: 'uint16', type: 'uint16' },
+          { name: 'r3', internalType: 'uint16', type: 'uint16' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'pendingOwner', internalType: 'address', type: 'address' },
     ],
@@ -4658,6 +4735,11 @@ export const erc404FactoryAbi = [
           { name: 'nftCount', internalType: 'uint256', type: 'uint256' },
           { name: 'presetId', internalType: 'uint8', type: 'uint8' },
           { name: 'stakingModule', internalType: 'address', type: 'address' },
+          {
+            name: 'declaredMaxAllowanceBps',
+            internalType: 'uint16',
+            type: 'uint16',
+          },
         ],
       },
       { name: 'metadataURI', internalType: 'string', type: 'string' },
@@ -4747,43 +4829,11 @@ export const erc404FactoryAbi = [
           { name: 'nftCount', internalType: 'uint256', type: 'uint256' },
           { name: 'presetId', internalType: 'uint8', type: 'uint8' },
           { name: 'stakingModule', internalType: 'address', type: 'address' },
-        ],
-      },
-      { name: 'metadataURI', internalType: 'string', type: 'string' },
-      { name: 'liquidityDeployer', internalType: 'address', type: 'address' },
-      { name: 'gatingModule', internalType: 'address', type: 'address' },
-      {
-        name: 'freeMint',
-        internalType: 'struct FreeMintParams',
-        type: 'tuple',
-        components: [
-          { name: 'allocation', internalType: 'uint256', type: 'uint256' },
-          { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
-        ],
-      },
-    ],
-    name: 'createInstance',
-    outputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
-    stateMutability: 'payable',
-  },
-  {
-    type: 'function',
-    inputs: [
-      {
-        name: 'params',
-        internalType: 'struct ERC404Factory.CreateParams',
-        type: 'tuple',
-        components: [
-          { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
-          { name: 'name', internalType: 'string', type: 'string' },
-          { name: 'symbol', internalType: 'string', type: 'string' },
-          { name: 'styleUri', internalType: 'string', type: 'string' },
-          { name: 'tokenBaseURI', internalType: 'string', type: 'string' },
-          { name: 'owner', internalType: 'address', type: 'address' },
-          { name: 'vault', internalType: 'address', type: 'address' },
-          { name: 'nftCount', internalType: 'uint256', type: 'uint256' },
-          { name: 'presetId', internalType: 'uint8', type: 'uint8' },
-          { name: 'stakingModule', internalType: 'address', type: 'address' },
+          {
+            name: 'declaredMaxAllowanceBps',
+            internalType: 'uint16',
+            type: 'uint16',
+          },
         ],
       },
       { name: 'metadataURI', internalType: 'string', type: 'string' },
@@ -4821,6 +4871,59 @@ export const erc404FactoryAbi = [
     name: 'createInstance',
     outputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'params',
+        internalType: 'struct ERC404Factory.CreateParams',
+        type: 'tuple',
+        components: [
+          { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
+          { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'symbol', internalType: 'string', type: 'string' },
+          { name: 'styleUri', internalType: 'string', type: 'string' },
+          { name: 'tokenBaseURI', internalType: 'string', type: 'string' },
+          { name: 'owner', internalType: 'address', type: 'address' },
+          { name: 'vault', internalType: 'address', type: 'address' },
+          { name: 'nftCount', internalType: 'uint256', type: 'uint256' },
+          { name: 'presetId', internalType: 'uint8', type: 'uint8' },
+          { name: 'stakingModule', internalType: 'address', type: 'address' },
+          {
+            name: 'declaredMaxAllowanceBps',
+            internalType: 'uint16',
+            type: 'uint16',
+          },
+        ],
+      },
+      { name: 'metadataURI', internalType: 'string', type: 'string' },
+      { name: 'liquidityDeployer', internalType: 'address', type: 'address' },
+      { name: 'gatingModule', internalType: 'address', type: 'address' },
+      {
+        name: 'freeMint',
+        internalType: 'struct FreeMintParams',
+        type: 'tuple',
+        components: [
+          { name: 'allocation', internalType: 'uint256', type: 'uint256' },
+          { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
+        ],
+      },
+    ],
+    name: 'createInstance',
+    outputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'raise', internalType: 'uint256', type: 'uint256' },
+      { name: 'declaredMaxBps', internalType: 'uint256', type: 'uint256' },
+      { name: 'carveRequestBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'effectiveCarveEth',
+    outputs: [{ name: 'carveEth', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -4889,6 +4992,13 @@ export const erc404FactoryAbi = [
     outputs: [
       { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'minPoolEth',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -4975,6 +5085,33 @@ export const erc404FactoryAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      {
+        name: 'p',
+        internalType: 'struct RevenueSplitLib.BracketParams',
+        type: 'tuple',
+        components: [
+          { name: 'b1', internalType: 'uint256', type: 'uint256' },
+          { name: 'b2', internalType: 'uint256', type: 'uint256' },
+          { name: 'r1', internalType: 'uint16', type: 'uint16' },
+          { name: 'r2', internalType: 'uint16', type: 'uint16' },
+          { name: 'r3', internalType: 'uint16', type: 'uint16' },
+        ],
+      },
+    ],
+    name: 'setCarveBrackets',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_minPoolEth', internalType: 'uint256', type: 'uint256' }],
+    name: 'setMinPoolEth',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: '_treasury', internalType: 'address', type: 'address' }],
     name: 'setProtocolTreasury',
     outputs: [],
@@ -5025,6 +5162,37 @@ export const erc404FactoryAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      { name: 'b1', internalType: 'uint256', type: 'uint256', indexed: false },
+      { name: 'b2', internalType: 'uint256', type: 'uint256', indexed: false },
+      { name: 'r1', internalType: 'uint16', type: 'uint16', indexed: false },
+      { name: 'r2', internalType: 'uint16', type: 'uint16', indexed: false },
+      { name: 'r3', internalType: 'uint16', type: 'uint16', indexed: false },
+    ],
+    name: 'CarveBracketsUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'declaredMaxAllowanceBps',
+        internalType: 'uint16',
+        type: 'uint16',
+        indexed: false,
+      },
+    ],
+    name: 'DeclaredMaxAllowance',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       {
         name: 'instance',
         internalType: 'address',
@@ -5052,6 +5220,19 @@ export const erc404FactoryAbi = [
       },
     ],
     name: 'InstanceCreated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newMinPoolEth',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'MinPoolEthUpdated',
   },
   {
     type: 'event',
@@ -5153,7 +5334,9 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsNftCount' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidBracketParams' },
   { type: 'error', inputs: [], name: 'InvalidComponentRegistry' },
+  { type: 'error', inputs: [], name: 'InvalidDeclaredMaxAllowance' },
   { type: 'error', inputs: [], name: 'InvalidGlobalMessageRegistry' },
   { type: 'error', inputs: [], name: 'InvalidImplementation' },
   { type: 'error', inputs: [], name: 'InvalidLaunchManager' },
@@ -7441,6 +7624,24 @@ export const iAlignmentRegistryDupAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ICarveParamsSource
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iCarveParamsSourceAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'raise', internalType: 'uint256', type: 'uint256' },
+      { name: 'declaredMaxBps', internalType: 'uint256', type: 'uint256' },
+      { name: 'carveRequestBps', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'effectiveCarveEth',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IERC1155Balance
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -7907,6 +8108,8 @@ export const liquidityDeployerModuleAbi = [
           { name: 'vault', internalType: 'address', type: 'address' },
           { name: 'token', internalType: 'address', type: 'address' },
           { name: 'instance', internalType: 'address', type: 'address' },
+          { name: 'creator', internalType: 'address', type: 'address' },
+          { name: 'carveEth', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -8001,6 +8204,37 @@ export const liquidityDeployerModuleAbi = [
     name: 'weth',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'requested',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'paid',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'CreatorCarvePaid',
   },
   {
     type: 'event',
@@ -11317,6 +11551,8 @@ export const zammLiquidityDeployerModuleAbi = [
           { name: 'vault', internalType: 'address', type: 'address' },
           { name: 'token', internalType: 'address', type: 'address' },
           { name: 'instance', internalType: 'address', type: 'address' },
+          { name: 'creator', internalType: 'address', type: 'address' },
+          { name: 'carveEth', internalType: 'uint256', type: 'uint256' },
         ],
       },
     ],
@@ -11388,6 +11624,37 @@ export const zammLiquidityDeployerModuleAbi = [
     name: 'zamm',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'requested',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'paid',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'CreatorCarvePaid',
   },
   {
     type: 'event',
@@ -14310,6 +14577,15 @@ export const useWatchCypherLiquidityDeployerModuleEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"CreatorCarvePaid"`
+ */
+export const useWatchCypherLiquidityDeployerModuleCreatorCarvePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'CreatorCarvePaid',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationFeePaid"`
  */
 export const useWatchCypherLiquidityDeployerModuleGraduationFeePaidEvent =
@@ -15603,6 +15879,15 @@ export const useReadErc404BondingInstanceDecimals =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"declaredMaxAllowanceBps"`
+ */
+export const useReadErc404BondingInstanceDeclaredMaxAllowanceBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'declaredMaxAllowanceBps',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"factory"`
  */
 export const useReadErc404BondingInstanceFactory =
@@ -15798,6 +16083,15 @@ export const useReadErc404BondingInstanceOwnershipHandoverExpiresAt =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"previewCarve"`
+ */
+export const useReadErc404BondingInstancePreviewCarve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'previewCarve',
   })
 
 /**
@@ -16762,6 +17056,15 @@ export const useReadErc404FactoryBondingFeeBps =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"carveBracketParams"`
+ */
+export const useReadErc404FactoryCarveBracketParams =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'carveBracketParams',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"componentRegistry"`
  */
 export const useReadErc404FactoryComponentRegistry =
@@ -16777,6 +17080,15 @@ export const useReadErc404FactoryComputeInstanceAddress =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404FactoryAbi,
     functionName: 'computeInstanceAddress',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"effectiveCarveEth"`
+ */
+export const useReadErc404FactoryEffectiveCarveEth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'effectiveCarveEth',
   })
 
 /**
@@ -16838,6 +17150,15 @@ export const useReadErc404FactoryMasterRegistry =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404FactoryAbi,
     functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"minPoolEth"`
+ */
+export const useReadErc404FactoryMinPoolEth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'minPoolEth',
   })
 
 /**
@@ -16987,6 +17308,24 @@ export const useWriteErc404FactorySetBondingFeeBps =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setCarveBrackets"`
+ */
+export const useWriteErc404FactorySetCarveBrackets =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setCarveBrackets',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setMinPoolEth"`
+ */
+export const useWriteErc404FactorySetMinPoolEth =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setMinPoolEth',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setProtocolTreasury"`
  */
 export const useWriteErc404FactorySetProtocolTreasury =
@@ -17111,6 +17450,24 @@ export const useSimulateErc404FactorySetBondingFeeBps =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setCarveBrackets"`
+ */
+export const useSimulateErc404FactorySetCarveBrackets =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setCarveBrackets',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setMinPoolEth"`
+ */
+export const useSimulateErc404FactorySetMinPoolEth =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setMinPoolEth',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setProtocolTreasury"`
  */
 export const useSimulateErc404FactorySetProtocolTreasury =
@@ -17162,12 +17519,39 @@ export const useWatchErc404FactoryBondingFeeUpdatedEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"CarveBracketsUpdated"`
+ */
+export const useWatchErc404FactoryCarveBracketsUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404FactoryAbi,
+    eventName: 'CarveBracketsUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"DeclaredMaxAllowance"`
+ */
+export const useWatchErc404FactoryDeclaredMaxAllowanceEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404FactoryAbi,
+    eventName: 'DeclaredMaxAllowance',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"InstanceCreated"`
  */
 export const useWatchErc404FactoryInstanceCreatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404FactoryAbi,
     eventName: 'InstanceCreated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"MinPoolEthUpdated"`
+ */
+export const useWatchErc404FactoryMinPoolEthUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404FactoryAbi,
+    eventName: 'MinPoolEthUpdated',
   })
 
 /**
@@ -19563,6 +19947,22 @@ export const useReadIAlignmentRegistryDupTokenToTargetIds =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iCarveParamsSourceAbi}__
+ */
+export const useReadICarveParamsSource = /*#__PURE__*/ createUseReadContract({
+  abi: iCarveParamsSourceAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iCarveParamsSourceAbi}__ and `functionName` set to `"effectiveCarveEth"`
+ */
+export const useReadICarveParamsSourceEffectiveCarveEth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iCarveParamsSourceAbi,
+    functionName: 'effectiveCarveEth',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155BalanceAbi}__
  */
 export const useReadIerc1155Balance = /*#__PURE__*/ createUseReadContract({
@@ -20284,6 +20684,15 @@ export const useSimulateLiquidityDeployerModuleUnlockCallback =
  */
 export const useWatchLiquidityDeployerModuleEvent =
   /*#__PURE__*/ createUseWatchContractEvent({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"CreatorCarvePaid"`
+ */
+export const useWatchLiquidityDeployerModuleCreatorCarvePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'CreatorCarvePaid',
+  })
 
 /**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"GraduationFeePaid"`
@@ -23704,6 +24113,15 @@ export const useSimulateZammLiquidityDeployerModuleTransferOwnership =
 export const useWatchZammLiquidityDeployerModuleEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"CreatorCarvePaid"`
+ */
+export const useWatchZammLiquidityDeployerModuleCreatorCarvePaidEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'CreatorCarvePaid',
   })
 
 /**

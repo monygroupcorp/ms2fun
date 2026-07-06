@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {ERC404BondingInstance, MaxCostExceeded, BondingNotConfigured, NoReserve, InvalidRefund} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import {ERC404BondingInstance, ICarveParamsSource, MaxCostExceeded, BondingNotConfigured, NoReserve, InvalidRefund, InvalidDeclaredMaxAllowance} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import {BondingCurveMath} from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -36,8 +36,10 @@ contract PermanentGatingModule is IGatingModule {
 
 contract MockLiquidityDeployer is ILiquidityDeployerModule {
     bool public called;
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {
+    ILiquidityDeployerModule.DeployParams public lastParams;
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata p) external payable override {
         called = true;
+        lastParams = p;
     }
     function metadataURI() external view override returns (string memory) { return ""; }
     function setMetadataURI(string calldata) external override {}
@@ -99,6 +101,7 @@ contract ERC404BondingInstanceTest is Test {
             maxSupply: MAX_SUPPLY,
             unit: 1_000_000 ether,
             liquidityReserveBps: LIQUIDITY_RESERVE_BPS,
+            declaredMaxAllowanceBps: 0,
             curve: curveParams
         });
     }
@@ -511,7 +514,7 @@ contract ERC404BondingInstanceTest is Test {
     function test_deployLiquidity_noParams() public {
         vm.prank(owner);
         vm.expectRevert(BondingNotConfigured.selector);
-        instance.deployLiquidity();
+        instance.deployLiquidity(0);
     }
 
     function test_deployLiquidity_revertsForNonOwner() public {
@@ -526,7 +529,7 @@ contract ERC404BondingInstanceTest is Test {
 
         // Graduation is a creator action: a non-owner is rejected even after buying into the curve.
         vm.expectRevert(Ownable.Unauthorized.selector);
-        instance.deployLiquidity();
+        instance.deployLiquidity(0);
         vm.stopPrank();
     }
 
@@ -557,7 +560,7 @@ contract ERC404BondingInstanceTest is Test {
 
         vm.prank(user2);
         vm.expectRevert(Ownable.Unauthorized.selector);
-        instance.deployLiquidity();
+        instance.deployLiquidity(0);
 
         assertFalse(instance.graduated(), "matured curve must not graduate from a non-owner call");
     }
@@ -595,7 +598,7 @@ contract ERC404BondingInstanceTest is Test {
         assertFalse(inst2.graduated());
 
         vm.prank(owner);
-        inst2.deployLiquidity();
+        inst2.deployLiquidity(0);
 
         assertTrue(inst2.graduated(), "owner may graduate a partial, un-matured curve");
         assertTrue(mockDepl.called(), "liquidity deployer module must be invoked");
@@ -605,7 +608,121 @@ contract ERC404BondingInstanceTest is Test {
         _activateBonding();
         vm.prank(owner);
         vm.expectRevert(NoReserve.selector);
-        instance.deployLiquidity();
+        instance.deployLiquidity(0);
+    }
+
+    // ── Creator carve (graduation carve-out) ─────────────────────────────────
+
+    /// @dev Build + open a fresh instance with a custom declaredMaxAllowanceBps, wired to a
+    ///      recording mock deployer. factory == owner (an EOA) — exactly the pre-carve harness —
+    ///      so these tests also prove which paths do NOT touch the factory.
+    function _freshCarveInstance(uint16 declaredBps, MockLiquidityDeployer depl)
+        internal
+        returns (ERC404BondingInstance inst)
+    {
+        vm.startPrank(owner);
+        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        inst = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
+        ERC404BondingInstance.BondingParams memory bp = _bondingParams();
+        bp.declaredMaxAllowanceBps = declaredBps;
+        inst.initialize(owner, address(0xBEEF), bp, address(depl), address(0));
+        inst.initializeProtocol(ERC404BondingInstance.ProtocolParams({
+            globalMessageRegistry: mockGlobalMsgRegistry,
+            protocolTreasury: address(0),
+            masterRegistry: mockMasterRegistry,
+            bondingFeeBps: 0,
+            weth: address(0xBEEF)
+        }));
+        inst.initializeMetadata("T", "T", "", "");
+        uint256 openTime = block.timestamp + 1 days;
+        inst.setBondingOpenTime(openTime);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+        vm.warp(openTime);
+    }
+
+    function test_initialize_revertsOnDeclaredMaxOver10000() public {
+        vm.startPrank(owner);
+        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
+        ERC404BondingInstance.BondingParams memory bp = _bondingParams();
+        bp.declaredMaxAllowanceBps = 10001;
+        vm.expectRevert(InvalidDeclaredMaxAllowance.selector);
+        inst2.initialize(owner, address(0xBEEF), bp, mockLiquidityDeployer, address(0));
+        vm.stopPrank();
+    }
+
+    /// @notice declaredMax == 0 short-circuits BEFORE the factory call: a nonzero request still
+    ///         graduates with carve 0 even though the "factory" here is a code-less EOA (any
+    ///         factory read would revert). creator is still forwarded as owner().
+    function test_deployLiquidity_declaredZero_skipsFactoryEntirely() public {
+        MockLiquidityDeployer depl = new MockLiquidityDeployer();
+        ERC404BondingInstance inst = _freshCarveInstance(0, depl);
+
+        uint256 amount = 1_000_000 ether;
+        uint256 cost = _getCost(inst, amount);
+        vm.deal(user1, cost);
+        vm.prank(user1);
+        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+
+        vm.prank(owner);
+        inst.deployLiquidity(10000);
+
+        assertTrue(inst.graduated());
+        (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
+        assertEq(creatorArg, owner, "creator must be owner()");
+        assertEq(carveArg, 0, "declaredMax 0 -> carve 0, no factory dependency");
+    }
+
+    /// @notice request == 0 short-circuits the same way — today's graduation, byte for byte.
+    function test_deployLiquidity_zeroRequest_skipsFactoryEntirely() public {
+        MockLiquidityDeployer depl = new MockLiquidityDeployer();
+        ERC404BondingInstance inst = _freshCarveInstance(10000, depl);
+
+        uint256 amount = 1_000_000 ether;
+        uint256 cost = _getCost(inst, amount);
+        vm.deal(user1, cost);
+        vm.prank(user1);
+        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+
+        vm.prank(owner);
+        inst.deployLiquidity(0);
+
+        assertTrue(inst.graduated());
+        (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
+        assertEq(creatorArg, owner, "creator must be owner()");
+        assertEq(carveArg, 0, "request 0 -> carve 0");
+    }
+
+    /// @notice With a declared max and a nonzero request, the instance asks the factory's
+    ///         effectiveCarveEth(raise, declaredMax, request) LIVE and forwards the resolved ETH
+    ///         amount to the module untouched.
+    function test_deployLiquidity_forwardsFactoryResolvedCarve() public {
+        MockLiquidityDeployer depl = new MockLiquidityDeployer();
+        ERC404BondingInstance inst = _freshCarveInstance(8000, depl);
+
+        uint256 amount = 1_000_000 ether;
+        uint256 cost = _getCost(inst, amount);
+        vm.deal(user1, cost);
+        vm.prank(user1);
+        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+
+        uint256 raise = inst.reserve();
+        // The instance's factory is the owner EOA here — mock its carve-math endpoint with EXACT
+        // calldata so the test also pins the (raise, declaredMax, request) argument wiring.
+        vm.mockCall(
+            owner,
+            abi.encodeWithSelector(ICarveParamsSource.effectiveCarveEth.selector, raise, uint256(8000), uint256(4000)),
+            abi.encode(uint256(0.37 ether))
+        );
+        assertEq(inst.previewCarve(4000), 0.37 ether, "previewCarve routes through the factory");
+
+        vm.prank(owner);
+        inst.deployLiquidity(4000);
+
+        (,,,,,, address creatorArg, uint256 carveArg) = depl.lastParams();
+        assertEq(creatorArg, owner, "creator must be owner()");
+        assertEq(carveArg, 0.37 ether, "resolved carve forwarded to the module");
     }
 
     // ── Vault migration tests ─────────────────────────────────────────────────
@@ -723,7 +840,7 @@ contract ERC404BondingInstanceTest is Test {
         inst2.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
 
         vm.prank(owner);
-        inst2.deployLiquidity();
+        inst2.deployLiquidity(0);
 
         assertTrue(inst2.graduated());
         assertTrue(mockDepl.called());

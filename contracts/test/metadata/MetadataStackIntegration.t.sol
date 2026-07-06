@@ -142,7 +142,8 @@ contract MetadataStackIntegrationTest is Test {
             symbol: "PRISM",
             styleUri: "",
             tokenBaseURI: "base/",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
         });
 
         TierConfig memory noGating;
@@ -165,7 +166,8 @@ contract MetadataStackIntegrationTest is Test {
         return ERC404Factory.CreateParams({
             salt: salt, owner: creator, nftCount: 10, presetId: uint8(PRESET_ID),
             vault: address(vault), name: name, symbol: "SYM", styleUri: "", tokenBaseURI: "base/",
-            stakingModule: address(0)
+            stakingModule: address(0),
+                declaredMaxAllowanceBps: 0
         });
     }
 

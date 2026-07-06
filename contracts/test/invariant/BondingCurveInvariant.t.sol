@@ -55,6 +55,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
             maxSupply: MAX_SUPPLY,
             unit: UNIT,
             liquidityReserveBps: LIQUIDITY_RESERVE_BPS,
+            declaredMaxAllowanceBps: 0,
             curve: curveParams
         });
 

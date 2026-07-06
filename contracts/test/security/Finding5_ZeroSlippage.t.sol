@@ -78,7 +78,9 @@ contract Finding5_ZeroSlippageGraduationTest is Test {
             instance: address(this),
             ethReserve: ethReserve,
             tokenReserve: tokenReserve,
-            protocolTreasury: treasury
+            protocolTreasury: treasury,
+            creator: address(0),
+            carveEth: 0
         });
 
         deployer.deployLiquidity{value: ethReserve}(p);

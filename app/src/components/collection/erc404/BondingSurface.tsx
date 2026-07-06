@@ -10,6 +10,7 @@
  */
 import {
   useReadErc404BondingInstanceDecimals,
+  useReadErc404BondingInstanceDeclaredMaxAllowanceBps,
   useReadErc404BondingInstanceGatingActive,
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
@@ -31,6 +32,27 @@ interface BondingSurfaceProps {
 
 /** Default DN404 token decimals — used until the on-chain `decimals()` read resolves. */
 const DEFAULT_DECIMALS = 18
+
+/**
+ * Pre-buy creator-carve disclosure (immutable, set at create). Buyers see the ceiling BEFORE the
+ * first buy so the carve is priced in: the fraction of the protocol carve allowance the creator
+ * may take at graduation. 0 = the creator waived carve rights.
+ */
+function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
+  const { data: declaredMax } = useReadErc404BondingInstanceDeclaredMaxAllowanceBps({
+    address: instance,
+    chainId: forkChainId,
+  })
+  if (declaredMax === undefined) return null
+  const pct = declaredMax / 100
+  return (
+    <p className={styles.note} data-testid="erc404-carve-disclosure">
+      {declaredMax === 0
+        ? 'creator carve: waived — the creator takes nothing at graduation; the full LP share pools.'
+        : `creator carve disclosure: at graduation the creator may take up to ${pct % 1 === 0 ? pct : pct.toFixed(2)}% of the protocol carve allowance (bracket-bounded, pool floor first, tithed 80/19/1). Set immutably at create.`}
+    </p>
+  )
+}
 
 export function BondingSurface({ instance }: BondingSurfaceProps) {
   const nowSec = useNowSec()
@@ -86,6 +108,7 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
           gatingActive={gatingActive}
           refetch={refetch}
         />
+        <CarveDisclosureNote instance={instance} />
       </div>
     )
   }
@@ -141,6 +164,9 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
         gatingActive={gatingActive}
         refetch={refetch}
       />
+
+      {/* Pre-buy carve disclosure — buyers price the creator's declared max in before buying. */}
+      <CarveDisclosureNote instance={instance} />
 
       <FreeMintPanel
         instance={instance}

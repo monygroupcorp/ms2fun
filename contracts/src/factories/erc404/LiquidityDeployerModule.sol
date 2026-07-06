@@ -55,9 +55,11 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     }
 
     struct AmountsResult {
-        uint256 protocolFee;  // 1% of raise → protocol treasury
-        uint256 vaultCut;     // 19% of raise → alignment vault
-        uint256 ethForPool;   // 80% of raise → LP
+        uint256 protocolFee;  // 1% of raise + 1% of carve → protocol treasury
+        uint256 vaultCut;     // 19% of raise + 19% of carve → alignment vault
+        uint256 creatorCut;   // 80% of carve → creator
+        uint256 carvePaid;    // effective gross carve (for CreatorCarvePaid)
+        uint256 ethForPool;   // remainder of the raise → LP
         uint256 tokensForPool;
     }
 
@@ -84,6 +86,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     event LiquidityDeployed(address indexed pool, uint256 amountToken, uint256 amountETH);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
+    event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
 
     /**
      * @notice Deploy V4 liquidity on behalf of an ERC404BondingInstance.
@@ -159,17 +162,24 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         ILiquidityDeployerModule.DeployParams calldata p,
         AmountsResult memory r
     ) private {
-        // 1% → protocol treasury
+        // 1% of raise (+ 1% of carve) → protocol treasury
         if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
             emit GraduationFeePaid(p.protocolTreasury, r.protocolFee);
         }
-        // 19% → alignment vault
+        // 19% of raise (+ 19% of carve) → alignment vault
         if (r.vaultCut > 0 && p.vault != address(0)) {
             IAlignmentVault(payable(p.vault)).receiveContribution{value: r.vaultCut}(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
             );
             emit GraduationVaultContribution(p.vault, r.vaultCut);
+        }
+        // 80% of carve → creator
+        if (r.creatorCut > 0) {
+            SafeTransferLib.safeTransferETH(p.creator, r.creatorCut);
+        }
+        if (p.carveEth > 0) {
+            emit CreatorCarvePaid(p.instance, p.creator, p.carveEth, r.carvePaid);
         }
 
         emit LiquidityDeployed(address(v4PoolManager), r.tokensForPool, r.ethForPool);
@@ -225,11 +235,17 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     // -------------------------------------------------------------------------
 
     function _computeAmounts(ILiquidityDeployerModule.DeployParams calldata p) internal pure returns (AmountsResult memory r) {
-        // Fixed 1/19/80 split: 1% protocol, 19% vault, 80% LP
-        RevenueSplitLib.Split memory s = RevenueSplitLib.split(p.ethReserve);
-        r.protocolFee = s.protocolCut;
-        r.vaultCut    = s.vaultCut;
-        r.ethForPool  = s.remainder;
+        // 1/19/80 split of the raise + optional tithed creator carve (80/19/1) out of the LP 80.
+        // The instance resolves the effective carve (allowance × declaredMax, pool-floor clamp);
+        // splitGraduation defensively re-clamps to the LP share (minPoolEth = 0 here — the floor
+        // is instance policy, the module only guarantees the pool never goes negative).
+        uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
+        RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
+        r.protocolFee = g.protocolCut;
+        r.vaultCut    = g.vaultCut;
+        r.creatorCut  = g.creatorCut;
+        r.carvePaid   = g.carveApplied;
+        r.ethForPool  = g.ethForPool;
         r.tokensForPool = p.tokenReserve;
 
         if (r.ethForPool == 0) revert NoETHForPool();

@@ -16,6 +16,7 @@ import {FreeMintParams} from "../../interfaces/IFactoryTypes.sol";
 import {GatingScope} from "../../gating/IGatingModule.sol";
 import {IPasswordTierGatingModule, TierConfig} from "../../gating/IPasswordTierGatingModule.sol";
 import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
+import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
 import {MetadataResolverRouter} from "../../metadata/MetadataResolverRouter.sol";
 import {TierRevealModule} from "../../metadata/TierRevealModule.sol";
 import {MetadataOverlayModule} from "../../metadata/MetadataOverlayModule.sol";
@@ -57,6 +58,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         uint256 nftCount;
         uint8 presetId;
         address stakingModule; // address(0) = staking not available for this instance
+        // Fraction (bps, <= 10000) of the protocol carve allowance this creator may ever take at
+        // graduation. IMMUTABLE per instance — a disclosure buyers can price in before the first buy.
+        uint16 declaredMaxAllowanceBps;
     }
 
     /// @notice Metadata-resolution stack config (ADR-0006/0007). Empty (resolver == address(0)) = feature off.
@@ -85,6 +89,19 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     address public protocolTreasury;
     address public weth;
     uint256 public bondingFeeBps = 100; // 1% default
+
+    // ── Graduation-carve params (read LIVE by instances at graduation) ────────
+    /// @notice Minimum ETH the LP pool must keep at graduation. A carve-CLAMP, never a
+    ///         graduation gate: thin raises still graduate, the floor only eats carve headroom.
+    uint256 public minPoolEth = 1 ether;
+    /// @dev Progressive carve-allowance brackets: 50% of first 4 ETH, 25% of next 16, 10% beyond 20.
+    RevenueSplitLib.BracketParams internal _carveBrackets = RevenueSplitLib.BracketParams({
+        b1: 4 ether,
+        b2: 20 ether,
+        r1: 5000,
+        r2: 2500,
+        r3: 1000
+    });
 
     LaunchManager public immutable launchManager;
     IComponentRegistry public immutable componentRegistry;
@@ -120,9 +137,14 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error UnapprovedResolver();
     error MaxBondingFeeExceeded();
     error NotAuthorizedAgent();
+    error InvalidDeclaredMaxAllowance();
+    error InvalidBracketParams();
 
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event BondingFeeUpdated(uint256 newBps);
+    event MinPoolEthUpdated(uint256 newMinPoolEth);
+    event CarveBracketsUpdated(uint256 b1, uint256 b2, uint16 r1, uint16 r2, uint16 r3);
+    event DeclaredMaxAllowance(address indexed instance, uint16 declaredMaxAllowanceBps);
 
     constructor(CoreConfig memory core, ModuleConfig memory modules) {
         if (core.implementation == address(0)) revert InvalidImplementation();
@@ -231,6 +253,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (params.owner == address(0)) revert InvalidOwner();
         if (params.vault == address(0)) revert VaultRequired();
         if (params.vault.code.length == 0) revert VaultMustBeContract();
+        if (params.declaredMaxAllowanceBps > 10000) revert InvalidDeclaredMaxAllowance();
 
         // Agent-on-behalf-of check
         bool agentCreated = false;
@@ -269,6 +292,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Metadata-resolution stack — its OWN wiring path (NOT routed through gatingModule).
         // Empty config (resolver == address(0)) = feature off.
         _wireMetadata(instance, metadataConfig);
+        emit DeclaredMaxAllowance(instance, params.declaredMaxAllowanceBps);
         emit InstanceCreated(instance, params.owner, params.name, params.symbol, params.vault);
     }
 
@@ -318,6 +342,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
             maxSupply: params.nftCount * unit,
             unit: unit,
             liquidityReserveBps: preset.liquidityReserveBps,
+            declaredMaxAllowanceBps: params.declaredMaxAllowanceBps,
             curve: ICurveComputer(preset.curveComputer).computeCurveParams(
                 curveNftCount,
                 preset.targetETH,
@@ -377,6 +402,49 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (_bps > 300) revert MaxBondingFeeExceeded();
         bondingFeeBps = _bps;
         emit BondingFeeUpdated(_bps);
+    }
+
+    /// @notice Set the graduation pool floor. A carve-clamp only — NEVER blocks graduation.
+    function setMinPoolEth(uint256 _minPoolEth) external onlyRoles(PROTOCOL_ROLE) {
+        minPoolEth = _minPoolEth;
+        emit MinPoolEthUpdated(_minPoolEth);
+    }
+
+    /// @notice Set the progressive carve-allowance brackets (market regimes change).
+    function setCarveBrackets(RevenueSplitLib.BracketParams calldata p) external onlyRoles(PROTOCOL_ROLE) {
+        if (p.b1 > p.b2 || p.r1 > 10000 || p.r2 > 10000 || p.r3 > 10000) revert InvalidBracketParams();
+        _carveBrackets = p;
+        emit CarveBracketsUpdated(p.b1, p.b2, p.r1, p.r2, p.r3);
+    }
+
+    /// @notice Current carve-allowance bracket params (UI reads them for the wizard/admin previews).
+    function carveBracketParams() external view returns (RevenueSplitLib.BracketParams memory) {
+        return _carveBrackets;
+    }
+
+    /// @notice Effective creator-carve ETH for a graduation. Called LIVE by instances at
+    ///         graduation (and by their previewCarve view) — the bracket/floor math lives here
+    ///         because the DN404 instance has no EIP-170 headroom, and living here means
+    ///         owner-tuned regime changes apply to every future graduation.
+    /// @dev effective = min(request, allowance(raise) × declaredMax / 10000, headroom above the
+    ///      pool floor). The floor is a carve-CLAMP, never a graduation gate.
+    function effectiveCarveEth(uint256 raise, uint256 declaredMaxBps, uint256 carveRequestBps)
+        external
+        view
+        returns (uint256 carveEth)
+    {
+        if (raise == 0 || declaredMaxBps == 0 || carveRequestBps == 0) return 0;
+
+        uint256 allowanceEth = RevenueSplitLib.carveAllowance(raise, _carveBrackets);
+        uint256 effBps = carveRequestBps < declaredMaxBps ? carveRequestBps : declaredMaxBps;
+        if (effBps > 10000) effBps = 10000;
+        carveEth = (allowanceEth * effBps) / 10000;
+
+        // Clamp to the headroom the LP 80 has above the pool floor.
+        uint256 lpShare = RevenueSplitLib.split(raise).remainder;
+        uint256 floor_ = minPoolEth;
+        uint256 headroom = lpShare > floor_ ? lpShare - floor_ : 0;
+        if (carveEth > headroom) carveEth = headroom;
     }
 
     // ── IFactory ─────────────────────────────────────────────────────────────

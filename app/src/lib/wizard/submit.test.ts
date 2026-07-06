@@ -330,6 +330,31 @@ describe('module defaults', () => {
   })
 })
 
+// ── ERC404 creator-carve disclosure (declaredMaxAllowanceBps) ─────────────────
+
+describe('erc404 declaredMaxAllowanceBps', () => {
+  it('defaults an untouched field to 10000 (matches the schema default the form displays)', () => {
+    const call = buildErc404Create(baseCtx()) // baseCtx has no declaredMaxAllowanceBps value
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args[0].declaredMaxAllowanceBps).toBe(10_000)
+  })
+
+  it('threads an explicit value, including 0 (waived carve rights)', () => {
+    const at = (v: string): number => {
+      const ctx = baseCtx()
+      ctx.values.declaredMaxAllowanceBps = v
+      const call = buildErc404Create(ctx)
+      if (call.type !== 'erc404') throw new Error('unexpected type')
+      return call.args[0].declaredMaxAllowanceBps
+    }
+    expect(at('2500')).toBe(2500)
+    expect(at('0')).toBe(0)
+    // Out-of-range/garbage input is clamped/floored client-side (the factory validates too).
+    expect(at('20000')).toBe(10_000)
+    expect(at('2500.9')).toBe(2500)
+  })
+})
+
 // ── Coercion robustness ───────────────────────────────────────────────────────
 
 describe('coercion robustness', () => {
