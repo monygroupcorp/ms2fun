@@ -11,10 +11,11 @@
  * message appears immediately (optimistic refetch, not a staleTime wait).
  */
 import { type ReactNode, useMemo, useState } from 'react'
+import { formatEther } from 'viem'
 import { useAccount } from 'wagmi'
 import { truncateAddress } from '../lib/format'
-import { type FeedFilter, type FeedMessage, useMessageFeed } from './useMessageFeed'
-import { reactionFor, threadMessages } from './threadMessages'
+import { type FeedFilter, type FeedMessage, useMessageFeed, usePostThreshold } from './useMessageFeed'
+import { reactionFor, threadMessages, visibleThreads } from './threadMessages'
 import { ReplyComposer } from './ReplyComposer'
 import { ReactButton } from './ReactButton'
 import { Linkify } from './ui/Linkify'
@@ -35,26 +36,35 @@ export function MessageFeed({
 }) {
   const { data, isPending, isError } = useMessageFeed(filter)
   const { address: connected } = useAccount()
+  const threshold = usePostThreshold()
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
+  const threads = useMemo(() => visibleThreads(view.threads, threshold), [view.threads, threshold])
 
   return (
     <div className={styles.section}>
       <h2 className={styles.heading}>ACTIVITY</h2>
 
+      {threshold > 0n && (
+        <p className={styles.note} data-testid="feed-threshold-note">
+          showing posts of {formatEther(threshold)} ETH or more — cheaper posts are hidden by the
+          current threshold.
+        </p>
+      )}
+
       {isPending && <p className={styles.note}>loading activity…</p>}
 
       {isError && <p className={styles.note}>couldn&apos;t load activity — is the fork up?</p>}
 
-      {!isPending && !isError && data !== undefined && data.length === 0 && (
+      {!isPending && !isError && data !== undefined && threads.length === 0 && (
         <p className={styles.note} data-testid="message-feed-empty">
           no activity yet
         </p>
       )}
 
-      {!isPending && !isError && view.threads.length > 0 && (
+      {!isPending && !isError && threads.length > 0 && (
         <ul className={styles.list} data-testid="message-feed">
-          {view.threads.map((thread) => {
+          {threads.map((thread) => {
             const post = thread.message
             const reaction = reactionFor(view, post.messageId)
             return (

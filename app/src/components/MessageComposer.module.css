@@ -39,6 +39,13 @@
   gap: var(--gap-md);
 }
 
+.amount {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 .status {
   font-family: var(--font-mono);
   font-size: var(--font-size-caption);

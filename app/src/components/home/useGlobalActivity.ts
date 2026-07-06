@@ -45,7 +45,7 @@ export function useGlobalActivity(): {
 
       const messages: FeedMessage[] = []
       for (const log of logs) {
-        const { messageId, instance, sender, messageType, refId, content } = log.args
+        const { messageId, instance, sender, messageType, refId, value, content } = log.args
         if (
           messageId === undefined ||
           instance === undefined ||
@@ -56,7 +56,7 @@ export function useGlobalActivity(): {
         ) {
           continue
         }
-        messages.push({ messageId, instance, sender, messageType, refId, content })
+        messages.push({ messageId, instance, sender, messageType, refId, value: value ?? 0n, content })
       }
 
       // Newest first — sort by messageId descending.

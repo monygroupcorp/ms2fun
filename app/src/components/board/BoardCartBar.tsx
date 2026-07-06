@@ -5,6 +5,7 @@
  * messages appear at once. Errors surface the decoded reason via useTxAction (`reason`).
  */
 import { useQueryClient } from '@tanstack/react-query'
+import { formatEther } from 'viem'
 import { globalMessageRegistryAbi } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
 import { TxButton } from '../ui/TxButton'
@@ -26,12 +27,17 @@ export function BoardCartBar() {
 
   if (count === 0) return null
 
+  // postBatch requires sum(per-post values) == msg.value (GlobalMessageRegistry.ValueMismatch),
+  // so the ETH sent is exactly the total attached across the queued posts.
+  const totalValue = items.reduce((sum, i) => sum + i.value, 0n)
+
   function finalize() {
     tx.send({
       address: forkAddresses.GlobalMessageRegistry,
       abi: globalMessageRegistryAbi,
       functionName: 'postBatch',
       chainId: forkChainId,
+      value: totalValue,
       args: [
         items.map((i) => ({
           instance: i.instance,
@@ -39,10 +45,7 @@ export function BoardCartBar() {
           refId: i.refId,
           actionRef: i.actionRef,
           metadata: i.metadata,
-          // Post-value spam lever (GlobalMessageRegistry.postThreshold): every post can attach ETH,
-          // and postBatch requires sum(values) == msg.value. The composer amount-field UI + feed
-          // filter are a follow-up; until then posts carry 0 (feed default threshold is also 0).
-          value: 0n,
+          value: i.value,
           content: i.content,
         })),
       ],
@@ -58,7 +61,10 @@ export function BoardCartBar() {
     >
       <div className={styles.inner}>
         <div className={styles.head}>
-          <span className={styles.title}>Batch · {count} not yet on-chain</span>
+          <span className={styles.title}>
+            Batch · {count} not yet on-chain
+            {totalValue > 0n && ` · ${formatEther(totalValue)} ETH attached`}
+          </span>
           <button type="button" className={styles.clear} onClick={clear} disabled={tx.isBusy}>
             clear
           </button>

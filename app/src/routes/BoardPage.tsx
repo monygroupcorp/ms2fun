@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'wouter'
-import { formatGwei } from 'viem'
+import { formatEther, formatGwei } from 'viem'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { usePublicClient, useAccount } from 'wagmi'
 import {
@@ -14,8 +14,8 @@ import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
 import { ReplyComposer } from '../components/ReplyComposer'
 import { ReactButton } from '../components/ReactButton'
-import { type ThreadView, reactionFor, threadMessages } from '../components/threadMessages'
-import type { FeedMessage } from '../components/useMessageFeed'
+import { type ThreadView, meetsThreshold, reactionFor, threadMessages } from '../components/threadMessages'
+import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
 import { StateBlock } from '../components/ui/StateBlock'
 import { Linkify } from '../components/ui/Linkify'
 import styles from './BoardPage.module.css'
@@ -165,7 +165,7 @@ function useGlobalFeed(): {
 
       const messages: FeedMessage[] = []
       for (const log of logs) {
-        const { messageId, instance, sender, messageType, refId, content } = log.args
+        const { messageId, instance, sender, messageType, refId, value, content } = log.args
         if (
           messageId === undefined ||
           instance === undefined ||
@@ -176,7 +176,7 @@ function useGlobalFeed(): {
         ) {
           continue
         }
-        messages.push({ messageId, instance, sender, messageType, refId, content })
+        messages.push({ messageId, instance, sender, messageType, refId, value: value ?? 0n, content })
       }
 
       return { messages, nextCursor: fromBlock <= deployBlock ? null : fromBlock - 1n }
@@ -212,6 +212,7 @@ export function BoardPage() {
   const { data, isPending, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useGlobalFeed()
   const { address: connected } = useAccount()
   const [boardView, setBoardView] = useState<BoardView>('discourse')
+  const threshold = usePostThreshold()
 
   const view = useMemo(() => threadMessages(data ?? [], connected), [data, connected])
 
@@ -230,10 +231,14 @@ export function BoardPage() {
     for (const m of data ?? []) counts.set(m.instance, (counts.get(m.instance) ?? 0) + 1)
     return [...counts.entries()].sort((a, b) => b[1] - a[1])
   }, [data])
+  // Channel filter + N12 spam lever: hide top-level posts below the threshold (their nested replies go
+  // with the dropped thread); replies/reactions and orphan-promoted rows stay. threshold 0 = show all.
   const visibleThreads = view.threads.filter(
-    (t) => channel === 'all' || t.message.instance === channel,
+    (t) => (channel === 'all' || t.message.instance === channel) && meetsThreshold(t.message, threshold),
   )
-  const activityRows = (data ?? []).filter((m) => channel === 'all' || m.instance === channel)
+  const activityRows = (data ?? []).filter(
+    (m) => (channel === 'all' || m.instance === channel) && meetsThreshold(m, threshold),
+  )
 
   return (
     <div className={styles.page}>
@@ -299,6 +304,13 @@ export function BoardPage() {
           )}
 
           <section className={styles.feedSection}>
+            {threshold > 0n && (
+              <StateBlock variant="empty" testId="board-threshold-note">
+                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts are
+                hidden until the threshold is lowered.
+              </StateBlock>
+            )}
+
             {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
 
             {isError && (

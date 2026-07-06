@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
-import { globalMessageRegistryAbi } from '../generated/contracts'
+import { globalMessageRegistryAbi, useReadGlobalMessageRegistryPostThreshold } from '../generated/contracts'
 import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
 import { scanBackward } from '../lib/logScan'
 
@@ -15,7 +15,22 @@ export interface FeedMessage {
   sender: `0x${string}`
   messageType: number
   refId: bigint
+  /** ETH attached to the post (N12 spam lever). 0 for replies/reactions and older posts. */
+  value: bigint
   content: string
+}
+
+/**
+ * The on-chain post-value spam threshold (N12). The feed hides top-level posts whose attached `value`
+ * is below it; raising it is an owner action (PlatformConfigPanel). Reads 0 until the query resolves,
+ * so the default (and un-raised) state shows every post.
+ */
+export function usePostThreshold(): bigint {
+  const { data } = useReadGlobalMessageRegistryPostThreshold({
+    address: forkAddresses.GlobalMessageRegistry,
+    chainId: forkChainId,
+  })
+  return data ?? 0n
 }
 
 export function useMessageFeed(filter: FeedFilter): {
@@ -57,7 +72,7 @@ export function useMessageFeed(filter: FeedFilter): {
 
       const messages: FeedMessage[] = []
       for (const log of logs) {
-        const { messageId, instance, sender, messageType, refId, content } = log.args
+        const { messageId, instance, sender, messageType, refId, value, content } = log.args
         if (
           messageId === undefined ||
           instance === undefined ||
@@ -68,7 +83,7 @@ export function useMessageFeed(filter: FeedFilter): {
         ) {
           continue
         }
-        messages.push({ messageId, instance, sender, messageType, refId, content })
+        messages.push({ messageId, instance, sender, messageType, refId, value: value ?? 0n, content })
       }
 
       // Newest first — sort by messageId descending
