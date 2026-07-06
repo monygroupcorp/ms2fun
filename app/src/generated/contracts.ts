@@ -4518,7 +4518,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'NotInitialized' },
   { type: 'error', inputs: [], name: 'NothingToWithdraw' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
-  { type: 'error', inputs: [], name: 'OnlyOwnerBeforeMaturity' },
   { type: 'error', inputs: [], name: 'OpenTimeMustBeSetFirst' },
   { type: 'error', inputs: [], name: 'OpenTimeNotSet' },
   { type: 'error', inputs: [], name: 'PurchaseTooSmall' },
@@ -7139,7 +7138,7 @@ export const globalMessageRegistryAbi = [
     ],
     name: 'post',
     outputs: [],
-    stateMutability: 'nonpayable',
+    stateMutability: 'payable',
   },
   {
     type: 'function',
@@ -7154,13 +7153,14 @@ export const globalMessageRegistryAbi = [
           { name: 'refId', internalType: 'uint256', type: 'uint256' },
           { name: 'actionRef', internalType: 'bytes32', type: 'bytes32' },
           { name: 'metadata', internalType: 'bytes32', type: 'bytes32' },
+          { name: 'value', internalType: 'uint256', type: 'uint256' },
           { name: 'content', internalType: 'string', type: 'string' },
         ],
       },
     ],
     name: 'postBatch',
     outputs: [],
-    stateMutability: 'nonpayable',
+    stateMutability: 'payable',
   },
   {
     type: 'function',
@@ -7171,7 +7171,14 @@ export const globalMessageRegistryAbi = [
     ],
     name: 'postForAction',
     outputs: [],
-    stateMutability: 'nonpayable',
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'postThreshold',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -7200,6 +7207,13 @@ export const globalMessageRegistryAbi = [
       { name: '_masterRegistry', internalType: 'address', type: 'address' },
     ],
     name: 'setMasterRegistry',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'v', internalType: 'uint256', type: 'uint256' }],
+    name: 'setPostThreshold',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -7301,6 +7315,12 @@ export const globalMessageRegistryAbi = [
         indexed: false,
       },
       {
+        name: 'value',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
         name: 'content',
         internalType: 'string',
         type: 'string',
@@ -7359,6 +7379,19 @@ export const globalMessageRegistryAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'threshold',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PostThresholdSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'implementation',
         internalType: 'address',
         type: 'address',
@@ -7380,6 +7413,7 @@ export const globalMessageRegistryAbi = [
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
   { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
+  { type: 'error', inputs: [], name: 'ValueMismatch' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -19162,6 +19196,15 @@ export const useReadGlobalMessageRegistryOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link globalMessageRegistryAbi}__ and `functionName` set to `"postThreshold"`
+ */
+export const useReadGlobalMessageRegistryPostThreshold =
+  /*#__PURE__*/ createUseReadContract({
+    abi: globalMessageRegistryAbi,
+    functionName: 'postThreshold',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link globalMessageRegistryAbi}__ and `functionName` set to `"proxiableUUID"`
  */
 export const useReadGlobalMessageRegistryProxiableUuid =
@@ -19255,6 +19298,15 @@ export const useWriteGlobalMessageRegistrySetMasterRegistry =
   /*#__PURE__*/ createUseWriteContract({
     abi: globalMessageRegistryAbi,
     functionName: 'setMasterRegistry',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link globalMessageRegistryAbi}__ and `functionName` set to `"setPostThreshold"`
+ */
+export const useWriteGlobalMessageRegistrySetPostThreshold =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: globalMessageRegistryAbi,
+    functionName: 'setPostThreshold',
   })
 
 /**
@@ -19372,6 +19424,15 @@ export const useSimulateGlobalMessageRegistrySetMasterRegistry =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link globalMessageRegistryAbi}__ and `functionName` set to `"setPostThreshold"`
+ */
+export const useSimulateGlobalMessageRegistrySetPostThreshold =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: globalMessageRegistryAbi,
+    functionName: 'setPostThreshold',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link globalMessageRegistryAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateGlobalMessageRegistryTransferOwnership =
@@ -19456,6 +19517,15 @@ export const useWatchGlobalMessageRegistryOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: globalMessageRegistryAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link globalMessageRegistryAbi}__ and `eventName` set to `"PostThresholdSet"`
+ */
+export const useWatchGlobalMessageRegistryPostThresholdSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: globalMessageRegistryAbi,
+    eventName: 'PostThresholdSet',
   })
 
 /**

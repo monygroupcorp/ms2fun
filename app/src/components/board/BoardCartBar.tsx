@@ -39,6 +39,10 @@ export function BoardCartBar() {
           refId: i.refId,
           actionRef: i.actionRef,
           metadata: i.metadata,
+          // Post-value spam lever (GlobalMessageRegistry.postThreshold): every post can attach ETH,
+          // and postBatch requires sum(values) == msg.value. The composer amount-field UI + feed
+          // filter are a follow-up; until then posts carry 0 (feed default threshold is also 0).
+          value: 0n,
           content: i.content,
         })),
       ],
