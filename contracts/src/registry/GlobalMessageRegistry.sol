@@ -26,6 +26,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     error NotFromApprovedFactory();
     error EmptyBatch();
     error NoETHToWithdraw();
+    error ValueMismatch();
 
     // ┌─────────────────────────┐
     // │      State Variables    │
@@ -34,6 +35,12 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     bool private _initialized;
     uint256 public messageCount;
     IMasterRegistry public masterRegistry;
+
+    /// @notice Spam lever. The feed indexes only posts whose attached `value` meets this threshold.
+    /// @dev Display-side filter ONLY — posting below it is NOT rejected on-chain (the chain stays
+    ///      censorship-resistant; raising the lever just hides cheap posts from the feed). Owner-set.
+    ///      Appended after `masterRegistry` to preserve the UUPS storage layout.
+    uint256 public postThreshold;
 
     // ┌─────────────────────────┐
     // │         Events          │
@@ -47,11 +54,13 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
         uint256 refId,
         bytes32 actionRef,
         bytes32 metadata,
+        uint256 value,
         string content
     );
 
     event MasterRegistrySet(address indexed masterRegistry);
     event ETHWithdrawn(address indexed to, uint256 amount);
+    event PostThresholdSet(uint256 threshold);
 
     // ┌─────────────────────────┐
     // │      Constructor        │
@@ -85,12 +94,12 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
         address sender,
         address instance,
         bytes calldata messageData
-    ) external override {
+    ) external payable override {
         if (instance != msg.sender) revert InstanceMustBeCaller();
         if (!masterRegistry.isInstanceFromApprovedFactory(msg.sender)) revert NotFromApprovedFactory();
         if (sender == address(0)) revert InvalidAddress();
 
-        _post(instance, sender, messageData);
+        _post(instance, sender, messageData, msg.value);
     }
 
     /**
@@ -110,7 +119,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
         bytes32 actionRef,
         bytes32 metadata,
         string calldata content
-    ) external {
+    ) external payable {
         uint256 messageId = messageCount++;
 
         emit MessagePosted(
@@ -121,6 +130,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
             refId,
             actionRef,
             metadata,
+            msg.value,
             content
         );
     }
@@ -131,6 +141,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
         uint256 refId;
         bytes32 actionRef;
         bytes32 metadata;
+        uint256 value;
         string content;
     }
 
@@ -140,12 +151,14 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
      *      replies, and posts accumulated during a browsing session.
      * @param posts Array of post parameters
      */
-    function postBatch(PostParams[] calldata posts) external {
+    function postBatch(PostParams[] calldata posts) external payable {
         uint256 len = posts.length;
         if (len == 0) revert EmptyBatch();
 
         uint256 id = messageCount;
+        uint256 valueSum;
         for (uint256 i; i < len; ++i) {
+            valueSum += posts[i].value;
             emit MessagePosted(
                 id++,
                 posts[i].instance,
@@ -154,9 +167,12 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
                 posts[i].refId,
                 posts[i].actionRef,
                 posts[i].metadata,
+                posts[i].value,
                 posts[i].content
             );
         }
+        // Per-post values must account for exactly the ETH sent — no over/under-payment.
+        if (valueSum != msg.value) revert ValueMismatch();
         messageCount = id;
     }
 
@@ -168,6 +184,14 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
         if (_masterRegistry == address(0)) revert InvalidAddress();
         masterRegistry = IMasterRegistry(_masterRegistry);
         emit MasterRegistrySet(_masterRegistry);
+    }
+
+    /// @notice Raise/lower the spam lever. Feed indexes only posts with `value >= postThreshold`.
+    /// @dev Display-side filter — does NOT gate posting on-chain. Stored here (vs. client config)
+    ///      so it's auditable with one source of truth and can drive an owner admin panel.
+    function setPostThreshold(uint256 v) external onlyOwner {
+        postThreshold = v;
+        emit PostThresholdSet(v);
     }
 
     // slither-disable-next-line incorrect-equality
@@ -182,7 +206,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     // │   Internal              │
     // └─────────────────────────┘
 
-    function _post(address instance, address sender, bytes calldata messageData) internal {
+    function _post(address instance, address sender, bytes calldata messageData, uint256 value) internal {
         (
             uint8 messageType,
             uint256 refId,
@@ -201,6 +225,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
             refId,
             actionRef,
             metadata,
+            value,
             content
         );
     }

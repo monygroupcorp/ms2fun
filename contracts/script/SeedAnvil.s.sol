@@ -124,6 +124,9 @@ contract SeedAnvil is Script {
             "Collector. Aligned to the cult.", ART_AVATAR_2));
         _post(d.messages, acct1, "minted from monolith. clean.");
         _post(d.messages, c0, "grabbed one from neon-drift. love the aberration.");
+        // Varied-value posts so the post-threshold lever (admin panel) has something to filter.
+        _postValued(d.messages, acct1, "staking rewards are underrated. ape responsibly.", 0.02 ether);
+        _postValued(d.messages, c0, "signal boost - this one earns the front page.", 0.25 ether);
         vm.stopBroadcast();
 
         // Give the alignment targets a description + logo (Vaults-page targets section).
@@ -640,6 +643,19 @@ contract SeedAnvil is Script {
     ///      filters by sender, so posting to the sender's own address (self-wall) keeps it coherent.
     function _post(GlobalMessageRegistry messages, address channel, string memory content) internal {
         messages.post(channel, 0, 0, bytes32(0), bytes32(0), content);
+    }
+
+    /// @dev POST carrying ETH `value` — exercises the spam-threshold lever. Posts below the current
+    ///      postThreshold are hidden from the feed (display-side); the ETH accrues in the registry.
+    ///      Seeded threshold stays 0 (feed shows everything) so raising the lever in the admin panel
+    ///      has varied-value posts to act on.
+    function _postValued(
+        GlobalMessageRegistry messages,
+        address channel,
+        string memory content,
+        uint256 value
+    ) internal {
+        messages.post{value: value}(channel, 0, 0, bytes32(0), bytes32(0), content);
     }
 
     // ── Real art (mainnet-harvested, gateway-verified IPFS CIDs) ─────────────────

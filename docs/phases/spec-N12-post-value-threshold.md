@@ -1,8 +1,33 @@
 # Spec / handoff — N12: post-value threshold (spam lever)
 
-**Status:** NOT built. Design-walk note N12. This is a self-contained build spec for a follow-up
-engineer. Requires a **contract change → recompile + redeploy + reseed** (resets local fork state),
-so it was deliberately deferred out of the front-end design-walk pass.
+**Status: CONTRACT HALF DONE (2026-07-06). Frontend PENDING.** Design-walk note N12.
+
+Locked product decisions (Mony, 2026-07-06): (1) postBatch = **per-post value array**,
+`require(sum(values) == msg.value)`; (2) ETH **stays in the registry**, swept by existing
+`withdrawETH()`; (3) **display-filter only** — posting below the threshold is NOT rejected on-chain;
+(4) no hard floor.
+
+**Shipped on `main` (contract + bindings + tests):**
+- `GlobalMessageRegistry`: `post` / `postBatch` / `postForAction` are now `payable`; `MessagePosted`
+  + `PostParams` carry a `value` field; `postBatch` enforces `sum == msg.value` (new `ValueMismatch`);
+  added `uint256 public postThreshold` (appended after `masterRegistry`, UUPS-safe) + `setPostThreshold`
+  (onlyOwner) + `PostThresholdSet`. Interface `IGlobalMessageRegistry.postForAction` → `payable`.
+- Tests: value recorded on all 3 paths, batch sum enforcement (over/under/all-zero-with-ETH), mixed
+  batch, withdraw round-trip, fuzz on value + sum, threshold set/emit/onlyOwner. Full suite green (445).
+- `SeedAnvil.s.sol`: `_postValued` helper + two varied-value seed posts (0.02 / 0.25 ETH); seeded
+  threshold left at 0 so the feed shows everything until the lever is raised.
+- Bindings regenerated (`app/src/generated/contracts.ts`): `postThreshold` / `setPostThreshold` /
+  `PostThresholdSet` hooks present.
+- Frontend shim only: `BoardCartBar.tsx` passes `value: 0n` per post to keep the build green.
+
+**STILL PENDING — the frontend (§3 below):** composer amount field, feed threshold filter (thread
+`value` through `useMessageFeed`/`useGlobalFeed`/`MessageFeed`, filter `value >= postThreshold`,
+replies/reactions exempt), admin `PlatformConfigPanel` control, and the e2e. Demoing needs a
+**redeploy + reseed** (the contract changed).
+
+Original spec below.
+
+---
 
 ## The idea (from Mony)
 
