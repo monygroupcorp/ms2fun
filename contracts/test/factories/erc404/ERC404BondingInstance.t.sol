@@ -2,7 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {ERC404BondingInstance, MaxCostExceeded, BondingNotConfigured, OnlyOwnerBeforeMaturity, NoReserve, InvalidRefund} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import {ERC404BondingInstance, MaxCostExceeded, BondingNotConfigured, NoReserve, InvalidRefund} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import {Ownable} from "solady/auth/Ownable.sol";
 import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import {BondingCurveMath} from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
@@ -508,11 +509,12 @@ contract ERC404BondingInstanceTest is Test {
     // ── deployLiquidity Tests ─────────────────────────────────────────────────
 
     function test_deployLiquidity_noParams() public {
+        vm.prank(owner);
         vm.expectRevert(BondingNotConfigured.selector);
         instance.deployLiquidity();
     }
 
-    function test_deployLiquidity_ownerOnlyBeforeFull() public {
+    function test_deployLiquidity_revertsForNonOwner() public {
         _activateBonding();
 
         vm.deal(user1, 10 ether);
@@ -522,9 +524,81 @@ contract ERC404BondingInstanceTest is Test {
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
         instance.buyBonding{value: cost + fee}(buyAmount, cost + fee, false, bytes32(0), bytes(""), 0);
 
-        vm.expectRevert(OnlyOwnerBeforeMaturity.selector);
+        // Graduation is a creator action: a non-owner is rejected even after buying into the curve.
+        vm.expectRevert(Ownable.Unauthorized.selector);
         instance.deployLiquidity();
         vm.stopPrank();
+    }
+
+    /// @notice The permissionless full/matured path is gone: a non-owner is rejected even once the
+    ///         curve has matured (previously anyone could graduate a matured curve). All other guards
+    ///         are satisfied (open, active, reserve > 0, not graduated) so the ONLY reason it reverts
+    ///         is the owner gate.
+    function test_deployLiquidity_revertsForNonOwner_evenWhenMatured() public {
+        vm.startPrank(owner);
+        uint256 openTime = block.timestamp + 1 days;
+        instance.setBondingOpenTime(openTime);
+        instance.setBondingMaturityTime(openTime + 1 days);
+        instance.setBondingActive(true);
+        vm.stopPrank();
+        vm.warp(openTime);
+
+        // Non-zero reserve so NoReserve() can't be why it reverts.
+        vm.deal(user1, 100 ether);
+        vm.startPrank(user1);
+        uint256 amount = 1000 * 1e18;
+        uint256 cost = _getCost(instance, amount);
+        uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
+        instance.buyBonding{value: cost + fee}(amount, cost + fee, false, bytes32(0), bytes(""), 0);
+        vm.stopPrank();
+
+        // Warp past maturity — the condition that USED to make graduation permissionless.
+        vm.warp(openTime + 1 days + 1);
+
+        vm.prank(user2);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        instance.deployLiquidity();
+
+        assertFalse(instance.graduated(), "matured curve must not graduate from a non-owner call");
+    }
+
+    /// @notice The owner bypass is retained: the owner can graduate a curve that is NEITHER full NOR
+    ///         matured. This is the whole point of owner-only (vs a pure full/matured gate) — the
+    ///         creator decides when to graduate.
+    function test_deployLiquidity_ownerGraduatesBeforeFullOrMaturity() public {
+        MockLiquidityDeployer mockDepl = new MockLiquidityDeployer();
+        vm.startPrank(owner);
+        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
+        inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
+        inst2.initializeProtocol(ERC404BondingInstance.ProtocolParams({
+            globalMessageRegistry: mockGlobalMsgRegistry,
+            protocolTreasury: address(0),
+            masterRegistry: mockMasterRegistry,
+            bondingFeeBps: 0,
+            weth: address(0xBEEF)
+        }));
+        inst2.initializeMetadata("T", "T", "", "");
+        uint256 openTime = block.timestamp + 1 days;
+        inst2.setBondingOpenTime(openTime);
+        inst2.setBondingMaturityTime(openTime + 30 days); // maturity far in the future
+        inst2.setBondingActive(true);
+        vm.stopPrank();
+        vm.warp(openTime);
+
+        // A small buy — nowhere near the cap — and we sit well before maturity.
+        uint256 amount = 1000 ether;
+        uint256 cost = _getCost(inst2, amount);
+        vm.deal(user1, cost);
+        vm.prank(user1);
+        inst2.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        assertFalse(inst2.graduated());
+
+        vm.prank(owner);
+        inst2.deployLiquidity();
+
+        assertTrue(inst2.graduated(), "owner may graduate a partial, un-matured curve");
+        assertTrue(mockDepl.called(), "liquidity deployer module must be invoked");
     }
 
     function test_deployLiquidity_requiresReserve() public {
