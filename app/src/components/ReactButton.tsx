@@ -47,6 +47,7 @@ export function ReactButton({
         refId: targetId,
         actionRef: ZERO_BYTES32,
         metadata: ZERO_BYTES32,
+        value: 0n, // reactions are exempt from the post-value threshold
         content: '',
         label: `endorse #${targetId.toString()}`,
       })

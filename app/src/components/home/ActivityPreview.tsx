@@ -1,5 +1,7 @@
 import { Link } from 'wouter'
 import { truncateAddress } from '../../lib/format'
+import { meetsThreshold } from '../threadMessages'
+import { usePostThreshold } from '../useMessageFeed'
 import { useGlobalActivity } from './useGlobalActivity'
 import styles from './ActivityPreview.module.css'
 
@@ -18,8 +20,11 @@ const MESSAGE_TYPE_LABELS: Record<number, string> = {
  */
 export function ActivityPreview() {
   const { data, isPending, isError } = useGlobalActivity()
+  const threshold = usePostThreshold()
 
-  const latest = data?.slice(0, PREVIEW_LIMIT) ?? []
+  // Apply the same spam lever as the board: hide below-threshold top-level posts (replies/reactions
+  // stay), then take the latest few.
+  const latest = (data ?? []).filter((m) => meetsThreshold(m, threshold)).slice(0, PREVIEW_LIMIT)
 
   return (
     <section className={styles.section}>

@@ -21,6 +21,8 @@ export interface CartAction {
   refId: bigint
   actionRef: `0x${string}`
   metadata: `0x${string}`
+  /** ETH (wei) attached to this post — the N12 spam lever. 0 for replies/reactions and free posts. */
+  value: bigint
   content: string
   label: string
 }

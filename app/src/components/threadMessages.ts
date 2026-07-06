@@ -47,6 +47,27 @@ export function reactionFor(view: ThreadView, messageId: bigint): Reaction {
 }
 
 /**
+ * N12 spam lever: a genuine top-level post/quote (type 0/2) must carry `value >= threshold` to surface.
+ * Everything else is exempt — replies/reactions (nested conversation isn't value-gated) and any message
+ * threadMessages *promoted* to top-level (an orphan reply whose parent isn't loaded), which keeps the
+ * "never silently drop a reply" guarantee even when the lever is raised. threshold 0 admits everything.
+ */
+export function meetsThreshold(m: Pick<FeedMessage, 'messageType' | 'value'>, threshold: bigint): boolean {
+  const isTopLevelPost = m.messageType === TYPE_POST || m.messageType === TYPE_QUOTE
+  if (!isTopLevelPost) return true
+  return m.value >= threshold
+}
+
+/**
+ * Drop whole threads whose ROOT is a top-level post below the threshold (its nested replies/reactions
+ * go with it). Threads rooted at a promoted orphan reply are kept. Pure — reused by every feed surface.
+ */
+export function visibleThreads(threads: readonly ThreadNode[], threshold: bigint): ThreadNode[] {
+  if (threshold <= 0n) return threads as ThreadNode[]
+  return threads.filter((t) => meetsThreshold(t.message, threshold))
+}
+
+/**
  * Build threads from a flat, arbitrarily-ordered feed. Pure — no I/O, fully tested.
  * `viewer` (optional, lowercased internally) marks which messages the current wallet has reacted to.
  */

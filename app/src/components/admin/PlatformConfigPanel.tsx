@@ -23,7 +23,13 @@
  *   - setEmergencyRevoker(address _revoker) — set who may emergency-revoke.
  */
 import { useState } from 'react'
-import { featuredQueueManagerAbi, masterRegistryV1Abi } from '../../generated/contracts'
+import { formatEther } from 'viem'
+import {
+  featuredQueueManagerAbi,
+  globalMessageRegistryAbi,
+  masterRegistryV1Abi,
+  useReadGlobalMessageRegistryPostThreshold,
+} from '../../generated/contracts'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
 import { AmountField } from '../ui/AmountField'
 import { TxButton } from '../ui/TxButton'
@@ -41,6 +47,7 @@ export function PlatformConfigPanel() {
     <div className={styles.panel}>
       <FeaturedConfigSection />
       <AgentsSection />
+      <MessageBoardSection />
     </div>
   )
 }
@@ -404,6 +411,79 @@ function SetRevokerRow() {
           disabled={!valid}
           errorText="set failed — try again"
           testId="admin-set-revoker"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── Section 3: Message board (GlobalMessageRegistry) ─────────────────────────────
+
+function MessageBoardSection() {
+  const { isOwner } = useOwnerGate(forkAddresses.GlobalMessageRegistry)
+  if (!isOwner) return null
+
+  return (
+    <AdminSection title="message board" testId="admin-message-board">
+      <PostThresholdRow />
+    </AdminSection>
+  )
+}
+
+/**
+ * The N12 spam lever. Raising the threshold hides feed posts whose attached ETH is below it (a
+ * display filter — posting below it is NOT rejected on-chain). Enter 0 to show every post again.
+ */
+function PostThresholdRow() {
+  const [amount, setAmount] = useState('')
+  const { data: current, refetch } = useReadGlobalMessageRegistryPostThreshold({
+    address: forkAddresses.GlobalMessageRegistry,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setAmount('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(amount) // ETH → wei (0 is valid: lowers the lever back down)
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="post threshold"
+      hint={`feed hides posts below this (enter 0 to show all). current: ${
+        current !== undefined ? formatEther(current) : '…'
+      } ETH`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={amount}
+          onChange={setAmount}
+          placeholder="0"
+          unit="ETH"
+          disabled={tx.isBusy}
+          ariaLabel="post threshold in ETH"
+          testId="admin-post-threshold-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: forkAddresses.GlobalMessageRegistry,
+              abi: globalMessageRegistryAbi,
+              functionName: 'setPostThreshold',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set threshold"
+          successLabel="threshold set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-post-threshold"
         />
       </div>
     </ActionRow>

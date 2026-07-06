@@ -1,6 +1,25 @@
 # Spec / handoff — N12: post-value threshold (spam lever)
 
-**Status: CONTRACT HALF DONE (2026-07-06). Frontend PENDING.** Design-walk note N12.
+**Status: DONE (2026-07-06) — contract + frontend both shipped on `main`.** Design-walk note N12.
+
+**Frontend (shipped):**
+- Feed `value` threaded through `FeedMessage` + all four feed readers (`useMessageFeed`,
+  BoardPage `useGlobalFeed`, home `useGlobalActivity`).
+- `usePostThreshold()` hook reads the on-chain lever; `meetsThreshold` + `visibleThreads` pure helpers
+  in `threadMessages.ts` (top-level posts type 0/2 are value-gated; replies/reactions and
+  orphan-promoted rows are exempt — a dropped post takes its nested replies with it). Applied in
+  `MessageFeed`, `BoardPage` (threaded + raw activity views), and `ActivityPreview`, each with a
+  "spam lever on" notice.
+- Composer (`MessageComposer`) gained an ETH amount field defaulting to the current threshold, with a
+  below/meets-threshold hint; cart carries per-post `value` (`boardCart.CartAction.value`);
+  `BoardCartBar` sums per-post values into `msg.value` and shows the attached total. Reply/react carry 0.
+- Admin: `PlatformConfigPanel` "message board" section (owner-gated on GlobalMessageRegistry) reads the
+  current threshold and calls `setPostThreshold` (enter 0 to show all).
+- Tests: 8 new vitest cases for `meetsThreshold`/`visibleThreads` (thread + reply preservation, orphan
+  exemption). Full app suite green (456); `pnpm build` + typecheck clean.
+- **Demoing needs a redeploy + reseed** (the contract changed); seed already posts varied-value messages.
+
+Original build spec (contract half also done) below.
 
 Locked product decisions (Mony, 2026-07-06): (1) postBatch = **per-post value array**,
 `require(sum(values) == msg.value)`; (2) ETH **stays in the registry**, swept by existing

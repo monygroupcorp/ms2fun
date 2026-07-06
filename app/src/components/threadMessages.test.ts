@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reactionFor, threadMessages } from './threadMessages'
+import { meetsThreshold, reactionFor, threadMessages, visibleThreads } from './threadMessages'
 import type { FeedMessage } from './useMessageFeed'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -14,6 +14,7 @@ function msg(
   ref: number,
   sender: `0x${string}` = A,
   content = `m${id}`,
+  value = 0n,
 ): FeedMessage {
   return {
     messageId: BigInt(id),
@@ -21,6 +22,7 @@ function msg(
     sender,
     messageType: type,
     refId: BigInt(ref),
+    value,
     content,
   }
 }
@@ -100,5 +102,70 @@ describe('threadMessages', () => {
     const { threads } = threadMessages([msg(1, 2, 0)])
     expect(threads).toHaveLength(1)
     expect(threads[0]!.message.messageType).toBe(2)
+  })
+})
+
+// ── meetsThreshold (N12 spam lever) ──────────────────────────────────────────────
+
+describe('meetsThreshold', () => {
+  it('admits every message when the threshold is 0', () => {
+    expect(meetsThreshold(msg(1, 0, 0, A, 'm', 0n), 0n)).toBe(true)
+  })
+
+  it('gates a top-level post on its attached value', () => {
+    const t = 5n
+    expect(meetsThreshold(msg(1, 0, 0, A, 'cheap', 4n), t)).toBe(false)
+    expect(meetsThreshold(msg(2, 0, 0, A, 'exact', 5n), t)).toBe(true)
+    expect(meetsThreshold(msg(3, 0, 0, A, 'dear', 6n), t)).toBe(true)
+  })
+
+  it('gates quotes (type 2) like posts', () => {
+    expect(meetsThreshold(msg(1, 2, 0, A, 'q', 0n), 5n)).toBe(false)
+  })
+
+  it('exempts replies (type 1) and reactions (type 3) regardless of value', () => {
+    expect(meetsThreshold(msg(1, 1, 0, A, 'reply', 0n), 5n)).toBe(true)
+    expect(meetsThreshold(msg(2, 3, 0, A, '', 0n), 5n)).toBe(true)
+  })
+})
+
+// ── visibleThreads ───────────────────────────────────────────────────────────────
+
+describe('visibleThreads', () => {
+  it('returns all threads unchanged when the threshold is 0', () => {
+    const view = threadMessages([msg(1, 0, 0, A, 'a', 0n), msg(2, 0, 0, A, 'b', 0n)])
+    expect(visibleThreads(view.threads, 0n)).toHaveLength(2)
+  })
+
+  it('drops a below-threshold post together with its nested replies', () => {
+    // Post 1 (value 0) has a reply (5). Post 2 (value 10) has a reply (6). Threshold 5.
+    const view = threadMessages([
+      msg(1, 0, 0, A, 'cheap post', 0n),
+      msg(5, 1, 1, B, 'reply to cheap'),
+      msg(2, 0, 0, A, 'paid post', 10n),
+      msg(6, 1, 2, B, 'reply to paid'),
+    ])
+    const shown = visibleThreads(view.threads, 5n)
+    // Only the paid post survives; the cheap post AND its reply are gone (reply nested under it).
+    expect(shown).toHaveLength(1)
+    expect(Number(shown[0]!.message.messageId)).toBe(2)
+    expect(shown[0]!.replies.map((r) => Number(r.messageId))).toEqual([6])
+  })
+
+  it('keeps the replies of a surviving post even if the replies carry no value', () => {
+    const view = threadMessages([
+      msg(1, 0, 0, A, 'paid post', 10n),
+      msg(5, 1, 1, B, 'free reply', 0n),
+    ])
+    const shown = visibleThreads(view.threads, 5n)
+    expect(shown).toHaveLength(1)
+    expect(shown[0]!.replies).toHaveLength(1)
+  })
+
+  it('keeps an orphan-promoted reply visible even when the lever is raised', () => {
+    // A reply whose parent isn't loaded is promoted to top-level; it must not be value-gated
+    // (its value is 0) — otherwise raising the lever would silently drop conversation.
+    const view = threadMessages([msg(5, 1, 99, B, 'orphan reply', 0n)])
+    expect(visibleThreads(view.threads, 5n)).toHaveLength(1)
   })
 })

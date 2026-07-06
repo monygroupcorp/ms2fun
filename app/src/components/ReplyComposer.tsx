@@ -44,6 +44,7 @@ export function ReplyComposer({
       refId: parentId,
       actionRef: ZERO_BYTES32,
       metadata: ZERO_BYTES32,
+      value: 0n, // replies are exempt from the post-value threshold
       content: trimmed,
       label: `reply: ${trimmed}`,
     })
