@@ -151,7 +151,8 @@ export function ProfilePage() {
         <StateBlock variant="empty" boxed>
           <span className="big">Your profile isn&rsquo;t set up yet</span>
           <span className="cap">
-            Add a name and avatar so collectors can find you. Your collections are already shown below.
+            Add a name and avatar so collectors can find you. Your collections are already shown
+            below.
           </span>
           <button className={styles.setupBtn} onClick={() => setEditing(true)}>
             Set up your profile

@@ -13,11 +13,15 @@ import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryPersister } from './lib/queryPers
 // paint. Every other page is a lazy chunk (route code-splitting, ADR-0010) fetched on navigation,
 // so the initial bundle is just the shell + web3 core, not all 13 pages.
 import { HomePage } from './routes/HomePage'
-const Exec404Page = lazy(() => import('./routes/Exec404Page').then((m) => ({ default: m.Exec404Page })))
+const Exec404Page = lazy(() =>
+  import('./routes/Exec404Page').then((m) => ({ default: m.Exec404Page })),
+)
 const CollectionsPage = lazy(() =>
   import('./routes/CollectionsPage').then((m) => ({ default: m.CollectionsPage })),
 )
-const ProfilePage = lazy(() => import('./routes/ProfilePage').then((m) => ({ default: m.ProfilePage })))
+const ProfilePage = lazy(() =>
+  import('./routes/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+)
 const CollectionPage = lazy(() =>
   import('./routes/CollectionPage').then((m) => ({ default: m.CollectionPage })),
 )
@@ -27,9 +31,13 @@ const EditionDetailPage = lazy(() =>
 const TokenDetailPage = lazy(() =>
   import('./routes/TokenDetailPage').then((m) => ({ default: m.TokenDetailPage })),
 )
-const WizardPage = lazy(() => import('./routes/WizardPage').then((m) => ({ default: m.WizardPage })))
+const WizardPage = lazy(() =>
+  import('./routes/WizardPage').then((m) => ({ default: m.WizardPage })),
+)
 const BoardPage = lazy(() => import('./routes/BoardPage').then((m) => ({ default: m.BoardPage })))
-const VaultsPage = lazy(() => import('./routes/VaultsPage').then((m) => ({ default: m.VaultsPage })))
+const VaultsPage = lazy(() =>
+  import('./routes/VaultsPage').then((m) => ({ default: m.VaultsPage })),
+)
 const VaultPage = lazy(() => import('./routes/VaultPage').then((m) => ({ default: m.VaultPage })))
 const RequestTargetPage = lazy(() =>
   import('./routes/RequestTargetPage').then((m) => ({ default: m.RequestTargetPage })),
@@ -179,50 +187,50 @@ export function App() {
                   page chunk loads on navigation. */}
               <Suspense fallback={<div className={styles.routeLoading}>loading…</div>}>
                 <Switch>
-                <Route path="/" component={HomePage} />
-                <Route path="/exec404" component={Exec404Page} />
-                <Route path="/launch" component={WizardPage} />
-                <Route path="/collections" component={CollectionsPage} />
-                <Route path="/board" component={BoardPage} />
-                <Route path="/vaults" component={VaultsPage} />
-                <Route path="/vault/:address" component={VaultPage} />
-                <Route path="/request-target" component={RequestTargetPage} />
-                {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
+                  <Route path="/" component={HomePage} />
+                  <Route path="/exec404" component={Exec404Page} />
+                  <Route path="/launch" component={WizardPage} />
+                  <Route path="/collections" component={CollectionsPage} />
+                  <Route path="/board" component={BoardPage} />
+                  <Route path="/vaults" component={VaultsPage} />
+                  <Route path="/vault/:address" component={VaultPage} />
+                  <Route path="/request-target" component={RequestTargetPage} />
+                  {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
                   the connected wallet's own plate. */}
-                <Route path="/portfolio" component={ProfilePage} />
-                <Route path="/admin" component={AdminPage} />
-                <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
-                <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
-                <Route path="/collection/:instance" component={CollectionPage} />
-                <Route path="/profile" component={ProfilePage} />
-                <Route path="/profile/:address" component={ProfilePage} />
-                <Route>
-                  <section className={styles.notFound}>
-                    <div className="noesis-404">
-                      <div className="plate">
-                        <span className="k">Wall label</span>
-                        <span className="e">404 · not found</span>
-                      </div>
-                      <div className="inner">
-                        <div className="big">404</div>
-                        <div className="ttl">Not on view</div>
-                        <p className="cap">
-                          There&rsquo;s nothing hung at this address. The piece may have been moved,
-                          or the link mistyped. Nothing here left the building — it was never on
-                          this wall.
-                        </p>
-                        <div className={styles.recoverActions}>
-                          <Link href="/collections" className={styles.recoverPrimary}>
-                            ← Back to collections
-                          </Link>
-                          <Link href="/board" className={styles.recoverSecondary}>
-                            Open the board
-                          </Link>
+                  <Route path="/portfolio" component={ProfilePage} />
+                  <Route path="/admin" component={AdminPage} />
+                  <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
+                  <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
+                  <Route path="/collection/:instance" component={CollectionPage} />
+                  <Route path="/profile" component={ProfilePage} />
+                  <Route path="/profile/:address" component={ProfilePage} />
+                  <Route>
+                    <section className={styles.notFound}>
+                      <div className="noesis-404">
+                        <div className="plate">
+                          <span className="k">Wall label</span>
+                          <span className="e">404 · not found</span>
+                        </div>
+                        <div className="inner">
+                          <div className="big">404</div>
+                          <div className="ttl">Not on view</div>
+                          <p className="cap">
+                            There&rsquo;s nothing hung at this address. The piece may have been
+                            moved, or the link mistyped. Nothing here left the building — it was
+                            never on this wall.
+                          </p>
+                          <div className={styles.recoverActions}>
+                            <Link href="/collections" className={styles.recoverPrimary}>
+                              ← Back to collections
+                            </Link>
+                            <Link href="/board" className={styles.recoverSecondary}>
+                              Open the board
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </section>
-                </Route>
+                    </section>
+                  </Route>
                 </Switch>
               </Suspense>
             </main>

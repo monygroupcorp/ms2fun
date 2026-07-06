@@ -88,7 +88,11 @@ export function useVaultOverview(vault: `0x${string}` | undefined): VaultOvervie
   })
 
   const target: AlignmentTargetView | undefined = targetRaw
-    ? { title: targetRaw.title, description: targetRaw.description, metadataURI: targetRaw.metadataURI }
+    ? {
+        title: targetRaw.title,
+        description: targetRaw.description,
+        metadataURI: targetRaw.metadataURI,
+      }
     : undefined
 
   return {

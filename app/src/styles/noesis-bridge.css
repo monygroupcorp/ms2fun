@@ -9,7 +9,7 @@
  * of OS preference. Defined on [data-brand="noesis"] (the <html> root), so it overrides the :root
  * dark-mode media block for the whole document. Remove if NOESIS ever ships a real dark theme. */
 
-[data-brand="noesis"] {
+[data-brand='noesis'] {
   color-scheme: light;
   background: var(--color-bg);
   color: var(--color-text);
@@ -57,11 +57,11 @@
  * overflow-x clips it. Tighten padding + value size on narrow viewports. Same specificity as the
  * vendored rule; this bridge is imported after signature.css, so it wins on source order. */
 @media (max-width: 640px) {
-  [data-brand="noesis"] .noesis-stats .s {
+  [data-brand='noesis'] .noesis-stats .s {
     padding: 10px 11px;
   }
 
-  [data-brand="noesis"] .noesis-stats .s .v {
+  [data-brand='noesis'] .noesis-stats .s .v {
     font-size: var(--font-size-body);
   }
 }

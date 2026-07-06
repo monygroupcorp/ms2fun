@@ -52,7 +52,10 @@ export function reactionFor(view: ThreadView, messageId: bigint): Reaction {
  * threadMessages *promoted* to top-level (an orphan reply whose parent isn't loaded), which keeps the
  * "never silently drop a reply" guarantee even when the lever is raised. threshold 0 admits everything.
  */
-export function meetsThreshold(m: Pick<FeedMessage, 'messageType' | 'value'>, threshold: bigint): boolean {
+export function meetsThreshold(
+  m: Pick<FeedMessage, 'messageType' | 'value'>,
+  threshold: bigint,
+): boolean {
   const isTopLevelPost = m.messageType === TYPE_POST || m.messageType === TYPE_QUOTE
   if (!isTopLevelPost) return true
   return m.value >= threshold

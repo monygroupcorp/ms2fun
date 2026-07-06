@@ -28,16 +28,37 @@ const forkChain = {
 // Read the locally-deployed MasterRegistry from the deploy-generated config (the spec body runs in
 // Node; importing the JSON via ESM would need an import attribute Playwright's transform lacks).
 const deployment = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)), 'utf8'),
+  readFileSync(
+    fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)),
+    'utf8',
+  ),
 ) as { contracts: { MasterRegistryV1: Address } }
 const MASTER_REGISTRY = deployment.contracts.MasterRegistryV1
 
 const REGISTRY_ABI = [
-  { type: 'function', name: 'getActiveVault', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'address' }] },
+  {
+    type: 'function',
+    name: 'getActiveVault',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'address' }],
+  },
 ] as const
 const VAULT_ABI = [
-  { type: 'function', name: 'vaultType', stateMutability: 'pure', inputs: [], outputs: [{ type: 'string' }] },
-  { type: 'function', name: 'isLiquidityReady', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
+  {
+    type: 'function',
+    name: 'vaultType',
+    stateMutability: 'pure',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+  {
+    type: 'function',
+    name: 'isLiquidityReady',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'bool' }],
+  },
 ] as const
 
 const client = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
@@ -93,12 +114,19 @@ test('vault flavors: alignment step is a family → venue picker; Liquidity → 
 
   // ── On-chain — the bound vault is the Uni LP venue the creator picked. ──────
   const readVault = () =>
-    client.readContract({ address: MASTER_REGISTRY, abi: REGISTRY_ABI, functionName: 'getActiveVault', args: [instance] })
-  await expect
-    .poll(() => readVault().catch(() => '0x'), { timeout: 15_000 })
-    .not.toBe('0x')
+    client.readContract({
+      address: MASTER_REGISTRY,
+      abi: REGISTRY_ABI,
+      functionName: 'getActiveVault',
+      args: [instance],
+    })
+  await expect.poll(() => readVault().catch(() => '0x'), { timeout: 15_000 }).not.toBe('0x')
   const vault = (await readVault()) as Address
 
-  expect(await client.readContract({ address: vault, abi: VAULT_ABI, functionName: 'vaultType' })).toBe('UniswapV4LP')
-  expect(await client.readContract({ address: vault, abi: VAULT_ABI, functionName: 'isLiquidityReady' })).toBe(true)
+  expect(
+    await client.readContract({ address: vault, abi: VAULT_ABI, functionName: 'vaultType' }),
+  ).toBe('UniswapV4LP')
+  expect(
+    await client.readContract({ address: vault, abi: VAULT_ABI, functionName: 'isLiquidityReady' }),
+  ).toBe(true)
 })

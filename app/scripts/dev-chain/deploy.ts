@@ -206,8 +206,20 @@ async function main(): Promise<void> {
     const erc404Factory = f['ERC404']
     if (!erc404Factory) throw new Error('anvil.json missing factories.ERC404')
     const instanceAbi = [
-      { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
-      { type: 'function', name: 'graduated', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
+      {
+        type: 'function',
+        name: 'name',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ type: 'string' }],
+      },
+      {
+        type: 'function',
+        name: 'graduated',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ type: 'bool' }],
+      },
       {
         type: 'function',
         name: 'previewCarve',
@@ -261,7 +273,9 @@ async function main(): Promise<void> {
       })
       await publicClient.waitForTransactionReceipt({ hash })
       await test.stopImpersonatingAccount({ address: ADMIN })
-      console.log(`✓ Graduated carved-demo (${carved}) WITH carve ${carveEth} wei — Uni-V4 pool live`)
+      console.log(
+        `✓ Graduated carved-demo (${carved}) WITH carve ${carveEth} wei — Uni-V4 pool live`,
+      )
     } else {
       console.log(`✓ carved-demo (${carved}) already graduated`)
     }

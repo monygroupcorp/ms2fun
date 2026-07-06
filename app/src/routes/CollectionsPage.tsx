@@ -75,7 +75,11 @@ export function CollectionsPage() {
         <div className={styles.headLine}>
           <h1 className={styles.title}>Collections</h1>
           <span className={styles.count} data-testid="collections-count">
-            {isPending ? 'loading…' : isError ? 'error' : `${total} ${filtersActive ? 'shown' : 'registered'}`}
+            {isPending
+              ? 'loading…'
+              : isError
+                ? 'error'
+                : `${total} ${filtersActive ? 'shown' : 'registered'}`}
           </span>
         </div>
         <nav className="noesis-viewtoggle">
@@ -141,9 +145,7 @@ export function CollectionsPage() {
       </div>
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
-      {isError && (
-        <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>
-      )}
+      {isError && <StateBlock variant="error">discovery unreachable — is the fork up?</StateBlock>}
 
       {!isPending && !isError && total === 0 && (
         <StateBlock variant="empty" boxed testId="collections-empty">
@@ -191,15 +193,17 @@ function RegistryRow({ card }: { card: ProjectCard }) {
       : card.contractType === 'ERC1155'
         ? 'open'
         : minted.toString()
-  const aligned = card.vaultName || (card.vault && card.vault !== '0x0000000000000000000000000000000000000000' ? truncateAddress(card.vault) : '')
+  const aligned =
+    card.vaultName ||
+    (card.vault && card.vault !== '0x0000000000000000000000000000000000000000'
+      ? truncateAddress(card.vault)
+      : '')
 
   return (
     <Link href={`/collection/${card.instance}`} className="row">
       <span className={styles.regName}>
         <span className="sw">
-          {metadata?.image && (
-            <IpfsImage uri={metadata.image} alt="" className={styles.regThumb} />
-          )}
+          {metadata?.image && <IpfsImage uri={metadata.image} alt="" className={styles.regThumb} />}
         </span>
         <span className={styles.regNameText}>
           <span className="nm">{metadata?.name || card.name}</span>

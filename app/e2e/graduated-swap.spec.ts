@@ -25,7 +25,10 @@ const forkChain = {
 } as const
 
 const deployment = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)), 'utf8'),
+  readFileSync(
+    fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)),
+    'utf8',
+  ),
 ) as { contracts: { ERC404Factory: Address } }
 const FACTORY = deployment.contracts.ERC404Factory
 
@@ -33,8 +36,20 @@ const FACTORY = deployment.contracts.ERC404Factory
 const INSTANCE_CREATED = '0xef385e577da1427cc970a482e2560d72afabebdae40f0b84044f73fe332117cb'
 
 const INSTANCE_ABI = [
-  { type: 'function', name: 'name', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
-  { type: 'function', name: 'graduated', stateMutability: 'view', inputs: [], outputs: [{ type: 'bool' }] },
+  {
+    type: 'function',
+    name: 'name',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
+  {
+    type: 'function',
+    name: 'graduated',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'bool' }],
+  },
   {
     type: 'function',
     name: 'deployLiquidity',
@@ -45,7 +60,11 @@ const INSTANCE_ABI = [
 ] as const
 
 const client = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
-const wallet = createWalletClient({ account: TEST_ACCOUNT, chain: forkChain, transport: http(ANVIL_RPC) })
+const wallet = createWalletClient({
+  account: TEST_ACCOUNT,
+  chain: forkChain,
+  transport: http(ANVIL_RPC),
+})
 
 /** Find a seeded ERC-404 instance by name via the factory's InstanceCreated logs. */
 async function findInstanceByName(target: string): Promise<Address> {
@@ -68,7 +87,11 @@ async function verifyEmbeddedBuy(
   venueLabel: string,
 ): Promise<void> {
   const instance = await findInstanceByName(name)
-  const already = await client.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'graduated' })
+  const already = await client.readContract({
+    address: instance,
+    abi: INSTANCE_ABI,
+    functionName: 'graduated',
+  })
   if (!already) {
     const hash = await wallet.writeContract({
       address: instance,
@@ -79,7 +102,9 @@ async function verifyEmbeddedBuy(
     })
     await client.waitForTransactionReceipt({ hash })
   }
-  expect(await client.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'graduated' })).toBe(true)
+  expect(
+    await client.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'graduated' }),
+  ).toBe(true)
 
   await page.goto(`/collection/${instance}`)
   await connectWallet(page)
@@ -92,7 +117,9 @@ async function verifyEmbeddedBuy(
 
   // Buy with ETH: enter an amount, wait for the live sim quote, submit, assert confirmation.
   await page.getByTestId('erc404-graduated-amount-input').fill('0.01')
-  await expect(page.getByTestId('erc404-graduated-quote')).not.toContainText('—', { timeout: 20_000 })
+  await expect(page.getByTestId('erc404-graduated-quote')).not.toContainText('—', {
+    timeout: 20_000,
+  })
   await page.getByTestId('erc404-graduated-swap-submit').click()
   await expect(swap).toContainText('tx confirmed', { timeout: 30_000 })
 }
