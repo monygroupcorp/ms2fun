@@ -39,7 +39,6 @@ error LowETHValue();
 error MaturityMustBeAfterOpenTime();
 error MaxCostExceeded();
 error NoReserve();
-error OnlyOwnerBeforeMaturity();
 error OpenTimeMustBeSetFirst();
 error OpenTimeNotSet();
 error TimeMustBeInFuture();
@@ -589,21 +588,16 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
 
     /**
      * @notice Deploy liquidity via the pluggable ILiquidityDeployerModule.
-     * @dev Permissionless when curve is full or matured; owner-only otherwise.
+     * @dev Owner-only: graduating a collection to the DEX is a creator action (Mony, 2026-07-03),
+     *      not something any passerby can trigger. The bonding-open-time guard still applies so a
+     *      curve can't be graduated before it opens.
      */
     // slither-disable-next-line reentrancy-eth,timestamp
-    function deployLiquidity() external nonReentrant {
+    function deployLiquidity() external onlyOwner nonReentrant {
         if (bondingOpenTime == 0) revert BondingNotConfigured();
         if (block.timestamp < bondingOpenTime) revert TooEarly();
         if (graduated) revert AlreadyDeployed();
         if (reserve == 0) revert NoReserve();
-
-        uint256 maxBondingSupply = maxSupply - liquidityReserve - (freeMintAllocation * unit);
-        bool isFull = totalBondingSupply >= maxBondingSupply;
-        bool isMatured = bondingMaturityTime != 0 && block.timestamp >= bondingMaturityTime;
-        if (!isFull && !isMatured) {
-            if (msg.sender != owner()) revert OnlyOwnerBeforeMaturity();
-        }
 
         // CEI: capture and zero reserve before external calls
         uint256 ethToSend = reserve;

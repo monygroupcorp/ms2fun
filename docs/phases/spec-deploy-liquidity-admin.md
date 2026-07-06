@@ -1,8 +1,17 @@
 # Spec — make `deployLiquidity()` owner-only (contract change)
 
-**Status:** contract change, NOT built. The UI half shipped (T3): "deploy liquidity (graduate)" is now
-an action in the ERC404 creator admin menu (`Erc404AdminPanel`), and the old permissionless
-`GraduateButton` on the trading surface was removed.
+**Status: DONE (2026-07-06).** `ERC404BondingInstance.deployLiquidity()` is now `onlyOwner`
+(commit on `main`). The permissionless full/matured path + the `OnlyOwnerBeforeMaturity` error were
+removed; bare `onlyOwner` matches every other ERC404 owner action (ERC404 sets but never reads
+`agentDelegationEnabled`, so no owner-or-agent gate — see "Consider" below). Tests: non-owner reverts
+`Ownable.Unauthorized` **even past maturity** (proves the permissionless path is gone), and the owner
+can still graduate a partial, un-matured curve (owner bypass retained). Full suite green (445 tests).
+The UI half already shipped earlier (T3): "deploy liquidity (graduate)" lives in the ERC404 creator
+admin menu (`Erc404AdminPanel`); the old permissionless `GraduateButton` was removed.
+
+Original spec below.
+
+---
 
 ## Problem
 
