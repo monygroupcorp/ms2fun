@@ -95,7 +95,7 @@
 }
 
 .err {
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
 }
 
 .pieces {
@@ -199,7 +199,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-ink, #000) 72%, transparent);
+  background: color-mix(in srgb, var(--color-text) 72%, transparent);
 }
 
 .modal {
@@ -207,7 +207,7 @@
   width: min(38rem, 100%);
   max-height: 90vh;
   overflow-y: auto;
-  background: var(--color-bg, #fff);
+  background: var(--color-bg);
   border: var(--border-width-thick, 2px) solid var(--color-border);
   /* Extra right padding so content never crowds the absolute close button. */
   padding: var(--space-5) var(--space-8) var(--space-5) var(--space-5);
@@ -241,9 +241,9 @@
   place-items: center;
   width: 100%;
   aspect-ratio: 1 / 1;
-  background: var(--color-ink, #000);
-  color: var(--color-paper, #fff);
-  font-size: 3rem;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--font-size-h1);
 }
 
 .modalTitle {
@@ -306,9 +306,9 @@
   aspect-ratio: 1 / 1;
   display: grid;
   place-items: center;
-  background: var(--color-ink, #000);
-  color: var(--color-paper, #fff);
-  font-size: 1.5rem;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--font-size-h2);
 }
 
 .tileId {

@@ -47,7 +47,7 @@
 }
 
 .err {
-  color: var(--color-danger, #c0392b);
+  color: var(--color-danger);
 }
 
 .grid {
@@ -81,7 +81,7 @@
 
 .tileKept {
   border-color: var(--color-accent, var(--color-text));
-  box-shadow: inset 0 0 0 2px var(--color-accent, var(--color-text));
+  box-shadow: var(--shadow-ring-accent);
 }
 
 .thumb {
@@ -96,9 +96,9 @@
   aspect-ratio: 1 / 1;
   display: grid;
   place-items: center;
-  background: var(--color-ink, #000);
-  color: var(--color-paper, #fff);
-  font-size: 1.5rem;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--font-size-h2);
 }
 
 .tileId {

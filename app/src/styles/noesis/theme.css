@@ -32,6 +32,13 @@
   --color-accent-hover: #000000;
   --color-focus: #000000;
 
+  /* PROVISIONAL — added by helm noesis-004 to satisfy stylelint (was rendered as a raw
+     #c0392b fallback in Exec404/Erc404 error states). This is the ONLY non-monochrome color;
+     REVIEW: keep, retone, or remove the error-red from the mono system. */
+  --color-danger: #c0392b;
+  /* PROVISIONAL — added by helm noesis-004 for the accent ring (was an inline inset box-shadow). */
+  --shadow-ring-accent: inset 0 0 0 2px var(--color-accent);
+
   --radius: 2px; /* 2px max — discipline */
 
   /* The one exception, kept as tokens so it's never improvised.
