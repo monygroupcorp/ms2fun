@@ -19,7 +19,13 @@ import { forkChainId } from '../../lib/addresses'
 import { resolveUri } from '../../lib/metadata'
 
 const STYLE_ABI = [
-  { type: 'function', name: 'styleUri', stateMutability: 'view', inputs: [], outputs: [{ type: 'string' }] },
+  {
+    type: 'function',
+    name: 'styleUri',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+  },
 ] as const
 
 /** Max injected CSS (bytes). Generous for real themes; bounds a pathological/huge styleUri. */

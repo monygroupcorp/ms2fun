@@ -51,45 +51,45 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
   return (
     <Disclosure summary="CREATOR ADMIN" testId="erc404-creator-admin">
       <AdminSection title="creator admin" testId="erc404-admin">
-      <SetBondingActiveRow instance={instance} />
-      <SetTimeRow
-        instance={instance}
-        functionName="setBondingOpenTime"
-        label="bonding open time"
-        hint="when the bonding sale opens"
-        testId="erc404-admin-open-time"
-        kind="open"
-      />
-      <SetTimeRow
-        instance={instance}
-        functionName="setBondingMaturityTime"
-        label="bonding maturity time"
-        hint="must be after open time and in the future"
-        testId="erc404-admin-maturity"
-        kind="maturity"
-      />
-      <SetUriRow
-        instance={instance}
-        functionName="setStyle"
-        label="style uri"
-        hint="collection style / render uri"
-        placeholder="ipfs://, ar://, https://, or data:"
-        testId="erc404-admin-style"
-      />
-      <SetUriRow
-        instance={instance}
-        functionName="setMetadataURI"
-        label="metadata uri"
-        hint="collection metadata uri"
-        placeholder="ipfs://, ar://, https://, or data:"
-        testId="erc404-admin-metadata"
-      />
-      <ActivateStakingRow instance={instance} />
-      <DeployLiquidityRow instance={instance} />
-      <ConfigureGatingRow instance={instance} />
-      <MigrateVaultRow instance={instance} />
-      <ClaimAllFeesRow instance={instance} />
-      <SetAgentDelegationRow instance={instance} />
+        <SetBondingActiveRow instance={instance} />
+        <SetTimeRow
+          instance={instance}
+          functionName="setBondingOpenTime"
+          label="bonding open time"
+          hint="when the bonding sale opens"
+          testId="erc404-admin-open-time"
+          kind="open"
+        />
+        <SetTimeRow
+          instance={instance}
+          functionName="setBondingMaturityTime"
+          label="bonding maturity time"
+          hint="must be after open time and in the future"
+          testId="erc404-admin-maturity"
+          kind="maturity"
+        />
+        <SetUriRow
+          instance={instance}
+          functionName="setStyle"
+          label="style uri"
+          hint="collection style / render uri"
+          placeholder="ipfs://, ar://, https://, or data:"
+          testId="erc404-admin-style"
+        />
+        <SetUriRow
+          instance={instance}
+          functionName="setMetadataURI"
+          label="metadata uri"
+          hint="collection metadata uri"
+          placeholder="ipfs://, ar://, https://, or data:"
+          testId="erc404-admin-metadata"
+        />
+        <ActivateStakingRow instance={instance} />
+        <DeployLiquidityRow instance={instance} />
+        <ConfigureGatingRow instance={instance} />
+        <MigrateVaultRow instance={instance} />
+        <ClaimAllFeesRow instance={instance} />
+        <SetAgentDelegationRow instance={instance} />
       </AdminSection>
     </Disclosure>
   )

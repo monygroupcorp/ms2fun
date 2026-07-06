@@ -170,7 +170,9 @@
   border: var(--border-width-thick, 2px) solid var(--color-border);
   text-decoration: none;
   color: var(--color-text);
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
 }
 
 .row:hover {

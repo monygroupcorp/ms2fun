@@ -56,7 +56,15 @@ export function useGlobalActivity(): {
         ) {
           continue
         }
-        messages.push({ messageId, instance, sender, messageType, refId, value: value ?? 0n, content })
+        messages.push({
+          messageId,
+          instance,
+          sender,
+          messageType,
+          refId,
+          value: value ?? 0n,
+          content,
+        })
       }
 
       // Newest first — sort by messageId descending.

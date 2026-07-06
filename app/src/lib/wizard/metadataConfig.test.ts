@@ -124,7 +124,10 @@ describe('encodeMetadataConfig', () => {
 
 describe('validateMetadataConfig', () => {
   it('passes a well-formed router + overlay + tier stack', () => {
-    const errs = validateMetadataConfig({ resolver: RESOLVER, overlay: OVERLAY, tier: TIER }, TWO_ROWS)
+    const errs = validateMetadataConfig(
+      { resolver: RESOLVER, overlay: OVERLAY, tier: TIER },
+      TWO_ROWS,
+    )
     expect(errs).toEqual({})
   })
 

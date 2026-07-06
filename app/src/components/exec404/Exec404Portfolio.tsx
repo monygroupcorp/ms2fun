@@ -245,7 +245,8 @@ function BalanceMint({ balance, onDone }: { balance: bigint; onDone: () => void 
         data-testid="exec404-balancemint-count"
       />
       <span className={styles.hint}>
-        materialize NFTs you already hold as EXEC · up to {maxMintable.toString()} from this balance.
+        materialize NFTs you already hold as EXEC · up to {maxMintable.toString()} from this
+        balance.
       </span>
       <button
         className="btn btn-primary"
@@ -301,7 +302,9 @@ function RerollButton({
       >
         {isPending ? 'confirm in wallet…' : isLoading ? 'rerolling…' : 'reroll pieces'}
       </button>
-      <span className={styles.hint}>self-sends your balance — re-shuffles which NFT ids you hold.</span>
+      <span className={styles.hint}>
+        self-sends your balance — re-shuffles which NFT ids you hold.
+      </span>
       {reason && <p className={`${styles.note} ${styles.err}`}>reroll failed: {reason}</p>}
     </div>
   )
@@ -318,8 +321,7 @@ function SendExec({ balance, onDone }: { balance: bigint; onDone: () => void }) 
   const amountWei = parseAmount(amount)
   const toValid = isAddress(to)
   const overBalance = amountWei !== undefined && amountWei > balance
-  const canSend =
-    toValid && amountWei !== undefined && amountWei > 0n && !overBalance && !busy
+  const canSend = toValid && amountWei !== undefined && amountWei > 0n && !overBalance && !busy
 
   function handleSend(): void {
     if (!toValid || amountWei === undefined) return

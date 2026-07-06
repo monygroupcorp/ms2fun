@@ -33,7 +33,10 @@ const forkChain = {
 const ADMIN = '0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86' as Address
 
 const deployment = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)), 'utf8'),
+  readFileSync(
+    fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)),
+    'utf8',
+  ),
 ) as { contracts: { AlignmentTargetRequestRegistry: Address; AlignmentRegistryV1: Address } }
 const REQ = deployment.contracts.AlignmentTargetRequestRegistry
 const REGISTRY = deployment.contracts.AlignmentRegistryV1
@@ -44,64 +47,156 @@ function freshToken(): Address {
 }
 
 const REQ_ABI = [
-  { type: 'function', name: 'requestDeposit', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'nextRequestId', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'refunds', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'approveRequest', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }], outputs: [] },
-  { type: 'function', name: 'withdrawRefund', stateMutability: 'nonpayable', inputs: [], outputs: [{ type: 'uint256' }] },
   {
-    type: 'function', name: 'getRequest', stateMutability: 'view', inputs: [{ type: 'uint256' }],
-    outputs: [{
-      type: 'tuple', components: [
-        { name: 'requester', type: 'address' }, { name: 'token', type: 'address' },
-        { name: 'title', type: 'string' }, { name: 'description', type: 'string' },
-        { name: 'metadataURI', type: 'string' }, { name: 'deposit', type: 'uint256' },
-        { name: 'submittedAt', type: 'uint40' }, { name: 'status', type: 'uint8' },
-      ],
-    }],
+    type: 'function',
+    name: 'requestDeposit',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
   },
   {
-    type: 'function', name: 'getRequestAssets', stateMutability: 'view', inputs: [{ type: 'uint256' }],
-    outputs: [{
-      type: 'tuple[]', components: [
-        { name: 'token', type: 'address' }, { name: 'symbol', type: 'string' },
-        { name: 'info', type: 'string' }, { name: 'metadataURI', type: 'string' },
-      ],
-    }],
+    type: 'function',
+    name: 'nextRequestId',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'refunds',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'approveRequest',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'withdrawRefund',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'getRequest',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }],
+    outputs: [
+      {
+        type: 'tuple',
+        components: [
+          { name: 'requester', type: 'address' },
+          { name: 'token', type: 'address' },
+          { name: 'title', type: 'string' },
+          { name: 'description', type: 'string' },
+          { name: 'metadataURI', type: 'string' },
+          { name: 'deposit', type: 'uint256' },
+          { name: 'submittedAt', type: 'uint40' },
+          { name: 'status', type: 'uint8' },
+        ],
+      },
+    ],
+  },
+  {
+    type: 'function',
+    name: 'getRequestAssets',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }],
+    outputs: [
+      {
+        type: 'tuple[]',
+        components: [
+          { name: 'token', type: 'address' },
+          { name: 'symbol', type: 'string' },
+          { name: 'info', type: 'string' },
+          { name: 'metadataURI', type: 'string' },
+        ],
+      },
+    ],
   },
 ] as const
 
 const REGISTRY_ABI = [
   {
-    type: 'function', name: 'registerAlignmentTarget', stateMutability: 'nonpayable',
+    type: 'function',
+    name: 'registerAlignmentTarget',
+    stateMutability: 'nonpayable',
     inputs: [
-      { type: 'string' }, { type: 'string' }, { type: 'string' },
-      { type: 'tuple[]', components: [
-        { name: 'token', type: 'address' }, { name: 'symbol', type: 'string' },
-        { name: 'info', type: 'string' }, { name: 'metadataURI', type: 'string' },
-      ] },
+      { type: 'string' },
+      { type: 'string' },
+      { type: 'string' },
+      {
+        type: 'tuple[]',
+        components: [
+          { name: 'token', type: 'address' },
+          { name: 'symbol', type: 'string' },
+          { name: 'info', type: 'string' },
+          { name: 'metadataURI', type: 'string' },
+        ],
+      },
     ],
     outputs: [{ type: 'uint256' }],
   },
-  { type: 'function', name: 'isAlignmentTargetActive', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'bool' }] },
-  { type: 'function', name: 'isTokenInTarget', stateMutability: 'view', inputs: [{ type: 'uint256' }, { type: 'address' }], outputs: [{ type: 'bool' }] },
-  { type: 'event', name: 'AlignmentTargetRegistered', inputs: [{ name: 'targetId', type: 'uint256', indexed: true }, { name: 'title', type: 'string', indexed: false }] },
+  {
+    type: 'function',
+    name: 'isAlignmentTargetActive',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    type: 'function',
+    name: 'isTokenInTarget',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }, { type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
+  {
+    type: 'event',
+    name: 'AlignmentTargetRegistered',
+    inputs: [
+      { name: 'targetId', type: 'uint256', indexed: true },
+      { name: 'title', type: 'string', indexed: false },
+    ],
+  },
 ] as const
 
 const publicClient = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
 const testClient = createTestClient({ chain: forkChain, mode: 'anvil', transport: http(ANVIL_RPC) })
-const adminWallet = createWalletClient({ account: ADMIN, chain: forkChain, transport: http(ANVIL_RPC) })
+const adminWallet = createWalletClient({
+  account: ADMIN,
+  chain: forkChain,
+  transport: http(ANVIL_RPC),
+})
 // anvil account #0 is unlocked → anvil signs its txs (the requester claiming the refund).
-const userWallet = createWalletClient({ account: TEST_ACCOUNT, chain: forkChain, transport: http(ANVIL_RPC) })
+const userWallet = createWalletClient({
+  account: TEST_ACCOUNT,
+  chain: forkChain,
+  transport: http(ANVIL_RPC),
+})
 
 test('target request: submit via the form, admin register+approve, target goes active + refunded @fork', async ({
   page,
 }) => {
-  const deposit = (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'requestDeposit' })) as bigint
+  const deposit = (await publicClient.readContract({
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'requestDeposit',
+  })) as bigint
   const title = `E2E Target ${Date.now()}`
   const TOKEN = freshToken()
   // Snapshot pre-submit so the walk is robust to any residual requests from a prior run.
-  const idBefore = (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'nextRequestId' })) as bigint
+  const idBefore = (await publicClient.readContract({
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'nextRequestId',
+  })) as bigint
   const escrowBefore = await publicClient.getBalance({ address: REQ })
 
   // ── Requester — submit through the real form ────────────────────────────────
@@ -120,12 +215,29 @@ test('target request: submit via the form, admin register+approve, target goes a
 
   // One submit → id == idBefore + 1 (post-increment).
   await expect
-    .poll(async () => (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'nextRequestId' })) as bigint, { timeout: 20_000 })
+    .poll(
+      async () =>
+        (await publicClient.readContract({
+          address: REQ,
+          abi: REQ_ABI,
+          functionName: 'nextRequestId',
+        })) as bigint,
+      { timeout: 20_000 },
+    )
     .toBeGreaterThan(idBefore)
   const id = idBefore + 1n
 
-  const req = (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'getRequest', args: [id] })) as {
-    requester: Address; token: Address; title: string; deposit: bigint; status: number
+  const req = (await publicClient.readContract({
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'getRequest',
+    args: [id],
+  })) as {
+    requester: Address
+    token: Address
+    title: string
+    deposit: bigint
+    status: number
   }
   expect(req.requester.toLowerCase()).toBe(TEST_ACCOUNT.toLowerCase())
   expect(req.token.toLowerCase()).toBe(TOKEN.toLowerCase())
@@ -138,42 +250,101 @@ test('target request: submit via the form, admin register+approve, target goes a
   await expect(page.getByTestId(`my-request-${id}`)).toContainText('Pending', { timeout: 15_000 })
 
   // ── Admin — register the target (prefilled) + approve, as the ADMIN owner ────
-  const assets = (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'getRequestAssets', args: [id] })) as readonly {
-    token: Address; symbol: string; info: string; metadataURI: string
+  const assets = (await publicClient.readContract({
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'getRequestAssets',
+    args: [id],
+  })) as readonly {
+    token: Address
+    symbol: string
+    info: string
+    metadataURI: string
   }[]
 
   await testClient.impersonateAccount({ address: ADMIN })
 
   const regHash = await adminWallet.writeContract({
-    address: REGISTRY, abi: REGISTRY_ABI, functionName: 'registerAlignmentTarget',
+    address: REGISTRY,
+    abi: REGISTRY_ABI,
+    functionName: 'registerAlignmentTarget',
     args: [req.title, 'an e2e community', 'ipfs://meta', assets.map((a) => ({ ...a })) as never],
-    chain: forkChain, account: ADMIN,
+    chain: forkChain,
+    account: ADMIN,
   })
   const regReceipt = await publicClient.waitForTransactionReceipt({ hash: regHash })
-  const [regEvent] = parseEventLogs({ abi: REGISTRY_ABI, eventName: 'AlignmentTargetRegistered', logs: regReceipt.logs })
+  const [regEvent] = parseEventLogs({
+    abi: REGISTRY_ABI,
+    eventName: 'AlignmentTargetRegistered',
+    logs: regReceipt.logs,
+  })
   const targetId = (regEvent as unknown as { args: { targetId: bigint } }).args.targetId
 
   const approveHash = await adminWallet.writeContract({
-    address: REQ, abi: REQ_ABI, functionName: 'approveRequest', args: [id], chain: forkChain, account: ADMIN,
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'approveRequest',
+    args: [id],
+    chain: forkChain,
+    account: ADMIN,
   })
   await publicClient.waitForTransactionReceipt({ hash: approveHash })
 
   await testClient.stopImpersonatingAccount({ address: ADMIN })
 
   // ── Choke-point end-to-end — the target is now bindable, deposit refunded ────
-  expect(await publicClient.readContract({ address: REGISTRY, abi: REGISTRY_ABI, functionName: 'isAlignmentTargetActive', args: [targetId] })).toBe(true)
-  expect(await publicClient.readContract({ address: REGISTRY, abi: REGISTRY_ABI, functionName: 'isTokenInTarget', args: [targetId, TOKEN] })).toBe(true)
+  expect(
+    await publicClient.readContract({
+      address: REGISTRY,
+      abi: REGISTRY_ABI,
+      functionName: 'isAlignmentTargetActive',
+      args: [targetId],
+    }),
+  ).toBe(true)
+  expect(
+    await publicClient.readContract({
+      address: REGISTRY,
+      abi: REGISTRY_ABI,
+      functionName: 'isTokenInTarget',
+      args: [targetId, TOKEN],
+    }),
+  ).toBe(true)
 
-  const after = (await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'getRequest', args: [id] })) as { deposit: bigint; status: number }
+  const after = (await publicClient.readContract({
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'getRequest',
+    args: [id],
+  })) as { deposit: bigint; status: number }
   expect(after.status).toBe(2) // Approved
   expect(after.deposit).toBe(0n)
   // Pull-payment: the deposit is CREDITED to the requester, still held by the contract until claimed.
-  expect(await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'refunds', args: [TEST_ACCOUNT] })).toBe(deposit)
+  expect(
+    await publicClient.readContract({
+      address: REQ,
+      abi: REQ_ABI,
+      functionName: 'refunds',
+      args: [TEST_ACCOUNT],
+    }),
+  ).toBe(deposit)
   expect(await publicClient.getBalance({ address: REQ })).toBe(escrowBefore + deposit)
 
   // ── Requester claims the refund (withdrawRefund) ────────────────────────────
-  const wHash = await userWallet.writeContract({ address: REQ, abi: REQ_ABI, functionName: 'withdrawRefund', chain: forkChain, account: TEST_ACCOUNT })
+  const wHash = await userWallet.writeContract({
+    address: REQ,
+    abi: REQ_ABI,
+    functionName: 'withdrawRefund',
+    chain: forkChain,
+    account: TEST_ACCOUNT,
+  })
   await publicClient.waitForTransactionReceipt({ hash: wHash })
-  expect(await publicClient.readContract({ address: REQ, abi: REQ_ABI, functionName: 'refunds', args: [TEST_ACCOUNT] })).toBe(0n)
+  expect(
+    await publicClient.readContract({
+      address: REQ,
+      abi: REQ_ABI,
+      functionName: 'refunds',
+      args: [TEST_ACCOUNT],
+    }),
+  ).toBe(0n)
   expect(await publicClient.getBalance({ address: REQ })).toBe(escrowBefore) // escrow drained on claim
 })

@@ -221,7 +221,11 @@ describe('gating config threading', () => {
     const call = buildErc404Create(baseCtx({ gatingConfig: TIER_CONFIG }))
     if (call.type !== 'erc404') throw new Error('unexpected type')
     expect(() =>
-      encodeFunctionData({ abi: erc404FactoryAbi, functionName: 'createInstance', args: call.args }),
+      encodeFunctionData({
+        abi: erc404FactoryAbi,
+        functionName: 'createInstance',
+        args: call.args,
+      }),
     ).not.toThrow()
   })
 })
@@ -279,14 +283,23 @@ describe('metadata config threading', () => {
     const call = buildErc404Create(stackCtx({ gatingConfig: TIER_CONFIG }))
     if (call.type !== 'erc404') throw new Error('unexpected type')
     expect(() =>
-      encodeFunctionData({ abi: erc404FactoryAbi, functionName: 'createInstance', args: call.args }),
+      encodeFunctionData({
+        abi: erc404FactoryAbi,
+        functionName: 'createInstance',
+        args: call.args,
+      }),
     ).not.toThrow()
   })
 
   it('single module, no router → instance points directly at it (no children)', () => {
     const meta = encodeMetadataConfig(
       { tier: TIER },
-      { 'tierIdStarts.0': '1', 'tierIdEnds.0': '3', 'tierMinBalances.0': '1', 'tierBaseURIs.0': 'r-' },
+      {
+        'tierIdStarts.0': '1',
+        'tierIdEnds.0': '3',
+        'tierMinBalances.0': '1',
+        'tierBaseURIs.0': 'r-',
+      },
     )
     const call = buildErc404Create(baseCtx({ metadataConfig: meta }))
     if (call.type !== 'erc404') throw new Error('unexpected type')

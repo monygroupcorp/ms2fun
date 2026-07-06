@@ -40,12 +40,27 @@ const ONLY = (() => {
 const STYLE = 'monochrome, high-contrast black and white, brutalist gallery, grain, no text'
 const MANIFEST = [
   // collection cards / banners
-  ...['neon-drift', 'monolith', 'ghost-mint', 'spectra', 'vault-club', 'gallery-relics',
-      'live-salon', 'ember', 'vapor', 'cinder', 'haze'].map((s) => ({
-    file: `collections/${s}.png`, prompt: `${s} abstract cover art, ${STYLE}`,
+  ...[
+    'neon-drift',
+    'monolith',
+    'ghost-mint',
+    'spectra',
+    'vault-club',
+    'gallery-relics',
+    'live-salon',
+    'ember',
+    'vapor',
+    'cinder',
+    'haze',
+  ].map((s) => ({
+    file: `collections/${s}.png`,
+    prompt: `${s} abstract cover art, ${STYLE}`,
   })),
   // ERC1155 edition heroes (slug-editionId)
-  { file: 'editions/neon-drift-1.png', prompt: `glitched generative fragment, aberration, ${STYLE}` },
+  {
+    file: 'editions/neon-drift-1.png',
+    prompt: `glitched generative fragment, aberration, ${STYLE}`,
+  },
   { file: 'editions/neon-drift-2.png', prompt: `open-edition drift field, ${STYLE}` },
   { file: 'editions/monolith-1.png', prompt: `single black slab monolith, ${STYLE}` },
   { file: 'editions/ghost-mint-1.png', prompt: `faint ghostly signal, fossil layer, ${STYLE}` },
@@ -60,18 +75,27 @@ const MANIFEST = [
   { file: 'pieces/live-salon-2.png', prompt: `salon piece II, ${STYLE}` },
   // ERC404 per-NFT art for the hero bonding collection `vapor` (variety, tokenIds 1..8)
   ...Array.from({ length: 8 }, (_, i) => ({
-    file: `nft/vapor/${i + 1}.png`, prompt: `vapor specimen #${i + 1}, ${STYLE}`,
+    file: `nft/vapor/${i + 1}.png`,
+    prompt: `vapor specimen #${i + 1}, ${STYLE}`,
   })),
   // profile avatars (by handle)
-  ...['ms2labs', 'vela', 'rune', 'mire', 'cael', 'onyx', 'veil', 'ash', 'dusk', 'iris'].map((h) => ({
-    file: `profiles/${h}.png`, prompt: `portrait avatar for ${h}, ${STYLE}`,
-  })),
+  ...['ms2labs', 'vela', 'rune', 'mire', 'cael', 'onyx', 'veil', 'ash', 'dusk', 'iris'].map(
+    (h) => ({
+      file: `profiles/${h}.png`,
+      prompt: `portrait avatar for ${h}, ${STYLE}`,
+    }),
+  ),
 ]
 
 // ── ComfyUI driving ───────────────────────────────────────────────────────────
 
 async function exists(p) {
-  try { await access(p); return true } catch { return false }
+  try {
+    await access(p)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Which seed-like input key a node carries (covers KSampler `seed` + Flux RandomNoise `noise_seed`). */
@@ -114,7 +138,8 @@ async function queuePrompt(wf) {
 
 async function waitForImage(promptId) {
   // Poll /history until the prompt completes; return the first output image descriptor.
-  for (let i = 0; i < 600; i++) { // up to ~5 min at 500ms
+  for (let i = 0; i < 600; i++) {
+    // up to ~5 min at 500ms
     const res = await fetch(`${COMFY_URL}/history/${promptId}`)
     if (res.ok) {
       const hist = await res.json()
@@ -133,7 +158,9 @@ async function waitForImage(promptId) {
 
 async function downloadImage(img, destPath) {
   const q = new URLSearchParams({
-    filename: img.filename, subfolder: img.subfolder ?? '', type: img.type ?? 'output',
+    filename: img.filename,
+    subfolder: img.subfolder ?? '',
+    type: img.type ?? 'output',
   })
   const res = await fetch(`${COMFY_URL}/view?${q}`)
   if (!res.ok) throw new Error(`/view ${res.status}`)
@@ -153,13 +180,19 @@ async function main() {
     console.error('Could not find a CLIPTextEncode prompt node. Set PROMPT_NODE=<id>.')
     process.exit(1)
   }
-  console.log(`ComfyUI ${COMFY_URL} · prompt node ${promptNode}${seedNode ? ` · seed node ${seedNode}` : ''}`)
+  console.log(
+    `ComfyUI ${COMFY_URL} · prompt node ${promptNode}${seedNode ? ` · seed node ${seedNode}` : ''}`,
+  )
 
   const work = MANIFEST.filter((m) => !ONLY || m.file.startsWith(ONLY))
-  let done = 0, skipped = 0
+  let done = 0,
+    skipped = 0
   for (const item of work) {
     const dest = join(OUT_ROOT, item.file)
-    if (!FORCE && (await exists(dest))) { skipped++; continue }
+    if (!FORCE && (await exists(dest))) {
+      skipped++
+      continue
+    }
     // Clone the workflow, inject the prompt + a fresh seed.
     const wf = JSON.parse(JSON.stringify(template))
     wf[promptNode].inputs.text = item.prompt
@@ -178,4 +211,7 @@ async function main() {
   console.log(`\nGenerated ${done}, skipped ${skipped} (existing). Output: ${OUT_ROOT}`)
 }
 
-main().catch((e) => { console.error(e); process.exit(1) })
+main().catch((e) => {
+  console.error(e)
+  process.exit(1)
+})

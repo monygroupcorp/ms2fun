@@ -89,7 +89,9 @@ export function Exec404Activity() {
   return (
     <section className={styles.card} data-testid="exec404-activity">
       <h2 className={styles.title}>Legacy activity</h2>
-      <p className={styles.note}>EXEC&apos;s original on-chain chatter, from the bonding-curve era.</p>
+      <p className={styles.note}>
+        EXEC&apos;s original on-chain chatter, from the bonding-curve era.
+      </p>
 
       {isPending ? (
         <p className={styles.state}>reading the ledger…</p>

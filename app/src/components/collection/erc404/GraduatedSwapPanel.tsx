@@ -52,7 +52,12 @@ interface GraduatedSwapPanelProps {
   refetch: () => void
 }
 
-export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: GraduatedSwapPanelProps) {
+export function GraduatedSwapPanel({
+  instance,
+  venue,
+  decimals,
+  refetch,
+}: GraduatedSwapPanelProps) {
   const { address, isConnected } = useAccount()
   const [direction, setDirection] = useState<Direction>('buy')
   const [amountStr, setAmountStr] = useState('')
@@ -112,7 +117,17 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
     value: buyValue,
     args:
       venue.kind === 'uniV4' && amountIn !== undefined
-        ? [address ?? zeroAddress, false, venue.poolFee, venue.tickSpacing, tokenIn, tokenOut, amountIn, 0n, QUOTE_DEADLINE]
+        ? [
+            address ?? zeroAddress,
+            false,
+            venue.poolFee,
+            venue.tickSpacing,
+            tokenIn,
+            tokenOut,
+            amountIn,
+            0n,
+            QUOTE_DEADLINE,
+          ]
         : undefined,
     query: { enabled: quoteReady && venue.kind === 'uniV4' },
   })
@@ -123,7 +138,18 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
     value: buyValue,
     args:
       venue.kind === 'zamm' && amountIn !== undefined
-        ? [address ?? zeroAddress, false, venue.feeOrHook, tokenIn, tokenOut, 0n, 0n, amountIn, 0n, QUOTE_DEADLINE]
+        ? [
+            address ?? zeroAddress,
+            false,
+            venue.feeOrHook,
+            tokenIn,
+            tokenOut,
+            0n,
+            0n,
+            amountIn,
+            0n,
+            QUOTE_DEADLINE,
+          ]
         : undefined,
     query: { enabled: quoteReady && venue.kind === 'zamm' },
   })
@@ -131,7 +157,9 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
   // swapV4/swapVZ both return (amountIn, amountOut) — index 1 is what the user receives.
   const quoteOut = sim.data?.result?.[1]
   const minOut =
-    quoteOut !== undefined ? (quoteOut * (BPS_DENOMINATOR - slippageBps)) / BPS_DENOMINATOR : undefined
+    quoteOut !== undefined
+      ? (quoteOut * (BPS_DENOMINATOR - slippageBps)) / BPS_DENOMINATOR
+      : undefined
 
   const approve = useWriteErc404BondingInstanceApprove()
   const v4Swap = useWriteZRouterSwapV4()
@@ -161,14 +189,35 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
       v4Swap.writeContract({
         address: zRouter,
         chainId: forkChainId,
-        args: [address ?? zeroAddress, false, venue.poolFee, venue.tickSpacing, tokenIn, tokenOut, amountIn, minOut, deadline()],
+        args: [
+          address ?? zeroAddress,
+          false,
+          venue.poolFee,
+          venue.tickSpacing,
+          tokenIn,
+          tokenOut,
+          amountIn,
+          minOut,
+          deadline(),
+        ],
         value: buyValue,
       })
     } else {
       vzSwap.writeContract({
         address: zRouter,
         chainId: forkChainId,
-        args: [address ?? zeroAddress, false, venue.feeOrHook, tokenIn, tokenOut, 0n, 0n, amountIn, minOut, deadline()],
+        args: [
+          address ?? zeroAddress,
+          false,
+          venue.feeOrHook,
+          tokenIn,
+          tokenOut,
+          0n,
+          0n,
+          amountIn,
+          minOut,
+          deadline(),
+        ],
         value: buyValue,
       })
     }
@@ -196,7 +245,11 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
       <div className={styles.panel} data-testid="erc404-graduated-swap">
         <p className={styles.panelTitle}>trade</p>
         <p className={styles.txStatus}>{isBuy ? 'bought' : 'sold'} — tx confirmed.</p>
-        <button className="btn btn-secondary" onClick={handleReset} data-testid="erc404-graduated-again">
+        <button
+          className="btn btn-secondary"
+          onClick={handleReset}
+          data-testid="erc404-graduated-again"
+        >
           trade again
         </button>
       </div>
@@ -286,9 +339,7 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
 
       <div className={styles.quoteRow} data-testid="erc404-graduated-quote">
         <span className={styles.quoteLabel}>receive</span>
-        <span className={styles.quoteValue}>
-          {sim.isFetching && quoteReady ? '…' : quoteValue}
-        </span>
+        <span className={styles.quoteValue}>{sim.isFetching && quoteReady ? '…' : quoteValue}</span>
       </div>
 
       {needsApproval ? (
@@ -298,7 +349,11 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
           disabled={approve.isPending || isApproving}
           data-testid="erc404-graduated-approve"
         >
-          {approve.isPending ? 'confirm in wallet…' : isApproving ? 'approving…' : `approve ${symbol}`}
+          {approve.isPending
+            ? 'confirm in wallet…'
+            : isApproving
+              ? 'approving…'
+              : `approve ${symbol}`}
         </button>
       ) : (
         <button
@@ -318,7 +373,9 @@ export function GraduatedSwapPanel({ instance, venue, decimals, refetch }: Gradu
       )}
 
       {!isBuy && needsApproval && (
-        <p className={styles.note}>approve {symbol} once so the router can pull it — then the quote + sell unlock.</p>
+        <p className={styles.note}>
+          approve {symbol} once so the router can pull it — then the quote + sell unlock.
+        </p>
       )}
       {quoteError && !swapError && (
         <p className={`${styles.txStatus} ${styles.txError}`}>quote failed: {quoteError}</p>

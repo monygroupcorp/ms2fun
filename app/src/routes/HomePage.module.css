@@ -152,7 +152,9 @@
   border: var(--border-width-thick, 2px) dashed var(--color-border);
   text-decoration: none;
   color: var(--text-secondary);
-  transition: color 0.12s ease, border-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .browseTile:hover {

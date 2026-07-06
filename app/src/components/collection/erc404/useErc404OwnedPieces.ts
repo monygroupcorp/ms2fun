@@ -57,7 +57,14 @@ export function useErc404OwnedPieces(
       const scan = (args: { to: `0x${string}` } | { from: `0x${string}` }) =>
         scanBackward(
           (fromBlock, toBlock) =>
-            client.getContractEvents({ address: mirror, abi: exec404MirrorAbi, eventName: 'Transfer', args, fromBlock, toBlock }),
+            client.getContractEvents({
+              address: mirror,
+              abi: exec404MirrorAbi,
+              eventName: 'Transfer',
+              args,
+              fromBlock,
+              toBlock,
+            }),
           { latest, floor: deployBlock },
         )
 

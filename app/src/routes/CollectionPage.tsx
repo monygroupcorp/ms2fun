@@ -184,15 +184,14 @@ export function CollectionPage() {
                   />
                 </div>
                 <figcaption className={styles.coverCaption}>
-                  Collection cover — scroll for the {card.contractType === 'ERC721' ? 'auction' : 'mintable pieces'} below
+                  Collection cover — scroll for the{' '}
+                  {card.contractType === 'ERC721' ? 'auction' : 'mintable pieces'} below
                 </figcaption>
               </figure>
 
               {/* Primary action stays in the shell (buy/sell for 404, bid for 721). The 1155 has
                   none — minting is per-edition down in the gallery. */}
-              {surfaces?.Primary && (
-                <surfaces.Primary instance={instance} creator={card.creator} />
-              )}
+              {surfaces?.Primary && <surfaces.Primary instance={instance} creator={card.creator} />}
             </section>
           </div>
 
@@ -207,9 +206,7 @@ export function CollectionPage() {
           {/* Holder portfolio: your own pieces + reroll (multiselect keep), above the full gallery.
               Renders with no wrapper — it self-hides (returns null) when disconnected / you hold none,
               so there's no empty spacer; the card owns its own top margin. */}
-          {surfaces?.Portfolio && (
-            <surfaces.Portfolio instance={instance} creator={card.creator} />
-          )}
+          {surfaces?.Portfolio && <surfaces.Portfolio instance={instance} creator={card.creator} />}
 
           {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment).
               Given generous head/tail space so the work breathes before the secondary panels. */}

@@ -51,7 +51,13 @@ export function useAlignmentTargets(): { targets: AlignmentTargetRow[]; isPendin
         metadataURI: string
         active: boolean
       }
-      if (t.active) out.push({ id: t.id, title: t.title, description: t.description, metadataURI: t.metadataURI })
+      if (t.active)
+        out.push({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          metadataURI: t.metadataURI,
+        })
     })
     return out
   }, [data])

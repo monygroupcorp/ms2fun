@@ -34,9 +34,7 @@ function useCarveParams(): { brackets: CarveBrackets; minPoolEth: bigint } {
   })
   const b = bracketsRead.data
   return {
-    brackets: b
-      ? { b1: b.b1, b2: b.b2, r1: b.r1, r2: b.r2, r3: b.r3 }
-      : DEFAULT_CARVE_BRACKETS,
+    brackets: b ? { b1: b.b1, b2: b.b2, r1: b.r1, r2: b.r2, r3: b.r3 } : DEFAULT_CARVE_BRACKETS,
     minPoolEth: minPoolRead.data ?? DEFAULT_MIN_POOL_ETH,
   }
 }

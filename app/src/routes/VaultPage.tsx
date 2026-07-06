@@ -71,7 +71,9 @@ export function VaultPage() {
           {/* Stats */}
           <section className={styles.stats} data-testid="vault-stats">
             <div className={styles.stat}>
-              <span className={styles.statLabel}>{overview.isEndowment ? 'TVL (principal)' : 'Model'}</span>
+              <span className={styles.statLabel}>
+                {overview.isEndowment ? 'TVL (principal)' : 'Model'}
+              </span>
               <span className={styles.statValue}>
                 {overview.isEndowment ? `${eth(overview.totalPrincipal)} ETH` : `${family} pool`}
               </span>
@@ -102,7 +104,11 @@ export function VaultPage() {
                     uri={targetMeta?.image ?? ''}
                     alt={`${overview.target.title} art`}
                     className={styles.targetImg}
-                    fallback={<span className={styles.targetGlyph} aria-hidden>◈</span>}
+                    fallback={
+                      <span className={styles.targetGlyph} aria-hidden>
+                        ◈
+                      </span>
+                    }
                   />
                 </div>
                 <div className={styles.targetBody}>
@@ -128,7 +134,9 @@ export function VaultPage() {
                 {aligned.map((c) => (
                   <li key={c.instance}>
                     <Link href={`/collection/${c.instance}`} className={styles.collRow}>
-                      <span className={styles.collName}>{c.name || truncateAddress(c.instance)}</span>
+                      <span className={styles.collName}>
+                        {c.name || truncateAddress(c.instance)}
+                      </span>
                       <span className={styles.collType}>{c.contractType}</span>
                     </Link>
                   </li>

@@ -128,7 +128,9 @@ export function HomePage() {
         <section className={styles.featured}>
           <div className={styles.featuredHeader}>
             <h2 className={styles.sectionTitle}>Featured</h2>
-            <span className={styles.paidLabel}>· paid placement, labelled — not an endorsement</span>
+            <span className={styles.paidLabel}>
+              · paid placement, labelled — not an endorsement
+            </span>
           </div>
 
           {isPending && (
