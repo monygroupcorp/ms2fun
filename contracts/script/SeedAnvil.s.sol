@@ -30,6 +30,12 @@ interface IAlignmentTargetAdmin {
     function updateAlignmentTarget(uint256 targetId, string memory description, string memory metadataURI) external;
 }
 
+/// @dev Minimal MasterRegistry agent surface — setAgent is onlyOwner (the deployer, pre-handover).
+interface IAgentRegistry {
+    function setAgent(address agent, bool authorized) external;
+    function isAgent(address agent) external view returns (bool);
+}
+
 /// @notice Anvil-only FULL-STATE seed: stands up demoable instances of every project type
 ///         (ERC1155 editions, ERC721 auctions, ERC404 bonding) plus profiles + activity, so the
 ///         discovery cards, trading surfaces, candles, staking, and profile pages all light up with
@@ -51,6 +57,14 @@ contract SeedAnvil is Script {
     // Well-known Anvil account #1 (public test key) — used to seed a second, non-deployer actor.
     uint256 constant ACCOUNT_1_KEY =
         0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+
+    // Agent-delegation demo (pre-testnet confirmation): the AGENT is an authorized delegate that
+    // creates a collection ON BEHALF OF the PERSON, who ends up owning it. Anvil accounts #3 (agent)
+    // and #2 (person) — well-known public test keys.
+    uint256 constant AGENT_KEY =
+        0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
+    address constant AGENT = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // anvil #3
+    address constant PERSON = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC; // anvil #2
 
     // The team's testing wallet. After the deployer finishes all owner-only seeding, ownership of
     // every seeded instance + the platform registries is handed to ADMIN so it can drive the creator
@@ -80,6 +94,7 @@ contract SeedAnvil is Script {
         address overlay;        // MetadataOverlayModule (approved OVERLAY)
         address tier;           // TierRevealModule (approved TIER)
         address alignmentRegistry; // AlignmentRegistryV1 proxy (target curation)
+        address master;         // MasterRegistryV1 proxy (agent authorization; deployer-owned pre-handover)
     }
 
     uint256 deployerKey;
@@ -131,6 +146,9 @@ contract SeedAnvil is Script {
 
         // Give the alignment targets a description + logo (Vaults-page targets section).
         _enrichAlignmentTargets(d);
+
+        // Agent-delegation confirmation: an authorized agent creates a collection FOR a person.
+        _seedAgentDemo(d);
 
         // Hand everything to the team's testing wallet (LAST — after all owner-only seeding).
         _transferAdmin(d);
@@ -190,6 +208,7 @@ contract SeedAnvil is Script {
         d.cypherVault = vm.parseJsonAddress(json, ".contracts.SeedCypherVault");
         d.endowmentVault = vm.parseJsonAddress(json, ".contracts.SeedAaveVault");
         d.alignmentRegistry = vm.parseJsonAddress(json, ".contracts.AlignmentRegistry");
+        d.master = vm.parseJsonAddress(json, ".contracts.MasterRegistry");
     }
 
     /// @dev Enrich the two seeded alignment targets (registered by DeployCore with empty metadataURI)
@@ -206,6 +225,53 @@ contract SeedAnvil is Script {
         reg.updateAlignmentTarget(1, ms2, _collectionMeta("Milady-Station-2", ms2, ART_AVATAR_1));
         reg.updateAlignmentTarget(2, cult, _collectionMeta("Cult-DAO", cult, ART_AVATAR_2));
         vm.stopBroadcast();
+    }
+
+    /// @dev Pre-testnet agent-delegation confirmation, exercised against the REAL MasterRegistryV1:
+    ///      the deployer (registry owner, pre-handover) authorizes AGENT, then AGENT creates an ERC404
+    ///      collection with `owner = PERSON`. The factory's agent-on-behalf path requires the caller to
+    ///      be a registered agent whenever `msg.sender != owner`, and hands a fully PERSON-owned
+    ///      collection back. NOT pushed to `_instances` — PERSON owns it, not ADMIN, which is the point.
+    function _seedAgentDemo(Deployed memory d) internal {
+        // 1. Owner authorizes the agent (deployer still owns MasterRegistry at seed time).
+        vm.startBroadcast(deployerKey);
+        IAgentRegistry(d.master).setAgent(AGENT, true);
+        vm.stopBroadcast();
+
+        // 2. The agent creates a collection FOR the person (owner = PERSON, caller = AGENT).
+        vm.startBroadcast(AGENT_KEY);
+        ERC404Factory.CreateParams memory params = ERC404Factory.CreateParams({
+            salt: keccak256(abi.encode(block.timestamp, "agent-commission")),
+            name: "agent-commission",
+            symbol: "COMM",
+            styleUri: "",
+            tokenBaseURI: "",
+            owner: PERSON,
+            vault: d.vault,
+            nftCount: 10,
+            presetId: 1,
+            stakingModule: address(0)
+        });
+        address instance = d.erc404.createInstance(
+            params,
+            _collectionMeta(
+                "Agent Commission",
+                "Commissioned via an authorized agent on behalf of a collector. The agent created it; the collector owns it.",
+                ART_SLAB
+            ),
+            d.uniDeployer,
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+        );
+        vm.stopBroadcast();
+
+        // 3. Confirm the wiring: the person owns it, and it is flagged agent-created.
+        ERC404BondingInstance inst = ERC404BondingInstance(payable(instance));
+        require(inst.owner() == PERSON, "agent demo: person must own the agent-created collection");
+        require(inst.agentDelegationEnabled(), "agent demo: instance must be flagged agent-created");
+        require(IAgentRegistry(d.master).isAgent(AGENT), "agent demo: agent must be authorized");
+        console.log("Agent-created collection (owned by PERSON):", instance);
+        console.log("  agent:", AGENT, "person:", PERSON);
     }
 
     // ─────────────────────────── Phase A: ERC1155 ───────────────────────────
