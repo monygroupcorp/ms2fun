@@ -1,6 +1,6 @@
 # ADR-0007 — Tiered (rarity-by-ownership) metadata + the resolver-composition model
 
-**Status:** Exploratory 2026-06-25 (Mony). Captures a design exploration; not yet committed to build.
+**Status:** Implemented. Shipped in `TierRevealModule.sol` (rarity-gated conditional reveal + resolver composition).
 **Related:** [ADR-0006](0006-metadata-overlay-module.md) (overlay module — generalized here),
 [ADR-0004](0004-metadata-model.md), `ERC404BondingInstance.sol` (the `_tokenURI` seam, `stake`),
 `ERC404StakingModule.sol` (`stakedBalance`), DN404.sol (id assignment + NFT-burn-on-transfer).

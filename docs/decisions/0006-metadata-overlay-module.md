@@ -1,6 +1,6 @@
 # ADR-0006 — Metadata-overlay module (artist-driven augmentation as an ERC404 availability)
 
-**Status:** Exploratory 2026-06-25 (Mony). Captures a fully-fleshed design exploration; not yet committed to build.
+**Status:** Implemented. Shipped in `MetadataOverlayModule.sol` + `MetadataResolverRouter.sol` (metadata module stacking + composition seam).
 **Amended 2026-06-25** ([ADR-0007](0007-tiered-metadata-and-resolver-composition.md)): the seam is
 generalized from overlay-specific to a generic **`IMetadataResolver`** (`resolve(instance, id, holder)`),
 and the instance holds a generic `modules[METADATA_RESOLVER]` pointer (one keyed slot, not a dedicated
@@ -289,11 +289,10 @@ release event" panel and a holder "pin version / unlock" control.
 - **Requires a new implementation + factory version** to introduce the seam; already-live clones
   (EXEC404, grandfathered) won't have it. Acceptable — EXEC404 is a fossil slice.
 - **Canon authority** = the artist is the sole writer; off-chain like all metadata, not on-chain-verified.
-- **`SPLIT` 80%-leg destination** confirmed as artist (owner) for overlay payments — settle before build.
 - **DN404 owner lookup — VERIFIED (2026-06-25):** `_ownerOf(id)` (DN404.sol:1133, reverts on unminted) and
   `_ownerAt(id)` (line 1124, no check) both exist. Hook uses `_ownerAt`; instance's public `ownerOf` uses
   `_ownerOf`. `RevenueSplitLib.split` shape and `IAlignmentVault.receiveContribution` signature also verified.
 
 ## Out of scope (for now)
-- Build. This ADR is exploratory — it captures the model and the hookup so they don't drift.
+- Build. This ADR captures the implemented model and hookup so they don't drift.
 - ERC1155 / ERC721-auction parity — designed against ERC404 first.
