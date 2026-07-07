@@ -162,4 +162,82 @@ contract RevenueSplitInvariantTest is Test {
         assertEq(s.vaultCut,   0.19 ether);
         assertEq(s.remainder,  0.80 ether);
     }
+
+    // ── splitMintFor (family-aware): liquidity flips creator-80; yield keeps 1/80/19 ─────────
+
+    /// @notice Both family branches conserve value exactly (no wei leaked or minted).
+    function testFuzz_splitMintForConservesValue(uint256 amount, bool liquidityFamily) external pure {
+        amount = bound(amount, 0, MAX_AMOUNT);
+        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, liquidityFamily);
+        assertEq(s.protocolCut + s.vaultCut + s.remainder, amount, "splitMintFor leaks or creates wei");
+    }
+
+    /// @notice Liquidity branch pays the creator the 80% leg (1% protocol / 19% vault / 80% creator).
+    function testFuzz_splitMintForLiquidityFlipsCreator(uint256 amount) external pure {
+        amount = bound(amount, 0, MAX_AMOUNT);
+        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, true);
+        RevenueSplitLib.Split memory graduation = RevenueSplitLib.split(amount);
+        // Liquidity family == split() weights exactly: vault 19%, creator (remainder) 80%.
+        assertEq(s.protocolCut, graduation.protocolCut, "liquidity protocol != split protocol");
+        assertEq(s.vaultCut, graduation.vaultCut, "liquidity vault != 19%");
+        assertEq(s.remainder, graduation.remainder, "liquidity creator != 80%");
+        assertEq(s.vaultCut, (amount * 19) / 100, "liquidity vault != floor(19%)");
+    }
+
+    /// @notice Yield branch is byte-identical to the legacy splitMint (1% / 80% vault / 19% creator).
+    function testFuzz_splitMintForYieldUnchanged(uint256 amount) external pure {
+        amount = bound(amount, 0, MAX_AMOUNT);
+        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, false);
+        RevenueSplitLib.Split memory legacy = RevenueSplitLib.splitMint(amount);
+        assertEq(s.protocolCut, legacy.protocolCut, "yield protocol regressed");
+        assertEq(s.vaultCut, legacy.vaultCut, "yield vault regressed");
+        assertEq(s.remainder, legacy.remainder, "yield creator regressed");
+        assertEq(s.vaultCut, (amount * 80) / 100, "yield vault != floor(80%)");
+    }
+
+    function test_splitMintForOneEther() external pure {
+        RevenueSplitLib.Split memory liq = RevenueSplitLib.splitMintFor(1 ether, true);
+        assertEq(liq.protocolCut, 0.01 ether);
+        assertEq(liq.vaultCut, 0.19 ether);
+        assertEq(liq.remainder, 0.80 ether, "liquidity creator should net 80%");
+
+        RevenueSplitLib.Split memory yld = RevenueSplitLib.splitMintFor(1 ether, false);
+        assertEq(yld.protocolCut, 0.01 ether);
+        assertEq(yld.vaultCut, 0.80 ether);
+        assertEq(yld.remainder, 0.19 ether, "yield creator should net 19%");
+    }
+
+    // ── isLiquidityFamily: classification + loud revert on unknown ───────────────────────────
+
+    function test_isLiquidityFamilyLiquiditySet() external pure {
+        assertTrue(RevenueSplitLib.isLiquidityFamily("UniswapV4LP"), "UniswapV4LP is liquidity");
+        assertTrue(RevenueSplitLib.isLiquidityFamily("ZAMMLP"), "ZAMMLP is liquidity");
+        assertTrue(RevenueSplitLib.isLiquidityFamily("CypherLP"), "CypherLP is liquidity");
+    }
+
+    function test_isLiquidityFamilyYieldSet() external pure {
+        assertFalse(RevenueSplitLib.isLiquidityFamily("AaveEndowment"), "AaveEndowment is yield");
+    }
+
+    /// @dev The internal lib call inlines into the caller; route through an external wrapper so the
+    ///      revert lands a frame below the cheatcode (vm.expectRevert requirement).
+    function classify(string calldata vaultType) external pure returns (bool) {
+        return RevenueSplitLib.isLiquidityFamily(vaultType);
+    }
+
+    function test_isLiquidityFamilyUnknownReverts() external {
+        vm.expectRevert(abi.encodeWithSelector(RevenueSplitLib.UnknownVaultFamily.selector, "MysteryVault"));
+        this.classify("MysteryVault");
+    }
+
+    /// @dev Guards against a near-miss (case/substring) silently passing as a known family.
+    function test_isLiquidityFamilyNearMissReverts() external {
+        vm.expectRevert(abi.encodeWithSelector(RevenueSplitLib.UnknownVaultFamily.selector, "uniswapv4lp"));
+        this.classify("uniswapv4lp");
+    }
+
+    function test_isLiquidityFamilyEmptyReverts() external {
+        vm.expectRevert(abi.encodeWithSelector(RevenueSplitLib.UnknownVaultFamily.selector, ""));
+        this.classify("");
+    }
 }

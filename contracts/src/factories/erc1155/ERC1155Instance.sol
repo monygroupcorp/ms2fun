@@ -488,8 +488,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         if (amount > totalProceeds - totalWithdrawn) revert InsufficientBalance();
         totalWithdrawn += amount;
 
-        // 1/80/19 mint split: 1% protocol / 80% vault (endowment) / 19% creator (ADR-0003)
-        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMint(amount);
+        // Family-aware mint split (ADR-0003): liquidity-family → 1% protocol / 19% vault / 80%
+        // creator; yield-family (endowment) → 1% protocol / 80% vault / 19% creator. Unknown
+        // vaultType reverts (UnknownVaultFamily).
+        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(vault.vaultType());
+        RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, liquidityFamily);
 
         // Protocol cut to treasury
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {

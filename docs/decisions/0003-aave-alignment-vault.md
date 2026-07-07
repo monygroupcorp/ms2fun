@@ -7,6 +7,13 @@ endowment) is now the **Yield family**, one of two vault families; the LP vaults
 **Liquidity family** (`UniswapV4LP` / `ZAMMLP` / `CypherLP`), creator's choice. This ADR's economics
 (principal-deposit + tithe-out) stand unchanged as the Yield family's model — it just no longer
 replaces the LP model. See ADR-0008 for the two-family taxonomy + `vaultType()` grouping.
+**Amended 2026-07-07:** the **mint/bid settlement split is now family-aware**. A collection routes its
+mint proceeds by its vault's family: **Liquidity-family** collections (`UniswapV4LP` / `ZAMMLP` /
+`CypherLP`) pay **creator-heavy** — 1% protocol / 19% vault / **80% creator** (the heavy leg flips to
+the creator, the true cash-now donation case); **Yield-family** (this endowment, `AaveEndowment`)
+keeps the **unchanged** 1% protocol / 80% vault / 19% creator (the 80% is refundable principal). A
+vault whose `vaultType()` is in neither family reverts (deploy-config error, never a silent default).
+The endowment economics below are the Yield-family branch and are byte-unchanged.
 **Supersedes (superseded — see amendment above):** the legacy alignment-vault + Uniswap-LP model
 (RETIRE). **Does NOT touch** the collection's own bonding→DEX LP, which stays (lean kills the LP
 *vault*, not the LP).
