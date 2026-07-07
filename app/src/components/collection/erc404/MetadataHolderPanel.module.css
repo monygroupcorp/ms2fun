@@ -1,0 +1,25 @@
+/* MetadataHolderPanel (noesis-010) — readouts + the pin-version button row. */
+.readout {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.loading {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  padding: var(--padding-sm);
+}
+
+.pins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  justify-content: flex-end;
+}
+
+.error {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--semantic-error);
+  margin: 0;
+}

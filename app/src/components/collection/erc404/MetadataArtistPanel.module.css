@@ -1,0 +1,30 @@
+/* MetadataArtistPanel (noesis-010) — multi-field forms (wave / commission) stacked full-width in the
+   ActionRow control column, mirroring Erc404AdminPanel's .control/.input shapes. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  align-items: flex-end;
+  width: 100%;
+}
+
+.input {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  min-width: 0;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.select {
+  font-family: var(--font-mono);
+  padding: var(--padding-sm);
+  border: 1px solid var(--border-secondary);
+  background: transparent;
+  color: var(--text-primary);
+  width: 100%;
+  max-width: 22rem;
+}
