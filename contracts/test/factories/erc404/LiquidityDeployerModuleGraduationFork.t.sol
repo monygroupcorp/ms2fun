@@ -5,6 +5,7 @@ import { ForkTestBase } from "../../fork/helpers/ForkTestBase.sol";
 import { LiquidityDeployerModule } from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { zRouter } from "../../../src/peripherals/zRouter.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
@@ -54,7 +55,12 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
         // Fresh ERC-20 standing in for a graduating ERC-404 instance's LP tokens. No pre-existing V4
         // pool exists for it — the module initializes one at graduation, so nothing needs seeding.
         token = new MockERC20("Grad Token", "GRAD");
-        module = new LiquidityDeployerModule(UNISWAP_V4_POOL_MANAGER, WETH, FEE, TICK_SPACING);
+        // Registry stub returns registered=true for all — the two graduation cases below invoke the
+        // module directly as the instance (instance == address(this) == msg.sender), so the strict
+        // caller guard passes exactly as a real registered instance would at graduation.
+        module = new LiquidityDeployerModule(
+            UNISWAP_V4_POOL_MANAGER, WETH, FEE, TICK_SPACING, address(new MockMasterRegistry())
+        );
         // Real zRouter (its V4_POOL_MANAGER constant is the mainnet PM) — the exact swap path the UI uses.
         router = new zRouter();
 

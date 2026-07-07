@@ -131,8 +131,18 @@ contract MockMasterRegistry is IMasterRegistry {
         return true; // Always return true in mock for testing
     }
 
-    function isRegisteredInstance(address) external view override returns (bool) {
-        return true; // Always return true in mock for testing
+    // Registered-instance tracking. Default (unset) is registered=true to preserve the historic
+    // always-true mock behavior other suites rely on; callers can force a specific address
+    // unregistered to exercise the deployer caller-guard.
+    mapping(address => bool) private _forcedUnregistered;
+
+    /// @dev TEST HELPER: toggle whether `instance` is treated as a registered instance.
+    function setRegisteredInstance(address instance, bool registered) external {
+        _forcedUnregistered[instance] = !registered;
+    }
+
+    function isRegisteredInstance(address instance) external view override returns (bool) {
+        return !_forcedUnregistered[instance];
     }
 
     function migrateVault(address, address) external override {}
