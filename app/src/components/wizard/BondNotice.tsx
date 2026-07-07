@@ -21,9 +21,9 @@ export function BondNotice() {
     <div className={styles.root} data-testid="wizard-bond-notice">
       <p className={styles.head}>refundable deposit — {formatEther(bondAmount)} ETH</p>
       <p className={styles.note}>
-        Creating this collection escrows a refundable deposit of {formatEther(bondAmount)} ETH on top
-        of any fee. You get it back in full when the collection graduates. It is only forfeited to the
-        protocol treasury if the collection never graduates within the deadline.
+        Creating this collection escrows a refundable deposit of {formatEther(bondAmount)} ETH on
+        top of any fee. You get it back in full when the collection graduates. It is only forfeited
+        to the protocol treasury if the collection never graduates within the deadline.
       </p>
     </div>
   )
