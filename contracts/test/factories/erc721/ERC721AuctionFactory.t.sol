@@ -343,8 +343,10 @@ contract ERC721AuctionFactoryTest is Test {
 
         assertEq(inst.ownerOf(1), bidder1);
 
+        // UniAlignmentVault ("UniswapV4LP") is a liquidity-family vault: the heavy leg flips to the
+        // creator — 1% protocol / 19% vault / 80% creator (family-aware split, ADR-0003).
         uint256 protocolCut = 1 ether / 100;
-        uint256 expectedVaultCut = (1 ether * 80) / 100;
+        uint256 expectedVaultCut = (1 ether * 19) / 100;
         uint256 expectedCreatorCut = 1 ether - protocolCut - expectedVaultCut;
         uint256 expectedCreatorPay = 0.1 ether + expectedCreatorCut;
         assertEq(artist.balance - artistBalBefore, expectedCreatorPay);

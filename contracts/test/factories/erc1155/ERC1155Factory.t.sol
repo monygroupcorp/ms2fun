@@ -525,18 +525,19 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         uint256 creatorBefore = creator.balance;
 
         vm.startPrank(creator);
-        // Withdraw 1 ETH — splitMint: 1% protocol / 80% vault / 19% creator (ADR-0003)
+        // Withdraw 1 ETH — UniAlignmentVault ("UniswapV4LP") is liquidity-family, so the split flips
+        // to 1% protocol / 19% vault / 80% creator (family-aware split, ADR-0003).
         instanceContract.withdraw(1 ether);
         vm.stopPrank();
 
         uint256 amount = 1 ether;
         uint256 expectedProtocol = amount / 100;                   // 1%
-        uint256 expectedVault    = (amount * 80) / 100;            // 80%
-        uint256 expectedCreator  = amount - expectedProtocol - expectedVault; // 19% (absorbs dust)
+        uint256 expectedVault    = (amount * 19) / 100;            // 19%
+        uint256 expectedCreator  = amount - expectedProtocol - expectedVault; // 80% (absorbs dust)
 
         assertEq(treasury.balance - treasuryBefore, expectedProtocol, "protocol cut should be 1%");
-        assertEq(address(vault).balance - vaultBefore, expectedVault, "vault cut should be 80%");
-        assertEq(creator.balance - creatorBefore, expectedCreator, "creator cut should be ~19%");
+        assertEq(address(vault).balance - vaultBefore, expectedVault, "vault cut should be 19%");
+        assertEq(creator.balance - creatorBefore, expectedCreator, "creator cut should be ~80%");
     }
 
     function test_GetMessagesBatch() public {
