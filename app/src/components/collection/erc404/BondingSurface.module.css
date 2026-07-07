@@ -153,7 +153,9 @@
   font-size: var(--font-size-caption);
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: color 0.1s ease, border-color 0.1s ease;
+  transition:
+    color 0.1s ease,
+    border-color 0.1s ease;
 }
 
 .quickfill button:hover:not(:disabled) {

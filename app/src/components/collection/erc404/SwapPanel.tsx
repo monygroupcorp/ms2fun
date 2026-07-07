@@ -93,7 +93,8 @@ export function SwapPanel({
   }
   let sellAmount: bigint | undefined
   try {
-    sellAmount = !isBuy && amountStr.trim() !== '' ? parseUnits(amountStr.trim(), decimals) : undefined
+    sellAmount =
+      !isBuy && amountStr.trim() !== '' ? parseUnits(amountStr.trim(), decimals) : undefined
     if (sellAmount !== undefined && sellAmount <= 0n) sellAmount = undefined
   } catch {
     sellAmount = undefined
@@ -101,10 +102,20 @@ export function SwapPanel({
 
   // Buyable ceiling for the inverse solve (contract's ExceedsBonding guard).
   const unit = useReadErc404BondingInstanceUnit({ address: instance, chainId: forkChainId })
-  const reserveRead = useReadErc404BondingInstanceLiquidityReserve({ address: instance, chainId: forkChainId })
-  const freeMintRead = useReadErc404BondingInstanceFreeMintAllocation({ address: instance, chainId: forkChainId })
+  const reserveRead = useReadErc404BondingInstanceLiquidityReserve({
+    address: instance,
+    chainId: forkChainId,
+  })
+  const freeMintRead = useReadErc404BondingInstanceFreeMintAllocation({
+    address: instance,
+    chainId: forkChainId,
+  })
   let remaining: bigint | undefined
-  if (unit.data !== undefined && reserveRead.data !== undefined && freeMintRead.data !== undefined) {
+  if (
+    unit.data !== undefined &&
+    reserveRead.data !== undefined &&
+    freeMintRead.data !== undefined
+  ) {
     const ceiling = view.maxSupply - reserveRead.data - freeMintRead.data * unit.data
     const r = ceiling - view.totalBondingSupply
     remaining = r > 0n ? r : 0n
@@ -117,12 +128,24 @@ export function SwapPanel({
   // A stable key of everything the solve depends on (curveParams is a fresh array each render, so we
   // can't put it in the dep list directly). Empty string = solve not applicable → clear.
   const solveKey =
-    isBuy && spendWei !== undefined && curveComputer !== undefined && curveParams !== undefined && remaining !== undefined && remaining > 0n
+    isBuy &&
+    spendWei !== undefined &&
+    curveComputer !== undefined &&
+    curveParams !== undefined &&
+    remaining !== undefined &&
+    remaining > 0n
       ? `${spendWei}|${remaining}|${view.totalBondingSupply}|${curveComputer}|${curveParams.join(',')}`
       : ''
 
   useEffect(() => {
-    if (solveKey === '' || !publicClient || spendWei === undefined || curveComputer === undefined || curveParams === undefined || remaining === undefined) {
+    if (
+      solveKey === '' ||
+      !publicClient ||
+      spendWei === undefined ||
+      curveComputer === undefined ||
+      curveParams === undefined ||
+      remaining === undefined
+    ) {
       setResolved(undefined)
       setSolving(false)
       return
@@ -147,10 +170,17 @@ export function SwapPanel({
     // Client-curve seed: at the current marginal price, spend/price is an over-estimate of the amount
     // (price only rises), which brackets the search tightly. Skip if the price reads as 0.
     const price0 = curvePriceAt(curveParamsFromTuple(curveParams), Number(view.totalBondingSupply))
-    const seed = price0 > 0 ? BigInt(Math.floor((Number(spendWei) / 1e18 / price0) * 1e18)) : undefined
+    const seed =
+      price0 > 0 ? BigInt(Math.floor((Number(spendWei) / 1e18 / price0) * 1e18)) : undefined
 
     const timer = setTimeout(() => {
-      solveBuyAmount({ targetSpend: spendWei, maxAmount: remaining, costOf, seed, signal: ctrl.signal })
+      solveBuyAmount({
+        targetSpend: spendWei,
+        maxAmount: remaining,
+        costOf,
+        seed,
+        signal: ctrl.signal,
+      })
         .then((r) => {
           if (!ctrl.signal.aborted) {
             setResolved(r)
@@ -190,7 +220,13 @@ export function SwapPanel({
             sellAmount,
           ]
         : undefined,
-    query: { enabled: !isBuy && sellAmount !== undefined && curveParams !== undefined && curveComputer !== undefined },
+    query: {
+      enabled:
+        !isBuy &&
+        sellAmount !== undefined &&
+        curveParams !== undefined &&
+        curveComputer !== undefined,
+    },
   })
 
   const balance = useReadErc404BondingInstanceBalanceOf({
@@ -248,7 +284,9 @@ export function SwapPanel({
   const hasError = activeWrite.isError
 
   // Whether the action can fire.
-  const canSubmit = isBuy ? resolved !== undefined && !solving : sellAmount !== undefined && refundQuote.data !== undefined
+  const canSubmit = isBuy
+    ? resolved !== undefined && !solving
+    : sellAmount !== undefined && refundQuote.data !== undefined
 
   if (!isConnected) {
     return (
@@ -280,7 +318,8 @@ export function SwapPanel({
       : buyTooSmall
         ? 'spend too small'
         : '—'
-  const sellQuoteValue = refundQuote.data !== undefined ? `${formatEther(refundQuote.data)} ETH` : '—'
+  const sellQuoteValue =
+    refundQuote.data !== undefined ? `${formatEther(refundQuote.data)} ETH` : '—'
 
   return (
     <div className={styles.panel} data-testid="erc404-swap">

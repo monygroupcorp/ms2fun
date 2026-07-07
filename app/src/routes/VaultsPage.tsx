@@ -34,7 +34,11 @@ function TargetCard({ target }: { target: AlignmentTargetRow }) {
           uri={meta?.image ?? ''}
           alt={`${target.title} logo`}
           className={styles.targetImg}
-          fallback={<span className={styles.targetGlyph} aria-hidden>◈</span>}
+          fallback={
+            <span className={styles.targetGlyph} aria-hidden>
+              ◈
+            </span>
+          }
         />
       </div>
       <div className={styles.targetBody}>
@@ -62,8 +66,8 @@ export function VaultsPage() {
       <header className={styles.head}>
         <h1 className={styles.title}>Vaults</h1>
         <p className={styles.sub}>
-          Every collection binds ~20% of its fees to an alignment vault, by contract. Here they are —
-          browse them, read the stats, post about them.
+          Every collection binds ~20% of its fees to an alignment vault, by contract. Here they are
+          — browse them, read the stats, post about them.
         </p>
         <div className={styles.tvl} data-testid="vaults-tvl">
           <span className={styles.tvlLabel}>Endowment TVL</span>
@@ -80,7 +84,9 @@ export function VaultsPage() {
       {targets.length > 0 && (
         <section className={styles.targets} data-testid="alignment-targets">
           <h2 className={styles.sectionTitle}>Alignment targets</h2>
-          <p className={styles.sectionSub}>The communities collections bind to — ~20% of fees flow to these.</p>
+          <p className={styles.sectionSub}>
+            The communities collections bind to — ~20% of fees flow to these.
+          </p>
           <ul className={styles.targetGrid}>
             {targets.map((t) => (
               <TargetCard key={t.id.toString()} target={t} />
@@ -89,7 +95,11 @@ export function VaultsPage() {
         </section>
       )}
 
-      {isPending && <StateBlock variant="loading" boxed>reading the vaults…</StateBlock>}
+      {isPending && (
+        <StateBlock variant="loading" boxed>
+          reading the vaults…
+        </StateBlock>
+      )}
       {isError && (
         <StateBlock variant="error" boxed>
           couldn&apos;t load vaults — is the fork up?

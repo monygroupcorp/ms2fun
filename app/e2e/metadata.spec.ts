@@ -44,15 +44,63 @@ const ZERO32 = `0x${'0'.repeat(64)}` as Hex
 
 // ── ABIs (minimal, hand-written — these modules aren't in the frontend deployment subset) ─────
 const INSTANCE_ABI = [
-  { type: 'function', name: 'modules', stateMutability: 'view', inputs: [{ type: 'bytes32' }], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'unit', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'owner', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
-  { type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'mirrorERC721', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  {
+    type: 'function',
+    name: 'modules',
+    stateMutability: 'view',
+    inputs: [{ type: 'bytes32' }],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'unit',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'owner',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'address' }],
+  },
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'mirrorERC721',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'address' }],
+  },
   // NB: tokenURI lives on the DN404 *mirror* (ERC-721), not the base instance — read it there.
-  { type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'string' }] },
-  { type: 'function', name: 'setBondingOpenTime', stateMutability: 'nonpayable', inputs: [{ type: 'uint256' }], outputs: [] },
-  { type: 'function', name: 'setBondingActive', stateMutability: 'nonpayable', inputs: [{ type: 'bool' }], outputs: [] },
+  {
+    type: 'function',
+    name: 'tokenURI',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }],
+    outputs: [{ type: 'string' }],
+  },
+  {
+    type: 'function',
+    name: 'setBondingOpenTime',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'setBondingActive',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'bool' }],
+    outputs: [],
+  },
   {
     type: 'function',
     name: 'buyBonding',
@@ -70,12 +118,30 @@ const INSTANCE_ABI = [
 ] as const
 
 const ROUTER_ABI = [
-  { type: 'function', name: 'resolverCount', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'resolvers', stateMutability: 'view', inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [{ type: 'address' }] },
+  {
+    type: 'function',
+    name: 'resolverCount',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'resolvers',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }, { type: 'uint256' }],
+    outputs: [{ type: 'address' }],
+  },
 ] as const
 
 const TIER_ABI = [
-  { type: 'function', name: 'tierCount', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'uint256' }] },
+  {
+    type: 'function',
+    name: 'tierCount',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
   {
     type: 'function',
     name: 'tiers',
@@ -92,7 +158,13 @@ const TIER_ABI = [
 ] as const
 
 const OVERLAY_ABI = [
-  { type: 'function', name: 'configured', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'bool' }] },
+  {
+    type: 'function',
+    name: 'configured',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
   {
     type: 'function',
     name: 'setCommission',
@@ -107,14 +179,30 @@ const OVERLAY_ABI = [
     ],
     outputs: [],
   },
-  { type: 'function', name: 'unlock', stateMutability: 'payable', inputs: [{ type: 'address' }, { type: 'uint256' }], outputs: [] },
-  { type: 'function', name: 'select', stateMutability: 'nonpayable', inputs: [{ type: 'address' }, { type: 'uint256' }, { type: 'uint256' }], outputs: [] },
+  {
+    type: 'function',
+    name: 'unlock',
+    stateMutability: 'payable',
+    inputs: [{ type: 'address' }, { type: 'uint256' }],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'select',
+    stateMutability: 'nonpayable',
+    inputs: [{ type: 'address' }, { type: 'uint256' }, { type: 'uint256' }],
+    outputs: [],
+  },
 ] as const
 
 const publicClient = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
 // anvil account #0 is UNLOCKED on the fork → a JSON-RPC (address) account: anvil signs
 // eth_sendTransaction itself, exactly like the injected wallet the UI uses.
-const walletClient = createWalletClient({ account: TEST_ACCOUNT, chain: forkChain, transport: http(ANVIL_RPC) })
+const walletClient = createWalletClient({
+  account: TEST_ACCOUNT,
+  chain: forkChain,
+  transport: http(ANVIL_RPC),
+})
 
 const COMM_PAY = 1
 const PAYOUT_ARTIST = 0
@@ -127,7 +215,12 @@ async function send(hash: Promise<Hex>) {
 }
 
 const tokenURI = (mirror: Address, id: bigint) =>
-  publicClient.readContract({ address: mirror, abi: INSTANCE_ABI, functionName: 'tokenURI', args: [id] })
+  publicClient.readContract({
+    address: mirror,
+    abi: INSTANCE_ABI,
+    functionName: 'tokenURI',
+    args: [id],
+  })
 
 test('metadata stack: wizard-create seals resolver→[overlay,tier], reveal flips with balance, overlay over base @fork', async ({
   page,
@@ -186,7 +279,10 @@ test('metadata stack: wizard-create seals resolver→[overlay,tier], reveal flip
 
   // ── STEP 05 · Alignment — family → venue picker: pick Yield (Aave), then its venue ───
   await page.getByRole('button', { name: /^Yield/ }).click()
-  await page.getByRole('button', { name: /target #/ }).first().click()
+  await page
+    .getByRole('button', { name: /target #/ })
+    .first()
+    .click()
   await page.getByRole('button', { name: /Continue/ }).click()
 
   // ── STEP 06 · Collection page — a name is required to deploy ─────────────────
@@ -200,41 +296,104 @@ test('metadata stack: wizard-create seals resolver→[overlay,tier], reveal flip
 
   // ── Wiring — everything sealed in the ONE create tx ─────────────────────────
   const readResolverSlot = () =>
-    publicClient.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'modules', args: [METADATA_RESOLVER] })
-  await expect.poll(readResolverSlot, { timeout: 15_000 }).not.toBe('0x0000000000000000000000000000000000000000')
+    publicClient.readContract({
+      address: instance,
+      abi: INSTANCE_ABI,
+      functionName: 'modules',
+      args: [METADATA_RESOLVER],
+    })
+  await expect
+    .poll(readResolverSlot, { timeout: 15_000 })
+    .not.toBe('0x0000000000000000000000000000000000000000')
   const router = (await readResolverSlot()) as Address
 
-  expect(await publicClient.readContract({ address: router, abi: ROUTER_ABI, functionName: 'resolverCount', args: [instance] })).toBe(2n)
-  const overlay = (await publicClient.readContract({ address: router, abi: ROUTER_ABI, functionName: 'resolvers', args: [instance, 0n] })) as Address
-  const tier = (await publicClient.readContract({ address: router, abi: ROUTER_ABI, functionName: 'resolvers', args: [instance, 1n] })) as Address
+  expect(
+    await publicClient.readContract({
+      address: router,
+      abi: ROUTER_ABI,
+      functionName: 'resolverCount',
+      args: [instance],
+    }),
+  ).toBe(2n)
+  const overlay = (await publicClient.readContract({
+    address: router,
+    abi: ROUTER_ABI,
+    functionName: 'resolvers',
+    args: [instance, 0n],
+  })) as Address
+  const tier = (await publicClient.readContract({
+    address: router,
+    abi: ROUTER_ABI,
+    functionName: 'resolvers',
+    args: [instance, 1n],
+  })) as Address
 
   // Child 0 is the overlay (has `configured`), child 1 is the tier (has the sealed table) — proves ORDER.
-  expect(await publicClient.readContract({ address: overlay, abi: OVERLAY_ABI, functionName: 'configured', args: [instance] })).toBe(true)
-  expect(await publicClient.readContract({ address: tier, abi: TIER_ABI, functionName: 'tierCount', args: [instance] })).toBe(1n)
-  const row = (await publicClient.readContract({ address: tier, abi: TIER_ABI, functionName: 'tiers', args: [instance, 0n] })) as readonly [
-    bigint,
-    bigint,
-    bigint,
-    string,
-    string,
-  ]
+  expect(
+    await publicClient.readContract({
+      address: overlay,
+      abi: OVERLAY_ABI,
+      functionName: 'configured',
+      args: [instance],
+    }),
+  ).toBe(true)
+  expect(
+    await publicClient.readContract({
+      address: tier,
+      abi: TIER_ABI,
+      functionName: 'tierCount',
+      args: [instance],
+    }),
+  ).toBe(1n)
+  const row = (await publicClient.readContract({
+    address: tier,
+    abi: TIER_ABI,
+    functionName: 'tiers',
+    args: [instance, 0n],
+  })) as readonly [bigint, bigint, bigint, string, string]
   expect(row[0]).toBe(1n) // idStart
   expect(row[1]).toBe(2n) // idEnd
   expect(row[2]).toBe(THRESHOLD) // minBalance survived the number input intact
   expect(row[3]).toBe('rare-') // baseURI
   expect(row[4]).toBe('locked-') // lockedURI
 
-  const unit = (await publicClient.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'unit' })) as bigint
+  const unit = (await publicClient.readContract({
+    address: instance,
+    abi: INSTANCE_ABI,
+    functionName: 'unit',
+  })) as bigint
   expect(THRESHOLD).toBe(2n * unit) // sanity: the threshold we set is exactly 2 units for this preset
 
   // tokenURI (and the metadata seam) is served by the DN404 mirror, not the base instance.
-  const mirror = (await publicClient.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'mirrorERC721' })) as Address
+  const mirror = (await publicClient.readContract({
+    address: instance,
+    abi: INSTANCE_ABI,
+    functionName: 'mirrorERC721',
+  })) as Address
 
   // ── Behaviour — mint tokens through the bonding curve, then read the seam ────
   // Owner (account #0) opens + activates bonding so buyBonding is callable (openTime need not elapse).
   const now = (await publicClient.getBlock()).timestamp
-  await send(walletClient.writeContract({ address: instance, abi: INSTANCE_ABI, functionName: 'setBondingOpenTime', args: [now + 3600n], chain: forkChain, account: TEST_ACCOUNT }))
-  await send(walletClient.writeContract({ address: instance, abi: INSTANCE_ABI, functionName: 'setBondingActive', args: [true], chain: forkChain, account: TEST_ACCOUNT }))
+  await send(
+    walletClient.writeContract({
+      address: instance,
+      abi: INSTANCE_ABI,
+      functionName: 'setBondingOpenTime',
+      args: [now + 3600n],
+      chain: forkChain,
+      account: TEST_ACCOUNT,
+    }),
+  )
+  await send(
+    walletClient.writeContract({
+      address: instance,
+      abi: INSTANCE_ABI,
+      functionName: 'setBondingActive',
+      args: [true],
+      chain: forkChain,
+      account: TEST_ACCOUNT,
+    }),
+  )
 
   const buyOneUnit = () =>
     send(
@@ -252,7 +411,14 @@ test('metadata stack: wizard-create seals resolver→[overlay,tier], reveal flip
 
   // Buy 1 unit → owns id 1, balance 1 unit < 2-unit threshold → tier serves the locked teaser.
   await buyOneUnit()
-  expect(await publicClient.readContract({ address: instance, abi: INSTANCE_ABI, functionName: 'balanceOf', args: [TEST_ACCOUNT] })).toBe(unit)
+  expect(
+    await publicClient.readContract({
+      address: instance,
+      abi: INSTANCE_ABI,
+      functionName: 'balanceOf',
+      args: [TEST_ACCOUNT],
+    }),
+  ).toBe(unit)
   await expect.poll(() => tokenURI(mirror, 1n), { timeout: 15_000 }).toBe('locked-')
 
   // Buy a 2nd unit → balance 2 units ≥ threshold → SAME id 1 flips to the revealed "rare-1".
@@ -275,10 +441,29 @@ test('metadata stack: wizard-create seals resolver→[overlay,tier], reveal flip
       account: TEST_ACCOUNT,
     }),
   )
-  await send(walletClient.writeContract({ address: overlay, abi: OVERLAY_ABI, functionName: 'unlock', args: [instance, 3n], value: parseEther('0.01'), chain: forkChain, account: TEST_ACCOUNT }))
+  await send(
+    walletClient.writeContract({
+      address: overlay,
+      abi: OVERLAY_ABI,
+      functionName: 'unlock',
+      args: [instance, 3n],
+      value: parseEther('0.01'),
+      chain: forkChain,
+      account: TEST_ACCOUNT,
+    }),
+  )
   await expect.poll(() => tokenURI(mirror, 3n), { timeout: 15_000 }).toBe('commission-3')
 
   // Holder pins BASE → overlay declines → tier has nothing for id 3 → falls through to base "3".
-  await send(walletClient.writeContract({ address: overlay, abi: OVERLAY_ABI, functionName: 'select', args: [instance, 3n, SEL_BASE], chain: forkChain, account: TEST_ACCOUNT }))
+  await send(
+    walletClient.writeContract({
+      address: overlay,
+      abi: OVERLAY_ABI,
+      functionName: 'select',
+      args: [instance, 3n, SEL_BASE],
+      chain: forkChain,
+      account: TEST_ACCOUNT,
+    }),
+  )
   await expect.poll(() => tokenURI(mirror, 3n), { timeout: 15_000 }).toBe('3')
 })

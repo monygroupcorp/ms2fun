@@ -44,8 +44,13 @@ export const test = base.extend({
         )
           return null
         const w = window as unknown as { __anvilRpc: (b: string) => Promise<string> }
-        const raw = await w.__anvilRpc(JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params }))
-        const json = JSON.parse(raw) as { result?: unknown; error?: { message: string; code: number } }
+        const raw = await w.__anvilRpc(
+          JSON.stringify({ jsonrpc: '2.0', id: nextId++, method, params }),
+        )
+        const json = JSON.parse(raw) as {
+          result?: unknown
+          error?: { message: string; code: number }
+        }
         if (json.error) {
           const e = new Error(json.error.message) as Error & { code: number }
           e.code = json.error.code

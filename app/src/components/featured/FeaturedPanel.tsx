@@ -158,8 +158,8 @@ export function FeaturedPanel({ instance }: { instance: `0x${string}` }) {
   return (
     <Disclosure summary="FEATURED QUEUE" testId="featured-panel">
       <p className={styles.note}>
-        Featuring puts this collection on the <b>front-page featured row</b> — paid placement, ranked
-        by how much ETH is boosted. Permissionless: anyone can rent a slot or boost the rank.
+        Featuring puts this collection on the <b>front-page featured row</b> — paid placement,
+        ranked by how much ETH is boosted. Permissionless: anyone can rent a slot or boost the rank.
       </p>
       {/* ---- Status ---------------------------------------------------- */}
       <div className={styles.status}>

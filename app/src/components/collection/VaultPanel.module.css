@@ -4,7 +4,9 @@
 /* ---- Stat grid -------------------------------------------- */
 
 .stats {
-  font-family: var(--font-mono); /* the panel now renders inside <Disclosure>; keep mono on content */
+  font-family: var(
+    --font-mono
+  ); /* the panel now renders inside <Disclosure>; keep mono on content */
   display: grid;
   /* Intrinsically responsive — collapses to one column on narrow screens
      without a breakpoint. */

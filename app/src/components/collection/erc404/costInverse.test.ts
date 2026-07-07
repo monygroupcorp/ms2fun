@@ -70,8 +70,12 @@ describe('solveBuyAmount', () => {
   })
 
   it('returns undefined for a non-positive target or ceiling', async () => {
-    expect(await solveBuyAmount({ targetSpend: 0n, maxAmount: 100n, costOf: quadratic })).toBeUndefined()
-    expect(await solveBuyAmount({ targetSpend: 100n, maxAmount: 0n, costOf: quadratic })).toBeUndefined()
+    expect(
+      await solveBuyAmount({ targetSpend: 0n, maxAmount: 100n, costOf: quadratic }),
+    ).toBeUndefined()
+    expect(
+      await solveBuyAmount({ targetSpend: 100n, maxAmount: 0n, costOf: quadratic }),
+    ).toBeUndefined()
   })
 
   it('bails when the signal is already aborted', async () => {

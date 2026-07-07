@@ -130,7 +130,12 @@ export function BondingSurface({ instance }: BondingSurfaceProps) {
           </span>
         </div>
         {embeddable ? (
-          <GraduatedSwapPanel instance={instance} venue={venue} decimals={decimals} refetch={refetch} />
+          <GraduatedSwapPanel
+            instance={instance}
+            venue={venue}
+            decimals={decimals}
+            refetch={refetch}
+          />
         ) : (
           <div>
             <a

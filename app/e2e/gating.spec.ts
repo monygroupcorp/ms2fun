@@ -21,10 +21,22 @@ const forkChain = {
 } as const
 
 const INSTANCE_ABI = [
-  { type: 'function', name: 'gatingModule', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  {
+    type: 'function',
+    name: 'gatingModule',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'address' }],
+  },
 ] as const
 const MODULE_ABI = [
-  { type: 'function', name: 'configured', stateMutability: 'view', inputs: [{ type: 'address' }], outputs: [{ type: 'bool' }] },
+  {
+    type: 'function',
+    name: 'configured',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'bool' }],
+  },
   {
     type: 'function',
     name: 'tierByPasswordHash',
@@ -55,7 +67,9 @@ const configured = async (instance: Address) =>
     args: [instance],
   })
 
-test('gating config: set a tier at create, then replace it from creator admin @fork', async ({ page }) => {
+test('gating config: set a tier at create, then replace it from creator admin @fork', async ({
+  page,
+}) => {
   await page.goto('/launch')
   await connectWallet(page)
 
@@ -78,7 +92,10 @@ test('gating config: set a tier at create, then replace it from creator admin @f
 
   // ── STEP · Alignment — family → venue picker: pick Yield (Aave), then its venue.
   await page.getByRole('button', { name: /^Yield/ }).click()
-  await page.getByRole('button', { name: /target #/ }).first().click()
+  await page
+    .getByRole('button', { name: /target #/ })
+    .first()
+    .click()
   await page.getByRole('button', { name: /Continue/ }).click() // → Collection page
 
   // ── STEP · Collection page — a name is required to deploy.
@@ -97,9 +114,7 @@ test('gating config: set a tier at create, then replace it from creator admin @f
   // ── Edit path: replace the tiers from the creator-admin panel (owner-authored configureFor).
   // Creator-admin (incl. the gating row) now lives in a collapsed CREATOR ADMIN disclosure — open it.
   await page.getByText('CREATOR ADMIN', { exact: true }).click()
-  const gatingRow = page
-    .locator('[class*="row"]')
-    .filter({ has: page.getByText('password tiers') })
+  const gatingRow = page.locator('[class*="row"]').filter({ has: page.getByText('password tiers') })
   await expect(gatingRow.getByRole('button', { name: '+ Add Password' })).toBeVisible({
     timeout: 15_000,
   })

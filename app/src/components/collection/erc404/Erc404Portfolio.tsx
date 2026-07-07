@@ -29,7 +29,10 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
   const { pieces, isPending, refetch } = useErc404OwnedPieces(instance, address)
   const [keep, setKeep] = useState<Set<string>>(new Set())
 
-  const decimalsRead = useReadErc404BondingInstanceDecimals({ address: instance, chainId: forkChainId })
+  const decimalsRead = useReadErc404BondingInstanceDecimals({
+    address: instance,
+    chainId: forkChainId,
+  })
   const decimals = decimalsRead.data ?? DEFAULT_DECIMALS
 
   // Drop keep-selections for ids no longer held (after a reroll/transfer).
@@ -62,7 +65,9 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
   return (
     <section className={styles.card} data-testid="erc404-portfolio">
       <div className={styles.head}>
-        <h2 className={styles.title}>Your pieces {pieces.length > 0 && <span>· {pieces.length}</span>}</h2>
+        <h2 className={styles.title}>
+          Your pieces {pieces.length > 0 && <span>· {pieces.length}</span>}
+        </h2>
         {keptIds.length > 0 && (
           <button type="button" className={styles.clear} onClick={() => setKeep(new Set())}>
             clear selection
@@ -178,8 +183,8 @@ function RerollDropdown({
 
       <div className={styles.rerollBody}>
         <p className={styles.hint}>
-          Re-rolls the NFT ids for the token amount below, keeping the{' '}
-          <b>{keptIds.length}</b> piece{keptIds.length === 1 ? '' : 's'} you selected above
+          Re-rolls the NFT ids for the token amount below, keeping the <b>{keptIds.length}</b> piece
+          {keptIds.length === 1 ? '' : 's'} you selected above
           {keptIds.length > 0 && <> (#{keptIds.map((id) => id.toString()).join(', #')})</>}.
         </p>
 

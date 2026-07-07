@@ -250,7 +250,9 @@ function BidForm({
       <span className={styles.minNote}>min next bid: {formatEther(min)} ETH</span>
       {tooLow && <p className={`${styles.txStatus} ${styles.txError}`}>below the minimum bid</p>}
       {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>{failureReason ?? 'bid failed — try again'}</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>
+          {failureReason ?? 'bid failed — try again'}
+        </p>
       )}
     </div>
   )
@@ -313,7 +315,9 @@ function SettleButton({
         {isPending ? 'confirm in wallet…' : isLoading ? 'settling…' : 'settle auction'}
       </button>
       {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>{failureReason ?? 'settle failed — try again'}</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>
+          {failureReason ?? 'settle failed — try again'}
+        </p>
       )}
     </div>
   )
@@ -376,7 +380,9 @@ function ReclaimButton({
         {isPending ? 'confirm in wallet…' : isLoading ? 'reclaiming…' : 'reclaim unsold'}
       </button>
       {(isError || waitError) && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>{failureReason ?? 'reclaim failed — try again'}</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>
+          {failureReason ?? 'reclaim failed — try again'}
+        </p>
       )}
     </div>
   )

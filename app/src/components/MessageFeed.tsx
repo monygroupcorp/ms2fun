@@ -14,7 +14,12 @@ import { type ReactNode, useMemo, useState } from 'react'
 import { formatEther } from 'viem'
 import { useAccount } from 'wagmi'
 import { truncateAddress } from '../lib/format'
-import { type FeedFilter, type FeedMessage, useMessageFeed, usePostThreshold } from './useMessageFeed'
+import {
+  type FeedFilter,
+  type FeedMessage,
+  useMessageFeed,
+  usePostThreshold,
+} from './useMessageFeed'
 import { reactionFor, threadMessages, visibleThreads } from './threadMessages'
 import { ReplyComposer } from './ReplyComposer'
 import { ReactButton } from './ReactButton'

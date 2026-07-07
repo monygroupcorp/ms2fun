@@ -23,7 +23,11 @@ export function Disclosure({
   // Spread `open` only when starting expanded, so the element stays uncontrolled
   // (toggles freely) in the common collapsed case.
   return (
-    <details className={styles.disclosure} data-testid={testId} {...(defaultOpen ? { open: true } : {})}>
+    <details
+      className={styles.disclosure}
+      data-testid={testId}
+      {...(defaultOpen ? { open: true } : {})}
+    >
       <summary className={styles.summary}>{summary}</summary>
       <div className={styles.content}>{children}</div>
     </details>

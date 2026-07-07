@@ -41,6 +41,8 @@ describe('txErrorReason', () => {
     expect(txErrorReason({ shortMessage: 'Chain mismatch: expected 1337' })).toBe(
       'Chain mismatch: expected 1337',
     )
-    expect(txErrorReason({ message: 'User rejected the request.' })).toBe('User rejected the request.')
+    expect(txErrorReason({ message: 'User rejected the request.' })).toBe(
+      'User rejected the request.',
+    )
   })
 })

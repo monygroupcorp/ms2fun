@@ -45,9 +45,21 @@ type Surface = ComponentType<Erc1155SurfaceProps>
 export function resolveCollectionSurfaces(contractType: string): CollectionSurfaces {
   switch (contractType) {
     case 'ERC1155':
-      return { Primary: Erc1155Primary as Surface, Charts: null, Portfolio: null, Gallery: Erc1155Gallery, Admin: Erc1155Admin }
+      return {
+        Primary: Erc1155Primary as Surface,
+        Charts: null,
+        Portfolio: null,
+        Gallery: Erc1155Gallery,
+        Admin: Erc1155Admin,
+      }
     case 'ERC721':
-      return { Primary: Erc721Primary, Charts: null, Portfolio: null, Gallery: Erc721Gallery, Admin: Erc721Admin }
+      return {
+        Primary: Erc721Primary,
+        Charts: null,
+        Portfolio: null,
+        Gallery: Erc721Gallery,
+        Admin: Erc721Admin,
+      }
     case 'ERC404':
       return {
         Primary: Erc404Primary,

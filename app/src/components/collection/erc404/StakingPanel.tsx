@@ -44,14 +44,8 @@ function parseAmount(input: string, decimals: number): bigint | undefined {
 }
 
 export function StakingPanel({ instance, decimals }: StakingPanelProps) {
-  const {
-    stakingActive,
-    tokenBalance,
-    userStaked,
-    globalTotalStaked,
-    pendingRewards,
-    refetch,
-  } = useStaking(instance)
+  const { stakingActive, tokenBalance, userStaked, globalTotalStaked, pendingRewards, refetch } =
+    useStaking(instance)
 
   const [stakeStr, setStakeStr] = useState('')
   const [unstakeStr, setUnstakeStr] = useState('')

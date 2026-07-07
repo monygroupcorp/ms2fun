@@ -49,8 +49,8 @@ export function RequestTargetPage() {
         <h1 className={styles.title}>Request an alignment target</h1>
         <p className={styles.sub}>
           Propose a community + its token for the curated alignment registry. Submitting takes a
-          refundable deposit — it comes back when an admin approves your request, and is only kept if
-          it&apos;s rejected as spam.
+          refundable deposit — it comes back when an admin approves your request, and is only kept
+          if it&apos;s rejected as spam.
         </p>
       </header>
       <RequestForm />
@@ -103,7 +103,13 @@ function RequestForm() {
       address: REQUEST_REGISTRY,
       abi: alignmentTargetRequestRegistryAbi,
       functionName: 'submitRequest',
-      args: [token.trim() as `0x${string}`, title.trim(), description.trim(), metadataURI.trim(), toContractAssets(assets)],
+      args: [
+        token.trim() as `0x${string}`,
+        title.trim(),
+        description.trim(),
+        metadataURI.trim(),
+        toContractAssets(assets),
+      ],
       value: requestDeposit,
       chainId: forkChainId,
     })
@@ -329,7 +335,8 @@ function ClaimRefund() {
   return (
     <div className={styles.claim} data-testid="claim-refund">
       <span>
-        <b>{formatEther(owed)} ETH</b> refund available — from an approved, rejected, or expired request.
+        <b>{formatEther(owed)} ETH</b> refund available — from an approved, rejected, or expired
+        request.
       </span>
       <TxButton
         state={tx.state}
@@ -363,7 +370,9 @@ function MyRequests() {
           connect your wallet to see your requests.
         </StateBlock>
       )}
-      {isConnected && isPending && <StateBlock variant="loading">loading your requests…</StateBlock>}
+      {isConnected && isPending && (
+        <StateBlock variant="loading">loading your requests…</StateBlock>
+      )}
       {isConnected && isError && (
         <StateBlock variant="error">couldn&apos;t load your requests — is the fork up?</StateBlock>
       )}
