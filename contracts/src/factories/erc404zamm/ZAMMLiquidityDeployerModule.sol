@@ -6,6 +6,7 @@ import {IERC20} from "../../shared/interfaces/IERC20.sol";
 import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
+import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
 import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
@@ -38,16 +39,20 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error ETHMismatch();
     error NoETHForPool();
     error NoTokensForPool();
+    /// @dev Caller is not the genuine, registered ERC404 instance named in p.instance.
+    error UnauthorizedCaller();
 
     address public immutable zamm;
     uint256 public immutable feeOrHook;
+    IMasterRegistry public immutable masterRegistry;
 
     string private _metadataURI;
 
     // slither-disable-next-line missing-zero-check
-    constructor(address _zamm, uint256 _feeOrHook) {
+    constructor(address _zamm, uint256 _feeOrHook, address _masterRegistry) {
         zamm = _zamm;
         feeOrHook = _feeOrHook;
+        masterRegistry = IMasterRegistry(_masterRegistry);
         _initializeOwner(msg.sender);
     }
 
@@ -75,6 +80,12 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
      */
     // slither-disable-next-line reentrancy-events
     function deployLiquidity(DeployParams calldata p) external payable override {
+        // Strict caller guard: only a genuine, registered ERC404 instance acting as itself may
+        // deploy liquidity. For ERC404, instance == token, and the instance is the msg.sender at
+        // graduation. Blocks arbitrary callers passing a crafted DeployParams.
+        if (msg.sender != p.instance || !masterRegistry.isRegisteredInstance(msg.sender)) {
+            revert UnauthorizedCaller();
+        }
         if (msg.value != p.ethReserve) revert ETHMismatch();
         PoolResult memory r = _deployPool(p);
         _payFees(p, r);
