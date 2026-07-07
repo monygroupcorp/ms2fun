@@ -169,7 +169,8 @@ contract SeedSepolia is Script {
             V4_POOL_MANAGER,
             WETH,
             POOL_FEE,
-            POOL_TICK_SPACING
+            POOL_TICK_SPACING,
+            address(MASTER_REGISTRY)
         );
         liquidityDeployerModule.setMetadataURI(
             "data:application/json,{\"name\":\"Uniswap V4 Deployer\",\"subtitle\":\"Uniswap V4 \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to a Uniswap V4 pool. Swap fees compound directly into the pool, deepening liquidity over time.\",\"configType\":\"launch-profile\"}"

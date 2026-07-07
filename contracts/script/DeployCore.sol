@@ -463,7 +463,7 @@ contract DeployCore is Script {
         // approved for the wizard without a live venue). Real modules carry their own metadataURI().
         if (cfg.v4PoolManager != address(0) && cfg.weth != address(0)) {
             LiquidityDeployerModule uniMod =
-                new LiquidityDeployerModule(cfg.v4PoolManager, cfg.weth, cfg.zrouterFee, cfg.zrouterTickSpacing);
+                new LiquidityDeployerModule(cfg.v4PoolManager, cfg.weth, cfg.zrouterFee, cfg.zrouterTickSpacing, masterRegistry);
             uniMod.setMetadataURI(uniV4Meta);
             moduleUniV4Deployer = address(uniMod);
         } else {
@@ -473,7 +473,7 @@ contract DeployCore is Script {
 
         if (cfg.zamm != address(0)) {
             ZAMMLiquidityDeployerModule zammMod =
-                new ZAMMLiquidityDeployerModule(cfg.zamm, cfg.zammFeeOrHook);
+                new ZAMMLiquidityDeployerModule(cfg.zamm, cfg.zammFeeOrHook, masterRegistry);
             zammMod.setMetadataURI(zammMeta);
             moduleZAMMDeployer = address(zammMod);
         } else {

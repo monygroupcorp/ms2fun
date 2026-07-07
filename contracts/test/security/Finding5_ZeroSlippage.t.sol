@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {ZAMMLiquidityDeployerModule} from "../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
 import {ILiquidityDeployerModule} from "../../src/interfaces/ILiquidityDeployerModule.sol";
 import {MockEXECToken} from "../mocks/MockEXECToken.sol";
+import {MockMasterRegistry} from "../mocks/MockMasterRegistry.sol";
 /// @notice Minimal vault stub that accepts ETH contributions (used in Finding 5)
 contract AcceptingVaultStub {
     receive() external payable {}
@@ -61,7 +62,7 @@ contract Finding5_ZeroSlippageGraduationTest is Test {
         strictZamm = new StrictSlippageZAMM();
         vm.deal(address(strictZamm), 100 ether);
 
-        deployer = new ZAMMLiquidityDeployerModule(address(strictZamm), 30);
+        deployer = new ZAMMLiquidityDeployerModule(address(strictZamm), 30, address(new MockMasterRegistry()));
         vm.deal(treasury, 10 ether);
     }
 
