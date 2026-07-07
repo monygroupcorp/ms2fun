@@ -12,7 +12,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'wouter'
 import { formatEther } from 'viem'
-import { usePublicClient } from 'wagmi'
+import { useAccount, usePublicClient } from 'wagmi'
 import {
   erc721AuctionInstanceAbi,
   useReadErc404BondingInstanceMirrorErc721,
@@ -23,6 +23,7 @@ import { useAuctions, type ActiveAuction } from '../components/collection/erc721
 import { useBidHistory } from '../components/collection/erc721/useBidHistory'
 import { useNowSec } from '../components/collection/erc721/useNowSec'
 import { deriveAuctionState } from '../components/collection/erc721/auctionState'
+import { MetadataHolderPanel } from '../components/collection/erc404/MetadataHolderPanel'
 import { useOwnerGate } from '../components/ui/useOwnerGate'
 import { forkChainId } from '../lib/addresses'
 import { fetchJson } from '../lib/metadata'
@@ -171,6 +172,7 @@ function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {
 
 function Erc404Token({ instance, id, collectionName, creator, vaultName }: TokenProps) {
   const client = usePublicClient({ chainId: forkChainId })
+  const { address: connected } = useAccount()
   const { data: mirror } = useReadErc404BondingInstanceMirrorErc721({
     address: instance,
     chainId: forkChainId,
@@ -232,6 +234,12 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
           <AlignmentLine vaultName={vaultName} />
         </div>
       </div>
+
+      {/* noesis-010: holder-side metadata controls (unlock / pin) — only for the connected wallet
+          that owns THIS token; self-hides when the collection has no overlay module wired. */}
+      {connected && data?.owner && connected.toLowerCase() === data.owner.toLowerCase() && (
+        <MetadataHolderPanel instance={instance} id={id} holder={connected} />
+      )}
     </article>
   )
 }
