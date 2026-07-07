@@ -53,6 +53,12 @@ export interface CreateContext {
    * factory's gated `createInstance` overload. Omitted / empty (no passwordHashes) → the legacy
    * overload is used and the instance is open/unconfigured.
    */
+  /**
+   * Refundable creator deploy-bond (N12) to escrow at create, in wei. The ERC404 factory requires
+   * `msg.value >= bondAmount` when the lever is ON and forwards the excess to the treasury. Omitted /
+   * 0 → lever OFF → create sends no bond (today's behavior). Only the ERC404 builder consumes it.
+   */
+  bondAmount?: bigint
   gatingConfig?: TierConfigValue
   /**
    * Optional metadata-resolution stack (ADR-0006/0007), applied to the ERC404 instance in the SAME
@@ -186,7 +192,9 @@ export function buildErc404Create(c: CreateContext): CreateCall {
   } else {
     args = (cfg ? [...head, cfg] : [...head]) as Erc404Args
   }
-  return { type: 'erc404', factory: 'ERC404Factory', args, value: 0n }
+  // Lever ON (bondAmount > 0) → send the bond as msg.value; the factory escrows it and forwards any
+  // excess to the treasury. Lever OFF → 0n, byte-identical to today's create.
+  return { type: 'erc404', factory: 'ERC404Factory', args, value: c.bondAmount ?? 0n }
 }
 
 /** Dispatch by project type to the matching factory builder. */

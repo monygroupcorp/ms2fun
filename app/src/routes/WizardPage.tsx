@@ -22,7 +22,10 @@ import {
   type VaultFamily,
 } from '../lib/wizard'
 import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
+import { useReadDeployBondEscrowBondAmount } from '../generated/contracts'
+import { forkAddresses, forkChainId } from '../lib/addresses'
 import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
+import { BondNotice } from '../components/wizard/BondNotice'
 import { SchemaForm } from '../components/wizard/SchemaForm'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
@@ -127,6 +130,11 @@ export function WizardPage() {
 
   const submit = useCreateSubmit()
   const vaults = useRegisteredVaults()
+  // Live deploy-bond (N12). 0 while the lever is OFF → create sends no bond (today's behavior).
+  const { data: deployBondAmount } = useReadDeployBondEscrowBondAmount({
+    address: forkAddresses.DeployBondEscrow,
+    chainId: forkChainId,
+  })
 
   // Redirect to the new collection once the InstanceCreated event is mined.
   useEffect(() => {
@@ -220,6 +228,8 @@ export function WizardPage() {
         metadataURI: collectionToDataUri(metadata),
         salt,
         modules: selected,
+        // Only ERC404 charges a bond; the other builders ignore this field.
+        ...(typeKey === 'erc404' && deployBondAmount ? { bondAmount: deployBondAmount } : {}),
         ...(gatingConfig ? { gatingConfig } : {}),
         ...(metadataConfig ? { metadataConfig } : {}),
       }),
@@ -384,6 +394,7 @@ export function WizardPage() {
               {typeKey === 'erc404' && (
                 <CarveDisclosure declaredValue={values['declaredMaxAllowanceBps']} />
               )}
+              {typeKey === 'erc404' && <BondNotice />}
             </div>
           </div>
         )

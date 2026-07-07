@@ -57,7 +57,8 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         CREATION_FEE,
         QUEUE_REVENUE,
         OTHER,
-        POL_FEES
+        POL_FEES,
+        BOND_FORFEIT
     }
 
     mapping(Source => uint256) public totalReceived;

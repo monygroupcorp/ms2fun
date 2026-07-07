@@ -25,6 +25,7 @@ import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 import {IHooks} from "v4-core/interfaces/IHooks.sol";
 import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
+import {DeployBondEscrow} from "../src/factories/erc404/DeployBondEscrow.sol";
 import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
 import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
 import {CurveParamsComputer} from "../src/factories/erc404/CurveParamsComputer.sol";
@@ -151,6 +152,7 @@ contract DeployCore is Script {
 
     // Project factories
     ERC404Factory public erc404Factory;
+    DeployBondEscrow public deployBondEscrow;
     ERC404BondingInstance public erc404Impl;
     LaunchManager public launchManager;
     CurveParamsComputer public curveParamsComputer;
@@ -398,6 +400,12 @@ contract DeployCore is Script {
         );
         erc404Factory.setProtocolTreasury(address(treasury));
 
+        // Deploy-bond escrow (N12) — standalone, holds the bond ETH so the factory keeps its
+        // "holds no ETH" invariant. Owner = deployer (handed to ADMIN via the deploy.ts handover).
+        // Lever ships OFF (bondAmount defaults 0) → create is byte-identical to today.
+        deployBondEscrow = new DeployBondEscrow(deployer, address(erc404Factory), address(treasury));
+        erc404Factory.setDeployBondEscrow(address(deployBondEscrow));
+
         // CurveParamsComputer must be approved — _deployAndInitialize checks isApprovedComponent(preset.curveComputer)
         componentRegistry.approveComponent(
             address(curveParamsComputer), bytes32("curve_computer"), "CurveParamsComputer"
@@ -573,6 +581,7 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "MetadataResolverRouter",     address(metadataResolverRouter));
         vm.serializeAddress(c, "MetadataOverlayModule",      address(metadataOverlayModule));
         vm.serializeAddress(c, "TierRevealModule",           address(tierRevealModule));
+        vm.serializeAddress(c, "DeployBondEscrow",           address(deployBondEscrow));
         // Convenience pointers for the seed script — the first Uni LP vault and the first Aave
         // endowment vault, resolved by family rather than by a fragile index into the `vaults`
         // array (whose ordering shifts as LP families are enabled/disabled per network).

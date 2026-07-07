@@ -12,16 +12,19 @@
 import { useState } from 'react'
 import { formatEther } from 'viem'
 import {
+  deployBondEscrowAbi,
   erc404BondingInstanceAbi,
+  useReadDeployBondEscrowBonds,
   useReadErc404BondingInstanceAgentDelegationEnabled,
   useReadErc404BondingInstanceBondingActive,
   useReadErc404BondingInstanceBondingMaturityTime,
   useReadErc404BondingInstanceBondingOpenTime,
   useReadErc404BondingInstanceDeclaredMaxAllowanceBps,
+  useReadErc404BondingInstanceGraduated,
   useReadErc404BondingInstancePreviewCarve,
   useReadErc404BondingInstanceStakingActive,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { forkAddresses, forkChainId } from '../../../lib/addresses'
 import { parseBps } from '../../../lib/carve'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { Disclosure } from '../../ui/Disclosure'
@@ -87,6 +90,7 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         />
         <ActivateStakingRow instance={instance} />
         <DeployLiquidityRow instance={instance} />
+        <BondStatusRow instance={instance} />
         <ConfigureGatingRow instance={instance} />
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
@@ -399,6 +403,67 @@ function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
           onReset={tx.reset}
           className="btn btn-primary btn-chromatic"
           testId="erc404-admin-deploy-liquidity"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── deploy bond (N12): status + reclaim on graduation ──────────────────────────
+// The bond is escrowed at create (when the lever is on) and refunded in full once the collection
+// graduates. `refund` is permissionless on-chain, but it always pays the recorded creator, so we
+// surface it here in the creator panel. Renders nothing when no bond was posted for this instance.
+
+function BondStatusRow({ instance }: { instance: `0x${string}` }) {
+  const { data: bond, refetch } = useReadDeployBondEscrowBonds({
+    address: forkAddresses.DeployBondEscrow,
+    chainId: forkChainId,
+    args: [instance],
+  })
+  const { data: graduated } = useReadErc404BondingInstanceGraduated({
+    address: instance,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({ onSuccess: () => void refetch() })
+
+  // bonds(instance) tuple: [creator, amount, createdAt, settled]
+  const amount = bond?.[1] ?? 0n
+  const createdAt = bond?.[2] ?? 0
+  const settled = bond?.[3] ?? false
+  if (createdAt === 0) return null // no bond posted for this collection → hide the row
+
+  const canReclaim = amount > 0n && !settled && graduated === true
+  const status = settled
+    ? 'reclaimed / settled'
+    : graduated
+      ? 'ready to reclaim'
+      : 'held until graduation'
+
+  return (
+    <ActionRow
+      label="deploy deposit"
+      hint={`refundable creator bond escrowed at create — ${formatEther(
+        amount,
+      )} ETH · ${status}. Returned in full on graduation.`}
+    >
+      <div className={styles.control}>
+        <TxButton
+          state={tx.state}
+          onClick={() =>
+            tx.send({
+              address: forkAddresses.DeployBondEscrow,
+              abi: deployBondEscrowAbi,
+              functionName: 'refund',
+              args: [instance],
+              chainId: forkChainId,
+            })
+          }
+          label="reclaim deposit"
+          successLabel="deposit reclaimed — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canReclaim}
+          errorText="reclaim failed — try again"
+          testId="erc404-admin-reclaim-bond"
         />
       </div>
     </ActionRow>

@@ -25,10 +25,14 @@
 import { useState } from 'react'
 import { formatEther } from 'viem'
 import {
+  deployBondEscrowAbi,
   erc404FactoryAbi,
   featuredQueueManagerAbi,
   globalMessageRegistryAbi,
   masterRegistryV1Abi,
+  useReadDeployBondEscrowBondAmount,
+  useReadDeployBondEscrowGraceDays,
+  useReadDeployBondEscrowMaxBondDuration,
   useReadErc404FactoryCarveBracketParams,
   useReadErc404FactoryMinPoolEth,
   useReadGlobalMessageRegistryPostThreshold,
@@ -52,6 +56,7 @@ export function PlatformConfigPanel() {
       <AgentsSection />
       <MessageBoardSection />
       <CarveEconomicsSection />
+      <DeployBondSection />
     </div>
   )
 }
@@ -697,6 +702,193 @@ function CarveBracketsRow() {
           disabled={!canSubmit}
           errorText="set failed — try again"
           testId="admin-set-carve-brackets"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+// ── Section 5: Deploy-bond config (DeployBondEscrow, N12) ────────────────────────
+// Refundable creator bond posted at instance-create: refunded on graduation, forfeited to the
+// treasury if the collection never graduates within the deadline. bondAmount 0 = lever OFF.
+
+function DeployBondSection() {
+  const { isOwner } = useOwnerGate(forkAddresses.DeployBondEscrow)
+  if (!isOwner) return null
+
+  return (
+    <AdminSection title="deploy-bond config (erc404)" testId="admin-deploy-bond">
+      <BondAmountRow />
+      <GraceDaysRow />
+      <MaxBondDurationRow />
+    </AdminSection>
+  )
+}
+
+function BondAmountRow() {
+  const [amount, setAmount] = useState('')
+  const { data: current, refetch } = useReadDeployBondEscrowBondAmount({
+    address: forkAddresses.DeployBondEscrow,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setAmount('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(amount) // ETH → wei
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="creator bond"
+      hint={`refundable deposit charged at create, returned on graduation. 0 = lever off (create unchanged). current: ${
+        current !== undefined ? formatEther(current) : '…'
+      } ETH`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={amount}
+          onChange={setAmount}
+          placeholder="0"
+          unit="ETH"
+          disabled={tx.isBusy}
+          ariaLabel="creator bond amount in ETH"
+          testId="admin-bond-amount-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: forkAddresses.DeployBondEscrow,
+              abi: deployBondEscrowAbi,
+              functionName: 'setBondAmount',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set bond"
+          successLabel="bond set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-bond-amount"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+function GraceDaysRow() {
+  const [days, setDays] = useState('')
+  const { data: current, refetch } = useReadDeployBondEscrowGraceDays({
+    address: forkAddresses.DeployBondEscrow,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setDays('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(days, 0) // raw uint (day count)
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="grace period"
+      hint={`extra days after the forfeit deadline before a bond can be forfeited. current: ${
+        current !== undefined ? current.toString() : '…'
+      } days`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={days}
+          onChange={setDays}
+          placeholder="30"
+          unit="days"
+          disabled={tx.isBusy}
+          ariaLabel="bond grace period in days"
+          testId="admin-grace-days-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: forkAddresses.DeployBondEscrow,
+              abi: deployBondEscrowAbi,
+              functionName: 'setGraceDays',
+              args: [value],
+              chainId: forkChainId,
+            })
+          }}
+          label="set grace"
+          className="btn btn-secondary"
+          successLabel="grace period set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-grace-days"
+        />
+      </div>
+    </ActionRow>
+  )
+}
+
+function MaxBondDurationRow() {
+  const [days, setDays] = useState('')
+  const { data: current, refetch } = useReadDeployBondEscrowMaxBondDuration({
+    address: forkAddresses.DeployBondEscrow,
+    chainId: forkChainId,
+  })
+  const tx = useTxAction({
+    onSuccess: () => {
+      setDays('')
+      void refetch()
+    },
+  })
+  const value = parseAmount(days, 0) // entered as DAYS → seconds
+  const canSubmit = value !== undefined
+
+  return (
+    <ActionRow
+      label="max bond duration"
+      hint={`hard cap on how long a bond sits before it becomes forfeitable, even with no bonding maturity. current: ${
+        current !== undefined ? (current / SECONDS_PER_DAY).toString() : '…'
+      } days`}
+    >
+      <div className={styles.form}>
+        <AmountField
+          value={days}
+          onChange={setDays}
+          placeholder="180"
+          unit="days"
+          disabled={tx.isBusy}
+          ariaLabel="max bond duration in days"
+          testId="admin-max-bond-duration-input"
+        />
+        <TxButton
+          state={tx.state}
+          onClick={() => {
+            if (value === undefined) return
+            tx.send({
+              address: forkAddresses.DeployBondEscrow,
+              abi: deployBondEscrowAbi,
+              functionName: 'setMaxBondDuration',
+              args: [value * SECONDS_PER_DAY],
+              chainId: forkChainId,
+            })
+          }}
+          label="set max duration"
+          className="btn btn-secondary"
+          successLabel="max duration set — tx confirmed."
+          onReset={tx.reset}
+          disabled={!canSubmit}
+          errorText="set failed — try again"
+          testId="admin-set-max-bond-duration"
         />
       </div>
     </ActionRow>
