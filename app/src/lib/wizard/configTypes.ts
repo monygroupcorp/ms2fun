@@ -145,7 +145,11 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         kind: 'select',
         default: '0',
         options: [
-          { value: '0', label: 'Artist', description: 'Commission revenue goes entirely to the artist' },
+          {
+            value: '0',
+            label: 'Artist',
+            description: 'Commission revenue goes entirely to the artist',
+          },
           {
             value: '1',
             label: 'Split',

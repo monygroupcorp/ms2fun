@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
-import { globalMessageRegistryAbi, useReadGlobalMessageRegistryPostThreshold } from '../generated/contracts'
+import {
+  globalMessageRegistryAbi,
+  useReadGlobalMessageRegistryPostThreshold,
+} from '../generated/contracts'
 import { deployBlock, forkAddresses, forkChainId } from '../lib/addresses'
 import { scanBackward } from '../lib/logScan'
 
@@ -83,7 +86,15 @@ export function useMessageFeed(filter: FeedFilter): {
         ) {
           continue
         }
-        messages.push({ messageId, instance, sender, messageType, refId, value: value ?? 0n, content })
+        messages.push({
+          messageId,
+          instance,
+          sender,
+          messageType,
+          refId,
+          value: value ?? 0n,
+          content,
+        })
       }
 
       // Newest first — sort by messageId descending

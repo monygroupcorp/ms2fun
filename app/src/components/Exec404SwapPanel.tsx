@@ -96,7 +96,9 @@ export function Exec404SwapPanel() {
   })
   const quoteOut = sim.data?.result?.[1]
   const minOut =
-    quoteOut !== undefined ? (quoteOut * (BPS_DENOMINATOR - slippageBps)) / BPS_DENOMINATOR : undefined
+    quoteOut !== undefined
+      ? (quoteOut * (BPS_DENOMINATOR - slippageBps)) / BPS_DENOMINATOR
+      : undefined
 
   const approve = useWriteContract()
   const swap = useWriteZRouterSwapV2()
@@ -158,7 +160,9 @@ export function Exec404SwapPanel() {
   return (
     <section className={cardStyles.card} data-testid="exec404-swap">
       <h2 className={cardStyles.title}>Trade</h2>
-      <p className={cardStyles.note}>Graduated to a Uniswap V2 pool — swap EXEC here (routed via zRouter).</p>
+      <p className={cardStyles.note}>
+        Graduated to a Uniswap V2 pool — swap EXEC here (routed via zRouter).
+      </p>
 
       {!isConnected ? (
         <p className={styles.connectNote}>connect wallet to trade</p>
@@ -234,7 +238,9 @@ export function Exec404SwapPanel() {
 
           <div className={styles.quoteRow} data-testid="exec404-quote">
             <span className={styles.quoteLabel}>receive</span>
-            <span className={styles.quoteValue}>{sim.isFetching && quoteReady ? '…' : quoteValue}</span>
+            <span className={styles.quoteValue}>
+              {sim.isFetching && quoteReady ? '…' : quoteValue}
+            </span>
           </div>
 
           {/* N3: natural reset — a confirmed swap clears the form and shows this one-liner until the
@@ -252,7 +258,11 @@ export function Exec404SwapPanel() {
               disabled={approve.isPending || isApproving}
               data-testid="exec404-approve"
             >
-              {approve.isPending ? 'confirm in wallet…' : isApproving ? 'approving…' : 'approve EXEC'}
+              {approve.isPending
+                ? 'confirm in wallet…'
+                : isApproving
+                  ? 'approving…'
+                  : 'approve EXEC'}
             </button>
           ) : (
             <button
@@ -275,7 +285,9 @@ export function Exec404SwapPanel() {
             <p className={`${styles.txStatus} ${styles.txError}`}>quote failed: {quoteError}</p>
           )}
           {swapError && (
-            <p className={`${styles.txStatus} ${styles.txError}`}>transaction failed: {swapError}</p>
+            <p className={`${styles.txStatus} ${styles.txError}`}>
+              transaction failed: {swapError}
+            </p>
           )}
         </div>
       )}

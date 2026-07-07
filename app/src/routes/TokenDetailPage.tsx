@@ -162,8 +162,9 @@ function FramedArt({ image, alt }: { image: string | undefined; alt: string }) {
 function AlignmentLine({ vaultName }: { vaultName?: string | undefined }) {
   return (
     <p className={styles.alignLine}>
-      <span aria-hidden>▪ </span>~20% of every resale binds to <b>{vaultName || 'its alignment vault'}</b>
-      , on-chain. The alignment travels with the work, forever — <b>it can&rsquo;t be undone.</b>
+      <span aria-hidden>▪ </span>~20% of every resale binds to{' '}
+      <b>{vaultName || 'its alignment vault'}</b>, on-chain. The alignment travels with the work,
+      forever — <b>it can&rsquo;t be undone.</b>
     </p>
   )
 }

@@ -25,11 +25,29 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
 } {
   const contracts = useMemo(
     () =>
-      addresses.flatMap((address) => [
-        { address, abi: alignmentEndowmentVaultAbi, functionName: 'vaultType', chainId: forkChainId },
-        { address, abi: alignmentEndowmentVaultAbi, functionName: 'totalPrincipal', chainId: forkChainId },
-        { address, abi: alignmentEndowmentVaultAbi, functionName: 'accumulatedFees', chainId: forkChainId },
-      ] as const),
+      addresses.flatMap(
+        (address) =>
+          [
+            {
+              address,
+              abi: alignmentEndowmentVaultAbi,
+              functionName: 'vaultType',
+              chainId: forkChainId,
+            },
+            {
+              address,
+              abi: alignmentEndowmentVaultAbi,
+              functionName: 'totalPrincipal',
+              chainId: forkChainId,
+            },
+            {
+              address,
+              abi: alignmentEndowmentVaultAbi,
+              functionName: 'accumulatedFees',
+              chainId: forkChainId,
+            },
+          ] as const,
+      ),
     [addresses],
   )
 

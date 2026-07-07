@@ -14,7 +14,12 @@ import { truncateAddress } from '../lib/format'
 import { MessageComposer } from '../components/MessageComposer'
 import { ReplyComposer } from '../components/ReplyComposer'
 import { ReactButton } from '../components/ReactButton'
-import { type ThreadView, meetsThreshold, reactionFor, threadMessages } from '../components/threadMessages'
+import {
+  type ThreadView,
+  meetsThreshold,
+  reactionFor,
+  threadMessages,
+} from '../components/threadMessages'
 import { type FeedMessage, usePostThreshold } from '../components/useMessageFeed'
 import { StateBlock } from '../components/ui/StateBlock'
 import { Linkify } from '../components/ui/Linkify'
@@ -25,7 +30,12 @@ import styles from './BoardPage.module.css'
 type BoardView = 'discourse' | 'activity'
 
 /** Register verbs for the flat Activity view — the on-chain event, stated plainly. */
-const ACTIVITY_VERB: Record<number, string> = { 0: 'posted', 1: 'replied', 2: 'quoted', 3: 'endorsed' }
+const ACTIVITY_VERB: Record<number, string> = {
+  0: 'posted',
+  1: 'replied',
+  2: 'quoted',
+  3: 'endorsed',
+}
 
 /**
  * A post's channel (`instance`) is one of: a WALL (the sender's own address, the profile-wall
@@ -176,7 +186,15 @@ function useGlobalFeed(): {
         ) {
           continue
         }
-        messages.push({ messageId, instance, sender, messageType, refId, value: value ?? 0n, content })
+        messages.push({
+          messageId,
+          instance,
+          sender,
+          messageType,
+          refId,
+          value: value ?? 0n,
+          content,
+        })
       }
 
       return { messages, nextCursor: fromBlock <= deployBlock ? null : fromBlock - 1n }
@@ -209,7 +227,8 @@ function useGlobalFeed(): {
  * Replies (type 1) nest under their parent; reactions (type 3) aggregate into a 👍 count.
  */
 export function BoardPage() {
-  const { data, isPending, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useGlobalFeed()
+  const { data, isPending, isError, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useGlobalFeed()
   const { address: connected } = useAccount()
   const [boardView, setBoardView] = useState<BoardView>('discourse')
   const threshold = usePostThreshold()
@@ -218,10 +237,7 @@ export function BoardPage() {
 
   // Known vault addresses → route vault-channel posts to /vault/… (not a dead collection link).
   const { vaults } = useAllVaults()
-  const vaultSet = useMemo(
-    () => new Set(vaults.map((v) => v.address.toLowerCase())),
-    [vaults],
-  )
+  const vaultSet = useMemo(() => new Set(vaults.map((v) => v.address.toLowerCase())), [vaults])
 
   // Channels — distinct walls drawn from the feed (a collection, or a sender's own address). The
   // rail filters the salon to one channel; "All" is the default. Ordered by post volume.
@@ -234,7 +250,8 @@ export function BoardPage() {
   // Channel filter + N12 spam lever: hide top-level posts below the threshold (their nested replies go
   // with the dropped thread); replies/reactions and orphan-promoted rows stay. threshold 0 = show all.
   const visibleThreads = view.threads.filter(
-    (t) => (channel === 'all' || t.message.instance === channel) && meetsThreshold(t.message, threshold),
+    (t) =>
+      (channel === 'all' || t.message.instance === channel) && meetsThreshold(t.message, threshold),
   )
   const activityRows = (data ?? []).filter(
     (m) => (channel === 'all' || m.instance === channel) && meetsThreshold(m, threshold),
@@ -306,8 +323,8 @@ export function BoardPage() {
           <section className={styles.feedSection}>
             {threshold > 0n && (
               <StateBlock variant="empty" testId="board-threshold-note">
-                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts are
-                hidden until the threshold is lowered.
+                spam lever on: showing posts of {formatEther(threshold)} ETH or more — cheaper posts
+                are hidden until the threshold is lowered.
               </StateBlock>
             )}
 

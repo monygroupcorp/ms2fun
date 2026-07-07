@@ -20,12 +20,17 @@ test('a collection styleUri is fetched and applied to its page @fork', async ({ 
   await page.getByRole('button', { name: /Continue/ }).click() // → Gating
   await page.getByRole('button', { name: /Continue/ }).click() // → Alignment
   await page.getByRole('button', { name: /^Yield/ }).click() // family → venue picker
-  await page.getByRole('button', { name: /target #/ }).first().click()
+  await page
+    .getByRole('button', { name: /target #/ })
+    .first()
+    .click()
   await page.getByRole('button', { name: /Continue/ }).click() // → Collection page
   await page.locator('#cmf-name').fill(name)
   // Style URI now lives on the Collection-page step (it's a page concern, not a contract one).
   // Distinctive inline CSS scoped to the documented body flag.
-  await page.getByLabel(/^Style URI/).fill('data:text/css,body.has-project-style{--seed-style-applied:1}')
+  await page
+    .getByLabel(/^Style URI/)
+    .fill('data:text/css,body.has-project-style{--seed-style-applied:1}')
   await page.getByRole('button', { name: /Continue/ }).click() // → Review & deploy
 
   await page.getByRole('button', { name: 'Deploy collection' }).click()
