@@ -1934,6 +1934,7 @@ export const cypherLiquidityDeployerModuleAbi = [
       { name: '_algebraFactory', internalType: 'address', type: 'address' },
       { name: '_positionManager', internalType: 'address', type: 'address' },
       { name: '_weth', internalType: 'address', type: 'address' },
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -2001,6 +2002,15 @@ export const cypherLiquidityDeployerModuleAbi = [
     name: 'deployLiquidity',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -2237,7 +2247,402 @@ export const cypherLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
   { type: 'error', inputs: [], name: 'ZeroLiquidity' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// DeployBondEscrow
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const deployBondEscrowAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_owner', internalType: 'address', type: 'address' },
+      { name: '_factory', internalType: 'address', type: 'address' },
+      { name: '_protocolTreasury', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondAmount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'bonds',
+    outputs: [
+      { name: 'creator', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'createdAt', internalType: 'uint40', type: 'uint40' },
+      { name: 'settled', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'factory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'forfeit',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'graceDays',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'maxBondDuration',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'creator', internalType: 'address', type: 'address' },
+    ],
+    name: 'postBond',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'protocolTreasury',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'refund',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'release',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_bondAmount', internalType: 'uint256', type: 'uint256' }],
+    name: 'setBondAmount',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_graceDays', internalType: 'uint256', type: 'uint256' }],
+    name: 'setGraceDays',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_maxBondDuration', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setMaxBondDuration',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '_treasury', internalType: 'address', type: 'address' }],
+    name: 'setProtocolTreasury',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newBondAmount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondAmountUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondForfeited',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondPosted',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondRefunded',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'creator',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BondReleased',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newGraceDays',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'GraceDaysUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newMaxBondDuration',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'MaxBondDurationUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldTreasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newTreasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'ProtocolTreasuryUpdated',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyGraduated' },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'BondAlreadyPosted' },
+  { type: 'error', inputs: [], name: 'BondAlreadySettled' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoBond' },
+  { type: 'error', inputs: [], name: 'NoBondValue' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotGraduated' },
+  { type: 'error', inputs: [], name: 'NotYetForfeitable' },
+  { type: 'error', inputs: [], name: 'OnlyFactory' },
+  { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -4916,6 +5321,13 @@ export const erc404FactoryAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'deployBondEscrow',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'raise', internalType: 'uint256', type: 'uint256' },
       { name: 'declaredMaxBps', internalType: 'uint256', type: 'uint256' },
@@ -5105,6 +5517,13 @@ export const erc404FactoryAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '_escrow', internalType: 'address', type: 'address' }],
+    name: 'setDeployBondEscrow',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: '_minPoolEth', internalType: 'uint256', type: 'uint256' }],
     name: 'setMinPoolEth',
     outputs: [],
@@ -5188,6 +5607,25 @@ export const erc404FactoryAbi = [
       },
     ],
     name: 'DeclaredMaxAllowance',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldEscrow',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newEscrow',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'DeployBondEscrowUpdated',
   },
   {
     type: 'event',
@@ -5333,6 +5771,7 @@ export const erc404FactoryAbi = [
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsNftCount' },
+  { type: 'error', inputs: [], name: 'InsufficientBond' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'InvalidBracketParams' },
   { type: 'error', inputs: [], name: 'InvalidComponentRegistry' },
@@ -7642,6 +8081,30 @@ export const iCarveParamsSourceAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IDeployBondEscrow
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iDeployBondEscrowAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondAmount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'creator', internalType: 'address', type: 'address' },
+    ],
+    name: 'postBond',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IERC1155Balance
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -8070,6 +8533,7 @@ export const liquidityDeployerModuleAbi = [
       { name: '_weth', internalType: 'address', type: 'address' },
       { name: '_poolFee', internalType: 'uint24', type: 'uint24' },
       { name: '_tickSpacing', internalType: 'int24', type: 'int24' },
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -8116,6 +8580,15 @@ export const liquidityDeployerModuleAbi = [
     name: 'deployLiquidity',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -8360,6 +8833,7 @@ export const liquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -11513,6 +11987,7 @@ export const zammLiquidityDeployerModuleAbi = [
     inputs: [
       { name: '_zamm', internalType: 'address', type: 'address' },
       { name: '_feeOrHook', internalType: 'uint256', type: 'uint256' },
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -11565,6 +12040,15 @@ export const zammLiquidityDeployerModuleAbi = [
     inputs: [],
     name: 'feeOrHook',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
     stateMutability: 'view',
   },
   {
@@ -11785,6 +12269,7 @@ export const zammLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -14382,6 +14867,15 @@ export const useReadCypherLiquidityDeployerModuleAlgebraFactory =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadCypherLiquidityDeployerModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"metadataURI"`
  */
 export const useReadCypherLiquidityDeployerModuleMetadataUri =
@@ -14646,6 +15140,433 @@ export const useWatchCypherLiquidityDeployerModuleOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__
+ */
+export const useReadDeployBondEscrow = /*#__PURE__*/ createUseReadContract({
+  abi: deployBondEscrowAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"bondAmount"`
+ */
+export const useReadDeployBondEscrowBondAmount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'bondAmount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"bonds"`
+ */
+export const useReadDeployBondEscrowBonds = /*#__PURE__*/ createUseReadContract(
+  { abi: deployBondEscrowAbi, functionName: 'bonds' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"factory"`
+ */
+export const useReadDeployBondEscrowFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'factory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"graceDays"`
+ */
+export const useReadDeployBondEscrowGraceDays =
+  /*#__PURE__*/ createUseReadContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'graceDays',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"maxBondDuration"`
+ */
+export const useReadDeployBondEscrowMaxBondDuration =
+  /*#__PURE__*/ createUseReadContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'maxBondDuration',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadDeployBondEscrowOwner = /*#__PURE__*/ createUseReadContract(
+  { abi: deployBondEscrowAbi, functionName: 'owner' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadDeployBondEscrowOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"protocolTreasury"`
+ */
+export const useReadDeployBondEscrowProtocolTreasury =
+  /*#__PURE__*/ createUseReadContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__
+ */
+export const useWriteDeployBondEscrow = /*#__PURE__*/ createUseWriteContract({
+  abi: deployBondEscrowAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteDeployBondEscrowCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteDeployBondEscrowCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"forfeit"`
+ */
+export const useWriteDeployBondEscrowForfeit =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'forfeit',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"postBond"`
+ */
+export const useWriteDeployBondEscrowPostBond =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'postBond',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"refund"`
+ */
+export const useWriteDeployBondEscrowRefund =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'refund',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"release"`
+ */
+export const useWriteDeployBondEscrowRelease =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'release',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteDeployBondEscrowRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteDeployBondEscrowRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setBondAmount"`
+ */
+export const useWriteDeployBondEscrowSetBondAmount =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setBondAmount',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setGraceDays"`
+ */
+export const useWriteDeployBondEscrowSetGraceDays =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setGraceDays',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setMaxBondDuration"`
+ */
+export const useWriteDeployBondEscrowSetMaxBondDuration =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setMaxBondDuration',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setProtocolTreasury"`
+ */
+export const useWriteDeployBondEscrowSetProtocolTreasury =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setProtocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteDeployBondEscrowTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__
+ */
+export const useSimulateDeployBondEscrow =
+  /*#__PURE__*/ createUseSimulateContract({ abi: deployBondEscrowAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateDeployBondEscrowCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateDeployBondEscrowCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"forfeit"`
+ */
+export const useSimulateDeployBondEscrowForfeit =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'forfeit',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"postBond"`
+ */
+export const useSimulateDeployBondEscrowPostBond =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'postBond',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"refund"`
+ */
+export const useSimulateDeployBondEscrowRefund =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'refund',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"release"`
+ */
+export const useSimulateDeployBondEscrowRelease =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'release',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateDeployBondEscrowRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateDeployBondEscrowRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setBondAmount"`
+ */
+export const useSimulateDeployBondEscrowSetBondAmount =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setBondAmount',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setGraceDays"`
+ */
+export const useSimulateDeployBondEscrowSetGraceDays =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setGraceDays',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setMaxBondDuration"`
+ */
+export const useSimulateDeployBondEscrowSetMaxBondDuration =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setMaxBondDuration',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"setProtocolTreasury"`
+ */
+export const useSimulateDeployBondEscrowSetProtocolTreasury =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'setProtocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateDeployBondEscrowTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: deployBondEscrowAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__
+ */
+export const useWatchDeployBondEscrowEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: deployBondEscrowAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"BondAmountUpdated"`
+ */
+export const useWatchDeployBondEscrowBondAmountUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'BondAmountUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"BondForfeited"`
+ */
+export const useWatchDeployBondEscrowBondForfeitedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'BondForfeited',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"BondPosted"`
+ */
+export const useWatchDeployBondEscrowBondPostedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'BondPosted',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"BondRefunded"`
+ */
+export const useWatchDeployBondEscrowBondRefundedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'BondRefunded',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"BondReleased"`
+ */
+export const useWatchDeployBondEscrowBondReleasedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'BondReleased',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"GraceDaysUpdated"`
+ */
+export const useWatchDeployBondEscrowGraceDaysUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'GraceDaysUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"MaxBondDurationUpdated"`
+ */
+export const useWatchDeployBondEscrowMaxBondDurationUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'MaxBondDurationUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchDeployBondEscrowOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchDeployBondEscrowOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchDeployBondEscrowOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"ProtocolTreasuryUpdated"`
+ */
+export const useWatchDeployBondEscrowProtocolTreasuryUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'ProtocolTreasuryUpdated',
   })
 
 /**
@@ -17083,6 +18004,15 @@ export const useReadErc404FactoryComputeInstanceAddress =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"deployBondEscrow"`
+ */
+export const useReadErc404FactoryDeployBondEscrow =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404FactoryAbi,
+    functionName: 'deployBondEscrow',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"effectiveCarveEth"`
  */
 export const useReadErc404FactoryEffectiveCarveEth =
@@ -17317,6 +18247,15 @@ export const useWriteErc404FactorySetCarveBrackets =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setDeployBondEscrow"`
+ */
+export const useWriteErc404FactorySetDeployBondEscrow =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setDeployBondEscrow',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setMinPoolEth"`
  */
 export const useWriteErc404FactorySetMinPoolEth =
@@ -17459,6 +18398,15 @@ export const useSimulateErc404FactorySetCarveBrackets =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setDeployBondEscrow"`
+ */
+export const useSimulateErc404FactorySetDeployBondEscrow =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404FactoryAbi,
+    functionName: 'setDeployBondEscrow',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404FactoryAbi}__ and `functionName` set to `"setMinPoolEth"`
  */
 export const useSimulateErc404FactorySetMinPoolEth =
@@ -17534,6 +18482,15 @@ export const useWatchErc404FactoryDeclaredMaxAllowanceEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404FactoryAbi,
     eventName: 'DeclaredMaxAllowance',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404FactoryAbi}__ and `eventName` set to `"DeployBondEscrowUpdated"`
+ */
+export const useWatchErc404FactoryDeployBondEscrowUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404FactoryAbi,
+    eventName: 'DeployBondEscrowUpdated',
   })
 
 /**
@@ -19963,6 +20920,53 @@ export const useReadICarveParamsSourceEffectiveCarveEth =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iDeployBondEscrowAbi}__
+ */
+export const useReadIDeployBondEscrow = /*#__PURE__*/ createUseReadContract({
+  abi: iDeployBondEscrowAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iDeployBondEscrowAbi}__ and `functionName` set to `"bondAmount"`
+ */
+export const useReadIDeployBondEscrowBondAmount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iDeployBondEscrowAbi,
+    functionName: 'bondAmount',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iDeployBondEscrowAbi}__
+ */
+export const useWriteIDeployBondEscrow = /*#__PURE__*/ createUseWriteContract({
+  abi: iDeployBondEscrowAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iDeployBondEscrowAbi}__ and `functionName` set to `"postBond"`
+ */
+export const useWriteIDeployBondEscrowPostBond =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: iDeployBondEscrowAbi,
+    functionName: 'postBond',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iDeployBondEscrowAbi}__
+ */
+export const useSimulateIDeployBondEscrow =
+  /*#__PURE__*/ createUseSimulateContract({ abi: iDeployBondEscrowAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iDeployBondEscrowAbi}__ and `functionName` set to `"postBond"`
+ */
+export const useSimulateIDeployBondEscrowPostBond =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: iDeployBondEscrowAbi,
+    functionName: 'postBond',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc1155BalanceAbi}__
  */
 export const useReadIerc1155Balance = /*#__PURE__*/ createUseReadContract({
@@ -20459,6 +21463,15 @@ export const useSimulateIwethWithdraw = /*#__PURE__*/ createUseSimulateContract(
  */
 export const useReadLiquidityDeployerModule =
   /*#__PURE__*/ createUseReadContract({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadLiquidityDeployerModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'masterRegistry',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"metadataURI"`
@@ -23929,6 +24942,15 @@ export const useReadZammLiquidityDeployerModuleFeeOrHook =
   /*#__PURE__*/ createUseReadContract({
     abi: zammLiquidityDeployerModuleAbi,
     functionName: 'feeOrHook',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadZammLiquidityDeployerModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'masterRegistry',
   })
 
 /**

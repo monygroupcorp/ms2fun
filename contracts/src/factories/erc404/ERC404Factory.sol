@@ -21,6 +21,13 @@ import {MetadataResolverRouter} from "../../metadata/MetadataResolverRouter.sol"
 import {TierRevealModule} from "../../metadata/TierRevealModule.sol";
 import {MetadataOverlayModule} from "../../metadata/MetadataOverlayModule.sol";
 
+/// @dev Minimal surface of the deploy-bond escrow the factory drives at create. The escrow is a
+///      SEPARATE contract (holds the ETH) so the factory keeps its "holds no ETH" invariant.
+interface IDeployBondEscrow {
+    function bondAmount() external view returns (uint256);
+    function postBond(address instance, address creator) external payable;
+}
+
 /**
  * @title ERC404Factory
  * @notice Deploys and registers ERC404 bonding token instances.
@@ -90,6 +97,10 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     address public weth;
     uint256 public bondingFeeBps = 100; // 1% default
 
+    /// @notice Refundable deploy-bond escrow (N12 lever). address(0) OR its `bondAmount() == 0`
+    ///         means the lever is OFF and create behaves byte-identically to today.
+    address public deployBondEscrow;
+
     // ── Graduation-carve params (read LIVE by instances at graduation) ────────
     /// @notice Minimum ETH the LP pool must keep at graduation. A carve-CLAMP, never a
     ///         graduation gate: thin raises still graduate, the floor only eats carve headroom.
@@ -139,8 +150,10 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error NotAuthorizedAgent();
     error InvalidDeclaredMaxAllowance();
     error InvalidBracketParams();
+    error InsufficientBond();
 
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event DeployBondEscrowUpdated(address indexed oldEscrow, address indexed newEscrow);
     event BondingFeeUpdated(uint256 newBps);
     event MinPoolEthUpdated(uint256 newMinPoolEth);
     event CarveBracketsUpdated(uint256 b1, uint256 b2, uint16 r1, uint16 r2, uint16 r3);
@@ -241,9 +254,24 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
             if (!componentRegistry.isApprovedComponent(params.stakingModule)) revert UnapprovedStakingModule();
         }
 
-        // Forward fee directly to treasury — factory holds no ETH
-        if (msg.value > 0 && protocolTreasury != address(0)) {
-            SafeTransferLib.safeTransferETH(protocolTreasury, msg.value);
+        // Route creation ETH. Deploy-bond lever (N12) is OFF when no escrow is wired or its
+        // bondAmount is 0 → forward everything to treasury exactly as before (factory holds no ETH).
+        // When ON: hold the bond, forward only the excess now; the bond is escrowed after the
+        // instance address is known (see `escrow.postBond` below — the instance is the bond key).
+        uint256 bondAmt = deployBondEscrow == address(0)
+            ? 0
+            : IDeployBondEscrow(deployBondEscrow).bondAmount();
+        if (bondAmt == 0) {
+            // Lever off — byte-identical to prior behavior.
+            if (msg.value > 0 && protocolTreasury != address(0)) {
+                SafeTransferLib.safeTransferETH(protocolTreasury, msg.value);
+            }
+        } else {
+            if (msg.value < bondAmt) revert InsufficientBond();
+            uint256 excess = msg.value - bondAmt;
+            if (excess > 0 && protocolTreasury != address(0)) {
+                SafeTransferLib.safeTransferETH(protocolTreasury, excess);
+            }
         }
 
         // Validate params
@@ -277,6 +305,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         }
 
         instance = _deployAndInitialize(params, metadataURI, liquidityDeployer, gatingModule, freeMint, agentCreated);
+        // Escrow the held bond now that the instance address (the bond key) exists. Lever off ⇒
+        // bondAmt == 0 ⇒ no escrow interaction, so this is a no-op on the current create path.
+        if (bondAmt > 0) {
+            IDeployBondEscrow(deployBondEscrow).postBond{value: bondAmt}(instance, params.owner);
+        }
         masterRegistry.registerInstance(
             instance, address(this), params.owner, params.name, metadataURI, params.vault
         );
@@ -391,6 +424,14 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address old = protocolTreasury;
         protocolTreasury = _treasury;
         emit ProtocolTreasuryUpdated(old, _treasury);
+    }
+
+    /// @notice Wire (or unwire) the deploy-bond escrow. address(0) disables the lever. When set, the
+    ///         bond is only actually charged once the escrow's `bondAmount` is nonzero.
+    function setDeployBondEscrow(address _escrow) external onlyRoles(PROTOCOL_ROLE) {
+        address old = deployBondEscrow;
+        deployBondEscrow = _escrow;
+        emit DeployBondEscrowUpdated(old, _escrow);
     }
 
     function setWeth(address _weth) external onlyRoles(PROTOCOL_ROLE) {

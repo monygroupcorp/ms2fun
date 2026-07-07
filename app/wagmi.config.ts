@@ -24,6 +24,7 @@ export default defineConfig({
         'FeaturedQueueManager.sol/**',
         'ProtocolTreasuryV1.sol/ProtocolTreasuryV1.json',
         'ERC404Factory.sol/**',
+        'DeployBondEscrow.sol/DeployBondEscrow.json',
         'ERC404BondingInstance.sol/**',
         'ERC404StakingModule.sol/**',
         'CurveParamsComputer.sol/**',
