@@ -3,8 +3,14 @@ pragma solidity ^0.8.20;
 
 /// @title RevenueSplitLib
 /// @notice Revenue splits: `split` = 1/19/80 (DN404 graduation); `splitMint` = 1/80/19 (mints);
-///         `carveAllowance` + `splitGraduation` = graduation with an optional tithed creator carve.
+///         `splitMintFor` = family-aware mint split; `carveAllowance` + `splitGraduation` =
+///         graduation with an optional tithed creator carve.
 library RevenueSplitLib {
+    /// @notice A collection's mint proceeds route by its alignment vault's family, resolved from
+    ///         `vaultType()`. A vaultType that matches neither the liquidity nor the yield set is a
+    ///         deploy-config error and reverts loud rather than falling through to a default split.
+    error UnknownVaultFamily(string vaultType);
+
     struct Split {
         uint256 protocolCut; // 1%
         uint256 vaultCut;    // vault share
@@ -27,6 +33,40 @@ library RevenueSplitLib {
         s.protocolCut = amount / 100;
         s.vaultCut = (amount * 80) / 100;
         s.remainder = amount - s.protocolCut - s.vaultCut;
+    }
+
+    /// @notice Family-aware mint settlement split.
+    /// @dev Liquidity-family collections flip the heavy leg to the creator (1% protocol / 19% vault /
+    ///      80% creator — the same weights as `split`); yield-family (endowment) collections keep
+    ///      `splitMint`'s 1/80/19 (the 80% is refundable principal). Delegating to the two existing
+    ///      primitives keeps the yield path byte-identical to today and conserves value on both
+    ///      branches (each primitive absorbs rounding dust into `remainder`).
+    /// @param amount The settlement amount to split.
+    /// @param liquidityFamily True for a liquidity-family vault, false for a yield-family vault.
+    function splitMintFor(uint256 amount, bool liquidityFamily) internal pure returns (Split memory) {
+        return liquidityFamily ? split(amount) : splitMint(amount);
+    }
+
+    /// @notice Classify an alignment vault's `vaultType()` string into its revenue-split family.
+    /// @dev Liquidity set = {"UniswapV4LP","ZAMMLP","CypherLP"}; yield set = {"AaveEndowment"}.
+    ///      keccak256 over the UTF-8 bytes is an exact, collision-free string match. An unrecognized
+    ///      vaultType reverts `UnknownVaultFamily` — an unknown family is a deploy-config error caught
+    ///      loud, never silently defaulted.
+    /// @param vaultType The vault's self-reported `vaultType()`.
+    /// @return liquidityFamily True for the liquidity set, false for the yield set; reverts otherwise.
+    function isLiquidityFamily(string memory vaultType) internal pure returns (bool liquidityFamily) {
+        bytes32 h = keccak256(bytes(vaultType));
+        if (
+            h == keccak256(bytes("UniswapV4LP")) ||
+            h == keccak256(bytes("ZAMMLP")) ||
+            h == keccak256(bytes("CypherLP"))
+        ) {
+            return true;
+        }
+        if (h == keccak256(bytes("AaveEndowment"))) {
+            return false;
+        }
+        revert UnknownVaultFamily(vaultType);
     }
 
     // ── Graduation carve-out ───────────────────────────────────────────────────

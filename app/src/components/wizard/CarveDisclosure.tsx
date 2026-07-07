@@ -5,7 +5,7 @@
  * preview tracks owner-tuned regimes (falling back to the protocol defaults while loading).
  *
  * Also carries the sub-2-ETH honesty nudge: minnow raises carve ~nothing — the art path (editions/
- * auctions) pays the creator 80% of settlements today.
+ * auctions) on a cash-now (Liquidity) vault pays the creator 80% of settlements.
  */
 import { formatEther } from 'viem'
 import {
@@ -91,7 +91,8 @@ export function CarveDisclosure({ declaredValue }: { declaredValue: string | und
       </p>
       <p className={styles.nudge}>
         Raising under ~2 ETH? The carve is structurally near zero there — if you want money today,
-        the art path (editions / auctions) pays you 80% of every settlement.
+        the art path (editions / auctions) on a cash-now (Liquidity) vault pays you 80% of every
+        settlement (an endowment / Yield vault keeps the 19% creator split).
       </p>
     </div>
   )
