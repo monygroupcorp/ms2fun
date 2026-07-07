@@ -1,6 +1,6 @@
 # ms2.fun Protocol Architecture
 
-**Last Updated:** 2026-03-12
+**Last Updated:** 2026-07-07
 
 > **⚠️ Partial fossil reference — read the direction note.** The **DAO/governance** layer
 > documented here (GrandCentral, Safe/Timelock voting, conductors) **is** retired — kept because
@@ -12,6 +12,14 @@
 > [ADR-0008](../docs/decisions/0008-two-vault-families.md) +
 > [ADR-0003](../docs/decisions/0003-aave-alignment-vault.md) + `docs/phases/vault-flavors.md`. Treat the
 > governance sections as fossil; the vault/LP mechanics are current.
+>
+> **Reading "DAO" below:** most body sections below use "DAO" as a loose shorthand for the protocol's
+> owner role. Historically that owner was **GrandCentral** (shareholder shares/loot, on-chain proposals
+> and votes, ragequit, conductors) — that machinery is **retired** (fossil; EXEC404-only, see above).
+> Today the owner role is held directly by **Safe → Timelock** (§7: Safe proposes, 48h delay, anyone
+> executes) — no shareholder vote, no GrandCentral. Where a passage below says "DAO votes" or "DAO
+> governs," read it as the historical GrandCentral mechanism unless the passage is explicitly marked
+> current.
 
 ---
 
@@ -19,7 +27,7 @@
 
 ms2.fun is a curated launchpad for derivative art and tokens aligned to established crypto communities. Artists create projects (ERC404 bonding curves, ERC1155 editions, ERC721 auctions) that are structurally bound to alignment vaults. These vaults accumulate fees from all project activity, convert them to the target community's token, and deposit full-range Uniswap V4 LP positions — creating permanent buying pressure and liquidity for the aligned asset.
 
-The protocol curates which communities receive vaults through DAO governance. At launch, the team selects initial alignment targets (e.g., Remilia/CULT, Pudgy Penguins). Over time, DAO shareholders propose and vote on new targets. Projects that don't merit alignment don't get vault space.
+The protocol curates which communities receive vaults through DAO governance. At launch, the team selects initial alignment targets (e.g., Remilia/CULT, Pudgy Penguins). Over time, new targets are added: **historically** via GrandCentral shareholder proposal-and-vote (retired; see banner), **today** via Safe → Timelock (the Safe proposes a target; after the timelock delay, anyone executes the registration — no shareholder vote). Projects that don't merit alignment don't get vault space.
 
 A single fee rule applies across all product types: **1% → protocol treasury, 19% → alignment vault, 80% → artist**. This is applied at every settlement event. No creation fees. The 20% alignment contribution is the protocol's cultural and economic contract with artists — tithing toward the community they're aligned with.
 
@@ -27,8 +35,13 @@ A single fee rule applies across all product types: **1% → protocol treasury, 
 
 ## 2. System Map
 
+**Current:** the top of this map is **Safe → Timelock** — the Safe proposes, the Timelock enforces the
+delay, anyone executes. The "DAO (GrandCentral + Gnosis Safe)" node below is **historical** (fossil;
+GrandCentral itself is retired, kept only for EXEC404 — see banner); everything from Timelock down is
+current.
+
 ```
-DAO (GrandCentral + Gnosis Safe)
+DAO (GrandCentral + Gnosis Safe)  [HISTORICAL node label — current actor is just "Safe"; GrandCentral retired]
 │
 ├── Proposes operations ─────────────► Timelock (48h min delay)
 │                                       │ (anyone executes after delay)
@@ -64,8 +77,8 @@ Users (buyers)                     LP Positions
 
 ### Hierarchy
 
-- **DAO** governs the protocol through proposals and votes
-- **Timelock** enforces a 48-hour delay between proposal and execution — gives users an exit window before critical changes take effect
+- **DAO** governs the protocol through proposals and votes — **historical** framing (fossil): that was GrandCentral's shareholder-vote model, retired. **Current:** the Safe proposes directly; no shareholder vote.
+- **Timelock** enforces a 48-hour delay between proposal and execution — gives users an exit window before critical changes take effect (current, unchanged)
 - **AlignmentRegistry** manages alignment targets (community profiles) and ambassadors — DAO curates which communities the protocol supports
 - **MasterRegistry** enforces factory/vault/instance registration rules (factory approval, vault binding, name uniqueness)
 - **Vault Instances** are deployed vaults, each bound to an approved alignment target
@@ -89,12 +102,19 @@ These are independent contracts wired at deployment. MasterRegistry holds a refe
 
 The protocol organises into five layers by trust level, risk surface, and who controls each tier. Higher layers = closer to capital and governance. Lower layers = closer to end users.
 
+**Current vs. historical (L0/L1):** L0 mixes retired GrandCentral apparatus (GrandCentral itself,
+ShareOffering, StipendConductor, Ragequit Pool — all **HISTORICAL**, fossil, EXEC404-only) with the
+Gnosis Safe, which is **current** (it is the Timelock's proposer/admin/canceller today, with no
+GrandCentral in between). In L1, `RevenueConductor` is likewise **HISTORICAL** (GrandCentral revenue
+routing, retired) — `Timelock`, `ProtocolTreasuryV1`, `AlignmentRegistryV1`, and `FeaturedQueueManager`
+are current.
+
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  L0 · C-SUITE / SHAREHOLDERS                                        │
+│  L0 · C-SUITE / SHAREHOLDERS  [mostly HISTORICAL — see note above]  │
 │                                                                     │
-│  GrandCentral (DAO)  ·  Gnosis Safe  ·  ShareOffering              │
-│  StipendConductor    ·  Ragequit Pool                               │
+│  GrandCentral (DAO, HISTORICAL) · Gnosis Safe (CURRENT) · ShareOffering (HISTORICAL) │
+│  StipendConductor (HISTORICAL) · Ragequit Pool (HISTORICAL)         │
 │                                                                     │
 │  Who: shareholders, multisig signers, protocol contributors         │
 │  Controls: votes, share issuance, stipends, Safe execution          │
@@ -104,10 +124,10 @@ The protocol organises into five layers by trust level, risk surface, and who co
 │  L1 · DAO OPERATIONS / TREASURY                                     │
 │                                                                     │
 │  Timelock              ·  ProtocolTreasuryV1                        │
-│  AlignmentRegistryV1   ·  RevenueConductor                          │
+│  AlignmentRegistryV1   ·  RevenueConductor (HISTORICAL)              │
 │  FeaturedQueueManager                                               │
 │                                                                     │
-│  Who: Timelock (executor), DAO governance                           │
+│  Who: Timelock (executor), Safe (proposer) — historically "DAO governance" │
 │  Controls: curation (targets, ambassadors), treasury disbursements, │
 │            protocol revenue collection, homepage promotion rules    │
 └───────────────────────────┬─────────────────────────────────────────┘
@@ -197,16 +217,22 @@ struct AlignmentAsset {
 
 ### Lifecycle
 
+**HISTORICAL (fossil — GrandCentral, retired; kept because EXEC404/Cult Executives still runs on it):**
 1. **DAO shareholder proposes** a new alignment target (community + token)
-2. **DAO votes** on the proposal via GrandCentral
+2. **DAO votes** on the proposal via GrandCentral (historical)
 3. **On approval**, target is registered in AlignmentRegistry — vault instances can now be deployed against it
-4. **Vault instances** deployed by anyone (via registered factories) or by the DAO directly. MasterRegistry calls AlignmentRegistry to enforce the vault's alignment token matches an approved target asset
-5. **Project connects**: when the target project (e.g., Remilia) reaches out, DAO votes to add their multisig as an **ambassador**
-6. **Ambassador powers** are vault-type-dependent — UniAlignmentVault has no management functions, but future vault types may grant ambassadors operational control
+4. **Project connects**: when the target project (e.g., Remilia) reaches out, DAO votes to add their multisig as an **ambassador** (historical — GrandCentral vote)
+
+**CURRENT (Safe → Timelock, no shareholder vote):**
+1. Safe proposes a new alignment target via `Timelock.propose(...)`
+2. After the 48h delay, anyone calls `Timelock.execute(...)`, which registers the target in AlignmentRegistry — vault instances can now be deployed against it
+3. **Vault instances** deployed by anyone (via registered factories) or by the Timelock (owner) directly. MasterRegistry calls AlignmentRegistry to enforce the vault's alignment token matches an approved target asset
+4. **Project connects**: when the target project (e.g., Remilia) reaches out, the Safe proposes adding their multisig as an **ambassador**; after the timelock delay, anyone executes it
+5. **Ambassador powers** are vault-type-dependent — UniAlignmentVault has no management functions, but future vault types may grant ambassadors operational control
 
 ### Ambassador System
 
-Ambassadors are wallets officially provided by the target project. All ambassador changes go through DAO votes. Their powers depend on the vault type:
+Ambassadors are wallets officially provided by the target project. Historically, all ambassador changes went through DAO votes (GrandCentral — historical, retired). Today, ambassador changes go through Safe → Timelock like any other owner-gated operation. Their powers depend on the vault type:
 
 - **UniAlignmentVault**: No management functions. Vault activity (buying + LP-ing the target token) IS the upside.
 - **Future vault types**: May expose management functions gated by `isAmbassador(targetId, address)`.
@@ -544,18 +570,25 @@ Artists tithe 19% of proceeds from each project to the vault. The vault deploys 
 
 ---
 
-## 7. Governance (GrandCentral)
+## 7. Governance — GrandCentral (HISTORICAL, EXEC404-only) + Timelock (CURRENT)
 
-GrandCentral is a Mol***-pattern DAO that governs the protocol through a Gnosis Safe.
+> **HISTORICAL callout starts here.** Everything in Structure / Proposal Lifecycle / Conductor System /
+> Conductors / "What the DAO Controls" below describes **GrandCentral**, which is **retired** as of the
+> two-vault-families direction — kept solely because EXEC404 / Cult Executives (the one live,
+> forever-grandfathered deployment) still runs on it. No new deployment uses GrandCentral. The
+> **Timelock** subsection further down is the exception: it is **current** and describes how the
+> protocol is actually governed today (Safe → Timelock, no shareholder vote).
 
-### Structure
+GrandCentral is a Mol***-pattern DAO that governs the protocol through a Gnosis Safe. **(HISTORICAL — retired; EXEC404-only.)**
+
+### Structure **(HISTORICAL)**
 
 - **Shares**: Voting power, earnable through contributions
 - **Loot**: Non-voting economic rights (claimable rewards)
 - **Proposals**: On-chain votes that execute transactions via Safe
 - **Ragequit**: Members can burn shares/loot for proportional payout from ragequit pool
 
-### Proposal Lifecycle
+### Proposal Lifecycle **(HISTORICAL)**
 
 ```
 Submitted → [Sponsored] → Voting → Grace → Ready → Processed
@@ -569,7 +602,7 @@ Submitted → [Sponsored] → Voting → Grace → Ready → Processed
 3. Grace period: ragequit window for dissenting members
 4. Processing: if quorum met and yes > no, transactions execute via Safe
 
-### Conductor System
+### Conductor System **(HISTORICAL)**
 
 Delegated permissions via bitmask: `admin(1) | manager(2) | governor(4)`
 
@@ -581,17 +614,27 @@ Delegated permissions via bitmask: `admin(1) | manager(2) | governor(4)`
 
 Conductor roles can be individually locked (irreversible) by the DAO.
 
-### Conductors
+### Conductors **(HISTORICAL)**
 
 - **StipendConductor** — Autonomous recurring payment system. DAO configures a beneficiary, amount, and interval. Anyone can trigger `execute()` after the interval passes.
 - **ShareOffering** — Manages share issuance campaigns for the DAO.
 - **RevenueConductor** — Routes protocol revenue to appropriate destinations.
 
-### Timelock
+> **HISTORICAL callout ends here.** The rest of §7 (Timelock) is current.
 
-A Solady `Timelock` sits between the DAO/Safe and all protocol contracts. Every owner-gated operation (upgrades, registrations, parameter changes) must pass through the timelock's delay before execution.
+### Timelock (CURRENT)
 
-**Ownership chain:**
+A Solady `Timelock` sits between the Safe and all protocol contracts. Every owner-gated operation (upgrades, registrations, parameter changes) must pass through the timelock's delay before execution. This is the protocol's actual governance mechanism today — no shareholder vote, no GrandCentral.
+
+**Ownership chain (current):**
+```
+Safe calls Timelock.propose(mode, executionData, delay)
+  → 48h minimum delay (visible on-chain)
+  → Anyone calls Timelock.execute(mode, executionData)
+  → Timelock (as owner) calls target contract
+```
+
+**Ownership chain (historical, GrandCentral/EXEC404 variant only):**
 ```
 GrandCentral proposal passes
   → Safe calls Timelock.propose(mode, executionData, delay)
@@ -610,7 +653,7 @@ GrandCentral proposal passes
 
 The timelock is deployed directly (not behind a proxy) — timelocks should be immutable. Uses ERC7821 batched execution for multi-call proposals.
 
-### What the DAO Controls
+### What the Owner (Safe → Timelock) Controls **(current mechanism; historically routed through GrandCentral — see callout above)**
 
 All actions below are subject to the 48-hour timelock delay:
 
@@ -622,7 +665,7 @@ All actions below are subject to the 48-hour timelock delay:
 - Treasury disbursements
 - UUPS contract upgrades (MasterRegistry, AlignmentRegistry)
 
-Direct DAO actions (no timelock):
+Direct DAO actions (no timelock) — **HISTORICAL, GrandCentral-only:**
 - Share and loot distribution
 - Conductor role management
 - Internal governance parameter changes
@@ -713,7 +756,7 @@ Standalone registry for vault and hook metadata. Handles registration fees (0.05
 
 1. **MasterRegistryV1** — Deploy implementation, then proxy with `initialize(daoOwner)`
 2. **AlignmentRegistryV1** — Deploy, initialize with daoOwner, wire to MasterRegistry via `setAlignmentRegistry()`
-3. **GrandCentral** — Deploy with Safe address, founder shares, governance params
+3. **GrandCentral** — Deploy with Safe address, founder shares, governance params. **(HISTORICAL — retired; only ever deployed for the EXEC404/Cult Executives deployment. New deployments skip this step and go straight from Safe to Timelock, step 13.)**
 4. **ProtocolTreasuryV1** — Deploy protocol treasury
 5. **GlobalMessageRegistry** — Deploy with owner + masterRegistry reference
 6. **FeaturedQueueManager** — Deploy, initialize with masterRegistry + owner
@@ -756,7 +799,7 @@ All protocol contracts with `onlyOwner` functions are owned by a Solady Timelock
 | **UniAlignmentVault** | Timelock (new instances) | Pool config, fee params, treasury address |
 | **ZAMMAlignmentVault** | Timelock (new instances) | Pool config, fee params, treasury address |
 | **ComponentRegistry** | Timelock | Component approval/revocation for pluggable factory slots |
-| **GrandCentral** | Self-governing (daoOnly) | Shares, loot, governance params, conductors |
+| **GrandCentral** *(HISTORICAL — retired, EXEC404-only)* | Self-governing (daoOnly) | Shares, loot, governance params, conductors |
 | **Project Factories** | Protocol + Creator | Instance deployment, fee withdrawal |
 | **Project Instances** | Instance creator (artist) | Withdrawals, configuration |
 
@@ -772,7 +815,7 @@ All protocol contracts with `onlyOwner` functions are owned by a Solady Timelock
 |------------|-----------|
 | MasterRegistryV1 (UUPS) | UniAlignmentVault (no proxy) |
 | AlignmentRegistryV1 (UUPS) | ZAMMAlignmentVault (no proxy) |
-| FrontendRegistry (UUPS) | GrandCentral (no proxy) |
+| FrontendRegistry (UUPS) | GrandCentral (no proxy) *(HISTORICAL — retired, EXEC404-only; unrelated to FrontendRegistry, which is current and Timelock-owned per the Access Control Summary above)* |
 | ComponentRegistry (UUPS) | All factory/instance contracts |
 | | V4 hooks |
 
@@ -792,18 +835,16 @@ All protocol contracts with `onlyOwner` functions are owned by a Solady Timelock
 
 ## Contract Directory
 
+**HISTORICAL note:** an earlier version of this tree listed a `dao/` subtree (`GrandCentral.sol`,
+`conductors/{StipendConductor,ShareOffering,RevenueConductor}.sol`, `interfaces/{IGrandCentral,IAvatar}.sol`)
+as part of the current source. That was a factual error, not just stale framing: **`dao/` does not exist
+in `contracts/src` today** (`git ls-files contracts/src | grep -i dao` returns nothing). GrandCentral and
+its conductors exist only as already-deployed bytecode backing the live EXEC404/Cult Executives
+governance — there is no source in this repo to rebuild them from. The tree below is the current,
+verified source layout.
+
 ```
 src/
-├── dao/
-│   ├── GrandCentral.sol                    # Mol***-pattern DAO
-│   ├── conductors/
-│   │   ├── StipendConductor.sol            # Recurring payment automation
-│   │   ├── ShareOffering.sol               # Share issuance campaigns
-│   │   └── RevenueConductor.sol            # Protocol revenue routing
-│   └── interfaces/
-│       ├── IGrandCentral.sol
-│       └── IAvatar.sol                     # Gnosis Safe interface
-│
 ├── master/
 │   ├── MasterRegistryV1.sol                # Central registry (UUPS) — factories, vaults, instances
 │   ├── MasterRegistry.sol                  # Proxy wrapper
@@ -912,7 +953,7 @@ All integer division in this codebase rounds **down** (Solidity default floor di
 
 ### MasterChef / RewardPerToken Accumulators
 
-Used in: GrandCentral, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingModule
+Used in: GrandCentral *(HISTORICAL — retired, EXEC404-only reference)*, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingModule
 
 | Expression | Favors | Rationale |
 |---|---|---|
@@ -935,7 +976,7 @@ Used in: GrandCentral, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingMo
 | `protocolCut = total * protocolYieldCutBps / 10000` | Benefactors | Protocol takes slightly less; `benefactorAmount = total - protocolCut` absorbs dust |
 | `bondingFee = totalCost * bondingFeeBps / 10000` | Buyer | Buyer pays slightly less; fee is additive so no conservation issue |
 | `hookFee = ethMoved * hookFeeBips / 10000` | Swapper | Swapper pays slightly less |
-| `reserveAmount = available * reserveBps / 10000` | Routable pool | Slightly more goes to dividend/ragequit |
+| `reserveAmount = available * reserveBps / 10000` | Routable pool | Slightly more goes to dividend/ragequit *(HISTORICAL — GrandCentral ragequit pool, EXEC404-reference)* |
 
 ### Time-Based Pricing (FeaturedQueueManager, PromotionBadges)
 
@@ -948,8 +989,8 @@ Used in: GrandCentral, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingMo
 
 | Expression | Location | Note |
 |---|---|---|
-| `(low + high + 1) / 2` | GrandCentral binary search | Rounds **up** — standard upper-bound binary search to avoid infinite loop |
-| `maxTotalShares * minRetentionPercent / 100` | GrandCentral retention check | Rounds down — makes it slightly harder to fail the retention check (conservative) |
+| `(low + high + 1) / 2` | GrandCentral binary search *(HISTORICAL — EXEC404-reference)* | Rounds **up** — standard upper-bound binary search to avoid infinite loop |
+| `maxTotalShares * minRetentionPercent / 100` | GrandCentral retention check *(HISTORICAL — EXEC404-reference)* | Rounds down — makes it slightly harder to fail the retention check (conservative) |
 | `balance / (1e6 * 1e18)` | QueryAggregator | View-only NFT count conversion; no value transfer |
 | `normFactor = maxBondingSupply / 1e18` | CurveParamsComputer | Normalization for safe math; guarded by `!= 0` fallback |
 | `deployETH / 2` | ZAMMAlignmentVault init | Extra wei goes to LP side |
