@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC404Factory} from "../../../src/factories/erc404/ERC404Factory.sol";
+import {DeployBondEscrow} from "../../../src/factories/erc404/DeployBondEscrow.sol";
 import {ERC404BondingInstance} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import {LaunchManager} from "../../../src/factories/erc404/LaunchManager.sol";
 import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
@@ -959,5 +960,94 @@ contract ERC404FactoryTest is Test {
         (, uint256 carveArg) = _lastCarve();
         assertEq(carveArg, 0, "thin raise -> carve structurally 0");
         assertTrue(inst.graduated(), "minnows always graduate");
+    }
+
+    // ========================
+    // Deploy-bond lever (N12)
+    // ========================
+
+    function _wireEscrow(address treasury, uint256 bondAmount) internal returns (DeployBondEscrow escrow) {
+        vm.startPrank(protocolAdmin);
+        factory.setProtocolTreasury(treasury);
+        escrow = new DeployBondEscrow(protocolAdmin, address(factory), treasury);
+        factory.setDeployBondEscrow(address(escrow));
+        if (bondAmount > 0) escrow.setBondAmount(bondAmount);
+        vm.stopPrank();
+    }
+
+    /// @dev Escrow wired but bondAmount 0 → create must behave exactly as today: full msg.value to
+    ///      treasury, factory holds no ETH, no bond escrowed.
+    function test_bondLeverOff_byteIdentical_fullFeeToTreasury() public {
+        address treasury = address(0xBEEF);
+        DeployBondEscrow escrow = _wireEscrow(treasury, 0);
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+            _identity("LeverOff", "OFF", creator1),
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+        );
+
+        assertEq(treasury.balance, INSTANCE_CREATION_FEE, "full fee to treasury");
+        assertEq(address(factory).balance, 0, "factory holds no ETH");
+        assertEq(address(escrow).balance, 0, "nothing escrowed when lever off");
+        (, uint256 amt, uint40 createdAt,) = escrow.bonds(instance);
+        assertEq(amt, 0);
+        assertEq(createdAt, 0, "no bond record when lever off");
+    }
+
+    function test_bondLeverOn_escrowsBond_forwardsExcess() public {
+        address treasury = address(0xBEEF);
+        uint256 bond = 0.006 ether;
+        DeployBondEscrow escrow = _wireEscrow(treasury, bond);
+        uint256 excess = INSTANCE_CREATION_FEE - bond;
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+            _identity("LeverOn", "ON", creator1),
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+        );
+
+        assertEq(address(escrow).balance, bond, "bond escrowed");
+        assertEq(treasury.balance, excess, "excess to treasury");
+        assertEq(address(factory).balance, 0, "factory holds no ETH");
+        (address c, uint256 amt,, bool settled) = escrow.bonds(instance);
+        assertEq(c, creator1, "creator recorded as owner");
+        assertEq(amt, bond);
+        assertFalse(settled);
+    }
+
+    function test_bondLeverOn_revertsOnInsufficientValue() public {
+        address treasury = address(0xBEEF);
+        uint256 bond = 0.02 ether; // > INSTANCE_CREATION_FEE
+        _wireEscrow(treasury, bond);
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.InsufficientBond.selector);
+        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+            _identity("TooLittle", "LOW", creator1),
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+        );
+    }
+
+    function test_setDeployBondEscrow_onlyProtocolRole() public {
+        vm.prank(nonOwner);
+        vm.expectRevert();
+        factory.setDeployBondEscrow(address(0xCAFE));
+
+        vm.prank(protocolAdmin);
+        factory.setDeployBondEscrow(address(0xCAFE));
+        assertEq(factory.deployBondEscrow(), address(0xCAFE));
     }
 }
