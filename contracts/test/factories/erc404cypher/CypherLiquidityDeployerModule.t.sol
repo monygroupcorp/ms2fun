@@ -9,6 +9,7 @@ import {LibClone} from "solady/utils/LibClone.sol";
 import {MockERC20} from "../../mocks/MockERC20.sol";
 import {MockWETH} from "../../mocks/MockWETH.sol";
 import {MockAlgebraFactory, MockAlgebraPositionManager, MockAlgebraSwapRouter} from "../../mocks/MockCypherAlgebra.sol";
+import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
 
 contract CypherLiquidityDeployerModuleTest is Test {
     CypherLiquidityDeployerModule deployer;
@@ -18,9 +19,12 @@ contract CypherLiquidityDeployerModuleTest is Test {
     MockAlgebraSwapRouter swapRouter;
     MockERC20 token;
     MockWETH weth;
+    MockMasterRegistry registry;
 
     address protocolTreasury = makeAddr("treasury");
-    address instance = makeAddr("instance");
+    // The graduating instance is the caller (msg.sender) — the strict guard requires
+    // msg.sender == p.instance && registered. This test contract stands in for that instance.
+    address instance;
 
     function setUp() public {
         algebraFactory = new MockAlgebraFactory();
@@ -28,9 +32,11 @@ contract CypherLiquidityDeployerModuleTest is Test {
         swapRouter = new MockAlgebraSwapRouter();
         token = new MockERC20("Token", "TKN");
         weth = new MockWETH();
+        registry = new MockMasterRegistry();
+        instance = address(this);
 
         deployer = new CypherLiquidityDeployerModule(
-            address(algebraFactory), address(positionManager), address(weth)
+            address(algebraFactory), address(positionManager), address(weth), address(registry)
         );
 
         CypherAlignmentVault impl = new CypherAlignmentVault();
@@ -142,5 +148,39 @@ contract CypherLiquidityDeployerModuleTest is Test {
         // (0.209), so the tracked contribution is their sum.
         assertEq(weth.balanceOf(address(positionManager)), 0.7 ether, "LP leg loses exactly the carve");
         assertEq(vault.benefactorContribution(instance), 0.7 ether + 0.209 ether, "contribution = LP leg + vault cut");
+    }
+
+    // ── Caller guard (strict, registry-checked) ───────────────────────────────
+
+    function _guardParams() internal view returns (ILiquidityDeployerModule.DeployParams memory p) {
+        p = ILiquidityDeployerModule.DeployParams({
+            ethReserve: 1 ether,
+            tokenReserve: 1000e18,
+            protocolTreasury: protocolTreasury,
+            token: address(token),
+            vault: address(vault),
+            instance: address(this),
+            creator: address(0),
+            carveEth: 0
+        });
+    }
+
+    /// @notice An unregistered caller acting as its own instance reverts: the registry check fails.
+    function test_deployLiquidity_revertsForUnregisteredInstance() public {
+        registry.setRegisteredInstance(address(this), false);
+        token.mint(address(deployer), 1000e18);
+        vm.deal(address(this), 1 ether);
+        vm.expectRevert(CypherLiquidityDeployerModule.UnauthorizedCaller.selector);
+        deployer.deployLiquidity{value: 1 ether}(_guardParams());
+    }
+
+    /// @notice A caller passing a crafted p.instance it does not control reverts (no impersonation).
+    function test_deployLiquidity_revertsWhenSenderNotInstance() public {
+        token.mint(address(deployer), 1000e18);
+        vm.deal(address(this), 1 ether);
+        ILiquidityDeployerModule.DeployParams memory p = _guardParams();
+        p.instance = makeAddr("victimInstance"); // registered per mock default, but != msg.sender
+        vm.expectRevert(CypherLiquidityDeployerModule.UnauthorizedCaller.selector);
+        deployer.deployLiquidity{value: 1 ether}(p);
     }
 }

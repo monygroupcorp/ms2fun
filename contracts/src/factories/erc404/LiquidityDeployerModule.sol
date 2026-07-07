@@ -17,6 +17,7 @@ import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
 import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
+import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
 /**
@@ -37,20 +38,24 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     error NoETHForPool();
     error NoTokensForPool();
     error NotPoolManager();
+    /// @dev Caller is not the genuine, registered ERC404 instance named in p.instance.
+    error UnauthorizedCaller();
 
     address public immutable weth;
     IPoolManager public immutable v4PoolManager;
     uint24 public immutable poolFee;
     int24 public immutable tickSpacing;
+    IMasterRegistry public immutable masterRegistry;
 
     string private _metadataURI;
 
     // slither-disable-next-line missing-zero-check
-    constructor(address _v4PoolManager, address _weth, uint24 _poolFee, int24 _tickSpacing) {
+    constructor(address _v4PoolManager, address _weth, uint24 _poolFee, int24 _tickSpacing, address _masterRegistry) {
         v4PoolManager = IPoolManager(_v4PoolManager);
         weth = _weth;
         poolFee = _poolFee;
         tickSpacing = _tickSpacing;
+        masterRegistry = IMasterRegistry(_masterRegistry);
         _initializeOwner(msg.sender);
     }
 
@@ -96,6 +101,12 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
      */
     // slither-disable-next-line reentrancy-events
     function deployLiquidity(DeployParams calldata p) external payable override {
+        // Strict caller guard: only a genuine, registered ERC404 instance acting as itself may
+        // deploy liquidity. For ERC404, instance == token, and the instance is the msg.sender at
+        // graduation. Blocks arbitrary callers passing a crafted DeployParams.
+        if (msg.sender != p.instance || !masterRegistry.isRegisteredInstance(msg.sender)) {
+            revert UnauthorizedCaller();
+        }
         if (msg.value != p.ethReserve) revert ETHMismatch();
         AmountsResult memory r = _computeAmounts(p);
         _setupPoolAndUnlock(p, r);

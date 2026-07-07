@@ -8,6 +8,7 @@ import {IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager} from "../../i
 import {CypherAlignmentVault} from "../../vaults/cypher/CypherAlignmentVault.sol";
 import {Currency} from "v4-core/types/Currency.sol";
 import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
+import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
 import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 
@@ -24,18 +25,22 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error ETHMismatch();
     error InvalidParams();
     error ZeroLiquidity();
+    /// @dev Caller is not the genuine, registered ERC404 instance named in p.instance.
+    error UnauthorizedCaller();
 
     address public immutable algebraFactory;
     address public immutable positionManager;
     address public immutable weth;
+    IMasterRegistry public immutable masterRegistry;
 
     string private _metadataURI;
 
     // slither-disable-next-line missing-zero-check
-    constructor(address _algebraFactory, address _positionManager, address _weth) {
+    constructor(address _algebraFactory, address _positionManager, address _weth, address _masterRegistry) {
         algebraFactory = _algebraFactory;
         positionManager = _positionManager;
         weth = _weth;
+        masterRegistry = IMasterRegistry(_masterRegistry);
         _initializeOwner(msg.sender);
     }
 
@@ -67,6 +72,12 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     ///      ETH must equal p.ethReserve exactly.
     // slither-disable-next-line reentrancy-events
     function deployLiquidity(DeployParams calldata p) external payable override {
+        // Strict caller guard: only a genuine, registered ERC404 instance acting as itself may
+        // deploy liquidity. For ERC404, instance == token, and the instance is the msg.sender at
+        // graduation. Blocks arbitrary callers passing a crafted DeployParams.
+        if (msg.sender != p.instance || !masterRegistry.isRegisteredInstance(msg.sender)) {
+            revert UnauthorizedCaller();
+        }
         if (msg.value != p.ethReserve) revert ETHMismatch();
         if (p.token == address(0) || p.vault == address(0)) revert InvalidParams();
 
