@@ -1,17 +1,13 @@
 # ms2.fun Protocol Architecture
 
-**Last Updated:** 2026-03-12
+**Last Updated:** 2026-07-07
 
-> **⚠️ Partial fossil reference — read the direction note.** The **DAO/governance** layer
-> documented here (GrandCentral, Safe/Timelock voting, conductors) **is** retired — kept because
-> **EXEC404 / Cult Executives (the one live, forever-grandfathered deployment) runs on it.** But the
-> **alignment-vault + Uniswap-LP model is NOT retired.** As of 2026-07-01 the direction is **two
-> vault families, creator's choice**: a first-class **Liquidity family** (`UniswapV4LP` / `ZAMMLP` /
-> `CypherLP`, 1/19/80 graduation split) alongside a **Yield family** (`AlignmentEndowmentVault`, Aave
-> endowment, principal-deposit + tithe-out). Neither replaces the other. See
+> **⚠️ Direction note.** As of 2026-07-01 the direction is **two vault families, creator's
+> choice**: a first-class **Liquidity family** (`UniswapV4LP` / `ZAMMLP` / `CypherLP`, 1/19/80
+> graduation split) alongside a **Yield family** (`AlignmentEndowmentVault`, Aave endowment,
+> principal-deposit + tithe-out). Neither replaces the other. See
 > [ADR-0008](../docs/decisions/0008-two-vault-families.md) +
-> [ADR-0003](../docs/decisions/0003-aave-alignment-vault.md) + `docs/phases/vault-flavors.md`. Treat the
-> governance sections as fossil; the vault/LP mechanics are current.
+> [ADR-0003](../docs/decisions/0003-aave-alignment-vault.md) + `docs/phases/vault-flavors.md`.
 
 ---
 
@@ -19,7 +15,7 @@
 
 ms2.fun is a curated launchpad for derivative art and tokens aligned to established crypto communities. Artists create projects (ERC404 bonding curves, ERC1155 editions, ERC721 auctions) that are structurally bound to alignment vaults. These vaults accumulate fees from all project activity, convert them to the target community's token, and deposit full-range Uniswap V4 LP positions — creating permanent buying pressure and liquidity for the aligned asset.
 
-The protocol curates which communities receive vaults through DAO governance. At launch, the team selects initial alignment targets (e.g., Remilia/CULT, Pudgy Penguins). Over time, DAO shareholders propose and vote on new targets. Projects that don't merit alignment don't get vault space.
+The protocol curates which communities receive vaults through Safe/Timelock governance. At launch, the team selects initial alignment targets (e.g., Remilia/CULT, Pudgy Penguins). Over time, the Safe proposes and the Timelock approves new targets. Projects that don't merit alignment don't get vault space.
 
 A single fee rule applies across all product types: **1% → protocol treasury, 19% → alignment vault, 80% → artist**. This is applied at every settlement event. No creation fees. The 20% alignment contribution is the protocol's cultural and economic contract with artists — tithing toward the community they're aligned with.
 
@@ -28,7 +24,7 @@ A single fee rule applies across all product types: **1% → protocol treasury, 
 ## 2. System Map
 
 ```
-DAO (GrandCentral + Gnosis Safe)
+Gnosis Safe
 │
 ├── Proposes operations ─────────────► Timelock (48h min delay)
 │                                       │ (anyone executes after delay)
@@ -64,9 +60,8 @@ Users (buyers)                     LP Positions
 
 ### Hierarchy
 
-- **DAO** governs the protocol through proposals and votes
-- **Timelock** enforces a 48-hour delay between proposal and execution — gives users an exit window before critical changes take effect
-- **AlignmentRegistry** manages alignment targets (community profiles) and ambassadors — DAO curates which communities the protocol supports
+- **Safe → Timelock** governs the protocol: the Safe proposes operations, and the Timelock enforces a 48-hour delay before execution — gives users an exit window before critical changes take effect
+- **AlignmentRegistry** manages alignment targets (community profiles) and ambassadors — Timelock curates which communities the protocol supports
 - **MasterRegistry** enforces factory/vault/instance registration rules (factory approval, vault binding, name uniqueness)
 - **Vault Instances** are deployed vaults, each bound to an approved alignment target
 - **Project Factories** are code templates for different project types (ERC404, ERC1155, ERC721)
@@ -91,23 +86,21 @@ The protocol organises into five layers by trust level, risk surface, and who co
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  L0 · C-SUITE / SHAREHOLDERS                                        │
+│  L0 · GOVERNANCE                                                    │
 │                                                                     │
-│  GrandCentral (DAO)  ·  Gnosis Safe  ·  ShareOffering              │
-│  StipendConductor    ·  Ragequit Pool                               │
+│  Gnosis Safe  ·  Timelock (48h min delay)                           │
 │                                                                     │
-│  Who: shareholders, multisig signers, protocol contributors         │
-│  Controls: votes, share issuance, stipends, Safe execution          │
+│  Who: multisig signers (propose) → Timelock (executes after delay)  │
+│  Controls: schedules and executes every owner-gated operation       │
 └───────────────────────────┬─────────────────────────────────────────┘
-                            │ proposals pass through Timelock (48h)
+                            │ operations execute after Timelock's 48h delay
 ┌───────────────────────────▼─────────────────────────────────────────┐
-│  L1 · DAO OPERATIONS / TREASURY                                     │
+│  L1 · TREASURY & CURATION                                           │
 │                                                                     │
-│  Timelock              ·  ProtocolTreasuryV1                        │
-│  AlignmentRegistryV1   ·  RevenueConductor                          │
+│  ProtocolTreasuryV1    ·  AlignmentRegistryV1                       │
 │  FeaturedQueueManager                                               │
 │                                                                     │
-│  Who: Timelock (executor), DAO governance                           │
+│  Who: Timelock (executor)                                           │
 │  Controls: curation (targets, ambassadors), treasury disbursements, │
 │            protocol revenue collection, homepage promotion rules    │
 └───────────────────────────┬─────────────────────────────────────────┘
@@ -120,7 +113,7 @@ The protocol organises into five layers by trust level, risk surface, and who co
 │                                                                     │
 │  UniAlignmentVault   ·  ZAMMAlignmentVault  ·  CypherAlignmentVault │
 │                                                                     │
-│  Who: DAO-approved; vaults submitted by devs but DAO-registered     │
+│  Who: Timelock-approved; vaults submitted by devs, Timelock-registered│
 │  Controls: all registration enforcement, activity feed, TVL custody │
 │                                                                     │
 │  Vaults rank here (not with factories) because they hold alignment  │
@@ -138,7 +131,7 @@ The protocol organises into five layers by trust level, risk surface, and who co
 │                                                                     │
 │  Who: protocol team and external developers                         │
 │  Controls: project creation logic, component slots, bonding params  │
-│  All must be approved by DAO (ComponentRegistry / MasterRegistry)   │
+│  All must be approved by Timelock (ComponentRegistry / MasterRegistry)│
 └───────────────────────────┬─────────────────────────────────────────┘
                             │ createInstance() produces instances
 ┌───────────────────────────▼─────────────────────────────────────────┐
@@ -159,10 +152,10 @@ The protocol organises into five layers by trust level, risk surface, and who co
 
 | From | To | Mechanism |
 |------|----|-----------|
-| L0 Safe | L1 Timelock | `propose()` → 48h delay → `execute()` |
-| L1 Timelock | L2 MasterRegistry | `registerFactory()`, `registerVault()` |
-| L1 Timelock | L2 ComponentRegistry | `approveComponent()` |
-| L1 Timelock | L1 AlignmentRegistry | `registerAlignmentTarget()` |
+| L0 Safe | L0 Timelock | `propose()` → 48h delay → `execute()` |
+| L0 Timelock | L2 MasterRegistry | `registerFactory()`, `registerVault()` |
+| L0 Timelock | L2 ComponentRegistry | `approveComponent()` |
+| L0 Timelock | L1 AlignmentRegistry | `registerAlignmentTarget()` |
 | L3 Factory | L2 MasterRegistry | `registerInstance()` during `createInstance()` |
 | L3 Factory | L1 AlignmentRegistry | read-only target validation via MasterRegistry |
 | L4 Instance | L2 Vault | `receiveContribution()` (fees), `claimFees()` (yield) |
@@ -173,7 +166,7 @@ The protocol organises into five layers by trust level, risk surface, and who co
 
 ## 3. Alignment Targets & Curation
 
-Alignment Targets are the protocol's curation mechanism. Each target represents an established community whose token the protocol aligns with. Managed by **AlignmentRegistryV1** (UUPS upgradeable, owner is the DAO/Timelock).
+Alignment Targets are the protocol's curation mechanism. Each target represents an established community whose token the protocol aligns with. Managed by **AlignmentRegistryV1** (UUPS upgradeable, owner is Timelock).
 
 ### Data Structure
 
@@ -197,16 +190,16 @@ struct AlignmentAsset {
 
 ### Lifecycle
 
-1. **DAO shareholder proposes** a new alignment target (community + token)
-2. **DAO votes** on the proposal via GrandCentral
+1. **Safe proposes** a new alignment target (community + token)
+2. **Timelock approves** the proposal after the 48h delay
 3. **On approval**, target is registered in AlignmentRegistry — vault instances can now be deployed against it
-4. **Vault instances** deployed by anyone (via registered factories) or by the DAO directly. MasterRegistry calls AlignmentRegistry to enforce the vault's alignment token matches an approved target asset
-5. **Project connects**: when the target project (e.g., Remilia) reaches out, DAO votes to add their multisig as an **ambassador**
+4. **Vault instances** deployed by anyone (via registered factories) or by Timelock directly. MasterRegistry calls AlignmentRegistry to enforce the vault's alignment token matches an approved target asset
+5. **Project connects**: when the target project (e.g., Remilia) reaches out, Timelock registers their multisig as an **ambassador**
 6. **Ambassador powers** are vault-type-dependent — UniAlignmentVault has no management functions, but future vault types may grant ambassadors operational control
 
 ### Ambassador System
 
-Ambassadors are wallets officially provided by the target project. All ambassador changes go through DAO votes. Their powers depend on the vault type:
+Ambassadors are wallets officially provided by the target project. All ambassador changes go through Timelock. Their powers depend on the vault type:
 
 - **UniAlignmentVault**: No management functions. Vault activity (buying + LP-ing the target token) IS the upside.
 - **Future vault types**: May expose management functions gated by `isAmbassador(targetId, address)`.
@@ -298,7 +291,7 @@ Every factory follows the same pattern:
 
 **Factory-local `CreateParams` struct.** Each factory defines its own `CreateParams` — not in a shared interface — because the fields are project-specific.
 
-**Component-validated inputs.** User-supplied module addresses (gating module, liquidity deployer, staking module) are validated against `ComponentRegistry.isApprovedComponent()` at call time. Only DAO-approved components are accepted. The check is tag-agnostic — any approved address passes, regardless of which component tag it was approved under.
+**Component-validated inputs.** User-supplied module addresses (gating module, liquidity deployer, staking module) are validated against `ComponentRegistry.isApprovedComponent()` at call time. Only Timelock-approved components are accepted. The check is tag-agnostic — any approved address passes, regardless of which component tag it was approved under.
 
 **Fees forwarded directly to treasury.** Any `msg.value` sent to a factory is forwarded immediately to `protocolTreasury` before any other work. Factories hold no ETH.
 
@@ -312,7 +305,7 @@ Every factory follows the same pattern:
 
 ### Component System
 
-`ComponentRegistry` (UUPS upgradeable, owned by DAO via Timelock) is the DAO-governed approval list for pluggable factory components.
+`ComponentRegistry` (UUPS upgradeable, owned by Timelock) is the Timelock-governed approval list for pluggable factory components.
 
 **Component tags** (defined as constants in `FeatureUtils`):
 
@@ -328,7 +321,7 @@ Each factory advertises which component slots it supports via `features()` and w
 
 ### ERC404 Bonding Factory (`src/factories/erc404/ERC404Factory.sol`)
 
-Creates hybrid ERC20/ERC721 tokens with bonding curves. A single `ERC404Factory` works with any DAO-approved liquidity deployer — artists choose their deployer at instance creation time.
+Creates hybrid ERC20/ERC721 tokens with bonding curves. A single `ERC404Factory` works with any Timelock-approved liquidity deployer — artists choose their deployer at instance creation time.
 
 **Signature:**
 ```solidity
@@ -361,7 +354,7 @@ struct CreateParams {
 
 **Component slots:**
 - `liquidityDeployer` — required. Validated against ComponentRegistry. Handles LP deployment at graduation. Implements `ILiquidityDeployerModule`.
-- `gatingModule` — optional. `address(0)` = open access. Controls who can participate (paid minting, free minting, or both), gated by a DAO-approved `IGatingModule`.
+- `gatingModule` — optional. `address(0)` = open access. Controls who can participate (paid minting, free minting, or both), gated by a Timelock-approved `IGatingModule`.
 - `stakingModule` — optional. `address(0)` = staking unavailable for this instance.
 
 **`FreeMintParams`** (shared struct in `IFactoryTypes.sol`, used by ERC404 and ERC1155):
@@ -396,7 +389,7 @@ The staking module (`ERC404StakingModule`) is a singleton accounting backend. It
 **Factory family components:**
 - `LaunchManager` — holds presets only. No tier perks. Preset gives `targetETH`, `unitPerNFT`, `liquidityReserveBps`, `curveComputer`.
 - `CurveParamsComputer` — default `ICurveComputer` implementation. Computes bonding curve parameters (coefficients, normalization) from preset configuration.
-- `ComponentRegistry` — DAO-governed approval list consulted at creation time.
+- `ComponentRegistry` — Timelock-governed approval list consulted at creation time.
 
 ### ERC1155 Edition Factory (`src/factories/erc1155/ERC1155Factory.sol`)
 
@@ -432,7 +425,7 @@ struct CreateParams {
 **Pricing models** — plugged in post-deploy by the creator on the instance:
 - `UNLIMITED` — fixed price, infinite supply
 - `LIMITED_FIXED` — fixed price, capped supply
-- `LIMITED_DYNAMIC` — dynamic pricing via `DynamicPricingModule` (a DAO-approved component set on the factory, wired to instances at construction)
+- `LIMITED_DYNAMIC` — dynamic pricing via `DynamicPricingModule` (a Timelock-approved component set on the factory, wired to instances at construction)
 
 **Instance lifecycle:**
 1. Creator calls `createInstance()`, selecting a vault and optional gating module
@@ -544,57 +537,13 @@ Artists tithe 19% of proceeds from each project to the vault. The vault deploys 
 
 ---
 
-## 7. Governance (GrandCentral)
+## 7. Governance (Safe → Timelock)
 
-GrandCentral is a Mol***-pattern DAO that governs the protocol through a Gnosis Safe.
-
-### Structure
-
-- **Shares**: Voting power, earnable through contributions
-- **Loot**: Non-voting economic rights (claimable rewards)
-- **Proposals**: On-chain votes that execute transactions via Safe
-- **Ragequit**: Members can burn shares/loot for proportional payout from ragequit pool
-
-### Proposal Lifecycle
-
-```
-Submitted → [Sponsored] → Voting → Grace → Ready → Processed
-                            │                         │
-                        Cancelled                  Defeated
-                        (terminal)                (terminal)
-```
-
-1. Shareholder submits proposal (self-sponsors if shares >= threshold)
-2. Voting period: shareholders vote yes/no using historical share balances
-3. Grace period: ragequit window for dissenting members
-4. Processing: if quorum met and yes > no, transactions execute via Safe
-
-### Conductor System
-
-Delegated permissions via bitmask: `admin(1) | manager(2) | governor(4)`
-
-| Role | Permissions |
-|------|------------|
-| **Admin** | Full DAO governance control |
-| **Manager** | Mint/burn shares and loot, manage stipends |
-| **Governor** | Governance configuration, fund claims pool |
-
-Conductor roles can be individually locked (irreversible) by the DAO.
-
-### Conductors
-
-- **StipendConductor** — Autonomous recurring payment system. DAO configures a beneficiary, amount, and interval. Anyone can trigger `execute()` after the interval passes.
-- **ShareOffering** — Manages share issuance campaigns for the DAO.
-- **RevenueConductor** — Routes protocol revenue to appropriate destinations.
-
-### Timelock
-
-A Solady `Timelock` sits between the DAO/Safe and all protocol contracts. Every owner-gated operation (upgrades, registrations, parameter changes) must pass through the timelock's delay before execution.
+The protocol is governed by a Gnosis Safe multisig proposing through a Solady `Timelock`. Every owner-gated operation (upgrades, registrations, parameter changes) must pass through the timelock's delay before execution.
 
 **Ownership chain:**
 ```
-GrandCentral proposal passes
-  → Safe calls Timelock.propose(mode, executionData, delay)
+Safe calls Timelock.propose(mode, executionData, delay)
   → 48h minimum delay (visible on-chain)
   → Anyone calls Timelock.execute(mode, executionData)
   → Timelock (as owner) calls target contract
@@ -610,7 +559,7 @@ GrandCentral proposal passes
 
 The timelock is deployed directly (not behind a proxy) — timelocks should be immutable. Uses ERC7821 batched execution for multi-call proposals.
 
-### What the DAO Controls
+### What the Timelock Controls
 
 All actions below are subject to the 48-hour timelock delay:
 
@@ -622,18 +571,13 @@ All actions below are subject to the 48-hour timelock delay:
 - Treasury disbursements
 - UUPS contract upgrades (MasterRegistry, AlignmentRegistry)
 
-Direct DAO actions (no timelock):
-- Share and loot distribution
-- Conductor role management
-- Internal governance parameter changes
-
 ---
 
 ## 8. Registry & Discovery
 
 ### MasterRegistry (UUPS Upgradeable)
 
-The registration layer for the protocol. Owner is the DAO (via Timelock). Holds a reference to AlignmentRegistry for vault validation.
+The registration layer for the protocol. Owner is Timelock. Holds a reference to AlignmentRegistry for vault validation.
 
 **Manages:**
 - Project factories (registration, active/inactive status, deactivation)
@@ -657,11 +601,11 @@ The registration layer for the protocol. Owner is the DAO (via Timelock). Holds 
 
 **Vault registration access control:**
 - Registered active factories can call `registerVault()` directly (factory path)
-- Owner (DAO/Timelock) can also call `registerVault()` for singleton vaults (owner path)
+- Owner (Timelock) can also call `registerVault()` for singleton vaults (owner path)
 
 ### AlignmentRegistry (UUPS Upgradeable)
 
-Standalone contract for curation. Owner is the DAO (via Timelock).
+Standalone contract for curation. Owner is Timelock.
 
 **Manages:**
 - Alignment targets (register, update, deactivate)
@@ -688,7 +632,7 @@ Standalone registry for vault and hook metadata. Handles registration fees (0.05
 
 ## 8.5. Frontend Registry
 
-`FrontendRegistry` (`src/registry/FrontendRegistry.sol`) is an ENS controller for decentralized frontend versioning. UUPS upgradeable, owned by the DAO via Timelock. All mutations require `onlyOwner` (Timelock).
+`FrontendRegistry` (`src/registry/FrontendRegistry.sol`) is an ENS controller for decentralized frontend versioning. UUPS upgradeable, owned by Timelock. All mutations require `onlyOwner` (Timelock).
 
 ### How It Works
 
@@ -711,20 +655,19 @@ Standalone registry for vault and hook metadata. Handles registration fees (0.05
 
 ### Deploy Order
 
-1. **MasterRegistryV1** — Deploy implementation, then proxy with `initialize(daoOwner)`
-2. **AlignmentRegistryV1** — Deploy, initialize with daoOwner, wire to MasterRegistry via `setAlignmentRegistry()`
-3. **GrandCentral** — Deploy with Safe address, founder shares, governance params
-4. **ProtocolTreasuryV1** — Deploy protocol treasury
-5. **GlobalMessageRegistry** — Deploy with owner + masterRegistry reference
-6. **FeaturedQueueManager** — Deploy, initialize with masterRegistry + owner
-7. **VaultRegistry** — Deploy standalone
-8. **FrontendRegistry** — Deploy implementation, then proxy with `initialize(daoOwner, ensResolver)`
-9. **ComponentRegistry** — Deploy implementation, then proxy with `initialize(daoOwner)`. Approve DAO-vetted deployers and gating modules.
-10. **Alignment Targets** — Register via AlignmentRegistry (DAO or owner during bootstrap)
-11. **Project Factories** — Deploy with masterRegistry + globalMessageRegistry + componentRegistry, register in MasterRegistry
-12. **Vault Instances** — Deploy for approved targets, register via MasterRegistry
-13. **Timelock** — Deploy and initialize with Safe as admin/proposer/canceller, open executor, 48h delay
-14. **Migrate ownership** — Transfer MasterRegistry, AlignmentRegistry, ComponentRegistry, FrontendRegistry, and all protocol contracts to Timelock
+1. **MasterRegistryV1** — Deploy implementation, then proxy with `initialize(timelockOwner)`
+2. **AlignmentRegistryV1** — Deploy, initialize with timelockOwner, wire to MasterRegistry via `setAlignmentRegistry()`
+3. **ProtocolTreasuryV1** — Deploy protocol treasury
+4. **GlobalMessageRegistry** — Deploy with owner + masterRegistry reference
+5. **FeaturedQueueManager** — Deploy, initialize with masterRegistry + owner
+6. **VaultRegistry** — Deploy standalone
+7. **FrontendRegistry** — Deploy implementation, then proxy with `initialize(timelockOwner, ensResolver)`
+8. **ComponentRegistry** — Deploy implementation, then proxy with `initialize(timelockOwner)`. Approve Timelock-vetted deployers and gating modules.
+9. **Alignment Targets** — Register via AlignmentRegistry (Timelock or owner during bootstrap)
+10. **Project Factories** — Deploy with masterRegistry + globalMessageRegistry + componentRegistry, register in MasterRegistry
+11. **Vault Instances** — Deploy for approved targets, register via MasterRegistry
+12. **Timelock** — Deploy and initialize with Safe as admin/proposer/canceller, open executor, 48h delay
+13. **Migrate ownership** — Transfer MasterRegistry, AlignmentRegistry, ComponentRegistry, FrontendRegistry, and all protocol contracts to Timelock
 
 ### UUPS Upgrade Pattern
 
@@ -756,7 +699,6 @@ All protocol contracts with `onlyOwner` functions are owned by a Solady Timelock
 | **UniAlignmentVault** | Timelock (new instances) | Pool config, fee params, treasury address |
 | **ZAMMAlignmentVault** | Timelock (new instances) | Pool config, fee params, treasury address |
 | **ComponentRegistry** | Timelock | Component approval/revocation for pluggable factory slots |
-| **GrandCentral** | Self-governing (daoOnly) | Shares, loot, governance params, conductors |
 | **Project Factories** | Protocol + Creator | Instance deployment, fee withdrawal |
 | **Project Instances** | Instance creator (artist) | Withdrawals, configuration |
 
@@ -772,16 +714,15 @@ All protocol contracts with `onlyOwner` functions are owned by a Solady Timelock
 |------------|-----------|
 | MasterRegistryV1 (UUPS) | UniAlignmentVault (no proxy) |
 | AlignmentRegistryV1 (UUPS) | ZAMMAlignmentVault (no proxy) |
-| FrontendRegistry (UUPS) | GrandCentral (no proxy) |
-| ComponentRegistry (UUPS) | All factory/instance contracts |
-| | V4 hooks |
+| FrontendRegistry (UUPS) | All factory/instance contracts |
+| ComponentRegistry (UUPS) | V4 hooks |
 
 ### Key Security Properties
 
 - **48-hour timelock** on all owner-gated operations — upgrades, registrations, parameter changes are publicly visible before execution
 - **Open executor role** — anyone can trigger execution after delay, preventing the Safe from griefing by refusing to execute
 - **Cancellation** — Safe can abort pending operations during the delay window
-- **Factory deactivation** — DAO can disable compromised or deprecated factories, preventing new instance/vault creation while existing instances continue functioning
+- **Factory deactivation** — Timelock can disable compromised or deprecated factories, preventing new instance/vault creation while existing instances continue functioning
 - Vault fee claims use delta-based accounting (prevents double-claims)
 - Conversion rewards capped with M-04 griefing protection (failed transfers don't block operations)
 - Name collision prevention via hash-based uniqueness (case-insensitive, cross-factory)
@@ -794,16 +735,6 @@ All protocol contracts with `onlyOwner` functions are owned by a Solady Timelock
 
 ```
 src/
-├── dao/
-│   ├── GrandCentral.sol                    # Mol***-pattern DAO
-│   ├── conductors/
-│   │   ├── StipendConductor.sol            # Recurring payment automation
-│   │   ├── ShareOffering.sol               # Share issuance campaigns
-│   │   └── RevenueConductor.sol            # Protocol revenue routing
-│   └── interfaces/
-│       ├── IGrandCentral.sol
-│       └── IAvatar.sol                     # Gnosis Safe interface
-│
 ├── master/
 │   ├── MasterRegistryV1.sol                # Central registry (UUPS) — factories, vaults, instances
 │   ├── MasterRegistry.sol                  # Proxy wrapper
@@ -912,7 +843,7 @@ All integer division in this codebase rounds **down** (Solidity default floor di
 
 ### MasterChef / RewardPerToken Accumulators
 
-Used in: GrandCentral, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingModule
+Used in: ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingModule
 
 | Expression | Favors | Rationale |
 |---|---|---|
@@ -935,7 +866,7 @@ Used in: GrandCentral, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingMo
 | `protocolCut = total * protocolYieldCutBps / 10000` | Benefactors | Protocol takes slightly less; `benefactorAmount = total - protocolCut` absorbs dust |
 | `bondingFee = totalCost * bondingFeeBps / 10000` | Buyer | Buyer pays slightly less; fee is additive so no conservation issue |
 | `hookFee = ethMoved * hookFeeBips / 10000` | Swapper | Swapper pays slightly less |
-| `reserveAmount = available * reserveBps / 10000` | Routable pool | Slightly more goes to dividend/ragequit |
+| `reserveAmount = available * reserveBps / 10000` | Routable pool | Slightly more stays in the pool |
 
 ### Time-Based Pricing (FeaturedQueueManager, PromotionBadges)
 
@@ -948,8 +879,6 @@ Used in: GrandCentral, ZAMMAlignmentVault, CypherAlignmentVault, ERC404StakingMo
 
 | Expression | Location | Note |
 |---|---|---|
-| `(low + high + 1) / 2` | GrandCentral binary search | Rounds **up** — standard upper-bound binary search to avoid infinite loop |
-| `maxTotalShares * minRetentionPercent / 100` | GrandCentral retention check | Rounds down — makes it slightly harder to fail the retention check (conservative) |
 | `balance / (1e6 * 1e18)` | QueryAggregator | View-only NFT count conversion; no value transfer |
 | `normFactor = maxBondingSupply / 1e18` | CurveParamsComputer | Normalization for safe math; guarded by `!= 0` fallback |
 | `deployETH / 2` | ZAMMAlignmentVault init | Extra wei goes to LP side |
