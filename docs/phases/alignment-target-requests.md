@@ -1,8 +1,8 @@
 # Task — Request an Alignment Target (user proposes → admin reviews → approves)
 
-**Status:** **In progress** — T1 (contract) + T2 (deploy wiring) + contract-level T5 (17 forge tests) +
-T6 (ADR-0009) DONE and **fork-verified**; T3/T4 (UI) in progress; e2e fork-walk pending. On branch
-`feat/alignment-target-requests`. Architecture decisions locked (O1–O4). Full forge suite 1185 green.
+**Status:** **DONE — merged to `main` (`8e6e3f2`, 2026-07-01).** T1 (contract) + T2 (deploy wiring) +
+T3 (admin UI) + T4 (requester UI) + T5 (17 forge tests + e2e fork-walk) + T6 (ADR-0009) all shipped and
+fork-verified. Architecture decisions locked (O1–O4). Full forge suite 1185 green.
 **Surfaced by:** the vault-flavors pool-scout work — targets are admin-curated, so a user/creator has
 no path to propose one (e.g. "please add CULT"). Pairs with `ScanAlignmentPools.s.sol` (the admin runs
 the scout on a requested token before approving + wiring).
@@ -104,15 +104,17 @@ requester can now align to it.**
       0.05 ETH / 50 / 30d) + serializes the address; `deploy.ts` hands it to ADMIN via the 2-step
       handover; `addresses.ts` + wagmi bindings regenerated. **Fork-verified:** owned by ADMIN;
       non-owner submit (0.05 ETH escrow) → ADMIN approve → Approved + deposit refunded.
-- [~] **T3 — Admin UI.** In progress — extend `AlignmentPanel` with a "target requests" `AdminSection`
+- [x] **T3 — Admin UI.** ✅ DONE (`8e6e3f2`) — extended `AlignmentPanel` with `TargetRequestsPanel`
       (list pending, per-request Register-target (prefilled `registerAlignmentTarget`, ≥1 asset) +
-      Approve + Reject(forfeit) via `TxButton`/`useTxAction`, `useOwnerGate`); fix the empty-assets copy.
-- [~] **T4 — Requester UI.** In progress — public "request a target" form (token + metadata + assets +
-      deposit) + a "my requests" status view (indexed `RequestSubmitted`). New route + nav entry.
-- [~] **T5 — Tests.** ✅ Forge `test/master/AlignmentTargetRequestRegistry.t.sol` (17: submit/approve/
-      reject/forfeit/expiry/dup/queue-cap/onlyOwner/delist). Frontend unit tests: with T3/T4. **Pending:**
-      the fork-walk (off `anvilWallet` + `@fork`) — submit a request → Register+Approve from `/admin` →
-      assert the target is registered + active on-chain, then a vault can bind to it (choke-point e2e).
+      Approve + Reject(forfeit) via `TxButton`/`useTxAction`, `useOwnerGate`); fixed the empty-assets copy.
+- [x] **T4 — Requester UI.** ✅ DONE (`8e6e3f2`) — public `RequestTargetPage` (`/request-target`) form
+      (token + metadata + assets + deposit) + a "my requests" status view (indexed `RequestSubmitted`) +
+      nav entry.
+- [x] **T5 — Tests.** ✅ Forge `test/master/AlignmentTargetRequestRegistry.t.sol` (17: submit/approve/
+      reject/forfeit/expiry/dup/queue-cap/onlyOwner/delist). Frontend unit tests (18, `targetRequests.ts`)
+      + the fork-walk `app/e2e/target-requests.spec.ts` (@fork, `8e6e3f2`) — submits via the real form,
+      then ADMIN register+approve via viem, asserting the choke-point end-to-end (target active,
+      `isTokenInTarget` true, deposit refunded).
 - [x] **T6 — Docs/ADR.** ✅ [ADR-0009](../decisions/0009-alignment-target-request-registry.md) — request
       lifecycle + the request-layer-vs-core-registry split + the request→scout→approve→wire runbook.
 
