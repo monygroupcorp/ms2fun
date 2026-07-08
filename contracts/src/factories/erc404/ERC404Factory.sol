@@ -130,6 +130,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error InvalidOwner();
     error VaultRequired();
     error VaultMustBeContract();
+    error UnapprovedVault();
     error NameAlreadyTaken();
     error FreeMintAllocationExceedsNftCount();
     error UnapprovedLiquidityDeployer();
@@ -274,6 +275,12 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (params.owner == address(0)) revert InvalidOwner();
         if (params.vault == address(0)) revert VaultRequired();
         if (params.vault.code.length == 0) revert VaultMustBeContract();
+        // Registry-gate the alignment vault at create-time. The 19% graduation vaultCut (the
+        // CULT-alignment tithe) must only ever flow to a vault the master registry has
+        // registered/alignment-validated — a code.length check alone lets the tithe be redirected
+        // to an unregistered contract. Vaults are NOT componentRegistry components; the authority
+        // is masterRegistry.isVaultRegistered (mirrors migrateVault's registry gate).
+        if (!masterRegistry.isVaultRegistered(params.vault)) revert UnapprovedVault();
         if (params.declaredMaxAllowanceBps > 10000) revert InvalidDeclaredMaxAllowance();
 
         // Agent-on-behalf-of check
