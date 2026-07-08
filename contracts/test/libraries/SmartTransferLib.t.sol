@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {SmartTransferLib} from "../../src/libraries/SmartTransferLib.sol";
+import { Test } from "forge-std/Test.sol";
+import { SmartTransferLib } from "../../src/libraries/SmartTransferLib.sol";
 
 contract MockWETH {
     mapping(address => uint256) public balanceOf;
@@ -26,7 +26,8 @@ contract RevertingReceiver {
 
 contract NoReceiver {
     // no receive or fallback
-}
+
+    }
 
 /// @dev Harness to expose the internal library function
 contract SmartTransferHarness {
@@ -34,7 +35,7 @@ contract SmartTransferHarness {
         SmartTransferLib.smartTransferETH(to, amount, weth);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 contract SmartTransferLibTest is Test {

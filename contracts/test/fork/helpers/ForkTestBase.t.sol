@@ -178,7 +178,7 @@ contract ForkTestBaseTest is ForkTestBase {
         // 10 and 12 have 18.18% difference
         uint256 diff = percentDiff(10, 12);
         assertGt(diff, 0.15e18, "Percent diff should be > 15%");
-        assertLt(diff, 0.20e18, "Percent diff should be < 20%");
+        assertLt(diff, 0.2e18, "Percent diff should be < 20%");
 
         // Same values have 0% difference
         assertEq(percentDiff(100, 100), 0, "Same values should have 0% diff");

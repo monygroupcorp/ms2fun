@@ -1,45 +1,53 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
-import {ERC404Factory} from "../../../src/factories/erc404/ERC404Factory.sol";
-import {DeployBondEscrow} from "../../../src/factories/erc404/DeployBondEscrow.sol";
-import {ERC404BondingInstance} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-import {LaunchManager} from "../../../src/factories/erc404/LaunchManager.sol";
-import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
-import {BondingCurveMath} from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
-import {FreeMintParams} from "../../../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../../src/gating/IGatingModule.sol";
-import {ComponentRegistry} from "../../../src/registry/ComponentRegistry.sol";
-import {PasswordTierGatingModule} from "../../../src/gating/PasswordTierGatingModule.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ICreateX, CREATEX} from "../../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
-import {RevenueSplitLib} from "../../../src/shared/libraries/RevenueSplitLib.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
+import { DeployBondEscrow } from "../../../src/factories/erc404/DeployBondEscrow.sol";
+import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
+import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../../src/gating/IGatingModule.sol";
+import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
+import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
+import { RevenueSplitLib } from "../../../src/shared/libraries/RevenueSplitLib.sol";
 
 contract MockVault {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 /// @dev Plain vault with no hook() function
 contract PlainVault {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 /// @dev Minimal mock liquidity deployer — accepts the call and records the params it received.
 contract MockLiquidityDeployer is ILiquidityDeployerModule {
     bool public called;
     ILiquidityDeployerModule.DeployParams public lastParams;
+
     function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata p) external payable override {
         called = true;
         lastParams = p;
     }
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract ERC404FactoryTest is Test {
@@ -65,11 +73,7 @@ contract ERC404FactoryTest is Test {
     uint256 constant DEFAULT_PRESET_ID = 1;
 
     event InstanceCreated(
-        address indexed instance,
-        address indexed creator,
-        string name,
-        string symbol,
-        address indexed vault
+        address indexed instance, address indexed creator, string name, string symbol, address indexed vault
     );
 
     function _nextSalt() internal returns (bytes32) {
@@ -97,13 +101,16 @@ contract ERC404FactoryTest is Test {
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "MockDeployer");
 
         // Set up default preset
-        launchMgr.setPreset(DEFAULT_PRESET_ID, LaunchManager.Preset({
-            targetETH: 15 ether,
-            unitPerNFT: 1e6,
-            liquidityReserveBps: 2000,
-            curveComputer: address(curveComp),
-            active: true
-        }));
+        launchMgr.setPreset(
+            DEFAULT_PRESET_ID,
+            LaunchManager.Preset({
+                targetETH: 15 ether,
+                unitPerNFT: 1e6,
+                liquidityReserveBps: 2000,
+                curveComputer: address(curveComp),
+                active: true
+            })
+        );
 
         ERC404BondingInstance impl = new ERC404BondingInstance();
         factory = new ERC404Factory(
@@ -127,11 +134,10 @@ contract ERC404FactoryTest is Test {
     // Helper: build default IdentityParams
     // ========================
 
-    function _identity(
-        string memory name_,
-        string memory symbol_,
-        address owner_
-    ) internal returns (ERC404Factory.CreateParams memory) {
+    function _identity(string memory name_, string memory symbol_, address owner_)
+        internal
+        returns (ERC404Factory.CreateParams memory)
+    {
         return ERC404Factory.CreateParams({
             salt: _nextSalt(),
             owner: owner_,
@@ -143,7 +149,7 @@ contract ERC404FactoryTest is Test {
             styleUri: "",
             tokenBaseURI: "",
             stakingModule: address(0),
-                declaredMaxAllowanceBps: 0
+            declaredMaxAllowanceBps: 0
         });
     }
 
@@ -154,12 +160,12 @@ contract ERC404FactoryTest is Test {
     function test_createInstance_successfulCreation() public {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("TestToken", "TEST", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance != address(0), "Instance should be created");
         vm.stopPrank();
@@ -168,12 +174,12 @@ contract ERC404FactoryTest is Test {
     function test_createInstance_withVault() public {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("TestToken", "TEST", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance != address(0));
         vm.stopPrank();
@@ -183,7 +189,7 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(ERC404Factory.VaultRequired.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: creator1,
@@ -194,13 +200,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -209,12 +215,12 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(ERC404Factory.InvalidName.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("", "TEST", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -223,12 +229,12 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(ERC404Factory.InvalidSymbol.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("TestToken", "", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -237,7 +243,7 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(ERC404Factory.InvalidNftCount.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: creator1,
@@ -248,13 +254,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -263,7 +269,7 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(ERC404Factory.InvalidOwner.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: address(0),
@@ -274,13 +280,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -307,22 +313,22 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator2, 1 ether);
 
         vm.startPrank(creator1);
-        address instance1 = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance1 = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("Token1", "TK1", creator1),
             "ipfs://metadata1",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
 
         vm.startPrank(creator2);
-        address instance2 = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance2 = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("Token2", "TK2", creator2),
             "ipfs://metadata2",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
 
@@ -336,12 +342,12 @@ contract ERC404FactoryTest is Test {
         vm.startPrank(creator1);
         vm.expectEmit(false, true, true, false);
         emit InstanceCreated(address(0), creator1, "EventToken", "EVT", address(mockVault));
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("EventToken", "EVT", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -354,21 +360,21 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 2 ether);
         vm.startPrank(creator1);
 
-        address instance1 = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance1 = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("Token1", "TK1", creator1),
             "ipfs://metadata1",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance1 != address(0));
 
-        address instance2 = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance2 = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("Token2", "TK2", creator1),
             "ipfs://metadata2",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance2 != address(0));
         vm.stopPrank();
@@ -379,12 +385,12 @@ contract ERC404FactoryTest is Test {
         // creator1 must be a registered agent to create on behalf of creator2
         mockRegistry.setAgent(creator1, true);
         vm.startPrank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("TestToken", "TEST", creator2),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance != address(0));
         // Agent-created instance should have delegation enabled
@@ -425,12 +431,12 @@ contract ERC404FactoryTest is Test {
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("FeeToken", "FEE", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
         assertEq(treasury.balance, INSTANCE_CREATION_FEE);
@@ -515,7 +521,7 @@ contract ERC404FactoryTest is Test {
     function test_createInstance_withPreset() public {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: creator1,
@@ -526,13 +532,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance != address(0));
         ERC404BondingInstance inst = ERC404BondingInstance(payable(instance));
@@ -545,7 +551,7 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(abi.encodeWithSignature("PresetNotActive()"));
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: creator1,
@@ -556,13 +562,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -571,7 +577,7 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
         vm.expectRevert(ERC404Factory.InvalidNftCount.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: creator1,
@@ -582,13 +588,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "TEST",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -599,30 +605,27 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
         vm.expectRevert(ERC404Factory.UnapprovedLiquidityDeployer.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("Token", "TKN", creator1),
             "ipfs://",
-            address(0xDEAD),  // unapproved deployer
+            address(0xDEAD), // unapproved deployer
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
 
     function test_createInstance_withApprovedDeployer_succeeds() public {
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("Token", "TKN", creator1),
             "ipfs://",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance != address(0));
-        assertEq(
-            address(ERC404BondingInstance(payable(instance)).liquidityDeployer()),
-            address(mockDeployer)
-        );
+        assertEq(address(ERC404BondingInstance(payable(instance)).liquidityDeployer()), address(mockDeployer));
     }
 
     function test_createInstanceWithGating_revertsOnUnapprovedModule() public {
@@ -631,12 +634,12 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
         vm.expectRevert(ERC404Factory.UnapprovedGatingModule.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("TestToken", "TEST", creator1),
             "ipfs://Qmtest",
             address(mockDeployer),
             unapprovedModule,
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
 
@@ -647,12 +650,12 @@ contract ERC404FactoryTest is Test {
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("GatedToken", "GATE", creator1),
             "ipfs://Qmtest",
             address(mockDeployer),
             gatingModule,
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
         assertTrue(instance != address(0));
@@ -661,12 +664,12 @@ contract ERC404FactoryTest is Test {
     function test_createInstanceWithGating_zeroAddressSkipsValidation() public {
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("OpenToken", "OPEN", creator1),
             "ipfs://Qmtest",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
         assertTrue(instance != address(0));
@@ -679,30 +682,27 @@ contract ERC404FactoryTest is Test {
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("GatedToken2", "GATE2", creator1),
             "ipfs://Qmtest",
             address(mockDeployer),
             gatingModule,
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
-        assertEq(
-            address(ERC404BondingInstance(payable(instance)).gatingModule()),
-            gatingModule
-        );
+        assertEq(address(ERC404BondingInstance(payable(instance)).gatingModule()), gatingModule);
         assertTrue(ERC404BondingInstance(payable(instance)).gatingActive());
     }
 
     function test_createInstance_noGating_gatingActiveFalse() public {
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("OpenToken2", "OPEN2", creator1),
             "ipfs://Qmtest",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertFalse(ERC404BondingInstance(payable(instance)).gatingActive());
     }
@@ -713,7 +713,7 @@ contract ERC404FactoryTest is Test {
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             ERC404Factory.CreateParams({
                 salt: _nextSalt(),
                 owner: creator1,
@@ -724,13 +724,13 @@ contract ERC404FactoryTest is Test {
                 symbol: "PVT",
                 styleUri: "",
                 tokenBaseURI: "",
-            stakingModule: address(0),
+                stakingModule: address(0),
                 declaredMaxAllowanceBps: 0
             }),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         assertTrue(instance != address(0));
     }
@@ -739,11 +739,10 @@ contract ERC404FactoryTest is Test {
     // Creator carve (graduation carve-out)
     // ════════════════════════════════════════════════════════════════════════
 
-    function _identityWithCarve(
-        string memory name_,
-        address owner_,
-        uint16 declaredBps
-    ) internal returns (ERC404Factory.CreateParams memory p) {
+    function _identityWithCarve(string memory name_, address owner_, uint16 declaredBps)
+        internal
+        returns (ERC404Factory.CreateParams memory p)
+    {
         p = _identity(name_, "CRV", owner_);
         p.declaredMaxAllowanceBps = declaredBps;
     }
@@ -761,7 +760,7 @@ contract ERC404FactoryTest is Test {
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         inst = ERC404BondingInstance(payable(a));
         inst.setBondingOpenTime(block.timestamp + 1);
@@ -772,11 +771,10 @@ contract ERC404FactoryTest is Test {
 
     function _buyExact(ERC404BondingInstance inst, uint256 amount) internal {
         (uint256 ip, uint256 qc, uint256 cc, uint256 qd, uint256 nf) = inst.curveParams();
-        uint256 cost = curveComp.calculateCost(
-            BondingCurveMath.Params(ip, qc, cc, qd, nf), inst.totalBondingSupply(), amount
-        );
+        uint256 cost =
+            curveComp.calculateCost(BondingCurveMath.Params(ip, qc, cc, qd, nf), inst.totalBondingSupply(), amount);
         vm.prank(creator1);
-        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        inst.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
     }
 
     function _lastCarve() internal view returns (address creatorArg, uint256 carveArg) {
@@ -792,7 +790,7 @@ contract ERC404FactoryTest is Test {
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
 
@@ -825,13 +823,13 @@ contract ERC404FactoryTest is Test {
         assertEq(def.r3, 1000);
 
         RevenueSplitLib.BracketParams memory bad =
-            RevenueSplitLib.BracketParams({b1: 5 ether, b2: 4 ether, r1: 100, r2: 100, r3: 100});
+            RevenueSplitLib.BracketParams({ b1: 5 ether, b2: 4 ether, r1: 100, r2: 100, r3: 100 });
         vm.prank(protocolAdmin);
         vm.expectRevert(ERC404Factory.InvalidBracketParams.selector);
         factory.setCarveBrackets(bad);
 
         RevenueSplitLib.BracketParams memory good =
-            RevenueSplitLib.BracketParams({b1: 2 ether, b2: 10 ether, r1: 4000, r2: 2000, r3: 500});
+            RevenueSplitLib.BracketParams({ b1: 2 ether, b2: 10 ether, r1: 4000, r2: 2000, r3: 500 });
         vm.prank(nonOwner);
         vm.expectRevert();
         factory.setCarveBrackets(good);
@@ -983,12 +981,12 @@ contract ERC404FactoryTest is Test {
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("LeverOff", "OFF", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
         assertEq(treasury.balance, INSTANCE_CREATION_FEE, "full fee to treasury");
@@ -1007,12 +1005,12 @@ contract ERC404FactoryTest is Test {
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
-        address instance = factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("LeverOn", "ON", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
         assertEq(address(escrow).balance, bond, "bond escrowed");
@@ -1032,12 +1030,12 @@ contract ERC404FactoryTest is Test {
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
         vm.expectRevert(ERC404Factory.InsufficientBond.selector);
-        factory.createInstance{value: INSTANCE_CREATION_FEE}(
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
             _identity("TooLittle", "LOW", creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
 

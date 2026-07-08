@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ILiquidityDeployerModule} from "../../src/interfaces/ILiquidityDeployerModule.sol";
+import { Test } from "forge-std/Test.sol";
+import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
 
 contract MockDeployer is ILiquidityDeployerModule {
     bool public called;
@@ -13,8 +13,11 @@ contract MockDeployer is ILiquidityDeployerModule {
         receivedEth = msg.value;
         require(msg.value == p.ethReserve, "ETH mismatch");
     }
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract ILiquidityDeployerModuleTest is Test {
@@ -35,7 +38,7 @@ contract ILiquidityDeployerModuleTest is Test {
             creator: address(0),
             carveEth: 0
         });
-        deployer.deployLiquidity{value: 1 ether}(p);
+        deployer.deployLiquidity{ value: 1 ether }(p);
         assertTrue(deployer.called());
         assertEq(deployer.receivedEth(), 1 ether);
     }

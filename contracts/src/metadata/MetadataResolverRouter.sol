@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {IMetadataResolver} from "./IMetadataResolver.sol";
-import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { IMetadataResolver } from "./IMetadataResolver.sol";
+import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 
 /// @title MetadataResolverRouter
 /// @notice Composes an ordered list of child metadata resolvers behind one `IMetadataResolver`
@@ -24,8 +24,8 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
 
     IMasterRegistry public immutable masterRegistry;
 
-    mapping(address => address[]) public resolvers;   // per instance, ordered by precedence
-    mapping(address => bool)      public sealed_;      // per instance, set-once
+    mapping(address => address[]) public resolvers; // per instance, ordered by precedence
+    mapping(address => bool) public sealed_; // per instance, set-once
 
     string private _metadataURI;
 
@@ -49,12 +49,7 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
     }
 
     /// @inheritdoc IMetadataResolver
-    function resolve(address inst, uint256 id, address holder)
-        external
-        view
-        override
-        returns (string memory)
-    {
+    function resolve(address inst, uint256 id, address holder) external view override returns (string memory) {
         address[] storage rs = resolvers[inst];
         uint256 len = rs.length;
         for (uint256 i; i < len; ++i) {
@@ -63,10 +58,10 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
             if (rs[i].code.length == 0) continue;
             // slither-disable-next-line calls-loop
             try IMetadataResolver(rs[i]).resolve(inst, id, holder) returns (string memory u) {
-                if (bytes(u).length != 0) return u;   // first non-empty wins
-            } catch {}                                 // defensive at the router too
+                if (bytes(u).length != 0) return u; // first non-empty wins
+            } catch { } // defensive at the router too
         }
-        return "";                                     // → instance falls back to base
+        return ""; // → instance falls back to base
     }
 
     /// @notice Number of child resolvers wired for `inst` (frontend/indexer helper).

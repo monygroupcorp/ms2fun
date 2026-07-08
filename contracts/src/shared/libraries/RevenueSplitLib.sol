@@ -13,8 +13,8 @@ library RevenueSplitLib {
 
     struct Split {
         uint256 protocolCut; // 1%
-        uint256 vaultCut;    // vault share
-        uint256 remainder;   // creator/LP share
+        uint256 vaultCut; // vault share
+        uint256 remainder; // creator/LP share
     }
 
     /// @notice 1/19/80 split (DN404/ERC404 graduation — vault 19%, remainder 80% to LP).
@@ -57,9 +57,7 @@ library RevenueSplitLib {
     function isLiquidityFamily(string memory vaultType) internal pure returns (bool liquidityFamily) {
         bytes32 h = keccak256(bytes(vaultType));
         if (
-            h == keccak256(bytes("UniswapV4LP")) ||
-            h == keccak256(bytes("ZAMMLP")) ||
-            h == keccak256(bytes("CypherLP"))
+            h == keccak256(bytes("UniswapV4LP")) || h == keccak256(bytes("ZAMMLP")) || h == keccak256(bytes("CypherLP"))
         ) {
             return true;
         }
@@ -76,17 +74,17 @@ library RevenueSplitLib {
     struct BracketParams {
         uint256 b1; // first bracket upper bound (wei), e.g. 4 ether
         uint256 b2; // second bracket upper bound (wei), >= b1, e.g. 20 ether
-        uint16 r1;  // bps rate on raise in [0, b1], e.g. 5000
-        uint16 r2;  // bps rate on raise in (b1, b2], e.g. 2500
-        uint16 r3;  // bps rate on raise beyond b2, e.g. 1000
+        uint16 r1; // bps rate on raise in [0, b1], e.g. 5000
+        uint16 r2; // bps rate on raise in (b1, b2], e.g. 2500
+        uint16 r3; // bps rate on raise beyond b2, e.g. 1000
     }
 
     /// @notice Graduation payout with an optional creator carve. All parts sum to the raise exactly.
     struct GraduationSplit {
-        uint256 protocolCut;  // 1% of raise + 1% of carve
-        uint256 vaultCut;     // 19% of raise + 19% of carve
-        uint256 creatorCut;   // 80% of carve (absorbs carve rounding dust)
-        uint256 ethForPool;   // remainder → LP
+        uint256 protocolCut; // 1% of raise + 1% of carve
+        uint256 vaultCut; // 19% of raise + 19% of carve
+        uint256 creatorCut; // 80% of carve (absorbs carve rounding dust)
+        uint256 ethForPool; // remainder → LP
         uint256 carveApplied; // effective (clamped) gross carve; creator+vault+protocol carve parts sum to this
     }
 

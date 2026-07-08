@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {IComponentRegistry} from "./interfaces/IComponentRegistry.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { IComponentRegistry } from "./interfaces/IComponentRegistry.sol";
 
 /**
  * @title ComponentRegistry
@@ -13,7 +13,6 @@ import {IComponentRegistry} from "./interfaces/IComponentRegistry.sol";
  *      Revocation blocks new instance creation only — existing instances are unaffected.
  */
 contract ComponentRegistry is SafeOwnableUUPS, IComponentRegistry {
-
     // ┌─────────────────────────┐
     // │      Custom Errors      │
     // └─────────────────────────┘
@@ -29,13 +28,13 @@ contract ComponentRegistry is SafeOwnableUUPS, IComponentRegistry {
     bool private _initialized;
 
     /// @notice Whether a component is currently approved.
-    mapping(address => bool)    public isApproved;
+    mapping(address => bool) public isApproved;
 
     /// @notice Off-chain category tag per component (e.g. keccak256("gating")).
     mapping(address => bytes32) public componentTag;
 
     /// @notice Human-readable label per component for frontend display.
-    mapping(address => string)  public componentName;
+    mapping(address => string) public componentName;
 
     /// @notice All component addresses ever approved (includes revoked). Used for enumeration.
     address[] public allComponents;

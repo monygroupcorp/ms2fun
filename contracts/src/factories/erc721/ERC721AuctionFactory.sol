@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
-import {ERC721AuctionInstance} from "./ERC721AuctionInstance.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IFactory} from "../../interfaces/IFactory.sol";
-import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { ERC721AuctionInstance } from "./ERC721AuctionInstance.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IFactory } from "../../interfaces/IFactory.sol";
+import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 
 /**
  * @title ERC721AuctionFactory
@@ -41,20 +41,11 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
         uint256 bidIncrement;
     }
 
-    event InstanceCreated(
-        address indexed instance,
-        address indexed creator,
-        string name,
-        address indexed vault
-    );
+    event InstanceCreated(address indexed instance, address indexed creator, string name, address indexed vault);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event VaultCapabilityWarning(address indexed vault, bytes32 indexed capability);
 
-    constructor(
-        address _masterRegistry,
-        address _globalMessageRegistry,
-        address _weth
-    ) {
+    constructor(address _masterRegistry, address _globalMessageRegistry, address _weth) {
         _initializeOwner(msg.sender);
         if (_globalMessageRegistry == address(0)) revert InvalidAddress();
         masterRegistry = IMasterRegistry(_masterRegistry);
@@ -63,10 +54,12 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
     }
 
     /// @notice Deploy a new ERC721 auction instance. Any ETH forwarded directly to treasury.
-    function createInstance(
-        bytes32 salt,
-        CreateParams calldata params
-    ) external payable nonReentrant returns (address instance) {
+    function createInstance(bytes32 salt, CreateParams calldata params)
+        external
+        payable
+        nonReentrant
+        returns (address instance)
+    {
         // Forward fee directly to treasury — factory holds no ETH
         if (msg.value > 0 && protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(protocolTreasury, msg.value);
@@ -86,8 +79,9 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
         if (masterRegistry.isNameTaken(params.name)) revert NameAlreadyTaken();
 
         // Soft vault capability check
-        try IAlignmentVault(payable(params.vault)).supportsCapability(keccak256("YIELD_GENERATION"))
-            returns (bool supported) {
+        try IAlignmentVault(payable(params.vault)).supportsCapability(keccak256("YIELD_GENERATION")) returns (
+            bool supported
+        ) {
             if (!supported) emit VaultCapabilityWarning(params.vault, keccak256("YIELD_GENERATION"));
         } catch {
             emit VaultCapabilityWarning(params.vault, keccak256("YIELD_GENERATION"));
@@ -101,11 +95,10 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
         emit InstanceCreated(instance, params.creator, params.name, params.vault);
     }
 
-    function _deployInstance(
-        bytes32 salt,
-        CreateParams calldata params,
-        bool agentCreated
-    ) private returns (address instance) {
+    function _deployInstance(bytes32 salt, CreateParams calldata params, bool agentCreated)
+        private
+        returns (address instance)
+    {
         bytes memory initCode = abi.encodePacked(
             type(ERC721AuctionInstance).creationCode,
             abi.encode(

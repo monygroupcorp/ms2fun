@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {IAlignmentRegistry} from "./interfaces/IAlignmentRegistry.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
 
 /**
  * @title AlignmentRegistryV1
@@ -98,11 +98,11 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         emit AlignmentTargetDeactivated(targetId);
     }
 
-    function updateAlignmentTarget(
-        uint256 targetId,
-        string memory description,
-        string memory metadataURI
-    ) external override onlyOwner {
+    function updateAlignmentTarget(uint256 targetId, string memory description, string memory metadataURI)
+        external
+        override
+        onlyOwner
+    {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
 
         alignmentTargets[targetId].description = description;
@@ -182,5 +182,4 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     function getCommunityPayout(uint256 targetId) external view override returns (address) {
         return communityPayout[targetId];
     }
-
 }

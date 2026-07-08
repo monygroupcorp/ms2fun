@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {RevenueSplitLib} from "../../src/shared/libraries/RevenueSplitLib.sol";
+import { Test } from "forge-std/Test.sol";
+import { RevenueSplitLib } from "../../src/shared/libraries/RevenueSplitLib.sol";
 
 /// @title RevenueSplitCarveTest
 /// @notice Graduation carve-out math: `carveAllowance` (progressive brackets — continuity at
@@ -14,17 +14,15 @@ contract RevenueSplitCarveTest is Test {
 
     /// @dev The protocol defaults: 50% of the first 4 ETH, 25% of the next 16, 10% beyond 20.
     function _defaults() internal pure returns (RevenueSplitLib.BracketParams memory) {
-        return RevenueSplitLib.BracketParams({b1: 4 ether, b2: 20 ether, r1: 5000, r2: 2500, r3: 1000});
+        return RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 5000, r2: 2500, r3: 1000 });
     }
 
     /// @dev Fuzz-safe bracket params: b1 <= b2 (factory-validated invariant), rates <= 10000.
-    function _boundParams(
-        uint256 b1,
-        uint256 b2,
-        uint16 r1,
-        uint16 r2,
-        uint16 r3
-    ) internal pure returns (RevenueSplitLib.BracketParams memory p) {
+    function _boundParams(uint256 b1, uint256 b2, uint16 r1, uint16 r2, uint16 r3)
+        internal
+        pure
+        returns (RevenueSplitLib.BracketParams memory p)
+    {
         p.b1 = bound(b1, 0, MAX_RAISE);
         p.b2 = bound(b2, p.b1, MAX_RAISE);
         p.r1 = uint16(bound(r1, 0, 10000));
@@ -52,13 +50,13 @@ contract RevenueSplitCarveTest is Test {
         RevenueSplitLib.BracketParams memory p = _defaults();
         // At b1
         uint256 below = RevenueSplitLib.carveAllowance(p.b1 - 1, p);
-        uint256 at    = RevenueSplitLib.carveAllowance(p.b1, p);
+        uint256 at = RevenueSplitLib.carveAllowance(p.b1, p);
         uint256 above = RevenueSplitLib.carveAllowance(p.b1 + 1, p);
         assertLe(at - below, 1, "jump into b1");
         assertLe(above - at, 1, "jump out of b1");
         // At b2
         below = RevenueSplitLib.carveAllowance(p.b2 - 1, p);
-        at    = RevenueSplitLib.carveAllowance(p.b2, p);
+        at = RevenueSplitLib.carveAllowance(p.b2, p);
         above = RevenueSplitLib.carveAllowance(p.b2 + 1, p);
         assertLe(at - below, 1, "jump into b2");
         assertLe(above - at, 1, "jump out of b2");
@@ -114,30 +112,23 @@ contract RevenueSplitCarveTest is Test {
 
     // ── splitGraduation: conservation + priority stack + tithe ───────────────
 
-    function testFuzz_splitGraduation_conservation(
-        uint256 raise,
-        uint256 carveEth,
-        uint256 minPoolEth
-    ) public pure {
+    function testFuzz_splitGraduation_conservation(uint256 raise, uint256 carveEth, uint256 minPoolEth) public pure {
         raise = bound(raise, 0, type(uint256).max / 100); // split() multiplies by 19
         carveEth = bound(carveEth, 0, type(uint256).max / 100);
         minPoolEth = bound(minPoolEth, 0, type(uint256).max);
         RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(raise, carveEth, minPoolEth);
         assertEq(
-            g.protocolCut + g.vaultCut + g.creatorCut + g.ethForPool,
-            raise,
-            "all parts must sum to the raise exactly"
+            g.protocolCut + g.vaultCut + g.creatorCut + g.ethForPool, raise, "all parts must sum to the raise exactly"
         );
     }
 
     /// @notice Priority stack: protocol/vault are computed on the FULL raise (alignment not
     ///         dilutable) plus their tithe share of the applied carve; the creator gets 80% of the
     ///         carve; the pool takes the rest.
-    function testFuzz_splitGraduation_priorityStackAndTithe(
-        uint256 raise,
-        uint256 carveEth,
-        uint256 minPoolEth
-    ) public pure {
+    function testFuzz_splitGraduation_priorityStackAndTithe(uint256 raise, uint256 carveEth, uint256 minPoolEth)
+        public
+        pure
+    {
         raise = bound(raise, 0, type(uint256).max / 100);
         carveEth = bound(carveEth, 0, type(uint256).max / 100);
         minPoolEth = bound(minPoolEth, 0, type(uint256).max);
@@ -157,11 +148,10 @@ contract RevenueSplitCarveTest is Test {
     /// @notice The floor is a carve-CLAMP, never a gate: whenever the LP share reaches the floor,
     ///         the pool keeps at least the floor; when it can't, the carve is zero and the pool
     ///         takes the whole LP share — the function never reverts.
-    function testFuzz_splitGraduation_floorClampNeverGates(
-        uint256 raise,
-        uint256 carveEth,
-        uint256 minPoolEth
-    ) public pure {
+    function testFuzz_splitGraduation_floorClampNeverGates(uint256 raise, uint256 carveEth, uint256 minPoolEth)
+        public
+        pure
+    {
         raise = bound(raise, 0, type(uint256).max / 100);
         carveEth = bound(carveEth, 0, type(uint256).max / 100);
         minPoolEth = bound(minPoolEth, 0, type(uint256).max);

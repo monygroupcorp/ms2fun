@@ -162,7 +162,7 @@ contract V4PositionCreationTest is ForkTestBase, IUnlockCallback {
         uint256 usdcBefore = IERC20(USDC).balanceOf(address(this));
 
         // Add liquidity - full range needs MUCH less liquidity
-        int256 liquidityDelta = 1e12;  // Very small for such a wide range
+        int256 liquidityDelta = 1e12; // Very small for such a wide range
         _modifyLiquidity(key, tickLower, tickUpper, liquidityDelta);
 
         uint256 ethAfter = address(this).balance;
@@ -197,7 +197,7 @@ contract V4PositionCreationTest is ForkTestBase, IUnlockCallback {
         PoolKey memory key = _createNativeETHPoolKey(USDC, 500);
 
         // Get current tick
-        (,int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
+        (, int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
 
         // Tight range: current tick ± 1 tick spacing = ~0.01% price range
         int24 tickSpacing = 10;
@@ -257,7 +257,7 @@ contract V4PositionCreationTest is ForkTestBase, IUnlockCallback {
 
         // Invalid: tickLower >= tickUpper
         int24 tickLower = 100;
-        int24 tickUpper = 100;  // Equal to tickLower - INVALID!
+        int24 tickUpper = 100; // Equal to tickLower - INVALID!
 
         emit log_named_int("Invalid tickLower", tickLower);
         emit log_named_int("Invalid tickUpper", tickUpper);
@@ -310,11 +310,12 @@ contract V4PositionCreationTest is ForkTestBase, IUnlockCallback {
         ModifyLiquidityCallbackData memory params = abi.decode(data, (ModifyLiquidityCallbackData));
 
         // Modify liquidity
-        (BalanceDelta delta, BalanceDelta feeDelta) = poolManager.modifyLiquidity(
-            params.key,
-            params.params,
-            "" // hookData
-        );
+        (BalanceDelta delta, BalanceDelta feeDelta) =
+            poolManager.modifyLiquidity(
+                params.key,
+                params.params,
+                "" // hookData
+            );
 
         // Store deltas for test assertions
         lastDelta = delta;
@@ -351,24 +352,13 @@ contract V4PositionCreationTest is ForkTestBase, IUnlockCallback {
 
     // ========== Helper Functions ==========
 
-    function _modifyLiquidity(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta
-    ) internal {
+    function _modifyLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) internal {
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta,
-            salt: 0
+            tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
         });
 
-        ModifyLiquidityCallbackData memory callbackData = ModifyLiquidityCallbackData({
-            key: key,
-            params: params,
-            sender: address(this)
-        });
+        ModifyLiquidityCallbackData memory callbackData =
+            ModifyLiquidityCallbackData({ key: key, params: params, sender: address(this) });
 
         poolManager.unlock(abi.encode(callbackData));
     }
@@ -388,13 +378,13 @@ contract V4PositionCreationTest is ForkTestBase, IUnlockCallback {
     }
 
     function _getTickSpacing(uint24 fee) internal pure returns (int24) {
-        if (fee == 100) return 1;     // 0.01% -> 1 tick
-        if (fee == 500) return 10;    // 0.05% -> 10 ticks
-        if (fee == 3000) return 60;   // 0.3% -> 60 ticks
+        if (fee == 100) return 1; // 0.01% -> 1 tick
+        if (fee == 500) return 10; // 0.05% -> 10 ticks
+        if (fee == 3000) return 60; // 0.3% -> 60 ticks
         if (fee == 10000) return 200; // 1% -> 200 ticks
         revert("Unknown fee tier");
     }
 
     // Required for receiving ETH
-    receive() external payable {}
+    receive() external payable { }
 }

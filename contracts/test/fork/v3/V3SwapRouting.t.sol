@@ -88,7 +88,7 @@ contract V3SwapRoutingTest is ForkTestBase {
 
         // Wrap ETH to WETH
         vm.prank(swapper);
-        weth.deposit{value: amountIn}();
+        weth.deposit{ value: amountIn }();
 
         // Approve router to spend WETH
         vm.prank(swapper);
@@ -135,12 +135,12 @@ contract V3SwapRoutingTest is ForkTestBase {
 
         // Wrap and approve
         vm.prank(swapper);
-        weth.deposit{value: amountIn}();
+        weth.deposit{ value: amountIn }();
         vm.prank(swapper);
         weth.approve(address(router), amountIn);
 
         // Get current pool price
-        (uint160 currentSqrtPrice,,,,,, ) = getV3Slot0(WETH_USDC_V3_03);
+        (uint160 currentSqrtPrice,,,,,,) = getV3Slot0(WETH_USDC_V3_03);
 
         // Set price limit to 0 (no limit) for this test
         // NOTE: Setting specific price limits in V3 is complex because:
@@ -183,7 +183,7 @@ contract V3SwapRoutingTest is ForkTestBase {
         // Wrap substantial WETH (we don't know exact input needed)
         uint256 maxInput = 2 ether;
         vm.prank(swapper);
-        weth.deposit{value: maxInput}();
+        weth.deposit{ value: maxInput }();
         vm.prank(swapper);
         weth.approve(address(router), maxInput);
 
@@ -230,7 +230,7 @@ contract V3SwapRoutingTest is ForkTestBase {
 
         // Wrap and approve
         vm.prank(swapper);
-        weth.deposit{value: amountIn}();
+        weth.deposit{ value: amountIn }();
         vm.prank(swapper);
         weth.approve(address(router), amountIn);
 
@@ -238,9 +238,9 @@ contract V3SwapRoutingTest is ForkTestBase {
         // Path encoding: abi.encodePacked(tokenIn, fee, tokenMid, fee, tokenOut)
         bytes memory path = abi.encodePacked(
             WETH,
-            uint24(3000),  // 0.3% WETH/USDC
+            uint24(3000), // 0.3% WETH/USDC
             USDC,
-            uint24(500),   // 0.05% USDC/DAI
+            uint24(500), // 0.05% USDC/DAI
             DAI
         );
 
@@ -249,11 +249,7 @@ contract V3SwapRoutingTest is ForkTestBase {
 
         // Execute multi-hop swap
         IV3SwapRouter.ExactInputParams memory params = IV3SwapRouter.ExactInputParams({
-            path: path,
-            recipient: swapper,
-            deadline: block.timestamp + 300,
-            amountIn: amountIn,
-            amountOutMinimum: 0
+            path: path, recipient: swapper, deadline: block.timestamp + 300, amountIn: amountIn, amountOutMinimum: 0
         });
 
         vm.prank(swapper);
@@ -280,7 +276,7 @@ contract V3SwapRoutingTest is ForkTestBase {
 
         // Wrap and approve
         vm.prank(swapper);
-        weth.deposit{value: amountIn}();
+        weth.deposit{ value: amountIn }();
         vm.prank(swapper);
         weth.approve(address(router), amountIn);
 
@@ -316,7 +312,7 @@ contract V3SwapRoutingTest is ForkTestBase {
 
         // Wrap and approve
         vm.prank(swapper);
-        weth.deposit{value: amountIn}();
+        weth.deposit{ value: amountIn }();
         vm.prank(swapper);
         weth.approve(address(router), amountIn);
 

@@ -65,7 +65,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Set V4 pool key - H-02: Hook requires native ETH (address(0)), not WETH
         vm.prank(owner);
         PoolKey memory poolKey = PoolKey({
-            currency0: Currency.wrap(address(0)),  // Native ETH
+            currency0: Currency.wrap(address(0)), // Native ETH
             currency1: Currency.wrap(alignmentToken),
             fee: 3000,
             tickSpacing: 60,
@@ -94,7 +94,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
     function _contribute(address contributor, uint256 amount) internal {
         vm.deal(contributor, amount);
         vm.prank(contributor);
-        (bool success,) = address(vault).call{value: amount}("");
+        (bool success,) = address(vault).call{ value: amount }("");
         require(success, "Contribution failed");
     }
 
@@ -103,7 +103,10 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         address benefactor,
         uint256 expectedBps, // 10000 = 100%
         uint256 toleranceBps // typically 100 = 1%
-    ) internal view {
+    )
+        internal
+        view
+    {
         uint256 shares = vault.benefactorShares(benefactor);
         uint256 total = vault.totalShares();
         require(total > 0, "No shares issued yet");
@@ -135,9 +138,13 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
             address(0), // TODO: replace with deployed zRouter address
             3000,
             60,
-            IVaultPriceValidator(address(new UniswapVaultPriceValidator(
-                WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
-            ))),
+            IVaultPriceValidator(
+                address(
+                    new UniswapVaultPriceValidator(
+                        WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
+                    )
+                )
+            ),
             IAlignmentRegistry(address(mockRegistry)),
             TARGET_ID
         );
@@ -178,7 +185,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
     function test_setV4PoolKey_success() public {
         // H-02: Pool key must use native ETH (address(0))
         PoolKey memory newPoolKey = PoolKey({
-            currency0: Currency.wrap(address(0)),  // Native ETH
+            currency0: Currency.wrap(address(0)), // Native ETH
             currency1: Currency.wrap(alignmentToken),
             fee: 500,
             tickSpacing: 10,
@@ -192,7 +199,6 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // (actual validation would require reading struct fields which isn't exposed)
         emit log_string("[PASS] Owner can update V4 pool key");
     }
-
 
     // ┌─────────────────────────────────────┐
     // │  B. Contribution Flow Tests         │
@@ -237,7 +243,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
 
         vm.deal(hookCaller, amount);
         vm.prank(hookCaller);
-        vault.receiveContribution{value: amount}(
+        vault.receiveContribution{ value: amount }(
             Currency.wrap(vault.weth()), // currency (unused in current implementation)
             amount,
             alice // benefactor attribution
@@ -320,7 +326,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Alice: 5/8 = 62.5% → 6250 bps
         // Bob: 3/8 = 37.5% → 3750 bps
         _assertSharePercentage(alice, 6250, 100); // 62.5% ± 1%
-        _assertSharePercentage(bob, 3750, 100);   // 37.5% ± 1%
+        _assertSharePercentage(bob, 3750, 100); // 37.5% ± 1%
 
         // Verify contribution ratio matches share ratio
         uint256 aliceShares = vault.benefactorShares(alice);
@@ -328,8 +334,8 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Expected ratio: 5:3 (verify Alice has ~1.67x Bob's shares)
         // Calculate ratio: aliceShares / bobShares should be ~1.666...
         uint256 actualRatio = (aliceShares * 1e18) / bobShares;
-        uint256 expectedMin = 1.60e18; // 1.6
-        uint256 expectedMax = 1.70e18; // 1.7
+        uint256 expectedMin = 1.6e18; // 1.6
+        uint256 expectedMax = 1.7e18; // 1.7
         assertGe(actualRatio, expectedMin, "Ratio too low");
         assertLe(actualRatio, expectedMax, "Ratio too high");
 
@@ -470,14 +476,14 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
 
         // Owner can deposit fees
         vm.prank(owner);
-        vault.depositFees{value: 1 ether}();
+        vault.depositFees{ value: 1 ether }();
         assertEq(vault.accumulatedFees(), 1 ether, "Fees should be deposited");
 
         // Non-owner cannot
         vm.deal(bob, 1 ether);
         vm.prank(bob);
         vm.expectRevert();
-        vault.depositFees{value: 1 ether}();
+        vault.depositFees{ value: 1 ether }();
 
         emit log_string("[PASS] Only owner can deposit fees");
     }
@@ -490,7 +496,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Simulate fees accumulating
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{value: 2 ether}();
+        vault.depositFees{ value: 2 ether }();
 
         // Alice claims (should get all fees since she has 100% shares)
         uint256 aliceBalanceBefore = alice.balance;
@@ -500,7 +506,9 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         assertEq(claimed, 2 ether, "Alice should claim all fees");
         // On fork, actual received = claimed - gas cost
         assertGe(alice.balance, aliceBalanceBefore, "Alice balance should increase");
-        assertApproxEqAbs(alice.balance - aliceBalanceBefore, 2 ether, 0.01 ether, "Alice should receive ~2 ETH minus gas");
+        assertApproxEqAbs(
+            alice.balance - aliceBalanceBefore, 2 ether, 0.01 ether, "Alice should receive ~2 ETH minus gas"
+        );
 
         emit log_string("[PASS] Single contributor claims all fees");
     }
@@ -514,7 +522,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Accumulate 1 ETH in fees
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        vault.depositFees{value: 1 ether}();
+        vault.depositFees{ value: 1 ether }();
 
         // Calculate expected claims (with tolerance for share rounding)
         uint256 aliceShares = vault.benefactorShares(alice);
@@ -535,12 +543,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         assertEq(bobClaimed, expectedBobClaim, "Bob claim mismatch");
 
         // Total claimed should equal total fees (within rounding)
-        assertApproxEqAbs(
-            aliceClaimed + bobClaimed,
-            1 ether,
-            2,
-            "Total claims should equal total fees"
-        );
+        assertApproxEqAbs(aliceClaimed + bobClaimed, 1 ether, 2, "Total claims should equal total fees");
 
         emit log_string("[PASS] Multiple contributors claim proportional fees");
     }
@@ -553,7 +556,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // First fee deposit
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        vault.depositFees{value: 1 ether}();
+        vault.depositFees{ value: 1 ether }();
 
         // Alice claims
         vm.prank(alice);
@@ -563,7 +566,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Second fee deposit
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{value: 2 ether}();
+        vault.depositFees{ value: 2 ether }();
 
         // Alice claims again (should only get delta)
         vm.prank(alice);
@@ -573,7 +576,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Third fee deposit
         vm.deal(owner, 3 ether);
         vm.prank(owner);
-        vault.depositFees{value: 3 ether}();
+        vault.depositFees{ value: 3 ether }();
 
         // Alice claims third time
         vm.prank(alice);
@@ -709,7 +712,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Add fees
         vm.deal(owner, 5 ether);
         vm.prank(owner);
-        vault.depositFees{value: 5 ether}();
+        vault.depositFees{ value: 5 ether }();
 
         // Calculate claimable (total, not delta)
         uint256 claimable = vault.calculateClaimableAmount(alice);
@@ -729,7 +732,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
         // Add more fees
         vm.deal(owner, 3 ether);
         vm.prank(owner);
-        vault.depositFees{value: 3 ether}();
+        vault.depositFees{ value: 3 ether }();
 
         // Total claimable now 8 ETH
         assertEq(vault.calculateClaimableAmount(alice), 8 ether, "Total now 8 ETH");
@@ -747,7 +750,7 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
 
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{value: 2 ether}();
+        vault.depositFees{ value: 2 ether }();
 
         uint256 unclaimed = vault.getUnclaimedFees(alice);
         uint256 claimable = vault.calculateClaimableAmount(alice);
@@ -760,5 +763,5 @@ contract VaultUniswapIntegrationTest is ForkTestBase {
     // ========== ETH Reception ==========
 
     /// @notice Accept ETH from vault (caller rewards, refunds, etc.)
-    receive() external payable {}
+    receive() external payable { }
 }

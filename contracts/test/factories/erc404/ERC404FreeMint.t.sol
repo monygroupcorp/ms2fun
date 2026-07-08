@@ -1,32 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC404Factory} from "../../../src/factories/erc404/ERC404Factory.sol";
-import {ERC404BondingInstance, FreeMintDisabled, FreeMintAlreadyClaimed, FreeMintExhausted} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-import {LaunchManager} from "../../../src/factories/erc404/LaunchManager.sol";
-import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
-import {FreeMintParams} from "../../../src/interfaces/IFactoryTypes.sol";
-import {PasswordTierGatingModule} from "../../../src/gating/PasswordTierGatingModule.sol";
-import {TierConfig, TierType} from "../../../src/gating/IPasswordTierGatingModule.sol";
-import {GatingScope} from "../../../src/gating/IGatingModule.sol";
-import {IGatingModule} from "../../../src/gating/IGatingModule.sol";
-import {ComponentRegistry} from "../../../src/registry/ComponentRegistry.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ICreateX, CREATEX} from "../../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
+import {
+    ERC404BondingInstance,
+    FreeMintDisabled,
+    FreeMintAlreadyClaimed,
+    FreeMintExhausted
+} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
+import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
+import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
+import { TierConfig, TierType } from "../../../src/gating/IPasswordTierGatingModule.sol";
+import { GatingScope } from "../../../src/gating/IGatingModule.sol";
+import { IGatingModule } from "../../../src/gating/IGatingModule.sol";
+import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 contract MockVaultFM {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 contract MockDeployerFM is ILiquidityDeployerModule {
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract ERC404FreeMintTest is Test {
@@ -42,10 +52,10 @@ contract ERC404FreeMintTest is Test {
     PasswordTierGatingModule tierGatingModule;
 
     address protocol = makeAddr("protocol");
-    address creator  = makeAddr("creator");
-    address user1    = makeAddr("user1");
-    address user2    = makeAddr("user2");
-    address mockGMR  = makeAddr("gmr");
+    address creator = makeAddr("creator");
+    address user1 = makeAddr("user1");
+    address user2 = makeAddr("user2");
+    address mockGMR = makeAddr("gmr");
 
     uint8 constant PRESET_ID = 1;
     uint256 constant NFT_COUNT = 10;
@@ -61,9 +71,9 @@ contract ERC404FreeMintTest is Test {
         vm.startPrank(protocol);
 
         mockRegistry = new MockMasterRegistry();
-        mockVault    = new MockVaultFM();
-        launchMgr    = new LaunchManager(protocol);
-        curveComp    = new CurveParamsComputer(protocol);
+        mockVault = new MockVaultFM();
+        launchMgr = new LaunchManager(protocol);
+        curveComp = new CurveParamsComputer(protocol);
         tierGatingModule = new PasswordTierGatingModule(address(mockRegistry));
         mockDeployer = new MockDeployerFM();
         // These tests pre-seed gating config under the sentinel instance address(0) directly from the
@@ -76,16 +86,19 @@ contract ERC404FreeMintTest is Test {
         address proxy = LibClone.deployERC1967(address(impl));
         componentRegistry = ComponentRegistry(proxy);
         componentRegistry.initialize(protocol);
-        componentRegistry.approveComponent(address(curveComp),    keccak256("curve"),     "Curve");
+        componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "Curve");
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "Deployer");
 
-        launchMgr.setPreset(PRESET_ID, LaunchManager.Preset({
-            targetETH: 10 ether,
-            unitPerNFT: 1e6,
-            liquidityReserveBps: 2000,
-            curveComputer: address(curveComp),
-            active: true
-        }));
+        launchMgr.setPreset(
+            PRESET_ID,
+            LaunchManager.Preset({
+                targetETH: 10 ether,
+                unitPerNFT: 1e6,
+                liquidityReserveBps: 2000,
+                curveComputer: address(curveComp),
+                active: true
+            })
+        );
 
         ERC404BondingInstance instanceImpl = new ERC404BondingInstance();
         factory = new ERC404Factory(
@@ -110,12 +123,16 @@ contract ERC404FreeMintTest is Test {
     function _identity() internal returns (ERC404Factory.CreateParams memory) {
         return ERC404Factory.CreateParams({
             salt: _nextSalt(),
-            owner: creator, nftCount: NFT_COUNT, presetId: PRESET_ID,
+            owner: creator,
+            nftCount: NFT_COUNT,
+            presetId: PRESET_ID,
             vault: address(mockVault),
-            name: "FreeMintToken", symbol: "FMT", styleUri: "",
+            name: "FreeMintToken",
+            symbol: "FMT",
+            styleUri: "",
             tokenBaseURI: "",
             stakingModule: address(0),
-                declaredMaxAllowanceBps: 0
+            declaredMaxAllowanceBps: 0
         });
     }
 
@@ -126,8 +143,7 @@ contract ERC404FreeMintTest is Test {
     function _deploy(uint256 alloc, GatingScope scope, address gatingModule) internal returns (ERC404BondingInstance) {
         vm.prank(creator);
         address inst = factory.createInstance(
-            _identity(), "ipfs://meta", address(mockDeployer), gatingModule,
-            _freeMint(alloc, scope)
+            _identity(), "ipfs://meta", address(mockDeployer), gatingModule, _freeMint(alloc, scope)
         );
         return ERC404BondingInstance(payable(inst));
     }
@@ -161,8 +177,10 @@ contract ERC404FreeMintTest is Test {
     function test_freeMint_multipleUsers_canClaim() public {
         ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(0));
 
-        vm.prank(user1); inst.claimFreeMint("");
-        vm.prank(user2); inst.claimFreeMint("");
+        vm.prank(user1);
+        inst.claimFreeMint("");
+        vm.prank(user2);
+        inst.claimFreeMint("");
 
         assertEq(inst.freeMintsClaimed(), 2);
     }
@@ -188,7 +206,8 @@ contract ERC404FreeMintTest is Test {
     function test_freeMint_revertsWhenExhausted() public {
         // allocation = 1, two users try to claim
         ERC404BondingInstance inst = _deploy(1, GatingScope.BOTH, address(0));
-        vm.prank(user1); inst.claimFreeMint("");
+        vm.prank(user1);
+        inst.claimFreeMint("");
         vm.prank(user2);
         vm.expectRevert(FreeMintExhausted.selector);
         inst.claimFreeMint("");
@@ -220,16 +239,16 @@ contract ERC404FreeMintTest is Test {
         uint256[] memory caps = new uint256[](1);
         caps[0] = 1e24; // large enough
         TierConfig memory tiers = TierConfig({
-            tierType: TierType.VOLUME_CAP,
-            passwordHashes: hashes,
-            volumeCaps: caps,
-            tierUnlockTimes: new uint256[](0)
+            tierType: TierType.VOLUME_CAP, passwordHashes: hashes, volumeCaps: caps, tierUnlockTimes: new uint256[](0)
         });
         tierGatingModule.configureFor(address(0), tiers); // pre-configure (factory passes address(0))
 
         vm.prank(creator);
         address inst = factory.createInstance(
-            _identity(), "ipfs://meta", address(mockDeployer), address(tierGatingModule),
+            _identity(),
+            "ipfs://meta",
+            address(mockDeployer),
+            address(tierGatingModule),
             _freeMint(FREE_MINT_COUNT, GatingScope.BOTH)
         );
 
@@ -256,16 +275,22 @@ contract ERC404FreeMintTest is Test {
         hashes[0] = keccak256("secret2");
         uint256[] memory caps = new uint256[](1);
         caps[0] = 1e24;
-        tierGatingModule.configureFor(address(0), TierConfig({
-            tierType: TierType.VOLUME_CAP,
-            passwordHashes: hashes,
-            volumeCaps: caps,
-            tierUnlockTimes: new uint256[](0)
-        }));
+        tierGatingModule.configureFor(
+            address(0),
+            TierConfig({
+                tierType: TierType.VOLUME_CAP,
+                passwordHashes: hashes,
+                volumeCaps: caps,
+                tierUnlockTimes: new uint256[](0)
+            })
+        );
 
         vm.prank(creator);
         address inst = factory.createInstance(
-            _identity(), "ipfs://meta", address(mockDeployer), address(tierGatingModule),
+            _identity(),
+            "ipfs://meta",
+            address(mockDeployer),
+            address(tierGatingModule),
             _freeMint(FREE_MINT_COUNT, GatingScope.FREE_MINT_ONLY)
         );
 
@@ -283,7 +308,7 @@ contract ERC404FreeMintTest is Test {
         uint256 maxCost = 10 ether; // generous cap; exact cost not the point of this test
         vm.deal(user1, maxCost);
         vm.prank(user1);
-        instance.buyBonding{value: maxCost}(buyAmount, maxCost, true, bytes32(0), "", 0);
+        instance.buyBonding{ value: maxCost }(buyAmount, maxCost, true, bytes32(0), "", 0);
         // If it didn't revert, the gate was bypassed for paid buys ✓
         assertGt(instance.balanceOf(user1), 0);
     }
@@ -299,16 +324,22 @@ contract ERC404FreeMintTest is Test {
         hashes[0] = keccak256("secret3");
         uint256[] memory caps = new uint256[](1);
         caps[0] = 0; // zero cap — would block everyone
-        tierGatingModule.configureFor(address(0), TierConfig({
-            tierType: TierType.VOLUME_CAP,
-            passwordHashes: hashes,
-            volumeCaps: caps,
-            tierUnlockTimes: new uint256[](0)
-        }));
+        tierGatingModule.configureFor(
+            address(0),
+            TierConfig({
+                tierType: TierType.VOLUME_CAP,
+                passwordHashes: hashes,
+                volumeCaps: caps,
+                tierUnlockTimes: new uint256[](0)
+            })
+        );
 
         vm.prank(creator);
         address inst = factory.createInstance(
-            _identity(), "ipfs://meta", address(mockDeployer), address(tierGatingModule),
+            _identity(),
+            "ipfs://meta",
+            address(mockDeployer),
+            address(tierGatingModule),
             _freeMint(FREE_MINT_COUNT, GatingScope.PAID_ONLY)
         );
 
@@ -324,11 +355,11 @@ contract ERC404FreeMintTest is Test {
 
     function test_gatingScope_storedOnInstance() public {
         ERC404BondingInstance instBoth = _deploy(1, GatingScope.BOTH, address(0));
-        ERC404BondingInstance instFMO  = _deploy(1, GatingScope.FREE_MINT_ONLY, address(0));
-        ERC404BondingInstance instPO   = _deploy(1, GatingScope.PAID_ONLY, address(0));
+        ERC404BondingInstance instFMO = _deploy(1, GatingScope.FREE_MINT_ONLY, address(0));
+        ERC404BondingInstance instPO = _deploy(1, GatingScope.PAID_ONLY, address(0));
 
         assertEq(uint8(instBoth.gatingScope()), uint8(GatingScope.BOTH));
-        assertEq(uint8(instFMO.gatingScope()),  uint8(GatingScope.FREE_MINT_ONLY));
-        assertEq(uint8(instPO.gatingScope()),   uint8(GatingScope.PAID_ONLY));
+        assertEq(uint8(instFMO.gatingScope()), uint8(GatingScope.FREE_MINT_ONLY));
+        assertEq(uint8(instPO.gatingScope()), uint8(GatingScope.PAID_ONLY));
     }
 }

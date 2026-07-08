@@ -13,7 +13,13 @@ import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerMod
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
-import { IInstanceLifecycle, TYPE_ERC404, STATE_BONDING, STATE_PAUSED, STATE_GRADUATED } from "../../interfaces/IInstanceLifecycle.sol";
+import {
+    IInstanceLifecycle,
+    TYPE_ERC404,
+    STATE_BONDING,
+    STATE_PAUSED,
+    STATE_GRADUATED
+} from "../../interfaces/IInstanceLifecycle.sol";
 import { IGatingModule, GatingScope } from "../../gating/IGatingModule.sol";
 import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol";
 import { IMetadataResolver } from "../../metadata/IMetadataResolver.sol";
@@ -79,7 +85,6 @@ interface ICarveParamsSource {
  * @notice AMM-agnostic ERC404 bonding token. Graduation delegates to an ILiquidityDeployerModule.
  */
 contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLifecycle {
-
     // ┌─────────────────────────┐
     // │         Types           │
     // └─────────────────────────┘
@@ -151,8 +156,8 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     uint16 public declaredMaxAllowanceBps;
 
     // Free mint tranche
-    uint256 public freeMintAllocation;   // NFT count reserved (0 = disabled)
-    uint256 public freeMintsClaimed;     // running counter (in NFTs, not tokens)
+    uint256 public freeMintAllocation; // NFT count reserved (0 = disabled)
+    uint256 public freeMintsClaimed; // running counter (in NFTs, not tokens)
     mapping(address => bool) public freeMintClaimed;
     GatingScope public gatingScope;
     bool private _freeMintInitialized;
@@ -327,8 +332,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         if (freeMintClaimed[msg.sender]) revert FreeMintAlreadyClaimed();
         if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
 
-        if (address(gatingModule) != address(0) && gatingActive
-            && gatingScope != GatingScope.PAID_ONLY) {
+        if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.PAID_ONLY) {
             (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, unit, gatingData);
             if (!allowed) revert GatingNotAllowed();
             if (permanent) gatingActive = false;
@@ -396,7 +400,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
             // claimFees() — they have no pull-claim model. Skip those silently so one such vault
             // can't brick fee delivery for the whole instance; the balance-delta below still
             // credits whatever the supporting vaults DID push.
-            try IAlignmentVault(payable(allVaults[i])).claimFees() {} catch {}
+            try IAlignmentVault(payable(allVaults[i])).claimFees() { } catch { }
         }
         if (stakingActive) {
             uint256 delta = address(this).balance - before;
@@ -414,7 +418,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         // Guard against underflow: never withdraw if balance is at/below tracked reserve.
         if (bal <= reserve) revert NothingToWithdraw();
         uint256 surplus = bal - reserve;
-        (bool ok, ) = payable(owner()).call{value: surplus}("");
+        (bool ok,) = payable(owner()).call{ value: surplus }("");
         if (!ok) revert WithdrawFailed();
     }
 
@@ -463,11 +467,12 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         if (deadline != 0 && block.timestamp > deadline) revert TransactionExpired();
         if (!bondingActive) revert BondingNotActive();
         if (graduated) revert BondingEnded();
-        if (totalBondingSupply + amount > maxSupply - liquidityReserve - (freeMintAllocation * unit)) revert ExceedsBonding();
+        if (totalBondingSupply + amount > maxSupply - liquidityReserve - (freeMintAllocation * unit)) {
+            revert ExceedsBonding();
+        }
 
         // Gating check (address(0) or gatingActive==false = open)
-        if (address(gatingModule) != address(0) && gatingActive
-            && gatingScope != GatingScope.FREE_MINT_ONLY) {
+        if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.FREE_MINT_ONLY) {
             bytes memory gatingData = abi.encode(passwordHash, bondingOpenTime);
             (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, amount, gatingData);
             if (!allowed) revert GatingNotAllowed();
@@ -562,10 +567,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // │   Reroll Functionality  │
     // └─────────────────────────┘
 
-    function rerollSelectedNFTs(
-        uint256 tokenAmount,
-        uint256[] calldata exemptedNFTIds
-    ) external nonReentrant {
+    function rerollSelectedNFTs(uint256 tokenAmount, uint256[] calldata exemptedNFTIds) external nonReentrant {
         if (tokenAmount == 0) revert TokenAmountMustBePositive();
         if (balanceOf(msg.sender) < tokenAmount) revert InsufficientTokenBalance();
 
@@ -634,7 +636,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
 
         _transfer(address(this), address(liquidityDeployer), liquidityReserve);
 
-        liquidityDeployer.deployLiquidity{value: ethToSend}(
+        liquidityDeployer.deployLiquidity{ value: ethToSend }(
             ILiquidityDeployerModule.DeployParams({
                 ethReserve: ethToSend,
                 tokenReserve: liquidityReserve,
@@ -677,9 +679,18 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // │   DN404 Overrides        │
     // └─────────────────────────┘
 
-    function name() public view override returns (string memory) { return _name; }
-    function symbol() public view override returns (string memory) { return _symbol; }
-    function _unit() internal view override returns (uint256) { return unit; }
+    function name() public view override returns (string memory) {
+        return _name;
+    }
+
+    function symbol() public view override returns (string memory) {
+        return _symbol;
+    }
+
+    function _unit() internal view override returns (uint256) {
+        return unit;
+    }
+
     /// @dev Defensive metadata-resolution seam (ADR-0006/0007): if a resolver is wired and returns
     ///      a non-empty augmentation, it wins; ANY revert/empty falls back to base — tokenURI can
     ///      never be bricked by a misbehaving module. Uses _ownerAt (revert-free), NOT _ownerOf.
@@ -691,12 +702,15 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         address m = modules[METADATA_RESOLVER];
         if (m != address(0) && m.code.length != 0) {
             try IMetadataResolver(m).resolve(address(this), tokenId, _ownerAt(tokenId)) returns (string memory aug) {
-                if (bytes(aug).length != 0) return aug;   // augmented wins
-            } catch {}                                     // any revert/gas issue → base, marketplaces safe
+                if (bytes(aug).length != 0) return aug; // augmented wins
+            } catch { } // any revert/gas issue → base, marketplaces safe
         }
         return base;
     }
-    function _skipNFTDefault(address) internal pure override returns (bool) { return false; }
 
-    receive() external payable override {}
+    function _skipNFTDefault(address) internal pure override returns (bool) {
+        return false;
+    }
+
+    receive() external payable override { }
 }

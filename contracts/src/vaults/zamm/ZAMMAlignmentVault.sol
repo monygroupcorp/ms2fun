@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 
 /// @notice Minimal ZAMM interface (mirrors ZAMM.sol ABI without requiring its compiler version)
 interface IZAMM {
@@ -120,17 +120,17 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Protocol economics ────────────────────────────────────────────────
     address public protocolTreasury;
-    uint256 public protocolYieldCutBps;  // default 100 (1%)
+    uint256 public protocolYieldCutBps; // default 100 (1%)
 
     // ── Price-manipulation guard (F5) ─────────────────────────────────────
     /// @notice Independent price source (Uniswap TWAP) used to floor swap slippage on the
     ///         permissionless convert/harvest paths. address(0) = no floor (caller minOut only).
     IVaultPriceValidator public priceValidator;
-    uint256 public maxPriceDeviationBps;  // default 500 (5%)
+    uint256 public maxPriceDeviationBps; // default 500 (5%)
 
     // ── Principal tracking ────────────────────────────────────────────────
-    uint256 public principalETH;    // nominal cumulative ETH deposited (reporting)
-    uint256 public principalToken;  // nominal cumulative token deposited (reporting)
+    uint256 public principalETH; // nominal cumulative ETH deposited (reporting)
+    uint256 public principalToken; // nominal cumulative token deposited (reporting)
     /// @notice Geometric-mean (constant-product) invariant baseline of the vault's LP principal:
     ///         Σ sqrt(ethUsed_i * tokenUsed_i) over every deposit. Fee detection compares the pool's
     ///         current per-share invariant against this fixed baseline so that price movement (which
@@ -145,7 +145,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── MasterChef accumulator ────────────────────────────────────────────
     uint256 public totalContributions;
-    uint256 public accRewardPerContribution;  // 1e18 scaled
+    uint256 public accRewardPerContribution; // 1e18 scaled
     mapping(address => uint256) public benefactorContribution;
     mapping(address => uint256) public rewardDebt;
 
@@ -154,7 +154,6 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Protocol fee bucket ───────────────────────────────────────────────
     uint256 public accumulatedProtocolFees;
-
 
     // ── Flash-loan / same-block harvest guard ────────────────────────────
     uint256 private _lastHarvestBlock;
@@ -205,7 +204,12 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         assembly { locked := eq(sload(_RG_SLOT), address()) }
     }
 
-    function receiveContribution(Currency currency, uint256 /*amount*/, address benefactor)
+    function receiveContribution(
+        Currency currency,
+        uint256,
+        /*amount*/
+        address benefactor
+    )
         external
         payable
         override
@@ -262,11 +266,11 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     /// @notice Buy alignment token and add ETH+token to ZAMM. Anyone can call (incentivized).
-    function convertAndAddLiquidity(
-        uint256 minTokenOut,
-        uint256 minEth,
-        uint256 minToken
-    ) external nonReentrant returns (uint256 lpMinted) {
+    function convertAndAddLiquidity(uint256 minTokenOut, uint256 minEth, uint256 minToken)
+        external
+        nonReentrant
+        returns (uint256 lpMinted)
+    {
         uint256 totalEth = pendingETH;
         if (totalEth == 0) revert NoPendingETH();
 
@@ -320,18 +324,24 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 minEth,
         uint256 minToken
     ) private returns (SwapLPResult memory r) {
-        (, r.tokenBought) = IzRouterV2(zRouter).swapVZ{value: ethToSwap}(
-            address(this), false, _poolKey.feeOrHook,
-            address(0), alignmentToken, 0, 0,
-            ethToSwap, minTokenOut, block.timestamp + 15 minutes
+        (, r.tokenBought) = IzRouterV2(zRouter).swapVZ{ value: ethToSwap }(
+            address(this),
+            false,
+            _poolKey.feeOrHook,
+            address(0),
+            alignmentToken,
+            0,
+            0,
+            ethToSwap,
+            minTokenOut,
+            block.timestamp + 15 minutes
         );
 
         IERC20(alignmentToken).forceApprove(zamm, r.tokenBought);
-        (r.ethUsed, r.tokenUsed, r.lp) = IZAMM(zamm).addLiquidity{value: ethForLP}(
+        (r.ethUsed, r.tokenUsed, r.lp) = IZAMM(zamm).addLiquidity{ value: ethForLP }(
             _poolKey, ethForLP, r.tokenBought, minEth, minToken, address(this), block.timestamp + 15 minutes
         );
     }
-
 
     // ── harvest ───────────────────────────────────────────────────────────
 
@@ -387,19 +397,26 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     function _removeFeeLP(uint256 feeLP, uint256 minEthOut) private returns (uint256 feesCollected) {
-        (uint256 ethRemoved, uint256 tokRemoved) = IZAMM(zamm).removeLiquidity(
-            _poolKey, feeLP, 0, 0, address(this), block.timestamp + 15 minutes
-        );
+        (uint256 ethRemoved, uint256 tokRemoved) =
+            IZAMM(zamm).removeLiquidity(_poolKey, feeLP, 0, 0, address(this), block.timestamp + 15 minutes);
         uint256 swappedEth;
         if (tokRemoved > 0) {
             // Floor the caller's slippage bound to an oracle-derived minimum (F5).
             uint256 effMinEthOut = _floorEthOut(tokRemoved, minEthOut);
             IERC20(alignmentToken).forceApprove(zRouter, tokRemoved);
-            (, swappedEth) = IzRouterV2(zRouter).swapVZ(
-                address(this), false, _poolKey.feeOrHook,
-                alignmentToken, address(0), 0, 0,
-                tokRemoved, effMinEthOut, block.timestamp + 15 minutes
-            );
+            (, swappedEth) = IzRouterV2(zRouter)
+                .swapVZ(
+                    address(this),
+                    false,
+                    _poolKey.feeOrHook,
+                    alignmentToken,
+                    address(0),
+                    0,
+                    0,
+                    tokRemoved,
+                    effMinEthOut,
+                    block.timestamp + 15 minutes
+                );
         }
         feesCollected = ethRemoved + swappedEth;
     }
@@ -436,9 +453,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     function _claim(address benefactor) internal returns (uint256 ethClaimed) {
-        address recipient = _benefactorDelegate[benefactor] == address(0)
-            ? benefactor
-            : _benefactorDelegate[benefactor];
+        address recipient = _benefactorDelegate[benefactor] == address(0) ? benefactor : _benefactorDelegate[benefactor];
         return _claimTo(benefactor, recipient);
     }
 
@@ -448,7 +463,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 pending = contrib * accRewardPerContribution / 1e18 - rewardDebt[benefactor]; // round down: favors vault
         if (pending == 0) return 0;
         rewardDebt[benefactor] = contrib * accRewardPerContribution / 1e18; // round down: benefactor cannot over-claim
-        (bool ok,) = recipient.call{value: pending}("");
+        (bool ok,) = recipient.call{ value: pending }("");
         if (!ok) revert TransferFailed();
         ethClaimed = pending;
         emit FeesClaimed(benefactor, pending);
@@ -506,7 +521,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (protocolTreasury == address(0)) revert TreasuryNotSet();
         uint256 amount = accumulatedProtocolFees;
         accumulatedProtocolFees = 0;
-        (bool ok,) = protocolTreasury.call{value: amount}("");
+        (bool ok,) = protocolTreasury.call{ value: amount }("");
         if (!ok) revert TransferFailed();
         emit ProtocolFeesWithdrawn(amount);
     }

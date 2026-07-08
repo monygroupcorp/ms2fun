@@ -70,7 +70,7 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         PoolKey memory key = _createNativeETHPoolKey(USDC, 500);
 
         // Get current tick
-        (,int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
+        (, int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
         int24 tickSpacing = 10;
         int24 tickLower = (tick / tickSpacing) * tickSpacing - tickSpacing;
         int24 tickUpper = (tick / tickSpacing) * tickSpacing + tickSpacing;
@@ -124,7 +124,7 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         PoolKey memory key = _createNativeETHPoolKey(USDC, 500);
 
         // Get current tick
-        (,int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
+        (, int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
         int24 tickSpacing = 10;
         int24 tickLower = (tick / tickSpacing) * tickSpacing - tickSpacing;
         int24 tickUpper = (tick / tickSpacing) * tickSpacing + tickSpacing;
@@ -141,14 +141,7 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
 
         // Query position before any swaps
         (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128) =
-            StateLibrary.getPositionInfo(
-                poolManager,
-                key.toId(),
-                address(this),
-                tickLower,
-                tickUpper,
-                0
-            );
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
         emit log_named_uint("feeGrowthInside0 (before swaps)", feeGrowthInside0LastX128);
         emit log_named_uint("feeGrowthInside1 (before swaps)", feeGrowthInside1LastX128);
@@ -174,7 +167,7 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         PoolKey memory key = _createNativeETHPoolKey(USDC, 500);
 
         // Get current tick
-        (,int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
+        (, int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
         int24 tickSpacing = 10;
 
         // Create Position 1: Below current price
@@ -203,23 +196,11 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         _modifyLiquidity(key, tick2Lower, tick2Upper, liquidityDelta);
 
         // Query both positions
-        (uint128 liquidity1,,) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tick1Lower,
-            tick1Upper,
-            0
-        );
+        (uint128 liquidity1,,) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tick1Lower, tick1Upper, 0);
 
-        (uint128 liquidity2,,) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tick2Lower,
-            tick2Upper,
-            0
-        );
+        (uint128 liquidity2,,) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tick2Lower, tick2Upper, 0);
 
         emit log_string("");
         emit log_named_uint("Position 1 liquidity", liquidity1);
@@ -247,7 +228,7 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         PoolKey memory key = _createNativeETHPoolKey(USDC, 500);
 
         // Get current tick
-        (,int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
+        (, int24 tick,,) = StateLibrary.getSlot0(poolManager, key.toId());
         int24 tickSpacing = 10;
         int24 tickLower = (tick / tickSpacing) * tickSpacing - tickSpacing;
         int24 tickUpper = (tick / tickSpacing) * tickSpacing + tickSpacing;
@@ -263,14 +244,8 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         _modifyLiquidity(key, tickLower, tickUpper, liquidityDelta);
 
         // Query position after adding
-        (uint128 liquidityAfterAdd,,) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tickLower,
-            tickUpper,
-            0
-        );
+        (uint128 liquidityAfterAdd,,) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
         emit log_named_uint("Liquidity after add", liquidityAfterAdd);
 
@@ -279,23 +254,13 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         _modifyLiquidity(key, tickLower, tickUpper, removeDelta);
 
         // Query position after removing
-        (uint128 liquidityAfterRemove,,) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tickLower,
-            tickUpper,
-            0
-        );
+        (uint128 liquidityAfterRemove,,) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
         emit log_named_uint("Liquidity after remove", liquidityAfterRemove);
 
         // Verify liquidity decreased
-        assertEq(
-            liquidityAfterRemove,
-            uint128(uint256(liquidityDelta / 2)),
-            "Liquidity should be halved"
-        );
+        assertEq(liquidityAfterRemove, uint128(uint256(liquidityDelta / 2)), "Liquidity should be halved");
 
         emit log_string("");
         emit log_string("[SUCCESS] Position updated after liquidity removal!");
@@ -353,14 +318,8 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
 
         // Query position and verify
         {
-            (uint128 liquidity,,) = StateLibrary.getPositionInfo(
-                poolManager,
-                key.toId(),
-                address(this),
-                tickLower,
-                tickUpper,
-                0
-            );
+            (uint128 liquidity,,) =
+                StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
             emit log_named_uint("Position liquidity", liquidity);
 
@@ -383,11 +342,7 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         ModifyLiquidityCallbackData memory params = abi.decode(data, (ModifyLiquidityCallbackData));
 
         // Modify liquidity
-        (BalanceDelta delta,) = poolManager.modifyLiquidity(
-            params.key,
-            params.params,
-            ""
-        );
+        (BalanceDelta delta,) = poolManager.modifyLiquidity(params.key, params.params, "");
 
         // Store deltas
         lastDelta = delta;
@@ -418,24 +373,13 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
 
     // ========== Helper Functions ==========
 
-    function _modifyLiquidity(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta
-    ) internal {
+    function _modifyLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) internal {
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta,
-            salt: 0
+            tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
         });
 
-        ModifyLiquidityCallbackData memory callbackData = ModifyLiquidityCallbackData({
-            key: key,
-            params: params,
-            sender: address(this)
-        });
+        ModifyLiquidityCallbackData memory callbackData =
+            ModifyLiquidityCallbackData({ key: key, params: params, sender: address(this) });
 
         poolManager.unlock(abi.encode(callbackData));
     }
@@ -460,5 +404,5 @@ contract V4PositionQueryTest is ForkTestBase, IUnlockCallback {
         revert("Unknown fee tier");
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

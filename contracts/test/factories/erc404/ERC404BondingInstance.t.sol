@@ -1,48 +1,62 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
-import {ERC404BondingInstance, ICarveParamsSource, MaxCostExceeded, BondingNotConfigured, NoReserve, InvalidRefund, InvalidDeclaredMaxAllowance} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
-import {BondingCurveMath} from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import {IGatingModule} from "../../../src/gating/IGatingModule.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
+import { Test, console } from "forge-std/Test.sol";
+import {
+    ERC404BondingInstance,
+    ICarveParamsSource,
+    MaxCostExceeded,
+    BondingNotConfigured,
+    NoReserve,
+    InvalidRefund,
+    InvalidDeclaredMaxAllowance
+} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
+import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { IGatingModule } from "../../../src/gating/IGatingModule.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 // ── Mock contracts ────────────────────────────────────────────────────────────
 
 contract MockGatingModule is IGatingModule {
-    function canMint(address, uint256, bytes calldata)
-        external pure override returns (bool allowed, bool permanent)
-    {
+    function canMint(address, uint256, bytes calldata) external pure override returns (bool allowed, bool permanent) {
         return (true, false);
     }
-    function onMint(address, uint256) external override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function onMint(address, uint256) external override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract PermanentGatingModule is IGatingModule {
-    function canMint(address, uint256, bytes calldata)
-        external pure override returns (bool allowed, bool permanent)
-    {
+    function canMint(address, uint256, bytes calldata) external pure override returns (bool allowed, bool permanent) {
         return (true, true);
     }
-    function onMint(address, uint256) external override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function onMint(address, uint256) external override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract MockLiquidityDeployer is ILiquidityDeployerModule {
     bool public called;
     ILiquidityDeployerModule.DeployParams public lastParams;
+
     function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata p) external payable override {
         called = true;
         lastParams = p;
     }
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 /**
@@ -110,12 +124,9 @@ contract ERC404BondingInstanceTest is Test {
      * @dev 3-step initialize helper. Must be called within vm.startPrank(owner) context
      *      because factory = msg.sender is captured during initialize().
      */
-    function _initInstance(
-        ERC404BondingInstance inst,
-        address vault_,
-        address treasury_,
-        uint256 bondingFeeBps_
-    ) internal {
+    function _initInstance(ERC404BondingInstance inst, address vault_, address treasury_, uint256 bondingFeeBps_)
+        internal
+    {
         inst.initialize(owner, vault_, _bondingParams(), mockLiquidityDeployer, address(0));
 
         ERC404BondingInstance.ProtocolParams memory proto = ERC404BondingInstance.ProtocolParams({
@@ -175,7 +186,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(instance, buyAmount);
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
         uint256 totalWithFee = cost + fee;
-        instance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, passwordHash1, bytes(""), 0);
+        instance.buyBonding{ value: totalWithFee }(buyAmount, totalWithFee, false, passwordHash1, bytes(""), 0);
         vm.stopPrank();
     }
 
@@ -200,7 +211,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(instance, buyAmount);
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
         uint256 totalWithFee = cost + fee;
-        instance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: totalWithFee }(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
         uint256 refund = _getRefund(instance, buyAmount);
@@ -213,11 +224,7 @@ contract ERC404BondingInstanceTest is Test {
     function _getCost(ERC404BondingInstance inst, uint256 amount) internal view returns (uint256) {
         (uint256 ip, uint256 qc, uint256 cc, uint256 qdc, uint256 nf) = inst.curveParams();
         BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip,
-            quarticCoeff: qc,
-            cubicCoeff: cc,
-            quadraticCoeff: qdc,
-            normalizationFactor: nf
+            initialPrice: ip, quarticCoeff: qc, cubicCoeff: cc, quadraticCoeff: qdc, normalizationFactor: nf
         });
         return curveComputer.calculateCost(p, inst.totalBondingSupply(), amount);
     }
@@ -225,11 +232,7 @@ contract ERC404BondingInstanceTest is Test {
     function _getRefund(ERC404BondingInstance inst, uint256 amount) internal view returns (uint256) {
         (uint256 ip, uint256 qc, uint256 cc, uint256 qdc, uint256 nf) = inst.curveParams();
         BondingCurveMath.Params memory p = BondingCurveMath.Params({
-            initialPrice: ip,
-            quarticCoeff: qc,
-            cubicCoeff: cc,
-            quadraticCoeff: qdc,
-            normalizationFactor: nf
+            initialPrice: ip, quarticCoeff: qc, cubicCoeff: cc, quadraticCoeff: qdc, normalizationFactor: nf
         });
         return curveComputer.calculateRefund(p, inst.totalBondingSupply(), amount);
     }
@@ -258,7 +261,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
 
-        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
         assertEq(treasury.balance, treasuryBalanceBefore, "buy must not pay any fee to the treasury");
@@ -276,7 +279,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
         uint256 totalWithFee = cost + fee;
 
-        instance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: totalWithFee }(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
         assertEq(instance.reserve() - reserveBefore, cost, "Reserve should only increase by cost, not fee");
@@ -292,7 +295,7 @@ contract ERC404BondingInstanceTest is Test {
 
         uint256 overpay = 1 ether;
         uint256 balanceBefore = user1.balance;
-        instance.buyBonding{value: cost + overpay}(buyAmount, cost + overpay, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost + overpay }(buyAmount, cost + overpay, false, bytes32(0), bytes(""), 0);
         uint256 balanceAfter = user1.balance;
 
         assertEq(balanceBefore - balanceAfter, cost, "buyer pays exactly the curve cost; excess refunded");
@@ -310,10 +313,10 @@ contract ERC404BondingInstanceTest is Test {
 
         // maxCost just below cost reverts.
         vm.expectRevert(MaxCostExceeded.selector);
-        instance.buyBonding{value: 10 ether}(buyAmount, cost - 1, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: 10 ether }(buyAmount, cost - 1, false, bytes32(0), bytes(""), 0);
 
         // maxCost exactly cost succeeds.
-        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
         assertEq(instance.reserve(), cost, "reserve equals cost after buy");
         vm.stopPrank();
     }
@@ -337,7 +340,7 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(zeroFeeInstance, buyAmount);
-        zeroFeeInstance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        zeroFeeInstance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
         assertEq(treasury.balance, treasuryBefore, "Treasury balance unchanged with 0% fee");
@@ -346,7 +349,8 @@ contract ERC404BondingInstanceTest is Test {
     function test_BuyBondingWithFee_NoTreasury() public {
         vm.startPrank(owner);
         ERC404BondingInstance noTreasuryImplInst = new ERC404BondingInstance();
-        ERC404BondingInstance noTreasuryInstance = ERC404BondingInstance(payable(LibClone.clone(address(noTreasuryImplInst))));
+        ERC404BondingInstance noTreasuryInstance =
+            ERC404BondingInstance(payable(LibClone.clone(address(noTreasuryImplInst))));
         _initInstance(noTreasuryInstance, address(0xBEEF), address(0), 100);
         noTreasuryInstance.initializeMetadata("No Treasury Token", "NTT", "", "");
         uint256 futureTime = block.timestamp + 1 days;
@@ -361,7 +365,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(noTreasuryInstance, buyAmount);
         uint256 fee = (cost * noTreasuryInstance.bondingFeeBps()) / 10000;
         uint256 totalWithFee = cost + fee;
-        noTreasuryInstance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
+        noTreasuryInstance.buyBonding{ value: totalWithFee }(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
     }
 
@@ -375,7 +379,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
         uint256 totalWithFee = cost + fee;
 
-        instance.buyBonding{value: totalWithFee}(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: totalWithFee }(buyAmount, totalWithFee, false, bytes32(0), bytes(""), 0);
 
         uint256 refund = _getRefund(instance, buyAmount);
         assertEq(refund, cost, "Refund should equal curve cost, preserving solvency");
@@ -395,7 +399,7 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
-        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
 
         uint256 refund = _getRefund(instance, buyAmount);
         uint256 sellFee = (refund * instance.bondingFeeBps()) / 10000;
@@ -425,7 +429,7 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
-        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
 
         uint256 refund = _getRefund(instance, buyAmount);
         // Asking for the full gross refund as the floor must revert — the seller only nets refund-fee.
@@ -452,7 +456,7 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(user1);
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(zeroFeeInstance, buyAmount);
-        zeroFeeInstance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        zeroFeeInstance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
 
         uint256 refund = _getRefund(zeroFeeInstance, buyAmount);
         uint256 treasuryBefore = treasury.balance;
@@ -476,7 +480,7 @@ contract ERC404BondingInstanceTest is Test {
 
         // Buy is fee-free: the treasury balance does not move.
         uint256 treasuryBefore = treasury.balance;
-        instance.buyBonding{value: cost}(buyAmount, cost, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost }(buyAmount, cost, false, bytes32(0), bytes(""), 0);
         assertEq(treasury.balance, treasuryBefore, "buy must not pay a fee");
 
         // Sell pays the protocol fee → BondingFeePaid fires.
@@ -493,12 +497,12 @@ contract ERC404BondingInstanceTest is Test {
     function test_GraduationSplit_MathCorrectness() public {
         uint256 deployETH = 15 ether;
         uint256 protocolFee = deployETH / 100;
-        uint256 vaultCut    = (deployETH * 19) / 100;
-        uint256 ethForPool  = deployETH - protocolFee - vaultCut;
+        uint256 vaultCut = (deployETH * 19) / 100;
+        uint256 ethForPool = deployETH - protocolFee - vaultCut;
 
-        assertEq(protocolFee, 0.15 ether,   "1% of 15 ETH should be 0.15 ETH");
-        assertEq(vaultCut,    2.85 ether,    "19% of 15 ETH should be 2.85 ETH");
-        assertEq(ethForPool,  12 ether,      "80% of 15 ETH should be 12 ETH");
+        assertEq(protocolFee, 0.15 ether, "1% of 15 ETH should be 0.15 ETH");
+        assertEq(vaultCut, 2.85 ether, "19% of 15 ETH should be 2.85 ETH");
+        assertEq(ethForPool, 12 ether, "80% of 15 ETH should be 12 ETH");
     }
 
     function test_GraduationFee_SmallAmountPrecision() public {
@@ -525,7 +529,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
-        instance.buyBonding{value: cost + fee}(buyAmount, cost + fee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost + fee }(buyAmount, cost + fee, false, bytes32(0), bytes(""), 0);
 
         // Graduation is a creator action: a non-owner is rejected even after buying into the curve.
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -552,7 +556,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 amount = 1000 * 1e18;
         uint256 cost = _getCost(instance, amount);
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
-        instance.buyBonding{value: cost + fee}(amount, cost + fee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
 
         // Warp past maturity — the condition that USED to make graduation permissionless.
@@ -574,13 +578,15 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance impl2 = new ERC404BondingInstance();
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
-        inst2.initializeProtocol(ERC404BondingInstance.ProtocolParams({
-            globalMessageRegistry: mockGlobalMsgRegistry,
-            protocolTreasury: address(0),
-            masterRegistry: mockMasterRegistry,
-            bondingFeeBps: 0,
-            weth: address(0xBEEF)
-        }));
+        inst2.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGlobalMsgRegistry,
+                protocolTreasury: address(0),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 0,
+                weth: address(0xBEEF)
+            })
+        );
         inst2.initializeMetadata("T", "T", "", "");
         uint256 openTime = block.timestamp + 1 days;
         inst2.setBondingOpenTime(openTime);
@@ -594,7 +600,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(inst2, amount);
         vm.deal(user1, cost);
         vm.prank(user1);
-        inst2.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        inst2.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
         assertFalse(inst2.graduated());
 
         vm.prank(owner);
@@ -626,13 +632,15 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance.BondingParams memory bp = _bondingParams();
         bp.declaredMaxAllowanceBps = declaredBps;
         inst.initialize(owner, address(0xBEEF), bp, address(depl), address(0));
-        inst.initializeProtocol(ERC404BondingInstance.ProtocolParams({
-            globalMessageRegistry: mockGlobalMsgRegistry,
-            protocolTreasury: address(0),
-            masterRegistry: mockMasterRegistry,
-            bondingFeeBps: 0,
-            weth: address(0xBEEF)
-        }));
+        inst.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGlobalMsgRegistry,
+                protocolTreasury: address(0),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 0,
+                weth: address(0xBEEF)
+            })
+        );
         inst.initializeMetadata("T", "T", "", "");
         uint256 openTime = block.timestamp + 1 days;
         inst.setBondingOpenTime(openTime);
@@ -663,7 +671,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(inst, amount);
         vm.deal(user1, cost);
         vm.prank(user1);
-        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        inst.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
 
         vm.prank(owner);
         inst.deployLiquidity(10000);
@@ -683,7 +691,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(inst, amount);
         vm.deal(user1, cost);
         vm.prank(user1);
-        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        inst.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
 
         vm.prank(owner);
         inst.deployLiquidity(0);
@@ -705,7 +713,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(inst, amount);
         vm.deal(user1, cost);
         vm.prank(user1);
-        inst.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        inst.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
 
         uint256 raise = inst.reserve();
         // The instance's factory is the owner EOA here — mock its carve-math endpoint with EXACT
@@ -787,13 +795,15 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         address mockGating = address(new PermanentGatingModule());
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating);
-        inst2.initializeProtocol(ERC404BondingInstance.ProtocolParams({
-            globalMessageRegistry: mockGlobalMsgRegistry,
-            protocolTreasury: address(0xFEE),
-            masterRegistry: mockMasterRegistry,
-            bondingFeeBps: 100,
-            weth: address(0xBEEF)
-        }));
+        inst2.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGlobalMsgRegistry,
+                protocolTreasury: address(0xFEE),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
         inst2.initializeMetadata("T", "T", "", "");
         uint256 futureTime = block.timestamp + 1 days;
         inst2.setBondingOpenTime(futureTime);
@@ -808,7 +818,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 fee = (cost * inst2.bondingFeeBps()) / 10000;
         vm.deal(user1, cost + fee);
         vm.prank(user1);
-        inst2.buyBonding{value: cost + fee}(amount, cost + fee, false, bytes32(0), "", 0);
+        inst2.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes32(0), "", 0);
 
         assertFalse(inst2.gatingActive());
     }
@@ -819,13 +829,15 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance impl2 = new ERC404BondingInstance();
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
-        inst2.initializeProtocol(ERC404BondingInstance.ProtocolParams({
-            globalMessageRegistry: mockGlobalMsgRegistry,
-            protocolTreasury: address(0),
-            masterRegistry: mockMasterRegistry,
-            bondingFeeBps: 0,
-            weth: address(0xBEEF)
-        }));
+        inst2.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGlobalMsgRegistry,
+                protocolTreasury: address(0),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 0,
+                weth: address(0xBEEF)
+            })
+        );
         inst2.initializeMetadata("T", "T", "", "");
         uint256 futureTime = block.timestamp + 1 days;
         inst2.setBondingOpenTime(futureTime);
@@ -837,7 +849,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 cost = _getCost(inst2, amount);
         vm.deal(user1, cost);
         vm.prank(user1);
-        inst2.buyBonding{value: cost}(amount, cost, false, bytes32(0), "", 0);
+        inst2.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
 
         vm.prank(owner);
         inst2.deployLiquidity(0);
@@ -867,7 +879,7 @@ contract ERC404BondingInstanceTest is Test {
         uint256 buyAmount = 1000 * 1e18;
         uint256 cost = _getCost(instance, buyAmount);
         uint256 fee = (cost * instance.bondingFeeBps()) / 10000;
-        instance.buyBonding{value: cost + fee}(buyAmount, cost + fee, false, bytes32(0), bytes(""), 0);
+        instance.buyBonding{ value: cost + fee }(buyAmount, cost + fee, false, bytes32(0), bytes(""), 0);
         vm.stopPrank();
         assertGt(instance.balanceOf(user1), 0);
     }

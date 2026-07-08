@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import {MockZAMM} from "../mocks/MockZAMM.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {ZAMMVaultHandler} from "./handlers/ZAMMVaultHandler.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { MockZAMM } from "../mocks/MockZAMM.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { ZAMMVaultHandler } from "./handlers/ZAMMVaultHandler.sol";
 
 contract ZAMMVaultInvariantTest is StdInvariant, Test {
     ZAMMAlignmentVault public vault;
@@ -30,23 +30,13 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
         alignmentToken.transfer(address(mockZamm), 1_000_000e18);
         alignmentToken.transfer(address(mockZRouter), 1_000_000e18);
 
-        IZAMM.PoolKey memory poolKey = IZAMM.PoolKey({
-            id0: 0,
-            id1: 0,
-            token0: address(0),
-            token1: address(alignmentToken),
-            feeOrHook: 30
-        });
+        IZAMM.PoolKey memory poolKey =
+            IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: address(alignmentToken), feeOrHook: 30 });
 
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
         vault.initialize(
-            address(mockZamm),
-            address(mockZRouter),
-            address(alignmentToken),
-            poolKey,
-            treasury,
-            address(0)
+            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, treasury, address(0)
         );
 
         actors.push(address(0xA11CE));
@@ -68,9 +58,7 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
             sumContributions += vault.benefactorContribution(a[i]);
         }
         assertEq(
-            sumContributions,
-            vault.totalContributions(),
-            "ZAMM: sum(benefactorContribution) != totalContributions"
+            sumContributions, vault.totalContributions(), "ZAMM: sum(benefactorContribution) != totalContributions"
         );
     }
 
@@ -106,11 +94,7 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
         if (vault.totalContributions() > 0) return;
         if (vault.pendingETH() == 0 && address(vault).balance == 0) return;
 
-        assertEq(
-            vault.pendingETH(),
-            address(vault).balance,
-            "ZAMM: pendingETH != balance before LP deployment"
-        );
+        assertEq(vault.pendingETH(), address(vault).balance, "ZAMM: pendingETH != balance before LP deployment");
     }
 
     // ── Invariant 4: no dilution inversion ──
@@ -125,11 +109,7 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
             uint256 settledContrib = vault.benefactorContribution(a[i]);
             uint256 rawContrib = handler.ghost_actorContributed(a[i]);
 
-            assertLe(
-                settledContrib,
-                rawContrib,
-                "ZAMM: dilution inversion - settled contribution exceeds raw input"
-            );
+            assertLe(settledContrib, rawContrib, "ZAMM: dilution inversion - settled contribution exceeds raw input");
         }
 
         // Also verify the global sum: totalContributions <= ghost_totalContributed
@@ -148,10 +128,6 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
         for (uint256 i = 0; i < a.length; i++) {
             sumPending += vault.pendingContribution(a[i]);
         }
-        assertEq(
-            sumPending,
-            vault.pendingETH(),
-            "ZAMM: sum(pendingContribution) != pendingETH"
-        );
+        assertEq(sumPending, vault.pendingETH(), "ZAMM: sum(pendingContribution) != pendingETH");
     }
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {FullMath} from "v4-core/libraries/FullMath.sol";
-import {FixedPoint96} from "v4-core/libraries/FixedPoint96.sol";
+import { FullMath } from "v4-core/libraries/FullMath.sol";
+import { FixedPoint96 } from "v4-core/libraries/FixedPoint96.sol";
 
 /// @title Liquidity amount functions
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
@@ -61,7 +61,9 @@ library LiquidityAmounts {
         uint256 amount0,
         uint256 amount1
     ) internal pure returns (uint128 liquidity) {
-        if (sqrtPriceAX96 > sqrtPriceBX96) (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
+        if (sqrtPriceAX96 > sqrtPriceBX96) {
+            (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
+        }
 
         if (sqrtPriceX96 <= sqrtPriceAX96) {
             liquidity = getLiquidityForAmount0(sqrtPriceAX96, sqrtPriceBX96, amount0);
@@ -121,7 +123,9 @@ library LiquidityAmounts {
         uint160 sqrtPriceBX96,
         uint128 liquidity
     ) internal pure returns (uint256 amount0, uint256 amount1) {
-        if (sqrtPriceAX96 > sqrtPriceBX96) (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
+        if (sqrtPriceAX96 > sqrtPriceBX96) {
+            (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
+        }
 
         if (sqrtPriceX96 <= sqrtPriceAX96) {
             amount0 = getAmount0ForLiquidity(sqrtPriceAX96, sqrtPriceBX96, liquidity);

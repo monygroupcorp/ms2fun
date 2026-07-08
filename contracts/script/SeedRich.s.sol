@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
-import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
-import {ERC1155Instance} from "../src/factories/erc1155/ERC1155Instance.sol";
-import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
-import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
-import {BondingCurveMath} from "../src/factories/erc404/libraries/BondingCurveMath.sol";
-import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
-import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
-import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
-import {FreeMintParams} from "../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../src/gating/IGatingModule.sol";
-import {IPasswordTierGatingModule, TierConfig, TierType} from "../src/gating/IPasswordTierGatingModule.sol";
-import {IAlignmentVault} from "../src/interfaces/IAlignmentVault.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
+import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
+import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
+import { BondingCurveMath } from "../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { FeaturedQueueManager } from "../src/master/FeaturedQueueManager.sol";
+import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
+import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
+import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../src/gating/IGatingModule.sol";
+import { IPasswordTierGatingModule, TierConfig, TierType } from "../src/gating/IPasswordTierGatingModule.sol";
+import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
-interface IOwnable { function transferOwnership(address newOwner) external payable; }
+interface IOwnable {
+    function transferOwnership(address newOwner) external payable;
+}
 
 /// @notice Anvil-only ADDITIVE seed. Runs AFTER DeployAnvil + SeedAnvil; creates its OWN rich
 ///         collections/activity (does not touch SeedAnvil's instances), then hands its instances to
@@ -74,13 +76,13 @@ contract SeedRich is Script {
     function _readDeployed() internal view returns (Deployed memory d) {
         string memory j = vm.readFile("./deployments/anvil.json");
         d.erc1155 = ERC1155Factory(vm.parseJsonAddress(j, ".factories.ERC1155"));
-        d.erc404  = ERC404Factory(payable(vm.parseJsonAddress(j, ".factories.ERC404")));
+        d.erc404 = ERC404Factory(payable(vm.parseJsonAddress(j, ".factories.ERC404")));
         d.profiles = ProfileRegistry(vm.parseJsonAddress(j, ".contracts.ProfileRegistry"));
         d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(j, ".contracts.FeaturedQueueManager")));
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(j, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(j, ".contracts.ERC404StakingModule");
-        d.zammDeployer  = vm.parseJsonAddress(j, ".contracts.ModuleZAMMDeployer");
-        d.gatingModule  = vm.parseJsonAddress(j, ".contracts.PasswordTierGatingModule");
+        d.zammDeployer = vm.parseJsonAddress(j, ".contracts.ModuleZAMMDeployer");
+        d.gatingModule = vm.parseJsonAddress(j, ".contracts.PasswordTierGatingModule");
         string memory vaultsJson = vm.parseJsonString(j, ".vaults");
         d.vault = vm.parseJsonAddress(vaultsJson, "[0].address");
         d.endowmentVault = vm.parseJsonAddress(vaultsJson, "[2].address");
@@ -97,13 +99,13 @@ contract SeedRich is Script {
     // ── Phase 1 — profiles ────────────────────────────────────────────────────
     function _phase1Profiles(Deployed memory d) internal {
         _setProfile(d, ACTOR_KEYS[0], "Rune", "rune", "Monochrome maximalist.", _svg("R"));
-        _setProfile(d, ACTOR_KEYS[1], "Mire", "mire", "Floor sweeper.",          _svg("M"));
-        _setProfile(d, ACTOR_KEYS[2], "Cael", "cael", "Editions only.",          _svg("C"));
-        _setProfile(d, ACTOR_KEYS[3], "Onyx", "onyx", "Auction sniper.",         _svg("O"));
-        _setProfile(d, ACTOR_KEYS[4], "Veil", "veil", "Bonding degen.",          _svg("V"));
-        _setProfile(d, ACTOR_KEYS[5], "Ash",  "ash",  "Lurker.",                 _svg("A"));
-        _setProfile(d, ACTOR_KEYS[6], "Dusk", "dusk", "Posts at 3am.",           _svg("D"));
-        _setProfile(d, ACTOR_KEYS[7], "Iris", "iris", "Curator.",                _svg("I"));
+        _setProfile(d, ACTOR_KEYS[1], "Mire", "mire", "Floor sweeper.", _svg("M"));
+        _setProfile(d, ACTOR_KEYS[2], "Cael", "cael", "Editions only.", _svg("C"));
+        _setProfile(d, ACTOR_KEYS[3], "Onyx", "onyx", "Auction sniper.", _svg("O"));
+        _setProfile(d, ACTOR_KEYS[4], "Veil", "veil", "Bonding degen.", _svg("V"));
+        _setProfile(d, ACTOR_KEYS[5], "Ash", "ash", "Lurker.", _svg("A"));
+        _setProfile(d, ACTOR_KEYS[6], "Dusk", "dusk", "Posts at 3am.", _svg("D"));
+        _setProfile(d, ACTOR_KEYS[7], "Iris", "iris", "Curator.", _svg("I"));
     }
 
     // ── Phase 2 — ERC1155 edition states ─────────────────────────────────────
@@ -113,39 +115,72 @@ contract SeedRich is Script {
         _spectra = inst;
         ERC1155Instance r = ERC1155Instance(inst);
         // id 1 dynamic (price rises), id 2 fixed supply 3 (we sell out), id 3 future-open (stays locked).
-        r.addEdition("Rising",  0.002 ether, 100, _pieceMeta("Rising",  _svg("RS")), ERC1155Instance.PricingModel.LIMITED_DYNAMIC, 500, 0);
-        r.addEdition("Scarce",  0.003 ether, 3,   _pieceMeta("Scarce",  _svg("SC")), ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
-        r.addEdition("Embargo", 0.001 ether, 50,  _pieceMeta("Embargo", _svg("EM")), ERC1155Instance.PricingModel.LIMITED_FIXED, 0, block.timestamp + 7 days);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.015 ether);
+        r.addEdition(
+            "Rising",
+            0.002 ether,
+            100,
+            _pieceMeta("Rising", _svg("RS")),
+            ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
+            500,
+            0
+        );
+        r.addEdition(
+            "Scarce", 0.003 ether, 3, _pieceMeta("Scarce", _svg("SC")), ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0
+        );
+        r.addEdition(
+            "Embargo",
+            0.001 ether,
+            50,
+            _pieceMeta("Embargo", _svg("EM")),
+            ERC1155Instance.PricingModel.LIMITED_FIXED,
+            0,
+            block.timestamp + 7 days
+        );
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.015 ether);
         vm.stopBroadcast();
 
         _buyEdition(inst, 1, 1, ACTOR_KEYS[0]);
         _buyEdition(inst, 1, 2, ACTOR_KEYS[1]);
-        _buyEdition(inst, 1, 1, deployerKey);   // #0 holds some
+        _buyEdition(inst, 1, 1, deployerKey); // #0 holds some
         _buyEdition(inst, 2, 2, ACTOR_KEYS[2]); // sell out id 2 (3 total)
         _buyEdition(inst, 2, 1, ACTOR_KEYS[3]);
     }
 
     // ── Phase 3 — gated ERC1155 ───────────────────────────────────────────────
     function _phase3Gated1155(Deployed memory d) internal {
-        bytes32[] memory hashes = new bytes32[](1); hashes[0] = keccak256(bytes("ms2"));
-        uint256[] memory caps = new uint256[](1);   caps[0] = 5;
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = keccak256(bytes("ms2"));
+        uint256[] memory caps = new uint256[](1);
+        caps[0] = 5;
         TierConfig memory cfg = TierConfig(TierType.VOLUME_CAP, hashes, caps, new uint256[](0));
 
         vm.startBroadcast(deployerKey);
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
-            name: "vault-club", metadataURI: _collMeta("Vault Club", "Members-only. Password required.", _svg("K")),
-            creator: deployer, vault: d.vault, styleUri: "/seed-art/styles/vault-club.css", gatingModule: d.gatingModule,
-            freeMint: FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            name: "vault-club",
+            metadataURI: _collMeta("Vault Club", "Members-only. Password required.", _svg("K")),
+            creator: deployer,
+            vault: d.vault,
+            styleUri: "/seed-art/styles/vault-club.css",
+            gatingModule: d.gatingModule,
+            freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         });
         address inst = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, "vault-club")), p, cfg);
         _instances.push(inst);
-        ERC1155Instance(inst).addEdition("Members Pass", 0.01 ether, 50, _pieceMeta("Members Pass", _svg("MP")), ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.035 ether);
+        ERC1155Instance(inst)
+            .addEdition(
+                "Members Pass",
+                0.01 ether,
+                50,
+                _pieceMeta("Members Pass", _svg("MP")),
+                ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
+                0
+            );
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.035 ether);
         vm.stopBroadcast();
 
         _buyEditionGated(inst, 1, 2, ACTOR_KEYS[0], "ms2");
-        _buyEditionGated(inst, 1, 1, deployerKey,   "ms2");
+        _buyEditionGated(inst, 1, 1, deployerKey, "ms2");
     }
 
     // ── Phase 4 — ERC404 bonding + gated bonding ──────────────────────────────
@@ -155,16 +190,17 @@ contract SeedRich is Script {
         address open = _create404(d, "drift404", "Drift404", "DRIFT", d.stakingModule, address(0));
         _drift = open;
         ERC404BondingInstance b = ERC404BondingInstance(payable(open));
-        b.setBondingOpenTime(block.timestamp + 1);       // must be set before setBondingActive
+        b.setBondingOpenTime(block.timestamp + 1); // must be set before setBondingActive
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(open, 30 days, 0.05 ether);
+        d.queue.rentFeatured{ value: 1 ether }(open, 30 days, 0.05 ether);
         vm.stopBroadcast();
         _buyBonding(b, ACTOR_KEYS[0], 1e23, "");
         _buyBonding(b, ACTOR_KEYS[1], 2e23, "");
-        _buyBonding(b, deployerKey,   12e23, "");        // #0 holds enough for a whole-unit NFT
+        _buyBonding(b, deployerKey, 12e23, ""); // #0 holds enough for a whole-unit NFT
         vm.startBroadcast(deployerKey);
-        b.activateStaking(); b.stake(5e22);
-        b.transfer(deployer, 1e24);                      // mint #0 an NFT (already holds the tokens)
+        b.activateStaking();
+        b.stake(5e22);
+        b.transfer(deployer, 1e24); // mint #0 an NFT (already holds the tokens)
         vm.stopBroadcast();
         // a sell (down candle)
         vm.startBroadcast(ACTOR_KEYS[1]);
@@ -174,15 +210,17 @@ contract SeedRich is Script {
 
     function _phase4Gated(Deployed memory d) internal {
         // Gated bonding.
-        bytes32[] memory h = new bytes32[](1); h[0] = keccak256(bytes("ms2"));
-        uint256[] memory c = new uint256[](1); c[0] = 5e24;
+        bytes32[] memory h = new bytes32[](1);
+        h[0] = keccak256(bytes("ms2"));
+        uint256[] memory c = new uint256[](1);
+        c[0] = 5e24;
         TierConfig memory cfg = TierConfig(TierType.VOLUME_CAP, h, c, new uint256[](0));
         vm.startBroadcast(deployerKey);
         address gated = _create404Gated(d, "haze404", "Haze404", "HAZE", cfg);
         ERC404BondingInstance g = ERC404BondingInstance(payable(gated));
-        g.setBondingOpenTime(block.timestamp + 1);       // must be set before setBondingActive
+        g.setBondingOpenTime(block.timestamp + 1); // must be set before setBondingActive
         g.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(gated, 30 days, 0.055 ether);
+        d.queue.rentFeatured{ value: 1 ether }(gated, 30 days, 0.055 ether);
         vm.stopBroadcast();
         _buyBonding(g, ACTOR_KEYS[0], 1e23, "ms2");
     }
@@ -206,17 +244,28 @@ contract SeedRich is Script {
     // ── Phase 6 — vault contributions ────────────────────────────────────────
     function _phase6Vault(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
-        IAlignmentVault(payable(d.endowmentVault)).receiveContribution{value: 0.3 ether}(Currency.wrap(address(0)), 0.3 ether, _spectra);
+        IAlignmentVault(payable(d.endowmentVault)).receiveContribution{ value: 0.3 ether }(
+            Currency.wrap(address(0)), 0.3 ether, _spectra
+        );
         vm.stopBroadcast();
     }
 
     // ── Helpers (used by later batches) ──────────────────────────────────────
-    function _create1155(Deployed memory d, string memory slug, string memory name, string memory desc, string memory img)
-        internal returns (address inst) {
+    function _create1155(
+        Deployed memory d,
+        string memory slug,
+        string memory name,
+        string memory desc,
+        string memory img
+    ) internal returns (address inst) {
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
-            name: slug, metadataURI: _collMeta(name, desc, img), creator: deployer,
-            vault: d.vault, styleUri: "", gatingModule: address(0),
-            freeMint: FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            name: slug,
+            metadataURI: _collMeta(name, desc, img),
+            creator: deployer,
+            vault: d.vault,
+            styleUri: "",
+            gatingModule: address(0),
+            freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         });
         inst = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, slug)), p);
         _instances.push(inst);
@@ -225,14 +274,14 @@ contract SeedRich is Script {
     function _buyEdition(address inst, uint256 editionId, uint256 amount, uint256 key) internal {
         uint256 cost = ERC1155Instance(inst).calculateMintCost(editionId, amount);
         vm.startBroadcast(key);
-        ERC1155Instance(inst).mint{value: cost}(editionId, amount, bytes32(0), "", cost);
+        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, bytes32(0), "", cost);
         vm.stopBroadcast();
     }
 
     function _buyEditionGated(address inst, uint256 editionId, uint256 amount, uint256 key, string memory pw) internal {
         uint256 cost = ERC1155Instance(inst).calculateMintCost(editionId, amount);
         vm.startBroadcast(key);
-        ERC1155Instance(inst).mint{value: cost}(editionId, amount, keccak256(bytes(pw)), "", cost);
+        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, keccak256(bytes(pw)), "", cost);
         vm.stopBroadcast();
     }
 
@@ -242,36 +291,86 @@ contract SeedRich is Script {
         uint256 cost = BondingCurveMath.calculateCost(p, b.totalBondingSupply(), amount);
         uint256 total = cost + (cost * b.bondingFeeBps()) / 10000;
         vm.startBroadcast(key);
-        b.buyBonding{value: total}(amount, total, false, pw_(pw), "", 0);
+        b.buyBonding{ value: total }(amount, total, false, pw_(pw), "", 0);
         vm.stopBroadcast();
     }
+
     function pw_(string memory pw) private pure returns (bytes32) {
         return bytes(pw).length == 0 ? bytes32(0) : keccak256(bytes(pw));
     }
 
-    function _create404(Deployed memory d, string memory slug, string memory name, string memory sym, address staking, address gating)
-        internal returns (address inst) {
+    function _create404(
+        Deployed memory d,
+        string memory slug,
+        string memory name,
+        string memory sym,
+        address staking,
+        address gating
+    ) internal returns (address inst) {
         ERC404Factory.CreateParams memory p = ERC404Factory.CreateParams({
-            salt: keccak256(abi.encode(block.timestamp, slug)), name: slug, symbol: sym,
-            styleUri: "", tokenBaseURI: "", owner: deployer, vault: d.vault, nftCount: 10, presetId: 1, stakingModule: staking, declaredMaxAllowanceBps: 0
+            salt: keccak256(abi.encode(block.timestamp, slug)),
+            name: slug,
+            symbol: sym,
+            styleUri: "",
+            tokenBaseURI: "",
+            owner: deployer,
+            vault: d.vault,
+            nftCount: 10,
+            presetId: 1,
+            stakingModule: staking,
+            declaredMaxAllowanceBps: 0
         });
-        inst = d.erc404.createInstance(p, _collMeta(name, "Bonding ERC404.", _svg(sym)), d.zammDeployer, gating,
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH}));
+        inst = d.erc404
+            .createInstance(
+                p,
+                _collMeta(name, "Bonding ERC404.", _svg(sym)),
+                d.zammDeployer,
+                gating,
+                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+            );
         _instances.push(inst);
     }
 
-    function _create404Gated(Deployed memory d, string memory slug, string memory name, string memory sym, TierConfig memory cfg)
-        internal returns (address inst) {
+    function _create404Gated(
+        Deployed memory d,
+        string memory slug,
+        string memory name,
+        string memory sym,
+        TierConfig memory cfg
+    ) internal returns (address inst) {
         ERC404Factory.CreateParams memory p = ERC404Factory.CreateParams({
-            salt: keccak256(abi.encode(block.timestamp, slug)), name: slug, symbol: sym,
-            styleUri: "", tokenBaseURI: "", owner: deployer, vault: d.vault, nftCount: 10, presetId: 1, stakingModule: address(0), declaredMaxAllowanceBps: 0
+            salt: keccak256(abi.encode(block.timestamp, slug)),
+            name: slug,
+            symbol: sym,
+            styleUri: "",
+            tokenBaseURI: "",
+            owner: deployer,
+            vault: d.vault,
+            nftCount: 10,
+            presetId: 1,
+            stakingModule: address(0),
+            declaredMaxAllowanceBps: 0
         });
-        inst = d.erc404.createInstance(p, _collMeta(name, "Gated bonding.", _svg(sym)), d.zammDeployer, d.gatingModule,
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH}), cfg);
+        inst = d.erc404
+            .createInstance(
+                p,
+                _collMeta(name, "Gated bonding.", _svg(sym)),
+                d.zammDeployer,
+                d.gatingModule,
+                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+                cfg
+            );
         _instances.push(inst);
     }
 
-    function _setProfile(Deployed memory d, uint256 key, string memory name, string memory handle, string memory bio, string memory img) internal {
+    function _setProfile(
+        Deployed memory d,
+        uint256 key,
+        string memory name,
+        string memory handle,
+        string memory bio,
+        string memory img
+    ) internal {
         vm.startBroadcast(key);
         d.profiles.setProfile(_profMeta(name, handle, bio, img));
         vm.stopBroadcast();
@@ -279,31 +378,69 @@ contract SeedRich is Script {
 
     function _postAs(Deployed memory d, uint256 key, address ch, string memory c) internal returns (uint256 id) {
         id = d.messages.messageCount();
-        vm.startBroadcast(key); d.messages.post(ch, 0, 0, bytes32(0), bytes32(0), c); vm.stopBroadcast();
+        vm.startBroadcast(key);
+        d.messages.post(ch, 0, 0, bytes32(0), bytes32(0), c);
+        vm.stopBroadcast();
     }
+
     function _replyAs(Deployed memory d, uint256 key, address ch, uint256 ref, string memory c) internal {
-        vm.startBroadcast(key); d.messages.post(ch, 1, ref, bytes32(0), bytes32(0), c); vm.stopBroadcast();
+        vm.startBroadcast(key);
+        d.messages.post(ch, 1, ref, bytes32(0), bytes32(0), c);
+        vm.stopBroadcast();
     }
+
     function _reactAs(Deployed memory d, uint256 key, address ch, uint256 ref, string memory e) internal {
-        vm.startBroadcast(key); d.messages.post(ch, 3, ref, bytes32(0), bytes32(0), e); vm.stopBroadcast();
+        vm.startBroadcast(key);
+        d.messages.post(ch, 3, ref, bytes32(0), bytes32(0), e);
+        vm.stopBroadcast();
     }
 
     // ── Backend-free metadata (image is a served /seed-art path or an inline data: SVG) ──
-    function _collMeta(string memory name, string memory desc, string memory img) internal pure returns (string memory) {
-        return string.concat("data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
-            "\",\"description\":\"", desc, "\",\"category\":\"edition\",\"image\":\"", img, "\"}");
+    function _collMeta(string memory name, string memory desc, string memory img)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"description\":\"",
+            desc,
+            "\",\"category\":\"edition\",\"image\":\"",
+            img,
+            "\"}"
+        );
     }
+
     function _pieceMeta(string memory name, string memory img) internal pure returns (string memory) {
-        return string.concat("data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
-            "\",\"image\":\"", img, "\"}");
+        return
+            string.concat("data:application/json,{\"schemaVersion\":1,\"name\":\"", name, "\",\"image\":\"", img, "\"}");
     }
-    function _profMeta(string memory name, string memory handle, string memory bio, string memory img) internal pure returns (string memory) {
-        return string.concat("data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
-            "\",\"handle\":\"", handle, "\",\"bio\":\"", bio, "\",\"avatar\":\"", img, "\"}");
+
+    function _profMeta(string memory name, string memory handle, string memory bio, string memory img)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"handle\":\"",
+            handle,
+            "\",\"bio\":\"",
+            bio,
+            "\",\"avatar\":\"",
+            img,
+            "\"}"
+        );
     }
+
     function _svg(string memory glyph) internal pure returns (string memory) {
-        return string.concat("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>",
+        return string.concat(
+            "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'>",
             "<rect width='400' height='400' fill='black'/><text x='200' y='250' fill='white' font-family='monospace' font-size='150' text-anchor='middle'>",
-            glyph, "</text></svg>");
+            glyph,
+            "</text></svg>"
+        );
     }
 }

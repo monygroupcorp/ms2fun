@@ -14,11 +14,8 @@ interface IInstance {
     /// @return maxSupply Maximum supply (0 if unlimited)
     /// @return isActive Whether project is currently active/mintable
     /// @return extraData Factory-specific encoded data (decode based on contractType)
-    function getCardData() external view returns (
-        uint256 price,
-        uint256 supply,
-        uint256 maxSupply,
-        bool isActive,
-        bytes memory extraData
-    );
+    function getCardData()
+        external
+        view
+        returns (uint256 price, uint256 supply, uint256 maxSupply, bool isActive, bytes memory extraData);
 }

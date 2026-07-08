@@ -70,19 +70,29 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         // Deploy the vault through the real factory (matches DeployCore) and wire the pool key the way
         // DeployCore now does — via the factory (the factory owns the vault).
         UniAlignmentVaultFactory factory = new UniAlignmentVaultFactory(
-            WETH, UNISWAP_V4_POOL_MANAGER, address(router), FEE, TICK_SPACING,
-            IVaultPriceValidator(address(priceValidator)), IAlignmentRegistry(address(registry))
+            WETH,
+            UNISWAP_V4_POOL_MANAGER,
+            address(router),
+            FEE,
+            TICK_SPACING,
+            IVaultPriceValidator(address(priceValidator)),
+            IAlignmentRegistry(address(registry))
         );
-        vault = UniAlignmentVault(payable(
-            factory.deployVault(keccak256("uni-grad-fork"), alignmentToken, TARGET_ID, IVaultPriceValidator(address(0)))
-        ));
-        factory.setVaultPoolKey(address(vault), PoolKey({
-            currency0:   Currency.wrap(address(0)), // native ETH < USDC → currency0
-            currency1:   Currency.wrap(alignmentToken),
-            fee:         FEE,
-            tickSpacing: TICK_SPACING,
-            hooks:       IHooks(address(0))
-        }));
+        vault = UniAlignmentVault(
+            payable(factory.deployVault(
+                    keccak256("uni-grad-fork"), alignmentToken, TARGET_ID, IVaultPriceValidator(address(0))
+                ))
+        );
+        factory.setVaultPoolKey(
+            address(vault),
+            PoolKey({
+                currency0: Currency.wrap(address(0)), // native ETH < USDC → currency0
+                currency1: Currency.wrap(alignmentToken),
+                fee: FEE,
+                tickSpacing: TICK_SPACING,
+                hooks: IHooks(address(0))
+            })
+        );
 
         vm.label(address(vault), "UniAlignmentVault");
         vm.label(address(router), "zRouter");
@@ -97,7 +107,7 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         // Alice routes alignment ETH into the vault (as an instance's alignment tax would).
         vm.deal(alice, 10 ether);
         vm.prank(alice);
-        (bool ok, ) = address(vault).call{value: 5 ether}("");
+        (bool ok,) = address(vault).call{ value: 5 ether }("");
         require(ok, "contribution failed");
         assertEq(vault.totalPendingETH(), 5 ether, "pending ETH tracked");
 
@@ -113,19 +123,18 @@ contract VaultUniGraduationForkTest is ForkTestBase {
 
         // ── The position is REAL: read it back from the V4 PoolManager. ──
         PoolKey memory key = PoolKey({
-            currency0:   Currency.wrap(address(0)),
-            currency1:   Currency.wrap(alignmentToken),
-            fee:         FEE,
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(alignmentToken),
+            fee: FEE,
             tickSpacing: TICK_SPACING,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
         int24 tickLower = TickMath.minUsableTick(TICK_SPACING);
         int24 tickUpper = TickMath.maxUsableTick(TICK_SPACING);
         // Owner of the position is the vault (it calls modifyLiquidity in its own unlock callback);
         // salt 0, matching _addToLpPosition.
-        (uint128 posLiquidity, , ) = poolManager.getPositionInfo(
-            key.toId(), address(vault), tickLower, tickUpper, bytes32(0)
-        );
+        (uint128 posLiquidity,,) =
+            poolManager.getPositionInfo(key.toId(), address(vault), tickLower, tickUpper, bytes32(0));
         assertGt(posLiquidity, 0, "a live V4 position must exist on-chain for the vault");
         assertEq(uint256(posLiquidity), lpUnits, "on-chain position matches the vault's booked LP units");
 

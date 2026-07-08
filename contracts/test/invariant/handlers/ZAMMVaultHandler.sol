@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ZAMMAlignmentVault, IZAMM} from "../../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import {MockZAMM} from "../../mocks/MockZAMM.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Test } from "forge-std/Test.sol";
+import { ZAMMAlignmentVault, IZAMM } from "../../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { MockZAMM } from "../../mocks/MockZAMM.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
 /// @notice Invariant handler for ZAMMAlignmentVault share accounting
 contract ZAMMVaultHandler is Test {
@@ -40,7 +40,7 @@ contract ZAMMVaultHandler is Test {
 
         vm.deal(actor, actor.balance + amount);
         vm.prank(actor);
-        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, actor);
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, actor);
 
         ghost_totalContributed += amount;
         ghost_actorContributed[actor] += amount;
@@ -52,7 +52,7 @@ contract ZAMMVaultHandler is Test {
 
         vm.deal(actor, actor.balance + amount);
         vm.prank(actor);
-        (bool ok,) = address(vault).call{value: amount}("");
+        (bool ok,) = address(vault).call{ value: amount }("");
         require(ok, "send failed");
 
         ghost_totalContributed += amount;

@@ -40,7 +40,10 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
     // ========== Types ==========
 
-    enum CallbackOp { SWAP, MODIFY_LIQUIDITY }
+    enum CallbackOp {
+        SWAP,
+        MODIFY_LIQUIDITY
+    }
 
     struct SwapCallbackData {
         PoolKey key;
@@ -84,12 +87,7 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
             // Deploy mock hook (test version without address validation)
             MockFeeHook implementation = new MockFeeHook(
-                poolManager,
-                address(mockVault),
-                WETH,
-                address(this),
-                DEFAULT_HOOK_FEE_BIPS,
-                DEFAULT_LP_FEE_RATE
+                poolManager, address(mockVault), WETH, address(this), DEFAULT_HOOK_FEE_BIPS, DEFAULT_LP_FEE_RATE
             );
 
             // Copy bytecode to hook address with correct flags
@@ -464,7 +462,7 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
             return abi.encode(delta);
         } else {
             ModifyLiquidityCallbackData memory params = abi.decode(cb.data, (ModifyLiquidityCallbackData));
-            (BalanceDelta delta, ) = poolManager.modifyLiquidity(params.key, params.params, "");
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(params.key, params.params, "");
             _settleDelta(params.key, delta, address(this));
             return abi.encode(delta);
         }
@@ -491,27 +489,16 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
 
     // ========== Helper Functions ==========
 
-    function _swap(
-        PoolKey memory key,
-        bool zeroForOne,
-        uint256 amountIn
-    ) internal {
+    function _swap(PoolKey memory key, bool zeroForOne, uint256 amountIn) internal {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
             zeroForOne: zeroForOne,
             amountSpecified: -int256(amountIn),
             sqrtPriceLimitX96: zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
         });
 
-        SwapCallbackData memory swapData = SwapCallbackData({
-            key: key,
-            params: params,
-            sender: address(this)
-        });
+        SwapCallbackData memory swapData = SwapCallbackData({ key: key, params: params, sender: address(this) });
 
-        CallbackData memory cb = CallbackData({
-            op: CallbackOp.SWAP,
-            data: abi.encode(swapData)
-        });
+        CallbackData memory cb = CallbackData({ op: CallbackOp.SWAP, data: abi.encode(swapData) });
 
         poolManager.unlock(abi.encode(cb));
     }
@@ -523,17 +510,11 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
         ModifyLiquidityCallbackData memory lpData = ModifyLiquidityCallbackData({
             key: key,
             params: IPoolManager.ModifyLiquidityParams({
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                liquidityDelta: liquidityDelta,
-                salt: 0
+                tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
             })
         });
 
-        CallbackData memory cb = CallbackData({
-            op: CallbackOp.MODIFY_LIQUIDITY,
-            data: abi.encode(lpData)
-        });
+        CallbackData memory cb = CallbackData({ op: CallbackOp.MODIFY_LIQUIDITY, data: abi.encode(lpData) });
 
         poolManager.unlock(abi.encode(cb));
     }
@@ -563,7 +544,7 @@ contract V4HookTaxationTest is ForkTestBase, IUnlockCallback {
     uint160 constant SQRT_PRICE_DAI_USDC = 79228162514264337593544;
 
     // Required for receiving ETH
-    receive() external payable {}
+    receive() external payable { }
 }
 
 // ========== Mock Contracts ==========
@@ -582,7 +563,7 @@ contract MockVault {
         lastFeeReceived = 0;
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /**
@@ -634,9 +615,7 @@ contract MockFeeHook is BaseTestHooks {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         return (
-            IHooks.beforeSwap.selector,
-            BeforeSwapDeltaLibrary.ZERO_DELTA,
-            lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG
+            IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG
         );
     }
 
@@ -658,7 +637,7 @@ contract MockFeeHook is BaseTestHooks {
 
         if (feeAmount > 0) {
             poolManager.take(key.currency0, address(this), feeAmount);
-            MockVault(payable(vault)).receiveContribution{value: feeAmount}(key.currency0, feeAmount, sender);
+            MockVault(payable(vault)).receiveContribution{ value: feeAmount }(key.currency0, feeAmount, sender);
             emit AlignmentFeeCollected(feeAmount, sender);
             return (IHooks.afterSwap.selector, feeAmount.toInt128());
         }
@@ -673,7 +652,7 @@ contract MockFeeHook is BaseTestHooks {
         emit LpFeeRateUpdated(_rate);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /**

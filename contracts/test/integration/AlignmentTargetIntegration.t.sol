@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {MasterRegistryV1} from "../../src/master/MasterRegistryV1.sol";
-import {AlignmentRegistryV1} from "../../src/master/AlignmentRegistryV1.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 
 contract MockAlignedVaultIntegration {
     address public alignmentToken;
+
     constructor(address _token) {
         alignmentToken = _token;
     }
@@ -17,6 +18,7 @@ contract MockAlignedVaultIntegration {
 contract MockFactoryIntegration {
     address public creator;
     address public protocol;
+
     constructor(address _creator, address _protocol) {
         creator = _creator;
         protocol = _protocol;
@@ -48,18 +50,12 @@ contract AlignmentTargetIntegrationTest is Test {
         // 1. DAO approves Remilia as alignment target
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
         assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "Majority LP in Uniswap V3",
-            metadataURI: ""
+            token: cultToken, symbol: "CULT", info: "Majority LP in Uniswap V3", metadataURI: ""
         });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget(
-            "Remilia",
-            "Cyber yakuza accelerationist cult",
-            "https://ms2fun.com/targets/remilia",
-            assets
+            "Remilia", "Cyber yakuza accelerationist cult", "https://ms2fun.com/targets/remilia", assets
         );
 
         // 2. Anyone deploys a vault for Remilia
@@ -86,7 +82,9 @@ contract AlignmentTargetIntegrationTest is Test {
 
         // 6. DAO can update target metadata
         vm.prank(daoOwner);
-        alignmentRegistry.updateAlignmentTarget(targetId, "Updated description", "https://ms2fun.com/targets/remilia/v2");
+        alignmentRegistry.updateAlignmentTarget(
+            targetId, "Updated description", "https://ms2fun.com/targets/remilia/v2"
+        );
 
         target = alignmentRegistry.getAlignmentTarget(targetId);
         assertEq(target.description, "Updated description");
@@ -102,12 +100,7 @@ contract AlignmentTargetIntegrationTest is Test {
 
     function test_MultipleVaultsPerTarget() public {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget("Remilia", "", "", assets);

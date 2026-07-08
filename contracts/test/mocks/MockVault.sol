@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IAlignmentVault} from "../../src/interfaces/IAlignmentVault.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
 /**
  * @title MockVault
@@ -55,11 +55,7 @@ contract MockVault is IAlignmentVault {
      * @param amount Amount of tax received
      * @param benefactor Address to credit for this contribution
      */
-    function receiveContribution(
-        Currency currency,
-        uint256 amount,
-        address benefactor
-    ) external payable override {
+    function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable override {
         require(msg.value >= amount, "Insufficient ETH sent");
         require(amount > 0, "Amount must be positive");
         require(benefactor != address(0), "Invalid benefactor");
@@ -137,7 +133,7 @@ contract MockVault is IAlignmentVault {
         lastClaimTimestamp[benefactor] = block.timestamp;
 
         // Transfer ETH to benefactor
-        (bool success, ) = payable(benefactor).call{value: ethClaimed}("");
+        (bool success,) = payable(benefactor).call{ value: ethClaimed }("");
         require(success, "ETH transfer failed");
 
         emit FeesClaimed(benefactor, ethClaimed);
@@ -257,7 +253,7 @@ contract MockVault is IAlignmentVault {
             lastClaimTimestamp[benefactors[i]] = block.timestamp;
         }
 
-        (bool success, ) = payable(msg.sender).call{value: totalClaimed}("");
+        (bool success,) = payable(msg.sender).call{ value: totalClaimed }("");
         require(success, "ETH transfer failed");
     }
 

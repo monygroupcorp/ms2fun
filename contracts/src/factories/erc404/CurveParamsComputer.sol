@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {BondingCurveMath} from "./libraries/BondingCurveMath.sol";
-import {ICurveComputer} from "../../interfaces/ICurveComputer.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { BondingCurveMath } from "./libraries/BondingCurveMath.sol";
+import { ICurveComputer } from "../../interfaces/ICurveComputer.sol";
 
 /**
  * @title CurveParamsComputer
@@ -50,22 +50,22 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
     /**
      * @notice Calculate cost to buy `amount` tokens given current supply
      */
-    function calculateCost(
-        BondingCurveMath.Params calldata params,
-        uint256 currentSupply,
-        uint256 amount
-    ) external pure returns (uint256) {
+    function calculateCost(BondingCurveMath.Params calldata params, uint256 currentSupply, uint256 amount)
+        external
+        pure
+        returns (uint256)
+    {
         return BondingCurveMath.calculateCost(params, currentSupply, amount);
     }
 
     /**
      * @notice Calculate refund for selling `amount` tokens given current supply
      */
-    function calculateRefund(
-        BondingCurveMath.Params calldata params,
-        uint256 currentSupply,
-        uint256 amount
-    ) external pure returns (uint256) {
+    function calculateRefund(BondingCurveMath.Params calldata params, uint256 currentSupply, uint256 amount)
+        external
+        pure
+        returns (uint256)
+    {
         return BondingCurveMath.calculateRefund(params, currentSupply, amount);
     }
 
@@ -79,12 +79,11 @@ contract CurveParamsComputer is Ownable, ICurveComputer {
      * @param liquidityReserveBps Bps of total supply reserved for liquidity (e.g. 2000 = 20%)
      * @return params Computed BondingCurveMath.Params
      */
-    function computeCurveParams(
-        uint256 nftCount,
-        uint256 targetETH,
-        uint256 unitPerNFT,
-        uint256 liquidityReserveBps
-    ) public view returns (BondingCurveMath.Params memory params) {
+    function computeCurveParams(uint256 nftCount, uint256 targetETH, uint256 unitPerNFT, uint256 liquidityReserveBps)
+        public
+        view
+        returns (BondingCurveMath.Params memory params)
+    {
         uint256 totalSupply = nftCount * unitPerNFT * 1e18;
         uint256 liquidityReserve = (totalSupply * liquidityReserveBps) / 10000; // round down: slightly more for bonding
         uint256 maxBondingSupply = totalSupply - liquidityReserve;

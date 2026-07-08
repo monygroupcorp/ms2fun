@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Test } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
-import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import {MockZAMM} from "../mocks/MockZAMM.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
+import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { MockZAMM } from "../mocks/MockZAMM.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 
 /// @title Finding6_HardcodedDeadlineTest
 /// @notice Verifies that ZAMMAlignmentVault uses block.timestamp + 15 min (not type(uint256).max)
@@ -21,7 +21,7 @@ contract Finding6_HardcodedDeadlineTest is Test {
     MockEXECToken public token;
     IZAMM.PoolKey public poolKey;
 
-    address alice    = address(0xA);
+    address alice = address(0xA);
     address treasury = address(0x99);
 
     function setUp() public {
@@ -33,7 +33,7 @@ contract Finding6_HardcodedDeadlineTest is Test {
         token.transfer(address(mockZamm), 100_000e18);
         token.transfer(address(mockZRouter), 100_000e18);
 
-        poolKey = IZAMM.PoolKey({id0: 0, id1: 0, token0: address(0), token1: address(token), feeOrHook: 30});
+        poolKey = IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: address(token), feeOrHook: 30 });
 
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
@@ -42,7 +42,7 @@ contract Finding6_HardcodedDeadlineTest is Test {
         // Seed: contribute + convert (exercises the swapVZ deadline codepath)
         vm.deal(alice, 100 ether);
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         vault.convertAndAddLiquidity(0, 0, 0);
 
         // Inflate fee reserves for harvest tests
@@ -55,7 +55,7 @@ contract Finding6_HardcodedDeadlineTest is Test {
         // Additional contribution after setUp to exercise the path again in a fresh block
         vm.deal(alice, 1 ether);
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         vault.convertAndAddLiquidity(0, 0, 0); // must not revert
     }
 

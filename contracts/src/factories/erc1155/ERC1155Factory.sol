@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
-import {ERC1155Instance} from "./ERC1155Instance.sol";
-import {IFactory} from "../../interfaces/IFactory.sol";
-import {IComponentRegistry} from "../../registry/interfaces/IComponentRegistry.sol";
-import {FeatureUtils} from "../../master/libraries/FeatureUtils.sol";
-import {FreeMintParams} from "../../interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../gating/IGatingModule.sol";
-import {IPasswordTierGatingModule, TierConfig} from "../../gating/IPasswordTierGatingModule.sol";
-import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { ERC1155Instance } from "./ERC1155Instance.sol";
+import { IFactory } from "../../interfaces/IFactory.sol";
+import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
+import { FeatureUtils } from "../../master/libraries/FeatureUtils.sol";
+import { FreeMintParams } from "../../interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../gating/IGatingModule.sol";
+import { IPasswordTierGatingModule, TierConfig } from "../../gating/IPasswordTierGatingModule.sol";
+import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 
 /**
  * @title ERC1155Factory
@@ -46,24 +46,14 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         address creator;
         address vault;
         string styleUri;
-        address gatingModule;    // address(0) = open
+        address gatingModule; // address(0) = open
         FreeMintParams freeMint;
     }
 
-    event InstanceCreated(
-        address indexed instance,
-        address indexed creator,
-        string name,
-        address indexed vault
-    );
+    event InstanceCreated(address indexed instance, address indexed creator, string name, address indexed vault);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
 
-    constructor(
-        address _masterRegistry,
-        address _globalMessageRegistry,
-        address _componentRegistry,
-        address _weth
-    ) {
+    constructor(address _masterRegistry, address _globalMessageRegistry, address _componentRegistry, address _weth) {
         _initializeOwner(msg.sender);
         if (_globalMessageRegistry == address(0)) revert InvalidAddress();
         masterRegistry = IMasterRegistry(_masterRegistry);
@@ -74,10 +64,12 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     }
 
     /// @notice Deploy a new ERC1155 instance. Any ETH forwarded directly to treasury.
-    function createInstance(
-        bytes32 salt,
-        CreateParams calldata params
-    ) external payable nonReentrant returns (address instance) {
+    function createInstance(bytes32 salt, CreateParams calldata params)
+        external
+        payable
+        nonReentrant
+        returns (address instance)
+    {
         TierConfig memory empty;
         return _createInstance(salt, params, empty);
     }
@@ -85,19 +77,19 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     /// @notice Deploy a new ERC1155 instance and apply tier-gating config in the same tx.
     /// @param gatingConfig Tier config applied to params.gatingModule at deploy time.
     ///        Empty (no passwordHashes) leaves the instance open / unconfigured.
-    function createInstance(
-        bytes32 salt,
-        CreateParams calldata params,
-        TierConfig calldata gatingConfig
-    ) external payable nonReentrant returns (address instance) {
+    function createInstance(bytes32 salt, CreateParams calldata params, TierConfig calldata gatingConfig)
+        external
+        payable
+        nonReentrant
+        returns (address instance)
+    {
         return _createInstance(salt, params, gatingConfig);
     }
 
-    function _createInstance(
-        bytes32 salt,
-        CreateParams calldata params,
-        TierConfig memory gatingConfig
-    ) private returns (address instance) {
+    function _createInstance(bytes32 salt, CreateParams calldata params, TierConfig memory gatingConfig)
+        private
+        returns (address instance)
+    {
         if (params.gatingModule != address(0)) {
             if (!componentRegistry.isApprovedComponent(params.gatingModule)) revert UnapprovedComponent();
         }
@@ -132,21 +124,15 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         emit InstanceCreated(instance, params.creator, params.name, params.vault);
     }
 
-    function _deployAndRegister(
-        bytes32 salt,
-        CreateParams calldata params,
-        bool agentCreated
-    ) private returns (address instance) {
+    function _deployAndRegister(bytes32 salt, CreateParams calldata params, bool agentCreated)
+        private
+        returns (address instance)
+    {
         // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, _buildInitCode(params, agentCreated));
         masterRegistry.registerInstance(
-            instance,
-            address(this),
-            params.creator,
-            params.name,
-            params.metadataURI,
-            params.vault
+            instance, address(this), params.creator, params.name, params.metadataURI, params.vault
         );
     }
 
@@ -200,7 +186,9 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     function features() external view returns (bytes32[] memory) {
         if (dynamicPricingModule != address(0)) {
             bytes32[] memory f = new bytes32[](_features.length + 1);
-            for (uint256 i = 0; i < _features.length; i++) f[i] = _features[i];
+            for (uint256 i = 0; i < _features.length; i++) {
+                f[i] = _features[i];
+            }
             f[_features.length] = FeatureUtils.DYNAMIC_PRICING;
             return f;
         }

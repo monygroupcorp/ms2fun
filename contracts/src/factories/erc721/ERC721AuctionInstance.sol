@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ERC721} from "solady/tokens/ERC721.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {SmartTransferLib} from "../../libraries/SmartTransferLib.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
+import { ERC721 } from "solady/tokens/ERC721.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 
-import {IGlobalMessageRegistry} from "../../registry/interfaces/IGlobalMessageRegistry.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
-import {IInstanceLifecycle, TYPE_ERC721, STATE_ACTIVE} from "../../interfaces/IInstanceLifecycle.sol";
+import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { IInstanceLifecycle, TYPE_ERC721, STATE_ACTIVE } from "../../interfaces/IInstanceLifecycle.sol";
 
 // ── ERC721AuctionInstance errors ──────────────────────────────────────────────
 error InvalidAddress();
@@ -53,7 +53,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     struct Auction {
         uint24 tokenId;
         string tokenURI;
-        uint256 minBid;         // Creator's deposit = minimum bid
+        uint256 minBid; // Creator's deposit = minimum bid
         address highBidder;
         uint256 highBid;
         uint40 startTime;
@@ -340,11 +340,8 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
             SafeTransferLib.safeTransferETH(protocolTreasury, s.protocolCut);
         }
 
-        try vault.receiveContribution{value: s.vaultCut}(
-            Currency.wrap(address(0)),
-            s.vaultCut,
-            address(this)
-        ) {} catch {
+        try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) { }
+        catch {
             pendingVaultCut += s.vaultCut;
             emit VaultContributionFailed(address(vault), s.vaultCut);
         }
@@ -407,7 +404,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoFeesToClaim();
         pendingVaultCut = 0;
-        vault.receiveContribution{value: pending}(Currency.wrap(address(0)), pending, address(this));
+        vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
     }
 
     /// @notice Migrate to a new vault. New vault must share this instance's alignment target.
@@ -488,5 +485,5 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     }
 
     // Allow receiving ETH (for vault refunds etc.)
-    receive() external payable {}
+    receive() external payable { }
 }

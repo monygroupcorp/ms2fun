@@ -35,13 +35,13 @@ contract ERC404StakingModule {
 
     // Per-instance state (all mappings keyed by instance address)
     mapping(address => bool) public stakingEnabled;
-    mapping(address => mapping(address => uint256)) public stakedBalance;   // instance => user => amount
-    mapping(address => uint256) public totalStaked;                          // instance => total
+    mapping(address => mapping(address => uint256)) public stakedBalance; // instance => user => amount
+    mapping(address => uint256) public totalStaked; // instance => total
 
     // rewardPerToken accounting (replaces totalFeesAccumulated / feesAlreadyClaimed)
-    mapping(address => uint256) public rewardPerTokenStored;                          // instance => cumulative ETH per staked token (scaled 1e18)
-    mapping(address => mapping(address => uint256)) public rewardPerTokenPaid;        // instance => user => checkpoint
-    mapping(address => mapping(address => uint256)) public rewardsAccrued;            // instance => user => unclaimed ETH
+    mapping(address => uint256) public rewardPerTokenStored; // instance => cumulative ETH per staked token (scaled 1e18)
+    mapping(address => mapping(address => uint256)) public rewardPerTokenPaid; // instance => user => checkpoint
+    mapping(address => mapping(address => uint256)) public rewardsAccrued; // instance => user => unclaimed ETH
 
     event StakingEnabled(address indexed instance);
     event Staked(address indexed instance, address indexed user, uint256 amount, uint256 newTotal);
@@ -140,11 +140,7 @@ contract ERC404StakingModule {
 
     /// @notice Compute and record a claim for `user`. Returns ETH amount instance must pay.
     /// @dev Instance calls this, then transfers the returned amount to user in ETH.
-    function computeClaim(address user)
-        external
-        onlyRegisteredInstance
-        returns (uint256 rewardAmount)
-    {
+    function computeClaim(address user) external onlyRegisteredInstance returns (uint256 rewardAmount) {
         address instance = msg.sender;
         if (!stakingEnabled[instance]) revert StakingNotEnabled();
         if (stakedBalance[instance][user] == 0) revert NoStakedBalance();
@@ -161,11 +157,7 @@ contract ERC404StakingModule {
     // ── View functions (public) ───────────────────────────────────────────────
 
     /// @notice Estimate pending rewards for a user without changing state
-    function calculatePendingRewards(address instance, address user)
-        external
-        view
-        returns (uint256)
-    {
+    function calculatePendingRewards(address instance, address user) external view returns (uint256) {
         if (!stakingEnabled[instance]) return 0;
         if (stakedBalance[instance][user] == 0) return 0;
         return _earned(instance, user);
@@ -179,7 +171,7 @@ contract ERC404StakingModule {
             bool enabled,
             uint256 userStaked,
             uint256 globalTotalStaked,
-            uint256 userProportion,  // basis points
+            uint256 userProportion, // basis points
             uint256 pendingRewards
         )
     {
@@ -187,7 +179,7 @@ contract ERC404StakingModule {
         userStaked = stakedBalance[instance][user];
         globalTotalStaked = totalStaked[instance];
         userProportion = globalTotalStaked > 0
-            ? (userStaked * 10000) / globalTotalStaked // round down: view-only, no value transfer
+            ? (userStaked * 10000) / globalTotalStaked  // round down: view-only, no value transfer
             : 0;
         pendingRewards = _earned(instance, user);
     }

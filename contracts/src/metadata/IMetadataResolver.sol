@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IComponentModule} from "../interfaces/IComponentModule.sol";
+import { IComponentModule } from "../interfaces/IComponentModule.sol";
 
 /// @title IMetadataResolver
 /// @notice Generic metadata-resolution seam for ERC404 instances (ADR-0006 / ADR-0007).
@@ -17,8 +17,5 @@ interface IMetadataResolver is IComponentModule {
     /// @param id       The token id.
     /// @param holder   The current NFT owner (address(0) if unminted).
     /// @return The augmented URI, or "" to decline (fall through).
-    function resolve(address instance, uint256 id, address holder)
-        external
-        view
-        returns (string memory);
+    function resolve(address instance, uint256 id, address holder) external view returns (string memory);
 }

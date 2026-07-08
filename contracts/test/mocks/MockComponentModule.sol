@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IComponentModule} from "../../src/interfaces/IComponentModule.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { IComponentModule } from "../../src/interfaces/IComponentModule.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @notice Minimal IComponentModule implementation for testnet / local seeding.
 ///         Stores a metadata URI so the frontend creation wizard can discover and display it.

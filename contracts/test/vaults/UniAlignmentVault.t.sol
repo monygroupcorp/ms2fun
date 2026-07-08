@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {UniAlignmentVault} from "../../src/vaults/uni/UniAlignmentVault.sol";
-import {TestableUniAlignmentVault} from "../helpers/TestableUniAlignmentVault.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
-import {MockAlignmentRegistry} from "../mocks/MockAlignmentRegistry.sol";
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
+import { TestableUniAlignmentVault } from "../helpers/TestableUniAlignmentVault.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /**
  * @title UniAlignmentVaultTest
@@ -43,12 +43,7 @@ contract UniAlignmentVaultTest is Test {
 
     // Events
     event ContributionReceived(address indexed benefactor, uint256 amount);
-    event LiquidityAdded(
-        uint256 ethSwapped,
-        uint256 tokenReceived,
-        uint256 lpPositionValue,
-        uint256 sharesIssued
-    );
+    event LiquidityAdded(uint256 ethSwapped, uint256 tokenReceived, uint256 lpPositionValue, uint256 sharesIssued);
     event FeesClaimed(address indexed benefactor, uint256 ethAmount);
     event FeesAccumulated(uint256 amount);
 
@@ -128,41 +123,67 @@ contract UniAlignmentVaultTest is Test {
     function _initVault(TestableUniAlignmentVault v) internal {
         v.initialize(
             address(this),
-            mockWETH, mockPoolManager, address(alignmentToken),
-            address(mockZRouter), 3000, 60,
+            mockWETH,
+            mockPoolManager,
+            address(alignmentToken),
+            address(mockZRouter),
+            3000,
+            60,
             IVaultPriceValidator(address(mockValidator)),
-            IAlignmentRegistry(address(mockAlignmentRegistry)), TARGET_ID
+            IAlignmentRegistry(address(mockAlignmentRegistry)),
+            TARGET_ID
         );
     }
 
     function test_Initialize_RevertsOnInvalidWETH() public {
         TestableUniAlignmentVault v = _freshClone();
         vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        v.initialize(address(this), address(0), mockPoolManager,
+        v.initialize(
+            address(this),
+            address(0),
+            mockPoolManager,
             address(alignmentToken),
-            address(mockZRouter), 3000, 60,
+            address(mockZRouter),
+            3000,
+            60,
             IVaultPriceValidator(address(mockValidator)),
-            IAlignmentRegistry(address(mockAlignmentRegistry)), TARGET_ID);
+            IAlignmentRegistry(address(mockAlignmentRegistry)),
+            TARGET_ID
+        );
     }
 
     function test_Initialize_RevertsOnInvalidPoolManager() public {
         TestableUniAlignmentVault v = _freshClone();
         vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        v.initialize(address(this), mockWETH, address(0),
+        v.initialize(
+            address(this),
+            mockWETH,
+            address(0),
             address(alignmentToken),
-            address(mockZRouter), 3000, 60,
+            address(mockZRouter),
+            3000,
+            60,
             IVaultPriceValidator(address(mockValidator)),
-            IAlignmentRegistry(address(mockAlignmentRegistry)), TARGET_ID);
+            IAlignmentRegistry(address(mockAlignmentRegistry)),
+            TARGET_ID
+        );
     }
 
     function test_Initialize_RevertsOnInvalidAlignmentToken() public {
         TestableUniAlignmentVault v = _freshClone();
         vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        v.initialize(address(this), mockWETH, mockPoolManager,
+        v.initialize(
+            address(this),
+            mockWETH,
+            mockPoolManager,
             address(0),
-            address(mockZRouter), 3000, 60,
+            address(mockZRouter),
+            3000,
+            60,
             IVaultPriceValidator(address(mockValidator)),
-            IAlignmentRegistry(address(mockAlignmentRegistry)), TARGET_ID);
+            IAlignmentRegistry(address(mockAlignmentRegistry)),
+            TARGET_ID
+        );
     }
 
     function test_Initialize_RevertsOnDoubleInit() public {
@@ -180,7 +201,7 @@ contract UniAlignmentVaultTest is Test {
         vm.expectEmit(true, true, true, true);
         emit ContributionReceived(alice, 1 ether);
 
-        (bool success, ) = address(vault).call{value: 1 ether}("");
+        (bool success,) = address(vault).call{ value: 1 ether }("");
         assertTrue(success, "ETH transfer should succeed");
 
         vm.stopPrank();
@@ -188,7 +209,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_Receive_TracksBenefactorTotalETH() public {
         vm.prank(alice);
-        (bool success, ) = address(vault).call{value: 2 ether}("");
+        (bool success,) = address(vault).call{ value: 2 ether }("");
         assertTrue(success);
 
         assertEq(vault.benefactorTotalETH(alice), 2 ether, "Benefactor total ETH should be 2 ether");
@@ -196,7 +217,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_Receive_TracksPendingETH() public {
         vm.prank(alice);
-        (bool success, ) = address(vault).call{value: 3 ether}("");
+        (bool success,) = address(vault).call{ value: 3 ether }("");
         assertTrue(success);
 
         assertEq(vault.pendingETH(alice), 3 ether, "Pending ETH should be 3 ether");
@@ -205,7 +226,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_Receive_AddsToConversionParticipants() public {
         vm.prank(alice);
-        (bool success, ) = address(vault).call{value: 1 ether}("");
+        (bool success,) = address(vault).call{ value: 1 ether }("");
         assertTrue(success);
 
         assertEq(vault.conversionParticipants(0), alice, "Alice should be first participant");
@@ -213,10 +234,10 @@ contract UniAlignmentVaultTest is Test {
 
     function test_Receive_MultipleContributionsFromSameBenefactor() public {
         vm.startPrank(alice);
-        (bool success1, ) = address(vault).call{value: 1 ether}("");
+        (bool success1,) = address(vault).call{ value: 1 ether }("");
         assertTrue(success1);
 
-        (bool success2, ) = address(vault).call{value: 2 ether}("");
+        (bool success2,) = address(vault).call{ value: 2 ether }("");
         assertTrue(success2);
         vm.stopPrank();
 
@@ -227,7 +248,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_Receive_RevertsOnZeroAmount() public {
         vm.startPrank(alice);
-        (bool success, bytes memory returnData) = address(vault).call{value: 0}("");
+        (bool success, bytes memory returnData) = address(vault).call{ value: 0 }("");
         assertFalse(success, "Should revert on zero amount");
         vm.stopPrank();
     }
@@ -240,14 +261,14 @@ contract UniAlignmentVaultTest is Test {
         vm.expectEmit(true, true, true, true);
         emit ContributionReceived(bob, 1 ether);
 
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, bob);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, bob);
 
         vm.stopPrank();
     }
 
     function test_ReceiveHookTax_TracksBenefactorNotSender() public {
         vm.prank(alice);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, bob);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
 
         assertEq(vault.benefactorTotalETH(bob), 2 ether, "Bob should be tracked as benefactor");
         assertEq(vault.benefactorTotalETH(alice), 0, "Alice should not be benefactor");
@@ -255,7 +276,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ReceiveHookTax_TracksPendingETH() public {
         vm.prank(alice);
-        vault.receiveContribution{value: 3 ether}(Currency.wrap(address(0)), 3 ether, bob);
+        vault.receiveContribution{ value: 3 ether }(Currency.wrap(address(0)), 3 ether, bob);
 
         assertEq(vault.pendingETH(bob), 3 ether, "Bob's pending ETH should be 3 ether");
         assertEq(vault.totalPendingETH(), 3 ether, "Total pending ETH should be 3 ether");
@@ -271,7 +292,7 @@ contract UniAlignmentVaultTest is Test {
     function test_ReceiveHookTax_RevertsOnInvalidBenefactor() public {
         vm.startPrank(alice);
         vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, address(0));
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(0));
         vm.stopPrank();
     }
 
@@ -279,15 +300,15 @@ contract UniAlignmentVaultTest is Test {
 
     function test_MultipleBenefactors_TrackIndependently() public {
         vm.prank(alice);
-        (bool success1, ) = address(vault).call{value: 1 ether}("");
+        (bool success1,) = address(vault).call{ value: 1 ether }("");
         assertTrue(success1);
 
         vm.prank(bob);
-        (bool success2, ) = address(vault).call{value: 2 ether}("");
+        (bool success2,) = address(vault).call{ value: 2 ether }("");
         assertTrue(success2);
 
         vm.prank(charlie);
-        (bool success3, ) = address(vault).call{value: 3 ether}("");
+        (bool success3,) = address(vault).call{ value: 3 ether }("");
         assertTrue(success3);
 
         assertEq(vault.benefactorTotalETH(alice), 1 ether);
@@ -298,15 +319,15 @@ contract UniAlignmentVaultTest is Test {
 
     function test_MultipleBenefactors_AllAddedToConversionParticipants() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 1 ether}("");
+        (bool s1,) = address(vault).call{ value: 1 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 2 ether}("");
+        (bool s2,) = address(vault).call{ value: 2 ether }("");
         assertTrue(s2);
 
         vm.prank(charlie);
-        (bool s3, ) = address(vault).call{value: 3 ether}("");
+        (bool s3,) = address(vault).call{ value: 3 ether }("");
         assertTrue(s3);
 
         assertEq(vault.conversionParticipants(0), alice);
@@ -317,16 +338,16 @@ contract UniAlignmentVaultTest is Test {
     function test_MultipleBenefactors_MixedContributionMethods() public {
         // Alice via receive
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 1 ether}("");
+        (bool s1,) = address(vault).call{ value: 1 ether }("");
         assertTrue(s1);
 
         // Bob via receiveInstance (charlie is sender)
         vm.prank(charlie);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, bob);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
 
         // Charlie via receive
         vm.prank(charlie);
-        (bool s2, ) = address(vault).call{value: 3 ether}("");
+        (bool s2,) = address(vault).call{ value: 3 ether }("");
         assertTrue(s2);
 
         assertEq(vault.benefactorTotalETH(alice), 1 ether);
@@ -340,11 +361,11 @@ contract UniAlignmentVaultTest is Test {
     function test_ConvertAndAddLiquidity_ConvertsSuccessfully() public {
         // Setup: Alice and Bob contribute
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 20 ether}("");
+        (bool s2,) = address(vault).call{ value: 20 ether }("");
         assertTrue(s2);
 
         // Conversion
@@ -363,7 +384,7 @@ contract UniAlignmentVaultTest is Test {
         mockZRouter.setRefundWei(0.0003 ether); // mimic real zRouter returning swap dust to the vault
 
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         // Completing at all is the fix: under the pre-fix vault the dust refund reverts here.
@@ -380,11 +401,11 @@ contract UniAlignmentVaultTest is Test {
     function test_ConvertAndAddLiquidity_IssuesSharesProportionally() public {
         // Alice: 10 ETH (33.33%), Bob: 20 ETH (66.66%)
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 20 ether}("");
+        (bool s2,) = address(vault).call{ value: 20 ether }("");
         assertTrue(s2);
 
         vm.prank(dave);
@@ -403,7 +424,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ConvertAndAddLiquidity_ClearsPendingETH() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -415,11 +436,11 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ConvertAndAddLiquidity_ClearsConversionParticipants() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 20 ether}("");
+        (bool s2,) = address(vault).call{ value: 20 ether }("");
         assertTrue(s2);
 
         vm.prank(dave);
@@ -433,7 +454,7 @@ contract UniAlignmentVaultTest is Test {
     /// @dev Caller reimbursement was removed — running a conversion pays the caller nothing.
     function test_ConvertAndAddLiquidity_PaysNoCallerReward() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         uint256 daveBalanceBefore = dave.balance;
@@ -446,7 +467,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ConvertAndAddLiquidity_UpdatesTotalLPUnits() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         uint256 lpUnitsBefore = vault.totalLPUnits();
@@ -461,7 +482,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ConvertAndAddLiquidity_EmitsLiquidityAddedEvent() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.expectEmit(false, false, false, false);
@@ -493,7 +514,7 @@ contract UniAlignmentVaultTest is Test {
 
         vm.deal(alice, 10 ether);
         vm.prank(alice);
-        (bool s1, ) = address(newVault).call{value: 10 ether}("");
+        (bool s1,) = address(newVault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -504,7 +525,7 @@ contract UniAlignmentVaultTest is Test {
     function test_ConvertAndAddLiquidity_MultipleRoundsAccumulateShares() public {
         // Round 1
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -514,7 +535,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Round 2
         vm.prank(alice);
-        (bool s2, ) = address(vault).call{value: 10 ether}("");
+        (bool s2,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s2);
 
         vm.prank(dave);
@@ -570,7 +591,7 @@ contract UniAlignmentVaultTest is Test {
         vm.expectEmit(true, true, true, true);
         emit FeesAccumulated(5 ether);
 
-        vault.depositFees{value: 5 ether}();
+        vault.depositFees{ value: 5 ether }();
 
         vm.stopPrank();
 
@@ -581,14 +602,14 @@ contract UniAlignmentVaultTest is Test {
     function test_DepositFees_RevertsOnZeroAmount() public {
         vm.startPrank(owner);
         vm.expectRevert(UniAlignmentVault.AmountMustBePositive.selector);
-        vault.depositFees{value: 0}();
+        vault.depositFees{ value: 0 }();
         vm.stopPrank();
     }
 
     function test_DepositFees_RevertsWhenNotOwner() public {
         vm.prank(alice);
         vm.expectRevert();
-        vault.depositFees{value: 5 ether}();
+        vault.depositFees{ value: 5 ether }();
     }
 
     // ========== Fee Claim Tests ==========
@@ -596,7 +617,7 @@ contract UniAlignmentVaultTest is Test {
     function test_ClaimFees_BenefactorCanClaimFees() public {
         // Setup: Alice contributes and gets shares
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -604,7 +625,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Owner deposits fees
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Alice claims
         uint256 aliceBalanceBefore = alice.balance;
@@ -624,11 +645,11 @@ contract UniAlignmentVaultTest is Test {
     function test_ClaimFees_ProportionalClaimWithMultipleBenefactors() public {
         // Alice: 10 ETH (33.33%), Bob: 20 ETH (66.66%)
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 20 ether}("");
+        (bool s2,) = address(vault).call{ value: 20 ether }("");
         assertTrue(s2);
 
         vm.prank(dave);
@@ -636,7 +657,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Owner deposits 30 ether in fees
         vm.prank(owner);
-        vault.depositFees{value: 30 ether}();
+        vault.depositFees{ value: 30 ether }();
 
         // Alice claims
         uint256 aliceBalanceBefore = alice.balance;
@@ -660,7 +681,7 @@ contract UniAlignmentVaultTest is Test {
     function test_ClaimFees_MultipleClaimsTrackDelta() public {
         // Alice contributes and gets shares
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -668,7 +689,7 @@ contract UniAlignmentVaultTest is Test {
 
         // First fee deposit and claim
         vm.prank(owner);
-        vault.depositFees{value: 5 ether}();
+        vault.depositFees{ value: 5 ether }();
 
         vm.prank(alice);
         uint256 claimed1 = vault.claimFees();
@@ -676,7 +697,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Second fee deposit and claim
         vm.prank(owner);
-        vault.depositFees{value: 3 ether}();
+        vault.depositFees{ value: 3 ether }();
 
         vm.prank(alice);
         uint256 claimed2 = vault.claimFees();
@@ -685,14 +706,14 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ClaimFees_UpdatesClaimState() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         uint256 timestampBefore = block.timestamp;
 
@@ -711,7 +732,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ClaimFees_RevertsWhenNoFeesAccumulated() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -724,14 +745,14 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ClaimFees_RevertsWhenNoNewFees() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // First claim succeeds
         vm.prank(alice);
@@ -746,11 +767,11 @@ contract UniAlignmentVaultTest is Test {
     function test_ClaimFees_IndependentClaimsByMultipleBenefactors() public {
         // Alice and Bob contribute
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 10 ether}("");
+        (bool s2,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s2);
 
         vm.prank(dave);
@@ -758,7 +779,7 @@ contract UniAlignmentVaultTest is Test {
 
         // First fee deposit
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Alice claims first
         vm.prank(alice);
@@ -767,7 +788,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Second fee deposit
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Bob claims both rounds
         vm.prank(bob);
@@ -784,7 +805,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_GetBenefactorContribution_ReturnsCorrectAmount() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 5 ether}("");
+        (bool s1,) = address(vault).call{ value: 5 ether }("");
         assertTrue(s1);
 
         assertEq(vault.getBenefactorContribution(alice), 5 ether);
@@ -792,7 +813,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_GetBenefactorShares_ReturnsCorrectAmount() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -804,14 +825,14 @@ contract UniAlignmentVaultTest is Test {
 
     function test_CalculateClaimableAmount_ReturnsCorrectValue() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         uint256 claimable = vault.calculateClaimableAmount(alice);
         assertEq(claimable, 10 ether, "Claimable should be 10 ether");
@@ -819,7 +840,7 @@ contract UniAlignmentVaultTest is Test {
 
     function test_GetUnclaimedFees_ReturnsCorrectDelta() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -827,14 +848,14 @@ contract UniAlignmentVaultTest is Test {
 
         // First fee deposit and claim
         vm.prank(owner);
-        vault.depositFees{value: 5 ether}();
+        vault.depositFees{ value: 5 ether }();
 
         vm.prank(alice);
         vault.claimFees();
 
         // Second fee deposit
         vm.prank(owner);
-        vault.depositFees{value: 3 ether}();
+        vault.depositFees{ value: 3 ether }();
 
         // Check unclaimed
         uint256 unclaimed = vault.getUnclaimedFees(alice);
@@ -843,14 +864,14 @@ contract UniAlignmentVaultTest is Test {
 
     function test_GetUnclaimedFees_ReturnsZeroWhenNoNewFees() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         vm.prank(alice);
         vault.claimFees();
@@ -891,7 +912,7 @@ contract UniAlignmentVaultTest is Test {
         // Contribute ETH so totalPendingETH > 0
         vm.deal(alice, 1 ether);
         vm.prank(alice);
-        (bool s,) = address(vault).call{value: 1 ether}("");
+        (bool s,) = address(vault).call{ value: 1 ether }("");
         require(s);
 
         vm.prank(owner);
@@ -958,19 +979,19 @@ contract UniAlignmentVaultTest is Test {
         // In practice, we'd need a malicious contract to test actual reentrancy
         // For now, we verify the function is marked nonReentrant by checking it doesn't fail
         vm.prank(alice);
-        (bool success, ) = address(vault).call{value: 1 ether}("");
+        (bool success,) = address(vault).call{ value: 1 ether }("");
         assertTrue(success, "Should succeed with reentrancy protection");
     }
 
     function test_ReceiveHookTax_ReentrancyProtection() public {
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, bob);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, bob);
         // Should succeed without reentrancy issues
     }
 
     function test_ConvertAndAddLiquidity_ReentrancyProtection() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
@@ -980,14 +1001,14 @@ contract UniAlignmentVaultTest is Test {
 
     function test_ClaimFees_ReentrancyProtection() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         vm.prank(alice);
         vault.claimFees();
@@ -999,7 +1020,7 @@ contract UniAlignmentVaultTest is Test {
     function test_CompleteWorkflow_SingleBenefactor() public {
         // 1. Alice contributes
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
 
         // 2. Conversion happens
@@ -1008,7 +1029,7 @@ contract UniAlignmentVaultTest is Test {
 
         // 3. Fees accumulate
         vm.prank(owner);
-        vault.depositFees{value: 5 ether}();
+        vault.depositFees{ value: 5 ether }();
 
         // 4. Alice claims
         uint256 balanceBefore = alice.balance;
@@ -1022,11 +1043,11 @@ contract UniAlignmentVaultTest is Test {
     function test_CompleteWorkflow_MultipleBenefactorsMultipleRounds() public {
         // Round 1: Alice and Bob contribute
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 6 ether}("");
+        (bool s1,) = address(vault).call{ value: 6 ether }("");
         assertTrue(s1);
 
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 4 ether}("");
+        (bool s2,) = address(vault).call{ value: 4 ether }("");
         assertTrue(s2);
 
         vm.prank(dave);
@@ -1039,7 +1060,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Fees accumulate
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Alice claims
         vm.prank(alice);
@@ -1048,7 +1069,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Round 2: Charlie joins
         vm.prank(charlie);
-        (bool s3, ) = address(vault).call{value: 10 ether}("");
+        (bool s3,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s3);
 
         vm.prank(dave);
@@ -1068,7 +1089,7 @@ contract UniAlignmentVaultTest is Test {
 
         // More fees
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Bob claims - should get his share proportion
         vm.prank(bob);
@@ -1093,14 +1114,14 @@ contract UniAlignmentVaultTest is Test {
         // MIN_CONTRIBUTION = 0.001 ether; values below it revert with ContributionBelowMinimum.
         // Verify that a below-minimum contribution reverts.
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 1 wei}("");
+        (bool s1,) = address(vault).call{ value: 1 wei }("");
         assertFalse(s1, "contribution below MIN_CONTRIBUTION should revert");
 
         // A contribution at exactly MIN_CONTRIBUTION succeeds.
         uint256 minContrib = vault.MIN_CONTRIBUTION();
         vm.deal(alice, alice.balance + minContrib);
         vm.prank(alice);
-        (bool s2, ) = address(vault).call{value: minContrib}("");
+        (bool s2,) = address(vault).call{ value: minContrib }("");
         assertTrue(s2, "contribution at MIN_CONTRIBUTION should succeed");
 
         assertEq(vault.benefactorTotalETH(alice), minContrib);
@@ -1110,7 +1131,7 @@ contract UniAlignmentVaultTest is Test {
     function test_EdgeCase_VeryLargeContributions() public {
         vm.deal(alice, 10000 ether);
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10000 ether}("");
+        (bool s1,) = address(vault).call{ value: 10000 ether }("");
         assertTrue(s1);
 
         assertEq(vault.benefactorTotalETH(alice), 10000 ether);
@@ -1122,7 +1143,7 @@ contract UniAlignmentVaultTest is Test {
             address benefactor = address(i + 1000);
             vm.deal(benefactor, 10 ether);
             vm.prank(benefactor);
-            (bool success, ) = address(vault).call{value: 1 ether}("");
+            (bool success,) = address(vault).call{ value: 1 ether }("");
             assertTrue(success);
         }
 
@@ -1153,7 +1174,7 @@ contract UniAlignmentVaultTest is Test {
     function test_YieldCut_DepositFeesNotTaxed() public {
         // depositFees bypasses yield cut (it's owner-deposited, not LP yield)
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         assertEq(vault.accumulatedFees(), 10 ether, "depositFees should not be taxed");
         assertEq(vault.accumulatedProtocolFees(), 0, "No protocol fees from depositFees");
@@ -1232,14 +1253,14 @@ contract UniAlignmentVaultTest is Test {
 
         // Setup benefactor and shares
         vm.prank(alice);
-        (bool s, ) = address(vault).call{value: 10 ether}("");
+        (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         // Owner deposits fees (simulating LP yield — goes to accumulatedFees only)
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Since we can't trigger real LP yield in unit tests, let's verify the withdrawal
         // mechanism works by using a different approach:
@@ -1257,7 +1278,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Simulate protocol fee accrual (LP yield cut that would come from _claimVaultFees)
         TestableUniAlignmentVault testableVault = TestableUniAlignmentVault(payable(address(vault)));
-        testableVault.simulateProtocolFeeAccrual{value: 0.5 ether}(0.5 ether);
+        testableVault.simulateProtocolFeeAccrual{ value: 0.5 ether }(0.5 ether);
 
         assertEq(vault.accumulatedProtocolFees(), 0.5 ether, "Protocol fees should be 0.5 ether");
 
@@ -1281,8 +1302,8 @@ contract UniAlignmentVaultTest is Test {
         TestableUniAlignmentVault testableVault = TestableUniAlignmentVault(payable(address(vault)));
 
         // Simulate multiple yield collections before withdrawal
-        testableVault.simulateProtocolFeeAccrual{value: 0.3 ether}(0.3 ether);
-        testableVault.simulateProtocolFeeAccrual{value: 0.2 ether}(0.2 ether);
+        testableVault.simulateProtocolFeeAccrual{ value: 0.3 ether }(0.3 ether);
+        testableVault.simulateProtocolFeeAccrual{ value: 0.2 ether }(0.2 ether);
 
         assertEq(vault.accumulatedProtocolFees(), 0.5 ether, "Should accumulate across collections");
 
@@ -1318,14 +1339,14 @@ contract UniAlignmentVaultTest is Test {
 
         // Setup benefactor
         vm.prank(alice);
-        (bool s, ) = address(vault).call{value: 10 ether}("");
+        (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         // Deposit fees (simulating yield)
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
 
         // Benefactor should get full amount
         uint256 balanceBefore = alice.balance;
@@ -1371,20 +1392,20 @@ contract UniAlignmentVaultTest is Test {
     function test_F4_NoDilution_EarlierBenefactorClaimableStableAcrossConversions() public {
         // Alice contributes and gets all initial shares.
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 10 ether}("");
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s1);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         // Fees accrue entirely to Alice's batch.
         vm.prank(owner);
-        vault.depositFees{value: 10 ether}();
+        vault.depositFees{ value: 10 ether }();
         uint256 aliceBefore = vault.getUnclaimedFees(alice);
         assertApproxEqRel(aliceBefore, 10 ether, 0.01e18, "Alice should be owed ~10 ETH");
 
         // Bob converts later, growing totalShares.
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 10 ether}("");
+        (bool s2,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s2);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
@@ -1402,27 +1423,26 @@ contract UniAlignmentVaultTest is Test {
     /// @dev F4: sum of claimable across benefactors must not exceed accumulatedFees (no over-issuance).
     function test_F4_SumClaimableLEAccumulatedFees() public {
         vm.prank(alice);
-        (bool s1, ) = address(vault).call{value: 7 ether}("");
+        (bool s1,) = address(vault).call{ value: 7 ether }("");
         assertTrue(s1);
         vm.prank(bob);
-        (bool s2, ) = address(vault).call{value: 3 ether}("");
+        (bool s2,) = address(vault).call{ value: 3 ether }("");
         assertTrue(s2);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{value: 11 ether}();
+        vault.depositFees{ value: 11 ether }();
 
         // Charlie joins in a later conversion.
         vm.prank(charlie);
-        (bool s3, ) = address(vault).call{value: 5 ether}("");
+        (bool s3,) = address(vault).call{ value: 5 ether }("");
         assertTrue(s3);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
-        uint256 sumClaimable = vault.getUnclaimedFees(alice)
-            + vault.getUnclaimedFees(bob)
-            + vault.getUnclaimedFees(charlie);
+        uint256 sumClaimable =
+            vault.getUnclaimedFees(alice) + vault.getUnclaimedFees(bob) + vault.getUnclaimedFees(charlie);
         assertLe(sumClaimable, vault.accumulatedFees(), "claimable must never exceed accrued fees");
     }
 
@@ -1433,10 +1453,10 @@ contract UniAlignmentVaultTest is Test {
     /// @dev F7: with a TWAP source wired, a loose caller minOut cannot let a degraded (sandwiched)
     ///      swap through — the oracle-derived floor forces a higher minimum and the swap reverts.
     function test_F7_ConvertFloorBlocksSandwich() public {
-        mockValidator.setEthPer1e18Tokens(1e15);   // 0.001 ETH/token TWAP (1000 tokens/ETH)
-        mockZRouter.setOutRatio(5e20);              // degraded swap rate (~half fair) → sandwich
+        mockValidator.setEthPer1e18Tokens(1e15); // 0.001 ETH/token TWAP (1000 tokens/ETH)
+        mockZRouter.setOutRatio(5e20); // degraded swap rate (~half fair) → sandwich
         vm.prank(alice);
-        (bool s, ) = address(vault).call{value: 10 ether}("");
+        (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
 
         vm.prank(dave);
@@ -1447,9 +1467,9 @@ contract UniAlignmentVaultTest is Test {
     /// @dev F7: an honest swap that meets the oracle floor still succeeds.
     function test_F7_ConvertFloorAllowsHonestSwap() public {
         mockValidator.setEthPer1e18Tokens(1e15);
-        mockZRouter.setOutRatio(1e21);              // fair rate, at/above the floor
+        mockZRouter.setOutRatio(1e21); // fair rate, at/above the floor
         vm.prank(alice);
-        (bool s, ) = address(vault).call{value: 10 ether}("");
+        (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
 
         vm.prank(dave);
@@ -1463,7 +1483,7 @@ contract UniAlignmentVaultTest is Test {
         // mockValidator.ethPer1e18Tokens stays 0 → quoteEthForTokens returns 0 → no floor.
         mockZRouter.setOutRatio(5e20);
         vm.prank(alice);
-        (bool s, ) = address(vault).call{value: 10 ether}("");
+        (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
 
         vm.prank(dave);

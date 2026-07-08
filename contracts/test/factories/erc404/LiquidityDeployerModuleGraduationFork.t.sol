@@ -79,7 +79,7 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
         token.mint(address(module), tokenReserve);
         vm.deal(address(this), ethReserve);
 
-        module.deployLiquidity{value: ethReserve}(
+        module.deployLiquidity{ value: ethReserve }(
             ILiquidityDeployerModule.DeployParams({
                 ethReserve: ethReserve,
                 tokenReserve: tokenReserve,
@@ -87,19 +87,19 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
                 vault: address(0),
                 token: address(token),
                 instance: address(this),
-            creator: address(0),
-            carveEth: 0
+                creator: address(0),
+                carveEth: 0
             })
         );
 
         // The graduated pool is keyed on NATIVE ETH (currency0 == address(0)), NOT WETH. address(0)
         // sorts below any token, so ETH is currency0 and the token is currency1.
         PoolKey memory key = PoolKey({
-            currency0:   Currency.wrap(address(0)),
-            currency1:   Currency.wrap(address(token)),
-            fee:         FEE,
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(token)),
+            fee: FEE,
             tickSpacing: TICK_SPACING,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
         PoolId poolId = key.toId();
 
@@ -127,16 +127,16 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
         uint256 ethIn = 0.5 ether;
         vm.deal(buyer, ethIn);
         vm.prank(buyer);
-        (, uint256 amountOut) = router.swapV4{value: ethIn}(
-            buyer,                 // to
-            false,                 // exactOut = false (exact ETH in)
+        (, uint256 amountOut) = router.swapV4{ value: ethIn }(
+            buyer, // to
+            false, // exactOut = false (exact ETH in)
             FEE,
             TICK_SPACING,
-            address(0),            // tokenIn = native ETH
-            address(token),        // tokenOut = graduated token
-            ethIn,                 // swapAmount
-            0,                     // amountLimit (min out)
-            block.timestamp + 1    // finite deadline
+            address(0), // tokenIn = native ETH
+            address(token), // tokenOut = graduated token
+            ethIn, // swapAmount
+            0, // amountLimit (min out)
+            block.timestamp + 1 // finite deadline
         );
 
         assertGt(amountOut, 0, "swapV4 buy must return tokens from the graduated pool");
@@ -157,7 +157,7 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
         token.mint(address(module), tokenReserve);
         vm.deal(address(this), ethReserve);
 
-        module.deployLiquidity{value: ethReserve}(
+        module.deployLiquidity{ value: ethReserve }(
             ILiquidityDeployerModule.DeployParams({
                 ethReserve: ethReserve,
                 tokenReserve: tokenReserve,
@@ -173,11 +173,11 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
         assertEq(creator.balance, 0.8 ether, "creator receives 80% of the carve");
 
         PoolKey memory key = PoolKey({
-            currency0:   Currency.wrap(address(0)),
-            currency1:   Currency.wrap(address(token)),
-            fee:         FEE,
+            currency0: Currency.wrap(address(0)),
+            currency1: Currency.wrap(address(token)),
+            fee: FEE,
             tickSpacing: TICK_SPACING,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
         assertGt(poolManager.getLiquidity(key.toId()), 0, "carved graduation still stands up a live pool");
     }
@@ -185,11 +185,11 @@ contract LiquidityDeployerModuleGraduationForkTest is ForkTestBase {
     function _wethKey() internal view returns (PoolKey memory) {
         bool tokenIsCurrency0 = Currency.wrap(address(token)) < Currency.wrap(WETH);
         return PoolKey({
-            currency0:   tokenIsCurrency0 ? Currency.wrap(address(token)) : Currency.wrap(WETH),
-            currency1:   tokenIsCurrency0 ? Currency.wrap(WETH)           : Currency.wrap(address(token)),
-            fee:         FEE,
+            currency0: tokenIsCurrency0 ? Currency.wrap(address(token)) : Currency.wrap(WETH),
+            currency1: tokenIsCurrency0 ? Currency.wrap(WETH) : Currency.wrap(address(token)),
+            fee: FEE,
             tickSpacing: TICK_SPACING,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
     }
 }

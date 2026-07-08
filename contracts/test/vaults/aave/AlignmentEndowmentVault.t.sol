@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {AlignmentEndowmentVault} from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
+import { Test } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Inline mocks (all-in-one file to avoid collision with shared mock directory)
@@ -33,7 +33,7 @@ contract MockWETH {
         require(_bal[msg.sender] >= amount, "WETH: insufficient");
         _bal[msg.sender] -= amount;
         _totalSupply -= amount;
-        (bool ok,) = msg.sender.call{value: amount}("");
+        (bool ok,) = msg.sender.call{ value: amount }("");
         require(ok, "WETH: eth transfer failed");
     }
 
@@ -281,7 +281,7 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev Contribute ETH from alice on behalf of benefactorContract (a contract benefactor).
     function _contributeBenefactor(uint256 amount) internal {
         vm.prank(alice);
-        vault.receiveContribution{value: amount}(nativeCurrency, amount, address(benefactorContract));
+        vault.receiveContribution{ value: amount }(nativeCurrency, amount, address(benefactorContract));
     }
 
     /// @dev Deploy a second MockOwnable and contribute from it (distinct benefactor).
@@ -289,7 +289,7 @@ contract AlignmentEndowmentVaultTest is Test {
         b = new MockOwnable(owner_);
         vm.deal(owner_, owner_.balance + amount);
         vm.prank(owner_);
-        vault.receiveContribution{value: amount}(nativeCurrency, amount, address(b));
+        vault.receiveContribution{ value: amount }(nativeCurrency, amount, address(b));
     }
 
     /// @dev Simulate yield: inject ETH into MockWETH (so withdrawals are backed), mint the
@@ -318,16 +318,31 @@ contract AlignmentEndowmentVaultTest is Test {
 
     function test_initialize_revertsIfCalledAgain() public {
         vm.expectRevert();
-        vault.initialize(vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, communityPayout);
+        vault.initialize(
+            vaultOwner,
+            address(weth),
+            address(stata),
+            treasury,
+            address(masterRegistry),
+            alignmentToken,
+            communityPayout
+        );
     }
 
     function test_implLocked() public {
         // The implementation's constructor sets _initialized; calling initialize on it reverts.
         address impl = address(new AlignmentEndowmentVault());
         vm.expectRevert();
-        AlignmentEndowmentVault(payable(impl)).initialize(
-            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, communityPayout
-        );
+        AlignmentEndowmentVault(payable(impl))
+            .initialize(
+                vaultOwner,
+                address(weth),
+                address(stata),
+                treasury,
+                address(masterRegistry),
+                alignmentToken,
+                communityPayout
+            );
     }
 
     /// @dev initialize sets a one-time max WETH approval for stataToken; deposits use it fine.
@@ -336,11 +351,19 @@ contract AlignmentEndowmentVaultTest is Test {
         MockStataToken freshStata = new MockStataToken(address(weth));
         address impl = address(new AlignmentEndowmentVault());
         AlignmentEndowmentVault v2 = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        v2.initialize(vaultOwner, address(weth), address(freshStata), treasury, address(masterRegistry), alignmentToken, communityPayout);
+        v2.initialize(
+            vaultOwner,
+            address(weth),
+            address(freshStata),
+            treasury,
+            address(masterRegistry),
+            alignmentToken,
+            communityPayout
+        );
 
         MockOwnable b = new MockOwnable(alice);
         vm.prank(alice);
-        v2.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(b));
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b));
 
         assertEq(v2.principal(address(b)), ONE_ETH);
     }
@@ -385,7 +408,7 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.expectEmit(true, false, false, true);
         emit ContributionReceived(address(benefactorContract), ONE_ETH);
         vm.prank(alice);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(benefactorContract));
+        vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(benefactorContract));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -396,25 +419,25 @@ contract AlignmentEndowmentVaultTest is Test {
         Currency erc20 = Currency.wrap(address(0x1234));
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.NativeOnly.selector);
-        vault.receiveContribution{value: ONE_ETH}(erc20, ONE_ETH, address(benefactorContract));
+        vault.receiveContribution{ value: ONE_ETH }(erc20, ONE_ETH, address(benefactorContract));
     }
 
     function test_contribution_revertsAmountMismatch() public {
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.AmountMismatch.selector);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, 2 ether, address(benefactorContract));
+        vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, 2 ether, address(benefactorContract));
     }
 
     function test_contribution_revertsZeroAmount() public {
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.AmountMustBePositive.selector);
-        vault.receiveContribution{value: 0}(nativeCurrency, 0, address(benefactorContract));
+        vault.receiveContribution{ value: 0 }(nativeCurrency, 0, address(benefactorContract));
     }
 
     function test_contribution_revertsZeroBenefactor() public {
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.InvalidAddress.selector);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(0));
+        vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(0));
     }
 
     /// @dev NEW: An EOA benefactor (no code) must revert BenefactorNotContract.
@@ -426,7 +449,7 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.deal(alice, alice.balance + ONE_ETH);
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.BenefactorNotContract.selector);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, eoa);
+        vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, eoa);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -475,12 +498,14 @@ contract AlignmentEndowmentVaultTest is Test {
         // Deploy a vault with no communityPayout
         address impl = address(new AlignmentEndowmentVault());
         AlignmentEndowmentVault v2 = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        v2.initialize(vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, address(0));
+        v2.initialize(
+            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, address(0)
+        );
 
         // deposit into v2 using a contract benefactor
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
-        v2.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(b2));
+        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
 
         _simulateYield(0.1 ether); // raises stata.totalManaged → v2's position grows too
 
@@ -770,7 +795,7 @@ contract AlignmentEndowmentVaultTest is Test {
 
         // Deposit from alice as the caller; benefactor is b (owned by rejecter)
         vm.prank(alice);
-        vault.receiveContribution{value: ONE_ETH}(nativeCurrency, ONE_ETH, address(b));
+        vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b));
 
         vm.warp(MATURITY + 1);
 
@@ -933,7 +958,9 @@ contract AlignmentEndowmentVaultTest is Test {
         _contributeBenefactor(ONE_ETH);
 
         vm.warp(1_000_000 + MATURITY);
-        assertEq(vault.calculateClaimableAmount(address(benefactorContract)), ONE_ETH, "should be claimable at maturity");
+        assertEq(
+            vault.calculateClaimableAmount(address(benefactorContract)), ONE_ETH, "should be claimable at maturity"
+        );
     }
 
     function test_getBenefactorContribution() public {
@@ -950,7 +977,7 @@ contract AlignmentEndowmentVaultTest is Test {
         _contributeBenefactor(ONE_ETH);
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
-        vault.receiveContribution{value: 2 ether}(nativeCurrency, 2 ether, address(b2));
+        vault.receiveContribution{ value: 2 ether }(nativeCurrency, 2 ether, address(b2));
         assertEq(vault.totalShares(), vault.totalPrincipal());
     }
 
@@ -971,7 +998,7 @@ contract AlignmentEndowmentVaultTest is Test {
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_receiveEth_accepted() public {
-        (bool ok,) = address(vault).call{value: 0.01 ether}("");
+        (bool ok,) = address(vault).call{ value: 0.01 ether }("");
         assertTrue(ok, "vault should accept ETH via receive()");
     }
 }

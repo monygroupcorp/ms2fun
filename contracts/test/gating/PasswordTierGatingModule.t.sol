@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {PasswordTierGatingModule} from "../../src/gating/PasswordTierGatingModule.sol";
-import {TierConfig, TierType} from "../../src/gating/IPasswordTierGatingModule.sol";
-import {MockMasterRegistry} from "../mocks/MockMasterRegistry.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {IComponentRegistry} from "../../src/registry/interfaces/IComponentRegistry.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test } from "forge-std/Test.sol";
+import { PasswordTierGatingModule } from "../../src/gating/PasswordTierGatingModule.sol";
+import { TierConfig, TierType } from "../../src/gating/IPasswordTierGatingModule.sol";
+import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { IComponentRegistry } from "../../src/registry/interfaces/IComponentRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract PasswordTierGatingModuleTest is Test {
     PasswordTierGatingModule module;
@@ -33,10 +33,7 @@ contract PasswordTierGatingModuleTest is Test {
         caps[0] = 100e18;
         caps[1] = 500e18;
         return TierConfig({
-            tierType: TierType.VOLUME_CAP,
-            passwordHashes: hashes,
-            volumeCaps: caps,
-            tierUnlockTimes: new uint256[](0)
+            tierType: TierType.VOLUME_CAP, passwordHashes: hashes, volumeCaps: caps, tierUnlockTimes: new uint256[](0)
         });
     }
 
@@ -159,8 +156,8 @@ contract PasswordTierGatingModuleTest is Test {
 
     function _setupTimeBasedInstance(address instance) internal {
         bytes32[] memory hashes = new bytes32[](2);
-        hashes[0] = keccak256("tier1pass");  // tier 1: unlocks after 1 hour
-        hashes[1] = keccak256("tier2pass");  // tier 2: unlocks after 24 hours
+        hashes[0] = keccak256("tier1pass"); // tier 1: unlocks after 1 hour
+        hashes[1] = keccak256("tier2pass"); // tier 2: unlocks after 24 hours
 
         uint256[] memory unlockTimes = new uint256[](2);
         unlockTimes[0] = 1 hours;
@@ -281,10 +278,7 @@ contract PasswordTierGatingModuleTest is Test {
         caps[0] = 10;
 
         TierConfig memory config = TierConfig({
-            tierType: TierType.VOLUME_CAP,
-            passwordHashes: hashes,
-            volumeCaps: caps,
-            tierUnlockTimes: new uint256[](0)
+            tierType: TierType.VOLUME_CAP, passwordHashes: hashes, volumeCaps: caps, tierUnlockTimes: new uint256[](0)
         });
 
         // Test contract is the registered factory of `inst` (D1 factory-of-instance auth).

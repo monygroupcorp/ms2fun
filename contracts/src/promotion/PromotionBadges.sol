@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {SmartTransferLib} from "../libraries/SmartTransferLib.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
 
 /**
  * @title PromotionBadges
@@ -24,10 +24,10 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
 
     enum BadgeType {
         NONE,
-        HIGHLIGHT,    // Visual highlight/glow effect
-        TRENDING,     // "Trending" indicator
-        VERIFIED,     // Checkmark/verified badge
-        SPOTLIGHT     // Premium spotlight treatment
+        HIGHLIGHT, // Visual highlight/glow effect
+        TRENDING, // "Trending" indicator
+        VERIFIED, // Checkmark/verified badge
+        SPOTLIGHT // Premium spotlight treatment
     }
 
     struct Badge {
@@ -47,7 +47,9 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
     mapping(address => bool) public authorizedFactories;
     address public weth;
 
-    event BadgePurchased(address indexed instance, address indexed buyer, BadgeType badgeType, uint256 duration, uint256 cost);
+    event BadgePurchased(
+        address indexed instance, address indexed buyer, BadgeType badgeType, uint256 duration, uint256 cost
+    );
     event BadgePriceUpdated(BadgeType badgeType, uint256 newPricePerDay);
     event ProtocolFeesWithdrawn(uint256 amount);
     event BadgeAssigned(address indexed instance, address indexed factory, BadgeType badgeType, uint256 duration);
@@ -74,11 +76,7 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
      * @param duration Duration in seconds
      */
     // slither-disable-next-line timestamp
-    function purchaseBadge(
-        address instance,
-        BadgeType badgeType,
-        uint256 duration
-    ) external payable nonReentrant {
+    function purchaseBadge(address instance, BadgeType badgeType, uint256 duration) external payable nonReentrant {
         if (duration < minBadgeDuration || duration > maxBadgeDuration) revert InvalidDuration();
         if (badgeType == BadgeType.NONE) revert InvalidBadge();
 
@@ -90,17 +88,12 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
             // Active badge exists — only allow extending same type
             if (current.badgeType != badgeType) revert DifferentBadgeActive();
             instanceBadges[instance] = Badge({
-                badgeType: badgeType,
-                expiresAt: current.expiresAt + duration,
-                paidAmount: current.paidAmount + cost
+                badgeType: badgeType, expiresAt: current.expiresAt + duration, paidAmount: current.paidAmount + cost
             });
         } else {
             // No active badge — set new
-            instanceBadges[instance] = Badge({
-                badgeType: badgeType,
-                expiresAt: block.timestamp + duration,
-                paidAmount: cost
-            });
+            instanceBadges[instance] =
+                Badge({ badgeType: badgeType, expiresAt: block.timestamp + duration, paidAmount: cost });
         }
 
         // Refund excess
@@ -127,9 +120,11 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
      * @notice Batch query active badges for multiple instances
      */
     // slither-disable-next-line timestamp
-    function getActiveBadges(
-        address[] calldata instances
-    ) external view returns (BadgeType[] memory badges, uint256[] memory expirations) {
+    function getActiveBadges(address[] calldata instances)
+        external
+        view
+        returns (BadgeType[] memory badges, uint256[] memory expirations)
+    {
         badges = new BadgeType[](instances.length);
         expirations = new uint256[](instances.length);
         for (uint256 i = 0; i < instances.length; i++) {
@@ -147,19 +142,11 @@ contract PromotionBadges is Ownable, ReentrancyGuard {
      * @param badgeType Badge type to assign
      * @param duration Duration in seconds
      */
-    function assignBadgeFor(
-        address instance,
-        BadgeType badgeType,
-        uint256 duration
-    ) external {
+    function assignBadgeFor(address instance, BadgeType badgeType, uint256 duration) external {
         if (!authorizedFactories[msg.sender]) revert Unauthorized();
         if (badgeType == BadgeType.NONE) revert InvalidBadge();
 
-        instanceBadges[instance] = Badge({
-            badgeType: badgeType,
-            expiresAt: block.timestamp + duration,
-            paidAmount: 0
-        });
+        instanceBadges[instance] = Badge({ badgeType: badgeType, expiresAt: block.timestamp + duration, paidAmount: 0 });
 
         emit BadgeAssigned(instance, msg.sender, badgeType, duration);
     }

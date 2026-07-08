@@ -15,7 +15,7 @@ interface IERC404 {
     function transferFrom(address from, address to, uint256 amount) external returns (bool);
     function approve(address spender, uint256 amount) external returns (bool);
     function allowance(address owner, address spender) external view returns (uint256);
-    
+
     // ERC404 specific
     function erc721TransferFrom(address from, address to, uint256 id) external;
     function erc721Approve(address spender, uint256 id) external;

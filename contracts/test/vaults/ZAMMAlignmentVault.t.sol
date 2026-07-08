@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import {MockZAMM} from "../mocks/MockZAMM.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { MockZAMM } from "../mocks/MockZAMM.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
 contract ZAMMAlignmentVaultTest is Test {
     // Mirror events for expectEmit matching
@@ -44,9 +44,9 @@ contract ZAMMAlignmentVaultTest is Test {
         poolKey = IZAMM.PoolKey({
             id0: 0,
             id1: 0,
-            token0: address(0),          // ETH
+            token0: address(0), // ETH
             token1: address(alignmentToken),
-            feeOrHook: 30                 // 0.3%
+            feeOrHook: 30 // 0.3%
         });
 
         vm.prank(owner);
@@ -54,12 +54,7 @@ contract ZAMMAlignmentVaultTest is Test {
 
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
         vault.initialize(
-            address(mockZamm),
-            address(mockZRouter),
-            address(alignmentToken),
-            poolKey,
-            treasury,
-            address(0)
+            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, treasury, address(0)
         );
 
         vm.deal(alice, 100 ether);
@@ -87,12 +82,7 @@ contract ZAMMAlignmentVaultTest is Test {
     function test_initialize_revertIfCalledTwice() public {
         vm.expectRevert();
         vault.initialize(
-            address(mockZamm),
-            address(mockZRouter),
-            address(alignmentToken),
-            poolKey,
-            treasury,
-            address(0)
+            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, treasury, address(0)
         );
     }
 
@@ -100,7 +90,7 @@ contract ZAMMAlignmentVaultTest is Test {
 
     function test_receiveInstance_tracksPending() public {
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         assertEq(vault.pendingETH(), 1 ether);
         assertEq(vault.pendingContribution(alice), 1 ether);
@@ -108,10 +98,10 @@ contract ZAMMAlignmentVaultTest is Test {
 
     function test_receiveInstance_accumulatesMultiple() public {
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         vm.prank(bob);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, bob);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
 
         assertEq(vault.pendingETH(), 3 ether);
         assertEq(vault.pendingContribution(alice), 1 ether);
@@ -123,22 +113,18 @@ contract ZAMMAlignmentVaultTest is Test {
         emit ContributionReceived(alice, 1 ether);
 
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
     }
 
     function test_receiveInstance_revertOnNonEthCurrency() public {
         vm.expectRevert();
         vm.prank(alice);
-        vault.receiveContribution{value: 0}(
-            Currency.wrap(address(alignmentToken)),
-            1 ether,
-            alice
-        );
+        vault.receiveContribution{ value: 0 }(Currency.wrap(address(alignmentToken)), 1 ether, alice);
     }
 
     function test_receive_tracksSenderAsBenefactor() public {
         vm.prank(alice);
-        (bool ok,) = address(vault).call{value: 0.5 ether}("");
+        (bool ok,) = address(vault).call{ value: 0.5 ether }("");
         assertTrue(ok);
         assertEq(vault.pendingContribution(alice), 0.5 ether);
     }
@@ -147,7 +133,7 @@ contract ZAMMAlignmentVaultTest is Test {
 
     function _receiveFromAlice(uint256 amount) internal {
         vm.prank(alice);
-        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, alice);
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, alice);
     }
 
     function _setupPool(uint112 r0, uint112 r1) internal {
@@ -180,7 +166,7 @@ contract ZAMMAlignmentVaultTest is Test {
         _receiveFromAlice(1 ether);
 
         vm.prank(bob);
-        vault.receiveContribution{value: 3 ether}(Currency.wrap(address(0)), 3 ether, bob);
+        vault.receiveContribution{ value: 3 ether }(Currency.wrap(address(0)), 3 ether, bob);
 
         _setupPool(10 ether, 10_000e18);
         vault.convertAndAddLiquidity(0, 0, 0);
@@ -275,8 +261,8 @@ contract ZAMMAlignmentVaultTest is Test {
     // is reserves=(2e18, 2e18), supply=1000e18, lpHeld=1000e18 → principalInvariant = 2e18.
     function _seedSoleLP() internal {
         uint256 pid = vault.poolId();
-        mockZamm.setPool(pid, 0, 0, 0);     // empty pool: vault becomes the sole LP
-        mockZRouter.setOutRatio(1e18);      // 1 ETH-wei : 1 token-wei
+        mockZamm.setPool(pid, 0, 0, 0); // empty pool: vault becomes the sole LP
+        mockZRouter.setOutRatio(1e18); // 1 ETH-wei : 1 token-wei
         _receiveFromAlice(4 ether);
         vault.convertAndAddLiquidity(0, 0, 0);
     }
@@ -413,17 +399,19 @@ contract ZAMMAlignmentVaultTest is Test {
     function test_claimFeesAsDelegate_batchClaim() public {
         // Bob and Charlie both receive from alice (as benefactors)
         vm.prank(bob);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, bob);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
         vm.prank(charlie);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, charlie);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, charlie);
 
         _setupPool(10 ether, 10_000e18);
         vault.convertAndAddLiquidity(0, 0, 0);
 
         // Both delegate to a staking contract
         address staking = address(0xDEAD);
-        vm.prank(bob); vault.delegateBenefactor(staking);
-        vm.prank(charlie); vault.delegateBenefactor(staking);
+        vm.prank(bob);
+        vault.delegateBenefactor(staking);
+        vm.prank(charlie);
+        vault.delegateBenefactor(staking);
 
         _triggerHarvestWithFees();
 
@@ -441,7 +429,7 @@ contract ZAMMAlignmentVaultTest is Test {
 
     function test_claimFeesAsDelegate_revertIfNotDelegate() public {
         vm.prank(alice);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         _setupPool(10 ether, 10_000e18);
         vault.convertAndAddLiquidity(0, 0, 0);
 
@@ -493,11 +481,9 @@ contract ZAMMAlignmentVaultTest is Test {
     // ── Fuzz: vault accumulator properties ─────────────────────────────
 
     /// @notice accRewardPerContribution must never decrease across harvests.
-    function testFuzz_AccRewardPerContributionGrowsMonotonically(
-        uint8 rounds,
-        uint72 contribSeed,
-        uint72 feeSeed
-    ) public {
+    function testFuzz_AccRewardPerContributionGrowsMonotonically(uint8 rounds, uint72 contribSeed, uint72 feeSeed)
+        public
+    {
         rounds = uint8(bound(uint256(rounds), 2, 10));
 
         uint256 prevAcc = 0;
@@ -507,7 +493,7 @@ contract ZAMMAlignmentVaultTest is Test {
             uint256 contribution = bound(uint256(contribSeed) + i, 0.01 ether, 5 ether);
             vm.deal(alice, alice.balance + contribution);
             vm.prank(alice);
-            vault.receiveContribution{value: contribution}(Currency.wrap(address(0)), contribution, alice);
+            vault.receiveContribution{ value: contribution }(Currency.wrap(address(0)), contribution, alice);
 
             // Set pool reserves for swap math
             uint256 pid = vault.poolId();
@@ -536,11 +522,7 @@ contract ZAMMAlignmentVaultTest is Test {
     }
 
     /// @notice No benefactor can claim more than total fees deposited into the vault.
-    function testFuzz_ClaimableNeverExceedsDeposited(
-        uint72 aliceAmount,
-        uint72 bobAmount,
-        uint8 harvestCount
-    ) public {
+    function testFuzz_ClaimableNeverExceedsDeposited(uint72 aliceAmount, uint72 bobAmount, uint8 harvestCount) public {
         uint256 aliceContrib = bound(uint256(aliceAmount), 0.1 ether, 10 ether);
         uint256 bobContrib = bound(uint256(bobAmount), 0.1 ether, 10 ether);
         harvestCount = uint8(bound(uint256(harvestCount), 1, 5));
@@ -548,11 +530,11 @@ contract ZAMMAlignmentVaultTest is Test {
         // Both contribute
         vm.deal(alice, alice.balance + aliceContrib);
         vm.prank(alice);
-        vault.receiveContribution{value: aliceContrib}(Currency.wrap(address(0)), aliceContrib, alice);
+        vault.receiveContribution{ value: aliceContrib }(Currency.wrap(address(0)), aliceContrib, alice);
 
         vm.deal(bob, bob.balance + bobContrib);
         vm.prank(bob);
-        vault.receiveContribution{value: bobContrib}(Currency.wrap(address(0)), bobContrib, bob);
+        vault.receiveContribution{ value: bobContrib }(Currency.wrap(address(0)), bobContrib, bob);
 
         // Set pool reserves and convert
         uint256 pid = vault.poolId();
@@ -578,21 +560,9 @@ contract ZAMMAlignmentVaultTest is Test {
         uint256 aliceClaimable = vault.calculateClaimableAmount(alice);
         uint256 bobClaimable = vault.calculateClaimableAmount(bob);
 
-        assertLe(
-            aliceClaimable,
-            totalFeesHarvested,
-            "Alice claimable exceeds total fees deposited"
-        );
-        assertLe(
-            bobClaimable,
-            totalFeesHarvested,
-            "Bob claimable exceeds total fees deposited"
-        );
-        assertLe(
-            aliceClaimable + bobClaimable,
-            totalFeesHarvested,
-            "Sum of claimable exceeds total fees deposited"
-        );
+        assertLe(aliceClaimable, totalFeesHarvested, "Alice claimable exceeds total fees deposited");
+        assertLe(bobClaimable, totalFeesHarvested, "Bob claimable exceeds total fees deposited");
+        assertLe(aliceClaimable + bobClaimable, totalFeesHarvested, "Sum of claimable exceeds total fees deposited");
     }
 
     // ========================================================================
@@ -609,7 +579,7 @@ contract ZAMMAlignmentVaultTest is Test {
     /// @dev F5: with a price validator wired, a permissionless caller passing minTokenOut=0 cannot
     ///      push a degraded (flash-sandwiched) ETH->token swap through — the floor reverts it.
     function test_F5_ConvertFloorBlocksSandwich() public {
-        _wireValidator(1e15);          // 0.001 ETH/token TWAP
+        _wireValidator(1e15); // 0.001 ETH/token TWAP
         mockZRouter.setOutRatio(1e20); // degraded rate → sandwich
         _receiveFromAlice(10 ether);
         _setupPool(10 ether, 10_000e18);
