@@ -211,6 +211,52 @@ contract ERC404FactoryTest is Test {
         vm.stopPrank();
     }
 
+    // ── Finding 1: create-time alignment-vault registry gate ──────────────────
+    // The 19% graduation vaultCut (the CULT-alignment tithe) must only flow to a vault the master
+    // registry has registered. A code.length check alone let the tithe be redirected to an
+    // unregistered contract; createInstance now gates on masterRegistry.isVaultRegistered.
+
+    /// @notice An unregistered (but contract-code-bearing) vault is REJECTED at create-time.
+    function test_createInstance_rejectsUnregisteredVault() public {
+        // A real contract (passes the code.length check) that the registry does NOT recognize.
+        MockVault unregistered = new MockVault();
+        mockRegistry.setVaultRegistered(address(unregistered), false);
+
+        ERC404Factory.CreateParams memory p = _identity("UnregVaultToken", "UVT", creator1);
+        p.vault = address(unregistered);
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.UnapprovedVault.selector);
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            p,
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
+    }
+
+    /// @notice A registry-registered vault SUCCEEDS — the gate does not block legitimate creates.
+    function test_createInstance_acceptsRegisteredVault() public {
+        MockVault registered = new MockVault();
+        mockRegistry.setVaultRegistered(address(registered), true); // explicit; also the default
+
+        ERC404Factory.CreateParams memory p = _identity("RegVaultToken", "RVT", creator1);
+        p.vault = address(registered);
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        address instance = factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            p,
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
+        assertTrue(instance != address(0), "registered vault must be accepted");
+    }
+
     function test_createInstance_invalidName() public {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);

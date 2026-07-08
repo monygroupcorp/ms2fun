@@ -40,6 +40,15 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     error NotPoolManager();
     /// @dev Caller is not the genuine, registered ERC404 instance named in p.instance.
     error UnauthorizedCaller();
+    /// @dev An attacker pre-initialized the graduation pool at a price outside tolerance.
+    error PoolPriceMismatch();
+
+    /// @notice Max deviation (bps) tolerated between an already-initialized pool's sqrtPriceX96 and
+    ///         the intended graduation price. 100 bps (1%) mirrors the 99/100 LP-min-slippage
+    ///         convention already used across the deployer modules. A larger gap means the pool was
+    ///         seeded by a front-runner at a skewed price — we revert (retryable) rather than add
+    ///         liquidity into it.
+    uint256 public constant MAX_INIT_PRICE_DEVIATION_BPS = 100;
 
     address public immutable weth;
     IPoolManager public immutable v4PoolManager;
@@ -145,8 +154,10 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
         // No WETH wrap/approve: the module holds native ETH (from msg.value) and settles the ETH leg
         // natively (CurrencySettler routes isAddressZero() → manager.settle{value: amount}()).
-        // Initialize pool
-        v4PoolManager.initialize(setup.poolKey, sqrtPriceX96);
+        // Idempotent init: initialize a fresh pool, or (if a front-runner pre-initialized it) accept
+        // only a price within tolerance — never brick graduation on a benign pre-init, never add LP
+        // into an attacker-skewed pool.
+        _initOrValidatePool(setup.poolKey, sqrtPriceX96);
 
         uint256 amount0 = setup.token0IsThis ? r.tokensForPool : r.ethForPool;
         uint256 amount1 = setup.token0IsThis ? r.ethForPool : r.tokensForPool;
@@ -277,6 +288,34 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         sqrtPriceX96 = uint160(sqrtRaw);
         if (sqrtPriceX96 < TickMath.MIN_SQRT_PRICE + 1) sqrtPriceX96 = TickMath.MIN_SQRT_PRICE + 1;
         if (sqrtPriceX96 > TickMath.MAX_SQRT_PRICE - 1) sqrtPriceX96 = TickMath.MAX_SQRT_PRICE - 1;
+    }
+
+    /// @dev Front-run-safe pool init. A fresh pool (sqrtPriceX96 == 0) is initialized at the intended
+    ///      graduation price. A pool already initialized by someone else is accepted only if its price
+    ///      is within MAX_INIT_PRICE_DEVIATION_BPS of intended; otherwise revert PoolPriceMismatch so
+    ///      we never seed liquidity at an attacker-chosen price. (V4 `initialize` reverts on an
+    ///      already-initialized pool, so the unconditional call was a permanent-DoS vector.)
+    function _initOrValidatePool(PoolKey memory poolKey, uint160 intendedSqrtPriceX96) internal {
+        PoolId poolId = poolKey.toId();
+        (uint160 existingSqrtPriceX96,,,) = v4PoolManager.getSlot0(poolId);
+        if (existingSqrtPriceX96 == 0) {
+            v4PoolManager.initialize(poolKey, intendedSqrtPriceX96);
+        } else {
+            _requireSqrtPriceWithinTolerance(existingSqrtPriceX96, intendedSqrtPriceX96);
+        }
+    }
+
+    /// @dev Reverts unless |existing - intended| / intended <= MAX_INIT_PRICE_DEVIATION_BPS / 10000.
+    function _requireSqrtPriceWithinTolerance(uint160 existingSqrtPriceX96, uint160 intendedSqrtPriceX96)
+        internal
+        pure
+    {
+        uint256 diff = existingSqrtPriceX96 > intendedSqrtPriceX96
+            ? existingSqrtPriceX96 - intendedSqrtPriceX96
+            : intendedSqrtPriceX96 - existingSqrtPriceX96;
+        if (diff * 10_000 > uint256(intendedSqrtPriceX96) * MAX_INIT_PRICE_DEVIATION_BPS) {
+            revert PoolPriceMismatch();
+        }
     }
 
     /// @notice Accept ETH (needed for WETH deposits returning change, etc.)
