@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Script, console} from "forge-std/Script.sol";
-import {MasterRegistryV1} from "../src/master/MasterRegistryV1.sol";
-import {IMasterRegistry} from "../src/master/interfaces/IMasterRegistry.sol";
-import {ComponentRegistry} from "../src/registry/ComponentRegistry.sol";
-import {LaunchManager} from "../src/factories/erc404/LaunchManager.sol";
-import {FeatureUtils} from "../src/master/libraries/FeatureUtils.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
+import { IMasterRegistry } from "../src/master/interfaces/IMasterRegistry.sol";
+import { ComponentRegistry } from "../src/registry/ComponentRegistry.sol";
+import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
+import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 
 /// @notice Read-only validation script. Checks all Sepolia protocol config
 ///         required for the ERC404 creation flow to work end-to-end.
@@ -14,16 +14,15 @@ import {FeatureUtils} from "../src/master/libraries/FeatureUtils.sol";
 ///         Run with:
 ///         forge script script/ValidateSepolia.s.sol --rpc-url $SEPOLIA_RPC_URL
 contract ValidateSepolia is Script {
-
     // ── Addresses ─────────────────────────────────────────────────────────
-    address constant MASTER_REGISTRY     = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
-    address constant COMPONENT_REGISTRY  = 0x00001152Ed1bD8e76693cB775c79708275bBb2F3;
-    address constant LAUNCH_MANAGER      = 0x354768153a0d3edC314D9f6baa2fd56a6961B449;
-    address constant ERC404_FACTORY      = 0xE57B69D9e27C5559Ae632e1a7EE9a941262181ba;
+    address constant MASTER_REGISTRY = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
+    address constant COMPONENT_REGISTRY = 0x00001152Ed1bD8e76693cB775c79708275bBb2F3;
+    address constant LAUNCH_MANAGER = 0x354768153a0d3edC314D9f6baa2fd56a6961B449;
+    address constant ERC404_FACTORY = 0xE57B69D9e27C5559Ae632e1a7EE9a941262181ba;
 
     ComponentRegistry cr = ComponentRegistry(COMPONENT_REGISTRY);
-    LaunchManager lm     = LaunchManager(LAUNCH_MANAGER);
-    MasterRegistryV1 mr  = MasterRegistryV1(MASTER_REGISTRY);
+    LaunchManager lm = LaunchManager(LAUNCH_MANAGER);
+    MasterRegistryV1 mr = MasterRegistryV1(MASTER_REGISTRY);
 
     /// @dev One `vaults` entry as emitted by DeployCore. Foundry maps JSON keys to struct fields in
     ///      ALPHABETICAL key order: address, alignmentToken, targetId, type.
@@ -31,7 +30,7 @@ contract ValidateSepolia is Script {
         address vaultAddress;
         address alignmentToken;
         uint256 targetId;
-        string  vaultType;
+        string vaultType;
     }
 
     function run() public view {
@@ -65,10 +64,7 @@ contract ValidateSepolia is Script {
 
             string memory onchainType = _readString(v, "vaultType()");
             string memory expected = _expectedType(vaults[i].vaultType);
-            require(
-                keccak256(bytes(onchainType)) == keccak256(bytes(expected)),
-                "vaultType mismatch"
-            );
+            require(keccak256(bytes(onchainType)) == keccak256(bytes(expected)), "vaultType mismatch");
 
             bool lp = _endsWithLP(onchainType);
             if (lp) require(_readBool(v, "isLiquidityReady()"), "LP vault not liquidity-ready");
@@ -82,8 +78,8 @@ contract ValidateSepolia is Script {
     /// @dev Map the deploy JSON's short vault tag to the on-chain vaultType() string.
     function _expectedType(string memory tag) internal pure returns (string memory) {
         bytes32 h = keccak256(bytes(tag));
-        if (h == keccak256("UNIv4"))  return "UniswapV4LP";
-        if (h == keccak256("ZAMM"))   return "ZAMMLP";
+        if (h == keccak256("UNIv4")) return "UniswapV4LP";
+        if (h == keccak256("ZAMM")) return "ZAMMLP";
         if (h == keccak256("CYPHER")) return "CypherLP";
         return "AaveEndowment"; // "AaveEndowment" tag passes through unchanged
     }
@@ -110,7 +106,8 @@ contract ValidateSepolia is Script {
         bool registered = mr.isFactoryRegistered(ERC404_FACTORY);
         console.log("  registered in MasterRegistry:", registered);
         if (registered) {
-            IMasterRegistry.FactoryInfo memory info = MasterRegistryV1(MASTER_REGISTRY).getFactoryInfoByAddress(ERC404_FACTORY);
+            IMasterRegistry.FactoryInfo memory info =
+                MasterRegistryV1(MASTER_REGISTRY).getFactoryInfoByAddress(ERC404_FACTORY);
             console.log("  active:", info.active);
             console.log("  factoryId:", info.factoryId);
         }
@@ -177,8 +174,7 @@ contract ValidateSepolia is Script {
             console.log("    active:", preset.active);
             console.log("    targetETH:", preset.targetETH);
             console.log("    curveComputer:", preset.curveComputer);
-            bool curveApproved = preset.curveComputer != address(0) &&
-                cr.isApprovedComponent(preset.curveComputer);
+            bool curveApproved = preset.curveComputer != address(0) && cr.isApprovedComponent(preset.curveComputer);
             console.log("    curveComputer approved:", curveApproved);
         }
         console.log("");

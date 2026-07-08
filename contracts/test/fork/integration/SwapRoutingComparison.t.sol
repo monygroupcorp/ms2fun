@@ -7,17 +7,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // V2 Router interface
 interface IUniswapV2Router02Comparison {
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
-        external
-        view
-        returns (uint256[] memory amounts);
+    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
 
-    function swapExactETHForTokens(
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
+    function swapExactETHForTokens(uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)
+        external
+        payable
+        returns (uint256[] memory amounts);
 }
 
 // V3 Router interface
@@ -88,14 +83,14 @@ contract SwapRoutingComparisonTest is ForkTestBase {
 
         // V3: Execute swap to get actual output (0.05% pool)
         vm.prank(swapper);
-        weth.deposit{value: amountIn}();
+        weth.deposit{ value: amountIn }();
         vm.prank(swapper);
         weth.approve(address(v3Router), amountIn);
 
         IV3SwapRouterComparison.ExactInputSingleParams memory v3Params = IV3SwapRouterComparison.ExactInputSingleParams({
             tokenIn: WETH,
             tokenOut: USDC,
-            fee: 500,  // 0.05% - typically best for WETH/USDC
+            fee: 500, // 0.05% - typically best for WETH/USDC
             recipient: swapper,
             deadline: block.timestamp + 300,
             amountIn: amountIn,
@@ -206,7 +201,7 @@ contract SwapRoutingComparisonTest is ForkTestBase {
 
         // V3: Execute large swap
         vm.prank(swapper);
-        weth.deposit{value: largeAmount}();
+        weth.deposit{ value: largeAmount }();
         vm.prank(swapper);
         weth.approve(address(v3Router), largeAmount);
 
@@ -244,7 +239,7 @@ contract SwapRoutingComparisonTest is ForkTestBase {
      * @dev Lower gas costs can outweigh fee savings for tiny amounts
      */
     function test_smallSwap_v2MaybeBetter() public {
-        uint256 smallAmount = 0.01 ether;  // $20-30 worth
+        uint256 smallAmount = 0.01 ether; // $20-30 worth
 
         // V2: Query output
         address[] memory v2Path = new address[](2);
@@ -301,7 +296,7 @@ contract SwapRoutingComparisonTest is ForkTestBase {
 
         // Option 1: All via V3
         uint256[] memory allV3Amounts = v2Router.getAmountsOut(totalAmount, v2Path);
-        uint256 allV3Output = allV3Amounts[1];  // Using V2 router for quote simplification
+        uint256 allV3Output = allV3Amounts[1]; // Using V2 router for quote simplification
 
         // Option 2: Split 50/50 across V2 and V3
         uint256[] memory v2Half = v2Router.getAmountsOut(totalAmount / 2, v2Path);

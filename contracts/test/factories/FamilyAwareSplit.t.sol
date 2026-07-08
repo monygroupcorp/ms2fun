@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC1155Instance} from "../../src/factories/erc1155/ERC1155Instance.sol";
-import {ERC721AuctionInstance} from "../../src/factories/erc721/ERC721AuctionInstance.sol";
-import {RevenueSplitLib} from "../../src/shared/libraries/RevenueSplitLib.sol";
-import {MockFamilyVault} from "../mocks/MockFamilyVault.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
+import { ERC721AuctionInstance } from "../../src/factories/erc721/ERC721AuctionInstance.sol";
+import { RevenueSplitLib } from "../../src/shared/libraries/RevenueSplitLib.sol";
+import { MockFamilyVault } from "../mocks/MockFamilyVault.sol";
 
 contract MockGMRFam {
-    function postForAction(address, address, bytes calldata) external {}
+    function postForAction(address, address, bytes calldata) external { }
 }
 
 contract MockMRFam {
-    function isAgent(address) external pure returns (bool) { return false; }
-    function migrateVault(address, address) external {}
+    function isAgent(address) external pure returns (bool) {
+        return false;
+    }
+    function migrateVault(address, address) external { }
+
     function getInstanceVaults(address) external pure returns (address[] memory) {
         return new address[](0);
     }
@@ -63,7 +66,7 @@ contract FamilyAwareSplitTest is Test {
         vm.prank(CREATOR);
         inst.addEdition("Piece", 1 ether, 0, "ipfs://m", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
         vm.prank(BUYER);
-        inst.mint{value: 1 ether}(1, 1, bytes32(0), "", 0);
+        inst.mint{ value: 1 ether }(1, 1, bytes32(0), "", 0);
     }
 
     function test_1155_yieldFamily_keeps_1_80_19() public {
@@ -77,7 +80,7 @@ contract FamilyAwareSplitTest is Test {
         inst.withdraw(1 ether);
 
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
-        assertEq(address(vault).balance - vaultBefore, 0.80 ether, "yield vault 80% (endowment)");
+        assertEq(address(vault).balance - vaultBefore, 0.8 ether, "yield vault 80% (endowment)");
         assertEq(CREATOR.balance - creatorBefore, 0.19 ether, "yield creator 19%");
     }
 
@@ -94,11 +97,11 @@ contract FamilyAwareSplitTest is Test {
 
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
         assertEq(address(vault).balance - vaultBefore, 0.19 ether, "liquidity vault 19%");
-        assertEq(CREATOR.balance - creatorBefore, 0.80 ether, "liquidity creator 80%");
+        assertEq(CREATOR.balance - creatorBefore, 0.8 ether, "liquidity creator 80%");
     }
 
     function test_1155_unknownFamily_reverts() public {
-        (ERC1155Instance inst, ) = _deploy1155("MysteryVault");
+        (ERC1155Instance inst,) = _deploy1155("MysteryVault");
         vm.prank(CREATOR);
         vm.expectRevert(abi.encodeWithSelector(RevenueSplitLib.UnknownVaultFamily.selector, "MysteryVault"));
         inst.withdraw(1 ether);
@@ -144,9 +147,9 @@ contract FamilyAwareSplitTest is Test {
             })
         );
         vm.prank(CREATOR);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece");
         vm.prank(BUYER);
-        inst.createBid{value: 1 ether}(1, "");
+        inst.createBid{ value: 1 ether }(1, "");
         ERC721AuctionInstance.Auction memory a = inst.getAuction(1);
         vm.warp(a.endTime);
     }
@@ -161,7 +164,7 @@ contract FamilyAwareSplitTest is Test {
         inst.settleAuction(1);
 
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
-        assertEq(address(vault).balance - vaultBefore, 0.80 ether, "yield vault 80% (endowment)");
+        assertEq(address(vault).balance - vaultBefore, 0.8 ether, "yield vault 80% (endowment)");
         // Creator receives the queued deposit refund (0.1) plus the 19% creator leg.
         assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.19 ether, "yield creator 19% + deposit");
     }
@@ -177,11 +180,11 @@ contract FamilyAwareSplitTest is Test {
 
         assertEq(TREASURY.balance - treasuryBefore, 0.01 ether, "protocol 1%");
         assertEq(address(vault).balance - vaultBefore, 0.19 ether, "liquidity vault 19%");
-        assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.80 ether, "liquidity creator 80% + deposit");
+        assertEq(CREATOR.balance - creatorBefore, 0.1 ether + 0.8 ether, "liquidity creator 80% + deposit");
     }
 
     function test_721_unknownFamily_reverts() public {
-        (ERC721AuctionInstance inst, ) = _deploy721("MysteryVault");
+        (ERC721AuctionInstance inst,) = _deploy721("MysteryVault");
         vm.expectRevert(abi.encodeWithSelector(RevenueSplitLib.UnknownVaultFamily.selector, "MysteryVault"));
         inst.settleAuction(1);
     }

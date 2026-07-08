@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IVaultPriceValidator} from "../interfaces/IVaultPriceValidator.sol";
-import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
-import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-import {PoolId} from "v4-core/types/PoolId.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {LiquidityAmounts} from "../libraries/v4/LiquidityAmounts.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
+import { IVaultPriceValidator } from "../interfaces/IVaultPriceValidator.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { PoolId } from "v4-core/types/PoolId.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { LiquidityAmounts } from "../libraries/v4/LiquidityAmounts.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
 // ========== External Protocol Interfaces ==========
 
@@ -98,13 +98,13 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         if (tokenAmount == 0) return 0;
 
         // Prefer V3 TWAP — most manipulation-resistant
-        (, uint256 priceV3, ) = _getV3PriceAndLiquidity(token);
+        (, uint256 priceV3,) = _getV3PriceAndLiquidity(token);
         if (priceV3 > 0) {
             return (tokenAmount * priceV3) / 1e18;
         }
 
         // Fall back to V2 spot price (acceptable for low-frequency fee conversion)
-        (, uint256 priceV2, , ) = _getV2PriceAndReserves(token);
+        (, uint256 priceV2,,) = _getV2PriceAndReserves(token);
         if (priceV2 > 0) {
             return (tokenAmount * priceV2) / 1e18;
         }
@@ -117,10 +117,10 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         (bool hasV2Pool, uint256 priceV2, uint112 reserveWETH, uint112 reserveToken) = _getV2PriceAndReserves(token);
 
         // Query V3 pool for price and liquidity
-        (bool hasV3Pool, uint256 priceV3, ) = _getV3PriceAndLiquidity(token);
+        (bool hasV3Pool, uint256 priceV3,) = _getV3PriceAndLiquidity(token);
 
         // Query V4 pool for price and liquidity (may be WETH or native ETH pool)
-        (bool hasV4Pool, uint256 priceV4, ) = _getV4PriceAndLiquidity(token);
+        (bool hasV4Pool, uint256 priceV4,) = _getV4PriceAndLiquidity(token);
 
         // If no pools are available, skip validation (expected in unit tests with mock addresses)
         if (!hasV2Pool && !hasV3Pool && !hasV4Pool) {
@@ -129,7 +129,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
         // Cross-check prices across all available pools for arbitrage/manipulation detection
         if (hasV2Pool && hasV3Pool) {
-            (bool isAcceptable, ) = _checkPriceDeviation(priceV2, priceV3);
+            (bool isAcceptable,) = _checkPriceDeviation(priceV2, priceV3);
             if (!isAcceptable) revert PriceDeviationTooHigh();
         }
 
@@ -149,7 +149,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
                     ? (rawTwap == 0 ? 0 : (1e18 * 1e18) / rawTwap)
                     : rawTwap;
                 if (priceV4Twap != 0) {
-                    (bool isAcceptable, ) = _checkPriceDeviation(priceV4, priceV4Twap);
+                    (bool isAcceptable,) = _checkPriceDeviation(priceV4, priceV4Twap);
                     if (!isAcceptable) revert PriceDeviationTooHigh();
                 }
             }
@@ -192,14 +192,15 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         }
 
         // Get current V4 pool spot price
-        (uint160 sqrtPriceX96, , ,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
+        (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
         if (sqrtPriceX96 == 0) {
             return 5e17;
         }
 
         // Compute proportion from V4 spot price
-        (bool spotValid, uint256 spotProportion) = _computeProportionFromSqrtPrice(sqrtPriceX96, token, tickLower, tickUpper);
+        (bool spotValid, uint256 spotProportion) =
+            _computeProportionFromSqrtPrice(sqrtPriceX96, token, tickLower, tickUpper);
         if (!spotValid) {
             return 5e17;
         }
@@ -209,11 +210,11 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // on vault ETH during convertAndAddLiquidity.
         uint160 twapSqrtPrice = _getTwapSqrtPriceX96(token);
         if (twapSqrtPrice != 0) {
-            (bool twapValid, uint256 twapProportion) = _computeProportionFromSqrtPrice(twapSqrtPrice, token, tickLower, tickUpper);
+            (bool twapValid, uint256 twapProportion) =
+                _computeProportionFromSqrtPrice(twapSqrtPrice, token, tickLower, tickUpper);
             if (twapValid) {
-                uint256 diff = spotProportion > twapProportion
-                    ? spotProportion - twapProportion
-                    : twapProportion - spotProportion;
+                uint256 diff =
+                    spotProportion > twapProportion ? spotProportion - twapProportion : twapProportion - spotProportion;
                 // Reject if V4 spot proportion deviates more than 5% (5e16) from V3 TWAP proportion.
                 // A 5% shift in proportion corresponds to a significant price manipulation.
                 if (diff > 5e16) revert SwapProportionDeviationTooHigh();
@@ -232,21 +233,16 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
     /// @dev Computes swap proportion from a given sqrtPriceX96 for the LP tick range.
     ///      Returns (false, 0) when the price is outside the tick range (both amounts zero).
-    function _computeProportionFromSqrtPrice(
-        uint160 sqrtPriceX96,
-        address token,
-        int24 tickLower,
-        int24 tickUpper
-    ) private pure returns (bool valid, uint256 proportion) {
+    function _computeProportionFromSqrtPrice(uint160 sqrtPriceX96, address token, int24 tickLower, int24 tickUpper)
+        private
+        pure
+        returns (bool valid, uint256 proportion)
+    {
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
 
-        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtPriceX96,
-            sqrtPriceAX96,
-            sqrtPriceBX96,
-            1e18
-        );
+        (uint256 amount0, uint256 amount1) =
+            LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, 1e18);
 
         uint256 total = amount0 + amount1;
         if (total == 0) {
@@ -287,7 +283,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
                 int24 meanTick = int24(delta / int56(uint56(twapSecondsAgo)));
                 if (delta < 0 && (delta % int56(uint56(twapSecondsAgo)) != 0)) meanTick--;
                 return TickMath.getSqrtPriceAtTick(meanTick);
-            } catch {}
+            } catch { }
         }
 
         return 0;
@@ -299,12 +295,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     function _getV2PriceAndReserves(address token)
         private
         view
-        returns (
-            bool hasV2Pool,
-            uint256 priceV2,
-            uint112 reserveWETH,
-            uint112 reserveToken
-        )
+        returns (bool hasV2Pool, uint256 priceV2, uint112 reserveWETH, uint112 reserveToken)
     {
         if (v2Factory.code.length == 0) {
             return (false, 0, 0, 0);
@@ -342,11 +333,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     function _queryV3PoolForFee(address token, uint24 feeTier)
         private
         view
-        returns (
-            bool success,
-            uint256 price,
-            uint128 poolLiquidity
-        )
+        returns (bool success, uint256 price, uint128 poolLiquidity)
     {
         if (v3Factory.code.length == 0) {
             return (false, 0, 0);
@@ -360,15 +347,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
 
         // Verify pool is not locked (reentrancy guard) and has liquidity via slot0/liquidity.
         // We read liquidity for the depth check but derive price from the TWAP, not slot0.
-        try IUniswapV3Pool(pool).slot0() returns (
-            uint160,
-            int24,
-            uint16,
-            uint16,
-            uint16,
-            uint8,
-            bool unlocked
-        ) {
+        try IUniswapV3Pool(pool).slot0() returns (uint160, int24, uint16, uint16, uint16, uint8, bool unlocked) {
             if (!unlocked) {
                 return (false, 0, 0);
             }
@@ -393,10 +372,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         secondsAgos[0] = twapSecondsAgo;
         secondsAgos[1] = 0;
 
-        try IUniswapV3Pool(pool).observe(secondsAgos) returns (
-            int56[] memory tickCumulatives,
-            uint160[] memory
-        ) {
+        try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
             int56 delta = tickCumulatives[1] - tickCumulatives[0];
             int24 meanTick = int24(delta / int56(uint56(twapSecondsAgo)));
             // Round toward negative infinity when remainder is negative (standard V3 TWAP rounding)
@@ -425,11 +401,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     function _getV3PriceAndLiquidity(address token)
         private
         view
-        returns (
-            bool hasV3Pool,
-            uint256 priceV3,
-            uint128 liquidity
-        )
+        returns (bool hasV3Pool, uint256 priceV3, uint128 liquidity)
     {
         uint24[3] memory feeTiers = [uint24(3000), uint24(500), uint24(10000)];
 
@@ -447,11 +419,7 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     function _getV4PriceAndLiquidity(address token)
         private
         view
-        returns (
-            bool hasV4Pool,
-            uint256 priceV4,
-            uint128 liquidity
-        )
+        returns (bool hasV4Pool, uint256 priceV4, uint128 liquidity)
     {
         if (poolManager.code.length == 0) {
             return (false, 0, 0);
@@ -461,23 +429,14 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         int24[3] memory tickSpacings = [int24(60), int24(10), int24(200)];
 
         for (uint256 i = 0; i < feeTiers.length; i++) {
-            (bool success, uint256 price, uint128 liq) = _queryV4PoolForTokenPair(
-                weth,
-                token,
-                feeTiers[i],
-                tickSpacings[i]
-            );
+            (bool success, uint256 price, uint128 liq) =
+                _queryV4PoolForTokenPair(weth, token, feeTiers[i], tickSpacings[i]);
 
             if (success) {
                 return (true, price, liq);
             }
 
-            (success, price, liq) = _queryV4PoolForTokenPair(
-                address(0),
-                token,
-                feeTiers[i],
-                tickSpacings[i]
-            );
+            (success, price, liq) = _queryV4PoolForTokenPair(address(0), token, feeTiers[i], tickSpacings[i]);
 
             if (success) {
                 return (true, price, liq);
@@ -488,35 +447,22 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     }
 
     // slither-disable-next-line unused-return
-    function _queryV4PoolForTokenPair(
-        address token0Addr,
-        address token1Addr,
-        uint24 fee,
-        int24 tickSpacing
-    )
+    function _queryV4PoolForTokenPair(address token0Addr, address token1Addr, uint24 fee, int24 tickSpacing)
         private
         view
-        returns (
-            bool success,
-            uint256 price,
-            uint128 poolLiquidity
-        )
+        returns (bool success, uint256 price, uint128 poolLiquidity)
     {
         (Currency currency0, Currency currency1) = token0Addr < token1Addr
             ? (Currency.wrap(token0Addr), Currency.wrap(token1Addr))
             : (Currency.wrap(token1Addr), Currency.wrap(token0Addr));
 
         PoolKey memory poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: fee,
-            tickSpacing: tickSpacing,
-            hooks: IHooks(address(0))
+            currency0: currency0, currency1: currency1, fee: fee, tickSpacing: tickSpacing, hooks: IHooks(address(0))
         });
 
         PoolId poolId = poolKey.toId();
 
-        (uint160 sqrtPriceX96, , ,) = StateLibrary.getSlot0(IPoolManager(poolManager), poolId);
+        (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(poolManager), poolId);
 
         if (sqrtPriceX96 == 0) {
             return (false, 0, 0);

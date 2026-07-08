@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {IMasterRegistry} from "./interfaces/IMasterRegistry.sol";
-import {IAlignmentRegistry} from "./interfaces/IAlignmentRegistry.sol";
-import {IComponentRegistry} from "../registry/interfaces/IComponentRegistry.sol";
-import {MetadataUtils} from "../shared/libraries/MetadataUtils.sol";
-import {IFactoryInstance} from "../interfaces/IFactoryInstance.sol";
-import {IFactory} from "../interfaces/IFactory.sol";
-import {IInstanceLifecycle} from "../interfaces/IInstanceLifecycle.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { IMasterRegistry } from "./interfaces/IMasterRegistry.sol";
+import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
+import { IComponentRegistry } from "../registry/interfaces/IComponentRegistry.sol";
+import { MetadataUtils } from "../shared/libraries/MetadataUtils.sol";
+import { IFactoryInstance } from "../interfaces/IFactoryInstance.sol";
+import { IFactory } from "../interfaces/IFactory.sol";
+import { IInstanceLifecycle } from "../interfaces/IInstanceLifecycle.sol";
 
 /**
  * @title MasterRegistryV1
@@ -319,7 +319,8 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         string memory metadataURI,
         uint256 targetId
     ) external override {
-        bool isActiveFactory = registeredFactories[msg.sender] && factoryInfo[msg.sender].active;
+        bool isActiveFactory =
+            registeredFactories[msg.sender] && factoryInfo[msg.sender].active;
         if (!isActiveFactory && msg.sender != owner()) revert Unauthorized();
 
         if (vault == address(0)) revert InvalidAddress();
@@ -398,11 +399,8 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     // ============ Internal Helpers ============
 
     function _getVaultAlignmentToken(address vault) internal view returns (address) {
-        (bool success, bytes memory data) = vault.staticcall(
-            abi.encodeWithSignature("alignmentToken()")
-        );
+        (bool success, bytes memory data) = vault.staticcall(abi.encodeWithSignature("alignmentToken()"));
         if (!success || data.length < 32) revert NoAlignmentToken();
         return abi.decode(data, (address));
     }
-
 }

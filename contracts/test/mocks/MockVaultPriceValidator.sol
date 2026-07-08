@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
 
 /// @notice Mock price validator for unit tests. Always passes validation.
 contract MockVaultPriceValidator is IVaultPriceValidator {
@@ -27,9 +27,7 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
         require(!shouldRevert, "MockPriceValidator: forced revert");
     }
 
-    function calculateSwapProportion(
-        address, int24, int24, address, bytes32
-    ) external view override returns (uint256) {
+    function calculateSwapProportion(address, int24, int24, address, bytes32) external view override returns (uint256) {
         return fixedProportion;
     }
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {DynamicPricingModule} from "../../../src/factories/erc1155/DynamicPricingModule.sol";
-import {IComponentModule} from "../../../src/interfaces/IComponentModule.sol";
+import { Test } from "forge-std/Test.sol";
+import { DynamicPricingModule } from "../../../src/factories/erc1155/DynamicPricingModule.sol";
+import { IComponentModule } from "../../../src/interfaces/IComponentModule.sol";
 
 contract DynamicPricingModuleTest is Test {
     DynamicPricingModule module;

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
-import {IAlgebraNFTPositionManager, IAlgebraSwapRouter} from "../../interfaces/algebra/IAlgebra.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { IAlgebraNFTPositionManager, IAlgebraSwapRouter } from "../../interfaces/algebra/IAlgebra.sol";
 
 interface IWETH9 {
     function deposit() external payable;
@@ -37,7 +37,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error ExceedsMaxBps();
 
     // ── Events ────────────────────────────────────────────────────────────
-    event PositionRegistered(uint256 indexed tokenId, address pool, bool tokenIsZero, address benefactor, uint256 contribution);
+    event PositionRegistered(
+        uint256 indexed tokenId, address pool, bool tokenIsZero, address benefactor, uint256 contribution
+    );
     event Harvested(uint256 totalFeesETH, uint256 benefactorFees, uint256 protocolFees);
     event DelegateSet(address indexed benefactor, address indexed delegate);
     event ProtocolYieldCutUpdated(uint256 newBps);
@@ -54,18 +56,18 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     address public liquidityDeployer;
 
     // ── LP position ───────────────────────────────────────────────────────
-    uint256 public lpTokenId;          // NFT position token ID (0 = not registered)
-    address public lpPool;             // Algebra pool address
-    bool public tokenIsZero;           // true if alignmentToken < weth (token0 in pool)
+    uint256 public lpTokenId; // NFT position token ID (0 = not registered)
+    address public lpPool; // Algebra pool address
+    bool public tokenIsZero; // true if alignmentToken < weth (token0 in pool)
 
     // ── Economics ─────────────────────────────────────────────────────────
-    uint256 public protocolYieldCutBps;  // default 100 (1%)
+    uint256 public protocolYieldCutBps; // default 100 (1%)
 
     // ── Price-manipulation guard (sandwich floor, mirrors Uni/ZAMM F5) ─────
     /// @notice Independent price source (Uniswap TWAP) used to floor the permissionless harvest
     ///         swap's slippage. address(0) = no floor (caller minAmountOut only — back-compat).
     IVaultPriceValidator public priceValidator;
-    uint256 public maxPriceDeviationBps;  // default 500 (5%)
+    uint256 public maxPriceDeviationBps; // default 500 (5%)
 
     // ── Fee buckets ───────────────────────────────────────────────────────
     uint256 public accumulatedProtocolFees;
@@ -73,7 +75,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── MasterChef accumulator ────────────────────────────────────────────
     uint256 public totalContributions;
-    uint256 public accRewardPerContribution;  // 1e18 scaled
+    uint256 public accRewardPerContribution; // 1e18 scaled
     mapping(address => uint256) public benefactorContribution;
     mapping(address => uint256) public rewardDebt;
 
@@ -119,11 +121,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Receive ───────────────────────────────────────────────────────────
 
-    receive() external payable {}
+    receive() external payable { }
 
-    function receiveContribution(Currency currency, uint256 amount, address benefactor)
-        external payable override
-    {
+    function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable override {
         if (Currency.unwrap(currency) != address(0)) revert ETHOnly();
         if (benefactor == address(0) || msg.value == 0) return;
         _addContribution(benefactor, msg.value);
@@ -232,7 +232,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     function claimFeesAsDelegate(address[] calldata benefactors)
-        external override nonReentrant
+        external
+        override
+        nonReentrant
         returns (uint256 totalClaimed)
     {
         for (uint256 i = 0; i < benefactors.length; i++) {
@@ -244,8 +246,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     function _claim(address benefactor) internal returns (uint256) {
-        address recipient = _benefactorDelegate[benefactor] == address(0)
-            ? benefactor : _benefactorDelegate[benefactor];
+        address recipient = _benefactorDelegate[benefactor] == address(0) ? benefactor : _benefactorDelegate[benefactor];
         return _claimTo(benefactor, recipient);
     }
 
@@ -256,7 +257,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 pending = contrib * accRewardPerContribution / 1e18 - rewardDebt[benefactor]; // round down: favors vault
         if (pending == 0) return 0;
         rewardDebt[benefactor] = contrib * accRewardPerContribution / 1e18; // round down: benefactor cannot over-claim
-        (bool ok,) = recipient.call{value: pending}("");
+        (bool ok,) = recipient.call{ value: pending }("");
         if (!ok) revert TransferFailed();
         ethClaimed = pending;
         emit FeesClaimed(benefactor, pending);
@@ -269,7 +270,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (msg.sender != protocolTreasury) revert Unauthorized();
         uint256 amount = accumulatedProtocolFees;
         accumulatedProtocolFees = 0;
-        (bool ok,) = protocolTreasury.call{value: amount}("");
+        (bool ok,) = protocolTreasury.call{ value: amount }("");
         if (!ok) revert TransferFailed();
         emit ProtocolFeesWithdrawn(amount);
     }
@@ -328,17 +329,33 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         return address(positionManager) != address(0) && address(priceValidator) != address(0);
     }
 
-    function vaultType() external pure override returns (string memory) { return "CypherLP"; }
+    function vaultType() external pure override returns (string memory) {
+        return "CypherLP";
+    }
+
     function description() external pure override returns (string memory) {
         return "Full-range liquidity provision on Algebra V2 (Cypher AMM)";
     }
-    function accumulatedFees() external view override returns (uint256) { return _totalAccumulatedFees; }
-    function totalShares() external view override returns (uint256) { return totalContributions; }
+
+    function accumulatedFees() external view override returns (uint256) {
+        return _totalAccumulatedFees;
+    }
+
+    function totalShares() external view override returns (uint256) {
+        return totalContributions;
+    }
+
     function supportsCapability(bytes32 capability) external pure override returns (bool) {
         return capability == keccak256("YIELD_GENERATION") || capability == keccak256("BENEFACTOR_DELEGATION");
     }
-    function currentPolicy() external pure override returns (bytes memory) { return ""; }
-    function validateCompliance(address) external pure override returns (bool) { return true; }
+
+    function currentPolicy() external pure override returns (bytes memory) {
+        return "";
+    }
+
+    function validateCompliance(address) external pure override returns (bool) {
+        return true;
+    }
 
     function delegateBenefactor(address delegate) external override {
         _benefactorDelegate[msg.sender] = delegate;

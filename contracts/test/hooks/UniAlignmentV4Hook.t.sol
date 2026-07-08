@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-import {BalanceDelta, toBalanceDelta} from "v4-core/types/BalanceDelta.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/types/BeforeSwapDelta.sol";
-import {Currency, CurrencyLibrary} from "v4-core/types/Currency.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {SafeCast} from "v4-core/libraries/SafeCast.sol";
-import {LPFeeLibrary} from "v4-core/libraries/LPFeeLibrary.sol";
-import {UniAlignmentVault} from "../../src/vaults/uni/UniAlignmentVault.sol";
-import {UniAlignmentV4Hook} from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
-import {IAlignmentVault} from "../../src/interfaces/IAlignmentVault.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { BalanceDelta, toBalanceDelta } from "v4-core/types/BalanceDelta.sol";
+import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "v4-core/types/BeforeSwapDelta.sol";
+import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { SafeCast } from "v4-core/libraries/SafeCast.sol";
+import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
+import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
+import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /**
  * @title UniAlignmentV4HookTest
@@ -90,8 +90,8 @@ contract UniAlignmentV4HookTest is Test {
     /// @param ethAmount ETH spent by swapper (negative delta0, positive delta1)
     function _buyDelta(uint256 ethAmount, uint256 tokenOut) internal pure returns (BalanceDelta) {
         return toBalanceDelta(
-            int128(-int256(ethAmount)),  // delta0: swapper sends ETH (negative)
-            int128(int256(tokenOut))     // delta1: swapper receives token (positive)
+            int128(-int256(ethAmount)), // delta0: swapper sends ETH (negative)
+            int128(int256(tokenOut)) // delta1: swapper receives token (positive)
         );
     }
 
@@ -99,25 +99,18 @@ contract UniAlignmentV4HookTest is Test {
     /// @param ethOut ETH received by swapper (positive delta0, negative delta1)
     function _sellDelta(uint256 ethOut, uint256 tokenSpent) internal pure returns (BalanceDelta) {
         return toBalanceDelta(
-            int128(int256(ethOut)),       // delta0: swapper receives ETH (positive)
-            int128(-int256(tokenSpent))   // delta1: swapper sends token (negative)
+            int128(int256(ethOut)), // delta0: swapper receives ETH (positive)
+            int128(-int256(tokenSpent)) // delta1: swapper sends token (negative)
         );
     }
 
     function _buyParams(uint256 ethAmount) internal pure returns (IPoolManager.SwapParams memory) {
-        return IPoolManager.SwapParams({
-            zeroForOne: true,
-            amountSpecified: -int256(ethAmount),
-            sqrtPriceLimitX96: 0
-        });
+        return IPoolManager.SwapParams({ zeroForOne: true, amountSpecified: -int256(ethAmount), sqrtPriceLimitX96: 0 });
     }
 
     function _sellParams(uint256 tokenAmount) internal pure returns (IPoolManager.SwapParams memory) {
-        return IPoolManager.SwapParams({
-            zeroForOne: false,
-            amountSpecified: -int256(tokenAmount),
-            sqrtPriceLimitX96: 0
-        });
+        return
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -int256(tokenAmount), sqrtPriceLimitX96: 0 });
     }
 
     // ========== Initialization Tests ==========
@@ -209,8 +202,11 @@ contract UniAlignmentV4HookTest is Test {
         vm.etch(address(revertingVault), address(recorder).code);
 
         h.flushQueuedFees();
-        assertEq(MockVault(payable(address(revertingVault))).lastBenefactor(), projectInstance,
-            "flush must credit the project instance");
+        assertEq(
+            MockVault(payable(address(revertingVault))).lastBenefactor(),
+            projectInstance,
+            "flush must credit the project instance"
+        );
     }
 
     // ========== Buy Direction Tests (ETH→token, zeroForOne=true) ==========
@@ -224,9 +220,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(ethSpent, 500e18);
 
         vm.prank(address(mockPoolManager));
-        (bytes4 selector, int128 hookDelta) = hook.afterSwap(
-            alice, key, _buyParams(ethSpent), delta, bytes("")
-        );
+        (bytes4 selector, int128 hookDelta) = hook.afterSwap(alice, key, _buyParams(ethSpent), delta, bytes(""));
 
         assertEq(selector, IHooks.afterSwap.selector);
         assertEq(hookDelta, int128(uint128(expectedFee)), "Hook delta should be fee amount");
@@ -242,9 +236,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(ethSpent, tokenOut);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = hook.afterSwap(
-            alice, key, _buyParams(ethSpent), delta, bytes("")
-        );
+        (, int128 hookDelta) = hook.afterSwap(alice, key, _buyParams(ethSpent), delta, bytes(""));
 
         // Fee should be 1% of ETH (2000e18), not 1% of token (800e18)
         uint256 expectedFee = (ethSpent * DEFAULT_HOOK_FEE_BIPS) / 10000;
@@ -259,11 +251,7 @@ contract UniAlignmentV4HookTest is Test {
         hook.afterSwap(alice, key, _buyParams(1000e18), delta, bytes(""));
 
         // Verify vault was called with currency0 (ETH)
-        assertEq(
-            Currency.unwrap(mockVault.lastCurrency()),
-            address(0),
-            "Vault must receive native ETH, not token"
-        );
+        assertEq(Currency.unwrap(mockVault.lastCurrency()), address(0), "Vault must receive native ETH, not token");
     }
 
     // ========== Sell Direction Tests (token→ETH, zeroForOne=false) ==========
@@ -276,9 +264,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _sellDelta(ethReceived, 500e18);
 
         vm.prank(address(mockPoolManager));
-        (bytes4 selector, int128 hookDelta) = hook.afterSwap(
-            bob, key, _sellParams(500e18), delta, bytes("")
-        );
+        (bytes4 selector, int128 hookDelta) = hook.afterSwap(bob, key, _sellParams(500e18), delta, bytes(""));
 
         assertEq(selector, IHooks.afterSwap.selector);
         assertEq(hookDelta, int128(uint128(expectedFee)), "Sell should produce ETH fee");
@@ -294,9 +280,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _sellDelta(ethReceived, tokenSpent);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = hook.afterSwap(
-            alice, key, _sellParams(tokenSpent), delta, bytes("")
-        );
+        (, int128 hookDelta) = hook.afterSwap(alice, key, _sellParams(tokenSpent), delta, bytes(""));
 
         uint256 expectedFee = (ethReceived * DEFAULT_HOOK_FEE_BIPS) / 10000;
         assertEq(uint128(hookDelta), expectedFee, "Sell fee must be based on ETH, not token");
@@ -310,17 +294,13 @@ contract UniAlignmentV4HookTest is Test {
         // Buy: spend 1 ETH
         BalanceDelta buyDelta = _buyDelta(1 ether, 500e18);
         vm.prank(address(mockPoolManager));
-        (, int128 buyHookDelta) = hook.afterSwap(
-            alice, key, _buyParams(1 ether), buyDelta, bytes("")
-        );
+        (, int128 buyHookDelta) = hook.afterSwap(alice, key, _buyParams(1 ether), buyDelta, bytes(""));
         assertGt(buyHookDelta, 0, "Buy must produce a fee");
 
         // Sell: receive 0.5 ETH
         BalanceDelta sellDelta = _sellDelta(0.5 ether, 250e18);
         vm.prank(address(mockPoolManager));
-        (, int128 sellHookDelta) = hook.afterSwap(
-            bob, key, _sellParams(250e18), sellDelta, bytes("")
-        );
+        (, int128 sellHookDelta) = hook.afterSwap(bob, key, _sellParams(250e18), sellDelta, bytes(""));
         assertGt(sellHookDelta, 0, "Sell must produce a fee");
 
         // Verify proportional: buy fee > sell fee (more ETH moved)
@@ -383,9 +363,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(50, 25);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = hook.afterSwap(
-            alice, key, _buyParams(50), delta, bytes("")
-        );
+        (, int128 hookDelta) = hook.afterSwap(alice, key, _buyParams(50), delta, bytes(""));
 
         assertEq(hookDelta, 0, "Fee should round to zero for tiny swaps");
     }
@@ -395,9 +373,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(1 ether, 500e18);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = hook.afterSwap(
-            alice, key, _buyParams(1 ether), delta, bytes("")
-        );
+        (, int128 hookDelta) = hook.afterSwap(alice, key, _buyParams(1 ether), delta, bytes(""));
 
         // 1e18 * 100 / 10000 = 1e16
         assertEq(uint128(hookDelta), 1e16, "1% of 1 ETH = 0.01 ETH");
@@ -408,9 +384,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(10000e18, 5000e18);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = hook.afterSwap(
-            alice, key, _buyParams(10000e18), delta, bytes("")
-        );
+        (, int128 hookDelta) = hook.afterSwap(alice, key, _buyParams(10000e18), delta, bytes(""));
 
         assertEq(uint128(hookDelta), 100e18, "1% of 10000 ETH = 100 ETH");
     }
@@ -441,9 +415,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(1000e18, 500e18);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = zeroFeeHook.afterSwap(
-            alice, key, _buyParams(1000e18), delta, bytes("")
-        );
+        (, int128 hookDelta) = zeroFeeHook.afterSwap(alice, key, _buyParams(1000e18), delta, bytes(""));
 
         assertEq(hookDelta, 0, "Zero hookFeeBips should produce zero fee");
     }
@@ -507,9 +479,7 @@ contract UniAlignmentV4HookTest is Test {
         IPoolManager.SwapParams memory params = _buyParams(1 ether);
 
         vm.prank(address(mockPoolManager));
-        (bytes4 selector, BeforeSwapDelta bsDelta, uint24 fee) = hook.beforeSwap(
-            alice, key, params, bytes("")
-        );
+        (bytes4 selector, BeforeSwapDelta bsDelta, uint24 fee) = hook.beforeSwap(alice, key, params, bytes(""));
 
         assertEq(selector, IHooks.beforeSwap.selector);
         assertEq(
@@ -518,9 +488,7 @@ contract UniAlignmentV4HookTest is Test {
             "beforeSwap should not modify deltas"
         );
         assertEq(
-            fee,
-            DEFAULT_LP_FEE_RATE | LPFeeLibrary.OVERRIDE_FEE_FLAG,
-            "Must return lpFeeRate with OVERRIDE_FEE_FLAG"
+            fee, DEFAULT_LP_FEE_RATE | LPFeeLibrary.OVERRIDE_FEE_FLAG, "Must return lpFeeRate with OVERRIDE_FEE_FLAG"
         );
     }
 
@@ -675,9 +643,7 @@ contract UniAlignmentV4HookTest is Test {
         BalanceDelta delta = _buyDelta(ethSpent, 25e18);
 
         vm.prank(address(mockPoolManager));
-        (, int128 hookDelta) = maxFeeHook.afterSwap(
-            alice, key, _buyParams(ethSpent), delta, bytes("")
-        );
+        (, int128 hookDelta) = maxFeeHook.afterSwap(alice, key, _buyParams(ethSpent), delta, bytes(""));
 
         assertEq(uint128(hookDelta), ethSpent, "100% fee should take entire ETH amount");
     }
@@ -749,9 +715,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
         returns (bytes4, BeforeSwapDelta, uint24)
     {
         return (
-            IHooks.beforeSwap.selector,
-            BeforeSwapDeltaLibrary.ZERO_DELTA,
-            lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG
+            IHooks.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, lpFeeRate | LPFeeLibrary.OVERRIDE_FEE_FLAG
         );
     }
 
@@ -771,7 +735,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
 
         if (feeAmount > 0) {
             poolManager.take(key.currency0, address(this), feeAmount);
-            (bool ok,) = address(vault).call{value: feeAmount}(
+            (bool ok,) = address(vault).call{ value: feeAmount }(
                 abi.encodeCall(IAlignmentVault.receiveContribution, (key.currency0, feeAmount, benefactor))
             );
             if (ok) {
@@ -791,7 +755,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
         uint256 amount = queuedFees;
         if (amount == 0) revert NoQueuedFees();
         queuedFees = 0;
-        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, benefactor);
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, benefactor);
         emit QueuedFeesForwarded(amount);
     }
 
@@ -802,7 +766,7 @@ contract TestableHook is ReentrancyGuard, Ownable {
         emit LpFeeRateUpdated(_rate);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 // ========== Mocks ==========
@@ -816,8 +780,8 @@ contract MockPoolManager {
         tokenBalances[to] += amount;
     }
 
-    function settle(Currency currency) external payable {}
-    function burn(uint256 amount) external {}
+    function settle(Currency currency) external payable { }
+    function burn(uint256 amount) external { }
 }
 
 contract MockVault {
@@ -826,13 +790,9 @@ contract MockVault {
     Currency public lastCurrency;
     bool public receivedFee;
 
-    receive() external payable {}
+    receive() external payable { }
 
-    function receiveContribution(
-        Currency currency,
-        uint256 amount,
-        address benefactor
-    ) external payable {
+    function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable {
         lastFeeAmount = amount;
         lastBenefactor = benefactor;
         lastCurrency = currency;
@@ -841,13 +801,9 @@ contract MockVault {
 }
 
 contract MockRevertingVault {
-    receive() external payable {}
+    receive() external payable { }
 
-    function receiveContribution(
-        Currency currency,
-        uint256 amount,
-        address benefactor
-    ) external payable {
+    function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable {
         revert("Vault revert");
     }
 }

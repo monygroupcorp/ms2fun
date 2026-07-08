@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ComponentRegistry} from "../../src/registry/ComponentRegistry.sol";
-import {IComponentRegistry} from "../../src/registry/interfaces/IComponentRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
+import { IComponentRegistry } from "../../src/registry/interfaces/IComponentRegistry.sol";
 
 contract ComponentRegistryTest is Test {
     ComponentRegistry public impl;
     ComponentRegistry public registry;
 
-    address public owner   = address(0xDA0);
+    address public owner = address(0xDA0);
     address public module1 = address(0xAA1);
     address public module2 = address(0xAA2);
     address public module3 = address(0xAA3);
     address public stranger = address(0xBEEF);
 
     bytes32 public GATING_TAG = keccak256("gating");
-    bytes32 public OTHER_TAG  = keccak256("other");
+    bytes32 public OTHER_TAG = keccak256("other");
 
     function setUp() public {
         impl = new ComponentRegistry();
@@ -174,7 +174,7 @@ contract ComponentRegistryTest is Test {
         vm.startPrank(owner);
         registry.approveComponent(module1, GATING_TAG, "Gating1");
         registry.approveComponent(module2, GATING_TAG, "Gating2");
-        registry.approveComponent(module3, OTHER_TAG,  "Other1");
+        registry.approveComponent(module3, OTHER_TAG, "Other1");
         vm.stopPrank();
 
         address[] memory gating = registry.getApprovedComponentsByTag(GATING_TAG);

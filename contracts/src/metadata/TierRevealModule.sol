@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {LibString} from "solady/utils/LibString.sol";
-import {IMetadataResolver} from "./IMetadataResolver.sol";
-import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { LibString } from "solady/utils/LibString.sol";
+import { IMetadataResolver } from "./IMetadataResolver.sol";
+import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 
 /// @dev Minimal reads the tier module needs off an ERC404 instance.
 interface ITierInstance {
@@ -32,21 +32,21 @@ contract TierRevealModule is IMetadataResolver, Ownable {
     error NotRegisteredFactory();
     error AlreadySealed();
     error InvalidAddress();
-    error InvalidRange();      // idEnd < idStart
+    error InvalidRange(); // idEnd < idStart
     error RangesNotAscending(); // ranges must be strictly ascending and non-overlapping
 
     struct Tier {
-        uint256 idStart;     // inclusive
-        uint256 idEnd;       // inclusive
-        uint256 minBalance;  // effective-holdings threshold, in token units (e.g. 10 * unit)
-        string  baseURI;     // revealed art base; resolves baseURI + id
-        string  lockedURI;   // held-but-under-threshold ("" => fall through to collection base)
+        uint256 idStart; // inclusive
+        uint256 idEnd; // inclusive
+        uint256 minBalance; // effective-holdings threshold, in token units (e.g. 10 * unit)
+        string baseURI; // revealed art base; resolves baseURI + id
+        string lockedURI; // held-but-under-threshold ("" => fall through to collection base)
     }
 
     IMasterRegistry public immutable masterRegistry;
 
-    mapping(address => Tier[]) public tiers;    // non-overlapping ascending ranges; order = precedence
-    mapping(address => bool)   public sealed_;  // per instance, set-once
+    mapping(address => Tier[]) public tiers; // non-overlapping ascending ranges; order = precedence
+    mapping(address => bool) public sealed_; // per instance, set-once
 
     string private _metadataURI;
 
@@ -78,21 +78,16 @@ contract TierRevealModule is IMetadataResolver, Ownable {
     }
 
     /// @inheritdoc IMetadataResolver
-    function resolve(address inst, uint256 id, address holder)
-        external
-        view
-        override
-        returns (string memory)
-    {
+    function resolve(address inst, uint256 id, address holder) external view override returns (string memory) {
         (bool found, Tier memory t) = _tierForId(inst, id);
-        if (!found) return "";                                   // common id → collection base
+        if (!found) return ""; // common id → collection base
 
         // Holder address(0) (unminted): eff = 0 < any positive threshold → lockedURI path. No special-case.
         uint256 eff = ITierInstance(inst).balanceOf(holder) + _stakedOf(inst, holder);
         if (eff >= t.minBalance) {
-            return string.concat(t.baseURI, LibString.toString(id));  // revealed
+            return string.concat(t.baseURI, LibString.toString(id)); // revealed
         }
-        return t.lockedURI;                                      // "" => base/common look (teaser if set)
+        return t.lockedURI; // "" => base/common look (teaser if set)
     }
 
     /// @notice Number of tiers configured for `inst`.

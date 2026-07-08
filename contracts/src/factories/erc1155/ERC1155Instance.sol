@@ -5,11 +5,11 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
-import {IDynamicPricingModule} from "./interfaces/IDynamicPricingModule.sol";
+import { IDynamicPricingModule } from "./interfaces/IDynamicPricingModule.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
-import {IGatingModule, GatingScope} from "../../gating/IGatingModule.sol";
+import { IGatingModule, GatingScope } from "../../gating/IGatingModule.sol";
 
 // ── Free mint errors ─────────────────────────────────────────────────────────
 error FreeMintDisabled();
@@ -53,14 +53,13 @@ import { IInstanceLifecycle, TYPE_ERC1155, STATE_MINTING } from "../../interface
  */
 // slither-disable-next-line missing-inheritance
 contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
-
     // ┌─────────────────────────┐
     // │         Types           │
     // └─────────────────────────┘
 
     enum PricingModel {
-        UNLIMITED,      // Unlimited supply, fixed price
-        LIMITED_FIXED,  // Limited supply, fixed price
+        UNLIMITED, // Unlimited supply, fixed price
+        LIMITED_FIXED, // Limited supply, fixed price
         LIMITED_DYNAMIC // Limited supply, exponential price increase
     }
 
@@ -78,13 +77,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     struct Edition {
         uint256 id;
         string pieceTitle;
-        uint256 basePrice;        // Base price for dynamic pricing
-        uint256 supply;           // 0 = unlimited
+        uint256 basePrice; // Base price for dynamic pricing
+        uint256 supply; // 0 = unlimited
         uint256 minted;
         string metadataURI;
         PricingModel pricingModel;
         uint256 priceIncreaseRate; // For dynamic pricing (basis points, e.g., 100 = 1%)
-        uint256 openTime;          // Unix timestamp; 0 = open immediately
+        uint256 openTime; // Unix timestamp; 0 = open immediately
     }
 
     // ┌─────────────────────────┐
@@ -124,7 +123,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     bool public agentDelegationEnabled;
 
     uint256 public nextEditionId;
-    uint256 public totalProceeds;  // Total ETH collected from mints
+    uint256 public totalProceeds; // Total ETH collected from mints
     uint256 public totalWithdrawn; // Total ETH passed to withdraw() (prevents double-withdrawal and force-feed attacks)
     /// @dev INVARIANT: pendingVaultCut <= address(this).balance at all times.
     ///      Failed vault contributions stay in the contract, tracked here so they
@@ -132,49 +131,21 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     uint256 public pendingVaultCut;
 
     // Events
-    event TransferSingle(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256 id,
-        uint256 value
-    );
+    event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value);
 
     event TransferBatch(
-        address indexed operator,
-        address indexed from,
-        address indexed to,
-        uint256[] ids,
-        uint256[] values
+        address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values
     );
 
-    event ApprovalForAll(
-        address indexed account,
-        address indexed operator,
-        bool approved
-    );
+    event ApprovalForAll(address indexed account, address indexed operator, bool approved);
 
     event EditionAdded(
-        uint256 indexed editionId,
-        string pieceTitle,
-        uint256 basePrice,
-        uint256 supply,
-        PricingModel pricingModel
+        uint256 indexed editionId, string pieceTitle, uint256 basePrice, uint256 supply, PricingModel pricingModel
     );
 
-    event Minted(
-        address indexed to,
-        uint256 indexed editionId,
-        uint256 amount,
-        uint256 totalCost
-    );
+    event Minted(address indexed to, uint256 indexed editionId, uint256 amount, uint256 totalCost);
 
-    event Withdrawn(
-        address indexed creator,
-        uint256 artistAmount,
-        uint256 vaultCut,
-        uint256 protocolCut
-    );
+    event Withdrawn(address indexed creator, uint256 artistAmount, uint256 vaultCut, uint256 protocolCut);
 
     event VaultContributionFailed(address indexed vault, uint256 amount);
     event VaultContributionRetried(address indexed vault, uint256 amount);
@@ -296,7 +267,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         string memory metadataURI,
         PricingModel pricingModel,
         uint256 priceIncreaseRate,
-        uint256 openTime           // NEW: Unix timestamp; 0 = open immediately
+        uint256 openTime // NEW: Unix timestamp; 0 = open immediately
     ) external {
         if (msg.sender == owner()) {
             // Owner always allowed
@@ -331,7 +302,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             metadataURI: metadataURI,
             pricingModel: pricingModel,
             priceIncreaseRate: priceIncreaseRate,
-            openTime: openTime      // NEW
+            openTime: openTime // NEW
         });
 
         emit EditionAdded(editionId, pieceTitle, basePrice, supply, pricingModel);
@@ -375,11 +346,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             return edition.basePrice;
         } else {
             // LIMITED_DYNAMIC
-            return dynamicPricingModule.calculatePrice(
-                edition.basePrice,
-                edition.priceIncreaseRate,
-                edition.minted
-            );
+            return dynamicPricingModule.calculatePrice(edition.basePrice, edition.priceIncreaseRate, edition.minted);
         }
     }
 
@@ -399,10 +366,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         } else {
             // LIMITED_DYNAMIC
             return dynamicPricingModule.calculateBatchCost(
-                edition.basePrice,
-                edition.priceIncreaseRate,
-                edition.minted,
-                amount
+                edition.basePrice, edition.priceIncreaseRate, edition.minted, amount
             );
         }
     }
@@ -422,7 +386,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     function mint(
         uint256 editionId,
         uint256 amount,
-        bytes32 gatingData,        // NEW: password hash (bytes32(0) = open tier)
+        bytes32 gatingData, // NEW: password hash (bytes32(0) = open tier)
         bytes calldata messageData,
         uint256 maxCost
     ) external payable nonReentrant {
@@ -504,7 +468,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         // blocking creator proceeds permanently.
         uint256 vaultCutSent;
         if (s.vaultCut > 0) {
-            try vault.receiveContribution{value: s.vaultCut}(Currency.wrap(address(0)), s.vaultCut, address(this)) {
+            try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) {
                 vaultCutSent = s.vaultCut;
             } catch {
                 pendingVaultCut += s.vaultCut;
@@ -526,7 +490,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoPendingVaultCut();
         pendingVaultCut = 0;
-        vault.receiveContribution{value: pending}(Currency.wrap(address(0)), pending, address(this));
+        vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
         emit VaultContributionRetried(address(vault), pending);
     }
 
@@ -574,13 +538,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     /**
      * @notice Transfer tokens
      */
-    function safeTransferFrom(
-        address from,
-        address to,
-        uint256 id,
-        uint256 amount,
-        bytes memory data
-    ) external {
+    function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes memory data) external {
         if (from != msg.sender && !isApprovedForAll[from][msg.sender]) revert Unauthorized();
         if (balanceOf[from][id] < amount) revert InsufficientBalance();
 
@@ -661,7 +619,6 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         return edition;
     }
 
-
     // ┌─────────────────────────┐
     // │   Style Management      │
     // └─────────────────────────┘
@@ -724,7 +681,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             (bool ok, bytes memory ret) = to.call(
                 abi.encodeCall(IERC1155Receiver.onERC1155BatchReceived, (operator, from, ids, amounts, data))
             );
-            if (!ok || ret.length < 32 || abi.decode(ret, (bytes4)) != IERC1155Receiver.onERC1155BatchReceived.selector) {
+            if (!ok || ret.length < 32 || abi.decode(ret, (bytes4)) != IERC1155Receiver.onERC1155BatchReceived.selector)
+            {
                 revert ERC1155RejectedTokens();
             }
         }
@@ -745,13 +703,9 @@ interface IERC1155Receiver {
      * @param data Additional data with no specified format
      * @return bytes4 `bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))`
      */
-    function onERC1155Received(
-        address operator,
-        address from,
-        uint256 id,
-        uint256 value,
-        bytes calldata data
-    ) external returns (bytes4);
+    function onERC1155Received(address operator, address from, uint256 id, uint256 value, bytes calldata data)
+        external
+        returns (bytes4);
 
     /**
      * @notice Handle the receipt of multiple ERC1155 token types

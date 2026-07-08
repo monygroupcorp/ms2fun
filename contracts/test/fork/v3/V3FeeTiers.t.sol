@@ -64,7 +64,7 @@ contract V3FeeTiersTest is ForkTestBase {
 
         // Wrap WETH once for all swaps
         vm.prank(swapper);
-        weth.deposit{value: amountIn * 3}(); // Enough for 3 swaps
+        weth.deposit{ value: amountIn * 3 }(); // Enough for 3 swaps
 
         // Approve router
         vm.prank(swapper);
@@ -74,7 +74,7 @@ contract V3FeeTiersTest is ForkTestBase {
         IV3SwapRouterFeeTiers.ExactInputSingleParams memory params_005 = IV3SwapRouterFeeTiers.ExactInputSingleParams({
             tokenIn: WETH,
             tokenOut: USDC,
-            fee: 500,  // 0.05%
+            fee: 500, // 0.05%
             recipient: swapper,
             deadline: block.timestamp + 300,
             amountIn: amountIn,
@@ -89,7 +89,7 @@ contract V3FeeTiersTest is ForkTestBase {
         IV3SwapRouterFeeTiers.ExactInputSingleParams memory params_03 = IV3SwapRouterFeeTiers.ExactInputSingleParams({
             tokenIn: WETH,
             tokenOut: USDC,
-            fee: 3000,  // 0.3%
+            fee: 3000, // 0.3%
             recipient: swapper,
             deadline: block.timestamp + 300,
             amountIn: amountIn,
@@ -104,7 +104,7 @@ contract V3FeeTiersTest is ForkTestBase {
         IV3SwapRouterFeeTiers.ExactInputSingleParams memory params_1 = IV3SwapRouterFeeTiers.ExactInputSingleParams({
             tokenIn: WETH,
             tokenOut: USDC,
-            fee: 10000,  // 1%
+            fee: 10000, // 1%
             recipient: swapper,
             deadline: block.timestamp + 300,
             amountIn: amountIn,
@@ -148,7 +148,7 @@ contract V3FeeTiersTest is ForkTestBase {
 
         // Wrap WETH
         vm.prank(swapper);
-        weth.deposit{value: largeAmount * 2}();
+        weth.deposit{ value: largeAmount * 2 }();
 
         // Approve router
         vm.prank(swapper);

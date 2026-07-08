@@ -15,18 +15,18 @@ pragma solidity ^0.8.20;
 // Used by instanceType() — the on-chain source of truth for instance type.
 // Add new type constants here as new factory families are introduced.
 
-bytes32 constant TYPE_ERC404  = keccak256("erc404");
+bytes32 constant TYPE_ERC404 = keccak256("erc404");
 bytes32 constant TYPE_ERC1155 = keccak256("erc1155");
-bytes32 constant TYPE_ERC721  = keccak256("erc721");
+bytes32 constant TYPE_ERC721 = keccak256("erc721");
 
 // ── Standard lifecycle state constants ────────────────────────────────────────
 bytes32 constant STATE_NOT_STARTED = keccak256("not-started"); // Deployed, not yet open
-bytes32 constant STATE_MINTING     = keccak256("minting");     // Accepting mints / open editions
-bytes32 constant STATE_BONDING     = keccak256("bonding");     // Active bonding curve
-bytes32 constant STATE_ACTIVE      = keccak256("active");      // General "live" state
-bytes32 constant STATE_GRADUATED   = keccak256("graduated");   // Bonding complete, LP deployed
-bytes32 constant STATE_PAUSED      = keccak256("paused");      // Temporarily suspended
-bytes32 constant STATE_ENDED       = keccak256("ended");       // Permanently closed
+bytes32 constant STATE_MINTING = keccak256("minting"); // Accepting mints / open editions
+bytes32 constant STATE_BONDING = keccak256("bonding"); // Active bonding curve
+bytes32 constant STATE_ACTIVE = keccak256("active"); // General "live" state
+bytes32 constant STATE_GRADUATED = keccak256("graduated"); // Bonding complete, LP deployed
+bytes32 constant STATE_PAUSED = keccak256("paused"); // Temporarily suspended
+bytes32 constant STATE_ENDED = keccak256("ended"); // Permanently closed
 
 /**
  * @title IInstanceLifecycle

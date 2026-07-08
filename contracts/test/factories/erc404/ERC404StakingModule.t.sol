@@ -2,13 +2,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC404StakingModule} from "../../../src/factories/erc404/ERC404StakingModule.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC404StakingModule } from "../../../src/factories/erc404/ERC404StakingModule.sol";
 
 contract MockMasterRegistry {
     mapping(address => bool) public instances;
-    function setInstance(address a, bool v) external { instances[a] = v; }
-    function isRegisteredInstance(address a) external view returns (bool) { return instances[a]; }
+
+    function setInstance(address a, bool v) external {
+        instances[a] = v;
+    }
+
+    function isRegisteredInstance(address a) external view returns (bool) {
+        return instances[a];
+    }
 }
 
 contract ERC404StakingModuleTest is Test {
@@ -104,7 +110,7 @@ contract ERC404StakingModuleTest is Test {
         vm.prank(instance1);
         module.enableStaking();
         vm.prank(instance1);
-        module.recordStake(user1, 100 ether);  // need a staker for rate to update
+        module.recordStake(user1, 100 ether); // need a staker for rate to update
 
         vm.prank(instance1);
         module.recordFeesReceived(50 ether);

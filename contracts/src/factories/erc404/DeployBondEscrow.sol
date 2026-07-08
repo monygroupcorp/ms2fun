@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {ProtocolTreasuryV1} from "../../treasury/ProtocolTreasuryV1.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { ProtocolTreasuryV1 } from "../../treasury/ProtocolTreasuryV1.sol";
 
 /// @dev Minimal read surface the escrow needs from a bonding instance. Both are public state
 ///      getters on ERC404BondingInstance — no new graduation trigger is introduced here.
@@ -96,12 +96,8 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         if (msg.value == 0) revert NoBondValue();
         if (bonds[instance].createdAt != 0) revert BondAlreadyPosted();
 
-        bonds[instance] = Bond({
-            creator: creator,
-            amount: msg.value,
-            createdAt: uint40(block.timestamp),
-            settled: false
-        });
+        bonds[instance] =
+            Bond({ creator: creator, amount: msg.value, createdAt: uint40(block.timestamp), settled: false });
         emit BondPosted(instance, creator, msg.value);
     }
 
@@ -139,9 +135,7 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         address creator = b.creator;
         // Tagged deposit (NOT the plain receive(), which force-tags OTHER) so treasury accounting
         // attributes forfeited bonds to their own source bucket.
-        ProtocolTreasuryV1(payable(protocolTreasury)).deposit{value: amount}(
-            ProtocolTreasuryV1.Source.BOND_FORFEIT
-        );
+        ProtocolTreasuryV1(payable(protocolTreasury)).deposit{ value: amount }(ProtocolTreasuryV1.Source.BOND_FORFEIT);
         emit BondForfeited(instance, creator, amount);
     }
 

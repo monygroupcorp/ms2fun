@@ -26,7 +26,7 @@ contract MockWETH {
         require(balanceOf[msg.sender] >= wad, "Insufficient balance");
         balanceOf[msg.sender] -= wad;
         totalSupply -= wad;
-        (bool ok,) = msg.sender.call{value: wad}("");
+        (bool ok,) = msg.sender.call{ value: wad }("");
         require(ok, "ETH transfer failed");
         emit Withdrawal(msg.sender, wad);
         emit Transfer(msg.sender, address(0), wad);

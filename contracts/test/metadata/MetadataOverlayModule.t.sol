@@ -1,19 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {MetadataOverlayModule} from "../../src/metadata/MetadataOverlayModule.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test } from "forge-std/Test.sol";
+import { MetadataOverlayModule } from "../../src/metadata/MetadataOverlayModule.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract ToggleRegistry {
     mapping(address => bool) public factories;
-    function setFactory(address a, bool v) external { factories[a] = v; }
-    function isFactoryRegistered(address a) external view returns (bool) { return factories[a]; }
+
+    function setFactory(address a, bool v) external {
+        factories[a] = v;
+    }
+
+    function isFactoryRegistered(address a) external view returns (bool) {
+        return factories[a];
+    }
 
     mapping(address => address) public instFactory;
-    function setInstanceFactory(address inst_, address f) external { instFactory[inst_] = f; }
+
+    function setInstanceFactory(address inst_, address f) external {
+        instFactory[inst_] = f;
+    }
+
     function getInstanceInfo(address inst_) external view returns (IMasterRegistry.InstanceInfo memory info) {
         info.instance = inst_;
         info.factory = instFactory[inst_];
@@ -27,12 +37,31 @@ contract MockOverlayInstance {
     address public protocolTreasury;
     mapping(uint256 => address) internal _tok;
     mapping(address => uint256) public balanceOf;
-    function setOwner(address o) external { owner = o; }
-    function setStaking(address s) external { stakingModule = s; }
-    function setVault(address v) external { vault = v; }
-    function setTreasury(address t) external { protocolTreasury = t; }
-    function setTokenOwner(uint256 id, address o) external { _tok[id] = o; }
-    function setBalance(address a, uint256 v) external { balanceOf[a] = v; }
+
+    function setOwner(address o) external {
+        owner = o;
+    }
+
+    function setStaking(address s) external {
+        stakingModule = s;
+    }
+
+    function setVault(address v) external {
+        vault = v;
+    }
+
+    function setTreasury(address t) external {
+        protocolTreasury = t;
+    }
+
+    function setTokenOwner(uint256 id, address o) external {
+        _tok[id] = o;
+    }
+
+    function setBalance(address a, uint256 v) external {
+        balanceOf[a] = v;
+    }
+
     function ownerOf(uint256 id) external view returns (address) {
         address o = _tok[id];
         require(o != address(0), "TokenDoesNotExist");
@@ -42,17 +71,21 @@ contract MockOverlayInstance {
 
 contract MockStaking {
     mapping(address => mapping(address => uint256)) public stakedBalance;
-    function set(address inst, address holder, uint256 v) external { stakedBalance[inst][holder] = v; }
+
+    function set(address inst, address holder, uint256 v) external {
+        stakedBalance[inst][holder] = v;
+    }
 }
 
 contract MockSplitVault {
     uint256 public received;
     address public benefactor;
+
     function receiveContribution(Currency, uint256, address b) external payable {
         received += msg.value;
         benefactor = b;
     }
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /// @dev Owner contract that reenters unlock on receiving its artist payout — must be blocked.
@@ -60,9 +93,13 @@ contract ReentrantArtist {
     MetadataOverlayModule ov;
     address inst;
     uint256 reenterId;
+
     function arm(MetadataOverlayModule _ov, address _inst, uint256 _id) external {
-        ov = _ov; inst = _inst; reenterId = _id;
+        ov = _ov;
+        inst = _inst;
+        reenterId = _id;
     }
+
     receive() external payable {
         // Reentry into a guarded function — nonReentrant must revert this.
         ov.unlock(inst, reenterId);
@@ -126,13 +163,19 @@ contract MetadataOverlayModuleTest is Test {
     function test_publishWave_onlyOwner() public {
         vm.prank(attacker);
         vm.expectRevert(MetadataOverlayModule.NotInstanceOwner.selector);
-        ov.publishWave(address(inst), "e-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "e-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
     }
 
     function test_publishWave_appendOnlyIncrements() public {
         vm.startPrank(artist);
-        uint256 w0 = ov.publishWave(address(inst), "a-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
-        uint256 w1 = ov.publishWave(address(inst), "b-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w0 = ov.publishWave(
+            address(inst), "a-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
+        uint256 w1 = ov.publishWave(
+            address(inst), "b-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.stopPrank();
         assertEq(w0, 0);
         assertEq(w1, 1);
@@ -142,29 +185,44 @@ contract MetadataOverlayModuleTest is Test {
     function test_setCommission_onlyOwner() public {
         vm.prank(attacker);
         vm.expectRevert(MetadataOverlayModule.NotInstanceOwner.selector);
-        ov.setCommission(address(inst), 1, "c", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST
+        );
     }
 
     /// @dev H4: a commission locks the moment it is paid for — can't rug what someone bought.
     function test_setCommission_locksOncePaid() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
 
         vm.deal(holder, 1 ether);
         vm.prank(holder);
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
 
         // Now locked — artist cannot overwrite.
         vm.prank(artist);
         vm.expectRevert(MetadataOverlayModule.CommissionLocked.selector);
-        ov.setCommission(address(inst), 1, "c-1-rug", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst),
+            1,
+            "c-1-rug",
+            MetadataOverlayModule.CommCond.PAY,
+            1 ether,
+            MetadataOverlayModule.Payout.ARTIST
+        );
     }
 
     function test_setCommission_freeStaysMutable() public {
         vm.startPrank(artist);
-        ov.setCommission(address(inst), 1, "free-a", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST);
-        ov.setCommission(address(inst), 1, "free-b", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "free-a", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST
+        );
+        ov.setCommission(
+            address(inst), 1, "free-b", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.stopPrank();
         // visible (NONE) → resolves to the latest free URI once selected
         inst.setTokenOwner(1, holder);
@@ -186,7 +244,9 @@ contract MetadataOverlayModuleTest is Test {
     function test_resolve_basePinDeclines() public {
         _config(true);
         vm.prank(artist);
-        ov.publishWave(address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(1, holder);
         vm.prank(holder);
         ov.select(address(inst), 1, 1); // BASE
@@ -198,7 +258,9 @@ contract MetadataOverlayModuleTest is Test {
     function test_resolve_autoOpenWave_showsToNonStaker() public {
         _config(true); // autoLatest
         vm.prank(artist);
-        ov.publishWave(address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(5, holder);
         // holder has zero stake; selection defaults to AUTO
         assertEq(ov.resolve(address(inst), 5, holder), "evt-5");
@@ -207,7 +269,9 @@ contract MetadataOverlayModuleTest is Test {
     function test_resolve_autoOff_returnsEmpty() public {
         _config(false); // autoLatest off
         vm.prank(artist);
-        ov.publishWave(address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(5, holder);
         assertEq(ov.resolve(address(inst), 5, holder), "");
     }
@@ -217,7 +281,14 @@ contract MetadataOverlayModuleTest is Test {
         MockStaking staking = new MockStaking();
         inst.setStaking(address(staking));
         vm.prank(artist);
-        uint256 w = ov.publishWave(address(inst), "stk-", MetadataOverlayModule.WaveCond.STAKE, 10 ether, 0, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = ov.publishWave(
+            address(inst),
+            "stk-",
+            MetadataOverlayModule.WaveCond.STAKE,
+            10 ether,
+            0,
+            MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(2, holder);
         vm.prank(holder);
         ov.select(address(inst), 2, w + 3); // pin the wave
@@ -232,12 +303,14 @@ contract MetadataOverlayModuleTest is Test {
     function test_unlock_paysArtist_andPins() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
 
         vm.deal(holder, 1 ether);
         uint256 artistBefore = artist.balance;
         vm.prank(holder);
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
 
         assertTrue(ov.paid(address(inst), 1));
         assertEq(ov.selection(address(inst), 1), 2); // COMMISSION
@@ -248,22 +321,26 @@ contract MetadataOverlayModuleTest is Test {
     function test_unlock_wrongPayment_reverts() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(holder, 1 ether);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.WrongPayment.selector);
-        ov.unlock{value: 0.5 ether}(address(inst), 1);
+        ov.unlock{ value: 0.5 ether }(address(inst), 1);
     }
 
     function test_unlock_doublePay_reverts() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(holder, 2 ether);
         vm.startPrank(holder);
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
         vm.expectRevert(MetadataOverlayModule.AlreadyPaid.selector);
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
         vm.stopPrank();
     }
 
@@ -272,13 +349,15 @@ contract MetadataOverlayModuleTest is Test {
         inst.setVault(address(vault));
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT
+        );
 
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
         vm.prank(holder);
-        ov.unlock{value: 100}(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1);
 
         // split(100): 1% protocol / 19% vault / 80% artist
         assertEq(treasury.balance, treasuryBefore + 1);
@@ -296,18 +375,22 @@ contract MetadataOverlayModuleTest is Test {
         inst.setTokenOwner(2, address(mal));
         vm.prank(address(mal));
         // owner is mal, so it can author — but use the factory-agnostic path: prank as owner (mal)
-        ov.setCommission(address(inst), 2, "c-2", MetadataOverlayModule.CommCond.PAY, 1, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 2, "c-2", MetadataOverlayModule.CommCond.PAY, 1, MetadataOverlayModule.Payout.ARTIST
+        );
 
         // A normal holder for id 1.
         inst.setTokenOwner(1, holder);
         vm.prank(address(mal));
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
 
         mal.arm(ov, address(inst), 2);
         vm.deal(holder, 1 ether);
         vm.prank(holder);
         vm.expectRevert(); // artist payout reenters unlock → ReentrancyGuard reverts → bubbles up
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
     }
 
     /// @dev PAY state is id-keyed, so a paid/pinned augmentation is a sellable upgrade — it travels
@@ -315,10 +398,12 @@ contract MetadataOverlayModuleTest is Test {
     function test_paidUnlock_travelsWithId() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(holder, 1 ether);
         vm.prank(holder);
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
 
         // simulate transfer: new owner of id 1
         address buyer = address(0xCAFE);
@@ -332,13 +417,17 @@ contract MetadataOverlayModuleTest is Test {
     function test_publishWave_emptyURI_reverts() public {
         vm.prank(artist);
         vm.expectRevert(MetadataOverlayModule.EmptyURI.selector);
-        ov.publishWave(address(inst), "", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
     }
 
     function test_setCommission_emptyURI_reverts() public {
         vm.prank(artist);
         vm.expectRevert(MetadataOverlayModule.EmptyURI.selector);
-        ov.setCommission(address(inst), 1, "", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST
+        );
     }
 
     function test_setAutoLatest_onlyOwner() public {
@@ -362,26 +451,30 @@ contract MetadataOverlayModuleTest is Test {
         vm.deal(holder, 1 ether);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.NoCommission.selector);
-        ov.unlock{value: 0}(address(inst), 1);
+        ov.unlock{ value: 0 }(address(inst), 1);
     }
 
     function test_unlock_freeCommission_reverts() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "free", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "free", MetadataOverlayModule.CommCond.NONE, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.NotPayCommission.selector); // free commissions need no unlock
-        ov.unlock{value: 0}(address(inst), 1);
+        ov.unlock{ value: 0 }(address(inst), 1);
     }
 
     function test_unlock_nonHolder_reverts() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(attacker, 1 ether);
         vm.prank(attacker);
         vm.expectRevert(MetadataOverlayModule.NotHolder.selector);
-        ov.unlock{value: 1 ether}(address(inst), 1);
+        ov.unlock{ value: 1 ether }(address(inst), 1);
     }
 
     /// @dev SPLIT conservation: a zero treasury (codebase-tolerated) folds the protocol cut into the
@@ -392,11 +485,13 @@ contract MetadataOverlayModuleTest is Test {
         inst.setTreasury(address(0)); // no treasury
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT
+        );
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
         vm.prank(holder);
-        ov.unlock{value: 100}(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1);
         // protocol(1) folds into artist(80) → 81; vault still 19. Module holds nothing.
         assertEq(vault.received(), 19);
         assertEq(artist.balance, artistBefore + 81);
@@ -408,12 +503,14 @@ contract MetadataOverlayModuleTest is Test {
         inst.setVault(address(0)); // no vault (default)
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT
+        );
         vm.deal(holder, 100);
         uint256 artistBefore = artist.balance;
         uint256 treasuryBefore = treasury.balance;
         vm.prank(holder);
-        ov.unlock{value: 100}(address(inst), 1);
+        ov.unlock{ value: 100 }(address(inst), 1);
         // vault(19) folds into artist(80) → 99; protocol(1) to treasury. Module holds nothing.
         assertEq(treasury.balance, treasuryBefore + 1);
         assertEq(artist.balance, artistBefore + 99);
@@ -425,11 +522,13 @@ contract MetadataOverlayModuleTest is Test {
     function test_unlockWave_paysAndPins() public {
         inst.setTokenOwner(2, holder);
         vm.prank(artist);
-        uint256 w = ov.publishWave(address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = ov.publishWave(
+            address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(holder, 1 ether);
         uint256 artistBefore = artist.balance;
         vm.prank(holder);
-        ov.unlockWave{value: 1 ether}(address(inst), 2, w);
+        ov.unlockWave{ value: 1 ether }(address(inst), 2, w);
         assertTrue(ov.wavePaid(address(inst), 2, w));
         assertEq(ov.selection(address(inst), 2), w + 3);
         assertEq(artist.balance, artistBefore + 1 ether);
@@ -439,38 +538,44 @@ contract MetadataOverlayModuleTest is Test {
     function test_unlockWave_nonPayWave_reverts() public {
         inst.setTokenOwner(2, holder);
         vm.prank(artist);
-        uint256 w = ov.publishWave(address(inst), "nw-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = ov.publishWave(
+            address(inst), "nw-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.NotPayWave.selector);
-        ov.unlockWave{value: 0}(address(inst), 2, w);
+        ov.unlockWave{ value: 0 }(address(inst), 2, w);
     }
 
     function test_unlockWave_invalidWave_reverts() public {
         inst.setTokenOwner(2, holder);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.InvalidWave.selector);
-        ov.unlockWave{value: 0}(address(inst), 2, 0); // no waves exist
+        ov.unlockWave{ value: 0 }(address(inst), 2, 0); // no waves exist
     }
 
     function test_unlockWave_wrongPayment_reverts() public {
         inst.setTokenOwner(2, holder);
         vm.prank(artist);
-        uint256 w = ov.publishWave(address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = ov.publishWave(
+            address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(holder, 1 ether);
         vm.prank(holder);
         vm.expectRevert(MetadataOverlayModule.WrongPayment.selector);
-        ov.unlockWave{value: 0.5 ether}(address(inst), 2, w);
+        ov.unlockWave{ value: 0.5 ether }(address(inst), 2, w);
     }
 
     function test_unlockWave_doublePay_reverts() public {
         inst.setTokenOwner(2, holder);
         vm.prank(artist);
-        uint256 w = ov.publishWave(address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = ov.publishWave(
+            address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(holder, 2 ether);
         vm.startPrank(holder);
-        ov.unlockWave{value: 1 ether}(address(inst), 2, w);
+        ov.unlockWave{ value: 1 ether }(address(inst), 2, w);
         vm.expectRevert(MetadataOverlayModule.AlreadyPaid.selector);
-        ov.unlockWave{value: 1 ether}(address(inst), 2, w);
+        ov.unlockWave{ value: 1 ether }(address(inst), 2, w);
         vm.stopPrank();
     }
 
@@ -479,8 +584,12 @@ contract MetadataOverlayModuleTest is Test {
     function test_resolve_auto_skipsUnpaidPayWave() public {
         _config(true); // autoLatest
         vm.startPrank(artist);
-        ov.publishWave(address(inst), "old-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST); // w0
-        ov.publishWave(address(inst), "new-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST); // w1 (newer, PAY)
+        ov.publishWave(
+            address(inst), "old-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        ); // w0
+        ov.publishWave(
+            address(inst), "new-", MetadataOverlayModule.WaveCond.PAY, 0, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        ); // w1 (newer, PAY)
         vm.stopPrank();
         inst.setTokenOwner(5, holder);
         // AUTO: newest (w1 PAY) unpaid → skipped; falls to w0 NONE.
@@ -494,7 +603,14 @@ contract MetadataOverlayModuleTest is Test {
         inst.setStaking(address(staking));
         _config(true); // autoLatest
         vm.prank(artist);
-        ov.publishWave(address(inst), "stk-", MetadataOverlayModule.WaveCond.STAKE, 10 ether, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst),
+            "stk-",
+            MetadataOverlayModule.WaveCond.STAKE,
+            10 ether,
+            0,
+            MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(3, holder); // selection defaults to AUTO
         assertEq(ov.resolve(address(inst), 3, holder), ""); // unstaked → AUTO finds nothing eligible
         staking.set(address(inst), holder, 10 ether);
@@ -507,12 +623,16 @@ contract MetadataOverlayModuleTest is Test {
         _config(true);
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        uint256 w0 = ov.publishWave(address(inst), "a-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w0 = ov.publishWave(
+            address(inst), "a-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.prank(holder);
         ov.select(address(inst), 1, w0 + 3); // pin w0
         // Artist drops a newer wave; the pinned holder stays on w0.
         vm.prank(artist);
-        ov.publishWave(address(inst), "b-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "b-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         assertEq(ov.resolve(address(inst), 1, holder), "a-1");
     }
 
@@ -522,7 +642,14 @@ contract MetadataOverlayModuleTest is Test {
         MockStaking staking = new MockStaking();
         inst.setStaking(address(staking));
         vm.prank(artist);
-        uint256 w = ov.publishWave(address(inst), "stk-", MetadataOverlayModule.WaveCond.STAKE, 10 ether, 0, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = ov.publishWave(
+            address(inst),
+            "stk-",
+            MetadataOverlayModule.WaveCond.STAKE,
+            10 ether,
+            0,
+            MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(2, holder);
         staking.set(address(inst), holder, 10 ether);
         vm.prank(holder);
@@ -539,7 +666,9 @@ contract MetadataOverlayModuleTest is Test {
     function test_setAutoLatest_flipsAutoBehavior() public {
         _config(false); // auto off initially
         vm.prank(artist);
-        ov.publishWave(address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        ov.publishWave(
+            address(inst), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         inst.setTokenOwner(5, holder);
         assertEq(ov.resolve(address(inst), 5, holder), ""); // auto off
         vm.prank(artist);
@@ -559,7 +688,9 @@ contract MetadataOverlayModuleTest is Test {
     function test_commissionVisible_requiresPaidForPayCond() public {
         inst.setTokenOwner(1, holder);
         vm.prank(artist);
-        ov.setCommission(address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 1 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.prank(holder);
         ov.select(address(inst), 1, 2); // pin COMMISSION before paying
         assertEq(ov.resolve(address(inst), 1, holder), ""); // not visible until paid

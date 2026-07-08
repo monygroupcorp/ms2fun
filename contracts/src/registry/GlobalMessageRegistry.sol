@@ -16,7 +16,6 @@ import { IGlobalMessageRegistry } from "./interfaces/IGlobalMessageRegistry.sol"
  *      UUPS upgradeable. Owner is the DAO via Timelock.
  */
 contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
-
     // ┌─────────────────────────┐
     // │      Custom Errors      │
     // └─────────────────────────┘
@@ -90,11 +89,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
      * @param instance The instance forwarding the message (must be msg.sender)
      * @param messageData ABI-encoded (uint8 messageType, uint256 refId, bytes32 actionRef, bytes32 metadata, string content)
      */
-    function postForAction(
-        address sender,
-        address instance,
-        bytes calldata messageData
-    ) external payable override {
+    function postForAction(address sender, address instance, bytes calldata messageData) external payable override {
         if (instance != msg.sender) revert InstanceMustBeCaller();
         if (!masterRegistry.isInstanceFromApprovedFactory(msg.sender)) revert NotFromApprovedFactory();
         if (sender == address(0)) revert InvalidAddress();
@@ -122,17 +117,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     ) external payable {
         uint256 messageId = messageCount++;
 
-        emit MessagePosted(
-            messageId,
-            instance,
-            msg.sender,
-            messageType,
-            refId,
-            actionRef,
-            metadata,
-            msg.value,
-            content
-        );
+        emit MessagePosted(messageId, instance, msg.sender, messageType, refId, actionRef, metadata, msg.value, content);
     }
 
     struct PostParams {
@@ -207,26 +192,11 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     // └─────────────────────────┘
 
     function _post(address instance, address sender, bytes calldata messageData, uint256 value) internal {
-        (
-            uint8 messageType,
-            uint256 refId,
-            bytes32 actionRef,
-            bytes32 metadata,
-            string memory content
-        ) = abi.decode(messageData, (uint8, uint256, bytes32, bytes32, string));
+        (uint8 messageType, uint256 refId, bytes32 actionRef, bytes32 metadata, string memory content) =
+            abi.decode(messageData, (uint8, uint256, bytes32, bytes32, string));
 
         uint256 messageId = messageCount++;
 
-        emit MessagePosted(
-            messageId,
-            instance,
-            sender,
-            messageType,
-            refId,
-            actionRef,
-            metadata,
-            value,
-            content
-        );
+        emit MessagePosted(messageId, instance, sender, messageType, refId, actionRef, metadata, value, content);
     }
 }

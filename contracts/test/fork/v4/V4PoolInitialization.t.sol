@@ -302,10 +302,10 @@ contract V4PoolInitializationTest is ForkTestBase {
      * @dev Matches Uniswap V4 conventions
      */
     function _getTickSpacing(uint24 fee) internal pure returns (int24) {
-        if (fee == 100) return 1;      // 0.01%
-        if (fee == 500) return 10;     // 0.05%
-        if (fee == 3000) return 60;    // 0.3%
-        if (fee == 10000) return 200;  // 1%
+        if (fee == 100) return 1; // 0.01%
+        if (fee == 500) return 10; // 0.05%
+        if (fee == 3000) return 60; // 0.3%
+        if (fee == 10000) return 200; // 1%
         revert("Unknown fee tier");
     }
 }

@@ -10,10 +10,10 @@ interface IAlgebraFactory {
 /// @notice Minimal Algebra V2 pool interface
 interface IAlgebraPool {
     function initialize(uint160 sqrtPriceX96) external;
-    function globalState() external view returns (
-        uint160 price, int24 tick, uint16 lastFee,
-        uint8 pluginConfig, uint16 communityFee, bool unlocked
-    );
+    function globalState()
+        external
+        view
+        returns (uint160 price, int24 tick, uint16 lastFee, uint8 pluginConfig, uint16 communityFee, bool unlocked);
 }
 
 /// @notice Algebra V2 NonFungiblePositionManager (adds deployer field vs Uniswap V3)
@@ -21,7 +21,7 @@ interface IAlgebraNFTPositionManager {
     struct MintParams {
         address token0;
         address token1;
-        address deployer;     // Algebra-specific: typically address(0)
+        address deployer; // Algebra-specific: typically address(0)
         int24 tickLower;
         int24 tickUpper;
         uint256 amount0Desired;
@@ -48,28 +48,35 @@ interface IAlgebraNFTPositionManager {
     }
 
     function mint(MintParams calldata params)
-        external payable
+        external
+        payable
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
 
-    function collect(CollectParams calldata params)
-        external payable
-        returns (uint256 amount0, uint256 amount1);
+    function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
 
     function decreaseLiquidity(DecreaseLiquidityParams calldata params)
-        external payable
+        external
+        payable
         returns (uint256 amount0, uint256 amount1);
 
     /// @dev Returns 12 values: nonce, operator, token0, token1, deployer,
     ///      tickLower, tickUpper, liquidity, feeGrowth0, feeGrowth1, tokensOwed0, tokensOwed1
     function positions(uint256 tokenId)
-        external view
+        external
+        view
         returns (
-            uint88 nonce, address operator,
-            address token0, address token1, address deployer,
-            int24 tickLower, int24 tickUpper,
+            uint88 nonce,
+            address operator,
+            address token0,
+            address token1,
+            address deployer,
+            int24 tickLower,
+            int24 tickUpper,
             uint128 liquidity,
-            uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0, uint128 tokensOwed1
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
         );
 
     function approve(address spender, uint256 tokenId) external;
@@ -87,10 +94,8 @@ interface IAlgebraSwapRouter {
         uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
-        uint160 limitSqrtPrice;  // Algebra-specific (0 = no limit)
+        uint160 limitSqrtPrice; // Algebra-specific (0 = no limit)
     }
 
-    function exactInputSingle(ExactInputSingleParams calldata params)
-        external payable
-        returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }

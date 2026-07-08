@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IComponentRegistry} from "../../registry/interfaces/IComponentRegistry.sol";
+import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
 
 /**
  * @title IMasterRegistry
@@ -35,7 +35,7 @@ interface IMasterRegistry {
         address instance;
         address factory;
         address creator;
-        address[] vaults;      // Append-only. Index 0 = genesis vault. Last = active vault.
+        address[] vaults; // Append-only. Index 0 = genesis vault. Last = active vault.
         string name;
         string metadataURI;
         bytes32 nameHash;
@@ -43,27 +43,13 @@ interface IMasterRegistry {
     }
 
     // Events
-    event FactoryRegistered(
-        address indexed factoryAddress,
-        uint256 indexed factoryId,
-        string contractType
-    );
+    event FactoryRegistered(address indexed factoryAddress, uint256 indexed factoryId, string contractType);
 
     event FactoryDeactivated(address indexed factoryAddress, uint256 indexed factoryId);
 
-    event InstanceRegistered(
-        address indexed instance,
-        address indexed factory,
-        address indexed creator,
-        string name
-    );
+    event InstanceRegistered(address indexed instance, address indexed factory, address indexed creator, string name);
 
-    event VaultRegistered(
-        address indexed vault,
-        address indexed creator,
-        string name,
-        uint256 indexed targetId
-    );
+    event VaultRegistered(address indexed vault, address indexed creator, string name, uint256 indexed targetId);
 
     event VaultDeactivated(address indexed vault);
 
@@ -84,13 +70,9 @@ interface IMasterRegistry {
         address vault
     ) external;
 
-    function getFactoryInfo(
-        uint256 factoryId
-    ) external view returns (FactoryInfo memory);
+    function getFactoryInfo(uint256 factoryId) external view returns (FactoryInfo memory);
 
-    function getFactoryInfoByAddress(
-        address factoryAddress
-    ) external view returns (FactoryInfo memory);
+    function getFactoryInfoByAddress(address factoryAddress) external view returns (FactoryInfo memory);
 
     function getTotalFactories() external view returns (uint256);
 

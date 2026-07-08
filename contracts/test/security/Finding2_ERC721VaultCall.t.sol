@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC721AuctionInstance} from "../../src/factories/erc721/ERC721AuctionInstance.sol";
-import {MockRevertingVault} from "../mocks/MockRevertingVault.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC721AuctionInstance } from "../../src/factories/erc721/ERC721AuctionInstance.sol";
+import { MockRevertingVault } from "../mocks/MockRevertingVault.sol";
 
 contract MockGMR2 {
-    function postForAction(address, address, bytes calldata) external {}
+    function postForAction(address, address, bytes calldata) external { }
 }
 
 contract MockMRStub2 {
-    function isAgent(address) external pure returns (bool) { return false; }
-    function migrateVault(address, address) external {}
+    function isAgent(address) external pure returns (bool) {
+        return false;
+    }
+    function migrateVault(address, address) external { }
+
     function getInstanceVaults(address) external pure returns (address[] memory) {
         return new address[](0);
     }
@@ -23,10 +26,10 @@ contract Finding2_ERC721VaultCallTest is Test {
     MockGMR2 public gmr;
     MockMRStub2 public registry;
 
-    address public artist   = address(0xA1);
-    address public bidder   = address(0xB1);
+    address public artist = address(0xA1);
+    address public bidder = address(0xB1);
     address public treasury = address(0xFEE);
-    address public weth     = address(0xE770);
+    address public weth = address(0xE770);
 
     function setUp() public {
         revertVault = new MockRevertingVault();
@@ -60,10 +63,10 @@ contract Finding2_ERC721VaultCallTest is Test {
     ///         pendingVaultCut must accumulate and VaultContributionFailed must emit.
     function test_settleAuction_doesNotRevertWhenVaultFails() public {
         vm.prank(artist);
-        instance.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        instance.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.prank(bidder);
-        instance.createBid{value: 0.1 ether}(1, "");
+        instance.createBid{ value: 0.1 ether }(1, "");
 
         vm.warp(block.timestamp + 2 hours);
 
@@ -77,9 +80,9 @@ contract Finding2_ERC721VaultCallTest is Test {
     /// @notice flushPendingVaultCut with reverting vault should revert (vault still broken)
     function test_flushPendingVaultCut_revertsWhenVaultStillBroken() public {
         vm.prank(artist);
-        instance.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        instance.queuePiece{ value: 0.1 ether }("ipfs://piece1");
         vm.prank(bidder);
-        instance.createBid{value: 0.1 ether}(1, "");
+        instance.createBid{ value: 0.1 ether }(1, "");
         vm.warp(block.timestamp + 2 hours);
         instance.settleAuction(1);
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {IFrontendRegistry} from "./interfaces/IFrontendRegistry.sol";
-import {IENSResolver} from "./interfaces/IENSResolver.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { IFrontendRegistry } from "./interfaces/IFrontendRegistry.sol";
+import { IENSResolver } from "./interfaces/IENSResolver.sol";
 
 /**
  * @title FrontendRegistry
@@ -17,7 +17,6 @@ import {IENSResolver} from "./interfaces/IENSResolver.sol";
  *        - FrontendRegistry = controller (calls setContenthash on resolver)
  */
 contract FrontendRegistry is SafeOwnableUUPS, IFrontendRegistry {
-
     // ┌─────────────────────────┐
     // │      Custom Errors      │
     // └─────────────────────────┘
@@ -182,15 +181,19 @@ contract FrontendRegistry is SafeOwnableUUPS, IFrontendRegistry {
         return _releases.length;
     }
 
-    function releases(uint256 index) external view returns (
-        uint32 id,
-        ReleaseType releaseType,
-        bytes memory contentHash,
-        string memory version,
-        string memory notes,
-        uint64 timestamp,
-        address proposer
-    ) {
+    function releases(uint256 index)
+        external
+        view
+        returns (
+            uint32 id,
+            ReleaseType releaseType,
+            bytes memory contentHash,
+            string memory version,
+            string memory notes,
+            uint64 timestamp,
+            address proposer
+        )
+    {
         Release storage r = _releases[index];
         return (r.id, r.releaseType, r.contentHash, r.version, r.notes, r.timestamp, r.proposer);
     }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {MetadataUtils} from "../shared/libraries/MetadataUtils.sol";
-import {IProfileRegistry} from "./interfaces/IProfileRegistry.sol";
+import { MetadataUtils } from "../shared/libraries/MetadataUtils.sol";
+import { IProfileRegistry } from "./interfaces/IProfileRegistry.sol";
 
 /**
  * @title ProfileRegistry
@@ -15,7 +15,6 @@ import {IProfileRegistry} from "./interfaces/IProfileRegistry.sol";
  *      `ProfileUpdated`.
  */
 contract ProfileRegistry is IProfileRegistry {
-
     // ┌─────────────────────────┐
     // │      Custom Errors      │
     // └─────────────────────────┘

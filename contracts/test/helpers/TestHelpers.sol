@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {MasterRegistry} from "../../src/master/MasterRegistry.sol";
-import {MasterRegistryV1} from "../../src/master/MasterRegistryV1.sol";
+import { MasterRegistry } from "../../src/master/MasterRegistry.sol";
+import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
 
 /**
  * @title TestHelpers

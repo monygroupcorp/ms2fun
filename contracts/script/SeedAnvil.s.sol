@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Script, console} from "forge-std/Script.sol";
-import {ERC1155Factory} from "../src/factories/erc1155/ERC1155Factory.sol";
-import {ERC1155Instance} from "../src/factories/erc1155/ERC1155Instance.sol";
-import {ERC721AuctionFactory} from "../src/factories/erc721/ERC721AuctionFactory.sol";
-import {ERC721AuctionInstance} from "../src/factories/erc721/ERC721AuctionInstance.sol";
-import {ERC404Factory} from "../src/factories/erc404/ERC404Factory.sol";
-import {ERC404BondingInstance} from "../src/factories/erc404/ERC404BondingInstance.sol";
-import {BondingCurveMath} from "../src/factories/erc404/libraries/BondingCurveMath.sol";
-import {FeaturedQueueManager} from "../src/master/FeaturedQueueManager.sol";
-import {GlobalMessageRegistry} from "../src/registry/GlobalMessageRegistry.sol";
-import {ProfileRegistry} from "../src/registry/ProfileRegistry.sol";
-import {FreeMintParams} from "../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../src/gating/IGatingModule.sol";
-import {TierConfig} from "../src/gating/IPasswordTierGatingModule.sol";
-import {IAlignmentVault} from "../src/interfaces/IAlignmentVault.sol";
-import {TierRevealModule} from "../src/metadata/TierRevealModule.sol";
-import {MetadataOverlayModule} from "../src/metadata/MetadataOverlayModule.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { ERC1155Factory } from "../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC1155Instance } from "../src/factories/erc1155/ERC1155Instance.sol";
+import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
+import { ERC721AuctionInstance } from "../src/factories/erc721/ERC721AuctionInstance.sol";
+import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
+import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
+import { BondingCurveMath } from "../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { FeaturedQueueManager } from "../src/master/FeaturedQueueManager.sol";
+import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol";
+import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
+import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../src/gating/IGatingModule.sol";
+import { TierConfig } from "../src/gating/IPasswordTierGatingModule.sol";
+import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
+import { TierRevealModule } from "../src/metadata/TierRevealModule.sol";
+import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
 /// @dev Minimal Solady-Ownable surface — instances + registries all expose this single-step transfer.
 interface IOwnable {
@@ -53,16 +53,13 @@ interface IAgentRegistry {
 ///         gallery auctions ended (settle-ready + no-bid), live auctions active, ember preopen,
 ///         vapor mid-curve (bonding + staking), cinder bonding + matured (graduate unlocked).
 contract SeedAnvil is Script {
-
     // Well-known Anvil account #1 (public test key) — used to seed a second, non-deployer actor.
-    uint256 constant ACCOUNT_1_KEY =
-        0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
+    uint256 constant ACCOUNT_1_KEY = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
 
     // Agent-delegation demo (pre-testnet confirmation): the AGENT is an authorized delegate that
     // creates a collection ON BEHALF OF the PERSON, who ends up owning it. Anvil accounts #3 (agent)
     // and #2 (person) — well-known public test keys.
-    uint256 constant AGENT_KEY =
-        0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
+    uint256 constant AGENT_KEY = 0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6;
     address constant AGENT = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // anvil #3
     address constant PERSON = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC; // anvil #2
 
@@ -82,19 +79,19 @@ contract SeedAnvil is Script {
         ProfileRegistry profiles;
         FeaturedQueueManager queue;
         GlobalMessageRegistry messages;
-        address vault;          // first Uni LP vault — generic contract vault
-        address zammVault;      // first ZAMM LP vault
-        address cypherVault;    // first Cypher (Algebra) LP vault
+        address vault; // first Uni LP vault — generic contract vault
+        address zammVault; // first ZAMM LP vault
+        address cypherVault; // first Cypher (Algebra) LP vault
         address endowmentVault; // first Aave endowment vault
-        address stakingModule;  // ERC404StakingModule (approved STAKING component)
-        address zammDeployer;   // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
-        address uniDeployer;    // ModuleUniV4Deployer (approved LIQUIDITY_DEPLOYER)
+        address stakingModule; // ERC404StakingModule (approved STAKING component)
+        address zammDeployer; // ModuleZAMMDeployer (approved LIQUIDITY_DEPLOYER)
+        address uniDeployer; // ModuleUniV4Deployer (approved LIQUIDITY_DEPLOYER)
         address cypherDeployer; // ModuleCypherDeployer (approved LIQUIDITY_DEPLOYER)
         address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
-        address overlay;        // MetadataOverlayModule (approved OVERLAY)
-        address tier;           // TierRevealModule (approved TIER)
+        address overlay; // MetadataOverlayModule (approved OVERLAY)
+        address tier; // TierRevealModule (approved TIER)
         address alignmentRegistry; // AlignmentRegistryV1 proxy (target curation)
-        address master;         // MasterRegistryV1 proxy (agent authorization; deployer-owned pre-handover)
+        address master; // MasterRegistryV1 proxy (agent authorization; deployer-owned pre-handover)
     }
 
     uint256 deployerKey;
@@ -135,9 +132,7 @@ contract SeedAnvil is Script {
 
         // Second profile + activity (independent of the time model).
         vm.startBroadcast(ACCOUNT_1_KEY);
-        d.profiles.setProfile(_profileMeta(
-            "Vela", "vela",
-            "Collector. Aligned to the cult.", ART_AVATAR_2));
+        d.profiles.setProfile(_profileMeta("Vela", "vela", "Collector. Aligned to the cult.", ART_AVATAR_2));
         _post(d.messages, acct1, "minted from monolith. clean.");
         _post(d.messages, c0, "grabbed one from neon-drift. love the aberration.");
         // Varied-value posts so the post-threshold lever (admin panel) has something to filter.
@@ -157,7 +152,9 @@ contract SeedAnvil is Script {
         console.log("=== SeedAnvil complete ===");
         console.log("ERC1155: 3 collections (neon-drift, monolith, ghost-mint[free-claim]) w/ editions");
         console.log("ERC721 : 2 auctions (gallery=settled+expired, live=active+bid)");
-        console.log("ERC404 : preopen(cypher) + mid-curve+staking(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + stacked(zamm)");
+        console.log(
+            "ERC404 : preopen(cypher) + mid-curve+staking(uniV4) + 2 ready-to-graduate (cinder=uniV4, molten=zamm) + stacked(zamm)"
+        );
         console.log("ERC404 : carved-demo (declaredMax=10000, reserve >= 3 ETH) awaits deploy.ts graduation WITH carve");
         console.log("Vaults : all 4 flavors used (aave/uni/zamm/cypher); AMMs: all 3 (uniV4/zamm/cypher)");
         console.log("Profiles: 2 (MS2 Labs, Vela) + activity. block.timestamp now:", block.timestamp);
@@ -175,7 +172,7 @@ contract SeedAnvil is Script {
     function _transferAdmin(Deployed memory) internal {
         vm.startBroadcast(deployerKey);
         // Fund ADMIN so it can pay gas + value actions (queuePiece deposit, bids, buys) immediately.
-        (bool funded,) = ADMIN.call{value: 50 ether}("");
+        (bool funded,) = ADMIN.call{ value: 50 ether }("");
         require(funded, "fund ADMIN failed");
         for (uint256 i = 0; i < _instances.length; i++) {
             IOwnable(_instances[i]).transferOwnership(ADMIN);
@@ -190,18 +187,18 @@ contract SeedAnvil is Script {
     function _readDeployed() internal view returns (Deployed memory d) {
         string memory json = vm.readFile("./deployments/anvil.json");
         d.erc1155 = ERC1155Factory(vm.parseJsonAddress(json, ".factories.ERC1155"));
-        d.erc721  = ERC721AuctionFactory(vm.parseJsonAddress(json, ".factories.ERC721"));
-        d.erc404  = ERC404Factory(payable(vm.parseJsonAddress(json, ".factories.ERC404")));
+        d.erc721 = ERC721AuctionFactory(vm.parseJsonAddress(json, ".factories.ERC721"));
+        d.erc404 = ERC404Factory(payable(vm.parseJsonAddress(json, ".factories.ERC404")));
         d.profiles = ProfileRegistry(vm.parseJsonAddress(json, ".contracts.ProfileRegistry"));
         d.queue = FeaturedQueueManager(payable(vm.parseJsonAddress(json, ".contracts.FeaturedQueueManager")));
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(json, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(json, ".contracts.ERC404StakingModule");
-        d.zammDeployer  = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
-        d.uniDeployer   = vm.parseJsonAddress(json, ".contracts.ModuleUniV4Deployer");
+        d.zammDeployer = vm.parseJsonAddress(json, ".contracts.ModuleZAMMDeployer");
+        d.uniDeployer = vm.parseJsonAddress(json, ".contracts.ModuleUniV4Deployer");
         d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
         d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
-        d.overlay        = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
-        d.tier           = vm.parseJsonAddress(json, ".contracts.TierRevealModule");
+        d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
+        d.tier = vm.parseJsonAddress(json, ".contracts.TierRevealModule");
         // Resolve the seed's vaults by FAMILY via DeployCore's convenience pointers, not by index
         // into the `vaults` array — that array's ordering shifts as LP families (ZAMM/Cypher) are
         // enabled per network, so a fixed index silently binds to the wrong vault type.
@@ -255,17 +252,18 @@ contract SeedAnvil is Script {
             stakingModule: address(0),
             declaredMaxAllowanceBps: 0 // agent demo keeps default no-carve economics
         });
-        address instance = d.erc404.createInstance(
-            params,
-            _collectionMeta(
-                "Agent Commission",
-                "Commissioned via an authorized agent on behalf of a collector. The agent created it; the collector owns it.",
-                ART_SLAB
-            ),
-            d.uniDeployer,
-            address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
-        );
+        address instance = d.erc404
+            .createInstance(
+                params,
+                _collectionMeta(
+                    "Agent Commission",
+                    "Commissioned via an authorized agent on behalf of a collector. The agent created it; the collector owns it.",
+                    ART_SLAB
+                ),
+                d.uniDeployer,
+                address(0),
+                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+            );
         vm.stopBroadcast();
 
         // 3. Confirm the wiring: the person owns it, and it is flagged agent-created.
@@ -286,54 +284,109 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
 
         // c0 binds to the Aave ENDOWMENT vault so its collection page shows the endowment panel.
-        c0 = _createCollection(d.erc1155, d.endowmentVault, 0,
-            "neon-drift", "Neon Drift",
-            "Generative monochrome fragments. An edition aligned to the MS2 community.", ART_NEON_DRIFT, 0);
-        address c1 = _createCollection(d.erc1155, d.vault, 1,
-            "monolith", "Monolith",
-            "One slab, many hands. A minimalist open edition.", ART_MONOLITH, 0);
+        c0 = _createCollection(
+            d.erc1155,
+            d.endowmentVault,
+            0,
+            "neon-drift",
+            "Neon Drift",
+            "Generative monochrome fragments. An edition aligned to the MS2 community.",
+            ART_NEON_DRIFT,
+            0
+        );
+        address c1 = _createCollection(
+            d.erc1155,
+            d.vault,
+            1,
+            "monolith",
+            "Monolith",
+            "One slab, many hands. A minimalist open edition.",
+            ART_MONOLITH,
+            0
+        );
         // c2: free-claim. allocation=5 reserved free mints, configured at creation by the factory
         // (initializeFreeMint is onlyFactory — it is NOT called post-create from this script).
-        address c2 = _createCollection(d.erc1155, d.vault, 2,
-            "ghost-mint", "Ghost Mint",
-            "Faint signals from the fossil layer. Free-claim editions.", ART_GHOST_MINT, 5);
+        address c2 = _createCollection(
+            d.erc1155,
+            d.vault,
+            2,
+            "ghost-mint",
+            "Ghost Mint",
+            "Faint signals from the fossil layer. Free-claim editions.",
+            ART_GHOST_MINT,
+            5
+        );
 
         // Editions. basePrice must be > 0 even for the free-claim collection (addEdition reverts on
         // zero price; claimFreeMint ignores price — the edition just needs to exist as a target).
         // PricingModel: 0=UNLIMITED (open, fixed price, supply MUST be 0), 1=LIMITED_FIXED,
         // 2=LIMITED_DYNAMIC (needs the dynamic module + a non-zero rate). openTime=0 => open now.
-        ERC1155Instance(c0).addEdition(
-            "Aberration #1", 0.01 ether, 50, _pieceMeta("Aberration #1", ART_ABERRATION, "neon-drift"),
-            ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
-        ERC1155Instance(c0).addEdition(
-            "Drift Open", 0.005 ether, 0, _pieceMeta("Drift Open", ART_DRIFT_OPEN, "neon-drift"),
-            ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        ERC1155Instance(c0)
+            .addEdition(
+                "Aberration #1",
+                0.01 ether,
+                50,
+                _pieceMeta("Aberration #1", ART_ABERRATION, "neon-drift"),
+                ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
+                0
+            );
+        ERC1155Instance(c0)
+            .addEdition(
+                "Drift Open",
+                0.005 ether,
+                0,
+                _pieceMeta("Drift Open", ART_DRIFT_OPEN, "neon-drift"),
+                ERC1155Instance.PricingModel.UNLIMITED,
+                0,
+                0
+            );
 
-        ERC1155Instance(c1).addEdition(
-            "Slab", 0.002 ether, 0, _pieceMeta("Slab", ART_SLAB, "monolith"),
-            ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        ERC1155Instance(c1)
+            .addEdition(
+                "Slab",
+                0.002 ether,
+                0,
+                _pieceMeta("Slab", ART_SLAB, "monolith"),
+                ERC1155Instance.PricingModel.UNLIMITED,
+                0,
+                0
+            );
 
         // ghost-mint needs at least one edition so claimFreeMint has a target.
-        ERC1155Instance(c2).addEdition(
-            "Ghost", 0.001 ether, 100, _pieceMeta("Ghost", ART_GHOST, "ghost-mint"),
-            ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
+        ERC1155Instance(c2)
+            .addEdition(
+                "Ghost",
+                0.001 ether,
+                100,
+                _pieceMeta("Ghost", ART_GHOST, "ghost-mint"),
+                ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
+                0
+            );
 
         // Feature each (rentFeatured) so it surfaces in getHomePageData. rankBoost descends for a
         // stable order; a generous value covers the cost and the excess refunds.
         uint256 duration = 30 days;
-        d.queue.rentFeatured{value: 1 ether}(c0, duration, 0.03 ether);
-        d.queue.rentFeatured{value: 1 ether}(c1, duration, 0.02 ether);
-        d.queue.rentFeatured{value: 1 ether}(c2, duration, 0.01 ether);
+        d.queue.rentFeatured{ value: 1 ether }(c0, duration, 0.03 ether);
+        d.queue.rentFeatured{ value: 1 ether }(c1, duration, 0.02 ether);
+        d.queue.rentFeatured{ value: 1 ether }(c2, duration, 0.01 ether);
 
         // Seed the endowment so c0's vault panel shows real principal (benefactor = the c0 instance).
-        IAlignmentVault(payable(d.endowmentVault)).receiveContribution{value: 0.5 ether}(
+        IAlignmentVault(payable(d.endowmentVault)).receiveContribution{ value: 0.5 ether }(
             Currency.wrap(address(0)), 0.5 ether, c0
         );
 
         // Deployer profile + activity (POST=0 to own wall: instance == sender).
-        d.profiles.setProfile(_profileMeta(
-            "MS2 Labs", "ms2labs",
-            "Building the lean onchain launchpad. Alignment is the product.", ART_AVATAR_1));
+        d.profiles
+            .setProfile(
+                _profileMeta(
+                    "MS2 Labs",
+                    "ms2labs",
+                    "Building the lean onchain launchpad. Alignment is the product.",
+                    ART_AVATAR_1
+                )
+            );
         _post(d.messages, deployer, "gm. neon-drift is live and aligned to MS2.");
         _post(d.messages, deployer, "the vault is the product. alignment compounds.");
         _post(d.messages, c0, "first drop. minting is open.");
@@ -358,7 +411,7 @@ contract SeedAnvil is Script {
             vault: vault,
             styleUri: "",
             gatingModule: address(0),
-            freeMint: FreeMintParams({allocation: freeMintAllocation, scope: GatingScope.BOTH})
+            freeMint: FreeMintParams({ allocation: freeMintAllocation, scope: GatingScope.BOTH })
         });
         bytes32 salt = keccak256(abi.encode(block.timestamp, index, slug));
         instance = factory.createInstance(salt, params);
@@ -375,19 +428,24 @@ contract SeedAnvil is Script {
     function _seedErc721Gallery(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address gallery = _createAuction(
-            d, "gallery-relics", "Gallery Relics",
+            d,
+            "gallery-relics",
+            "Gallery Relics",
             "A single-line auction house for salvaged relics - one piece up at a time, highest bid takes it. ~20% of the hammer binds to the alignment vault.",
-            "GAL", ART_GALLERY, 1 hours);
+            "GAL",
+            ART_GALLERY,
+            1 hours
+        );
         ERC721AuctionInstance g = ERC721AuctionInstance(payable(gallery));
         // Each queuePiece's msg.value = minBid; first piece per line auto-starts (endTime = now+1h).
-        g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic I", ART_RELIC_I, "gallery-relics"));  // tokenId 1, line 0
-        g.queuePiece{value: 0.05 ether}(_pieceMeta("Relic II", ART_RELIC_II, "gallery-relics")); // tokenId 2, line 1
-        d.queue.rentFeatured{value: 1 ether}(gallery, 30 days, 0.025 ether);
+        g.queuePiece{ value: 0.05 ether }(_pieceMeta("Relic I", ART_RELIC_I, "gallery-relics")); // tokenId 1, line 0
+        g.queuePiece{ value: 0.05 ether }(_pieceMeta("Relic II", ART_RELIC_II, "gallery-relics")); // tokenId 2, line 1
+        d.queue.rentFeatured{ value: 1 ether }(gallery, 30 days, 0.025 ether);
         vm.stopBroadcast();
 
         // acct1 bids on piece #1 (a non-owner EOA; settleAuction _safeMints to the winner).
         vm.startBroadcast(ACCOUNT_1_KEY);
-        g.createBid{value: 0.1 ether}(1, "");
+        g.createBid{ value: 0.1 ether }(1, "");
         vm.stopBroadcast();
     }
 
@@ -399,17 +457,22 @@ contract SeedAnvil is Script {
     function _seedErc721Live(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address live = _createAuction(
-            d, "live-salon", "Live Salon",
+            d,
+            "live-salon",
+            "Live Salon",
             "The Live Salon runs a rolling single-line auction - a new work on the block, bidding open now. Collect the piece, fund the vault.",
-            "LIV", ART_LIVE_SALON, 1 days);
+            "LIV",
+            ART_LIVE_SALON,
+            1 days
+        );
         ERC721AuctionInstance l = ERC721AuctionInstance(payable(live));
-        l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon I", ART_SALON_I, "live-salon"));  // tokenId 1, line 0
-        l.queuePiece{value: 0.05 ether}(_pieceMeta("Salon II", ART_SALON_II, "live-salon")); // tokenId 2, line 1
-        d.queue.rentFeatured{value: 1 ether}(live, 30 days, 0.04 ether);
+        l.queuePiece{ value: 0.05 ether }(_pieceMeta("Salon I", ART_SALON_I, "live-salon")); // tokenId 1, line 0
+        l.queuePiece{ value: 0.05 ether }(_pieceMeta("Salon II", ART_SALON_II, "live-salon")); // tokenId 2, line 1
+        d.queue.rentFeatured{ value: 1 ether }(live, 30 days, 0.04 ether);
         vm.stopBroadcast();
 
         vm.startBroadcast(ACCOUNT_1_KEY);
-        l.createBid{value: 0.1 ether}(1, ""); // piece #1 active-with-bids; piece #2 stays no-bid
+        l.createBid{ value: 0.1 ether }(1, ""); // piece #1 active-with-bids; piece #2 stays no-bid
         vm.stopBroadcast();
     }
 
@@ -447,13 +510,21 @@ contract SeedAnvil is Script {
         // Cypher LP venue + Cypher (Algebra) vault — covers the Cypher family (it stays preopen, so
         // the Algebra pool is never actually deployed; the graduated-swap Cypher path is link-out anyway).
         address inst = _createBonding(
-            d, "ember-preopen", "Ember",
+            d,
+            "ember-preopen",
+            "Ember",
             "Ember hasn't caught yet. When the curve opens, each buy mints a glowing shard; ~20% of every trade binds to the alignment vault, by contract.",
-            "EMBER", ART_EMBER, address(0), d.cypherVault, d.cypherDeployer, 0);
+            "EMBER",
+            ART_EMBER,
+            address(0),
+            d.cypherVault,
+            d.cypherDeployer,
+            0
+        );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 days); // strictly future -> preopen
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.06 ether);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.06 ether);
         vm.stopBroadcast();
     }
 
@@ -464,16 +535,24 @@ contract SeedAnvil is Script {
         vm.startBroadcast(deployerKey);
         // Uni-V4 LP venue + Uni LP vault (mid-curve; does not graduate).
         address inst = _createBonding(
-            d, "vapor-mid", "Vapor",
+            d,
+            "vapor-mid",
+            "Vapor",
             "Vapor is live on the curve - trade the coin, hold the piece, stake for a cut of the flow. A DN404 where the token and the art are one asset.",
-            "VAPOR", ART_VAPOR, d.stakingModule, d.vault, d.uniDeployer, 10000);
+            "VAPOR",
+            ART_VAPOR,
+            d.stakingModule,
+            d.vault,
+            d.uniDeployer,
+            10000
+        );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime must be strictly future at broadcast; set it +1h so the seed never reverts on
         // broadcast lag. The post-seed +2h chain advance (deploy.ts) crosses it -> derivePhase=bonding.
         // buyBonding does NOT gate on openTime, so the seed buys land now regardless.
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.05 ether);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.05 ether);
 
         // Buy amount: >= normalizationFactor (else cost rounds to 0 -> PurchaseTooSmall) and well
         // under maxBondingSupply (~9e24 for preset 1: maxSupply 1e25 - 10% reserve). unit = 1e24.
@@ -506,15 +585,31 @@ contract SeedAnvil is Script {
         // Uni-V4 LP venue + Uni LP vault — graduating stands up a real V4 pool (embedded swapV4).
         // Declared max 10000: the creator kept full carve rights (shown pre-buy on the primary surface).
         _seedReadyToGraduate(
-            d, "cinder-ready", "Cinder",
+            d,
+            "cinder-ready",
+            "Cinder",
             "Cinder's curve is nearly spent - one push from graduating to a Uniswap V4 pool. Late embers, deep discounts.",
-            "CINDER", ART_CINDER, d.vault, d.uniDeployer, 0.045 ether, 10000);
+            "CINDER",
+            ART_CINDER,
+            d.vault,
+            d.uniDeployer,
+            0.045 ether,
+            10000
+        );
         // ZAMM LP venue + ZAMM LP vault — graduating stands up a ZAMM pool (embedded swapVZ).
         // Declared max 2500: a partial-carve disclosure so the UI shows a non-round value too.
         _seedReadyToGraduate(
-            d, "molten-ready", "Molten",
+            d,
+            "molten-ready",
+            "Molten",
             "Molten runs hot and ready to pour - matured and one call from a ZAMM pool. The curve's last stretch before the DEX.",
-            "MOLTEN", ART_MOLTEN, d.zammVault, d.zammDeployer, 0.043 ether, 2500);
+            "MOLTEN",
+            ART_MOLTEN,
+            d.zammVault,
+            d.zammDeployer,
+            0.043 ether,
+            2500
+        );
     }
 
     function _seedReadyToGraduate(
@@ -530,14 +625,15 @@ contract SeedAnvil is Script {
         uint16 declaredMaxBps
     ) internal {
         vm.startBroadcast(deployerKey);
-        address inst = _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_, declaredMaxBps);
+        address inst =
+            _createBonding(d, slug, name, description, symbol, image, address(0), vault, deployer_, declaredMaxBps);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         // openTime +1h (safe future), maturity +90m (> openTime, < the +2h advance) so after the
         // advance the curve is open (bonding) AND matured (graduate unlocked).
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, rankBoost);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, rankBoost);
         vm.stopBroadcast();
         // _buyBonding manages its own broadcast — call it OUTSIDE the block above (no nesting).
         _buyBonding(b, deployerKey, 1e23);
@@ -554,14 +650,22 @@ contract SeedAnvil is Script {
     function _seedErc404CarveDemo(Deployed memory d) internal {
         vm.startBroadcast(deployerKey);
         address inst = _createBonding(
-            d, "carved-demo", "Carved",
+            d,
+            "carved-demo",
+            "Carved",
             "Carved declared its full creator carve up front - the maximum cut was on the label before the first buy. Graduated with the carve taken; the pool floor held.",
-            "CARVE", ART_CARVED, address(0), d.vault, d.uniDeployer, 10000);
+            "CARVE",
+            ART_CARVED,
+            address(0),
+            d.vault,
+            d.uniDeployer,
+            10000
+        );
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingMaturityTime(block.timestamp + 90 minutes);
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.041 ether);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.041 ether);
         vm.stopBroadcast();
 
         // Walk the curve until the reserve clears 3 ETH so the carve has real headroom above the
@@ -582,13 +686,12 @@ contract SeedAnvil is Script {
     function _seedErc404Stacked(Deployed memory d) internal {
         // Build the sealed tier table: ids 1-2 are the rare subset, threshold = 1 unit (1e24 for preset 1).
         TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] = TierRevealModule.Tier({
-            idStart: 1, idEnd: 2, minBalance: 1e24, baseURI: "rare-", lockedURI: "locked-"
-        });
+        tiers[0] =
+            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: 1e24, baseURI: "rare-", lockedURI: "locked-" });
 
         address[] memory children = new address[](2);
         children[0] = d.overlay; // precedence: holder pins/events win over...
-        children[1] = d.tier;    // ...ambient rarity reveal
+        children[1] = d.tier; // ...ambient rarity reveal
 
         ERC404Factory.MetadataConfig memory meta = ERC404Factory.MetadataConfig({
             resolver: d.resolverRouter,
@@ -615,24 +718,26 @@ contract SeedAnvil is Script {
             declaredMaxAllowanceBps: 0 // no carve rights — metadata demo, not an economics one
         });
         TierConfig memory noGating;
-        address inst = d.erc404.createInstance(
-            params,
-            _collectionMeta(
-                "Prism",
-                "Prism refracts: a rarity-tiered ERC404 where holding enough unlocks the rare face. Overlay + tier metadata, resolved on-chain.",
-                ART_PRISM),
-            d.zammDeployer,
-            address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH}),
-            noGating,
-            meta
-        );
+        address inst = d.erc404
+            .createInstance(
+                params,
+                _collectionMeta(
+                    "Prism",
+                    "Prism refracts: a rarity-tiered ERC404 where holding enough unlocks the rare face. Overlay + tier metadata, resolved on-chain.",
+                    ART_PRISM
+                ),
+                d.zammDeployer,
+                address(0),
+                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+                noGating,
+                meta
+            );
         _instances.push(inst);
 
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
         b.setBondingOpenTime(block.timestamp + 1 hours);
         b.setBondingActive(true);
-        d.queue.rentFeatured{value: 1 ether}(inst, 30 days, 0.035 ether);
+        d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.035 ether);
         vm.stopBroadcast();
 
         // Deployer buys 3 whole units WITH NFTs minted → owns ids 1,2,3 (balance 3e24 clears the tier).
@@ -644,8 +749,10 @@ contract SeedAnvil is Script {
         // An opt-in open event wave (holders select it; not auto because autoLatest=false).
         ov.publishWave(inst, "event-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
         // A paid commission on id 3 (outside the tier range), then unlock+pin it as the holder.
-        ov.setCommission(inst, 3, "commission-3", MetadataOverlayModule.CommCond.PAY, 0.01 ether, MetadataOverlayModule.Payout.ARTIST);
-        ov.unlock{value: 0.01 ether}(inst, 3);
+        ov.setCommission(
+            inst, 3, "commission-3", MetadataOverlayModule.CommCond.PAY, 0.01 ether, MetadataOverlayModule.Payout.ARTIST
+        );
+        ov.unlock{ value: 0.01 ether }(inst, 3);
         vm.stopBroadcast();
 
         console.log("STACKED prism instance:", inst);
@@ -661,7 +768,7 @@ contract SeedAnvil is Script {
         uint256 fee = (cost * b.bondingFeeBps()) / 10000;
         uint256 total = cost + fee;
         vm.startBroadcast(key);
-        b.buyBonding{value: total}(amount, total, true, bytes32(0), "", 0);
+        b.buyBonding{ value: total }(amount, total, true, bytes32(0), "", 0);
         vm.stopBroadcast();
     }
 
@@ -676,16 +783,12 @@ contract SeedAnvil is Script {
         uint256 fee = (cost * b.bondingFeeBps()) / 10000;
         uint256 total = cost + fee;
         vm.startBroadcast(key);
-        b.buyBonding{value: total}(amount, total, false, bytes32(0), "", 0);
+        b.buyBonding{ value: total }(amount, total, false, bytes32(0), "", 0);
         vm.stopBroadcast();
     }
 
     /// @dev Reconstruct the curve Params struct from the public auto-getter (returns a 5-tuple).
-    function _curveParams(ERC404BondingInstance b)
-        internal
-        view
-        returns (BondingCurveMath.Params memory p)
-    {
+    function _curveParams(ERC404BondingInstance b) internal view returns (BondingCurveMath.Params memory p) {
         (
             uint256 initialPrice,
             uint256 quarticCoeff,
@@ -732,13 +835,14 @@ contract SeedAnvil is Script {
             stakingModule: stakingModule,
             declaredMaxAllowanceBps: declaredMaxBps
         });
-        instance = d.erc404.createInstance(
-            params,
-            _collectionMeta(name, description, image),
-            deployer_,           // approved LIQUIDITY_DEPLOYER (the LP venue)
-            address(0),          // no gating
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
-        ); // msg.value 0: no creation fee on anvil
+        instance = d.erc404
+            .createInstance(
+                params,
+                _collectionMeta(name, description, image),
+                deployer_, // approved LIQUIDITY_DEPLOYER (the LP venue)
+                address(0), // no gating
+                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+            ); // msg.value 0: no creation fee on anvil
         _instances.push(instance); // tracked so _transferAdmin hands ownership to ADMIN
     }
 
@@ -754,13 +858,10 @@ contract SeedAnvil is Script {
     ///      postThreshold are hidden from the feed (display-side); the ETH accrues in the registry.
     ///      Seeded threshold stays 0 (feed shows everything) so raising the lever in the admin panel
     ///      has varied-value posts to act on.
-    function _postValued(
-        GlobalMessageRegistry messages,
-        address channel,
-        string memory content,
-        uint256 value
-    ) internal {
-        messages.post{value: value}(channel, 0, 0, bytes32(0), bytes32(0), content);
+    function _postValued(GlobalMessageRegistry messages, address channel, string memory content, uint256 value)
+        internal
+    {
+        messages.post{ value: value }(channel, 0, 0, bytes32(0), bytes32(0), content);
     }
 
     // ── Real art (mainnet-harvested, gateway-verified IPFS CIDs) ─────────────────
@@ -798,44 +899,53 @@ contract SeedAnvil is Script {
     // ipfs:// pointer (no quotes/backslashes to escape), which the frontend resolver races across
     // gateways.
 
-    function _collectionMeta(
-        string memory name,
-        string memory description,
-        string memory image
-    ) internal pure returns (string memory) {
+    function _collectionMeta(string memory name, string memory description, string memory image)
+        internal
+        pure
+        returns (string memory)
+    {
         return string.concat(
-            "data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
-            "\",\"description\":\"", description,
-            "\",\"category\":\"edition\",\"image\":\"", image,
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"description\":\"",
+            description,
+            "\",\"category\":\"edition\",\"image\":\"",
+            image,
             "\"}"
         );
     }
 
     /// @dev Per-piece/edition metadata (same shape, piece-scoped name + image).
-    function _pieceMeta(
-        string memory name,
-        string memory image,
-        string memory collection
-    ) internal pure returns (string memory) {
+    function _pieceMeta(string memory name, string memory image, string memory collection)
+        internal
+        pure
+        returns (string memory)
+    {
         return string.concat(
-            "data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
-            "\",\"collection\":\"", collection,
-            "\",\"image\":\"", image,
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"collection\":\"",
+            collection,
+            "\",\"image\":\"",
+            image,
             "\"}"
         );
     }
 
-    function _profileMeta(
-        string memory name,
-        string memory handle,
-        string memory bio,
-        string memory image
-    ) internal pure returns (string memory) {
+    function _profileMeta(string memory name, string memory handle, string memory bio, string memory image)
+        internal
+        pure
+        returns (string memory)
+    {
         return string.concat(
-            "data:application/json,{\"schemaVersion\":1,\"name\":\"", name,
-            "\",\"handle\":\"", handle,
-            "\",\"bio\":\"", bio,
-            "\",\"avatar\":\"", image,
+            "data:application/json,{\"schemaVersion\":1,\"name\":\"",
+            name,
+            "\",\"handle\":\"",
+            handle,
+            "\",\"bio\":\"",
+            bio,
+            "\",\"avatar\":\"",
+            image,
             "\"}"
         );
     }

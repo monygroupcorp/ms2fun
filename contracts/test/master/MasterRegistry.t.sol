@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {MasterRegistryV1} from "../../src/master/MasterRegistryV1.sol";
-import {AlignmentRegistryV1} from "../../src/master/AlignmentRegistryV1.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 contract MockFactory {
     address public creator;
     address public protocol;
+
     constructor(address _creator, address _protocol) {
         creator = _creator;
         protocol = _protocol;
@@ -19,6 +20,7 @@ contract MockFactory {
 
 contract MockVaultSimple {
     address public alignmentToken;
+
     constructor(address _token) {
         alignmentToken = _token;
     }
@@ -91,12 +93,7 @@ contract MasterRegistryReworkTest is Test {
     function test_RegisterVault_OwnerOnly() public {
         // Create an alignment target with dummyToken
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: dummyToken,
-            symbol: "DUMMY",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: dummyToken, symbol: "DUMMY", info: "", metadataURI: "" });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget("Test Target", "", "", assets);
@@ -163,12 +160,7 @@ contract MasterRegistryReworkTest is Test {
 
     function _setupTargetAndVault(address token) internal returns (uint256 targetId, address vault) {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: token,
-            symbol: "TKN",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: token, symbol: "TKN", info: "", metadataURI: "" });
         vm.prank(daoOwner);
         targetId = alignmentRegistry.registerAlignmentTarget("Target", "", "", assets);
         vault = address(new MockVaultSimple(token));

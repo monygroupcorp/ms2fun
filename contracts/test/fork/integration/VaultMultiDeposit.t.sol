@@ -70,7 +70,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // Set V4 pool key - H-02: Hook requires native ETH (address(0)), not WETH
         vm.prank(owner);
         PoolKey memory poolKey = PoolKey({
-            currency0: Currency.wrap(address(0)),  // Native ETH
+            currency0: Currency.wrap(address(0)), // Native ETH
             currency1: Currency.wrap(alignmentToken),
             fee: 3000,
             tickSpacing: 60,
@@ -96,12 +96,12 @@ contract VaultMultiDepositTest is ForkTestBase {
     function _contribute(address contributor, uint256 amount) internal {
         vm.deal(contributor, amount);
         vm.prank(contributor);
-        (bool success,) = address(vault).call{value: amount}("");
+        (bool success,) = address(vault).call{ value: amount }("");
         require(success, "Contribution failed");
     }
 
     /// @notice Accept caller rewards from vault
-    receive() external payable {}
+    receive() external payable { }
 
     /// @notice Test: Two cycles with equal contributions
     function test_twoCycles_equalContributions_equalSharesWithinTolerance() public {
@@ -198,11 +198,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         assertGt(bobSharesFinal, 0, "Bob should have final shares");
 
         // Verify total shares = alice + bob
-        assertEq(
-            vault.totalShares(),
-            aliceSharesFinal + bobSharesFinal,
-            "Total shares mismatch"
-        );
+        assertEq(vault.totalShares(), aliceSharesFinal + bobSharesFinal, "Total shares mismatch");
 
         emit log_string("");
         emit log_string("[PASS] Shares accumulate correctly across 3 cycles");
@@ -278,7 +274,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // First fee accumulation: 1 ETH
         vm.deal(owner, 1 ether);
         vm.prank(owner);
-        vault.depositFees{value: 1 ether}();
+        vault.depositFees{ value: 1 ether }();
 
         emit log_string("");
         emit log_string("--- First Fee Accumulation: 1 ETH ---");
@@ -295,7 +291,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // Second fee accumulation: 2 ETH more
         vm.deal(owner, 2 ether);
         vm.prank(owner);
-        vault.depositFees{value: 2 ether}();
+        vault.depositFees{ value: 2 ether }();
 
         emit log_string("");
         emit log_string("--- Second Fee Accumulation: 2 ETH more (3 ETH total) ---");
@@ -359,7 +355,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         uint256 bobPercent = (bobShares * 10000) / total;
 
         emit log_named_uint("Alice % (bps)", alicePercent); // ~9090 (90.9%)
-        emit log_named_uint("Bob % (bps)", bobPercent);     // ~909 (9.1%)
+        emit log_named_uint("Bob % (bps)", bobPercent); // ~909 (9.1%)
 
         // Alice should have ~90.9%, Bob ~9.1%
         assertApproxEqAbs(alicePercent, 9091, 100, "Alice should have ~90.9%");
@@ -395,8 +391,8 @@ contract VaultMultiDepositTest is ForkTestBase {
         uint256 bobPercent = (bobShares * 10000) / total;
         uint256 charliePercent = (charlieShares * 10000) / total;
 
-        emit log_named_uint("Alice % (bps)", alicePercent);   // Should be ~5000 (50%)
-        emit log_named_uint("Bob % (bps)", bobPercent);       // Should be ~3000 (30%)
+        emit log_named_uint("Alice % (bps)", alicePercent); // Should be ~5000 (50%)
+        emit log_named_uint("Bob % (bps)", bobPercent); // Should be ~3000 (30%)
         emit log_named_uint("Charlie % (bps)", charliePercent); // Should be ~2000 (20%)
 
         // Verify percentages (within 1%)
@@ -411,7 +407,7 @@ contract VaultMultiDepositTest is ForkTestBase {
         // Deposit 20 ETH in fees to match the 20 ETH total contributions (5:3:2 ratio)
         vm.deal(owner, 20 ether);
         vm.prank(owner);
-        vault.depositFees{value: 20 ether}();
+        vault.depositFees{ value: 20 ether }();
 
         // Each claims
         vm.prank(alice);
@@ -432,10 +428,7 @@ contract VaultMultiDepositTest is ForkTestBase {
 
         // Total claimed should equal total fees
         assertApproxEqAbs(
-            aliceClaim + bobClaim + charlieClaim,
-            20 ether,
-            0.1 ether,
-            "Total claims should equal total fees"
+            aliceClaim + bobClaim + charlieClaim, 20 ether, 0.1 ether, "Total claims should equal total fees"
         );
 
         emit log_string("");

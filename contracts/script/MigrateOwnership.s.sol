@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Script, console} from "forge-std/Script.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract MigrateOwnership is Script {
     function run() external {

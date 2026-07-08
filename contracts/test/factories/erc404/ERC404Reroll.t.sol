@@ -2,7 +2,12 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { ERC404BondingInstance, InsufficientTokenBalance, TokenAmountMustBePositive, TokenAmountMustRepresentNFT } from "src/factories/erc404/ERC404BondingInstance.sol";
+import {
+    ERC404BondingInstance,
+    InsufficientTokenBalance,
+    TokenAmountMustBePositive,
+    TokenAmountMustRepresentNFT
+} from "src/factories/erc404/ERC404BondingInstance.sol";
 import { CurveParamsComputer } from "src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -30,11 +35,7 @@ contract ERC404RerollTest is Test {
 
         // Create bonding instance
         BondingCurveMath.Params memory curveParams = BondingCurveMath.Params({
-            initialPrice: 0.0001 ether,
-            quarticCoeff: 1,
-            cubicCoeff: 1,
-            quadraticCoeff: 1,
-            normalizationFactor: 1e18
+            initialPrice: 0.0001 ether, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1e18
         });
 
         // Note: factory = msg.sender (address(this)) is set during initialize()
@@ -50,13 +51,15 @@ contract ERC404RerollTest is Test {
         });
         token.initialize(owner, address(0xBEEF), bonding, mockLiquidityDeployer, address(0));
 
-        token.initializeProtocol(ERC404BondingInstance.ProtocolParams({
-            globalMessageRegistry: address(0x700),
-            protocolTreasury: address(0xFEE),
-            masterRegistry: mockMasterRegistry,
-            bondingFeeBps: 100,
-            weth: address(0xBEEF)
-        }));
+        token.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: address(0x700),
+                protocolTreasury: address(0xFEE),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
 
         token.initializeMetadata("TestToken", "TEST", "", "");
 

@@ -1,18 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {TierRevealModule} from "../../src/metadata/TierRevealModule.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test } from "forge-std/Test.sol";
+import { TierRevealModule } from "../../src/metadata/TierRevealModule.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract ToggleRegistry {
     mapping(address => bool) public factories;
-    function setFactory(address a, bool v) external { factories[a] = v; }
-    function isFactoryRegistered(address a) external view returns (bool) { return factories[a]; }
+
+    function setFactory(address a, bool v) external {
+        factories[a] = v;
+    }
+
+    function isFactoryRegistered(address a) external view returns (bool) {
+        return factories[a];
+    }
 
     mapping(address => address) public instFactory;
-    function setInstanceFactory(address inst, address f) external { instFactory[inst] = f; }
+
+    function setInstanceFactory(address inst, address f) external {
+        instFactory[inst] = f;
+    }
+
     function getInstanceInfo(address inst) external view returns (IMasterRegistry.InstanceInfo memory info) {
         info.instance = inst;
         info.factory = instFactory[inst];
@@ -23,13 +33,22 @@ contract ToggleRegistry {
 contract MockInstance {
     mapping(address => uint256) public balanceOf;
     address public stakingModule;
-    function setBalance(address a, uint256 v) external { balanceOf[a] = v; }
-    function setStaking(address s) external { stakingModule = s; }
+
+    function setBalance(address a, uint256 v) external {
+        balanceOf[a] = v;
+    }
+
+    function setStaking(address s) external {
+        stakingModule = s;
+    }
 }
 
 contract MockStaking {
     mapping(address => mapping(address => uint256)) public stakedBalance;
-    function set(address inst, address holder, uint256 v) external { stakedBalance[inst][holder] = v; }
+
+    function set(address inst, address holder, uint256 v) external {
+        stakedBalance[inst][holder] = v;
+    }
 }
 
 contract TierRevealModuleTest is Test {
@@ -53,9 +72,8 @@ contract TierRevealModuleTest is Test {
 
     function _oneTier(uint256 minBal) internal pure returns (TierRevealModule.Tier[] memory ts) {
         ts = new TierRevealModule.Tier[](1);
-        ts[0] = TierRevealModule.Tier({
-            idStart: 1, idEnd: 3, minBalance: minBal, baseURI: "rare-", lockedURI: "locked-"
-        });
+        ts[0] =
+            TierRevealModule.Tier({ idStart: 1, idEnd: 3, minBalance: minBal, baseURI: "rare-", lockedURI: "locked-" });
     }
 
     function _seal(TierRevealModule.Tier[] memory ts) internal {
@@ -78,7 +96,7 @@ contract TierRevealModuleTest is Test {
 
     function test_initTiers_rejectsInvalidRange() public {
         TierRevealModule.Tier[] memory ts = new TierRevealModule.Tier[](1);
-        ts[0] = TierRevealModule.Tier({idStart: 5, idEnd: 2, minBalance: UNIT, baseURI: "r", lockedURI: ""});
+        ts[0] = TierRevealModule.Tier({ idStart: 5, idEnd: 2, minBalance: UNIT, baseURI: "r", lockedURI: "" });
         vm.prank(factory);
         vm.expectRevert(TierRevealModule.InvalidRange.selector);
         tier.initTiers(address(inst), ts);
@@ -86,8 +104,8 @@ contract TierRevealModuleTest is Test {
 
     function test_initTiers_rejectsOverlappingOrDescending() public {
         TierRevealModule.Tier[] memory ts = new TierRevealModule.Tier[](2);
-        ts[0] = TierRevealModule.Tier({idStart: 1, idEnd: 5, minBalance: UNIT, baseURI: "a", lockedURI: ""});
-        ts[1] = TierRevealModule.Tier({idStart: 5, idEnd: 9, minBalance: UNIT, baseURI: "b", lockedURI: ""}); // 5 overlaps
+        ts[0] = TierRevealModule.Tier({ idStart: 1, idEnd: 5, minBalance: UNIT, baseURI: "a", lockedURI: "" });
+        ts[1] = TierRevealModule.Tier({ idStart: 5, idEnd: 9, minBalance: UNIT, baseURI: "b", lockedURI: "" }); // 5 overlaps
         vm.prank(factory);
         vm.expectRevert(TierRevealModule.RangesNotAscending.selector);
         tier.initTiers(address(inst), ts);
@@ -111,8 +129,8 @@ contract TierRevealModuleTest is Test {
         MockStaking staking = new MockStaking();
         inst.setStaking(address(staking));
         _seal(_oneTier(3 * UNIT));
-        inst.setBalance(holder, UNIT);                       // 1 unit in wallet
-        staking.set(address(inst), holder, 2 * UNIT);        // +2 staked = 3 effective
+        inst.setBalance(holder, UNIT); // 1 unit in wallet
+        staking.set(address(inst), holder, 2 * UNIT); // +2 staked = 3 effective
         assertEq(tier.resolve(address(inst), 1, holder), "rare-1");
     }
 
@@ -138,7 +156,7 @@ contract TierRevealModuleTest is Test {
     /// @dev lockedURI == "" → in-range-but-locked falls through to collection base.
     function test_resolve_emptyLockedFallsThrough() public {
         TierRevealModule.Tier[] memory ts = new TierRevealModule.Tier[](1);
-        ts[0] = TierRevealModule.Tier({idStart: 1, idEnd: 3, minBalance: UNIT, baseURI: "rare-", lockedURI: ""});
+        ts[0] = TierRevealModule.Tier({ idStart: 1, idEnd: 3, minBalance: UNIT, baseURI: "rare-", lockedURI: "" });
         _seal(ts);
         assertEq(tier.resolve(address(inst), 2, holder), ""); // holder under threshold, no teaser
     }
@@ -147,13 +165,16 @@ contract TierRevealModuleTest is Test {
     ///      "hold more → reveal rarer."
     function test_resolve_tieredLadder_selectsCorrectTier() public {
         TierRevealModule.Tier[] memory ts = new TierRevealModule.Tier[](2);
-        ts[0] = TierRevealModule.Tier({idStart: 1, idEnd: 5,  minBalance: 2 * UNIT,  baseURI: "rare-",   lockedURI: "lo1-"});
-        ts[1] = TierRevealModule.Tier({idStart: 6, idEnd: 10, minBalance: 10 * UNIT, baseURI: "legend-", lockedURI: "lo2-"});
+        ts[0] =
+            TierRevealModule.Tier({ idStart: 1, idEnd: 5, minBalance: 2 * UNIT, baseURI: "rare-", lockedURI: "lo1-" });
+        ts[1] = TierRevealModule.Tier({
+            idStart: 6, idEnd: 10, minBalance: 10 * UNIT, baseURI: "legend-", lockedURI: "lo2-"
+        });
         _seal(ts);
 
         inst.setBalance(holder, 2 * UNIT); // clears tier 0 only
-        assertEq(tier.resolve(address(inst), 3, holder), "rare-3");  // tier 0 revealed
-        assertEq(tier.resolve(address(inst), 8, holder), "lo2-");    // tier 1 still locked (needs 10 units)
+        assertEq(tier.resolve(address(inst), 3, holder), "rare-3"); // tier 0 revealed
+        assertEq(tier.resolve(address(inst), 8, holder), "lo2-"); // tier 1 still locked (needs 10 units)
         assertEq(tier.tierCount(address(inst)), 2);
 
         inst.setBalance(holder, 10 * UNIT); // now clears both
@@ -163,8 +184,8 @@ contract TierRevealModuleTest is Test {
     /// @dev Adjacent (idStart == prev.idEnd + 1) non-overlapping ranges are valid; boundaries inclusive.
     function test_initTiers_adjacentRangesSealOk_boundariesInclusive() public {
         TierRevealModule.Tier[] memory ts = new TierRevealModule.Tier[](2);
-        ts[0] = TierRevealModule.Tier({idStart: 1, idEnd: 5, minBalance: UNIT, baseURI: "a-", lockedURI: ""});
-        ts[1] = TierRevealModule.Tier({idStart: 6, idEnd: 9, minBalance: UNIT, baseURI: "b-", lockedURI: ""});
+        ts[0] = TierRevealModule.Tier({ idStart: 1, idEnd: 5, minBalance: UNIT, baseURI: "a-", lockedURI: "" });
+        ts[1] = TierRevealModule.Tier({ idStart: 6, idEnd: 9, minBalance: UNIT, baseURI: "b-", lockedURI: "" });
         _seal(ts); // adjacent, no overlap → seals fine
         inst.setBalance(holder, UNIT);
         assertEq(tier.resolve(address(inst), 5, holder), "a-5"); // idEnd inclusive (tier 0)

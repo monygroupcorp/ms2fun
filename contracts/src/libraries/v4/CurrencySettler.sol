@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Currency} from "v4-core/types/Currency.sol";
-import {IERC20Minimal} from "v4-core/interfaces/external/IERC20Minimal.sol";
-import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IERC20Minimal } from "v4-core/interfaces/external/IERC20Minimal.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 
 /// @notice Library used to interact with PoolManager.sol to settle any open deltas.
 /// To settle a positive delta (a credit to the user), a user may take or mint.
@@ -23,7 +23,7 @@ library CurrencySettler {
         if (burn) {
             manager.burn(payer, currency.toId(), amount);
         } else if (currency.isAddressZero()) {
-            manager.settle{value: amount}();
+            manager.settle{ value: amount }();
         } else {
             manager.sync(currency);
             if (payer != address(this)) {

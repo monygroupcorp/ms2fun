@@ -46,11 +46,7 @@ interface IAlignmentRegistry {
 
     function deactivateAlignmentTarget(uint256 targetId) external;
 
-    function updateAlignmentTarget(
-        uint256 targetId,
-        string memory description,
-        string memory metadataURI
-    ) external;
+    function updateAlignmentTarget(uint256 targetId, string memory description, string memory metadataURI) external;
 
     // Ambassador Functions
     function addAmbassador(uint256 targetId, address ambassador) external;

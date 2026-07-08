@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager} from "../../interfaces/algebra/IAlgebra.sol";
-import {CypherAlignmentVault} from "../../vaults/cypher/CypherAlignmentVault.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
-import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager } from "../../interfaces/algebra/IAlgebra.sol";
+import { CypherAlignmentVault } from "../../vaults/cypher/CypherAlignmentVault.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -48,10 +48,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     int24 public constant TICK_LOWER = -887220;
     int24 public constant TICK_UPPER = 887220;
 
-    event LiquidityDeployed(
-        address indexed vault, address pool, uint256 tokenId,
-        uint256 ethToLP, uint256 tokenToLP
-    );
+    event LiquidityDeployed(address indexed vault, address pool, uint256 tokenId, uint256 ethToLP, uint256 tokenToLP);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
     event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
@@ -60,10 +57,10 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         uint256 tokenId;
         address pool;
         uint256 ethToLP;
-        uint256 protocolFee;  // 1% of raise + 1% of carve
-        uint256 vaultCut;     // 19% of raise + 19% of carve
-        uint256 creatorCut;   // 80% of carve → creator
-        uint256 carvePaid;    // effective gross carve (for CreatorCarvePaid)
+        uint256 protocolFee; // 1% of raise + 1% of carve
+        uint256 vaultCut; // 19% of raise + 19% of carve
+        uint256 creatorCut; // 80% of carve → creator
+        uint256 carvePaid; // effective gross carve (for CreatorCarvePaid)
         bool tokenIsZero;
     }
 
@@ -92,21 +89,19 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
         RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
         r.protocolFee = g.protocolCut;
-        r.vaultCut    = g.vaultCut;
-        r.creatorCut  = g.creatorCut;
-        r.carvePaid   = g.carveApplied;
-        r.ethToLP     = g.ethForPool;
+        r.vaultCut = g.vaultCut;
+        r.creatorCut = g.creatorCut;
+        r.carvePaid = g.carveApplied;
+        r.ethToLP = g.ethForPool;
 
         // ── Compute sqrtPriceX96 internally from token ordering ──
         bool tokenIsZero = p.token < weth;
         uint256 amount0 = tokenIsZero ? p.tokenReserve : r.ethToLP;
         uint256 amount1 = tokenIsZero ? r.ethToLP : p.tokenReserve;
-        uint160 sqrtPriceX96 = uint160(
-            FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0))
-        );
+        uint160 sqrtPriceX96 = uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0)));
 
         // ── Wrap ETH to WETH for LP ──
-        IWETH(weth).deposit{value: r.ethToLP}();
+        IWETH(weth).deposit{ value: r.ethToLP }();
 
         // ── Create Algebra pool ──
         r.pool = IAlgebraFactory(algebraFactory).createPool(p.token, weth, "");
@@ -121,29 +116,28 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         IERC20(weth).approve(positionManager, r.ethToLP);
 
         uint128 liquidity;
-        (r.tokenId, liquidity,,) = IAlgebraNFTPositionManager(positionManager).mint(
-            IAlgebraNFTPositionManager.MintParams({
-                token0: token0,
-                token1: token1,
-                deployer: address(0),
-                tickLower: TICK_LOWER,
-                tickUpper: TICK_UPPER,
-                amount0Desired: amount0,
-                amount1Desired: amount1,
-                amount0Min: amount0 * 99 / 100, // 1% slippage tolerance
-                amount1Min: amount1 * 99 / 100,
-                recipient: p.vault,
-                deadline: block.timestamp + 15 minutes
-            })
-        );
+        (r.tokenId, liquidity,,) = IAlgebraNFTPositionManager(positionManager)
+            .mint(
+                IAlgebraNFTPositionManager.MintParams({
+                    token0: token0,
+                    token1: token1,
+                    deployer: address(0),
+                    tickLower: TICK_LOWER,
+                    tickUpper: TICK_UPPER,
+                    amount0Desired: amount0,
+                    amount1Desired: amount1,
+                    amount0Min: amount0 * 99 / 100, // 1% slippage tolerance
+                    amount1Min: amount1 * 99 / 100,
+                    recipient: p.vault,
+                    deadline: block.timestamp + 15 minutes
+                })
+            );
         if (liquidity == 0) revert ZeroLiquidity();
     }
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events,timestamp
     function _postMint(ILiquidityDeployerModule.DeployParams calldata p, PoolSetupResult memory r) private {
-        CypherAlignmentVault(payable(p.vault)).registerPosition(
-            r.tokenId, r.pool, r.tokenIsZero, p.instance, r.ethToLP
-        );
+        CypherAlignmentVault(payable(p.vault)).registerPosition(r.tokenId, r.pool, r.tokenIsZero, p.instance, r.ethToLP);
         // 1% → protocol treasury
         if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
@@ -151,7 +145,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         }
         // 19% of raise (+ 19% of carve) → alignment vault via receiveContribution
         if (r.vaultCut > 0) {
-            CypherAlignmentVault(payable(p.vault)).receiveContribution{value: r.vaultCut}(
+            CypherAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
             );
             emit GraduationVaultContribution(p.vault, r.vaultCut);
@@ -166,7 +160,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         emit LiquidityDeployed(p.vault, r.pool, r.tokenId, r.ethToLP, p.tokenReserve);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 
     // ── IComponentModule ───────────────────────────────────────────────────────
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {BondingCurveMath} from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
 
 /**
  * @title BondingCurveMathTest
@@ -22,28 +22,20 @@ contract BondingCurveMathTest is Test {
         // Standard parameters (realistic ERC404 curve)
         standardParams = BondingCurveMath.Params({
             initialPrice: 0.025 ether,
-            quarticCoeff: 3 gwei,        // 12/4 * 1 gwei (integral coefficient)
-            cubicCoeff: 1333333333,       // 4/3 * 1 gwei (integral coefficient)
-            quadraticCoeff: 2 gwei,      // 4/2 * 1 gwei (integral coefficient)
-            normalizationFactor: 1e7     // 10M tokens base
+            quarticCoeff: 3 gwei, // 12/4 * 1 gwei (integral coefficient)
+            cubicCoeff: 1333333333, // 4/3 * 1 gwei (integral coefficient)
+            quadraticCoeff: 2 gwei, // 4/2 * 1 gwei (integral coefficient)
+            normalizationFactor: 1e7 // 10M tokens base
         });
 
         // Linear only (no polynomial terms)
         linearParams = BondingCurveMath.Params({
-            initialPrice: 0.01 ether,
-            quarticCoeff: 0,
-            cubicCoeff: 0,
-            quadraticCoeff: 0,
-            normalizationFactor: 1e7
+            initialPrice: 0.01 ether, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e7
         });
 
         // Quadratic only
         quadraticParams = BondingCurveMath.Params({
-            initialPrice: 0.01 ether,
-            quarticCoeff: 0,
-            cubicCoeff: 0,
-            quadraticCoeff: 1 gwei,
-            normalizationFactor: 1e7
+            initialPrice: 0.01 ether, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 1 gwei, normalizationFactor: 1e7
         });
 
         // Full polynomial with all coefficients
@@ -497,11 +489,7 @@ contract BondingCurveMathTest is Test {
     function test_ZeroCoefficients() public view {
         // All coefficients zero except initial price
         BondingCurveMath.Params memory zeroCoeffs = BondingCurveMath.Params({
-            initialPrice: 0.025 ether,
-            quarticCoeff: 0,
-            cubicCoeff: 0,
-            quadraticCoeff: 0,
-            normalizationFactor: 1e7
+            initialPrice: 0.025 ether, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e7
         });
 
         uint256 amount = 1000 * 1e18;
@@ -617,11 +605,11 @@ contract BondingCurveMathTest is Test {
     }
 
     // External wrapper for testing reverts
-    function externalCalculateIntegral(
-        BondingCurveMath.Params memory params,
-        uint256 lower,
-        uint256 upper
-    ) external pure returns (uint256) {
+    function externalCalculateIntegral(BondingCurveMath.Params memory params, uint256 lower, uint256 upper)
+        external
+        pure
+        returns (uint256)
+    {
         return BondingCurveMath.calculateIntegral(params, lower, upper);
     }
 
@@ -694,11 +682,11 @@ contract BondingCurveMathTest is Test {
     function test_Integration_PriceDiscovery() public view {
         // Test price discovery at different supply points
         uint256[] memory supplyPoints = new uint256[](5);
-        supplyPoints[0] = 100_000 * 1e18;    // 1% of 10M
-        supplyPoints[1] = 500_000 * 1e18;    // 5% of 10M
-        supplyPoints[2] = 1_000_000 * 1e18;  // 10% of 10M
-        supplyPoints[3] = 5_000_000 * 1e18;  // 50% of 10M
-        supplyPoints[4] = 9_000_000 * 1e18;  // 90% of 10M
+        supplyPoints[0] = 100_000 * 1e18; // 1% of 10M
+        supplyPoints[1] = 500_000 * 1e18; // 5% of 10M
+        supplyPoints[2] = 1_000_000 * 1e18; // 10% of 10M
+        supplyPoints[3] = 5_000_000 * 1e18; // 50% of 10M
+        supplyPoints[4] = 9_000_000 * 1e18; // 90% of 10M
 
         console2.log("Price Discovery (cost of next 100 tokens):");
 
@@ -708,11 +696,7 @@ contract BondingCurveMathTest is Test {
 
             // Cost should increase monotonically
             if (i > 0) {
-                uint256 prevCost = BondingCurveMath.calculateCost(
-                    standardParams,
-                    supplyPoints[i-1],
-                    100 * 1e18
-                );
+                uint256 prevCost = BondingCurveMath.calculateCost(standardParams, supplyPoints[i - 1], 100 * 1e18);
                 assertGt(cost, prevCost, "Price should increase with supply");
             }
         }

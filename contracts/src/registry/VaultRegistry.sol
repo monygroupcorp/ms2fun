@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {SmartTransferLib} from "../libraries/SmartTransferLib.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
 
 /**
  * @title VaultRegistry
@@ -68,7 +68,9 @@ contract VaultRegistry is Ownable {
 
     // Events
     event VaultRegistered(address indexed vault, address indexed creator, string name, uint256 fee);
-    event HookRegistered(address indexed hook, address indexed creator, address indexed vault, string name, uint256 fee);
+    event HookRegistered(
+        address indexed hook, address indexed creator, address indexed vault, string name, uint256 fee
+    );
     event VaultDeactivated(address indexed vault);
     event HookDeactivated(address indexed hook);
     event VaultFeeUpdated(uint256 newFee);
@@ -88,11 +90,7 @@ contract VaultRegistry is Ownable {
      * @param name Name of the vault
      * @param metadataURI Metadata URI for the vault
      */
-    function registerVault(
-        address vault,
-        string memory name,
-        string memory metadataURI
-    ) external payable {
+    function registerVault(address vault, string memory name, string memory metadataURI) external payable {
         if (vault == address(0)) revert InvalidAddress();
         if (bytes(name).length == 0 || bytes(name).length > 256) revert InvalidName();
         if (msg.value < vaultRegistrationFee) revert InsufficientFee();
@@ -127,12 +125,7 @@ contract VaultRegistry is Ownable {
      * @param name Name of the hook
      * @param metadataURI Metadata URI for the hook
      */
-    function registerHook(
-        address hook,
-        address vault,
-        string memory name,
-        string memory metadataURI
-    ) external payable {
+    function registerHook(address hook, address vault, string memory name, string memory metadataURI) external payable {
         if (hook == address(0)) revert InvalidAddress();
         if (vault == address(0)) revert InvalidAddress();
         if (!registeredVaults[vault]) revert NotRegistered();
@@ -245,5 +238,4 @@ contract VaultRegistry is Ownable {
         SafeTransferLib.safeTransferETH(recipient, amount);
         emit FeesWithdrawn(recipient, amount);
     }
-
 }

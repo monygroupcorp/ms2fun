@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console} from "forge-std/Test.sol";
-import {MasterRegistryV1} from "../../src/master/MasterRegistryV1.sol";
-import {MasterRegistry} from "../../src/master/MasterRegistry.sol";
-import {FeaturedQueueManager} from "../../src/master/FeaturedQueueManager.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {MockFactory} from "../mocks/MockFactory.sol";
-import {MockInstance} from "../mocks/MockInstance.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {TestHelpers} from "../helpers/TestHelpers.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
+import { MasterRegistry } from "../../src/master/MasterRegistry.sol";
+import { FeaturedQueueManager } from "../../src/master/FeaturedQueueManager.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { MockFactory } from "../mocks/MockFactory.sol";
+import { MockInstance } from "../mocks/MockInstance.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { TestHelpers } from "../helpers/TestHelpers.sol";
 
 /**
  * @title FullWorkflowIntegrationTest
@@ -44,10 +44,7 @@ contract FullWorkflowIntegrationTest is Test {
         purchaser = address(0x555);
 
         implementation = new MasterRegistryV1();
-        bytes memory initData = abi.encodeWithSignature(
-            "initialize(address)",
-            owner
-        );
+        bytes memory initData = abi.encodeWithSignature("initialize(address)", owner);
         proxyWrapper = new MasterRegistry(address(implementation), initData);
         proxy = TestHelpers.getProxyAddress(proxyWrapper);
 
@@ -70,14 +67,15 @@ contract FullWorkflowIntegrationTest is Test {
 
     function test_FullWorkflow_ApplicationToFeaturedPromotion() public {
         // Step 1: Register factory directly (owner permission)
-        MasterRegistryV1(proxy).registerFactory(
-            address(erc404Factory),
-            "ERC404",
-            "my-erc404-factory",
-            "My ERC404 Factory",
-            "https://example.com/factory.json",
-            new bytes32[](0)
-        );
+        MasterRegistryV1(proxy)
+            .registerFactory(
+                address(erc404Factory),
+                "ERC404",
+                "my-erc404-factory",
+                "My ERC404 Factory",
+                "https://example.com/factory.json",
+                new bytes32[](0)
+            );
 
         // Verify factory registered
         IMasterRegistry.FactoryInfo memory factoryInfo =
@@ -89,27 +87,22 @@ contract FullWorkflowIntegrationTest is Test {
         // Step 2: Register instance
         address instance = _newInstance();
         vm.prank(address(erc404Factory));
-        IMasterRegistry(proxy).registerInstance(
-            instance,
-            address(erc404Factory),
-            creator,
-            "my-token",
-            "https://example.com/token.json",
-            mockVault
-        );
+        IMasterRegistry(proxy)
+            .registerInstance(
+                instance, address(erc404Factory), creator, "my-token", "https://example.com/token.json", mockVault
+            );
 
         // Step 3: Rent featured slot
-        uint256 duration  = 7 days;
+        uint256 duration = 7 days;
         uint256 rankBoost = 0.005 ether;
-        uint256 cost      = queueManager.quoteDurationCost(duration) + rankBoost;
+        uint256 cost = queueManager.quoteDurationCost(duration) + rankBoost;
 
         vm.deal(purchaser, cost);
         vm.prank(purchaser);
-        queueManager.rentFeatured{value: cost}(instance, duration, rankBoost);
+        queueManager.rentFeatured{ value: cost }(instance, duration, rankBoost);
 
         // Verify slot active
-        (address renter, uint256 effectiveRank, uint256 expiresAt, bool isActive) =
-            queueManager.getRentalInfo(instance);
+        (address renter, uint256 effectiveRank, uint256 expiresAt, bool isActive) = queueManager.getRentalInfo(instance);
 
         assertEq(renter, purchaser);
         assertEq(effectiveRank, rankBoost);
@@ -119,26 +112,28 @@ contract FullWorkflowIntegrationTest is Test {
 
     function test_FullWorkflow_MultipleFactoriesAndInstances() public {
         // Register first factory directly
-        MasterRegistryV1(proxy).registerFactory(
-            address(erc404Factory),
-            "ERC404",
-            "factory-1",
-            "Factory 1",
-            "https://example.com/factory1.json",
-            new bytes32[](0)
-        );
+        MasterRegistryV1(proxy)
+            .registerFactory(
+                address(erc404Factory),
+                "ERC404",
+                "factory-1",
+                "Factory 1",
+                "https://example.com/factory1.json",
+                new bytes32[](0)
+            );
 
         // Register second factory
         MockFactory factory2 = new MockFactory(owner, owner);
         factory2.setMasterRegistry(address(proxy));
-        MasterRegistryV1(proxy).registerFactory(
-            address(factory2),
-            "ERC1155",
-            "factory-2",
-            "Factory 2",
-            "https://example.com/factory2.json",
-            new bytes32[](0)
-        );
+        MasterRegistryV1(proxy)
+            .registerFactory(
+                address(factory2),
+                "ERC1155",
+                "factory-2",
+                "Factory 2",
+                "https://example.com/factory2.json",
+                new bytes32[](0)
+            );
 
         // Verify both factories registered
         assertEq(IMasterRegistry(proxy).getTotalFactories(), 2);
@@ -148,37 +143,30 @@ contract FullWorkflowIntegrationTest is Test {
         address instance2 = _newInstance();
 
         vm.prank(address(erc404Factory));
-        IMasterRegistry(proxy).registerInstance(
-            instance1,
-            address(erc404Factory),
-            creator,
-            "token-1",
-            "https://example.com/token1.json",
-            mockVault
-        );
+        IMasterRegistry(proxy)
+            .registerInstance(
+                instance1, address(erc404Factory), creator, "token-1", "https://example.com/token1.json", mockVault
+            );
 
         vm.prank(address(factory2));
-        IMasterRegistry(proxy).registerInstance(
-            instance2,
-            address(factory2),
-            creator,
-            "token-2",
-            "https://example.com/token2.json",
-            mockVault
-        );
+        IMasterRegistry(proxy)
+            .registerInstance(
+                instance2, address(factory2), creator, "token-2", "https://example.com/token2.json", mockVault
+            );
 
         // Verify instances registered (by checking name uniqueness)
         address duplicateInstance = _newInstance();
         vm.prank(address(erc404Factory));
         vm.expectRevert(MasterRegistryV1.NameAlreadyTaken.selector);
-        IMasterRegistry(proxy).registerInstance(
-            duplicateInstance,
-            address(erc404Factory),
-            creator,
-            "token-1", // Duplicate name
-            "https://example.com/duplicate.json",
-            mockVault
-        );
+        IMasterRegistry(proxy)
+            .registerInstance(
+                duplicateInstance,
+                address(erc404Factory),
+                creator,
+                "token-1", // Duplicate name
+                "https://example.com/duplicate.json",
+                mockVault
+            );
     }
 
     // Note: Test removed - governance workflow (application/voting/rejection)
@@ -187,37 +175,49 @@ contract FullWorkflowIntegrationTest is Test {
 
     function test_FullWorkflow_RankCompetition() public {
         // Setup: Register factory and three instances
-        MasterRegistryV1(proxy).registerFactory(
-            address(erc404Factory),
-            "ERC404",
-            "test-factory",
-            "Test Factory",
-            "https://example.com/factory.json",
-            new bytes32[](0)
-        );
+        MasterRegistryV1(proxy)
+            .registerFactory(
+                address(erc404Factory),
+                "ERC404",
+                "test-factory",
+                "Test Factory",
+                "https://example.com/factory.json",
+                new bytes32[](0)
+            );
 
         address inst1 = _newInstance();
         address inst2 = _newInstance();
         address inst3 = _newInstance();
 
         address[] memory instances = new address[](3);
-        instances[0] = inst1; instances[1] = inst2; instances[2] = inst3;
+        instances[0] = inst1;
+        instances[1] = inst2;
+        instances[2] = inst3;
 
         vm.startPrank(address(erc404Factory));
-        IMasterRegistry(proxy).registerInstance(inst1, address(erc404Factory), creator, "token-1", "https://example.com/t1.json", mockVault);
-        IMasterRegistry(proxy).registerInstance(inst2, address(erc404Factory), creator, "token-2", "https://example.com/t2.json", mockVault);
-        IMasterRegistry(proxy).registerInstance(inst3, address(erc404Factory), creator, "token-3", "https://example.com/t3.json", mockVault);
+        IMasterRegistry(proxy)
+            .registerInstance(
+                inst1, address(erc404Factory), creator, "token-1", "https://example.com/t1.json", mockVault
+            );
+        IMasterRegistry(proxy)
+            .registerInstance(
+                inst2, address(erc404Factory), creator, "token-2", "https://example.com/t2.json", mockVault
+            );
+        IMasterRegistry(proxy)
+            .registerInstance(
+                inst3, address(erc404Factory), creator, "token-3", "https://example.com/t3.json", mockVault
+            );
         vm.stopPrank();
 
         // Rent all three with different rank boosts — higher boost = higher rank
-        uint256 duration     = queueManager.minDuration();
+        uint256 duration = queueManager.minDuration();
         uint256 durationCost = queueManager.quoteDurationCost(duration);
 
         vm.deal(purchaser, (durationCost + 0.05 ether) * 3);
         vm.startPrank(purchaser);
-        queueManager.rentFeatured{value: durationCost + 0.01 ether}(inst1, duration, 0.01 ether);
-        queueManager.rentFeatured{value: durationCost + 0.05 ether}(inst2, duration, 0.05 ether);
-        queueManager.rentFeatured{value: durationCost + 0.03 ether}(inst3, duration, 0.03 ether);
+        queueManager.rentFeatured{ value: durationCost + 0.01 ether }(inst1, duration, 0.01 ether);
+        queueManager.rentFeatured{ value: durationCost + 0.05 ether }(inst2, duration, 0.05 ether);
+        queueManager.rentFeatured{ value: durationCost + 0.03 ether }(inst3, duration, 0.03 ether);
         vm.stopPrank();
 
         // Verify rank ordering: inst2 (0.05e) > inst3 (0.03e) > inst1 (0.01e)
@@ -241,14 +241,15 @@ contract FullWorkflowIntegrationTest is Test {
             MockFactory newFactory = new MockFactory(owner, owner);
             newFactory.setMasterRegistry(address(proxy));
 
-            MasterRegistryV1(proxy).registerFactory(
-                address(newFactory),
-                "ERC404",
-                string(abi.encodePacked("factory-", vm.toString(i))),
-                "Test Factory",
-                validURIs[i],
-                new bytes32[](0)
-            );
+            MasterRegistryV1(proxy)
+                .registerFactory(
+                    address(newFactory),
+                    "ERC404",
+                    string(abi.encodePacked("factory-", vm.toString(i))),
+                    "Test Factory",
+                    validURIs[i],
+                    new bytes32[](0)
+                );
         }
 
         assertEq(IMasterRegistry(proxy).getTotalFactories(), 4);
