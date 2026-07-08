@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import { Test, console } from "forge-std/Test.sol";
 import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
 import { MasterRegistry } from "../../src/master/MasterRegistry.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
@@ -19,8 +21,15 @@ import { GatingScope } from "../../src/gating/IGatingModule.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
-/// @dev Mock vault that satisfies factory checks
+/// @dev Mock vault that satisfies factory checks. Exposes alignmentToken() so it can be registered
+///      through the real MasterRegistry.registerVault (alignment-validated) path.
 contract MockVaultForNamespace {
+    address public alignmentToken;
+
+    constructor(address _alignmentToken) {
+        alignmentToken = _alignmentToken;
+    }
+
     function supportsCapability(bytes32) external pure returns (bool) {
         return true;
     }
@@ -98,7 +107,19 @@ contract NamespaceCollisionTest is Test {
         proxy = new MasterRegistry(address(implementation), initData);
         registry = MasterRegistryV1(address(proxy));
 
-        mockVault = new MockVaultForNamespace();
+        // Wire an alignment registry + target so the vault can be registered through the real,
+        // alignment-validated registerVault path (createInstance now gates on isVaultRegistered).
+        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1();
+        alignmentRegistry.initialize(owner);
+        registry.setAlignmentRegistry(address(alignmentRegistry));
+        address alignmentToken = makeAddr("CULT");
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] =
+            IAlignmentRegistry.AlignmentAsset({ token: alignmentToken, symbol: "CULT", info: "", metadataURI: "" });
+        uint256 targetId = alignmentRegistry.registerAlignmentTarget("Remilia", "", "", assets);
+
+        mockVault = new MockVaultForNamespace(alignmentToken);
+        registry.registerVault(address(mockVault), owner, "NS Vault", "ipfs://ns-vault", targetId);
         mockDeployer = new MockLiquidityDeployerNS();
 
         // Deploy global message registry

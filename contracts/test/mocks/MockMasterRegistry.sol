@@ -90,8 +90,18 @@ contract MockMasterRegistry is IMasterRegistry {
         });
     }
 
-    function isVaultRegistered(address) external view override returns (bool) {
-        return true; // Always return true in mock for testing
+    // Vaults are registered by default so the broad createInstance/graduation suites keep passing
+    // without per-test registration. A test can mark a specific vault unregistered to exercise the
+    // ERC404Factory create-time vault gate (Finding 1).
+    mapping(address => bool) private _vaultUnregistered;
+
+    /// @dev TEST HELPER: flip a vault's registry status (default = registered/true).
+    function setVaultRegistered(address vault, bool registered) external {
+        _vaultUnregistered[vault] = !registered;
+    }
+
+    function isVaultRegistered(address vault) external view override returns (bool) {
+        return !_vaultUnregistered[vault];
     }
 
     function deactivateVault(address) external override { }

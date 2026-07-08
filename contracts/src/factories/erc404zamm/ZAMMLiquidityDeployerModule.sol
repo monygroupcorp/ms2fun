@@ -19,6 +19,18 @@ interface IZAMM {
         uint256 feeOrHook;
     }
 
+    struct Pool {
+        uint112 reserve0;
+        uint112 reserve1;
+        uint32 blockTimestampLast;
+        uint256 price0CumulativeLast;
+        uint256 price1CumulativeLast;
+        uint256 kLast;
+        uint256 supply;
+    }
+
+    function pools(uint256 poolId) external view returns (Pool memory);
+
     function addLiquidity(
         PoolKey calldata poolKey,
         uint256 amount0Desired,
@@ -41,6 +53,14 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error NoTokensForPool();
     /// @dev Caller is not the genuine, registered ERC404 instance named in p.instance.
     error UnauthorizedCaller();
+    /// @dev An attacker pre-seeded the graduation pool at a reserve ratio outside tolerance.
+    error PoolPriceMismatch();
+
+    /// @notice Max deviation (bps) tolerated between an already-seeded pool's reserve ratio and the
+    ///         intended graduation ratio. 100 bps (1%) mirrors the 99/100 LP-min-slippage convention
+    ///         already used in this module. A larger gap means the pool was seeded by a front-runner
+    ///         at a skewed price — we revert (retryable) rather than add liquidity into it.
+    uint256 public constant MAX_INIT_PRICE_DEVIATION_BPS = 100;
 
     address public immutable zamm;
     uint256 public immutable feeOrHook;
@@ -116,6 +136,13 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
         uint256 a0 = r.ethIsToken0 ? r.ethForPool : p.tokenReserve;
         uint256 a1 = r.ethIsToken0 ? p.tokenReserve : r.ethForPool;
+
+        // Front-run-safe: a fresh pool (zero reserves) is created at our ratio by addLiquidity. If an
+        // attacker pre-seeded the pool, addLiquidity would silently deposit at THEIR ratio — accept it
+        // only if the existing reserve ratio is within tolerance of our intended a1/a0, else revert
+        // (retryable) rather than provide liquidity at an attacker-chosen price.
+        _requireReserveRatioWithinTolerance(uint256(keccak256(abi.encode(zammKey))), a0, a1);
+
         uint256 a0Min = a0 * 99 / 100; // 1% slippage tolerance
         uint256 a1Min = a1 * 99 / 100;
         (,, r.liquidity) =
@@ -144,6 +171,19 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             emit CreatorCarvePaid(p.instance, p.creator, p.carveEth, r.carvePaid);
         }
         emit LiquidityDeployed(zamm, r.token0, r.token1, r.liquidity);
+    }
+
+    /// @dev Reverts unless the existing pool's reserve ratio matches the intended a1/a0 within
+    ///      MAX_INIT_PRICE_DEVIATION_BPS. A fresh pool (both reserves zero) passes — addLiquidity then
+    ///      creates it at our ratio. Compared cross-multiplied (reserve1·a0 vs reserve0·a1) to avoid
+    ///      division; reserves are uint112 and amounts fit ETH/token magnitudes, so no overflow.
+    function _requireReserveRatioWithinTolerance(uint256 poolId, uint256 a0, uint256 a1) private view {
+        IZAMM.Pool memory pool = IZAMM(zamm).pools(poolId);
+        if (pool.reserve0 == 0 && pool.reserve1 == 0) return; // fresh pool → created at our ratio
+        uint256 lhs = uint256(pool.reserve1) * a0;
+        uint256 rhs = uint256(pool.reserve0) * a1;
+        uint256 diff = lhs > rhs ? lhs - rhs : rhs - lhs;
+        if (diff * 10_000 > rhs * MAX_INIT_PRICE_DEVIATION_BPS) revert PoolPriceMismatch();
     }
 
     receive() external payable { }
