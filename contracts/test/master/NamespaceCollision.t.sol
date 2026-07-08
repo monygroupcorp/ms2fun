@@ -1,35 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
-import {MasterRegistryV1} from "../../src/master/MasterRegistryV1.sol";
-import {MasterRegistry} from "../../src/master/MasterRegistry.sol";
-import {ERC404Factory} from "../../src/factories/erc404/ERC404Factory.sol";
-import {LaunchManager} from "../../src/factories/erc404/LaunchManager.sol";
-import {CurveParamsComputer} from "../../src/factories/erc404/CurveParamsComputer.sol";
-import {PasswordTierGatingModule} from "../../src/gating/PasswordTierGatingModule.sol";
-import {ERC1155Factory} from "../../src/factories/erc1155/ERC1155Factory.sol";
-import {GlobalMessageRegistry} from "../../src/registry/GlobalMessageRegistry.sol";
-import {ERC404BondingInstance} from "../../src/factories/erc404/ERC404BondingInstance.sol";
-import {ComponentRegistry} from "../../src/registry/ComponentRegistry.sol";
-import {ILiquidityDeployerModule} from "../../src/interfaces/ILiquidityDeployerModule.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {FreeMintParams} from "../../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../src/gating/IGatingModule.sol";
-import {CREATEX} from "../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
+import { MasterRegistry } from "../../src/master/MasterRegistry.sol";
+import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
+import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
+import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
+import { PasswordTierGatingModule } from "../../src/gating/PasswordTierGatingModule.sol";
+import { ERC1155Factory } from "../../src/factories/erc1155/ERC1155Factory.sol";
+import { GlobalMessageRegistry } from "../../src/registry/GlobalMessageRegistry.sol";
+import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
+import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { FreeMintParams } from "../../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../src/gating/IGatingModule.sol";
+import { CREATEX } from "../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 /// @dev Mock vault that satisfies factory checks
 contract MockVaultForNamespace {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 /// @dev Minimal mock liquidity deployer
 contract MockLiquidityDeployerNS is ILiquidityDeployerModule {
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 /**
@@ -63,7 +68,11 @@ contract NamespaceCollisionTest is Test {
         return bytes32(abi.encodePacked(address(erc404Factory), uint8(0x00), bytes11(uint88(_saltCounter))));
     }
 
-    function _erc1155Params(string memory _name, address _creator) internal view returns (ERC1155Factory.CreateParams memory) {
+    function _erc1155Params(string memory _name, address _creator)
+        internal
+        view
+        returns (ERC1155Factory.CreateParams memory)
+    {
         return ERC1155Factory.CreateParams({
             name: _name,
             metadataURI: "ipfs://metadata",
@@ -71,7 +80,7 @@ contract NamespaceCollisionTest is Test {
             vault: address(mockVault),
             styleUri: "",
             gatingModule: address(0),
-            freeMint: FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         });
     }
 
@@ -108,13 +117,16 @@ contract NamespaceCollisionTest is Test {
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "MockDeployer");
 
         // Set up default preset
-        launchManager.setPreset(DEFAULT_PRESET_ID, LaunchManager.Preset({
-            targetETH: 15 ether,
-            unitPerNFT: 1_000_000,
-            liquidityReserveBps: 1000,
-            curveComputer: address(curveComputer),
-            active: true
-        }));
+        launchManager.setPreset(
+            DEFAULT_PRESET_ID,
+            LaunchManager.Preset({
+                targetETH: 15 ether,
+                unitPerNFT: 1_000_000,
+                liquidityReserveBps: 1000,
+                curveComputer: address(curveComputer),
+                active: true
+            })
+        );
 
         // Deploy ERC404Factory
         ERC404BondingInstance nsImpl = new ERC404BondingInstance();
@@ -134,10 +146,7 @@ contract NamespaceCollisionTest is Test {
 
         // Deploy ERC1155Factory
         erc1155Factory = new ERC1155Factory(
-            address(registry),
-            address(globalMsgRegistry),
-            address(componentRegistry),
-            address(0xBEEF)
+            address(registry), address(globalMsgRegistry), address(componentRegistry), address(0xBEEF)
         );
 
         // Set protocol treasury on both factories
@@ -180,7 +189,7 @@ contract NamespaceCollisionTest is Test {
             presetId: uint8(DEFAULT_PRESET_ID),
             tokenBaseURI: "",
             stakingModule: address(0),
-                declaredMaxAllowanceBps: 0
+            declaredMaxAllowanceBps: 0
         });
     }
 
@@ -199,12 +208,12 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
 
-        erc404Factory.createInstance{value: INSTANCE_FEE}(
+        erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("poggers", "POG", address(mockVault), creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
 
         vm.stopPrank();
@@ -220,9 +229,7 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator1, 1 ether);
         vm.startPrank(creator1);
 
-        erc1155Factory.createInstance{value: INSTANCE_FEE}(
-            _nextErc1155Salt(), _erc1155Params("poggers", creator1)
-        );
+        erc1155Factory.createInstance{ value: INSTANCE_FEE }(_nextErc1155Salt(), _erc1155Params("poggers", creator1));
 
         vm.stopPrank();
 
@@ -237,19 +244,17 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator2, 1 ether);
 
         vm.startPrank(creator1);
-        erc1155Factory.createInstance{value: INSTANCE_FEE}(
-            _nextErc1155Salt(), _erc1155Params("poggers", creator1)
-        );
+        erc1155Factory.createInstance{ value: INSTANCE_FEE }(_nextErc1155Salt(), _erc1155Params("poggers", creator1));
         vm.stopPrank();
 
         vm.startPrank(creator2);
         vm.expectRevert(MasterRegistryV1.NameAlreadyTaken.selector);
-        erc404Factory.createInstance{value: INSTANCE_FEE}(
+        erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("poggers", "POG", address(mockVault), creator2),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -262,20 +267,18 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator2, 1 ether);
 
         vm.startPrank(creator1);
-        erc404Factory.createInstance{value: INSTANCE_FEE}(
+        erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("poggers", "POG", address(mockVault), creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
 
         vm.startPrank(creator2);
         vm.expectRevert(ERC1155Factory.NameAlreadyTaken.selector);
-        erc1155Factory.createInstance{value: INSTANCE_FEE}(
-            _nextErc1155Salt(), _erc1155Params("poggers", creator2)
-        );
+        erc1155Factory.createInstance{ value: INSTANCE_FEE }(_nextErc1155Salt(), _erc1155Params("poggers", creator2));
         vm.stopPrank();
     }
 
@@ -287,19 +290,17 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator2, 1 ether);
 
         vm.startPrank(creator1);
-        erc1155Factory.createInstance{value: INSTANCE_FEE}(
-            _nextErc1155Salt(), _erc1155Params("POGGERS", creator1)
-        );
+        erc1155Factory.createInstance{ value: INSTANCE_FEE }(_nextErc1155Salt(), _erc1155Params("POGGERS", creator1));
         vm.stopPrank();
 
         vm.startPrank(creator2);
         vm.expectRevert(MasterRegistryV1.NameAlreadyTaken.selector);
-        erc404Factory.createInstance{value: INSTANCE_FEE}(
+        erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("poggers", "POG", address(mockVault), creator2),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -312,23 +313,23 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator2, 1 ether);
 
         vm.startPrank(creator1);
-        erc404Factory.createInstance{value: INSTANCE_FEE}(
+        erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("poggers", "POG", address(mockVault), creator1),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
 
         vm.startPrank(creator2);
         vm.expectRevert(MasterRegistryV1.NameAlreadyTaken.selector);
-        erc404Factory.createInstance{value: INSTANCE_FEE}(
+        erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("poggers", "POG2", address(mockVault), creator2),
             "ipfs://metadata2",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
     }
@@ -341,18 +342,18 @@ contract NamespaceCollisionTest is Test {
         vm.deal(creator2, 1 ether);
 
         vm.startPrank(creator1);
-        address instance1 = erc1155Factory.createInstance{value: INSTANCE_FEE}(
+        address instance1 = erc1155Factory.createInstance{ value: INSTANCE_FEE }(
             _nextErc1155Salt(), _erc1155Params("poggers", creator1)
         );
         vm.stopPrank();
 
         vm.startPrank(creator2);
-        address instance2 = erc404Factory.createInstance{value: INSTANCE_FEE}(
+        address instance2 = erc404Factory.createInstance{ value: INSTANCE_FEE }(
             _erc404Identity("different_name", "DIFF", address(mockVault), creator2),
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
         vm.stopPrank();
 

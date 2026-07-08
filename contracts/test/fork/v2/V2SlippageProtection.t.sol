@@ -7,17 +7,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // V2Router02 interface
 interface IUniswapV2Router02Slippage {
-    function swapExactETHForTokens(
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
-
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
+    function swapExactETHForTokens(uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)
         external
-        view
+        payable
         returns (uint256[] memory amounts);
+
+    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
 }
 
 /**
@@ -34,7 +29,6 @@ interface IUniswapV2Router02Slippage {
  * These tests help us implement slippage protection in _swapETHForTarget()
  */
 contract V2SlippageProtectionTest is ForkTestBase {
-
     IUniswapV2Router02Slippage router;
     address swapper;
 
@@ -85,7 +79,7 @@ contract V2SlippageProtectionTest is ForkTestBase {
 
         // Execute the swap
         vm.prank(swapper);
-        uint256[] memory amounts = router.swapExactETHForTokens{value: amountIn}(
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(
             (expectedUSDC * 95) / 100, // Allow 5% slippage
             path,
             swapper,
@@ -119,12 +113,7 @@ contract V2SlippageProtectionTest is ForkTestBase {
         // Expect revert when swapping 0 ETH
         vm.prank(swapper);
         vm.expectRevert();
-        router.swapExactETHForTokens{value: amountIn}(
-            0,
-            path,
-            swapper,
-            block.timestamp + 300
-        );
+        router.swapExactETHForTokens{ value: amountIn }(0, path, swapper, block.timestamp + 300);
     }
 
     /**
@@ -146,9 +135,7 @@ contract V2SlippageProtectionTest is ForkTestBase {
         (uint112 reserve0, uint112 reserve1,) = getV2Reserves(WETH_USDC_V2_PAIR);
 
         // Determine WETH reserve
-        (bool success, bytes memory data) = WETH_USDC_V2_PAIR.staticcall(
-            abi.encodeWithSignature("token0()")
-        );
+        (bool success, bytes memory data) = WETH_USDC_V2_PAIR.staticcall(abi.encodeWithSignature("token0()"));
         require(success, "token0 call failed");
         address token0 = abi.decode(data, (address));
 

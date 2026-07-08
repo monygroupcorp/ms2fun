@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Test } from "forge-std/Test.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
-import {AlignmentEndowmentVault} from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
+import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
 
 // NOTE: AaveV3Ethereum.sol transitively imports AaveV3.sol which requires the
 // aave-v3-origin submodule (not installed in this repo). We inline the two
@@ -65,10 +65,10 @@ contract AlignmentEndowmentVaultForkTest is Test {
     address internal constant STATA = 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202;
 
     // ── Test participants ────────────────────────────────────────────────────
-    address internal owner;        // vault owner (factory stand-in)
-    address internal treasury;     // protocolTreasury (1% platform)
-    address internal community;    // communityPayout  (99% yield / 19-or-80% principal)
-    address internal creator;      // benefactor's Ownable.owner() — receives 80% on maturity
+    address internal owner; // vault owner (factory stand-in)
+    address internal treasury; // protocolTreasury (1% platform)
+    address internal community; // communityPayout  (99% yield / 19-or-80% principal)
+    address internal creator; // benefactor's Ownable.owner() — receives 80% on maturity
 
     AlignmentEndowmentVault internal vault;
     MockBenefactor internal benefactor; // acts as the aligned collection instance
@@ -105,17 +105,8 @@ contract AlignmentEndowmentVaultForkTest is Test {
         address alignmentToken = makeAddr("alignmentToken");
 
         address impl = address(new AlignmentEndowmentVault());
-        AlignmentEndowmentVault clone =
-            AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        clone.initialize(
-            owner,
-            WETH,
-            STATA,
-            treasury,
-            address(masterRegistry),
-            alignmentToken,
-            community
-        );
+        AlignmentEndowmentVault clone = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
+        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, community);
         vault = clone;
     }
 
@@ -132,11 +123,7 @@ contract AlignmentEndowmentVaultForkTest is Test {
 
         // Fund the caller and call receiveContribution
         vm.deal(address(this), amount);
-        vault.receiveContribution{value: amount}(
-            Currency.wrap(address(0)),
-            amount,
-            address(benefactor)
-        );
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
         // Principal tracked correctly
         assertEq(vault.principal(address(benefactor)), amount, "principal mismatch");
@@ -176,11 +163,7 @@ contract AlignmentEndowmentVaultForkTest is Test {
 
         // --- deposit ---
         vm.deal(address(this), amount);
-        vault.receiveContribution{value: amount}(
-            Currency.wrap(address(0)),
-            amount,
-            address(benefactor)
-        );
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
         // --- warp past maturity ---
         vm.warp(block.timestamp + 365 days + 1);
@@ -248,11 +231,7 @@ contract AlignmentEndowmentVaultForkTest is Test {
 
         // --- deposit ---
         vm.deal(address(this), amount);
-        vault.receiveContribution{value: amount}(
-            Currency.wrap(address(0)),
-            amount,
-            address(benefactor)
-        );
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
         // accumulatedFees() should never underflow — a key safety invariant.
         uint256 feesBefore = vault.accumulatedFees();
@@ -304,8 +283,7 @@ contract AlignmentEndowmentVaultForkTest is Test {
     }
 
     function _stataConvertToAssets(uint256 shares) internal view returns (uint256) {
-        (bool ok, bytes memory data) =
-            STATA.staticcall(abi.encodeWithSignature("convertToAssets(uint256)", shares));
+        (bool ok, bytes memory data) = STATA.staticcall(abi.encodeWithSignature("convertToAssets(uint256)", shares));
         require(ok, "stataToken.convertToAssets failed");
         return abi.decode(data, (uint256));
     }

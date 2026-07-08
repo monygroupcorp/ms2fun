@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ZAMMAlignmentVaultFactory} from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
-import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
-import {MockZAMM} from "../mocks/MockZAMM.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {CREATEX} from "../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test } from "forge-std/Test.sol";
+import { ZAMMAlignmentVaultFactory } from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
+import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { MockZAMM } from "../mocks/MockZAMM.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { CREATEX } from "../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 contract ZAMMAlignmentVaultFactoryTest is Test {
     ZAMMAlignmentVaultFactory public factory;
@@ -35,13 +35,7 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
         mockZRouter = new MockZRouter();
         alignmentToken = new MockEXECToken(1_000_000e18);
 
-        poolKey = IZAMM.PoolKey({
-            id0: 0,
-            id1: 0,
-            token0: address(0),
-            token1: address(alignmentToken),
-            feeOrHook: 30
-        });
+        poolKey = IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: address(alignmentToken), feeOrHook: 30 });
 
         factory = new ZAMMAlignmentVaultFactory(
             address(mockZamm),

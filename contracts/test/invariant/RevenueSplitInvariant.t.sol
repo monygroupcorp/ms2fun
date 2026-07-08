@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {RevenueSplitLib} from "../../src/shared/libraries/RevenueSplitLib.sol";
+import { Test } from "forge-std/Test.sol";
+import { RevenueSplitLib } from "../../src/shared/libraries/RevenueSplitLib.sol";
 
 /// @title RevenueSplitInvariantTest
 /// @notice Fuzz-based invariant: protocolCut + vaultCut + remainder == input (no wei leak or creation)
@@ -13,11 +13,7 @@ contract RevenueSplitInvariantTest is Test {
     function testFuzz_splitSumsToInput(uint256 amount) external pure {
         amount = bound(amount, 0, MAX_AMOUNT);
         RevenueSplitLib.Split memory s = RevenueSplitLib.split(amount);
-        assertEq(
-            s.protocolCut + s.vaultCut + s.remainder,
-            amount,
-            "split leaks or creates wei"
-        );
+        assertEq(s.protocolCut + s.vaultCut + s.remainder, amount, "split leaks or creates wei");
     }
 
     function testFuzz_protocolCutIsOnePercFloor(uint256 amount) external pure {
@@ -78,17 +74,13 @@ contract RevenueSplitInvariantTest is Test {
         RevenueSplitLib.Split memory s = RevenueSplitLib.split(1 ether);
         assertEq(s.protocolCut, 0.01 ether);
         assertEq(s.vaultCut, 0.19 ether);
-        assertEq(s.remainder, 0.80 ether);
+        assertEq(s.remainder, 0.8 ether);
     }
 
     function testFuzz_SplitSumsToTotal(uint256 amount) external pure {
         amount = bound(amount, 0, MAX_AMOUNT);
         RevenueSplitLib.Split memory s = RevenueSplitLib.split(amount);
-        assertEq(
-            s.protocolCut + s.vaultCut + s.remainder,
-            amount,
-            "protocol + vault + remainder != amount"
-        );
+        assertEq(s.protocolCut + s.vaultCut + s.remainder, amount, "protocol + vault + remainder != amount");
     }
 
     function testFuzz_ProtocolNeverExceedsOnePercent(uint256 amount) external pure {
@@ -108,11 +100,7 @@ contract RevenueSplitInvariantTest is Test {
     function testFuzz_splitMintSumsToInput(uint256 amount) external pure {
         amount = bound(amount, 0, MAX_AMOUNT);
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMint(amount);
-        assertEq(
-            s.protocolCut + s.vaultCut + s.remainder,
-            amount,
-            "splitMint leaks or creates wei"
-        );
+        assertEq(s.protocolCut + s.vaultCut + s.remainder, amount, "splitMint leaks or creates wei");
     }
 
     function testFuzz_splitMintProtocolIsOnePercFloor(uint256 amount) external pure {
@@ -143,24 +131,24 @@ contract RevenueSplitInvariantTest is Test {
 
     function test_splitMintHundred() external pure {
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMint(100);
-        assertEq(s.protocolCut, 1,  "splitMint(100): protocol should be 1");
-        assertEq(s.vaultCut,   80, "splitMint(100): vault should be 80");
-        assertEq(s.remainder,  19, "splitMint(100): creator should be 19");
+        assertEq(s.protocolCut, 1, "splitMint(100): protocol should be 1");
+        assertEq(s.vaultCut, 80, "splitMint(100): vault should be 80");
+        assertEq(s.remainder, 19, "splitMint(100): creator should be 19");
     }
 
     function test_splitMintOneEther() external pure {
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMint(1 ether);
-        assertEq(s.protocolCut, 0.01 ether,  "splitMint(1e18): protocol");
-        assertEq(s.vaultCut,   0.80 ether,  "splitMint(1e18): vault");
-        assertEq(s.remainder,  0.19 ether,  "splitMint(1e18): creator");
+        assertEq(s.protocolCut, 0.01 ether, "splitMint(1e18): protocol");
+        assertEq(s.vaultCut, 0.8 ether, "splitMint(1e18): vault");
+        assertEq(s.remainder, 0.19 ether, "splitMint(1e18): creator");
     }
 
     /// @notice split() (DN404 graduation) is UNCHANGED: vault=19%, remainder=80%.
     function test_splitStillGivesLegacyWeights() external pure {
         RevenueSplitLib.Split memory s = RevenueSplitLib.split(1 ether);
         assertEq(s.protocolCut, 0.01 ether);
-        assertEq(s.vaultCut,   0.19 ether);
-        assertEq(s.remainder,  0.80 ether);
+        assertEq(s.vaultCut, 0.19 ether);
+        assertEq(s.remainder, 0.8 ether);
     }
 
     // ── splitMintFor (family-aware): liquidity flips creator-80; yield keeps 1/80/19 ─────────
@@ -199,11 +187,11 @@ contract RevenueSplitInvariantTest is Test {
         RevenueSplitLib.Split memory liq = RevenueSplitLib.splitMintFor(1 ether, true);
         assertEq(liq.protocolCut, 0.01 ether);
         assertEq(liq.vaultCut, 0.19 ether);
-        assertEq(liq.remainder, 0.80 ether, "liquidity creator should net 80%");
+        assertEq(liq.remainder, 0.8 ether, "liquidity creator should net 80%");
 
         RevenueSplitLib.Split memory yld = RevenueSplitLib.splitMintFor(1 ether, false);
         assertEq(yld.protocolCut, 0.01 ether);
-        assertEq(yld.vaultCut, 0.80 ether);
+        assertEq(yld.vaultCut, 0.8 ether);
         assertEq(yld.remainder, 0.19 ether, "yield creator should net 19%");
     }
 

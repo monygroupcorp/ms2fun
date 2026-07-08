@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 
 /// @dev Minimal WETH surface used by the vault.
 interface IWETH {
@@ -117,9 +117,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ) external {
         if (_initialized) revert AlreadyInitialized();
         if (
-            _owner == address(0) || _weth == address(0) || _stataToken == address(0)
-                || _protocolTreasury == address(0) || _masterRegistry == address(0)
-                || _alignmentToken == address(0)
+            _owner == address(0) || _weth == address(0) || _stataToken == address(0) || _protocolTreasury == address(0)
+                || _masterRegistry == address(0) || _alignmentToken == address(0)
         ) revert InvalidAddress();
         _initialized = true;
         _initializeOwner(_owner);
@@ -163,10 +162,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     /// @inheritdoc IAlignmentVault
     /// @dev Direct ETH (e.g. from `weth.withdraw`) is accepted but NOT auto-credited — endowment
     ///      principal is only created through `receiveContribution` with an explicit benefactor.
-    receive() external payable override {}
+    receive() external payable override { }
 
     function _deposit(address benefactor, uint256 amount) internal {
-        weth.deposit{value: amount}(); // approval is set once in initialize
+        weth.deposit{ value: amount }(); // approval is set once in initialize
         stataToken.deposit(amount, address(this));
 
         if (depositTime[benefactor] == 0) depositTime[benefactor] = block.timestamp;
@@ -279,13 +278,9 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     /// @dev Split `amount` of ETH: creator (creatorBps) + community (communityBps) + platform
     ///      (remainder, ~1% incl. rounding dust). Skips zero legs; reverts if a community leg is due
     ///      but no payout is set (caught earlier, defensive here).
-    function _distribute(
-        uint256 amount,
-        address creator,
-        uint256 creatorBps,
-        address community,
-        uint256 communityBps
-    ) internal {
+    function _distribute(uint256 amount, address creator, uint256 creatorBps, address community, uint256 communityBps)
+        internal
+    {
         uint256 creatorCut = (amount * creatorBps) / BPS;
         uint256 communityCut = (amount * communityBps) / BPS;
         uint256 platformCut = amount - creatorCut - communityCut;

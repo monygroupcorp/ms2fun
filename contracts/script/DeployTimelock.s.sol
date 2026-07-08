@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Script, console} from "forge-std/Script.sol";
-import {Timelock} from "solady/accounts/Timelock.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { Timelock } from "solady/accounts/Timelock.sol";
 
 contract DeployTimelock is Script {
     uint256 public constant MIN_DELAY = 24 hours; // 86400 seconds

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC404BondingInstance} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-import {BondingCurveMath} from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 
 /// @notice Invariant handler for ERC404BondingInstance bonding curve reserve accounting
 contract BondingCurveHandler is Test {
@@ -19,7 +19,11 @@ contract BondingCurveHandler is Test {
     uint256 public ghost_buyCount;
     uint256 public ghost_sellCount;
 
-    constructor(ERC404BondingInstance _instance, BondingCurveMath.Params memory _curveParams, address[] memory _actors) {
+    constructor(
+        ERC404BondingInstance _instance,
+        BondingCurveMath.Params memory _curveParams,
+        address[] memory _actors
+    ) {
         instance = _instance;
         curveParams = _curveParams;
         for (uint256 i = 0; i < _actors.length; i++) {
@@ -39,8 +43,8 @@ contract BondingCurveHandler is Test {
         // Bound to at least 1 NFT worth, at most 5 NFTs worth
         amount = bound(amount, unit_, 5 * unit_);
 
-        uint256 maxBondingSupply = instance.maxSupply() - instance.liquidityReserve()
-            - (instance.freeMintAllocation() * unit_);
+        uint256 maxBondingSupply =
+            instance.maxSupply() - instance.liquidityReserve() - (instance.freeMintAllocation() * unit_);
         uint256 currentSupply = instance.totalBondingSupply();
 
         // Skip if would exceed bonding cap
@@ -54,7 +58,7 @@ contract BondingCurveHandler is Test {
 
         vm.deal(actor, actor.balance + totalWithFee);
         vm.prank(actor);
-        instance.buyBonding{value: totalWithFee}(amount, totalWithFee, false, bytes32(0), "", 0);
+        instance.buyBonding{ value: totalWithFee }(amount, totalWithFee, false, bytes32(0), "", 0);
 
         ghost_totalBuyCost += cost;
         ghost_buyCount++;
@@ -73,8 +77,8 @@ contract BondingCurveHandler is Test {
         uint256 amount = nftCount * unit_;
 
         // Don't sell if bonding is capped (the contract reverts)
-        uint256 maxBondingSupply = instance.maxSupply() - instance.liquidityReserve()
-            - (instance.freeMintAllocation() * unit_);
+        uint256 maxBondingSupply =
+            instance.maxSupply() - instance.liquidityReserve() - (instance.freeMintAllocation() * unit_);
         if (instance.totalBondingSupply() >= maxBondingSupply) return;
 
         uint256 refund = BondingCurveMath.calculateRefund(curveParams, instance.totalBondingSupply(), amount);

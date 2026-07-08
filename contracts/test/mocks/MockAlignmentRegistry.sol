@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 /// @notice Minimal mock for vault tests — only implements token-in-target and active checks.
 contract MockAlignmentRegistry is IAlignmentRegistry {
@@ -35,15 +35,37 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
 
     // ── Stubs (not used by vault) ──
 
-    function registerAlignmentTarget(string memory, string memory, string memory, AlignmentAsset[] memory) external pure override returns (uint256) { return 0; }
-    function getAlignmentTarget(uint256) external pure override returns (AlignmentTarget memory) { return AlignmentTarget(0, "", "", "", 0, false); }
-    function getAlignmentTargetAssets(uint256) external pure override returns (AlignmentAsset[] memory) { return new AlignmentAsset[](0); }
-    function deactivateAlignmentTarget(uint256) external pure override {}
-    function updateAlignmentTarget(uint256, string memory, string memory) external pure override {}
-    function addAmbassador(uint256, address) external pure override {}
-    function removeAmbassador(uint256, address) external pure override {}
-    function getAmbassadors(uint256) external pure override returns (address[] memory) { return new address[](0); }
-    function isAmbassador(uint256, address) external pure override returns (bool) { return false; }
-    function setCommunityPayout(uint256, address) external pure override {}
-    function getCommunityPayout(uint256) external pure override returns (address) { return address(0); }
+    function registerAlignmentTarget(string memory, string memory, string memory, AlignmentAsset[] memory)
+        external
+        pure
+        override
+        returns (uint256)
+    {
+        return 0;
+    }
+
+    function getAlignmentTarget(uint256) external pure override returns (AlignmentTarget memory) {
+        return AlignmentTarget(0, "", "", "", 0, false);
+    }
+
+    function getAlignmentTargetAssets(uint256) external pure override returns (AlignmentAsset[] memory) {
+        return new AlignmentAsset[](0);
+    }
+    function deactivateAlignmentTarget(uint256) external pure override { }
+    function updateAlignmentTarget(uint256, string memory, string memory) external pure override { }
+    function addAmbassador(uint256, address) external pure override { }
+    function removeAmbassador(uint256, address) external pure override { }
+
+    function getAmbassadors(uint256) external pure override returns (address[] memory) {
+        return new address[](0);
+    }
+
+    function isAmbassador(uint256, address) external pure override returns (bool) {
+        return false;
+    }
+    function setCommunityPayout(uint256, address) external pure override { }
+
+    function getCommunityPayout(uint256) external pure override returns (address) {
+        return address(0);
+    }
 }

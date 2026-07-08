@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {IDynamicPricingModule} from "./interfaces/IDynamicPricingModule.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { IDynamicPricingModule } from "./interfaces/IDynamicPricingModule.sol";
 
 /// @title DynamicPricingModule
 /// @notice Exponential pricing math for ERC1155 LIMITED_DYNAMIC editions.
@@ -32,11 +32,11 @@ contract DynamicPricingModule is Ownable, IDynamicPricingModule {
     // ── IDynamicPricingModule ─────────────────────────────────────────────────
 
     /// @inheritdoc IDynamicPricingModule
-    function calculatePrice(
-        uint256 basePrice,
-        uint256 priceIncreaseRate,
-        uint256 minted
-    ) external pure returns (uint256) {
+    function calculatePrice(uint256 basePrice, uint256 priceIncreaseRate, uint256 minted)
+        external
+        pure
+        returns (uint256)
+    {
         if (minted == 0 || priceIncreaseRate == 0) return basePrice;
         // basePrice * ((10000 + rate) / 10000) ^ minted  in WAD arithmetic
         uint256 multiplierWad = 1e18 + (priceIncreaseRate * 1e14);
@@ -47,12 +47,11 @@ contract DynamicPricingModule is Ownable, IDynamicPricingModule {
     }
 
     /// @inheritdoc IDynamicPricingModule
-    function calculateBatchCost(
-        uint256 basePrice,
-        uint256 priceIncreaseRate,
-        uint256 startMinted,
-        uint256 amount
-    ) external pure returns (uint256) {
+    function calculateBatchCost(uint256 basePrice, uint256 priceIncreaseRate, uint256 startMinted, uint256 amount)
+        external
+        pure
+        returns (uint256)
+    {
         if (priceIncreaseRate == 0) return basePrice * amount;
         // Geometric series: sum = basePrice * r^start * (r^amount - 1) / (r - 1)
         uint256 r = 1e18 + (priceIncreaseRate * 1e14);

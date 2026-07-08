@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Hooks} from "v4-core/libraries/Hooks.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
+import { Hooks } from "v4-core/libraries/Hooks.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
 /**
  * @title HookAddressMiner
@@ -40,27 +40,17 @@ import {IHooks} from "v4-core/interfaces/IHooks.sol";
 library HookAddressMiner {
     /// @notice All possible hook permission flags combined (bits 0-13)
     uint160 constant ALL_HOOK_FLAGS = uint160(
-        Hooks.BEFORE_INITIALIZE_FLAG |
-        Hooks.AFTER_INITIALIZE_FLAG |
-        Hooks.BEFORE_ADD_LIQUIDITY_FLAG |
-        Hooks.AFTER_ADD_LIQUIDITY_FLAG |
-        Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG |
-        Hooks.AFTER_REMOVE_LIQUIDITY_FLAG |
-        Hooks.BEFORE_SWAP_FLAG |
-        Hooks.AFTER_SWAP_FLAG |
-        Hooks.BEFORE_DONATE_FLAG |
-        Hooks.AFTER_DONATE_FLAG |
-        Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG |
-        Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG |
-        Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG |
-        Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG
+        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+            | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+            | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.AFTER_DONATE_FLAG
+            | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+            | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG
     ); // = 0x3FFF (bits 0-13)
 
     /// @notice Hook flags for UniAlignmentV4Hook
     /// beforeSwap (bit 7) + afterSwap (bit 6) + afterSwapReturnDelta (bit 2)
-    uint160 constant ULTRA_ALIGNMENT_HOOK_FLAGS = uint160(
-        Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
-    ); // = 0xC4
+    uint160 constant ULTRA_ALIGNMENT_HOOK_FLAGS =
+        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG); // = 0xC4
 
     /// @notice Flags that must NOT be set for UniAlignmentV4Hook
     uint160 constant ULTRA_ALIGNMENT_FORBIDDEN_FLAGS = ALL_HOOK_FLAGS ^ ULTRA_ALIGNMENT_HOOK_FLAGS;
@@ -84,12 +74,11 @@ library HookAddressMiner {
      * @return salt A bytes32 salt value that produces a valid hook address
      * @return predictedAddress The address that will be deployed with this salt
      */
-    function mineSalt(
-        address deployer,
-        bytes32 initCodeHash,
-        uint160 requiredFlags,
-        uint160 forbiddenFlags
-    ) internal pure returns (bytes32 salt, address predictedAddress) {
+    function mineSalt(address deployer, bytes32 initCodeHash, uint160 requiredFlags, uint160 forbiddenFlags)
+        internal
+        pure
+        returns (bytes32 salt, address predictedAddress)
+    {
         for (uint256 i = 0; i < MAX_ITERATIONS; i++) {
             salt = bytes32(i);
             predictedAddress = computeAddress(deployer, salt, initCodeHash);
@@ -109,16 +98,12 @@ library HookAddressMiner {
      * @return salt Valid salt for deployment
      * @return predictedAddress The hook address that will be created
      */
-    function mineSaltForUniAlignmentHook(
-        address deployer,
-        bytes32 initCodeHash
-    ) internal pure returns (bytes32 salt, address predictedAddress) {
-        return mineSalt(
-            deployer,
-            initCodeHash,
-            ULTRA_ALIGNMENT_HOOK_FLAGS,
-            ULTRA_ALIGNMENT_FORBIDDEN_FLAGS
-        );
+    function mineSaltForUniAlignmentHook(address deployer, bytes32 initCodeHash)
+        internal
+        pure
+        returns (bytes32 salt, address predictedAddress)
+    {
+        return mineSalt(deployer, initCodeHash, ULTRA_ALIGNMENT_HOOK_FLAGS, ULTRA_ALIGNMENT_FORBIDDEN_FLAGS);
     }
 
     /**
@@ -128,17 +113,8 @@ library HookAddressMiner {
      * @param initCodeHash The keccak256 of the init code (creation code + constructor args)
      * @return The predicted deployment address
      */
-    function computeAddress(
-        address deployer,
-        bytes32 salt,
-        bytes32 initCodeHash
-    ) internal pure returns (address) {
-        return address(uint160(uint256(keccak256(abi.encodePacked(
-            bytes1(0xff),
-            deployer,
-            salt,
-            initCodeHash
-        )))));
+    function computeAddress(address deployer, bytes32 salt, bytes32 initCodeHash) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
     }
 
     /**
@@ -148,11 +124,7 @@ library HookAddressMiner {
      * @param forbiddenFlags Flags that must NOT be set
      * @return True if address has exactly the required flags
      */
-    function hasExactFlags(
-        address addr,
-        uint160 requiredFlags,
-        uint160 forbiddenFlags
-    ) internal pure returns (bool) {
+    function hasExactFlags(address addr, uint160 requiredFlags, uint160 forbiddenFlags) internal pure returns (bool) {
         uint160 addrFlags = uint160(addr);
         // Required flags must all be set
         bool hasRequired = (addrFlags & requiredFlags) == requiredFlags;
@@ -202,10 +174,9 @@ library HookAddressMiner {
         uint256 hookFeeBips,
         uint24 initialLpFeeRate
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(
-            creationCode,
-            abi.encode(poolManager, vault, weth, owner, hookFeeBips, initialLpFeeRate)
-        ));
+        return keccak256(
+            abi.encodePacked(creationCode, abi.encode(poolManager, vault, weth, owner, hookFeeBips, initialLpFeeRate))
+        );
     }
 
     /**
@@ -215,12 +186,7 @@ library HookAddressMiner {
      * @param initCodeHash The init code hash
      * @param expectedAddress The address we expect
      */
-    function verifySalt(
-        address deployer,
-        bytes32 salt,
-        bytes32 initCodeHash,
-        address expectedAddress
-    ) internal pure {
+    function verifySalt(address deployer, bytes32 salt, bytes32 initCodeHash, address expectedAddress) internal pure {
         address computed = computeAddress(deployer, salt, initCodeHash);
         if (computed != expectedAddress) {
             revert AddressMismatch(expectedAddress, computed);

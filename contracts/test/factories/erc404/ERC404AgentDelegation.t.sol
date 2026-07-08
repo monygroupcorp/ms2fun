@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ERC404Factory} from "../../../src/factories/erc404/ERC404Factory.sol";
-import {ERC404BondingInstance} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
-import {LaunchManager} from "../../../src/factories/erc404/LaunchManager.sol";
-import {CurveParamsComputer} from "../../../src/factories/erc404/CurveParamsComputer.sol";
-import {ComponentRegistry} from "../../../src/registry/ComponentRegistry.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import {FreeMintParams} from "../../../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../../src/gating/IGatingModule.sol";
-import {CREATEX} from "../../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test } from "forge-std/Test.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
+import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
+import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
+import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../../src/gating/IGatingModule.sol";
+import { CREATEX } from "../../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 /**
  * @title ERC404AgentDelegationTest
@@ -30,14 +30,19 @@ import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
  * scoped to CREATION: it hands a fully-owned collection to the person, and the person alone manages it.
  */
 contract MockVault {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 contract MockLiquidityDeployer is ILiquidityDeployerModule {
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract ERC404AgentDelegationTest is Test {
@@ -80,13 +85,16 @@ contract ERC404AgentDelegationTest is Test {
         componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "StandardCurve");
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "MockDeployer");
 
-        launchMgr.setPreset(PRESET_ID, LaunchManager.Preset({
-            targetETH: 15 ether,
-            unitPerNFT: 1e6,
-            liquidityReserveBps: 2000,
-            curveComputer: address(curveComp),
-            active: true
-        }));
+        launchMgr.setPreset(
+            PRESET_ID,
+            LaunchManager.Preset({
+                targetETH: 15 ether,
+                unitPerNFT: 1e6,
+                liquidityReserveBps: 2000,
+                curveComputer: address(curveComp),
+                active: true
+            })
+        );
 
         ERC404BondingInstance impl = new ERC404BondingInstance();
         factory = new ERC404Factory(
@@ -109,10 +117,7 @@ contract ERC404AgentDelegationTest is Test {
         vm.stopPrank();
     }
 
-    function _params(string memory name_, address owner_)
-        internal
-        returns (ERC404Factory.CreateParams memory)
-    {
+    function _params(string memory name_, address owner_) internal returns (ERC404Factory.CreateParams memory) {
         return ERC404Factory.CreateParams({
             salt: _nextSalt(),
             owner: owner_,
@@ -124,7 +129,7 @@ contract ERC404AgentDelegationTest is Test {
             styleUri: "",
             tokenBaseURI: "",
             stakingModule: address(0),
-                declaredMaxAllowanceBps: 0
+            declaredMaxAllowanceBps: 0
         });
     }
 
@@ -136,7 +141,7 @@ contract ERC404AgentDelegationTest is Test {
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
 
@@ -168,7 +173,7 @@ contract ERC404AgentDelegationTest is Test {
             "ipfs://metadata",
             address(mockDeployer),
             address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH})
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
 

@@ -2,19 +2,19 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
-import {IAlignmentVault} from "../../src/interfaces/IAlignmentVault.sol";
-import {UniAlignmentVault} from "../../src/vaults/uni/UniAlignmentVault.sol";
-import {ZAMMAlignmentVault, IZAMM} from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
-import {MockVault} from "../mocks/MockVault.sol";
-import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
-import {MockAlignmentRegistry} from "../mocks/MockAlignmentRegistry.sol";
-import {MockZAMM} from "../mocks/MockZAMM.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
+import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
+import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
+import { MockVault } from "../mocks/MockVault.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { MockZAMM } from "../mocks/MockZAMM.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 /**
  * @title VaultInterfaceComplianceTest
@@ -68,22 +68,13 @@ contract VaultInterfaceComplianceTest is Test {
         vm.deal(address(mockZRouter), 10 ether);
         alignmentToken.transfer(address(mockZRouter), 100_000e18);
 
-        IZAMM.PoolKey memory poolKey = IZAMM.PoolKey({
-            id0: 0, id1: 0,
-            token0: address(0),
-            token1: address(alignmentToken),
-            feeOrHook: 30
-        });
+        IZAMM.PoolKey memory poolKey =
+            IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: address(alignmentToken), feeOrHook: 30 });
 
         ZAMMAlignmentVault implV2 = new ZAMMAlignmentVault();
         ultraVaultV2 = ZAMMAlignmentVault(payable(LibClone.clone(address(implV2))));
         ultraVaultV2.initialize(
-            address(mockZamm),
-            address(mockZRouter),
-            address(alignmentToken),
-            poolKey,
-            address(0x99),
-            address(0)
+            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, address(0x99), address(0)
         );
 
         // Deploy MockVault
@@ -138,11 +129,7 @@ contract VaultInterfaceComplianceTest is Test {
 
         // Test receiveInstance
         vm.prank(benefactor1);
-        vault.receiveContribution{value: 1 ether}(
-            Currency.wrap(address(0)),
-            1 ether,
-            benefactor1
-        );
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
 
         // Test calculateClaimableAmount
         uint256 claimable = vault.calculateClaimableAmount(benefactor1);
@@ -195,11 +182,7 @@ contract VaultInterfaceComplianceTest is Test {
      */
     function test_MockVault_ReceiveHookTax() public {
         vm.prank(benefactor1);
-        mockVault.receiveContribution{value: 5 ether}(
-            Currency.wrap(address(0)),
-            5 ether,
-            benefactor1
-        );
+        mockVault.receiveContribution{ value: 5 ether }(Currency.wrap(address(0)), 5 ether, benefactor1);
 
         assertEq(mockVault.getBenefactorContribution(benefactor1), 5 ether);
         assertEq(mockVault.getBenefactorShares(benefactor1), 5 ether);
@@ -212,7 +195,7 @@ contract VaultInterfaceComplianceTest is Test {
      */
     function test_MockVault_ReceiveFallback() public {
         vm.prank(benefactor1);
-        (bool success, ) = address(mockVault).call{value: 3 ether}("");
+        (bool success,) = address(mockVault).call{ value: 3 ether }("");
         assertTrue(success, "ETH transfer should succeed");
 
         assertEq(mockVault.getBenefactorContribution(benefactor1), 3 ether);
@@ -225,19 +208,11 @@ contract VaultInterfaceComplianceTest is Test {
     function test_MockVault_MultiBenefactor() public {
         // Benefactor1 contributes 6 ETH
         vm.prank(benefactor1);
-        mockVault.receiveContribution{value: 6 ether}(
-            Currency.wrap(address(0)),
-            6 ether,
-            benefactor1
-        );
+        mockVault.receiveContribution{ value: 6 ether }(Currency.wrap(address(0)), 6 ether, benefactor1);
 
         // Benefactor2 contributes 4 ETH
         vm.prank(benefactor2);
-        mockVault.receiveContribution{value: 4 ether}(
-            Currency.wrap(address(0)),
-            4 ether,
-            benefactor2
-        );
+        mockVault.receiveContribution{ value: 4 ether }(Currency.wrap(address(0)), 4 ether, benefactor2);
 
         // Total should be 10 ETH
         assertEq(mockVault.totalShares(), 10 ether);
@@ -258,11 +233,7 @@ contract VaultInterfaceComplianceTest is Test {
     function test_MockVault_ClaimAndReclaim() public {
         // Initial contribution
         vm.prank(benefactor1);
-        mockVault.receiveContribution{value: 10 ether}(
-            Currency.wrap(address(0)),
-            10 ether,
-            benefactor1
-        );
+        mockVault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, benefactor1);
 
         // Claim all fees
         vm.prank(benefactor1);
@@ -271,7 +242,7 @@ contract VaultInterfaceComplianceTest is Test {
         assertEq(mockVault.accumulatedFees(), 0, "Fees should be 0 after claim");
 
         // Add more yield (in MockVault, we simulate this)
-        mockVault.simulateYield{value: 5 ether}(5 ether);
+        mockVault.simulateYield{ value: 5 ether }(5 ether);
         assertEq(mockVault.accumulatedFees(), 5 ether, "Should have 5 ETH in fees");
 
         // Claim again
@@ -436,7 +407,7 @@ contract VaultInterfaceComplianceTest is Test {
 
         // Contribute first to become a benefactor
         vm.prank(benefactor1);
-        v.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, benefactor1);
+        v.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
 
         // Set delegation on UltraVault (needs contribution)
         vm.prank(benefactor1);
@@ -474,7 +445,7 @@ contract VaultInterfaceComplianceTest is Test {
     function test_V2_ReceiveInstance_TracksContribution() public {
         IAlignmentVault v = IAlignmentVault(payable(address(ultraVaultV2)));
         vm.prank(benefactor1);
-        v.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, benefactor1);
+        v.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
         assertEq(ultraVaultV2.pendingETH(), 1 ether);
         assertEq(ultraVaultV2.pendingContribution(benefactor1), 1 ether);
     }
@@ -483,7 +454,7 @@ contract VaultInterfaceComplianceTest is Test {
         IAlignmentVault v = IAlignmentVault(payable(address(ultraVaultV2)));
         vm.expectRevert();
         vm.prank(benefactor1);
-        v.receiveContribution{value: 0}(Currency.wrap(address(0x1234)), 0, benefactor1);
+        v.receiveContribution{ value: 0 }(Currency.wrap(address(0x1234)), 0, benefactor1);
     }
 
     function test_MockVault_Delegation_RemoveBySettingZero() public {
@@ -492,7 +463,7 @@ contract VaultInterfaceComplianceTest is Test {
 
         // Become benefactor and set delegate
         vm.prank(benefactor1);
-        v.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, benefactor1);
+        v.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
         vm.prank(benefactor1);
         mockVault.delegateBenefactor(delegate);
 
@@ -510,9 +481,9 @@ contract VaultInterfaceComplianceTest is Test {
 
         // Two benefactors contribute
         vm.prank(benefactor1);
-        v.receiveContribution{value: 5 ether}(Currency.wrap(address(0)), 5 ether, benefactor1);
+        v.receiveContribution{ value: 5 ether }(Currency.wrap(address(0)), 5 ether, benefactor1);
         vm.prank(benefactor2);
-        v.receiveContribution{value: 5 ether}(Currency.wrap(address(0)), 5 ether, benefactor2);
+        v.receiveContribution{ value: 5 ether }(Currency.wrap(address(0)), 5 ether, benefactor2);
 
         // Both delegate to same address
         vm.prank(benefactor1);
@@ -544,11 +515,7 @@ contract VaultInterfaceComplianceTest is Test {
         emit IAlignmentVault.ContributionReceived(benefactor1, 1 ether);
 
         vm.prank(benefactor1);
-        mockVault.receiveContribution{value: 1 ether}(
-            Currency.wrap(address(0)),
-            1 ether,
-            benefactor1
-        );
+        mockVault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
     }
 
     /**
@@ -557,11 +524,7 @@ contract VaultInterfaceComplianceTest is Test {
     function test_Event_FeesClaimed() public {
         // Setup: contribute first
         vm.prank(benefactor1);
-        mockVault.receiveContribution{value: 1 ether}(
-            Currency.wrap(address(0)),
-            1 ether,
-            benefactor1
-        );
+        mockVault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
 
         // Expect event
         vm.expectEmit(true, true, true, true);
@@ -580,10 +543,6 @@ contract VaultInterfaceComplianceTest is Test {
         emit IAlignmentVault.FeesAccumulated(1 ether);
 
         vm.prank(benefactor1);
-        mockVault.receiveContribution{value: 1 ether}(
-            Currency.wrap(address(0)),
-            1 ether,
-            benefactor1
-        );
+        mockVault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, benefactor1);
     }
 }

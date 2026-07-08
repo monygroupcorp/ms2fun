@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {ProtocolTreasuryV1} from "../../src/treasury/ProtocolTreasuryV1.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test } from "forge-std/Test.sol";
+import { ProtocolTreasuryV1 } from "../../src/treasury/ProtocolTreasuryV1.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @notice Minimal ERC721 mock for testing treasury NFT handling
 contract MockERC721 {
@@ -28,7 +28,9 @@ contract MockERC721 {
         // Call onERC721Received if recipient is a contract
         if (to.code.length > 0) {
             (bool success, bytes memory ret) = to.call(
-                abi.encodeWithSignature("onERC721Received(address,address,uint256,bytes)", msg.sender, from, tokenId, data)
+                abi.encodeWithSignature(
+                    "onERC721Received(address,address,uint256,bytes)", msg.sender, from, tokenId, data
+                )
             );
             require(success && abi.decode(ret, (bytes4)) == bytes4(0x150b7a02), "Not receiver");
         }
@@ -99,7 +101,7 @@ contract ProtocolTreasuryTest is Test {
 
     function test_deposit_bondingFee() public {
         vm.prank(alice);
-        treasury.deposit{value: 1 ether}(ProtocolTreasuryV1.Source.BONDING_FEE);
+        treasury.deposit{ value: 1 ether }(ProtocolTreasuryV1.Source.BONDING_FEE);
 
         assertEq(treasury.getBalance(), 1 ether);
         (uint256 received,) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.BONDING_FEE);
@@ -108,11 +110,11 @@ contract ProtocolTreasuryTest is Test {
 
     function test_deposit_multipleSourcesTrackedSeparately() public {
         vm.prank(alice);
-        treasury.deposit{value: 1 ether}(ProtocolTreasuryV1.Source.BONDING_FEE);
+        treasury.deposit{ value: 1 ether }(ProtocolTreasuryV1.Source.BONDING_FEE);
         vm.prank(bob);
-        treasury.deposit{value: 2 ether}(ProtocolTreasuryV1.Source.CREATION_FEE);
+        treasury.deposit{ value: 2 ether }(ProtocolTreasuryV1.Source.CREATION_FEE);
         vm.prank(alice);
-        treasury.deposit{value: 0.5 ether}(ProtocolTreasuryV1.Source.QUEUE_REVENUE);
+        treasury.deposit{ value: 0.5 ether }(ProtocolTreasuryV1.Source.QUEUE_REVENUE);
 
         (uint256 bonding,) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.BONDING_FEE);
         (uint256 creation,) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.CREATION_FEE);
@@ -127,12 +129,12 @@ contract ProtocolTreasuryTest is Test {
     function test_deposit_revertZeroValue() public {
         vm.prank(alice);
         vm.expectRevert(ProtocolTreasuryV1.NoValue.selector);
-        treasury.deposit{value: 0}(ProtocolTreasuryV1.Source.BONDING_FEE);
+        treasury.deposit{ value: 0 }(ProtocolTreasuryV1.Source.BONDING_FEE);
     }
 
     function test_receive_taggedAsOther() public {
         vm.prank(alice);
-        (bool success,) = address(treasury).call{value: 1 ether}("");
+        (bool success,) = address(treasury).call{ value: 1 ether }("");
         assertTrue(success);
 
         (uint256 other,) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.OTHER);
@@ -143,7 +145,7 @@ contract ProtocolTreasuryTest is Test {
 
     function test_withdrawETH() public {
         vm.prank(alice);
-        treasury.deposit{value: 5 ether}(ProtocolTreasuryV1.Source.BONDING_FEE);
+        treasury.deposit{ value: 5 ether }(ProtocolTreasuryV1.Source.BONDING_FEE);
 
         vm.prank(owner);
         treasury.withdrawETH(bob, 3 ether);
@@ -154,7 +156,7 @@ contract ProtocolTreasuryTest is Test {
 
     function test_withdrawETH_revertNonOwner() public {
         vm.prank(alice);
-        treasury.deposit{value: 1 ether}(ProtocolTreasuryV1.Source.BONDING_FEE);
+        treasury.deposit{ value: 1 ether }(ProtocolTreasuryV1.Source.BONDING_FEE);
 
         vm.prank(alice);
         vm.expectRevert();
@@ -169,7 +171,7 @@ contract ProtocolTreasuryTest is Test {
 
     function test_withdrawETH_revertZeroAddress() public {
         vm.prank(alice);
-        treasury.deposit{value: 1 ether}(ProtocolTreasuryV1.Source.BONDING_FEE);
+        treasury.deposit{ value: 1 ether }(ProtocolTreasuryV1.Source.BONDING_FEE);
 
         vm.prank(owner);
         vm.expectRevert(ProtocolTreasuryV1.InvalidRecipient.selector);

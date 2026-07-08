@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "../../src/interfaces/algebra/IAlgebra.sol";
-import {MockERC20} from "./MockERC20.sol";
+import { MockERC20 } from "./MockERC20.sol";
 
 /// @notice Minimal mock pool for Cypher/Algebra tests
 contract MockAlgebraPool {
@@ -22,10 +22,11 @@ contract MockAlgebraPool {
         sqrtPriceX96 = _sqrtPriceX96;
     }
 
-    function globalState() external view returns (
-        uint160 price, int24 tick, uint16 lastFee,
-        uint8 pluginConfig, uint16 communityFee, bool unlocked
-    ) {
+    function globalState()
+        external
+        view
+        returns (uint160 price, int24 tick, uint16 lastFee, uint8 pluginConfig, uint16 communityFee, bool unlocked)
+    {
         return (sqrtPriceX96, 0, 3000, 0, 0, true);
     }
 }
@@ -50,10 +51,14 @@ contract MockAlgebraFactory {
 /// @notice Mock Algebra position manager
 contract MockAlgebraPositionManager {
     struct Position {
-        address token0; address token1; address deployer;
-        int24 tickLower; int24 tickUpper;
+        address token0;
+        address token1;
+        address deployer;
+        int24 tickLower;
+        int24 tickUpper;
         uint128 liquidity;
-        uint128 tokensOwed0; uint128 tokensOwed1;
+        uint128 tokensOwed0;
+        uint128 tokensOwed1;
     }
 
     mapping(uint256 => Position) internal _positions;
@@ -67,7 +72,8 @@ contract MockAlgebraPositionManager {
     event Collect(uint256 indexed tokenId, address recipient, uint256 amount0, uint256 amount1);
 
     function mint(IAlgebraNFTPositionManager.MintParams calldata p)
-        external payable
+        external
+        payable
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
         if (p.amount0Desired > 0) MockERC20(p.token0).transferFrom(msg.sender, address(this), p.amount0Desired);
@@ -80,16 +86,22 @@ contract MockAlgebraPositionManager {
         owners[tokenId] = p.recipient;
 
         _positions[tokenId] = Position({
-            token0: p.token0, token1: p.token1, deployer: p.deployer,
-            tickLower: p.tickLower, tickUpper: p.tickUpper,
-            liquidity: liquidity, tokensOwed0: 0, tokensOwed1: 0
+            token0: p.token0,
+            token1: p.token1,
+            deployer: p.deployer,
+            tickLower: p.tickLower,
+            tickUpper: p.tickUpper,
+            liquidity: liquidity,
+            tokensOwed0: 0,
+            tokensOwed1: 0
         });
 
         emit Transfer(address(0), p.recipient, tokenId);
     }
 
     function collect(IAlgebraNFTPositionManager.CollectParams calldata p)
-        external payable
+        external
+        payable
         returns (uint256 amount0, uint256 amount1)
     {
         Position storage pos = _positions[p.tokenId];
@@ -120,7 +132,8 @@ contract MockAlgebraPositionManager {
     }
 
     function decreaseLiquidity(IAlgebraNFTPositionManager.DecreaseLiquidityParams calldata p)
-        external payable
+        external
+        payable
         returns (uint256 amount0, uint256 amount1)
     {
         Position storage pos = _positions[p.tokenId];
@@ -134,21 +147,43 @@ contract MockAlgebraPositionManager {
     }
 
     function positions(uint256 tokenId)
-        external view
+        external
+        view
         returns (
-            uint88 nonce, address operator,
-            address token0, address token1, address deployer,
-            int24 tickLower, int24 tickUpper, uint128 liquidity,
-            uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0, uint128 tokensOwed1
+            uint88 nonce,
+            address operator,
+            address token0,
+            address token1,
+            address deployer,
+            int24 tickLower,
+            int24 tickUpper,
+            uint128 liquidity,
+            uint256 feeGrowthInside0LastX128,
+            uint256 feeGrowthInside1LastX128,
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
         )
     {
         Position storage p = _positions[tokenId];
-        return (0, address(0), p.token0, p.token1, p.deployer, p.tickLower, p.tickUpper,
-                p.liquidity, 0, 0, p.tokensOwed0, p.tokensOwed1);
+        return (
+            0,
+            address(0),
+            p.token0,
+            p.token1,
+            p.deployer,
+            p.tickLower,
+            p.tickUpper,
+            p.liquidity,
+            0,
+            0,
+            p.tokensOwed0,
+            p.tokensOwed1
+        );
     }
 
-    function ownerOf(uint256 tokenId) external view returns (address) { return owners[tokenId]; }
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        return owners[tokenId];
+    }
 
     function approve(address spender, uint256 tokenId) external {
         require(owners[tokenId] == msg.sender, "Not owner");
@@ -175,9 +210,14 @@ contract MockAlgebraPositionManager {
 
     function setPosition(uint256 tokenId, address _token0, address _token1, address _owner) external {
         _positions[tokenId] = Position({
-            token0: _token0, token1: _token1, deployer: address(0),
-            tickLower: -887220, tickUpper: 887220,
-            liquidity: 1, tokensOwed0: 0, tokensOwed1: 0
+            token0: _token0,
+            token1: _token1,
+            deployer: address(0),
+            tickLower: -887220,
+            tickUpper: 887220,
+            liquidity: 1,
+            tokensOwed0: 0,
+            tokensOwed1: 0
         });
         owners[tokenId] = _owner;
     }
@@ -188,7 +228,8 @@ contract MockAlgebraSwapRouter {
     mapping(address => mapping(address => uint256)) public rates; // tokenIn => tokenOut => rate (1e18 = 1:1)
 
     function exactInputSingle(IAlgebraSwapRouter.ExactInputSingleParams calldata p)
-        external payable
+        external
+        payable
         returns (uint256 amountOut)
     {
         MockERC20(p.tokenIn).transferFrom(msg.sender, address(this), p.amountIn);

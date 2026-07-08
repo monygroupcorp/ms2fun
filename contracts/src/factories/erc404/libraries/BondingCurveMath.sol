@@ -39,11 +39,11 @@ library BondingCurveMath {
      * @param upperBound The upper bound of the supply range to integrate
      * @return integral The calculated integral value in ETH
      */
-    function calculateIntegral(
-        Params memory params,
-        uint256 lowerBound,
-        uint256 upperBound
-    ) internal pure returns (uint256) {
+    function calculateIntegral(Params memory params, uint256 lowerBound, uint256 upperBound)
+        internal
+        pure
+        returns (uint256)
+    {
         if (upperBound < lowerBound) revert InvalidBounds();
         return _calculateIntegralFromZero(params, upperBound) - _calculateIntegralFromZero(params, lowerBound);
     }
@@ -55,10 +55,7 @@ library BondingCurveMath {
      * @param supply The upper bound of the supply range to integrate
      * @return integral The calculated integral value in ETH
      */
-    function _calculateIntegralFromZero(
-        Params memory params,
-        uint256 supply
-    ) private pure returns (uint256) {
+    function _calculateIntegralFromZero(Params memory params, uint256 supply) private pure returns (uint256) {
         if (params.normalizationFactor == 0) revert NormalizationFactorZero();
         // Scale down by normalization factor — rounds down (floor), loses sub-normFactor
         // token fractions. Consequence: purchases < normalizationFactor tokens cost 0,
@@ -75,26 +72,15 @@ library BondingCurveMath {
         uint256 basePart = params.initialPrice.mulWad(scaledSupplyWad);
 
         // Quartic term: coeff * S^4 — 4 chained mulWad, rounds down ≤4 wei cumulative
-        uint256 quarticTerm = params.quarticCoeff.mulWad(
-            scaledSupplyWad.mulWad(
-                scaledSupplyWad.mulWad(
-                    scaledSupplyWad.mulWad(scaledSupplyWad)
-                )
-            )
-        );
+        uint256 quarticTerm = params.quarticCoeff
+            .mulWad(scaledSupplyWad.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad))));
 
         // Cubic term: coeff * S^3 — 3 chained mulWad, rounds down ≤3 wei cumulative
-        uint256 cubicTerm = params.cubicCoeff.mulWad(
-            scaledSupplyWad.mulWad(
-                scaledSupplyWad.mulWad(scaledSupplyWad)
-            )
-        );
+        uint256 cubicTerm = params.cubicCoeff.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad)));
 
         // Quadratic term: coeff * S^2 — 2 chained mulWad, rounds down ≤2 wei cumulative
-        uint256 quadraticTerm = params.quadraticCoeff.mulWad(
-            scaledSupplyWad.mulWad(scaledSupplyWad)
-        );
-        
+        uint256 quadraticTerm = params.quadraticCoeff.mulWad(scaledSupplyWad.mulWad(scaledSupplyWad));
+
         return basePart + quarticTerm + cubicTerm + quadraticTerm;
     }
 
@@ -105,11 +91,11 @@ library BondingCurveMath {
      * @param amount Amount of tokens to buy
      * @return cost The ETH cost to buy the tokens
      */
-    function calculateCost(
-        Params memory params,
-        uint256 currentSupply,
-        uint256 amount
-    ) internal pure returns (uint256) {
+    function calculateCost(Params memory params, uint256 currentSupply, uint256 amount)
+        internal
+        pure
+        returns (uint256)
+    {
         return calculateIntegral(params, currentSupply, currentSupply + amount);
     }
 
@@ -120,11 +106,11 @@ library BondingCurveMath {
      * @param amount Amount of tokens to sell
      * @return refund The ETH refund for selling the tokens
      */
-    function calculateRefund(
-        Params memory params,
-        uint256 currentSupply,
-        uint256 amount
-    ) internal pure returns (uint256) {
+    function calculateRefund(Params memory params, uint256 currentSupply, uint256 amount)
+        internal
+        pure
+        returns (uint256)
+    {
         if (amount > currentSupply) revert AmountExceedsSupply();
         return calculateIntegral(params, currentSupply - amount, currentSupply);
     }

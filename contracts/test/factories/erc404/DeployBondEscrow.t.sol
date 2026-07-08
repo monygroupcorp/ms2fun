@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {DeployBondEscrow} from "../../../src/factories/erc404/DeployBondEscrow.sol";
-import {ProtocolTreasuryV1} from "../../../src/treasury/ProtocolTreasuryV1.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test } from "forge-std/Test.sol";
+import { DeployBondEscrow } from "../../../src/factories/erc404/DeployBondEscrow.sol";
+import { ProtocolTreasuryV1 } from "../../../src/treasury/ProtocolTreasuryV1.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @dev Minimal stand-in for a bonding instance — the escrow only reads these two getters.
 contract MockBondInstance {
@@ -73,7 +73,7 @@ contract DeployBondEscrowTest is Test {
 
     function _post(address inst, address who, uint256 amount) internal {
         vm.prank(factory);
-        escrow.postBond{value: amount}(inst, who);
+        escrow.postBond{ value: amount }(inst, who);
     }
 
     // ── Construction ──────────────────────────────────────────────────────────
@@ -112,29 +112,29 @@ contract DeployBondEscrowTest is Test {
         vm.deal(stranger, 1 ether);
         vm.prank(stranger);
         vm.expectRevert(DeployBondEscrow.OnlyFactory.selector);
-        escrow.postBond{value: BOND}(address(instance), creator);
+        escrow.postBond{ value: BOND }(address(instance), creator);
     }
 
     function test_postBond_revertsOnZeroValue() public {
         vm.prank(factory);
         vm.expectRevert(DeployBondEscrow.NoBondValue.selector);
-        escrow.postBond{value: 0}(address(instance), creator);
+        escrow.postBond{ value: 0 }(address(instance), creator);
     }
 
     function test_postBond_revertsOnZeroAddresses() public {
         vm.prank(factory);
         vm.expectRevert(DeployBondEscrow.InvalidAddress.selector);
-        escrow.postBond{value: BOND}(address(0), creator);
+        escrow.postBond{ value: BOND }(address(0), creator);
         vm.prank(factory);
         vm.expectRevert(DeployBondEscrow.InvalidAddress.selector);
-        escrow.postBond{value: BOND}(address(instance), address(0));
+        escrow.postBond{ value: BOND }(address(instance), address(0));
     }
 
     function test_postBond_revertsOnDoublePost() public {
         _post(address(instance), creator, BOND);
         vm.prank(factory);
         vm.expectRevert(DeployBondEscrow.BondAlreadyPosted.selector);
-        escrow.postBond{value: BOND}(address(instance), creator);
+        escrow.postBond{ value: BOND }(address(instance), creator);
     }
 
     // ── refund ────────────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ contract DeployBondEscrowTest is Test {
         escrow.refund(address(instance));
 
         assertEq(creator.balance - before, BOND);
-        (, , , bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled) = escrow.bonds(address(instance));
         assertTrue(settled);
         assertEq(address(escrow).balance, 0);
     }
@@ -190,7 +190,7 @@ contract DeployBondEscrowTest is Test {
         assertEq(treasury.totalReceived(ProtocolTreasuryV1.Source.BOND_FORFEIT), BOND);
         assertEq(address(treasury).balance, BOND);
         assertEq(address(escrow).balance, 0);
-        (, , , bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled) = escrow.bonds(address(instance));
         assertTrue(settled);
     }
 
@@ -242,7 +242,7 @@ contract DeployBondEscrowTest is Test {
         vm.prank(owner);
         escrow.release(address(instance));
         assertEq(creator.balance - before, BOND);
-        (, , , bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled) = escrow.bonds(address(instance));
         assertTrue(settled);
     }
 
@@ -275,7 +275,7 @@ contract DeployBondEscrowTest is Test {
         vm.expectRevert();
         escrow.refund(address(instance));
 
-        (, , , bool settled) = escrow.bonds(address(instance));
+        (,,, bool settled) = escrow.bonds(address(instance));
         assertFalse(settled);
         assertEq(address(escrow).balance, BOND);
     }

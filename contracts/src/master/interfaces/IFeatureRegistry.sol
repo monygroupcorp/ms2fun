@@ -17,11 +17,7 @@ interface IFeatureRegistry {
         bytes32[] dependencies;
     }
 
-    event FeatureRegistered(
-        bytes32 indexed featureId,
-        string name,
-        address indexed registrant
-    );
+    event FeatureRegistered(bytes32 indexed featureId, string name, address indexed registrant);
 
     event FeatureActivated(bytes32 indexed featureId);
     event FeatureDeactivated(bytes32 indexed featureId);
@@ -33,15 +29,10 @@ interface IFeatureRegistry {
         bytes32[] memory dependencies
     ) external payable;
 
-    function getFeature(
-        bytes32 featureId
-    ) external view returns (Feature memory);
+    function getFeature(bytes32 featureId) external view returns (Feature memory);
 
     function isFeatureActive(bytes32 featureId) external view returns (bool);
 
-    function hasFeature(
-        bytes32[] memory features,
-        bytes32 featureId
-    ) external pure returns (bool);
+    function hasFeature(bytes32[] memory features, bytes32 featureId) external pure returns (bool);
 }
 

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {IMasterRegistry} from "./interfaces/IMasterRegistry.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {SmartTransferLib} from "../libraries/SmartTransferLib.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { IMasterRegistry } from "./interfaces/IMasterRegistry.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SmartTransferLib } from "../libraries/SmartTransferLib.sol";
 
 /**
  * @title FeaturedQueueManager
@@ -33,7 +33,6 @@ import {SmartTransferLib} from "../libraries/SmartTransferLib.sol";
  */
 // slither-disable-next-line missing-inheritance
 contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
-
     // ── Custom Errors ─────────────────────────────────────────────────────
     error InvalidAddress();
     error InstanceNotRegistered();
@@ -55,9 +54,9 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
 
     struct FeaturedSlot {
         address renter;
-        uint256 rankScore;      // raw accumulated rank (before decay)
-        uint256 lastBoostTime;  // decay reference — updated on every rank write
-        uint256 expiresAt;      // visibility cutoff
+        uint256 rankScore; // raw accumulated rank (before decay)
+        uint256 lastBoostTime; // decay reference — updated on every rank write
+        uint256 expiresAt; // visibility cutoff
     }
 
     // ── State ──────────────────────────────────────────────────────────────
@@ -66,13 +65,13 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
 
     mapping(address => FeaturedSlot) public slots;
     address[] private _featuredList;
-    mapping(address => bool)    private _inList;
+    mapping(address => bool) private _inList;
     mapping(address => uint256) private _featuredListIndex;
 
-    uint256 public dailyRate       = 0.001 ether;   // duration cost per day
-    uint256 public dailyDecayRate  = 0.0001 ether;  // linear rank decay per day
-    uint256 public minDuration     = 7 days;
-    uint256 public maxDuration     = 365 days;
+    uint256 public dailyRate = 0.001 ether; // duration cost per day
+    uint256 public dailyDecayRate = 0.0001 ether; // linear rank decay per day
+    uint256 public minDuration = 7 days;
+    uint256 public maxDuration = 365 days;
     uint256 public maxFeaturedSize = 100;
 
     address public protocolTreasury;
@@ -90,12 +89,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         uint256 rankBoost,
         uint256 expiresAt
     );
-    event RankBoosted(
-        address indexed instance,
-        address indexed booster,
-        uint256 amount,
-        uint256 newEffectiveRank
-    );
+    event RankBoosted(address indexed instance, address indexed booster, uint256 amount, uint256 newEffectiveRank);
     event DurationRenewed(
         address indexed instance,
         address indexed renewer,
@@ -121,10 +115,10 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         masterRegistry = IMasterRegistry(_masterRegistry);
         _setOwner(_owner);
 
-        dailyRate       = 0.001 ether;
-        dailyDecayRate  = 0.0001 ether;
-        minDuration     = 7 days;
-        maxDuration     = 365 days;
+        dailyRate = 0.001 ether;
+        dailyDecayRate = 0.0001 ether;
+        minDuration = 7 days;
+        maxDuration = 365 days;
         maxFeaturedSize = 100;
     }
 
@@ -138,18 +132,14 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @param rankBoost  Additional ETH allocated to rank score; competes for position
      */
     // slither-disable-next-line timestamp
-    function rentFeatured(
-        address instance,
-        uint256 duration,
-        uint256 rankBoost
-    ) external payable nonReentrant {
+    function rentFeatured(address instance, uint256 duration, uint256 rankBoost) external payable nonReentrant {
         if (protocolTreasury == address(0)) revert TreasuryNotSet();
         if (!_isInstanceRegistered(instance)) revert InstanceNotRegistered();
         if (block.timestamp < slots[instance].expiresAt) revert AlreadyFeatured();
         if (duration < minDuration || duration > maxDuration) revert InvalidDuration();
 
         uint256 durationCost = (dailyRate * duration) / 1 days; // round down: favors renter
-        uint256 totalDue     = durationCost + rankBoost;
+        uint256 totalDue = durationCost + rankBoost;
         if (msg.value < totalDue) revert InsufficientPayment();
         if (_activeCount() >= maxFeaturedSize) revert QueueFull();
 
@@ -159,10 +149,10 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         uint256 newRank = _effectiveRank(slots[instance]) + rankBoost;
 
         slots[instance] = FeaturedSlot({
-            renter:        msg.sender,
-            rankScore:     newRank,
+            renter: msg.sender,
+            rankScore: newRank,
             lastBoostTime: block.timestamp,
-            expiresAt:     block.timestamp + duration
+            expiresAt: block.timestamp + duration
         });
 
         // Forward payment directly to treasury
@@ -189,7 +179,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         if (block.timestamp >= slots[instance].expiresAt) revert SlotNotActive();
 
         uint256 newRank = _effectiveRank(slots[instance]) + msg.value;
-        slots[instance].rankScore     = newRank;
+        slots[instance].rankScore = newRank;
         slots[instance].lastBoostTime = block.timestamp;
 
         SafeTransferLib.safeTransferETH(protocolTreasury, msg.value);
@@ -205,10 +195,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @param additionalDuration Extra seconds to add to expiresAt
      */
     // slither-disable-next-line timestamp
-    function renewDuration(
-        address instance,
-        uint256 additionalDuration
-    ) external payable nonReentrant {
+    function renewDuration(address instance, uint256 additionalDuration) external payable nonReentrant {
         if (protocolTreasury == address(0)) revert TreasuryNotSet();
         if (block.timestamp >= slots[instance].expiresAt) revert SlotExpired();
         if (additionalDuration < minDuration) revert DurationTooShort();
@@ -238,10 +225,11 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @return total     Total number of active featured slots
      */
     // slither-disable-next-line timestamp
-    function getFeaturedInstances(
-        uint256 offset,
-        uint256 limit
-    ) external view returns (address[] memory instances, uint256 total) {
+    function getFeaturedInstances(uint256 offset, uint256 limit)
+        external
+        view
+        returns (address[] memory instances, uint256 total)
+    {
         // Pass 1: count active
         uint256 activeCount = 0;
         for (uint256 i = 0; i < _featuredList.length; i++) {
@@ -253,13 +241,13 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
 
         // Pass 2: collect active addresses and their effective ranks
         address[] memory active = new address[](activeCount);
-        uint256[] memory ranks  = new uint256[](activeCount);
+        uint256[] memory ranks = new uint256[](activeCount);
         uint256 idx = 0;
         for (uint256 i = 0; i < _featuredList.length; i++) {
             address inst = _featuredList[i];
             if (block.timestamp < slots[inst].expiresAt) {
                 active[idx] = inst;
-                ranks[idx]  = _effectiveRank(slots[inst]);
+                ranks[idx] = _effectiveRank(slots[inst]);
                 idx++;
             }
         }
@@ -271,11 +259,11 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
             uint256 j = i;
             while (j > 0 && ranks[j - 1] < keyRank) {
                 active[j] = active[j - 1];
-                ranks[j]  = ranks[j - 1];
+                ranks[j] = ranks[j - 1];
                 j--;
             }
             active[j] = keyAddr;
-            ranks[j]  = keyRank;
+            ranks[j] = keyRank;
         }
 
         // Pass 4: return paginated slice
@@ -294,19 +282,13 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
      * @return isActive      True if slot is currently active
      */
     // slither-disable-next-line timestamp
-    function getRentalInfo(address instance) external view returns (
-        address renter,
-        uint256 effectiveRank,
-        uint256 expiresAt,
-        bool isActive
-    ) {
+    function getRentalInfo(address instance)
+        external
+        view
+        returns (address renter, uint256 effectiveRank, uint256 expiresAt, bool isActive)
+    {
         FeaturedSlot memory slot = slots[instance];
-        return (
-            slot.renter,
-            _effectiveRank(slot),
-            slot.expiresAt,
-            block.timestamp < slot.expiresAt
-        );
+        return (slot.renter, _effectiveRank(slot), slot.expiresAt, block.timestamp < slot.expiresAt);
     }
 
     /**
@@ -336,7 +318,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
     function _effectiveRank(FeaturedSlot memory slot) internal view returns (uint256) {
         if (slot.lastBoostTime == 0) return 0;
         uint256 daysPassed = (block.timestamp - slot.lastBoostTime) / 1 days; // round down: partial days don't decay
-        uint256 decayed    = dailyDecayRate * daysPassed;
+        uint256 decayed = dailyDecayRate * daysPassed;
         return slot.rankScore > decayed ? slot.rankScore - decayed : 0;
     }
 
@@ -367,7 +349,7 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
             address inst = _featuredList[i];
             if (block.timestamp >= slots[inst].expiresAt) {
                 address last = _featuredList[len - 1];
-                _featuredList[i]       = last;
+                _featuredList[i] = last;
                 _featuredListIndex[last] = i;
                 _featuredList.pop();
                 _inList[inst] = false;
@@ -387,10 +369,10 @@ contract FeaturedQueueManager is SafeOwnableUUPS, ReentrancyGuard {
         if (block.timestamp < slots[instance].expiresAt) revert SlotStillActive();
         if (!_inList[instance]) return;
 
-        uint256 idx  = _featuredListIndex[instance];
+        uint256 idx = _featuredListIndex[instance];
         address last = _featuredList[_featuredList.length - 1];
 
-        _featuredList[idx]       = last;
+        _featuredList[idx] = last;
         _featuredListIndex[last] = idx;
         _featuredList.pop();
 

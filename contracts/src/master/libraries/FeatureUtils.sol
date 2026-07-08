@@ -14,15 +14,15 @@ library FeatureUtils {
     bytes32 public constant PORTFOLIO = keccak256("PORTFOLIO");
 
     // Pluggable component tag categories (matched by ComponentRegistry)
-    bytes32 public constant GATING             = keccak256("gating");
+    bytes32 public constant GATING = keccak256("gating");
     bytes32 public constant LIQUIDITY_DEPLOYER = keccak256("liquidity");
-    bytes32 public constant DYNAMIC_PRICING    = keccak256("dynamic_pricing");
-    bytes32 public constant STAKING            = keccak256("staking");
+    bytes32 public constant DYNAMIC_PRICING = keccak256("dynamic_pricing");
+    bytes32 public constant STAKING = keccak256("staking");
 
     // Metadata-resolution component tags (ADR-0006 / ADR-0007)
-    bytes32 public constant RESOLVER           = keccak256("resolver");
-    bytes32 public constant OVERLAY            = keccak256("overlay");
-    bytes32 public constant TIER               = keccak256("tier");
+    bytes32 public constant RESOLVER = keccak256("resolver");
+    bytes32 public constant OVERLAY = keccak256("overlay");
+    bytes32 public constant TIER = keccak256("tier");
 
     /**
      * @notice Check if a feature array contains a specific feature
@@ -30,10 +30,7 @@ library FeatureUtils {
      * @param featureId Feature ID to check
      * @return True if feature is present
      */
-    function hasFeature(
-        bytes32[] memory features,
-        bytes32 featureId
-    ) internal pure returns (bool) {
+    function hasFeature(bytes32[] memory features, bytes32 featureId) internal pure returns (bool) {
         for (uint256 i = 0; i < features.length; i++) {
             if (features[i] == featureId) {
                 return true;
@@ -48,10 +45,11 @@ library FeatureUtils {
      * @param dependencies Array of required dependencies
      * @return True if all dependencies are met
      */
-    function validateDependencies(
-        bytes32[] memory features,
-        bytes32[] memory dependencies
-    ) internal pure returns (bool) {
+    function validateDependencies(bytes32[] memory features, bytes32[] memory dependencies)
+        internal
+        pure
+        returns (bool)
+    {
         for (uint256 i = 0; i < dependencies.length; i++) {
             if (!hasFeature(features, dependencies[i])) {
                 return false;
@@ -66,10 +64,11 @@ library FeatureUtils {
      * @param features2 Second feature array
      * @return Merged feature array
      */
-    function mergeFeatures(
-        bytes32[] memory features1,
-        bytes32[] memory features2
-    ) internal pure returns (bytes32[] memory) {
+    function mergeFeatures(bytes32[] memory features1, bytes32[] memory features2)
+        internal
+        pure
+        returns (bytes32[] memory)
+    {
         bytes32[] memory merged = new bytes32[](features1.length + features2.length);
         uint256 count = 0;
 

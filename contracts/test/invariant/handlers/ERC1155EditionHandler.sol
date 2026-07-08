@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC1155Instance} from "../../../src/factories/erc1155/ERC1155Instance.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC1155Instance } from "../../../src/factories/erc1155/ERC1155Instance.sol";
 
 /// @notice Invariant handler for ERC1155Instance edition accounting
 contract ERC1155EditionHandler is Test {
@@ -48,7 +48,7 @@ contract ERC1155EditionHandler is Test {
 
         vm.deal(actor, actor.balance + cost);
         vm.prank(actor);
-        instance.mint{value: cost}(editionId, amount, bytes32(0), "", 0);
+        instance.mint{ value: cost }(editionId, amount, bytes32(0), "", 0);
 
         ghost_balances[editionId][actor] += amount;
         ghost_mintCount++;

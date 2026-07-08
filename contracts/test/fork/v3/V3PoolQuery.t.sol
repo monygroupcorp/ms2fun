@@ -172,21 +172,16 @@ contract V3PoolQueryTest is ForkTestBase {
         // Note: tickSpacing is not directly in slot0, need to call pool.tickSpacing()
 
         // Query tick spacing for each pool
-        (bool success_005, bytes memory data_005) = WETH_USDC_V3_005.staticcall(
-            abi.encodeWithSignature("tickSpacing()")
-        );
+        (bool success_005, bytes memory data_005) =
+            WETH_USDC_V3_005.staticcall(abi.encodeWithSignature("tickSpacing()"));
         require(success_005, "tickSpacing call failed for 0.05%");
         int24 tickSpacing_005 = abi.decode(data_005, (int24));
 
-        (bool success_03, bytes memory data_03) = WETH_USDC_V3_03.staticcall(
-            abi.encodeWithSignature("tickSpacing()")
-        );
+        (bool success_03, bytes memory data_03) = WETH_USDC_V3_03.staticcall(abi.encodeWithSignature("tickSpacing()"));
         require(success_03, "tickSpacing call failed for 0.3%");
         int24 tickSpacing_03 = abi.decode(data_03, (int24));
 
-        (bool success_1, bytes memory data_1) = WETH_USDC_V3_1.staticcall(
-            abi.encodeWithSignature("tickSpacing()")
-        );
+        (bool success_1, bytes memory data_1) = WETH_USDC_V3_1.staticcall(abi.encodeWithSignature("tickSpacing()"));
         require(success_1, "tickSpacing call failed for 1%");
         int24 tickSpacing_1 = abi.decode(data_1, (int24));
 
@@ -211,21 +206,15 @@ contract V3PoolQueryTest is ForkTestBase {
      */
     function test_queryPoolFee() public {
         // Query fee from each pool
-        (bool success_005, bytes memory data_005) = WETH_USDC_V3_005.staticcall(
-            abi.encodeWithSignature("fee()")
-        );
+        (bool success_005, bytes memory data_005) = WETH_USDC_V3_005.staticcall(abi.encodeWithSignature("fee()"));
         require(success_005, "fee call failed for 0.05%");
         uint24 fee_005 = abi.decode(data_005, (uint24));
 
-        (bool success_03, bytes memory data_03) = WETH_USDC_V3_03.staticcall(
-            abi.encodeWithSignature("fee()")
-        );
+        (bool success_03, bytes memory data_03) = WETH_USDC_V3_03.staticcall(abi.encodeWithSignature("fee()"));
         require(success_03, "fee call failed for 0.3%");
         uint24 fee_03 = abi.decode(data_03, (uint24));
 
-        (bool success_1, bytes memory data_1) = WETH_USDC_V3_1.staticcall(
-            abi.encodeWithSignature("fee()")
-        );
+        (bool success_1, bytes memory data_1) = WETH_USDC_V3_1.staticcall(abi.encodeWithSignature("fee()"));
         require(success_1, "fee call failed for 1%");
         uint24 fee_1 = abi.decode(data_1, (uint24));
 

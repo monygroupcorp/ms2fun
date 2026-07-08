@@ -136,11 +136,11 @@ library UniswapHelpers {
      * @param amount0 Amount of token0
      * @return liquidity Liquidity value
      */
-    function getLiquidityForAmount0(
-        uint160 sqrtPriceAX96,
-        uint160 sqrtPriceBX96,
-        uint256 amount0
-    ) internal pure returns (uint128 liquidity) {
+    function getLiquidityForAmount0(uint160 sqrtPriceAX96, uint160 sqrtPriceBX96, uint256 amount0)
+        internal
+        pure
+        returns (uint128 liquidity)
+    {
         if (sqrtPriceAX96 > sqrtPriceBX96) {
             (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
         }
@@ -155,11 +155,11 @@ library UniswapHelpers {
      * @param amount1 Amount of token1
      * @return liquidity Liquidity value
      */
-    function getLiquidityForAmount1(
-        uint160 sqrtPriceAX96,
-        uint160 sqrtPriceBX96,
-        uint256 amount1
-    ) internal pure returns (uint128 liquidity) {
+    function getLiquidityForAmount1(uint160 sqrtPriceAX96, uint160 sqrtPriceBX96, uint256 amount1)
+        internal
+        pure
+        returns (uint128 liquidity)
+    {
         if (sqrtPriceAX96 > sqrtPriceBX96) {
             (sqrtPriceAX96, sqrtPriceBX96) = (sqrtPriceBX96, sqrtPriceAX96);
         }
@@ -264,9 +264,9 @@ library UniswapHelpers {
      * @return tickSpacing Tick spacing for the fee tier
      */
     function getTickSpacing(uint24 fee) internal pure returns (int24 tickSpacing) {
-        if (fee == 500) return 10;        // 0.05% → 10
-        if (fee == 3000) return 60;       // 0.3% → 60
-        if (fee == 10000) return 200;     // 1% → 200
+        if (fee == 500) return 10; // 0.05% → 10
+        if (fee == 3000) return 60; // 0.3% → 60
+        if (fee == 10000) return 200; // 1% → 200
         revert("Unknown fee tier");
     }
 

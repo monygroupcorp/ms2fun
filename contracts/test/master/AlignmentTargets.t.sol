@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {AlignmentRegistryV1} from "../../src/master/AlignmentRegistryV1.sol";
-import {MasterRegistryV1} from "../../src/master/MasterRegistryV1.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 
 contract MockVaultForTarget {
     address public alignmentToken;
+
     constructor(address _token) {
         alignmentToken = _token;
     }
@@ -17,6 +18,7 @@ contract MockVaultForTarget {
 
 contract MockAlignedVault {
     address public alignmentToken;
+
     constructor(address _token) {
         alignmentToken = _token;
     }
@@ -46,18 +48,12 @@ contract AlignmentTargetsTest is Test {
     function test_RegisterAlignmentTarget_Basic() public {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
         assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "Majority LP in Uniswap V3 pool",
-            metadataURI: ""
+            token: cultToken, symbol: "CULT", info: "Majority LP in Uniswap V3 pool", metadataURI: ""
         });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget(
-            "Remilia",
-            "Cyber yakuza accelerationist cult",
-            "https://ms2fun.com/targets/remilia",
-            assets
+            "Remilia", "Cyber yakuza accelerationist cult", "https://ms2fun.com/targets/remilia", assets
         );
 
         assertEq(targetId, 1);
@@ -78,12 +74,7 @@ contract AlignmentTargetsTest is Test {
 
     function test_DeactivateAlignmentTarget() public {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget("Remilia", "", "", assets);
@@ -96,12 +87,7 @@ contract AlignmentTargetsTest is Test {
 
     function test_DeactivateAlignmentTarget_RevertIfNotOwner() public {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget("Remilia", "", "", assets);
@@ -113,12 +99,7 @@ contract AlignmentTargetsTest is Test {
 
     function test_UpdateAlignmentTarget() public {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget("Remilia", "old desc", "https://old.com", assets);
@@ -133,12 +114,7 @@ contract AlignmentTargetsTest is Test {
 
     function test_UpdateAlignmentTarget_RevertIfNotOwner() public {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
 
         vm.prank(daoOwner);
         uint256 targetId = alignmentRegistry.registerAlignmentTarget("Remilia", "", "", assets);
@@ -152,12 +128,7 @@ contract AlignmentTargetsTest is Test {
 
     function _createRemiliaTarget() internal returns (uint256) {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
         vm.prank(daoOwner);
         return alignmentRegistry.registerAlignmentTarget("Remilia", "", "", assets);
     }

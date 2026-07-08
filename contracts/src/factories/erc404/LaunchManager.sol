@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /**
  * @title LaunchManager
@@ -21,7 +21,7 @@ contract LaunchManager is Ownable {
         uint256 targetETH;
         uint256 unitPerNFT;
         uint256 liquidityReserveBps;
-        address curveComputer;      // DAO-approved ICurveComputer for this preset
+        address curveComputer; // DAO-approved ICurveComputer for this preset
         bool active;
     }
 

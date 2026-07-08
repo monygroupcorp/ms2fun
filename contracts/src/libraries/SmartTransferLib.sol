@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 interface IWETHMinimal {
     function deposit() external payable;
@@ -31,7 +31,7 @@ library SmartTransferLib {
         if (SafeTransferLib.trySafeTransferETH(to, amount, gasleft())) return;
 
         // Fallback: wrap as WETH and send as ERC20.
-        IWETHMinimal(weth).deposit{value: amount}();
+        IWETHMinimal(weth).deposit{ value: amount }();
         if (!IWETHMinimal(weth).transfer(to, amount)) {
             revert SmartTransferFailed(to, amount);
         }

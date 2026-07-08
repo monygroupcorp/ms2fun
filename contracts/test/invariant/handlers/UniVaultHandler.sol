@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {UniAlignmentVault} from "../../../src/vaults/uni/UniAlignmentVault.sol";
-import {Currency} from "v4-core/types/Currency.sol";
+import { Test } from "forge-std/Test.sol";
+import { UniAlignmentVault } from "../../../src/vaults/uni/UniAlignmentVault.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
 /// @notice Invariant handler for UniAlignmentVault share accounting
 contract UniVaultHandler is Test {
@@ -40,7 +40,7 @@ contract UniVaultHandler is Test {
 
         vm.deal(actor, actor.balance + amount);
         vm.prank(actor);
-        vault.receiveContribution{value: amount}(Currency.wrap(address(0)), amount, actor);
+        vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, actor);
 
         ghost_totalContributed += amount;
         ghost_actorContributed[actor] += amount;
@@ -52,7 +52,7 @@ contract UniVaultHandler is Test {
 
         vm.deal(actor, actor.balance + amount);
         vm.prank(actor);
-        (bool ok,) = address(vault).call{value: amount}("");
+        (bool ok,) = address(vault).call{ value: amount }("");
         require(ok, "send failed");
 
         ghost_totalContributed += amount;
@@ -91,7 +91,7 @@ contract UniVaultHandler is Test {
 
         vm.deal(vault.owner(), amount);
         vm.prank(vault.owner());
-        vault.depositFees{value: amount}();
+        vault.depositFees{ value: amount }();
     }
 
     function claimFees(uint256 actorSeed) external {

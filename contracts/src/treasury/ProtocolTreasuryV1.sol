@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
-import {Currency, CurrencyLibrary} from "v4-core/types/Currency.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/types/BalanceDelta.sol";
-import {CurrencySettler} from "../libraries/v4/CurrencySettler.sol";
-import {LiquidityAmounts} from "../libraries/v4/LiquidityAmounts.sol";
-import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
-import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "v4-core/types/PoolId.sol";
+import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/types/BalanceDelta.sol";
+import { CurrencySettler } from "../libraries/v4/CurrencySettler.sol";
+import { LiquidityAmounts } from "../libraries/v4/LiquidityAmounts.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -106,7 +106,10 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
     address[] public polInstances;
 
     // Callback routing (mirrors UniAlignmentVault pattern)
-    enum CallbackOperation { DEPLOY_POL, COLLECT_FEES }
+    enum CallbackOperation {
+        DEPLOY_POL,
+        COLLECT_FEES
+    }
 
     struct CallbackData {
         CallbackOperation operation;
@@ -175,13 +178,9 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
 
     /// @notice Called by instances during graduation to deploy treasury-owned LP
     // slither-disable-next-line reentrancy-benign,reentrancy-events,reentrancy-no-eth,unused-return
-    function receivePOL(
-        PoolKey calldata poolKey,
-        int24 tickLower,
-        int24 tickUpper,
-        uint256 amount0,
-        uint256 amount1
-    ) external {
+    function receivePOL(PoolKey calldata poolKey, int24 tickLower, int24 tickUpper, uint256 amount0, uint256 amount1)
+        external
+    {
         if (address(masterRegistry) == address(0)) revert RegistryNotConfigured();
         if (!masterRegistry.isRegisteredInstance(msg.sender)) revert NotRegisteredInstance();
         if (v4PoolManager == address(0)) revert V4NotConfigured();
@@ -204,14 +203,16 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         // Deploy via unlock callback
         CallbackData memory cbData = CallbackData({
             operation: CallbackOperation.DEPLOY_POL,
-            data: abi.encode(DeployPOLCallbackData({
-                poolKey: poolKey,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                salt: salt,
-                amount0: amount0,
-                amount1: amount1
-            }))
+            data: abi.encode(
+                DeployPOLCallbackData({
+                    poolKey: poolKey,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    salt: salt,
+                    amount0: amount0,
+                    amount1: amount1
+                })
+            )
         });
 
         bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
@@ -219,11 +220,7 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
 
         // Store position
         _polPositions[msg.sender] = POLPosition({
-            poolKey: poolKey,
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            salt: salt,
-            liquidity: liquidity
+            poolKey: poolKey, tickLower: tickLower, tickUpper: tickUpper, salt: salt, liquidity: liquidity
         });
         polInstances.push(msg.sender);
 
@@ -237,16 +234,11 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         if (pos.liquidity == 0) revert NoPOLPosition();
 
         CollectFeesCallbackData memory feeParams = CollectFeesCallbackData({
-            poolKey: pos.poolKey,
-            tickLower: pos.tickLower,
-            tickUpper: pos.tickUpper,
-            salt: pos.salt
+            poolKey: pos.poolKey, tickLower: pos.tickLower, tickUpper: pos.tickUpper, salt: pos.salt
         });
 
-        CallbackData memory cbData = CallbackData({
-            operation: CallbackOperation.COLLECT_FEES,
-            data: abi.encode(feeParams)
-        });
+        CallbackData memory cbData =
+            CallbackData({ operation: CallbackOperation.COLLECT_FEES, data: abi.encode(feeParams) });
 
         bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
         BalanceDelta delta = abi.decode(result, (BalanceDelta));
@@ -304,10 +296,7 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         CollectFeesCallbackData memory params = abi.decode(data, (CollectFeesCallbackData));
 
         IPoolManager.ModifyLiquidityParams memory modifyParams = IPoolManager.ModifyLiquidityParams({
-            tickLower: params.tickLower,
-            tickUpper: params.tickUpper,
-            liquidityDelta: 0,
-            salt: params.salt
+            tickLower: params.tickLower, tickUpper: params.tickUpper, liquidityDelta: 0, salt: params.salt
         });
 
         (BalanceDelta delta,) = IPoolManager(v4PoolManager).modifyLiquidity(params.poolKey, modifyParams, "");
@@ -335,12 +324,11 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
 
     // ============ POL Views ============
 
-    function getPolPosition(address instance) external view returns (
-        int24 tickLower,
-        int24 tickUpper,
-        bytes32 salt,
-        uint128 liquidity
-    ) {
+    function getPolPosition(address instance)
+        external
+        view
+        returns (int24 tickLower, int24 tickUpper, bytes32 salt, uint128 liquidity)
+    {
         POLPosition storage pos = _polPositions[instance];
         return (pos.tickLower, pos.tickUpper, pos.salt, pos.liquidity);
     }
@@ -385,9 +373,8 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
     function withdrawERC721(address token, address to, uint256 tokenId) external onlyOwner {
         if (to == address(0)) revert InvalidRecipient();
         // Use low-level call for ERC721 transferFrom(address,address,uint256)
-        (bool success,) = token.call(
-            abi.encodeWithSignature("transferFrom(address,address,uint256)", address(this), to, tokenId)
-        );
+        (bool success,) =
+            token.call(abi.encodeWithSignature("transferFrom(address,address,uint256)", address(this), to, tokenId));
         if (!success) revert TransferFailed();
         emit ERC721Withdrawn(token, to, tokenId);
     }
@@ -408,5 +395,4 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
     function getRevenueBySource(Source source) external view returns (uint256 received, uint256 withdrawn) {
         return (totalReceived[source], totalWithdrawn[source]);
     }
-
 }

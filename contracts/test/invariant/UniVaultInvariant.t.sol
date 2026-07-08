@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {UniAlignmentVault} from "../../src/vaults/uni/UniAlignmentVault.sol";
-import {TestableUniAlignmentVault} from "../helpers/TestableUniAlignmentVault.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
-import {MockAlignmentRegistry} from "../mocks/MockAlignmentRegistry.sol";
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {UniVaultHandler} from "./handlers/UniVaultHandler.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
+import { TestableUniAlignmentVault } from "../helpers/TestableUniAlignmentVault.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { UniVaultHandler } from "./handlers/UniVaultHandler.sol";
 
 contract UniVaultInvariantTest is StdInvariant, Test {
     UniAlignmentVault public vault;
@@ -85,11 +85,7 @@ contract UniVaultInvariantTest is StdInvariant, Test {
         for (uint256 i = 0; i < a.length; i++) {
             sumShares += vault.benefactorShares(a[i]);
         }
-        assertEq(
-            sumShares,
-            vault.totalShares(),
-            "Uni: sum(benefactorShares) != totalShares"
-        );
+        assertEq(sumShares, vault.totalShares(), "Uni: sum(benefactorShares) != totalShares");
     }
 
     // ── Invariant 2: no phantom ETH ──
@@ -112,11 +108,7 @@ contract UniVaultInvariantTest is StdInvariant, Test {
         }
 
         uint256 obligations = vault.accumulatedProtocolFees() + sumClaimable;
-        assertLe(
-            obligations,
-            address(vault).balance,
-            "Uni: phantom ETH - obligations exceed balance"
-        );
+        assertLe(obligations, address(vault).balance, "Uni: phantom ETH - obligations exceed balance");
     }
 
     // ── Invariant 3: totalPendingETH == balance when no LP deployed ──
@@ -127,9 +119,7 @@ contract UniVaultInvariantTest is StdInvariant, Test {
         if (vault.totalPendingETH() == 0 && address(vault).balance == 0) return;
 
         assertEq(
-            vault.totalPendingETH(),
-            address(vault).balance,
-            "Uni: totalPendingETH != balance before LP deployment"
+            vault.totalPendingETH(), address(vault).balance, "Uni: totalPendingETH != balance before LP deployment"
         );
     }
 
@@ -186,10 +176,6 @@ contract UniVaultInvariantTest is StdInvariant, Test {
         for (uint256 i = 0; i < a.length; i++) {
             sumPending += vault.pendingETH(a[i]);
         }
-        assertEq(
-            sumPending,
-            vault.totalPendingETH(),
-            "Uni: sum(pendingETH) != totalPendingETH"
-        );
+        assertEq(sumPending, vault.totalPendingETH(), "Uni: sum(pendingETH) != totalPendingETH");
     }
 }

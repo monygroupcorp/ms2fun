@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {IFactory} from "../../src/interfaces/IFactory.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { IFactory } from "../../src/interfaces/IFactory.sol";
 
 /**
  * @title MockFactory
@@ -40,13 +40,6 @@ contract MockFactory is IFactory {
         address vault,
         address hook
     ) external {
-        masterRegistry.registerInstance(
-            instance,
-            address(this),
-            _creator,
-            name,
-            metadataURI,
-            vault
-        );
+        masterRegistry.registerInstance(instance, address(this), _creator, name, metadataURI, vault);
     }
 }

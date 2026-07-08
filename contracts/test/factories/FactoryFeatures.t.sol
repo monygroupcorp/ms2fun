@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {IFactory} from "../../src/interfaces/IFactory.sol";
-import {FeatureUtils} from "../../src/master/libraries/FeatureUtils.sol";
+import { Test } from "forge-std/Test.sol";
+import { IFactory } from "../../src/interfaces/IFactory.sol";
+import { FeatureUtils } from "../../src/master/libraries/FeatureUtils.sol";
 
 // Factories under test
-import {ERC404Factory} from "../../src/factories/erc404/ERC404Factory.sol";
-import {ERC1155Factory} from "../../src/factories/erc1155/ERC1155Factory.sol";
-import {ERC721AuctionFactory} from "../../src/factories/erc721/ERC721AuctionFactory.sol";
+import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
+import { ERC1155Factory } from "../../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC721AuctionFactory } from "../../src/factories/erc721/ERC721AuctionFactory.sol";
 
 // Supporting contracts needed to construct factories
-import {ERC404BondingInstance} from "../../src/factories/erc404/ERC404BondingInstance.sol";
-import {LaunchManager} from "../../src/factories/erc404/LaunchManager.sol";
-import {CurveParamsComputer} from "../../src/factories/erc404/CurveParamsComputer.sol";
-import {PasswordTierGatingModule} from "../../src/gating/PasswordTierGatingModule.sol";
-import {ComponentRegistry} from "../../src/registry/ComponentRegistry.sol";
-import {MockMasterRegistry} from "../mocks/MockMasterRegistry.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
+import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
+import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
+import { PasswordTierGatingModule } from "../../src/gating/PasswordTierGatingModule.sol";
+import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
+import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 /// @title FactoryFeaturesTest
 /// @notice Verifies that every factory implements IFactory.features() correctly and
@@ -67,10 +67,7 @@ contract FactoryFeaturesTest is Test {
 
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
-                implementation: address(impl),
-                masterRegistry: makeAddr("mr"),
-                protocol: protocol,
-                weth: address(0xBEEF)
+                implementation: address(impl), masterRegistry: makeAddr("mr"), protocol: protocol, weth: address(0xBEEF)
             }),
             ERC404Factory.ModuleConfig({
                 globalMessageRegistry: makeAddr("gmr"),
@@ -83,9 +80,9 @@ contract FactoryFeaturesTest is Test {
 
         bytes32[] memory feats = IFactory(address(factory)).features();
         assertEq(feats.length, 3, "ERC404Factory: features() must have exactly 3 elements");
-        assertEq(feats[0], FeatureUtils.GATING,             "ERC404Factory: features()[0] must be GATING");
+        assertEq(feats[0], FeatureUtils.GATING, "ERC404Factory: features()[0] must be GATING");
         assertEq(feats[1], FeatureUtils.LIQUIDITY_DEPLOYER, "ERC404Factory: features()[1] must be LIQUIDITY_DEPLOYER");
-        assertEq(feats[2], FeatureUtils.STAKING,            "ERC404Factory: features()[2] must be STAKING");
+        assertEq(feats[2], FeatureUtils.STAKING, "ERC404Factory: features()[2] must be STAKING");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -95,12 +92,7 @@ contract FactoryFeaturesTest is Test {
     function test_ERC1155Factory_features_returnsArrayViaInterface() public {
         ComponentRegistry compReg = _deployComponentRegistry();
 
-        ERC1155Factory factory = new ERC1155Factory(
-            makeAddr("mr"),
-            makeAddr("gmr"),
-            address(compReg),
-            address(0xBEEF)
-        );
+        ERC1155Factory factory = new ERC1155Factory(makeAddr("mr"), makeAddr("gmr"), address(compReg), address(0xBEEF));
 
         bytes32[] memory feats = IFactory(address(factory)).features();
         assertTrue(_hasGating(feats), "ERC1155Factory: GATING tag missing from features()");
@@ -111,11 +103,7 @@ contract FactoryFeaturesTest is Test {
     // ─────────────────────────────────────────────────────────────────────────
 
     function test_ERC721AuctionFactory_features_returnsEmptyArrayViaInterface() public {
-        ERC721AuctionFactory factory = new ERC721AuctionFactory(
-            makeAddr("mr"),
-            makeAddr("gmr"),
-            address(0xBEEF)
-        );
+        ERC721AuctionFactory factory = new ERC721AuctionFactory(makeAddr("mr"), makeAddr("gmr"), address(0xBEEF));
 
         bytes32[] memory feats = IFactory(address(factory)).features();
         assertEq(feats.length, 0, "ERC721AuctionFactory: features() must return empty array");
@@ -135,10 +123,7 @@ contract FactoryFeaturesTest is Test {
 
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
-                implementation: address(impl),
-                masterRegistry: makeAddr("mr"),
-                protocol: protocol,
-                weth: address(0xBEEF)
+                implementation: address(impl), masterRegistry: makeAddr("mr"), protocol: protocol, weth: address(0xBEEF)
             }),
             ERC404Factory.ModuleConfig({
                 globalMessageRegistry: makeAddr("gmr"),
@@ -151,7 +136,9 @@ contract FactoryFeaturesTest is Test {
 
         bytes32[] memory req = IFactory(address(factory)).requiredFeatures();
         assertEq(req.length, 1, "ERC404Factory: requiredFeatures() must have 1 element");
-        assertEq(req[0], FeatureUtils.LIQUIDITY_DEPLOYER, "ERC404Factory: requiredFeatures()[0] must be LIQUIDITY_DEPLOYER");
+        assertEq(
+            req[0], FeatureUtils.LIQUIDITY_DEPLOYER, "ERC404Factory: requiredFeatures()[0] must be LIQUIDITY_DEPLOYER"
+        );
 
         // requiredFeatures must be a subset of features
         bytes32[] memory feats = IFactory(address(factory)).features();
@@ -161,23 +148,14 @@ contract FactoryFeaturesTest is Test {
     function test_ERC1155Factory_requiredFeatures_returnsEmpty() public {
         ComponentRegistry compReg = _deployComponentRegistry();
 
-        ERC1155Factory factory = new ERC1155Factory(
-            makeAddr("mr"),
-            makeAddr("gmr"),
-            address(compReg),
-            address(0xBEEF)
-        );
+        ERC1155Factory factory = new ERC1155Factory(makeAddr("mr"), makeAddr("gmr"), address(compReg), address(0xBEEF));
 
         bytes32[] memory req = IFactory(address(factory)).requiredFeatures();
         assertEq(req.length, 0, "ERC1155Factory: requiredFeatures() must be empty");
     }
 
     function test_ERC721AuctionFactory_requiredFeatures_returnsEmpty() public {
-        ERC721AuctionFactory factory = new ERC721AuctionFactory(
-            makeAddr("mr"),
-            makeAddr("gmr"),
-            address(0xBEEF)
-        );
+        ERC721AuctionFactory factory = new ERC721AuctionFactory(makeAddr("mr"), makeAddr("gmr"), address(0xBEEF));
 
         bytes32[] memory req = IFactory(address(factory)).requiredFeatures();
         assertEq(req.length, 0, "ERC721AuctionFactory: requiredFeatures() must be empty");

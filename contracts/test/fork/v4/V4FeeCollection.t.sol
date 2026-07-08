@@ -162,14 +162,8 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
         }
 
         // Query fee growth before swaps
-        (, uint256 feeGrowthBefore0, uint256 feeGrowthBefore1) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tickLower,
-            tickUpper,
-            0
-        );
+        (, uint256 feeGrowthBefore0, uint256 feeGrowthBefore1) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
         emit log_named_uint("Fee growth 0 (before)", feeGrowthBefore0);
         emit log_named_uint("Fee growth 1 (before)", feeGrowthBefore1);
@@ -185,14 +179,8 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
         }
 
         // Query fee growth after swap
-        (, uint256 feeGrowthAfter0, uint256 feeGrowthAfter1) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tickLower,
-            tickUpper,
-            0
-        );
+        (, uint256 feeGrowthAfter0, uint256 feeGrowthAfter1) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
         emit log_string("");
         emit log_named_uint("Fee growth 0 (after)", feeGrowthAfter0);
@@ -335,14 +323,8 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
         _swap(key, true, 0.1 ether);
 
         // Query fee growth with small liquidity
-        (, uint256 feeGrowthSmall0, uint256 feeGrowthSmall1) = StateLibrary.getPositionInfo(
-            poolManager,
-            key.toId(),
-            address(this),
-            tickLower,
-            tickUpper,
-            0
-        );
+        (, uint256 feeGrowthSmall0, uint256 feeGrowthSmall1) =
+            StateLibrary.getPositionInfo(poolManager, key.toId(), address(this), tickLower, tickUpper, 0);
 
         emit log_named_uint("Fee growth 0 (small position)", feeGrowthSmall0);
         emit log_named_uint("Fee growth 1 (small position)", feeGrowthSmall1);
@@ -364,15 +346,11 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
 
         CallbackData memory params = abi.decode(data, (CallbackData));
 
-        if (params.action == CallbackAction.AddLiquidity ||
-            params.action == CallbackAction.RemoveLiquidity ||
-            params.action == CallbackAction.CollectFees) {
-
-            (BalanceDelta delta,) = poolManager.modifyLiquidity(
-                params.key,
-                params.modifyParams,
-                ""
-            );
+        if (
+            params.action == CallbackAction.AddLiquidity || params.action == CallbackAction.RemoveLiquidity
+                || params.action == CallbackAction.CollectFees
+        ) {
+            (BalanceDelta delta,) = poolManager.modifyLiquidity(params.key, params.modifyParams, "");
 
             lastDelta = delta;
             _settleDelta(params.key, delta, params.sender);
@@ -411,17 +389,9 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
 
     // ========== Helper Functions ==========
 
-    function _addLiquidity(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper,
-        int256 liquidityDelta
-    ) internal {
+    function _addLiquidity(PoolKey memory key, int24 tickLower, int24 tickUpper, int256 liquidityDelta) internal {
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta,
-            salt: 0
+            tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
         });
 
         CallbackData memory callbackData = CallbackData({
@@ -435,11 +405,7 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
         poolManager.unlock(abi.encode(callbackData));
     }
 
-    function _collectFees(
-        PoolKey memory key,
-        int24 tickLower,
-        int24 tickUpper
-    ) internal {
+    function _collectFees(PoolKey memory key, int24 tickLower, int24 tickUpper) internal {
         // Collect fees by calling modifyLiquidity with liquidityDelta = 0
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
             tickLower: tickLower,
@@ -459,11 +425,7 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
         poolManager.unlock(abi.encode(callbackData));
     }
 
-    function _swap(
-        PoolKey memory key,
-        bool zeroForOne,
-        uint256 amountIn
-    ) internal {
+    function _swap(PoolKey memory key, bool zeroForOne, uint256 amountIn) internal {
         IPoolManager.SwapParams memory params = IPoolManager.SwapParams({
             zeroForOne: zeroForOne,
             amountSpecified: -int256(amountIn),
@@ -502,5 +464,5 @@ contract V4FeeCollectionTest is ForkTestBase, IUnlockCallback {
     }
 
     // Required for receiving ETH
-    receive() external payable {}
+    receive() external payable { }
 }

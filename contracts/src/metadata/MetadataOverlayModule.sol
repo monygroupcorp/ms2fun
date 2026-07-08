@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {LibString} from "solady/utils/LibString.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {IMetadataResolver} from "./IMetadataResolver.sol";
-import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
-import {IAlignmentVault} from "../interfaces/IAlignmentVault.sol";
-import {RevenueSplitLib} from "../shared/libraries/RevenueSplitLib.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { LibString } from "solady/utils/LibString.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { IMetadataResolver } from "./IMetadataResolver.sol";
+import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
+import { IAlignmentVault } from "../interfaces/IAlignmentVault.sol";
+import { RevenueSplitLib } from "../shared/libraries/RevenueSplitLib.sol";
 
 /// @dev Reads + holder-auth the overlay needs off an ERC404 instance.
 interface IOverlayInstance {
     function owner() external view returns (address);
-    function ownerOf(uint256 id) external view returns (address);   // the new seam getter
+    function ownerOf(uint256 id) external view returns (address); // the new seam getter
     function protocolTreasury() external view returns (address);
     function vault() external view returns (address);
     function stakingModule() external view returns (address);
@@ -42,7 +42,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     error NotInstanceOwner();
     error NotHolder();
     error EmptyURI();
-    error CommissionLocked();      // setCommission after paid
+    error CommissionLocked(); // setCommission after paid
     error NotPayCommission();
     error NotPayWave();
     error AlreadyPaid();
@@ -57,19 +57,40 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     uint256 internal constant COMMISSION = 2;
     uint256 internal constant WAVE_OFFSET = 3;
 
-    enum WaveCond { NONE, STAKE, PAY }     // event-wave gate, per wave
-    enum CommCond { NONE, PAY }            // commission gate (STAKE makes no sense per-id)
-    enum Payout   { ARTIST, SPLIT }        // where PAY money goes (STAKERS deferred)
+    enum WaveCond {
+        NONE, // event-wave gate, per wave
+        STAKE,
+        PAY
+    }
+    enum CommCond {
+        NONE, // commission gate (STAKE makes no sense per-id)
+        PAY
+    }
+    enum Payout {
+        ARTIST, // where PAY money goes (STAKERS deferred)
+        SPLIT
+    }
 
-    struct Terms { CommCond cond; uint256 price; Payout payout; }
-    struct Wave  { string baseURI; WaveCond cond; uint256 threshold; uint256 price; Payout payout; }
+    struct Terms {
+        CommCond cond;
+        uint256 price;
+        Payout payout;
+    }
+
+    struct Wave {
+        string baseURI;
+        WaveCond cond;
+        uint256 threshold;
+        uint256 price;
+        Payout payout;
+    }
 
     IMasterRegistry public immutable masterRegistry;
 
     // kind A — commission (bespoke per-id string)
     mapping(address => mapping(uint256 => string)) public commissionURI;
-    mapping(address => mapping(uint256 => Terms))  public commissionTerms;
-    mapping(address => mapping(uint256 => bool))   public paid;            // PAY commission settled
+    mapping(address => mapping(uint256 => Terms)) public commissionTerms;
+    mapping(address => mapping(uint256 => bool)) public paid; // PAY commission settled
 
     // kind B — event waves (append-only); a token's event art is wave.baseURI + id
     mapping(address => Wave[]) public waves;
@@ -79,9 +100,9 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     mapping(address => mapping(uint256 => mapping(uint256 => bool))) public wavePaid; // per id per wave
 
     // collection config (initConfig set-once; autoLatest mutable thereafter)
-    mapping(address => bool)    public configured;
-    mapping(address => bool)    public autoLatest;
-    mapping(address => Payout)  public defaultPayout;
+    mapping(address => bool) public configured;
+    mapping(address => bool) public autoLatest;
+    mapping(address => Payout) public defaultPayout;
 
     string private _metadataURI;
 
@@ -144,26 +165,21 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     ) external returns (uint256 wIdx) {
         _onlyInstanceOwner(inst);
         if (bytes(baseURI).length == 0) revert EmptyURI();
-        waves[inst].push(Wave({baseURI: baseURI, cond: cond, threshold: threshold, price: price, payout: payout}));
+        waves[inst].push(Wave({ baseURI: baseURI, cond: cond, threshold: threshold, price: price, payout: payout }));
         wIdx = waves[inst].length - 1;
         emit WavePublished(inst, wIdx);
     }
 
     /// @notice Set/replace the per-id commission. Reverts once paid (buyer protection); free (NONE)
     ///         commissions stay mutable. One slot per id.
-    function setCommission(
-        address inst,
-        uint256 id,
-        string calldata uri,
-        CommCond cond,
-        uint256 price,
-        Payout payout
-    ) external {
+    function setCommission(address inst, uint256 id, string calldata uri, CommCond cond, uint256 price, Payout payout)
+        external
+    {
         _onlyInstanceOwner(inst);
         if (paid[inst][id]) revert CommissionLocked();
         if (bytes(uri).length == 0) revert EmptyURI();
         commissionURI[inst][id] = uri;
-        commissionTerms[inst][id] = Terms({cond: cond, price: price, payout: payout});
+        commissionTerms[inst][id] = Terms({ cond: cond, price: price, payout: payout });
         emit CommissionSet(inst, id);
     }
 
@@ -238,7 +254,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         if (s.vaultCut > 0) {
             if (vault != address(0)) {
                 // credit the contribution to the instance as benefactor (graduation path)
-                IAlignmentVault(payable(vault)).receiveContribution{value: s.vaultCut}(
+                IAlignmentVault(payable(vault)).receiveContribution{ value: s.vaultCut }(
                     Currency.wrap(address(0)), s.vaultCut, inst
                 );
             } else {
@@ -251,21 +267,16 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     // ── Resolution (IMetadataResolver) ──────────────────────────────────────────
 
     /// @inheritdoc IMetadataResolver
-    function resolve(address inst, uint256 id, address holder)
-        external
-        view
-        override
-        returns (string memory)
-    {
+    function resolve(address inst, uint256 id, address holder) external view override returns (string memory) {
         uint256 sel = selection[inst][id];
 
-        if (sel == BASE) return "";                                   // decline overlay → lower stack/base
+        if (sel == BASE) return ""; // decline overlay → lower stack/base
         if (sel == COMMISSION) {
             return _commissionVisible(inst, id) ? commissionURI[inst][id] : "";
         }
         if (sel >= WAVE_OFFSET) {
             uint256 w = sel - WAVE_OFFSET;
-            if (w >= waves[inst].length) return "";                   // defensive
+            if (w >= waves[inst].length) return ""; // defensive
             if (_waveEligible(inst, id, w, holder)) {
                 return string.concat(waves[inst][w].baseURI, LibString.toString(id));
             }
@@ -300,11 +311,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     }
 
     /// @dev Per-wave Condition is the only gate (H2: AUTO is NOT blanket-staked-gated).
-    function _waveEligible(address inst, uint256 id, uint256 w, address holder)
-        internal
-        view
-        returns (bool)
-    {
+    function _waveEligible(address inst, uint256 id, uint256 w, address holder) internal view returns (bool) {
         Wave storage wv = waves[inst][w];
         if (wv.cond == WaveCond.NONE) return true;
         if (wv.cond == WaveCond.STAKE) return _stakedOf(inst, holder) >= wv.threshold;
@@ -313,11 +320,7 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     }
 
     /// @dev Scan waves from the newest; return the first the holder qualifies for (its art), else "".
-    function _newestEligibleWave(address inst, uint256 id, address holder)
-        internal
-        view
-        returns (string memory)
-    {
+    function _newestEligibleWave(address inst, uint256 id, address holder) internal view returns (string memory) {
         Wave[] storage ws = waves[inst];
         uint256 len = ws.length;
         for (uint256 i = len; i > 0; --i) {
