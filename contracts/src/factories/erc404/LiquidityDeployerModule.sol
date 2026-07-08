@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
-import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {Currency, CurrencyLibrary} from "v4-core/types/Currency.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {BalanceDelta} from "v4-core/types/BalanceDelta.sol";
-import {LiquidityAmounts} from "../../libraries/v4/LiquidityAmounts.sol";
-import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
-import {PoolId} from "v4-core/types/PoolId.sol";
-import {CurrencySettler} from "../../libraries/v4/CurrencySettler.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { BalanceDelta } from "v4-core/types/BalanceDelta.sol";
+import { LiquidityAmounts } from "../../libraries/v4/LiquidityAmounts.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { PoolId } from "v4-core/types/PoolId.sol";
+import { CurrencySettler } from "../../libraries/v4/CurrencySettler.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /**
  * @title LiquidityDeployerModule
@@ -60,11 +60,11 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     }
 
     struct AmountsResult {
-        uint256 protocolFee;  // 1% of raise + 1% of carve → protocol treasury
-        uint256 vaultCut;     // 19% of raise + 19% of carve → alignment vault
-        uint256 creatorCut;   // 80% of carve → creator
-        uint256 carvePaid;    // effective gross carve (for CreatorCarvePaid)
-        uint256 ethForPool;   // remainder of the raise → LP
+        uint256 protocolFee; // 1% of raise + 1% of carve → protocol treasury
+        uint256 vaultCut; // 19% of raise + 19% of carve → alignment vault
+        uint256 creatorCut; // 80% of carve → creator
+        uint256 carvePaid; // effective gross carve (for CreatorCarvePaid)
+        uint256 ethForPool; // remainder of the raise → LP
         uint256 tokensForPool;
     }
 
@@ -115,20 +115,20 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     /// @dev Sets up pool, stores callback context, performs unlock, clears context, returns liquidity.
     // slither-disable-next-line reentrancy-benign,unused-return
-    function _setupPoolAndUnlock(
-        ILiquidityDeployerModule.DeployParams calldata p,
-        AmountsResult memory r
-    ) private returns (PoolSetupResult memory setup) {
+    function _setupPoolAndUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r)
+        private
+        returns (PoolSetupResult memory setup)
+    {
         // Pair the graduated token against NATIVE ETH (currency address(0)), matching the pools that
         // zRouter.swapV4 (tokenIn=address(0)) and UniAlignmentVault trade — NOT a WETH-keyed pool,
         // which would leave the token untradeable through the standard native-ETH path. address(0) is
         // numerically smaller than any token, so ETH is always currency0.
         Currency currencyToken = Currency.wrap(p.token);
-        Currency currencyETH   = Currency.wrap(address(0));
+        Currency currencyETH = Currency.wrap(address(0));
         setup.token0IsThis = currencyToken < currencyETH; // false: address(0) < token
 
         Currency currency0 = setup.token0IsThis ? currencyToken : currencyETH;
-        Currency currency1 = setup.token0IsThis ? currencyETH   : currencyToken;
+        Currency currency1 = setup.token0IsThis ? currencyETH : currencyToken;
 
         uint160 sqrtPriceX96 = _computeSqrtPrice(r.ethForPool, r.tokensForPool, setup.token0IsThis);
 
@@ -136,11 +136,11 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         setup.tickUpper = TickMath.maxUsableTick(tickSpacing);
 
         setup.poolKey = PoolKey({
-            currency0:   currency0,
-            currency1:   currency1,
-            fee:         poolFee,
+            currency0: currency0,
+            currency1: currency1,
+            fee: poolFee,
             tickSpacing: tickSpacing,
-            hooks:       IHooks(address(0))
+            hooks: IHooks(address(0))
         });
 
         // No WETH wrap/approve: the module holds native ETH (from msg.value) and settles the ETH leg
@@ -149,15 +149,15 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         v4PoolManager.initialize(setup.poolKey, sqrtPriceX96);
 
         uint256 amount0 = setup.token0IsThis ? r.tokensForPool : r.ethForPool;
-        uint256 amount1 = setup.token0IsThis ? r.ethForPool   : r.tokensForPool;
+        uint256 amount1 = setup.token0IsThis ? r.ethForPool : r.tokensForPool;
 
         _ctx = CallbackContext({
-            poolKey:     setup.poolKey,
-            tickLower:   setup.tickLower,
-            tickUpper:   setup.tickUpper,
-            amount0:     amount0,
-            amount1:     amount1,
-            instance:    p.instance,
+            poolKey: setup.poolKey,
+            tickLower: setup.tickLower,
+            tickUpper: setup.tickUpper,
+            amount0: amount0,
+            amount1: amount1,
+            instance: p.instance,
             poolManager: v4PoolManager
         });
 
@@ -169,10 +169,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     /// @dev Dispatches graduation fees, emits final event.
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events
-    function _postUnlock(
-        ILiquidityDeployerModule.DeployParams calldata p,
-        AmountsResult memory r
-    ) private {
+    function _postUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r) private {
         // 1% of raise (+ 1% of carve) → protocol treasury
         if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
@@ -180,7 +177,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         }
         // 19% of raise (+ 19% of carve) → alignment vault
         if (r.vaultCut > 0 && p.vault != address(0)) {
-            IAlignmentVault(payable(p.vault)).receiveContribution{value: r.vaultCut}(
+            IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
             );
             emit GraduationVaultContribution(p.vault, r.vaultCut);
@@ -245,7 +242,11 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     // Internal helpers
     // -------------------------------------------------------------------------
 
-    function _computeAmounts(ILiquidityDeployerModule.DeployParams calldata p) internal pure returns (AmountsResult memory r) {
+    function _computeAmounts(ILiquidityDeployerModule.DeployParams calldata p)
+        internal
+        pure
+        returns (AmountsResult memory r)
+    {
         // 1/19/80 split of the raise + optional tithed creator carve (80/19/1) out of the LP 80.
         // The instance resolves the effective carve (allowance × declaredMax, pool-floor clamp);
         // splitGraduation defensively re-clamps to the LP share (minPoolEth = 0 here — the floor
@@ -253,21 +254,21 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
         RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
         r.protocolFee = g.protocolCut;
-        r.vaultCut    = g.vaultCut;
-        r.creatorCut  = g.creatorCut;
-        r.carvePaid   = g.carveApplied;
-        r.ethForPool  = g.ethForPool;
+        r.vaultCut = g.vaultCut;
+        r.creatorCut = g.creatorCut;
+        r.carvePaid = g.carveApplied;
+        r.ethForPool = g.ethForPool;
         r.tokensForPool = p.tokenReserve;
 
         if (r.ethForPool == 0) revert NoETHForPool();
         if (r.tokensForPool == 0) revert NoTokensForPool();
     }
 
-    function _computeSqrtPrice(
-        uint256 ethForPool,
-        uint256 tokensForPool,
-        bool token0IsThis
-    ) internal pure returns (uint160 sqrtPriceX96) {
+    function _computeSqrtPrice(uint256 ethForPool, uint256 tokensForPool, bool token0IsThis)
+        internal
+        pure
+        returns (uint160 sqrtPriceX96)
+    {
         uint256 numerator = token0IsThis ? ethForPool : tokensForPool;
         uint256 denominator = token0IsThis ? tokensForPool : ethForPool;
         uint256 priceX192 = FixedPointMathLib.fullMulDiv(numerator, 1 << 192, denominator);
@@ -279,7 +280,7 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     }
 
     /// @notice Accept ETH (needed for WETH deposits returning change, etc.)
-    receive() external payable {}
+    receive() external payable { }
 
     // ── IComponentModule ───────────────────────────────────────────────────────
 

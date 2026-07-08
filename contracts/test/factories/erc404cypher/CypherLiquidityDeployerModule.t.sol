@@ -3,13 +3,17 @@
 pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import "../../../src/vaults/cypher/CypherAlignmentVault.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {MockERC20} from "../../mocks/MockERC20.sol";
-import {MockWETH} from "../../mocks/MockWETH.sol";
-import {MockAlgebraFactory, MockAlgebraPositionManager, MockAlgebraSwapRouter} from "../../mocks/MockCypherAlgebra.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { MockERC20 } from "../../mocks/MockERC20.sol";
+import { MockWETH } from "../../mocks/MockWETH.sol";
+import {
+    MockAlgebraFactory,
+    MockAlgebraPositionManager,
+    MockAlgebraSwapRouter
+} from "../../mocks/MockCypherAlgebra.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 
 contract CypherLiquidityDeployerModuleTest is Test {
     CypherLiquidityDeployerModule deployer;
@@ -42,10 +46,13 @@ contract CypherLiquidityDeployerModuleTest is Test {
         CypherAlignmentVault impl = new CypherAlignmentVault();
         vault = CypherAlignmentVault(payable(LibClone.clone(address(impl))));
         vault.initialize(
-            address(positionManager), address(swapRouter), address(weth),
-            address(token), protocolTreasury,
-            address(deployer),  // liquidityDeployer = this module
-            address(0)          // priceValidator inert
+            address(positionManager),
+            address(swapRouter),
+            address(weth),
+            address(token),
+            protocolTreasury,
+            address(deployer), // liquidityDeployer = this module
+            address(0) // priceValidator inert
         );
     }
 
@@ -57,7 +64,7 @@ contract CypherLiquidityDeployerModuleTest is Test {
         token.mint(address(deployer), tokenReserve);
 
         vm.deal(address(this), ethReserve);
-        deployer.deployLiquidity{value: ethReserve}(
+        deployer.deployLiquidity{ value: ethReserve }(
             ILiquidityDeployerModule.DeployParams({
                 ethReserve: ethReserve,
                 tokenReserve: tokenReserve,
@@ -65,8 +72,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 token: address(token),
                 vault: address(vault),
                 instance: instance,
-            creator: address(0),
-            carveEth: 0
+                creator: address(0),
+                carveEth: 0
             })
         );
 
@@ -89,9 +96,9 @@ contract CypherLiquidityDeployerModuleTest is Test {
 
         vm.deal(address(this), ethReserve);
         uint256 treasuryBefore = protocolTreasury.balance;
-        uint256 vaultBefore    = address(vault).balance;
+        uint256 vaultBefore = address(vault).balance;
 
-        deployer.deployLiquidity{value: ethReserve}(
+        deployer.deployLiquidity{ value: ethReserve }(
             ILiquidityDeployerModule.DeployParams({
                 ethReserve: ethReserve,
                 tokenReserve: 1000e18,
@@ -99,8 +106,8 @@ contract CypherLiquidityDeployerModuleTest is Test {
                 token: address(token),
                 vault: address(vault),
                 instance: instance,
-            creator: address(0),
-            carveEth: 0
+                creator: address(0),
+                carveEth: 0
             })
         );
 
@@ -122,12 +129,12 @@ contract CypherLiquidityDeployerModuleTest is Test {
 
         vm.deal(address(this), ethReserve);
         uint256 treasuryBefore = protocolTreasury.balance;
-        uint256 vaultBefore    = address(vault).balance;
+        uint256 vaultBefore = address(vault).balance;
 
         vm.expectEmit(true, true, false, true);
         emit CypherLiquidityDeployerModule.CreatorCarvePaid(instance, creator, carve, carve);
 
-        deployer.deployLiquidity{value: ethReserve}(
+        deployer.deployLiquidity{ value: ethReserve }(
             ILiquidityDeployerModule.DeployParams({
                 ethReserve: ethReserve,
                 tokenReserve: 1000e18,
@@ -171,7 +178,7 @@ contract CypherLiquidityDeployerModuleTest is Test {
         token.mint(address(deployer), 1000e18);
         vm.deal(address(this), 1 ether);
         vm.expectRevert(CypherLiquidityDeployerModule.UnauthorizedCaller.selector);
-        deployer.deployLiquidity{value: 1 ether}(_guardParams());
+        deployer.deployLiquidity{ value: 1 ether }(_guardParams());
     }
 
     /// @notice A caller passing a crafted p.instance it does not control reverts (no impersonation).
@@ -181,6 +188,6 @@ contract CypherLiquidityDeployerModuleTest is Test {
         ILiquidityDeployerModule.DeployParams memory p = _guardParams();
         p.instance = makeAddr("victimInstance"); // registered per mock default, but != msg.sender
         vm.expectRevert(CypherLiquidityDeployerModule.UnauthorizedCaller.selector);
-        deployer.deployLiquidity{value: 1 ether}(p);
+        deployer.deployLiquidity{ value: 1 ether }(p);
     }
 }

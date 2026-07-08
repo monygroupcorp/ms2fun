@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {FrontendRegistry} from "../../src/registry/FrontendRegistry.sol";
-import {IFrontendRegistry} from "../../src/registry/interfaces/IFrontendRegistry.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { FrontendRegistry } from "../../src/registry/FrontendRegistry.sol";
+import { IFrontendRegistry } from "../../src/registry/interfaces/IFrontendRegistry.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
 
 /// @dev Mock ENS resolver that records calls
 contract MockENSResolver {
@@ -121,17 +121,11 @@ contract FrontendRegistryTest is Test {
 
         vm.prank(owner);
         registry.publishRelease(
-            IFrontendRegistry.ReleaseType.SITE_ONLY,
-            sampleHash,
-            "1.0.0",
-            "Initial release",
-            contracts,
-            nodes
+            IFrontendRegistry.ReleaseType.SITE_ONLY, sampleHash, "1.0.0", "Initial release", contracts, nodes
         );
 
         assertEq(registry.releaseCount(), 1);
-        (uint32 id, IFrontendRegistry.ReleaseType rt, bytes memory ch, string memory ver, , ,) =
-            registry.releases(0);
+        (uint32 id, IFrontendRegistry.ReleaseType rt, bytes memory ch, string memory ver,,,) = registry.releases(0);
         assertEq(id, 1);
         assertEq(uint8(rt), uint8(IFrontendRegistry.ReleaseType.SITE_ONLY));
         assertEq(ch, sampleHash);
@@ -205,7 +199,9 @@ contract FrontendRegistryTest is Test {
         contracts[1] = address(0xBBB);
 
         vm.prank(owner);
-        registry.publishRelease(IFrontendRegistry.ReleaseType.ECOSYSTEM, sampleHash, "2.0.0", "new factory", contracts, nodes);
+        registry.publishRelease(
+            IFrontendRegistry.ReleaseType.ECOSYSTEM, sampleHash, "2.0.0", "new factory", contracts, nodes
+        );
 
         address[] memory stored = registry.getReleaseContracts(1);
         assertEq(stored.length, 2);

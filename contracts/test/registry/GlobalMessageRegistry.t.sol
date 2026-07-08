@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {GlobalMessageRegistry} from "../../src/registry/GlobalMessageRegistry.sol";
-import {MockMasterRegistry} from "../mocks/MockMasterRegistry.sol";
-import {MessageTypes} from "../../src/libraries/MessageTypes.sol";
+import { Test } from "forge-std/Test.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { GlobalMessageRegistry } from "../../src/registry/GlobalMessageRegistry.sol";
+import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
+import { MessageTypes } from "../../src/libraries/MessageTypes.sol";
 
 contract GlobalMessageRegistryTest is Test {
     GlobalMessageRegistry public registry;
@@ -63,9 +63,7 @@ contract GlobalMessageRegistryTest is Test {
     // ── postForAction ──
 
     function test_postForAction_emitsEvent() public {
-        bytes memory messageData = abi.encode(
-            uint8(MessageTypes.POST), uint256(0), bytes32(0), bytes32(0), "gm"
-        );
+        bytes memory messageData = abi.encode(uint8(MessageTypes.POST), uint256(0), bytes32(0), bytes32(0), "gm");
 
         vm.expectEmit(true, true, true, true);
         emit MessagePosted(0, instance, user1, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0, "gm");
@@ -286,7 +284,7 @@ contract GlobalMessageRegistryTest is Test {
         assertEq(address(this).balance, balBefore + 1 ether);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 
     function test_withdrawETH_revertNoBalance() public {
         vm.expectRevert(GlobalMessageRegistry.NoETHToWithdraw.selector);
@@ -309,7 +307,7 @@ contract GlobalMessageRegistryTest is Test {
         emit MessagePosted(0, instance, user1, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.3 ether, "priced");
 
         vm.prank(user1);
-        registry.post{value: 0.3 ether}(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), "priced");
+        registry.post{ value: 0.3 ether }(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), "priced");
 
         // ETH accumulates in the registry; the existing onlyOwner withdrawETH() sweeps it.
         assertEq(address(registry).balance, 0.3 ether);
@@ -323,15 +321,18 @@ contract GlobalMessageRegistryTest is Test {
         emit MessagePosted(0, instance, user1, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.1 ether, "action");
 
         vm.prank(instance);
-        registry.postForAction{value: 0.1 ether}(user1, instance, messageData);
+        registry.postForAction{ value: 0.1 ether }(user1, instance, messageData);
 
         assertEq(address(registry).balance, 0.1 ether);
     }
 
     function test_postBatch_recordsPerPostValue() public {
         GlobalMessageRegistry.PostParams[] memory posts = new GlobalMessageRegistry.PostParams[](2);
-        posts[0] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "cheap");
-        posts[1] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.5 ether, "dear");
+        posts[0] = GlobalMessageRegistry.PostParams(
+            instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "cheap"
+        );
+        posts[1] =
+            GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.5 ether, "dear");
 
         vm.expectEmit(true, true, true, true);
         emit MessagePosted(0, instance, user1, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "cheap");
@@ -340,33 +341,37 @@ contract GlobalMessageRegistryTest is Test {
 
         vm.deal(user1, 1 ether);
         vm.prank(user1);
-        registry.postBatch{value: 0.7 ether}(posts);
+        registry.postBatch{ value: 0.7 ether }(posts);
 
         assertEq(address(registry).balance, 0.7 ether);
     }
 
     function test_postBatch_revertsOnUnderpay() public {
         GlobalMessageRegistry.PostParams[] memory posts = new GlobalMessageRegistry.PostParams[](2);
-        posts[0] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "a");
-        posts[1] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.5 ether, "b");
+        posts[0] =
+            GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "a");
+        posts[1] =
+            GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.5 ether, "b");
 
         vm.deal(user1, 1 ether);
         vm.prank(user1);
         // Sum of per-post values (0.7) must equal msg.value — underpay reverts.
         vm.expectRevert(GlobalMessageRegistry.ValueMismatch.selector);
-        registry.postBatch{value: 0.6 ether}(posts);
+        registry.postBatch{ value: 0.6 ether }(posts);
     }
 
     function test_postBatch_revertsOnOverpay() public {
         GlobalMessageRegistry.PostParams[] memory posts = new GlobalMessageRegistry.PostParams[](2);
-        posts[0] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "a");
-        posts[1] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.5 ether, "b");
+        posts[0] =
+            GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.2 ether, "a");
+        posts[1] =
+            GlobalMessageRegistry.PostParams(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.5 ether, "b");
 
         vm.deal(user1, 1 ether);
         vm.prank(user1);
         // Overpay is also rejected — no unattributed surplus ETH can land in the registry.
         vm.expectRevert(GlobalMessageRegistry.ValueMismatch.selector);
-        registry.postBatch{value: 0.8 ether}(posts);
+        registry.postBatch{ value: 0.8 ether }(posts);
     }
 
     function test_postBatch_revertsWhenValueSentButAllZero() public {
@@ -377,18 +382,24 @@ contract GlobalMessageRegistryTest is Test {
         vm.prank(user1);
         // ETH sent but no post claims any of it — reverts so ETH can't be stranded unattributed.
         vm.expectRevert(GlobalMessageRegistry.ValueMismatch.selector);
-        registry.postBatch{value: 1}(posts);
+        registry.postBatch{ value: 1 }(posts);
     }
 
     function test_postBatch_mixedZeroAndValued() public {
         GlobalMessageRegistry.PostParams[] memory posts = new GlobalMessageRegistry.PostParams[](3);
-        posts[0] = GlobalMessageRegistry.PostParams(instance, MessageTypes.REPLY, 5, bytes32(0), bytes32(0), 0,          "free reply");
-        posts[1] = GlobalMessageRegistry.PostParams(instance, MessageTypes.POST,  0, bytes32(0), bytes32(0), 0.3 ether,  "paid post");
-        posts[2] = GlobalMessageRegistry.PostParams(instance, MessageTypes.REACT, 1, bytes32(0), bytes32(0), 0,          "free react");
+        posts[0] = GlobalMessageRegistry.PostParams(
+            instance, MessageTypes.REPLY, 5, bytes32(0), bytes32(0), 0, "free reply"
+        );
+        posts[1] = GlobalMessageRegistry.PostParams(
+            instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), 0.3 ether, "paid post"
+        );
+        posts[2] = GlobalMessageRegistry.PostParams(
+            instance, MessageTypes.REACT, 1, bytes32(0), bytes32(0), 0, "free react"
+        );
 
         vm.deal(user1, 1 ether);
         vm.prank(user1);
-        registry.postBatch{value: 0.3 ether}(posts);
+        registry.postBatch{ value: 0.3 ether }(posts);
 
         assertEq(registry.messageCount(), 3);
         assertEq(address(registry).balance, 0.3 ether);
@@ -397,7 +408,7 @@ contract GlobalMessageRegistryTest is Test {
     function test_post_valueAccruesAndWithdrawable() public {
         vm.deal(user1, 1 ether);
         vm.prank(user1);
-        registry.post{value: 0.4 ether}(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), "paid");
+        registry.post{ value: 0.4 ether }(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), "paid");
 
         // owner == address(this); the existing onlyOwner withdrawETH() sweeps the accrued ETH.
         uint256 ownerBefore = address(this).balance;
@@ -413,7 +424,7 @@ contract GlobalMessageRegistryTest is Test {
         emit MessagePosted(0, instance, user1, MessageTypes.POST, 0, bytes32(0), bytes32(0), v, "f");
 
         vm.prank(user1);
-        registry.post{value: v}(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), "f");
+        registry.post{ value: v }(instance, MessageTypes.POST, 0, bytes32(0), bytes32(0), "f");
         assertEq(address(registry).balance, v);
     }
 
@@ -428,14 +439,14 @@ contract GlobalMessageRegistryTest is Test {
         // Exact sum settles.
         vm.deal(user1, sum);
         vm.prank(user1);
-        registry.postBatch{value: sum}(posts);
+        registry.postBatch{ value: sum }(posts);
         assertEq(address(registry).balance, sum);
 
         // One wei off reverts (re-fund so the revert is ValueMismatch, not insufficient balance).
         vm.deal(user1, sum + 1);
         vm.prank(user1);
         vm.expectRevert(GlobalMessageRegistry.ValueMismatch.selector);
-        registry.postBatch{value: sum + 1}(posts);
+        registry.postBatch{ value: sum + 1 }(posts);
     }
 
     function test_post_zeroValueStillWorks() public {

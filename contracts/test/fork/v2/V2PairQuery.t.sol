@@ -58,9 +58,8 @@ contract V2PairQueryTest is ForkTestBase {
         // Call factory.getPair(tokenA, tokenB)
         address randomToken = address(0xDEADBEEF);
 
-        (bool success, bytes memory data) = UNISWAP_V2_FACTORY.staticcall(
-            abi.encodeWithSignature("getPair(address,address)", WETH, randomToken)
-        );
+        (bool success, bytes memory data) =
+            UNISWAP_V2_FACTORY.staticcall(abi.encodeWithSignature("getPair(address,address)", WETH, randomToken));
 
         if (success) {
             address pair = abi.decode(data, (address));

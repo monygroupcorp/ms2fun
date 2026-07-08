@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC404Factory} from "../../src/factories/erc404/ERC404Factory.sol";
-import {ERC404BondingInstance} from "../../src/factories/erc404/ERC404BondingInstance.sol";
-import {LaunchManager} from "../../src/factories/erc404/LaunchManager.sol";
-import {CurveParamsComputer} from "../../src/factories/erc404/CurveParamsComputer.sol";
-import {BondingCurveMath} from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
-import {MockMasterRegistry} from "../mocks/MockMasterRegistry.sol";
-import {FreeMintParams} from "../../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../src/gating/IGatingModule.sol";
-import {TierConfig} from "../../src/gating/IPasswordTierGatingModule.sol";
-import {ComponentRegistry} from "../../src/registry/ComponentRegistry.sol";
-import {ILiquidityDeployerModule} from "../../src/interfaces/ILiquidityDeployerModule.sol";
-import {MetadataResolverRouter} from "../../src/metadata/MetadataResolverRouter.sol";
-import {MetadataOverlayModule} from "../../src/metadata/MetadataOverlayModule.sol";
-import {TierRevealModule} from "../../src/metadata/TierRevealModule.sol";
-import {DN404Mirror} from "dn404/src/DN404Mirror.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ICreateX, CREATEX} from "../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
+import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
+import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
+import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
+import { FreeMintParams } from "../../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../src/gating/IGatingModule.sol";
+import { TierConfig } from "../../src/gating/IPasswordTierGatingModule.sol";
+import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
+import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
+import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
+import { MetadataOverlayModule } from "../../src/metadata/MetadataOverlayModule.sol";
+import { TierRevealModule } from "../../src/metadata/TierRevealModule.sol";
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ICreateX, CREATEX } from "../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 /// @dev The base DN404's `tokenURINFT(uint256)` resolves `_tokenURI` WITHOUT the mirror's existence
 ///      guard — so it reads the seam's resolution for any id (minted or not), which is what the
@@ -29,14 +29,19 @@ interface ITokenURINFT {
 }
 
 contract MockVault {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 contract MockLiquidityDeployer is ILiquidityDeployerModule {
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 /// @notice End-to-end proof of the metadata-resolution seam: a real ERC404 instance wired through a
@@ -79,13 +84,16 @@ contract MetadataStackIntegrationTest is Test {
         componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "Curve");
         componentRegistry.approveComponent(address(deployer), keccak256("liquidity"), "Deployer");
 
-        launchMgr.setPreset(PRESET_ID, LaunchManager.Preset({
-            targetETH: 15 ether,
-            unitPerNFT: 1e6,
-            liquidityReserveBps: 2000,
-            curveComputer: address(curveComp),
-            active: true
-        }));
+        launchMgr.setPreset(
+            PRESET_ID,
+            LaunchManager.Preset({
+                targetETH: 15 ether,
+                unitPerNFT: 1e6,
+                liquidityReserveBps: 2000,
+                curveComputer: address(curveComp),
+                active: true
+            })
+        );
 
         ERC404BondingInstance instImpl = new ERC404BondingInstance();
         factory = new ERC404Factory(
@@ -103,9 +111,9 @@ contract MetadataStackIntegrationTest is Test {
         );
 
         // Metadata stack (modules read isFactoryRegistered off the mock registry → factory may seal).
-        router  = new MetadataResolverRouter(address(registry));
+        router = new MetadataResolverRouter(address(registry));
         overlay = new MetadataOverlayModule(address(registry));
-        tier    = new TierRevealModule(address(registry));
+        tier = new TierRevealModule(address(registry));
         componentRegistry.approveComponent(address(router), keccak256("resolver"), "Router");
         componentRegistry.approveComponent(address(overlay), keccak256("overlay"), "Overlay");
         componentRegistry.approveComponent(address(tier), keccak256("tier"), "Tier");
@@ -116,11 +124,12 @@ contract MetadataStackIntegrationTest is Test {
     function _createStacked() internal returns (ERC404BondingInstance b, DN404Mirror mirror) {
         // Tier: ids 1-2 reveal "rare-" once the holder clears 1 unit; teaser "locked-" otherwise.
         TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] = TierRevealModule.Tier({idStart: 1, idEnd: 2, minBalance: UNIT, baseURI: "rare-", lockedURI: "locked-"});
+        tiers[0] =
+            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: UNIT, baseURI: "rare-", lockedURI: "locked-" });
 
         address[] memory children = new address[](2);
         children[0] = address(overlay); // explicit pins/events win over...
-        children[1] = address(tier);    // ...ambient rarity
+        children[1] = address(tier); // ...ambient rarity
 
         ERC404Factory.MetadataConfig memory meta = ERC404Factory.MetadataConfig({
             resolver: address(router),
@@ -143,15 +152,19 @@ contract MetadataStackIntegrationTest is Test {
             styleUri: "",
             tokenBaseURI: "base/",
             stakingModule: address(0),
-                declaredMaxAllowanceBps: 0
+            declaredMaxAllowanceBps: 0
         });
 
         TierConfig memory noGating;
         vm.prank(creator);
         address inst = factory.createInstance(
-            params, "ipfs://collection", address(deployer), address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH}),
-            noGating, meta
+            params,
+            "ipfs://collection",
+            address(deployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+            noGating,
+            meta
         );
         b = ERC404BondingInstance(payable(inst));
         // The instance deploys its DN404Mirror as its first (and only) CREATE during initialize → nonce 1.
@@ -164,10 +177,17 @@ contract MetadataStackIntegrationTest is Test {
 
     function _params(string memory name, bytes32 salt) internal view returns (ERC404Factory.CreateParams memory) {
         return ERC404Factory.CreateParams({
-            salt: salt, owner: creator, nftCount: 10, presetId: uint8(PRESET_ID),
-            vault: address(vault), name: name, symbol: "SYM", styleUri: "", tokenBaseURI: "base/",
+            salt: salt,
+            owner: creator,
+            nftCount: 10,
+            presetId: uint8(PRESET_ID),
+            vault: address(vault),
+            name: name,
+            symbol: "SYM",
+            styleUri: "",
+            tokenBaseURI: "base/",
             stakingModule: address(0),
-                declaredMaxAllowanceBps: 0
+            declaredMaxAllowanceBps: 0
         });
     }
 
@@ -177,13 +197,20 @@ contract MetadataStackIntegrationTest is Test {
         _nonce++;
         vm.prank(creator);
         return factory.createInstance(
-            _params(name, bytes32(_nonce)), "ipfs://c", address(deployer), address(0),
-            FreeMintParams({allocation: 0, scope: GatingScope.BOTH}), noGating, meta
+            _params(name, bytes32(_nonce)),
+            "ipfs://c",
+            address(deployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+            noGating,
+            meta
         );
     }
 
     function _children(address a, address b) internal pure returns (address[] memory rs) {
-        rs = new address[](2); rs[0] = a; rs[1] = b;
+        rs = new address[](2);
+        rs[0] = a;
+        rs[1] = b;
     }
 
     function _buy(ERC404BondingInstance b, uint256 amount) internal {
@@ -196,7 +223,7 @@ contract MetadataStackIntegrationTest is Test {
         uint256 total = cost + fee;
         vm.deal(creator, total);
         vm.prank(creator);
-        b.buyBonding{value: total}(amount, total, true, bytes32(0), "", 0); // mintNFT = true
+        b.buyBonding{ value: total }(amount, total, true, bytes32(0), "", 0); // mintNFT = true
     }
 
     function test_tokenURI_resolvesOverlayThenTierThenBase() public {
@@ -208,8 +235,8 @@ contract MetadataStackIntegrationTest is Test {
         assertTrue(tier.sealed_(address(b)));
 
         // ── Pre-mint: tier teaser for in-range unsold ids; base for everything else ──
-        assertEq(_uri(b, 1), "locked-");  // overlay "" → tier teaser
-        assertEq(_uri(b, 5), "base/5");   // overlay "" → tier "" → collection base
+        assertEq(_uri(b, 1), "locked-"); // overlay "" → tier teaser
+        assertEq(_uri(b, 5), "base/5"); // overlay "" → tier "" → collection base
 
         // ── Mint: creator buys 2 whole units → owns ids 1,2, balance clears the tier threshold ──
         vm.prank(creator);
@@ -227,17 +254,21 @@ contract MetadataStackIntegrationTest is Test {
 
         // ── Overlay event wins over tier when the holder pins it ──
         vm.prank(creator);
-        uint256 w = overlay.publishWave(address(b), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        uint256 w = overlay.publishWave(
+            address(b), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.prank(creator);
         overlay.select(address(b), 1, w + 3); // pin the wave on id 1
         assertEq(mirror.tokenURI(1), "evt-1"); // overlay precedence over tier reveal
 
         // ── Paid commission wins over tier too ──
         vm.prank(creator);
-        overlay.setCommission(address(b), 2, "comm-2", MetadataOverlayModule.CommCond.PAY, 0.5 ether, MetadataOverlayModule.Payout.ARTIST);
+        overlay.setCommission(
+            address(b), 2, "comm-2", MetadataOverlayModule.CommCond.PAY, 0.5 ether, MetadataOverlayModule.Payout.ARTIST
+        );
         vm.deal(creator, 0.5 ether);
         vm.prank(creator);
-        overlay.unlock{value: 0.5 ether}(address(b), 2);
+        overlay.unlock{ value: 0.5 ether }(address(b), 2);
         assertEq(mirror.tokenURI(2), "comm-2"); // overlay commission over tier "rare-2"
 
         // id 5 is still pure base — the stack is fully transparent where no module claims it.
@@ -319,8 +350,8 @@ contract MetadataStackIntegrationTest is Test {
     ///      wiring is skipped (empty childResolvers) and the single module resolves directly.
     function test_wireMetadata_singleModuleNoRouter() public {
         ERC404Factory.MetadataConfig memory meta;
-        meta.resolver = address(overlay);   // instance points directly at overlay
-        meta.overlay = address(overlay);    // seal its config
+        meta.resolver = address(overlay); // instance points directly at overlay
+        meta.overlay = address(overlay); // seal its config
         meta.autoLatest = true;
         address inst = _create("solo", meta);
         ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
@@ -330,7 +361,9 @@ contract MetadataStackIntegrationTest is Test {
 
         // Overlay resolves directly: an open AUTO wave shows with no router in the path.
         vm.prank(creator);
-        overlay.publishWave(inst, "solo-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
+        overlay.publishWave(
+            inst, "solo-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
+        );
         assertEq(_uri(b, 7), "solo-7");
     }
 }

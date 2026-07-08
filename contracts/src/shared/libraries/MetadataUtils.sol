@@ -16,11 +16,10 @@ library MetadataUtils {
         if (uriBytes.length == 0) return false;
 
         // Check for common URI schemes
-        if (startsWith(uri, "http://") ||
-            startsWith(uri, "https://") ||
-            startsWith(uri, "ipfs://") ||
-            startsWith(uri, "ar://") ||
-            startsWith(uri, "data:")) {
+        if (
+            startsWith(uri, "http://") || startsWith(uri, "https://") || startsWith(uri, "ipfs://")
+                || startsWith(uri, "ar://") || startsWith(uri, "data:")
+        ) {
             return true;
         }
 
@@ -33,10 +32,7 @@ library MetadataUtils {
      * @param prefix Prefix to check for
      * @return True if string starts with prefix
      */
-    function startsWith(
-        string memory str,
-        string memory prefix
-    ) internal pure returns (bool) {
+    function startsWith(string memory str, string memory prefix) internal pure returns (bool) {
         bytes memory strBytes = bytes(str);
         bytes memory prefixBytes = bytes(prefix);
 
@@ -60,20 +56,21 @@ library MetadataUtils {
      */
     function isValidName(string memory name) internal pure returns (bool) {
         bytes memory nameBytes = bytes(name);
-        
+
         if (nameBytes.length == 0 || nameBytes.length > 64) {
             return false;
         }
 
         for (uint256 i = 0; i < nameBytes.length; i++) {
             bytes1 char = nameBytes[i];
-            
+
             // Allow alphanumeric and hyphens/underscores
-            if (!((char >= 0x30 && char <= 0x39) || // 0-9
-                  (char >= 0x41 && char <= 0x5A) || // A-Z
-                  (char >= 0x61 && char <= 0x7A) || // a-z
-                  char == 0x2D || // -
-                  char == 0x5F)) { // _
+            if (!((char >= 0x30 && char <= 0x39) // 0-9
+                        || (char >= 0x41 && char <= 0x5A) // A-Z
+                        || (char >= 0x61 && char <= 0x7A) // a-z
+                        || char == 0x2D // -
+                        || char == 0x5F)) {
+                // _
                 return false;
             }
         }

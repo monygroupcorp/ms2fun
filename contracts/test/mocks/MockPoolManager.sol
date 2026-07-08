@@ -8,4 +8,5 @@ pragma solidity ^0.8.20;
  */
 contract MockPoolManager {
     // Simple no-op contract for testing hook creation
-}
+
+    }

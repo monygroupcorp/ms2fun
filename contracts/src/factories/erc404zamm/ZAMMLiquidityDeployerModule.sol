@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IERC20} from "../../shared/interfaces/IERC20.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {ILiquidityDeployerModule} from "../../interfaces/ILiquidityDeployerModule.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
-import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IERC20 } from "../../shared/interfaces/IERC20.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 interface IZAMM {
     struct PoolKey {
@@ -58,10 +58,10 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
     struct PoolResult {
         uint256 ethForPool;
-        uint256 protocolFee;  // 1% of raise + 1% of carve → protocol treasury
-        uint256 vaultCut;     // 19% of raise + 19% of carve → alignment vault
-        uint256 creatorCut;   // 80% of carve → creator
-        uint256 carvePaid;    // effective gross carve (for CreatorCarvePaid)
+        uint256 protocolFee; // 1% of raise + 1% of carve → protocol treasury
+        uint256 vaultCut; // 19% of raise + 19% of carve → alignment vault
+        uint256 creatorCut; // 80% of carve → creator
+        uint256 carvePaid; // effective gross carve (for CreatorCarvePaid)
         bool ethIsToken0;
         address token0;
         address token1;
@@ -98,10 +98,10 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         uint256 carve = p.creator == address(0) ? 0 : p.carveEth;
         RevenueSplitLib.GraduationSplit memory g = RevenueSplitLib.splitGraduation(p.ethReserve, carve, 0);
         r.protocolFee = g.protocolCut;
-        r.vaultCut    = g.vaultCut;
-        r.creatorCut  = g.creatorCut;
-        r.carvePaid   = g.carveApplied;
-        r.ethForPool  = g.ethForPool;
+        r.vaultCut = g.vaultCut;
+        r.creatorCut = g.creatorCut;
+        r.carvePaid = g.carveApplied;
+        r.ethForPool = g.ethForPool;
         if (r.ethForPool == 0) revert NoETHForPool();
         if (p.tokenReserve == 0) revert NoTokensForPool();
 
@@ -111,20 +111,15 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
         IERC20(p.token).approve(zamm, p.tokenReserve);
 
-        IZAMM.PoolKey memory zammKey = IZAMM.PoolKey({
-            id0: 0, id1: 0,
-            token0: r.token0,
-            token1: r.token1,
-            feeOrHook: feeOrHook
-        });
+        IZAMM.PoolKey memory zammKey =
+            IZAMM.PoolKey({ id0: 0, id1: 0, token0: r.token0, token1: r.token1, feeOrHook: feeOrHook });
 
         uint256 a0 = r.ethIsToken0 ? r.ethForPool : p.tokenReserve;
         uint256 a1 = r.ethIsToken0 ? p.tokenReserve : r.ethForPool;
         uint256 a0Min = a0 * 99 / 100; // 1% slippage tolerance
         uint256 a1Min = a1 * 99 / 100;
-        (,, r.liquidity) = IZAMM(zamm).addLiquidity{value: r.ethForPool}(
-            zammKey, a0, a1, a0Min, a1Min, p.instance, block.timestamp
-        );
+        (,, r.liquidity) =
+            IZAMM(zamm).addLiquidity{ value: r.ethForPool }(zammKey, a0, a1, a0Min, a1Min, p.instance, block.timestamp);
     }
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events
@@ -136,7 +131,7 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         }
         // 19% of raise (+ 19% of carve) → alignment vault
         if (r.vaultCut > 0 && p.vault != address(0)) {
-            IAlignmentVault(payable(p.vault)).receiveContribution{value: r.vaultCut}(
+            IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
             );
             emit GraduationVaultContribution(p.vault, r.vaultCut);
@@ -151,7 +146,7 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         emit LiquidityDeployed(zamm, r.token0, r.token1, r.liquidity);
     }
 
-    receive() external payable {}
+    receive() external payable { }
 
     // ── IComponentModule ───────────────────────────────────────────────────────
 

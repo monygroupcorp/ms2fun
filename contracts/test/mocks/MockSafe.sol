@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IAvatar, Operation} from "../../src/interfaces/IAvatar.sol";
+import { IAvatar, Operation } from "../../src/interfaces/IAvatar.sol";
 
 contract MockSafe is IAvatar {
     struct Execution {
@@ -13,18 +13,16 @@ contract MockSafe is IAvatar {
 
     Execution[] public executions;
 
-    receive() external payable {}
+    receive() external payable { }
 
-    function execTransactionFromModule(
-        address to,
-        uint256 value,
-        bytes memory data,
-        Operation operation
-    ) external returns (bool success) {
-        executions.push(Execution({to: to, value: value, data: data, operation: operation}));
+    function execTransactionFromModule(address to, uint256 value, bytes memory data, Operation operation)
+        external
+        returns (bool success)
+    {
+        executions.push(Execution({ to: to, value: value, data: data, operation: operation }));
 
         if (value > 0) {
-            (success,) = to.call{value: value}(data);
+            (success,) = to.call{ value: value }(data);
         } else if (data.length > 0) {
             (success,) = to.call(data);
         } else {

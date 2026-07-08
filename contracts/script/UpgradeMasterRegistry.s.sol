@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Script, console} from "forge-std/Script.sol";
-import {MasterRegistryV1} from "../src/master/MasterRegistryV1.sol";
+import { Script, console } from "forge-std/Script.sol";
+import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 
 /// @notice Upgrades the Sepolia MasterRegistryV1 proxy to the new implementation,
 ///         deactivates the old ERC404Factory, and revokes the test instance.
@@ -14,9 +14,7 @@ import {MasterRegistryV1} from "../src/master/MasterRegistryV1.sol";
 ///           --rpc-url <sepolia-rpc> \
 ///           --broadcast --verify
 contract UpgradeMasterRegistry is Script {
-
-    MasterRegistryV1 constant PROXY =
-        MasterRegistryV1(0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF);
+    MasterRegistryV1 constant PROXY = MasterRegistryV1(0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF);
 
     address constant OLD_ERC404_FACTORY = 0xd84f755AdFac9408ADbde65832F8A1BFf5179bF8;
 

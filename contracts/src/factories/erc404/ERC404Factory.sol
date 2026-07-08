@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IMasterRegistry} from "../../master/interfaces/IMasterRegistry.sol";
-import {FeatureUtils} from "../../master/libraries/FeatureUtils.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IFactory} from "../../interfaces/IFactory.sol";
-import {ICurveComputer} from "../../interfaces/ICurveComputer.sol";
-import {ERC404BondingInstance} from "./ERC404BondingInstance.sol";
-import {LaunchManager} from "./LaunchManager.sol";
-import {IComponentRegistry} from "../../registry/interfaces/IComponentRegistry.sol";
-import {FreeMintParams} from "../../interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../gating/IGatingModule.sol";
-import {IPasswordTierGatingModule, TierConfig} from "../../gating/IPasswordTierGatingModule.sol";
-import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
-import {RevenueSplitLib} from "../../shared/libraries/RevenueSplitLib.sol";
-import {MetadataResolverRouter} from "../../metadata/MetadataResolverRouter.sol";
-import {TierRevealModule} from "../../metadata/TierRevealModule.sol";
-import {MetadataOverlayModule} from "../../metadata/MetadataOverlayModule.sol";
+import { OwnableRoles } from "solady/auth/OwnableRoles.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { FeatureUtils } from "../../master/libraries/FeatureUtils.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IFactory } from "../../interfaces/IFactory.sol";
+import { ICurveComputer } from "../../interfaces/ICurveComputer.sol";
+import { ERC404BondingInstance } from "./ERC404BondingInstance.sol";
+import { LaunchManager } from "./LaunchManager.sol";
+import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
+import { FreeMintParams } from "../../interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../gating/IGatingModule.sol";
+import { IPasswordTierGatingModule, TierConfig } from "../../gating/IPasswordTierGatingModule.sol";
+import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
+import { MetadataResolverRouter } from "../../metadata/MetadataResolverRouter.sol";
+import { TierRevealModule } from "../../metadata/TierRevealModule.sol";
+import { MetadataOverlayModule } from "../../metadata/MetadataOverlayModule.sol";
 
 /// @dev Minimal surface of the deploy-bond escrow the factory drives at create. The escrow is a
 ///      SEPARATE contract (holds the ETH) so the factory keeps its "holds no ETH" invariant.
@@ -36,7 +36,7 @@ interface IDeployBondEscrow {
  *         Bonding curve params are derived from LaunchManager presets.
  */
 contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
-    uint256 public constant PROTOCOL_ROLE = _ROLE_0;  // 1 << 0 = 1
+    uint256 public constant PROTOCOL_ROLE = _ROLE_0; // 1 << 0 = 1
 
     /// @dev Infrastructure only — no AMM-specific addresses.
     struct CoreConfig {
@@ -76,12 +76,12 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///      empty). `overlay`/`tier` are the concrete module addresses to seal per-instance config on
     ///      (address(0) = skip that module). Everything is registry-validated, wired once, then frozen.
     struct MetadataConfig {
-        address resolver;                          // instance modules[METADATA_RESOLVER] target
-        address[] childResolvers;                  // router's ordered children (empty if no router)
-        address overlay;                           // overlay module to initConfig (address(0) = skip)
-        address tier;                              // tier module to initTiers (address(0) = skip)
-        TierRevealModule.Tier[] tiers;             // tier table (sealed at create)
-        bool autoLatest;                           // overlay initial policy
+        address resolver; // instance modules[METADATA_RESOLVER] target
+        address[] childResolvers; // router's ordered children (empty if no router)
+        address overlay; // overlay module to initConfig (address(0) = skip)
+        address tier; // tier module to initTiers (address(0) = skip)
+        TierRevealModule.Tier[] tiers; // tier table (sealed at create)
+        bool autoLatest; // overlay initial policy
         MetadataOverlayModule.Payout defaultPayout;
     }
 
@@ -106,13 +106,8 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///         graduation gate: thin raises still graduate, the floor only eats carve headroom.
     uint256 public minPoolEth = 1 ether;
     /// @dev Progressive carve-allowance brackets: 50% of first 4 ETH, 25% of next 16, 10% beyond 20.
-    RevenueSplitLib.BracketParams internal _carveBrackets = RevenueSplitLib.BracketParams({
-        b1: 4 ether,
-        b2: 20 ether,
-        r1: 5000,
-        r2: 2500,
-        r3: 1000
-    });
+    RevenueSplitLib.BracketParams internal _carveBrackets =
+        RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 5000, r2: 2500, r3: 1000 });
 
     LaunchManager public immutable launchManager;
     IComponentRegistry public immutable componentRegistry;
@@ -120,11 +115,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     bytes32[] internal _features = [FeatureUtils.GATING, FeatureUtils.LIQUIDITY_DEPLOYER, FeatureUtils.STAKING];
 
     event InstanceCreated(
-        address indexed instance,
-        address indexed creator,
-        string name,
-        string symbol,
-        address indexed vault
+        address indexed instance, address indexed creator, string name, string symbol, address indexed vault
     );
     event VaultCapabilityWarning(address indexed vault, bytes32 indexed capability);
     error ProtocolRoleNotTransferable();
@@ -235,7 +226,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         TierConfig calldata gatingConfig,
         MetadataConfig calldata metadataConfig
     ) external payable nonReentrant returns (address instance) {
-        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig, metadataConfig);
+        return _createInstance(
+            params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig, metadataConfig
+        );
     }
 
     function _createInstance(
@@ -248,7 +241,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         MetadataConfig memory metadataConfig
     ) private returns (address instance) {
         if (gatingModule != address(0)) {
-            if (!componentRegistry.isApprovedComponent(gatingModule)) revert UnapprovedGatingModule();
+            if (!componentRegistry.isApprovedComponent(gatingModule)) {
+                revert UnapprovedGatingModule();
+            }
         }
         if (params.stakingModule != address(0)) {
             if (!componentRegistry.isApprovedComponent(params.stakingModule)) revert UnapprovedStakingModule();
@@ -258,9 +253,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // bondAmount is 0 → forward everything to treasury exactly as before (factory holds no ETH).
         // When ON: hold the bond, forward only the excess now; the bond is escrowed after the
         // instance address is known (see `escrow.postBond` below — the instance is the bond key).
-        uint256 bondAmt = deployBondEscrow == address(0)
-            ? 0
-            : IDeployBondEscrow(deployBondEscrow).bondAmount();
+        uint256 bondAmt = deployBondEscrow == address(0) ? 0 : IDeployBondEscrow(deployBondEscrow).bondAmount();
         if (bondAmt == 0) {
             // Lever off — byte-identical to prior behavior.
             if (msg.value > 0 && protocolTreasury != address(0)) {
@@ -297,8 +290,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (!componentRegistry.isApprovedComponent(liquidityDeployer)) revert UnapprovedLiquidityDeployer();
 
         // Soft vault capability check — YIELD_GENERATION is expected for ERC404 staking rewards
-        try IAlignmentVault(payable(params.vault)).supportsCapability(keccak256("YIELD_GENERATION"))
-            returns (bool supported) {
+        try IAlignmentVault(payable(params.vault)).supportsCapability(keccak256("YIELD_GENERATION")) returns (
+            bool supported
+        ) {
             if (!supported) emit VaultCapabilityWarning(params.vault, keccak256("YIELD_GENERATION"));
         } catch {
             emit VaultCapabilityWarning(params.vault, keccak256("YIELD_GENERATION"));
@@ -308,11 +302,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Escrow the held bond now that the instance address (the bond key) exists. Lever off ⇒
         // bondAmt == 0 ⇒ no escrow interaction, so this is a no-op on the current create path.
         if (bondAmt > 0) {
-            IDeployBondEscrow(deployBondEscrow).postBond{value: bondAmt}(instance, params.owner);
+            IDeployBondEscrow(deployBondEscrow).postBond{ value: bondAmt }(instance, params.owner);
         }
-        masterRegistry.registerInstance(
-            instance, address(this), params.owner, params.name, metadataURI, params.vault
-        );
+        masterRegistry.registerInstance(instance, address(this), params.owner, params.name, metadataURI, params.vault);
         // Staking wired after registration — module's enableStaking checks isRegisteredInstance
         if (params.stakingModule != address(0)) {
             ERC404BondingInstance(payable(instance)).initializeStaking(params.stakingModule);
@@ -376,42 +368,33 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
             unit: unit,
             liquidityReserveBps: preset.liquidityReserveBps,
             declaredMaxAllowanceBps: params.declaredMaxAllowanceBps,
-            curve: ICurveComputer(preset.curveComputer).computeCurveParams(
-                curveNftCount,
-                preset.targetETH,
-                preset.unitPerNFT,
-                preset.liquidityReserveBps
-            )
+            curve: ICurveComputer(preset.curveComputer)
+                .computeCurveParams(curveNftCount, preset.targetETH, preset.unitPerNFT, preset.liquidityReserveBps)
         });
 
         // Deploy EIP-1167 minimal proxy via CREATE3.
         // Bind salt to msg.sender to prevent front-running.
         bytes memory proxyCreationCode = abi.encodePacked(
-            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73",
-            implementation,
-            hex"5af43d82803e903d91602b57fd5bf3"
+            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", implementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, params.salt));
         instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
 
-        ERC404BondingInstance(payable(instance)).initialize(
-            params.owner, params.vault, bonding, liquidityDeployer, gatingModule
-        );
-        ERC404BondingInstance(payable(instance)).initializeProtocol(
-            ERC404BondingInstance.ProtocolParams({
-                globalMessageRegistry: globalMessageRegistry,
-                protocolTreasury: protocolTreasury,
-                masterRegistry: address(masterRegistry),
-                bondingFeeBps: bondingFeeBps,
-                weth: weth
-            })
-        );
-        ERC404BondingInstance(payable(instance)).initializeMetadata(
-            params.name, params.symbol, params.styleUri, params.tokenBaseURI
-        );
-        ERC404BondingInstance(payable(instance)).initializeFreeMint(
-            freeMint.allocation, freeMint.scope
-        );
+        ERC404BondingInstance(payable(instance))
+            .initialize(params.owner, params.vault, bonding, liquidityDeployer, gatingModule);
+        ERC404BondingInstance(payable(instance))
+            .initializeProtocol(
+                ERC404BondingInstance.ProtocolParams({
+                    globalMessageRegistry: globalMessageRegistry,
+                    protocolTreasury: protocolTreasury,
+                    masterRegistry: address(masterRegistry),
+                    bondingFeeBps: bondingFeeBps,
+                    weth: weth
+                })
+            );
+        ERC404BondingInstance(payable(instance))
+            .initializeMetadata(params.name, params.symbol, params.styleUri, params.tokenBaseURI);
+        ERC404BondingInstance(payable(instance)).initializeFreeMint(freeMint.allocation, freeMint.scope);
         if (agentCreated) {
             ERC404BondingInstance(payable(instance)).setAgentDelegationFromFactory();
         }

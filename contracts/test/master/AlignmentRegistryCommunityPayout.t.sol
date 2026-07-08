@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {AlignmentRegistryV1} from "../../src/master/AlignmentRegistryV1.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 contract AlignmentRegistryCommunityPayoutTest is Test {
     AlignmentRegistryV1 public registry;
 
-    address public daoOwner    = makeAddr("dao");
-    address public alice       = makeAddr("alice");
-    address public cultToken   = makeAddr("CULT");
-    address public payoutAddr  = makeAddr("payout");
+    address public daoOwner = makeAddr("dao");
+    address public alice = makeAddr("alice");
+    address public cultToken = makeAddr("CULT");
+    address public payoutAddr = makeAddr("payout");
 
     function setUp() public {
         registry = new AlignmentRegistryV1();
@@ -23,12 +23,7 @@ contract AlignmentRegistryCommunityPayoutTest is Test {
 
     function _registerTarget() internal returns (uint256) {
         IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
-        assets[0] = IAlignmentRegistry.AlignmentAsset({
-            token: cultToken,
-            symbol: "CULT",
-            info: "",
-            metadataURI: ""
-        });
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: cultToken, symbol: "CULT", info: "", metadataURI: "" });
         vm.prank(daoOwner);
         return registry.registerAlignmentTarget("Remilia", "", "", assets);
     }

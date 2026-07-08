@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {HookAddressMiner} from "../fork/helpers/HookAddressMiner.sol";
-import {Hooks} from "v4-core/libraries/Hooks.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { HookAddressMiner } from "../fork/helpers/HookAddressMiner.sol";
+import { Hooks } from "v4-core/libraries/Hooks.sol";
 
 /**
  * @title HookAddressMinerTest
@@ -18,26 +18,16 @@ contract HookAddressMinerTest is Test {
     bytes32 constant MOCK_INIT_CODE_HASH = keccak256("mock init code");
 
     // Required flags for UniAlignmentV4Hook
-    uint160 constant REQUIRED_FLAGS = uint160(
-        Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
-    ); // = 0xC4
+    uint160 constant REQUIRED_FLAGS =
+        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG); // = 0xC4
 
     // All hook flags
     uint160 constant ALL_HOOK_FLAGS = uint160(
-        Hooks.BEFORE_INITIALIZE_FLAG |
-        Hooks.AFTER_INITIALIZE_FLAG |
-        Hooks.BEFORE_ADD_LIQUIDITY_FLAG |
-        Hooks.AFTER_ADD_LIQUIDITY_FLAG |
-        Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG |
-        Hooks.AFTER_REMOVE_LIQUIDITY_FLAG |
-        Hooks.BEFORE_SWAP_FLAG |
-        Hooks.AFTER_SWAP_FLAG |
-        Hooks.BEFORE_DONATE_FLAG |
-        Hooks.AFTER_DONATE_FLAG |
-        Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG |
-        Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG |
-        Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG |
-        Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG
+        Hooks.BEFORE_INITIALIZE_FLAG | Hooks.AFTER_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+            | Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+            | Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_DONATE_FLAG | Hooks.AFTER_DONATE_FLAG
+            | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+            | Hooks.AFTER_ADD_LIQUIDITY_RETURNS_DELTA_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_RETURNS_DELTA_FLAG
     ); // = 0x3FFF
 
     uint160 constant FORBIDDEN_FLAGS = ALL_HOOK_FLAGS ^ REQUIRED_FLAGS; // = 0x3F3B
@@ -113,11 +103,8 @@ contract HookAddressMinerTest is Test {
         validAddrs[1] = address(uint160((uint256(keccak256("test1")) & ~uint256(ALL_HOOK_FLAGS)) | REQUIRED_FLAGS));
         validAddrs[2] = address(uint160((uint256(keccak256("test2")) & ~uint256(ALL_HOOK_FLAGS)) | REQUIRED_FLAGS));
 
-        for (uint i = 0; i < validAddrs.length; i++) {
-            assertTrue(
-                HookAddressMiner.isValidUniAlignmentHookAddress(validAddrs[i]),
-                "Should be valid"
-            );
+        for (uint256 i = 0; i < validAddrs.length; i++) {
+            assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(validAddrs[i]), "Should be valid");
         }
     }
 
@@ -130,11 +117,8 @@ contract HookAddressMinerTest is Test {
         invalidAddrs[3] = address(uint160(0x01C4)); // Extra beforeDonate flag + required flags
         invalidAddrs[4] = address(uint160(0x3FFF)); // All flags set
 
-        for (uint i = 0; i < invalidAddrs.length; i++) {
-            assertFalse(
-                HookAddressMiner.isValidUniAlignmentHookAddress(invalidAddrs[i]),
-                "Should be invalid"
-            );
+        for (uint256 i = 0; i < invalidAddrs.length; i++) {
+            assertFalse(HookAddressMiner.isValidUniAlignmentHookAddress(invalidAddrs[i]), "Should be invalid");
         }
     }
 
@@ -161,12 +145,8 @@ contract HookAddressMinerTest is Test {
         bytes32 initCodeHash = keccak256("test");
 
         // Manual CREATE2 computation
-        address expected = address(uint160(uint256(keccak256(abi.encodePacked(
-            bytes1(0xff),
-            deployer,
-            salt,
-            initCodeHash
-        )))));
+        address expected =
+            address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, initCodeHash)))));
 
         address actual = HookAddressMiner.computeAddress(deployer, salt, initCodeHash);
 
@@ -180,34 +160,21 @@ contract HookAddressMinerTest is Test {
         bytes32 initCodeHash = keccak256("test init code for mining");
 
         // Mine a salt
-        (bytes32 salt, address predictedAddr) = HookAddressMiner.mineSaltForUniAlignmentHook(
-            MOCK_DEPLOYER,
-            initCodeHash
-        );
+        (bytes32 salt, address predictedAddr) =
+            HookAddressMiner.mineSaltForUniAlignmentHook(MOCK_DEPLOYER, initCodeHash);
 
         emit log_named_bytes32("Found salt", salt);
         emit log_named_address("Predicted address", predictedAddr);
         emit log_named_uint("Last 14 bits (hex)", uint160(predictedAddr) & ALL_HOOK_FLAGS);
 
         // Verify the address has exactly the right flags
-        assertTrue(
-            HookAddressMiner.isValidUniAlignmentHookAddress(predictedAddr),
-            "Mined address should be valid"
-        );
+        assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(predictedAddr), "Mined address should be valid");
 
         // Verify required flags are set
-        assertEq(
-            uint160(predictedAddr) & REQUIRED_FLAGS,
-            REQUIRED_FLAGS,
-            "Required flags must be set"
-        );
+        assertEq(uint160(predictedAddr) & REQUIRED_FLAGS, REQUIRED_FLAGS, "Required flags must be set");
 
         // Verify forbidden flags are NOT set
-        assertEq(
-            uint160(predictedAddr) & FORBIDDEN_FLAGS,
-            0,
-            "Forbidden flags must not be set"
-        );
+        assertEq(uint160(predictedAddr) & FORBIDDEN_FLAGS, 0, "Forbidden flags must not be set");
 
         // Verify the computed address matches
         address computed = HookAddressMiner.computeAddress(MOCK_DEPLOYER, salt, initCodeHash);
@@ -218,15 +185,9 @@ contract HookAddressMinerTest is Test {
         bytes32 initCodeHash1 = keccak256("init code 1");
         bytes32 initCodeHash2 = keccak256("init code 2");
 
-        (bytes32 salt1, address addr1) = HookAddressMiner.mineSaltForUniAlignmentHook(
-            MOCK_DEPLOYER,
-            initCodeHash1
-        );
+        (bytes32 salt1, address addr1) = HookAddressMiner.mineSaltForUniAlignmentHook(MOCK_DEPLOYER, initCodeHash1);
 
-        (bytes32 salt2, address addr2) = HookAddressMiner.mineSaltForUniAlignmentHook(
-            MOCK_DEPLOYER,
-            initCodeHash2
-        );
+        (bytes32 salt2, address addr2) = HookAddressMiner.mineSaltForUniAlignmentHook(MOCK_DEPLOYER, initCodeHash2);
 
         emit log_named_bytes32("Salt 1", salt1);
         emit log_named_bytes32("Salt 2", salt2);

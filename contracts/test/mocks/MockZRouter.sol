@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @notice Mock zRouter for unit testing ZAMMAlignmentVault
 /// Handles both swap directions:
@@ -16,19 +16,30 @@ contract MockZRouter {
     ///         Default 0 = no refund (back-compat). A locked-guard vault must silently accept this.
     uint256 public refundWei;
 
-    receive() external payable {}
+    receive() external payable { }
 
-    function setOutRatio(uint256 ratio) external { outRatio = ratio; }
+    function setOutRatio(uint256 ratio) external {
+        outRatio = ratio;
+    }
+
     // Keep old name as alias for backwards compat with tests that call setEthOutRatio
-    function setEthOutRatio(uint256 ratio) external { outRatio = ratio; }
-    function setRefundWei(uint256 w) external { refundWei = w; }
+    function setEthOutRatio(uint256 ratio) external {
+        outRatio = ratio;
+    }
+
+    function setRefundWei(uint256 w) external {
+        refundWei = w;
+    }
 
     /// @notice Simulates swapV4: same bidirectional logic as swapVZ
     function swapV4(
         address to,
-        bool /*exactOut*/,
-        uint24 /*swapFee*/,
-        int24 /*tickSpace*/,
+        bool,
+        /*exactOut*/
+        uint24,
+        /*swapFee*/
+        int24,
+        /*tickSpace*/
         address tokenIn,
         address tokenOut,
         uint256 swapAmount,
@@ -57,12 +68,16 @@ contract MockZRouter {
 
     function swapVZ(
         address to,
-        bool /*exactOut*/,
-        uint256 /*feeOrHook*/,
+        bool,
+        /*exactOut*/
+        uint256,
+        /*feeOrHook*/
         address tokenIn,
         address tokenOut,
-        uint256 /*idIn*/,
-        uint256 /*idOut*/,
+        uint256,
+        /*idIn*/
+        uint256,
+        /*idOut*/
         uint256 swapAmount,
         uint256 amountLimit,
         uint256 /*deadline*/

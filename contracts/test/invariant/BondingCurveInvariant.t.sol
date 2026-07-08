@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ERC404BondingInstance} from "../../src/factories/erc404/ERC404BondingInstance.sol";
-import {BondingCurveMath} from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
-import {CurveParamsComputer} from "../../src/factories/erc404/CurveParamsComputer.sol";
-import {ILiquidityDeployerModule} from "../../src/interfaces/ILiquidityDeployerModule.sol";
-import {BondingCurveHandler} from "./handlers/BondingCurveHandler.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
+import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
+import { BondingCurveHandler } from "./handlers/BondingCurveHandler.sol";
 
 contract MockLiqDeployer is ILiquidityDeployerModule {
-    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override {}
-    function metadataURI() external view override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+    function deployLiquidity(ILiquidityDeployerModule.DeployParams calldata) external payable override { }
+
+    function metadataURI() external view override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract BondingCurveInvariantTest is StdInvariant, Test {
@@ -94,23 +97,16 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
     function invariant_reserveEqualsBalance() public view {
         if (instance.graduated()) return;
         assertEq(
-            instance.reserve(),
-            address(instance).balance,
-            "reserve != address(this).balance during active bonding"
+            instance.reserve(), address(instance).balance, "reserve != address(this).balance during active bonding"
         );
     }
 
     // ── Invariant 2: totalBondingSupply <= maxSupply - liquidityReserve - freeMintAllocation * unit ──
 
     function invariant_bondingSupplyWithinCap() public view {
-        uint256 cap = instance.maxSupply()
-            - instance.liquidityReserve()
-            - (instance.freeMintAllocation() * instance.unit());
-        assertLe(
-            instance.totalBondingSupply(),
-            cap,
-            "totalBondingSupply exceeds bonding cap"
-        );
+        uint256 cap =
+            instance.maxSupply() - instance.liquidityReserve() - (instance.freeMintAllocation() * instance.unit());
+        assertLe(instance.totalBondingSupply(), cap, "totalBondingSupply exceeds bonding cap");
     }
 
     // ── Invariant 3: calculateRefund(supply, amount) <= calculateCost(supply - amount, amount) ──
@@ -130,10 +126,6 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         uint256 refund = BondingCurveMath.calculateRefund(curveParams, supply, unit_);
         uint256 cost = BondingCurveMath.calculateCost(curveParams, supply - unit_, unit_);
 
-        assertLe(
-            refund,
-            cost,
-            "refund exceeds cost at same supply range - rounding arbitrage possible"
-        );
+        assertLe(refund, cost, "refund exceeds cost at same supply range - rounding arbitrage possible");
     }
 }

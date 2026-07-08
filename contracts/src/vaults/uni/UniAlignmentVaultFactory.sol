@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {UniAlignmentVault} from "./UniAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
-import {IAlignmentRegistry} from "../../master/interfaces/IAlignmentRegistry.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { UniAlignmentVault } from "./UniAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title UniAlignmentVaultFactory
 /// @notice Deploys UniAlignmentVault clones; zRouter config is shared across all vaults.
@@ -20,8 +20,8 @@ contract UniAlignmentVaultFactory is Ownable {
     address public immutable weth;
     address public immutable poolManager;
     address public immutable zRouter;
-    uint24  public immutable zRouterFee;
-    int24   public immutable zRouterTickSpacing;
+    uint24 public immutable zRouterFee;
+    int24 public immutable zRouterTickSpacing;
 
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
@@ -32,8 +32,8 @@ contract UniAlignmentVaultFactory is Ownable {
         address _poolManager,
         // slither-disable-next-line missing-zero-check
         address _zRouter,
-        uint24  _zRouterFee,
-        int24   _zRouterTickSpacing,
+        uint24 _zRouterFee,
+        int24 _zRouterTickSpacing,
         IVaultPriceValidator _defaultPriceValidator,
         IAlignmentRegistry _alignmentRegistry
     ) {
@@ -70,26 +70,25 @@ contract UniAlignmentVaultFactory is Ownable {
         IVaultPriceValidator priceValidator
     ) external returns (address vault) {
         bytes memory proxyCreationCode = abi.encodePacked(
-            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73",
-            vaultImplementation,
-            hex"5af43d82803e903d91602b57fd5bf3"
+            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
         // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
 
-        UniAlignmentVault(payable(vault)).initialize(
-            address(this),
-            weth,
-            poolManager,
-            alignmentToken,
-            zRouter,
-            zRouterFee,
-            zRouterTickSpacing,
-            priceValidator == IVaultPriceValidator(address(0)) ? defaultPriceValidator : priceValidator,
-            alignmentRegistry,
-            alignmentTargetId
-        );
+        UniAlignmentVault(payable(vault))
+            .initialize(
+                address(this),
+                weth,
+                poolManager,
+                alignmentToken,
+                zRouter,
+                zRouterFee,
+                zRouterTickSpacing,
+                priceValidator == IVaultPriceValidator(address(0)) ? defaultPriceValidator : priceValidator,
+                alignmentRegistry,
+                alignmentTargetId
+            );
 
         emit VaultDeployed(vault, alignmentToken);
     }

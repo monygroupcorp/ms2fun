@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {MockERC20} from "../mocks/MockERC20.sol";
-import {MockAlgebraPositionManager, MockAlgebraSwapRouter} from "../mocks/MockCypherAlgebra.sol";
-import {MockWETH} from "../mocks/MockWETH.sol";
-import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
-import {TestableCypherAlignmentVault} from "../helpers/TestableCypherAlignmentVault.sol";
-import {CypherAlignmentVault} from "../../src/vaults/cypher/CypherAlignmentVault.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { MockERC20 } from "../mocks/MockERC20.sol";
+import { MockAlgebraPositionManager, MockAlgebraSwapRouter } from "../mocks/MockCypherAlgebra.sol";
+import { MockWETH } from "../mocks/MockWETH.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { TestableCypherAlignmentVault } from "../helpers/TestableCypherAlignmentVault.sol";
+import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract CypherAlignmentVaultTest is Test {
     TestableCypherAlignmentVault vault;
@@ -86,8 +86,13 @@ contract CypherAlignmentVaultTest is Test {
     function test_initialize_revertIfCalledTwice() public {
         vm.expectRevert();
         vault.initialize(
-            address(positionManager), address(swapRouter), address(weth),
-            address(alignmentToken), protocolTreasury, liquidityDeployer, address(0)
+            address(positionManager),
+            address(swapRouter),
+            address(weth),
+            address(alignmentToken),
+            protocolTreasury,
+            liquidityDeployer,
+            address(0)
         );
     }
 
@@ -95,7 +100,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_receiveContribution_tracksETH() public {
         vm.deal(address(this), 2 ether);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, alice);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, alice);
         assertEq(vault.benefactorContribution(alice), 2 ether);
         assertEq(vault.totalContributions(), 2 ether);
     }
@@ -108,30 +113,28 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_receiveContribution_zeroBenefactorIsNoOp() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, address(0));
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(0));
         assertEq(vault.totalContributions(), 0);
     }
 
     function test_receiveContribution_revertsOnNonEthCurrency() public {
         vm.deal(address(this), 1 ether);
         vm.expectRevert();
-        vault.receiveContribution{value: 1 ether}(
-            Currency.wrap(address(alignmentToken)), 1 ether, alice
-        );
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(alignmentToken)), 1 ether, alice);
     }
 
     function test_receiveContribution_multipleSameBenefactor() public {
         vm.deal(address(this), 3 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, alice);
         assertEq(vault.benefactorContribution(alice), 3 ether);
         assertEq(vault.totalContributions(), 3 ether);
     }
 
     function test_receiveContribution_multipleBenefactors() public {
         vm.deal(address(this), 3 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
-        vault.receiveContribution{value: 2 ether}(Currency.wrap(address(0)), 2 ether, bob);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
         assertEq(vault.benefactorContribution(alice), 1 ether);
         assertEq(vault.benefactorContribution(bob), 2 ether);
         assertEq(vault.totalContributions(), 3 ether);
@@ -178,7 +181,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_harvest_revertsWithNoPosition() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         // lpTokenId = 0 — no position registered
         vm.expectRevert();
         vault.harvest(0);
@@ -186,7 +189,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_harvest_returnsZeroWhenNoFees() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         vault.setPositionForTest(1, makeAddr("pool"), true);
         // No fees set on position manager — collect returns (0, 0)
         uint256 returned = vault.harvest(0);
@@ -222,7 +225,7 @@ contract CypherAlignmentVaultTest is Test {
     function test_harvest_tokenIsZeroFalse() public {
         // weth=token0, alignment=token1
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         uint256 wethFees = 0.05e18;
         uint256 alignmentFees = 0.1e18;
@@ -236,7 +239,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_harvest_takesProtocolCut() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         _setupHarvestFees(0, 1 ether, true);
 
         vault.harvest(0);
@@ -249,7 +252,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_harvest_multipleHarvestsAccumulate() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         _setupHarvestFees(0, 0.1 ether, true);
         vault.harvest(0);
@@ -300,7 +303,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_HarvestFloorAllowsHonestSwap() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, bob);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, bob);
         _wireValidatorAndStageFees(1e18);
 
         // Honest pool: swap yields ~1 WETH per token (rate 1.0), above the 0.95 floor → succeeds.
@@ -341,7 +344,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_claimFees_returnsZeroWhenNothingPending() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         _setupHarvestFees(0, 0.1 ether, true);
         vault.harvest(0);
 
@@ -356,8 +359,8 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_claimFees_proportionalWithMultipleBenefactors() public {
         vm.deal(address(this), 30 ether);
-        vault.receiveContribution{value: 10 ether}(Currency.wrap(address(0)), 10 ether, alice);
-        vault.receiveContribution{value: 20 ether}(Currency.wrap(address(0)), 20 ether, bob);
+        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
+        vault.receiveContribution{ value: 20 ether }(Currency.wrap(address(0)), 20 ether, bob);
 
         _setupHarvestFees(0, 1 ether, true);
         vault.harvest(0);
@@ -383,7 +386,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_claimFees_multipleClaims_deltaTracking() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         // First harvest: 0.1 ETH
         _setupHarvestFees(0, 0.1 ether, true);
@@ -409,7 +412,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_claimFeesAsDelegate_delegateReceivesFees() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         vm.prank(alice);
         vault.delegateBenefactor(carol);
@@ -429,7 +432,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_claimFeesAsDelegate_revertsForNonDelegate() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         _setupHarvestFees(0, 0.1 ether, true);
         vault.harvest(0);
@@ -456,7 +459,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_delegateBenefactor_claimGoesToDelegate() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         vm.prank(alice);
         vault.delegateBenefactor(carol);
@@ -484,7 +487,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_withdrawProtocolFees_transfersToTreasury() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         _setupHarvestFees(0, 1 ether, true);
         vault.harvest(0); // vault now holds 1 ETH, 0.01 ETH is protocol fees (1% default)
 
@@ -522,7 +525,7 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_calculateClaimableAmount_returnsZeroAfterClaim() public {
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
         _setupHarvestFees(0, 0.1 ether, true);
         vault.harvest(0);
 
@@ -560,13 +563,13 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_getBenefactorContribution_returnsCorrectAmount() public {
         vm.deal(address(this), 5 ether);
-        vault.receiveContribution{value: 5 ether}(Currency.wrap(address(0)), 5 ether, alice);
+        vault.receiveContribution{ value: 5 ether }(Currency.wrap(address(0)), 5 ether, alice);
         assertEq(vault.getBenefactorContribution(alice), 5 ether);
     }
 
     function test_getBenefactorShares_equalsBenefactorContribution() public {
         vm.deal(address(this), 3 ether);
-        vault.receiveContribution{value: 3 ether}(Currency.wrap(address(0)), 3 ether, alice);
+        vault.receiveContribution{ value: 3 ether }(Currency.wrap(address(0)), 3 ether, alice);
         assertEq(vault.getBenefactorShares(alice), 3 ether);
     }
 
@@ -575,7 +578,7 @@ contract CypherAlignmentVaultTest is Test {
     function test_integration_fullWorkflow() public {
         // 1. Alice contributes
         vm.deal(address(this), 1 ether);
-        vault.receiveContribution{value: 1 ether}(Currency.wrap(address(0)), 1 ether, alice);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
 
         // 2. LP position goes live, harvest fees
         _setupHarvestFees(0, 1 ether, true);
@@ -597,8 +600,8 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_integration_multipleBenefactors_proportionalDistribution() public {
         vm.deal(address(this), 30 ether);
-        vault.receiveContribution{value: 10 ether}(Currency.wrap(address(0)), 10 ether, alice);
-        vault.receiveContribution{value: 20 ether}(Currency.wrap(address(0)), 20 ether, bob);
+        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
+        vault.receiveContribution{ value: 20 ether }(Currency.wrap(address(0)), 20 ether, bob);
 
         // Harvest 3 ETH in fees
         _setupHarvestFees(0, 3 ether, true);
@@ -621,8 +624,8 @@ contract CypherAlignmentVaultTest is Test {
 
     function test_integration_multipleRoundsAndClaims() public {
         vm.deal(address(this), 30 ether);
-        vault.receiveContribution{value: 10 ether}(Currency.wrap(address(0)), 10 ether, alice);
-        vault.receiveContribution{value: 20 ether}(Currency.wrap(address(0)), 20 ether, bob);
+        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
+        vault.receiveContribution{ value: 20 ether }(Currency.wrap(address(0)), 20 ether, bob);
 
         // Round 1: harvest 1 ETH
         _setupHarvestFees(0, 1 ether, true);

@@ -7,17 +7,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // V2Router02 interface
 interface IUniswapV2Router02 {
-    function swapExactETHForTokens(
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
-
-    function getAmountsOut(uint256 amountIn, address[] calldata path)
+    function swapExactETHForTokens(uint256 amountOutMin, address[] calldata path, address to, uint256 deadline)
         external
-        view
+        payable
         returns (uint256[] memory amounts);
+
+    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
 }
 
 /**
@@ -34,7 +29,6 @@ interface IUniswapV2Router02 {
  * These tests help us implement _executeV2Swap() in UniAlignmentVault.sol
  */
 contract V2SwapRoutingTest is ForkTestBase {
-
     IUniswapV2Router02 router;
     address swapper;
 
@@ -67,7 +61,7 @@ contract V2SwapRoutingTest is ForkTestBase {
 
         // Execute swap
         vm.prank(swapper);
-        uint256[] memory amounts = router.swapExactETHForTokens{value: amountIn}(
+        uint256[] memory amounts = router.swapExactETHForTokens{ value: amountIn }(
             0, // No slippage protection for this test
             path,
             swapper,
@@ -110,12 +104,8 @@ contract V2SwapRoutingTest is ForkTestBase {
 
         // Execute swap with slippage protection
         vm.prank(swapper);
-        uint256[] memory amounts = router.swapExactETHForTokens{value: amountIn}(
-            minOut,
-            path,
-            swapper,
-            block.timestamp + 300
-        );
+        uint256[] memory amounts =
+            router.swapExactETHForTokens{ value: amountIn }(minOut, path, swapper, block.timestamp + 300);
 
         // Verify we got at least minOut
         assertGe(amounts[1], minOut, "Should receive at least minOut");
@@ -142,12 +132,7 @@ contract V2SwapRoutingTest is ForkTestBase {
         // Expect revert with "UniswapV2Router: INSUFFICIENT_OUTPUT_AMOUNT" or similar
         vm.prank(swapper);
         vm.expectRevert();
-        router.swapExactETHForTokens{value: amountIn}(
-            unrealisticMinOut,
-            path,
-            swapper,
-            block.timestamp + 300
-        );
+        router.swapExactETHForTokens{ value: amountIn }(unrealisticMinOut, path, swapper, block.timestamp + 300);
 
         // Verify no tokens were transferred
         assertEq(IERC20(USDC).balanceOf(swapper), 0, "No USDC should be received after revert");
@@ -173,12 +158,8 @@ contract V2SwapRoutingTest is ForkTestBase {
 
         // Execute multi-hop swap
         vm.prank(swapper);
-        uint256[] memory amounts = router.swapExactETHForTokens{value: amountIn}(
-            0,
-            path,
-            swapper,
-            block.timestamp + 300
-        );
+        uint256[] memory amounts =
+            router.swapExactETHForTokens{ value: amountIn }(0, path, swapper, block.timestamp + 300);
 
         // Verify we got 3 amounts (ETH, USDC, DAI)
         assertEq(amounts.length, 3, "Should have 3 amounts in path");
@@ -225,12 +206,7 @@ contract V2SwapRoutingTest is ForkTestBase {
         // Expect revert with "UniswapV2Router: EXPIRED" or similar
         vm.prank(swapper);
         vm.expectRevert();
-        router.swapExactETHForTokens{value: amountIn}(
-            0,
-            path,
-            swapper,
-            expiredDeadline
-        );
+        router.swapExactETHForTokens{ value: amountIn }(0, path, swapper, expiredDeadline);
 
         // Verify no swap occurred
         assertEq(IERC20(USDC).balanceOf(swapper), 0, "No USDC should be received after deadline revert");
@@ -254,9 +230,7 @@ contract V2SwapRoutingTest is ForkTestBase {
 
         // Determine which reserve is WETH vs USDC
         // We need to check token0 of the pair to know ordering
-        (bool success, bytes memory data) = WETH_USDC_V2_PAIR.staticcall(
-            abi.encodeWithSignature("token0()")
-        );
+        (bool success, bytes memory data) = WETH_USDC_V2_PAIR.staticcall(abi.encodeWithSignature("token0()"));
         require(success, "token0 call failed");
         address token0 = abi.decode(data, (address));
 

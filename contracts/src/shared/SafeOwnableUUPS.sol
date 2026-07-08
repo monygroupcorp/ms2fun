@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {UUPSUpgradeable} from "solady/utils/UUPSUpgradeable.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { UUPSUpgradeable } from "solady/utils/UUPSUpgradeable.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title SafeOwnableUUPS
 /// @notice Base for UUPS contracts that forces two-step ownership handover.
@@ -23,5 +23,5 @@ abstract contract SafeOwnableUUPS is UUPSUpgradeable, Ownable {
     }
 
     /// @dev Only the owner can authorize upgrades.
-    function _authorizeUpgrade(address) internal override onlyOwner {}
+    function _authorizeUpgrade(address) internal override onlyOwner { }
 }

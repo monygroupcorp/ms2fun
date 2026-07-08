@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IZAMM, ZAMMAlignmentVault} from "./ZAMMAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
-import {ICreateX, CREATEX} from "../../shared/CreateXConstants.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { IZAMM, ZAMMAlignmentVault } from "./ZAMMAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title ZAMMAlignmentVaultFactory
 /// @notice Deploys ZAMMAlignmentVault clones via CREATE3. No peripherals — just zamm + zRouter singletons.
@@ -40,27 +40,18 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     /// @param alignmentToken The token this vault aligns to
     /// @param poolKey ZAMM pool key for the ETH/alignmentToken pool
     /// @return vault Address of the deployed vault clone
-    function deployVault(
-        bytes32 salt,
-        address alignmentToken,
-        IZAMM.PoolKey calldata poolKey
-    ) external returns (address vault) {
+    function deployVault(bytes32 salt, address alignmentToken, IZAMM.PoolKey calldata poolKey)
+        external
+        returns (address vault)
+    {
         bytes memory proxyCreationCode = abi.encodePacked(
-            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73",
-            vaultImplementation,
-            hex"5af43d82803e903d91602b57fd5bf3"
+            hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
         // Bind salt to msg.sender to prevent front-running the deterministic CREATE3 address.
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
-        ZAMMAlignmentVault(payable(vault)).initialize(
-            zamm,
-            zRouter,
-            alignmentToken,
-            poolKey,
-            protocolTreasury,
-            address(defaultPriceValidator)
-        );
+        ZAMMAlignmentVault(payable(vault))
+            .initialize(zamm, zRouter, alignmentToken, poolKey, protocolTreasury, address(defaultPriceValidator));
         emit VaultDeployed(vault, alignmentToken);
     }
 

@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../../src/vaults/cypher/CypherAlignmentVaultFactory.sol";
 import "../../src/vaults/cypher/CypherAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
-import {CREATEX} from "../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { CREATEX } from "../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 contract CypherAlignmentVaultFactoryTest is Test {
     CypherAlignmentVaultFactory factory;
@@ -35,9 +35,7 @@ contract CypherAlignmentVaultFactoryTest is Test {
 
     function test_createVault_deploysClone() public {
         CypherAlignmentVault vault = factory.createVault(
-            _nextSalt(),
-            positionManager, swapRouter, weth, alignmentToken,
-            treasury, liquidityDeployer
+            _nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, liquidityDeployer
         );
         assertNotEq(address(vault), address(0));
         assertEq(vault.alignmentToken(), alignmentToken);
@@ -47,14 +45,10 @@ contract CypherAlignmentVaultFactoryTest is Test {
 
     function test_createVault_multipleVaultsDifferentAddresses() public {
         CypherAlignmentVault v1 = factory.createVault(
-            _nextSalt(),
-            positionManager, swapRouter, weth, alignmentToken,
-            treasury, liquidityDeployer
+            _nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, liquidityDeployer
         );
         CypherAlignmentVault v2 = factory.createVault(
-            _nextSalt(),
-            positionManager, swapRouter, weth, alignmentToken,
-            treasury, liquidityDeployer
+            _nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, liquidityDeployer
         );
         assertNotEq(address(v1), address(v2));
     }

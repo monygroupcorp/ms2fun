@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IGatingModule} from "./IGatingModule.sol";
-import {IPasswordTierGatingModule, TierConfig, TierType} from "./IPasswordTierGatingModule.sol";
-import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { IGatingModule } from "./IGatingModule.sol";
+import { IPasswordTierGatingModule, TierConfig, TierType } from "./IPasswordTierGatingModule.sol";
+import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title PasswordTierGatingModule
 /// @notice Singleton gating module for password-protected tier minting.
@@ -38,12 +38,12 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
 
     // ── State (keyed by instance = msg.sender) ─────────────────────────────────
 
-    mapping(address instance => bool)                                    public  configured;
-    mapping(address instance => TierConfig)                              private _configs;
-    mapping(address instance => mapping(bytes32 => uint256))             private _tierByPasswordHash;
+    mapping(address instance => bool) public configured;
+    mapping(address instance => TierConfig) private _configs;
+    mapping(address instance => mapping(bytes32 => uint256)) private _tierByPasswordHash;
     // slither-disable-next-line uninitialized-state
-    mapping(address instance => mapping(address user => uint256))        private _userTierUnlocked;
-    mapping(address instance => mapping(address user => uint256))        public  userPurchaseVolume;
+    mapping(address instance => mapping(address user => uint256)) private _userTierUnlocked;
+    mapping(address instance => mapping(address user => uint256)) public userPurchaseVolume;
 
     // ── Configuration ──────────────────────────────────────────────────────────
 
@@ -57,17 +57,18 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
             // Least privilege (D1): the caller must be THE factory that registered this specific
             // instance (not merely any registered factory) — or the instance owner doing post-create
             // setup. Using factory-of-instance closes the latent cross-factory pre-seal surface.
-            if (masterRegistry.getInstanceInfo(instance).factory != msg.sender
-                && msg.sender != Ownable(instance).owner()) {
+            if (
+                masterRegistry.getInstanceInfo(instance).factory != msg.sender
+                    && msg.sender != Ownable(instance).owner()
+            ) {
                 revert Unauthorized();
             }
         } else {
             if (msg.sender != Ownable(instance).owner()) revert Unauthorized();
         }
         if (config.tierType == TierType.VOLUME_CAP
-            ? config.volumeCaps.length != config.passwordHashes.length
-            : config.tierUnlockTimes.length != config.passwordHashes.length
-        ) revert TierConfigMismatch();
+                ? config.volumeCaps.length != config.passwordHashes.length
+                : config.tierUnlockTimes.length != config.passwordHashes.length) revert TierConfigMismatch();
 
         // Clear stale password-hash entries from the previous config (if updating).
         TierConfig storage prev = _configs[instance];
@@ -92,7 +93,9 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
     ///             openTime: instance/edition open timestamp; used by TIME_BASED enforcement.
     // slither-disable-next-line timestamp
     function canMint(address user, uint256 amount, bytes calldata data)
-        external override returns (bool allowed, bool permanent)
+        external
+        override
+        returns (bool allowed, bool permanent)
     {
         TierConfig storage config = _configs[msg.sender];
         (bytes32 passwordHash, uint256 openTime) = abi.decode(data, (bytes32, uint256));

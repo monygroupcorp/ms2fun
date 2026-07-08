@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Currency} from "v4-core/types/Currency.sol";
+import { Currency } from "v4-core/types/Currency.sol";
 
 /**
  * @title IAlignmentVault
@@ -60,11 +60,7 @@ interface IAlignmentVault {
      * @param amount Amount received (in wei or token units)
      * @param benefactor Address to credit for this contribution
      */
-    function receiveContribution(
-        Currency currency,
-        uint256 amount,
-        address benefactor
-    ) external payable;
+    function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable;
 
     /**
      * @notice Receive native ETH contributions via fallback

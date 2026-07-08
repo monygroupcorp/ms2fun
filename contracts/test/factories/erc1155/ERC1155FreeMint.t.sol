@@ -1,21 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ERC1155Factory} from "../../../src/factories/erc1155/ERC1155Factory.sol";
-import {ERC1155Instance} from "../../../src/factories/erc1155/ERC1155Instance.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
-import {FreeMintParams} from "../../../src/interfaces/IFactoryTypes.sol";
-import {GatingScope} from "../../../src/gating/IGatingModule.sol";
-import {FreeMintDisabled, FreeMintAlreadyClaimed, FreeMintExhausted} from "../../../src/factories/erc1155/ERC1155Instance.sol";
-import {ComponentRegistry} from "../../../src/registry/ComponentRegistry.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {ICreateX, CREATEX} from "../../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test } from "forge-std/Test.sol";
+import { ERC1155Factory } from "../../../src/factories/erc1155/ERC1155Factory.sol";
+import { ERC1155Instance } from "../../../src/factories/erc1155/ERC1155Instance.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
+import { GatingScope } from "../../../src/gating/IGatingModule.sol";
+import {
+    FreeMintDisabled,
+    FreeMintAlreadyClaimed,
+    FreeMintExhausted
+} from "../../../src/factories/erc1155/ERC1155Instance.sol";
+import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 contract MockVaultERC1155FM {
-    function supportsCapability(bytes32) external pure returns (bool) { return true; }
-    receive() external payable {}
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
 }
 
 contract ERC1155FreeMintTest is Test {
@@ -27,10 +33,10 @@ contract ERC1155FreeMintTest is Test {
     uint256 internal _saltCounter;
 
     address protocol = makeAddr("protocol");
-    address creator  = makeAddr("creator");
-    address user1    = makeAddr("user1");
-    address user2    = makeAddr("user2");
-    address mockGMR  = makeAddr("gmr");
+    address creator = makeAddr("creator");
+    address user1 = makeAddr("user1");
+    address user2 = makeAddr("user2");
+    address mockGMR = makeAddr("gmr");
 
     uint256 constant FREE_ALLOC = 5;
 
@@ -43,16 +49,14 @@ contract ERC1155FreeMintTest is Test {
         vm.startPrank(protocol);
         vm.etch(CREATEX, CREATEX_BYTECODE);
         mockRegistry = new MockMasterRegistry();
-        mockVault    = new MockVaultERC1155FM();
+        mockVault = new MockVaultERC1155FM();
 
         ComponentRegistry impl = new ComponentRegistry();
         address proxy = LibClone.deployERC1967(address(impl));
         componentRegistry = ComponentRegistry(proxy);
         componentRegistry.initialize(protocol);
 
-        factory = new ERC1155Factory(
-            address(mockRegistry), mockGMR, address(componentRegistry), address(0xBEEF)
-        );
+        factory = new ERC1155Factory(address(mockRegistry), mockGMR, address(componentRegistry), address(0xBEEF));
         vm.stopPrank();
     }
 
@@ -67,7 +71,7 @@ contract ERC1155FreeMintTest is Test {
                 vault: address(mockVault),
                 styleUri: "",
                 gatingModule: address(0),
-                freeMint: FreeMintParams({allocation: alloc, scope: scope})
+                freeMint: FreeMintParams({ allocation: alloc, scope: scope })
             })
         );
         vm.stopPrank();
@@ -77,8 +81,7 @@ contract ERC1155FreeMintTest is Test {
     function _addEdition(ERC1155Instance inst, uint256 supply) internal returns (uint256 editionId) {
         vm.prank(creator);
         inst.addEdition(
-            "Piece 1", 0.01 ether, supply, "ipfs://edition",
-            ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0
+            "Piece 1", 0.01 ether, supply, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0
         );
         return inst.nextEditionId() - 1;
     }
@@ -117,7 +120,8 @@ contract ERC1155FreeMintTest is Test {
     function test_erc1155_freeMint_revertsWhenAlreadyClaimed() public {
         ERC1155Instance inst = _deploy(FREE_ALLOC, GatingScope.BOTH);
         uint256 editionId = _addEdition(inst, 100);
-        vm.prank(user1); inst.claimFreeMint(editionId, "");
+        vm.prank(user1);
+        inst.claimFreeMint(editionId, "");
         vm.prank(user1);
         vm.expectRevert(FreeMintAlreadyClaimed.selector);
         inst.claimFreeMint(editionId, "");
@@ -126,7 +130,8 @@ contract ERC1155FreeMintTest is Test {
     function test_erc1155_freeMint_revertsWhenExhausted() public {
         ERC1155Instance inst = _deploy(1, GatingScope.BOTH);
         uint256 editionId = _addEdition(inst, 100);
-        vm.prank(user1); inst.claimFreeMint(editionId, "");
+        vm.prank(user1);
+        inst.claimFreeMint(editionId, "");
         vm.prank(user2);
         vm.expectRevert(FreeMintExhausted.selector);
         inst.claimFreeMint(editionId, "");

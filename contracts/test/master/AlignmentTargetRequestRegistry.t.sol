@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {AlignmentTargetRequestRegistry} from "../../src/master/AlignmentTargetRequestRegistry.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {MockAlignmentRegistry} from "../mocks/MockAlignmentRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { AlignmentTargetRequestRegistry } from "../../src/master/AlignmentTargetRequestRegistry.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 
 contract AlignmentTargetRequestRegistryTest is Test {
     AlignmentTargetRequestRegistry reg;
@@ -22,21 +22,23 @@ contract AlignmentTargetRequestRegistryTest is Test {
 
     function setUp() public {
         registry = new MockAlignmentRegistry();
-        reg = new AlignmentTargetRequestRegistry(owner, IAlignmentRegistry(address(registry)), treasury, DEPOSIT, MAX_PENDING, TTL);
+        reg = new AlignmentTargetRequestRegistry(
+            owner, IAlignmentRegistry(address(registry)), treasury, DEPOSIT, MAX_PENDING, TTL
+        );
         vm.deal(alice, 10 ether);
         vm.deal(bob, 10 ether);
     }
 
     function _assets() internal view returns (IAlignmentRegistry.AlignmentAsset[] memory a) {
         a = new IAlignmentRegistry.AlignmentAsset[](1);
-        a[0] = IAlignmentRegistry.AlignmentAsset({token: token, symbol: "CULT", info: "Cult DAO", metadataURI: ""});
+        a[0] = IAlignmentRegistry.AlignmentAsset({ token: token, symbol: "CULT", info: "Cult DAO", metadataURI: "" });
     }
 
     function _submit(address who, address tok) internal returns (uint256 id) {
         IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
         if (tok != token) a[0].token = tok;
         vm.prank(who);
-        id = reg.submitRequest{value: DEPOSIT}(tok, "Cult DAO", "desc", "ipfs://x", a);
+        id = reg.submitRequest{ value: DEPOSIT }(tok, "Cult DAO", "desc", "ipfs://x", a);
     }
 
     /// @dev Simulate the admin having registered a target for `tok` (the register step of the two-tx
@@ -67,18 +69,18 @@ contract AlignmentTargetRequestRegistryTest is Test {
         IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
         vm.prank(alice);
         vm.expectRevert(AlignmentTargetRequestRegistry.IncorrectDeposit.selector);
-        reg.submitRequest{value: DEPOSIT - 1}(token, "t", "d", "u", a);
+        reg.submitRequest{ value: DEPOSIT - 1 }(token, "t", "d", "u", a);
     }
 
     function test_submit_revertsOnEmptyTitleAndNoAssets() public {
         IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
         vm.startPrank(alice);
         vm.expectRevert(AlignmentTargetRequestRegistry.InvalidTitle.selector);
-        reg.submitRequest{value: DEPOSIT}(token, "", "d", "u", a);
+        reg.submitRequest{ value: DEPOSIT }(token, "", "d", "u", a);
 
         IAlignmentRegistry.AlignmentAsset[] memory none = new IAlignmentRegistry.AlignmentAsset[](0);
         vm.expectRevert(AlignmentTargetRequestRegistry.NoAssets.selector);
-        reg.submitRequest{value: DEPOSIT}(token, "t", "d", "u", none);
+        reg.submitRequest{ value: DEPOSIT }(token, "t", "d", "u", none);
         vm.stopPrank();
     }
 
@@ -86,16 +88,16 @@ contract AlignmentTargetRequestRegistryTest is Test {
         IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
         vm.prank(alice);
         vm.expectRevert(AlignmentTargetRequestRegistry.InvalidAddress.selector);
-        reg.submitRequest{value: DEPOSIT}(address(0), "t", "d", "u", a);
+        reg.submitRequest{ value: DEPOSIT }(address(0), "t", "d", "u", a);
     }
 
     function test_submit_revertsWhenPrimaryTokenNotInAssets() public {
         // assets list exists but none of its tokens is the primary token.
         IAlignmentRegistry.AlignmentAsset[] memory a = new IAlignmentRegistry.AlignmentAsset[](1);
-        a[0] = IAlignmentRegistry.AlignmentAsset({token: makeAddr("other"), symbol: "OTH", info: "", metadataURI: ""});
+        a[0] = IAlignmentRegistry.AlignmentAsset({ token: makeAddr("other"), symbol: "OTH", info: "", metadataURI: "" });
         vm.prank(alice);
         vm.expectRevert(AlignmentTargetRequestRegistry.TokenNotInAssets.selector);
-        reg.submitRequest{value: DEPOSIT}(token, "t", "d", "u", a);
+        reg.submitRequest{ value: DEPOSIT }(token, "t", "d", "u", a);
     }
 
     function test_submit_revertsWhenQueueFull() public {
@@ -106,7 +108,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         a[0].token = makeAddr("t4");
         vm.prank(alice);
         vm.expectRevert(AlignmentTargetRequestRegistry.QueueFull.selector);
-        reg.submitRequest{value: DEPOSIT}(makeAddr("t4"), "t", "d", "u", a);
+        reg.submitRequest{ value: DEPOSIT }(makeAddr("t4"), "t", "d", "u", a);
     }
 
     function test_submit_revertsWhenTokenAlreadyActive() public {
@@ -116,7 +118,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
         vm.prank(alice);
         vm.expectRevert(AlignmentTargetRequestRegistry.TokenAlreadyActive.selector);
-        reg.submitRequest{value: DEPOSIT}(token, "t", "d", "u", a);
+        reg.submitRequest{ value: DEPOSIT }(token, "t", "d", "u", a);
     }
 
     function test_submit_allowedWhenTokenTargetInactive() public {
@@ -288,7 +290,7 @@ contract AlignmentTargetRequestRegistryTest is Test {
         reg.setRequestDeposit(0);
         IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
         vm.prank(alice);
-        uint256 id = reg.submitRequest{value: 0}(token, "t", "d", "u", a);
+        uint256 id = reg.submitRequest{ value: 0 }(token, "t", "d", "u", a);
         assertEq(reg.getRequest(id).deposit, 0);
         assertEq(address(reg).balance, 0);
     }
@@ -320,7 +322,7 @@ contract RevertingReceiver {
         IAlignmentRegistry.AlignmentAsset[] memory assets,
         uint256 deposit
     ) external returns (uint256) {
-        return reg.submitRequest{value: deposit}(token, "Cult DAO", "desc", "ipfs://x", assets);
+        return reg.submitRequest{ value: deposit }(token, "Cult DAO", "desc", "ipfs://x", assets);
     }
 
     receive() external payable {

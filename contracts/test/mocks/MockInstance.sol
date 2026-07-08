@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IInstanceLifecycle, TYPE_ERC404} from "../../src/interfaces/IInstanceLifecycle.sol";
+import { IInstanceLifecycle, TYPE_ERC404 } from "../../src/interfaces/IInstanceLifecycle.sol";
 
 /// @notice Minimal IFactoryInstance + IInstanceLifecycle mock for testing registry enforcement
 contract MockInstance is IInstanceLifecycle {

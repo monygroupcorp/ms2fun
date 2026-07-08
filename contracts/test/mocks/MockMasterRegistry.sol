@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
-import {IComponentRegistry} from "../../src/registry/interfaces/IComponentRegistry.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { IComponentRegistry } from "../../src/registry/interfaces/IComponentRegistry.sol";
 
 /**
  * @title MockMasterRegistry
@@ -12,25 +12,16 @@ import {IComponentRegistry} from "../../src/registry/interfaces/IComponentRegist
 contract MockMasterRegistry is IMasterRegistry {
     // Simple no-op implementations for testing
 
-    function registerInstance(
-        address instance,
-        address factory,
-        address,
-        string memory,
-        string memory,
-        address
-    ) external override {
+    function registerInstance(address instance, address factory, address, string memory, string memory, address)
+        external
+        override
+    {
         // Record instance→factory so config/seal modules' factory-of-instance auth (D1) works for the
         // honest createInstance flow (factory registers the instance before wiring its modules).
         _instanceFactory[instance] = factory;
     }
 
-    function getFactoryInfo(uint256)
-        external
-        view
-        override
-        returns (FactoryInfo memory)
-    {
+    function getFactoryInfo(uint256) external view override returns (FactoryInfo memory) {
         return FactoryInfo({
             factoryAddress: address(0),
             factoryId: 0,
@@ -45,12 +36,7 @@ contract MockMasterRegistry is IMasterRegistry {
         });
     }
 
-    function getFactoryInfoByAddress(address)
-        external
-        view
-        override
-        returns (FactoryInfo memory)
-    {
+    function getFactoryInfoByAddress(address) external view override returns (FactoryInfo memory) {
         return FactoryInfo({
             factoryAddress: address(0),
             factoryId: 0,
@@ -90,20 +76,9 @@ contract MockMasterRegistry is IMasterRegistry {
         });
     }
 
-    function registerVault(
-        address,
-        address,
-        string memory,
-        string memory,
-        uint256
-    ) external override {}
+    function registerVault(address, address, string memory, string memory, uint256) external override { }
 
-    function getVaultInfo(address)
-        external
-        view
-        override
-        returns (VaultInfo memory)
-    {
+    function getVaultInfo(address) external view override returns (VaultInfo memory) {
         return VaultInfo({
             vault: address(0),
             creator: address(0),
@@ -119,9 +94,9 @@ contract MockMasterRegistry is IMasterRegistry {
         return true; // Always return true in mock for testing
     }
 
-    function deactivateVault(address) external override {}
+    function deactivateVault(address) external override { }
 
-    function deactivateFactory(address) external override {}
+    function deactivateFactory(address) external override { }
 
     function isFactoryRegistered(address) external view override returns (bool) {
         return true; // Always return true in mock for testing
@@ -145,7 +120,7 @@ contract MockMasterRegistry is IMasterRegistry {
         return !_forcedUnregistered[instance];
     }
 
-    function migrateVault(address, address) external override {}
+    function migrateVault(address, address) external override { }
 
     function getInstanceVaults(address) external view override returns (address[] memory) {
         return new address[](0);
@@ -159,11 +134,11 @@ contract MockMasterRegistry is IMasterRegistry {
         return IComponentRegistry(address(0));
     }
 
-    function setComponentRegistry(address) external override {}
+    function setComponentRegistry(address) external override { }
 
-    function updateInstanceMetadata(address, string calldata) external override {}
+    function updateInstanceMetadata(address, string calldata) external override { }
 
-    function revokeInstance(address) external override {}
+    function revokeInstance(address) external override { }
 
     // Agent tracking for testing
     mapping(address => bool) private _agents;

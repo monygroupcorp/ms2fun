@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console} from "forge-std/Test.sol";
-import {VaultRegistry} from "../../src/registry/VaultRegistry.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { VaultRegistry } from "../../src/registry/VaultRegistry.sol";
 
 /**
  * @title VaultRegistryTest
@@ -28,7 +28,9 @@ contract VaultRegistryTest is Test {
 
     // Events to test
     event VaultRegistered(address indexed vault, address indexed creator, string name, uint256 fee);
-    event HookRegistered(address indexed hook, address indexed creator, address indexed vault, string name, uint256 fee);
+    event HookRegistered(
+        address indexed hook, address indexed creator, address indexed vault, string name, uint256 fee
+    );
     event VaultDeactivated(address indexed vault);
     event HookDeactivated(address indexed hook);
     event VaultFeeUpdated(uint256 newFee);
@@ -75,11 +77,7 @@ contract VaultRegistryTest is Test {
         vm.expectEmit(true, true, false, true);
         emit VaultRegistered(address(mockVault1), user1, "Test Vault", VAULT_FEE);
 
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         // Verify registration
         assertTrue(registry.registeredVaults(address(mockVault1)));
@@ -98,11 +96,7 @@ contract VaultRegistryTest is Test {
         uint256 excessFee = VAULT_FEE + 0.1 ether;
 
         vm.prank(user1);
-        registry.registerVault{value: excessFee}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: excessFee }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         // Verify refund
         assertEq(user1.balance, initialBalance - VAULT_FEE);
@@ -111,21 +105,13 @@ contract VaultRegistryTest is Test {
     function test_RegisterVault_RevertsOnZeroAddress() public {
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.InvalidAddress.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            address(0),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(0), "Test Vault", "https://metadata.uri");
     }
 
     function test_RegisterVault_RevertsOnEmptyName() public {
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.InvalidName.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "", "https://metadata.uri");
     }
 
     function test_RegisterVault_RevertsOnNameTooLong() public {
@@ -133,48 +119,28 @@ contract VaultRegistryTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.InvalidName.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            longName,
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), longName, "https://metadata.uri");
     }
 
     function test_RegisterVault_RevertsOnInsufficientFee() public {
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.InsufficientFee.selector);
-        registry.registerVault{value: VAULT_FEE - 1}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE - 1 }(address(mockVault1), "Test Vault", "https://metadata.uri");
     }
 
     function test_RegisterVault_RevertsOnDuplicateRegistration() public {
         vm.startPrank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         vm.expectRevert(VaultRegistry.AlreadyRegistered.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault 2",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault 2", "https://metadata.uri");
         vm.stopPrank();
     }
 
     function test_RegisterVault_RevertsOnEmptyMetadataURI() public {
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.InvalidMetadataURI.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            ""
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "");
     }
 
     function test_RegisterVault_RevertsOnMetadataURITooLong() public {
@@ -182,11 +148,7 @@ contract VaultRegistryTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.InvalidMetadataURI.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            longURI
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", longURI);
     }
 
     function test_RegisterVault_RevertsOnNonContract() public {
@@ -194,11 +156,7 @@ contract VaultRegistryTest is Test {
 
         vm.prank(user1);
         vm.expectRevert(VaultRegistry.MustBeContract.selector);
-        registry.registerVault{value: VAULT_FEE}(
-            notContract,
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(notContract, "Test Vault", "https://metadata.uri");
     }
 
     // ============ registerHook Tests ============
@@ -206,22 +164,15 @@ contract VaultRegistryTest is Test {
     function test_RegisterHook_Success() public {
         // First register vault
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         // Then register hook
         vm.prank(user2);
         vm.expectEmit(true, true, true, true);
         emit HookRegistered(address(mockHook1), user2, address(mockVault1), "Test Hook", HOOK_FEE);
 
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         // Verify registration
@@ -240,21 +191,14 @@ contract VaultRegistryTest is Test {
     function test_RegisterHook_WithExcessFeeRefund() public {
         // First register vault
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         uint256 initialBalance = user2.balance;
         uint256 excessFee = HOOK_FEE + 0.05 ether;
 
         vm.prank(user2);
-        registry.registerHook{value: excessFee}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: excessFee }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         // Verify refund
@@ -263,141 +207,88 @@ contract VaultRegistryTest is Test {
 
     function test_RegisterHook_RevertsOnZeroHookAddress() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.InvalidAddress.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            address(0),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(0), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
     }
 
     function test_RegisterHook_RevertsOnZeroVaultAddress() public {
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.InvalidAddress.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(0),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(0), "Test Hook", "https://hook.metadata.uri"
         );
     }
 
     function test_RegisterHook_RevertsOnUnregisteredVault() public {
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.NotRegistered.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
     }
 
     function test_RegisterHook_RevertsOnEmptyName() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.InvalidName.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "", "https://hook.metadata.uri"
         );
     }
 
     function test_RegisterHook_RevertsOnInsufficientFee() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.InsufficientFee.selector);
-        registry.registerHook{value: HOOK_FEE - 1}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE - 1 }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
     }
 
     function test_RegisterHook_RevertsOnDuplicateRegistration() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.startPrank(user2);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         vm.expectRevert(VaultRegistry.AlreadyRegistered.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook 2",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook 2", "https://hook.metadata.uri"
         );
         vm.stopPrank();
     }
 
     function test_RegisterHook_RevertsOnEmptyMetadataURI() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.InvalidMetadataURI.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            ""
-        );
+        registry.registerHook{ value: HOOK_FEE }(address(mockHook1), address(mockVault1), "Test Hook", "");
     }
 
     function test_RegisterHook_RevertsOnNonContract() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         address notContract = makeAddr("notContract");
 
         vm.prank(user2);
         vm.expectRevert(VaultRegistry.MustBeContract.selector);
-        registry.registerHook{value: HOOK_FEE}(
-            notContract,
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            notContract, address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
     }
 
@@ -405,11 +296,7 @@ contract VaultRegistryTest is Test {
 
     function test_DeactivateVault_Success() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         vm.expectEmit(true, false, false, false);
         emit VaultDeactivated(address(mockVault1));
@@ -423,11 +310,7 @@ contract VaultRegistryTest is Test {
 
     function test_DeactivateVault_RevertsOnNonOwner() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         vm.prank(user2);
         vm.expectRevert();
@@ -443,18 +326,11 @@ contract VaultRegistryTest is Test {
 
     function test_DeactivateHook_Success() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         vm.expectEmit(true, false, false, false);
@@ -469,18 +345,11 @@ contract VaultRegistryTest is Test {
 
     function test_DeactivateHook_RevertsOnNonOwner() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         vm.prank(user1);
@@ -497,11 +366,7 @@ contract VaultRegistryTest is Test {
 
     function test_GetVaultInfo_Success() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         VaultRegistry.VaultInfo memory info = registry.getVaultInfo(address(mockVault1));
         assertEq(info.vault, address(mockVault1));
@@ -520,18 +385,11 @@ contract VaultRegistryTest is Test {
 
     function test_GetHookInfo_Success() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         VaultRegistry.HookInfo memory info = registry.getHookInfo(address(mockHook1));
@@ -556,22 +414,14 @@ contract VaultRegistryTest is Test {
 
     function test_IsVaultRegistered_TrueAfterRegistration() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         assertTrue(registry.isVaultRegistered(address(mockVault1)));
     }
 
     function test_IsVaultRegistered_FalseAfterDeactivation() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://metadata.uri");
 
         registry.deactivateVault(address(mockVault1));
 
@@ -586,18 +436,11 @@ contract VaultRegistryTest is Test {
 
     function test_IsHookRegistered_TrueAfterRegistration() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         assertTrue(registry.isHookRegistered(address(mockHook1)));
@@ -605,18 +448,11 @@ contract VaultRegistryTest is Test {
 
     function test_IsHookRegistered_FalseAfterDeactivation() public {
         vm.prank(user1);
-        registry.registerVault{value: VAULT_FEE}(
-            address(mockVault1),
-            "Test Vault",
-            "https://vault.metadata.uri"
-        );
+        registry.registerVault{ value: VAULT_FEE }(address(mockVault1), "Test Vault", "https://vault.metadata.uri");
 
         vm.prank(user2);
-        registry.registerHook{value: HOOK_FEE}(
-            address(mockHook1),
-            address(mockVault1),
-            "Test Hook",
-            "https://hook.metadata.uri"
+        registry.registerHook{ value: HOOK_FEE }(
+            address(mockHook1), address(mockVault1), "Test Hook", "https://hook.metadata.uri"
         );
 
         registry.deactivateHook(address(mockHook1));
@@ -671,7 +507,6 @@ contract VaultRegistryTest is Test {
         vm.expectRevert(VaultRegistry.FeeMustBePositive.selector);
         registry.setHookRegistrationFee(0);
     }
-
 }
 
 // ============ Mock Contracts ============

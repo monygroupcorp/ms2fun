@@ -9,11 +9,15 @@ contract MockZRouterDeadlineCapture {
     // slot 1
     uint256 public outRatio;
 
-    constructor() { outRatio = 1e18; }
+    constructor() {
+        outRatio = 1e18;
+    }
 
-    receive() external payable {}
+    receive() external payable { }
 
-    function setOutRatio(uint256 ratio) external { outRatio = ratio; }
+    function setOutRatio(uint256 ratio) external {
+        outRatio = ratio;
+    }
 
     /// @notice Catches any swapVZ call, records the deadline, returns (swapAmount, swapAmount).
     ///         ABI layout for swapVZ(address,bool,uint256,address,address,uint256,uint256,uint256,uint256,uint256):

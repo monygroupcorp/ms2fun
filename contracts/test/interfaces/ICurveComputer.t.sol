@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ICurveComputer} from "../../src/interfaces/ICurveComputer.sol";
-import {BondingCurveMath} from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { Test } from "forge-std/Test.sol";
+import { ICurveComputer } from "../../src/interfaces/ICurveComputer.sol";
+import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
 
 contract MockCurveComputer is ICurveComputer {
-    function computeCurveParams(
-        uint256 nftCount,
-        uint256 targetETH,
-        uint256 unitPerNFT,
-        uint256 liquidityReserveBps
-    ) external pure override returns (BondingCurveMath.Params memory) {
+    function computeCurveParams(uint256 nftCount, uint256 targetETH, uint256 unitPerNFT, uint256 liquidityReserveBps)
+        external
+        pure
+        override
+        returns (BondingCurveMath.Params memory)
+    {
         return BondingCurveMath.Params({
             initialPrice: targetETH / nftCount,
             quarticCoeff: 3 gwei,

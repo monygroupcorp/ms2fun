@@ -3,15 +3,15 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../../src/vaults/uni/UniAlignmentVaultFactory.sol";
-import {UniAlignmentVault} from "../../src/vaults/uni/UniAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../src/interfaces/IVaultPriceValidator.sol";
-import {IAlignmentRegistry} from "../../src/master/interfaces/IAlignmentRegistry.sol";
-import {MockZRouter} from "../mocks/MockZRouter.sol";
-import {MockVaultPriceValidator} from "../mocks/MockVaultPriceValidator.sol";
-import {MockAlignmentRegistry} from "../mocks/MockAlignmentRegistry.sol";
-import {MockEXECToken} from "../mocks/MockEXECToken.sol";
-import {CREATEX} from "../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { CREATEX } from "../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 contract UniAlignmentVaultFactoryTest is Test {
     UniAlignmentVaultFactory public factory;
@@ -62,27 +62,23 @@ contract UniAlignmentVaultFactoryTest is Test {
     }
 
     function test_deployVault_setsAlignmentToken() public {
-        address vault = factory.deployVault(
-            _nextSalt(),
-            address(alignmentToken),
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
 
         assertEq(UniAlignmentVault(payable(vault)).alignmentToken(), address(alignmentToken));
     }
 
     function test_deployVault_usesFactoryZRouterConfig() public {
-        address vault = factory.deployVault(
-            _nextSalt(),
-            address(alignmentToken),
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
 
         assertEq(UniAlignmentVault(payable(vault)).zRouter(), factory.zRouter(), "Should use factory zRouter");
         assertEq(UniAlignmentVault(payable(vault)).zRouterFee(), factory.zRouterFee(), "Should use factory fee");
-        assertEq(UniAlignmentVault(payable(vault)).zRouterTickSpacing(), factory.zRouterTickSpacing(), "Should use factory tickSpacing");
+        assertEq(
+            UniAlignmentVault(payable(vault)).zRouterTickSpacing(),
+            factory.zRouterTickSpacing(),
+            "Should use factory tickSpacing"
+        );
         assertEq(
             address(UniAlignmentVault(payable(vault)).priceValidator()),
             address(factory.defaultPriceValidator()),
@@ -94,10 +90,7 @@ contract UniAlignmentVaultFactoryTest is Test {
         MockVaultPriceValidator customValidator = new MockVaultPriceValidator();
 
         address vault = factory.deployVault(
-            _nextSalt(),
-            address(alignmentToken),
-            TARGET_ID,
-            IVaultPriceValidator(address(customValidator))
+            _nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(customValidator))
         );
 
         assertEq(
@@ -111,19 +104,10 @@ contract UniAlignmentVaultFactoryTest is Test {
         MockEXECToken token2 = new MockEXECToken(1000000e18);
         mockRegistry.setTokenInTarget(TARGET_ID, address(token2), true);
 
-        address vault1 = factory.deployVault(
-            _nextSalt(),
-            address(alignmentToken),
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        address vault1 =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
 
-        address vault2 = factory.deployVault(
-            _nextSalt(),
-            address(token2),
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        address vault2 = factory.deployVault(_nextSalt(), address(token2), TARGET_ID, IVaultPriceValidator(address(0)));
 
         assertTrue(vault1 != vault2, "Vaults should be different addresses");
         assertEq(UniAlignmentVault(payable(vault1)).alignmentToken(), address(alignmentToken));
@@ -134,36 +118,21 @@ contract UniAlignmentVaultFactoryTest is Test {
         vm.expectEmit(false, true, false, false);
         emit VaultDeployed(address(0), address(alignmentToken));
 
-        factory.deployVault(
-            _nextSalt(),
-            address(alignmentToken),
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
     }
 
     function test_deployVault_revertsWhenTokenNotInTarget() public {
         address rogueToken = address(0xBAD);
 
         vm.expectRevert(UniAlignmentVault.TokenNotInTarget.selector);
-        factory.deployVault(
-            _nextSalt(),
-            rogueToken,
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        factory.deployVault(_nextSalt(), rogueToken, TARGET_ID, IVaultPriceValidator(address(0)));
     }
 
     function test_deployVault_revertsWhenTargetNotActive() public {
         mockRegistry.setTargetActive(TARGET_ID, false);
 
         vm.expectRevert(UniAlignmentVault.TargetNotActive.selector);
-        factory.deployVault(
-            _nextSalt(),
-            address(alignmentToken),
-            TARGET_ID,
-            IVaultPriceValidator(address(0))
-        );
+        factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
     }
 
     function test_constructor_storesAddresses() public view {

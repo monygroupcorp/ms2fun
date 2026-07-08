@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {PromotionBadges} from "../../src/promotion/PromotionBadges.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
+import { Test } from "forge-std/Test.sol";
+import { PromotionBadges } from "../../src/promotion/PromotionBadges.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract PromotionBadgesTest is Test {
     PromotionBadges public badges;
@@ -35,11 +35,7 @@ contract PromotionBadgesTest is Test {
         uint256 duration = 7 days;
         uint256 expectedCost = (0.001 ether * duration) / 1 days; // 0.007 ether
 
-        badges.purchaseBadge{value: expectedCost}(
-            instance1,
-            PromotionBadges.BadgeType.HIGHLIGHT,
-            duration
-        );
+        badges.purchaseBadge{ value: expectedCost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         (PromotionBadges.BadgeType badgeType, uint256 expiresAt) = badges.getActiveBadge(instance1);
         assertEq(uint256(badgeType), uint256(PromotionBadges.BadgeType.HIGHLIGHT));
@@ -55,11 +51,7 @@ contract PromotionBadgesTest is Test {
         uint256 duration = 14 days;
         uint256 expectedCost = (0.002 ether * duration) / 1 days; // 0.028 ether
 
-        badges.purchaseBadge{value: expectedCost}(
-            instance1,
-            PromotionBadges.BadgeType.TRENDING,
-            duration
-        );
+        badges.purchaseBadge{ value: expectedCost }(instance1, PromotionBadges.BadgeType.TRENDING, duration);
 
         (PromotionBadges.BadgeType badgeType,) = badges.getActiveBadge(instance1);
         assertEq(uint256(badgeType), uint256(PromotionBadges.BadgeType.TRENDING));
@@ -74,11 +66,7 @@ contract PromotionBadgesTest is Test {
         uint256 duration = 30 days;
         uint256 expectedCost = (0.005 ether * duration) / 1 days; // 0.15 ether
 
-        badges.purchaseBadge{value: expectedCost}(
-            instance1,
-            PromotionBadges.BadgeType.VERIFIED,
-            duration
-        );
+        badges.purchaseBadge{ value: expectedCost }(instance1, PromotionBadges.BadgeType.VERIFIED, duration);
 
         (PromotionBadges.BadgeType badgeType,) = badges.getActiveBadge(instance1);
         assertEq(uint256(badgeType), uint256(PromotionBadges.BadgeType.VERIFIED));
@@ -93,11 +81,7 @@ contract PromotionBadgesTest is Test {
         uint256 duration = 7 days;
         uint256 expectedCost = (0.01 ether * duration) / 1 days; // 0.07 ether
 
-        badges.purchaseBadge{value: expectedCost}(
-            instance1,
-            PromotionBadges.BadgeType.SPOTLIGHT,
-            duration
-        );
+        badges.purchaseBadge{ value: expectedCost }(instance1, PromotionBadges.BadgeType.SPOTLIGHT, duration);
 
         (PromotionBadges.BadgeType badgeType,) = badges.getActiveBadge(instance1);
         assertEq(uint256(badgeType), uint256(PromotionBadges.BadgeType.SPOTLIGHT));
@@ -112,13 +96,9 @@ contract PromotionBadgesTest is Test {
         uint256 duration = 10 days;
         uint256 expectedCost = (0.001 ether * duration) / 1 days; // 0.01 ether
 
-        badges.purchaseBadge{value: expectedCost}(
-            instance1,
-            PromotionBadges.BadgeType.HIGHLIGHT,
-            duration
-        );
+        badges.purchaseBadge{ value: expectedCost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
-        (, , uint256 paidAmount) = badges.instanceBadges(instance1);
+        (,, uint256 paidAmount) = badges.instanceBadges(instance1);
         assertEq(paidAmount, expectedCost);
 
         vm.stopPrank();
@@ -133,11 +113,7 @@ contract PromotionBadgesTest is Test {
         uint256 sent = 0.5 ether;
         uint256 balanceBefore = buyer.balance;
 
-        badges.purchaseBadge{value: sent}(
-            instance1,
-            PromotionBadges.BadgeType.HIGHLIGHT,
-            duration
-        );
+        badges.purchaseBadge{ value: sent }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         assertEq(buyer.balance, balanceBefore - expectedCost, "Excess should be refunded");
 
@@ -149,7 +125,7 @@ contract PromotionBadgesTest is Test {
         vm.startPrank(buyer);
 
         vm.expectRevert(PromotionBadges.InsufficientPayment.selector);
-        badges.purchaseBadge{value: 0.001 ether}(
+        badges.purchaseBadge{ value: 0.001 ether }(
             instance1,
             PromotionBadges.BadgeType.SPOTLIGHT, // 0.01 ETH/day
             7 days // costs 0.07 ETH
@@ -163,11 +139,7 @@ contract PromotionBadgesTest is Test {
         vm.startPrank(buyer);
 
         vm.expectRevert(PromotionBadges.InvalidBadge.selector);
-        badges.purchaseBadge{value: 0.01 ether}(
-            instance1,
-            PromotionBadges.BadgeType.NONE,
-            7 days
-        );
+        badges.purchaseBadge{ value: 0.01 ether }(instance1, PromotionBadges.BadgeType.NONE, 7 days);
 
         vm.stopPrank();
     }
@@ -177,7 +149,7 @@ contract PromotionBadgesTest is Test {
         vm.startPrank(buyer);
 
         vm.expectRevert(PromotionBadges.InvalidDuration.selector);
-        badges.purchaseBadge{value: 0.01 ether}(
+        badges.purchaseBadge{ value: 0.01 ether }(
             instance1,
             PromotionBadges.BadgeType.HIGHLIGHT,
             12 hours // less than 1 day min
@@ -191,7 +163,7 @@ contract PromotionBadgesTest is Test {
         vm.startPrank(buyer);
 
         vm.expectRevert(PromotionBadges.InvalidDuration.selector);
-        badges.purchaseBadge{value: 100 ether}(
+        badges.purchaseBadge{ value: 100 ether }(
             instance1,
             PromotionBadges.BadgeType.HIGHLIGHT,
             91 days // exceeds 90 day max
@@ -210,7 +182,7 @@ contract PromotionBadgesTest is Test {
 
         uint256 duration = 7 days;
         uint256 cost = (0.001 ether * duration) / 1 days;
-        badges.purchaseBadge{value: cost}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
+        badges.purchaseBadge{ value: cost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         (PromotionBadges.BadgeType badgeType, uint256 expiresAt) = badges.getActiveBadge(instance1);
         assertEq(uint256(badgeType), uint256(PromotionBadges.BadgeType.HIGHLIGHT));
@@ -225,7 +197,7 @@ contract PromotionBadgesTest is Test {
 
         uint256 duration = 1 days;
         uint256 cost = (0.001 ether * duration) / 1 days;
-        badges.purchaseBadge{value: cost}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
+        badges.purchaseBadge{ value: cost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         vm.stopPrank();
 
@@ -253,20 +225,20 @@ contract PromotionBadgesTest is Test {
 
         uint256 duration1 = 7 days;
         uint256 cost1 = (0.001 ether * duration1) / 1 days;
-        badges.purchaseBadge{value: cost1}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration1);
+        badges.purchaseBadge{ value: cost1 }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration1);
 
         (, uint256 expiresAt1) = badges.getActiveBadge(instance1);
 
         // Extend with another 7 days
         uint256 duration2 = 7 days;
         uint256 cost2 = (0.001 ether * duration2) / 1 days;
-        badges.purchaseBadge{value: cost2}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration2);
+        badges.purchaseBadge{ value: cost2 }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration2);
 
         (, uint256 expiresAt2) = badges.getActiveBadge(instance1);
         assertEq(expiresAt2, expiresAt1 + duration2, "Expiry should be extended");
 
         // Verify accumulated paid amount
-        (, , uint256 paidAmount) = badges.instanceBadges(instance1);
+        (,, uint256 paidAmount) = badges.instanceBadges(instance1);
         assertEq(paidAmount, cost1 + cost2);
 
         vm.stopPrank();
@@ -278,14 +250,10 @@ contract PromotionBadgesTest is Test {
 
         uint256 duration = 7 days;
         uint256 cost = (0.001 ether * duration) / 1 days;
-        badges.purchaseBadge{value: cost}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
+        badges.purchaseBadge{ value: cost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         vm.expectRevert(PromotionBadges.DifferentBadgeActive.selector);
-        badges.purchaseBadge{value: 0.1 ether}(
-            instance1,
-            PromotionBadges.BadgeType.TRENDING,
-            7 days
-        );
+        badges.purchaseBadge{ value: 0.1 ether }(instance1, PromotionBadges.BadgeType.TRENDING, 7 days);
 
         vm.stopPrank();
     }
@@ -296,18 +264,14 @@ contract PromotionBadgesTest is Test {
 
         uint256 duration = 1 days;
         uint256 cost1 = (0.001 ether * duration) / 1 days;
-        badges.purchaseBadge{value: cost1}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
+        badges.purchaseBadge{ value: cost1 }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         // Warp past expiry
         vm.warp(block.timestamp + 2 days);
 
         // Should succeed with different type
         uint256 cost2 = (0.002 ether * 7 days) / 1 days;
-        badges.purchaseBadge{value: cost2}(
-            instance1,
-            PromotionBadges.BadgeType.TRENDING,
-            7 days
-        );
+        badges.purchaseBadge{ value: cost2 }(instance1, PromotionBadges.BadgeType.TRENDING, 7 days);
 
         (PromotionBadges.BadgeType badgeType,) = badges.getActiveBadge(instance1);
         assertEq(uint256(badgeType), uint256(PromotionBadges.BadgeType.TRENDING));
@@ -325,15 +289,15 @@ contract PromotionBadgesTest is Test {
 
         // Badge instance1 (active)
         uint256 cost1 = (0.001 ether * 7 days) / 1 days;
-        badges.purchaseBadge{value: cost1}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, 7 days);
+        badges.purchaseBadge{ value: cost1 }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, 7 days);
 
         // Badge instance2 (will be expired)
         uint256 cost2 = (0.002 ether * 1 days) / 1 days;
-        badges.purchaseBadge{value: cost2}(instance2, PromotionBadges.BadgeType.TRENDING, 1 days);
+        badges.purchaseBadge{ value: cost2 }(instance2, PromotionBadges.BadgeType.TRENDING, 1 days);
 
         // Badge instance3 (active)
         uint256 cost3 = (0.005 ether * 30 days) / 1 days;
-        badges.purchaseBadge{value: cost3}(instance3, PromotionBadges.BadgeType.VERIFIED, 30 days);
+        badges.purchaseBadge{ value: cost3 }(instance3, PromotionBadges.BadgeType.VERIFIED, 30 days);
 
         vm.stopPrank();
 
@@ -369,7 +333,7 @@ contract PromotionBadgesTest is Test {
         vm.startPrank(buyer);
 
         uint256 cost = (0.001 ether * 7 days) / 1 days;
-        badges.purchaseBadge{value: cost}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, 7 days);
+        badges.purchaseBadge{ value: cost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, 7 days);
 
         vm.stopPrank();
 
@@ -460,7 +424,7 @@ contract PromotionBadgesTest is Test {
         assertEq(expiresAt, block.timestamp + 14 days);
 
         // Verify paidAmount is 0 (privileged assignment)
-        (, , uint256 paidAmount) = badges.instanceBadges(instance1);
+        (,, uint256 paidAmount) = badges.instanceBadges(instance1);
         assertEq(paidAmount, 0);
     }
 
@@ -603,7 +567,7 @@ contract PromotionBadgesTest is Test {
         vm.expectEmit(true, true, false, true);
         emit PromotionBadges.BadgePurchased(instance1, buyer, PromotionBadges.BadgeType.HIGHLIGHT, duration, cost);
 
-        badges.purchaseBadge{value: cost}(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
+        badges.purchaseBadge{ value: cost }(instance1, PromotionBadges.BadgeType.HIGHLIGHT, duration);
 
         vm.stopPrank();
     }

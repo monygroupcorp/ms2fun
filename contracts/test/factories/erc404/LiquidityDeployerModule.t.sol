@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {LiquidityDeployerModule} from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { LiquidityDeployerModule } from "../../../src/factories/erc404/LiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 
 /// @dev Exposes the internal amount computation so the carve split can be unit-tested without a
 ///      full V4 PoolManager (the payment dispatch itself is fork-tested + mirrored in the ZAMM /
 ///      Cypher module tests, which share the identical splitGraduation-driven shape).
 contract LiquidityDeployerModuleHarness is LiquidityDeployerModule {
-    constructor() LiquidityDeployerModule(address(0), address(0x3), 3000, 60, address(0)) {}
+    constructor() LiquidityDeployerModule(address(0), address(0x3), 3000, 60, address(0)) { }
+
     function computeAmounts(ILiquidityDeployerModule.DeployParams calldata p)
         external
         pure
@@ -40,11 +41,11 @@ contract LiquidityDeployerModuleTest is Test {
     // Helpers — build a DeployParams struct
     // -----------------------------------------------------------------------
 
-    function _params(
-        uint256 ethReserve,
-        uint256 tokenReserve,
-        address treasury
-    ) internal pure returns (ILiquidityDeployerModule.DeployParams memory p) {
+    function _params(uint256 ethReserve, uint256 tokenReserve, address treasury)
+        internal
+        pure
+        returns (ILiquidityDeployerModule.DeployParams memory p)
+    {
         p = ILiquidityDeployerModule.DeployParams({
             ethReserve: ethReserve,
             tokenReserve: tokenReserve,
@@ -65,43 +66,39 @@ contract LiquidityDeployerModuleTest is Test {
         uint256 ethReserve = 10 ether;
 
         // Fixed 1/19/80 split
-        uint256 protocolFee = ethReserve / 100;           // 1% = 0.1 ETH
-        uint256 vaultCut    = (ethReserve * 19) / 100;    // 19% = 1.9 ETH
-        uint256 ethForPool  = ethReserve - protocolFee - vaultCut; // 80% = 8.0 ETH
+        uint256 protocolFee = ethReserve / 100; // 1% = 0.1 ETH
+        uint256 vaultCut = (ethReserve * 19) / 100; // 19% = 1.9 ETH
+        uint256 ethForPool = ethReserve - protocolFee - vaultCut; // 80% = 8.0 ETH
 
         assertEq(protocolFee, 0.1 ether);
-        assertEq(vaultCut,    1.9 ether);
-        assertEq(ethForPool,  8.0 ether);
+        assertEq(vaultCut, 1.9 ether);
+        assertEq(ethForPool, 8.0 ether);
     }
 
     function test_computeAmounts_roundingInvariant() public pure {
         // Verify no ETH is lost in the split
         uint256 ethReserve = 1 ether;
         uint256 protocolFee = ethReserve / 100;
-        uint256 vaultCut    = (ethReserve * 19) / 100;
-        uint256 ethForPool  = ethReserve - protocolFee - vaultCut;
+        uint256 vaultCut = (ethReserve * 19) / 100;
+        uint256 ethForPool = ethReserve - protocolFee - vaultCut;
 
         assertEq(protocolFee + vaultCut + ethForPool, ethReserve);
     }
 
     function test_deployLiquidity_revertsIfNotEnoughETH() public {
-        ILiquidityDeployerModule.DeployParams memory p = _params(
-            1 ether, 100 ether, address(0x1)
-        );
+        ILiquidityDeployerModule.DeployParams memory p = _params(1 ether, 100 ether, address(0x1));
         // Caller must be the registered instance to reach the ETHMismatch check (guard runs first).
         p.instance = address(this);
         // Send less ETH than ethReserve — module checks msg.value == ethReserve
         vm.expectRevert(LiquidityDeployerModule.ETHMismatch.selector);
-        module.deployLiquidity{value: 0.5 ether}(p);
+        module.deployLiquidity{ value: 0.5 ether }(p);
     }
 
     function test_deployLiquidity_revertsIfNoETHSent() public {
-        ILiquidityDeployerModule.DeployParams memory p = _params(
-            1 ether, 100 ether, address(0x1)
-        );
+        ILiquidityDeployerModule.DeployParams memory p = _params(1 ether, 100 ether, address(0x1));
         p.instance = address(this);
         vm.expectRevert(LiquidityDeployerModule.ETHMismatch.selector);
-        module.deployLiquidity{value: 0}(p);
+        module.deployLiquidity{ value: 0 }(p);
     }
 
     // ── Caller guard (strict, registry-checked) ───────────────────────────────
@@ -112,7 +109,7 @@ contract LiquidityDeployerModuleTest is Test {
         ILiquidityDeployerModule.DeployParams memory p = _params(1 ether, 100 ether, address(0x1));
         p.instance = address(this); // msg.sender == p.instance, but not a registered instance
         vm.expectRevert(LiquidityDeployerModule.UnauthorizedCaller.selector);
-        module.deployLiquidity{value: 1 ether}(p);
+        module.deployLiquidity{ value: 1 ether }(p);
     }
 
     /// @notice A caller passing a crafted p.instance it does not control reverts (no impersonation),
@@ -121,7 +118,7 @@ contract LiquidityDeployerModuleTest is Test {
         ILiquidityDeployerModule.DeployParams memory p = _params(1 ether, 100 ether, address(0x1));
         p.instance = makeAddr("victimInstance"); // registered per mock default, but != msg.sender
         vm.expectRevert(LiquidityDeployerModule.UnauthorizedCaller.selector);
-        module.deployLiquidity{value: 1 ether}(p);
+        module.deployLiquidity{ value: 1 ether }(p);
     }
 
     function test_unlockCallback_revertsIfNotPoolManager() public {
@@ -180,9 +177,7 @@ contract LiquidityDeployerModuleTest is Test {
         assertEq(r.carvePaid, 1 ether, "full requested carve applied");
         assertEq(r.ethForPool, 7 ether, "pool = LP80 - carve");
         assertEq(
-            r.protocolFee + r.vaultCut + r.creatorCut + r.ethForPool,
-            10 ether,
-            "conservation: parts sum to the raise"
+            r.protocolFee + r.vaultCut + r.creatorCut + r.ethForPool, 10 ether, "conservation: parts sum to the raise"
         );
     }
 

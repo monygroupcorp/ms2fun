@@ -1,21 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {MetadataResolverRouter} from "../../src/metadata/MetadataResolverRouter.sol";
-import {IMetadataResolver} from "../../src/metadata/IMetadataResolver.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {IMasterRegistry} from "../../src/master/interfaces/IMasterRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
+import { IMetadataResolver } from "../../src/metadata/IMetadataResolver.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 
 /// @dev Registry mock with a togglable per-address isFactoryRegistered (the real one in the
 ///      shared mock always returns true, which can't exercise the seal-front-run guard).
 contract ToggleRegistry {
     mapping(address => bool) public factories;
-    function setFactory(address a, bool v) external { factories[a] = v; }
-    function isFactoryRegistered(address a) external view returns (bool) { return factories[a]; }
+
+    function setFactory(address a, bool v) external {
+        factories[a] = v;
+    }
+
+    function isFactoryRegistered(address a) external view returns (bool) {
+        return factories[a];
+    }
 
     mapping(address => address) public instFactory;
-    function setInstanceFactory(address inst_, address f) external { instFactory[inst_] = f; }
+
+    function setInstanceFactory(address inst_, address f) external {
+        instFactory[inst_] = f;
+    }
+
     function getInstanceInfo(address inst_) external view returns (IMasterRegistry.InstanceInfo memory info) {
         info.instance = inst_;
         info.factory = instFactory[inst_];
@@ -26,13 +36,21 @@ contract ToggleRegistry {
 contract StubResolver is IMetadataResolver {
     string internal ret;
     bool internal boom;
-    constructor(string memory r, bool b) { ret = r; boom = b; }
+
+    constructor(string memory r, bool b) {
+        ret = r;
+        boom = b;
+    }
+
     function resolve(address, uint256, address) external view override returns (string memory) {
         if (boom) revert("boom");
         return ret;
     }
-    function metadataURI() external pure override returns (string memory) { return ""; }
-    function setMetadataURI(string calldata) external override {}
+
+    function metadataURI() external pure override returns (string memory) {
+        return "";
+    }
+    function setMetadataURI(string calldata) external override { }
 }
 
 contract MetadataResolverRouterTest is Test {
@@ -100,7 +118,7 @@ contract MetadataResolverRouterTest is Test {
 
     /// @dev A reverting child is skipped (defensive try/catch), not propagated.
     function test_resolve_defensiveOnRevertingChild() public {
-        StubResolver bad = new StubResolver("X", true);   // reverts
+        StubResolver bad = new StubResolver("X", true); // reverts
         StubResolver good = new StubResolver("GOOD", false);
         vm.prank(factory);
         router.initResolvers(inst, _children(address(bad), address(good)));

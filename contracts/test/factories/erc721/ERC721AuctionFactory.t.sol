@@ -1,24 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test, console} from "forge-std/Test.sol";
-import {ERC721AuctionFactory} from "../../../src/factories/erc721/ERC721AuctionFactory.sol";
-import {ERC721AuctionInstance, DepositRequired, URIRequired, BidBelowMinimum, BidTooLow, AuctionExpired, AuctionNotEnded, NoBids, HasBids} from "../../../src/factories/erc721/ERC721AuctionInstance.sol";
-import {UniAlignmentVault} from "../../../src/vaults/uni/UniAlignmentVault.sol";
-import {MockEXECToken} from "../../mocks/MockEXECToken.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
-import {MockZRouter} from "../../mocks/MockZRouter.sol";
-import {MockVaultPriceValidator} from "../../mocks/MockVaultPriceValidator.sol";
-import {IVaultPriceValidator} from "../../../src/interfaces/IVaultPriceValidator.sol";
-import {GlobalMessageRegistry} from "../../../src/registry/GlobalMessageRegistry.sol";
-import {LibClone} from "solady/utils/LibClone.sol";
-import {Currency} from "v4-core/types/Currency.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {MockAlignmentRegistry} from "../../mocks/MockAlignmentRegistry.sol";
-import {IAlignmentRegistry} from "../../../src/master/interfaces/IAlignmentRegistry.sol";
-import {ICreateX, CREATEX} from "../../../src/shared/CreateXConstants.sol";
-import {CREATEX_BYTECODE} from "createx-forge/script/CreateX.d.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { ERC721AuctionFactory } from "../../../src/factories/erc721/ERC721AuctionFactory.sol";
+import {
+    ERC721AuctionInstance,
+    DepositRequired,
+    URIRequired,
+    BidBelowMinimum,
+    BidTooLow,
+    AuctionExpired,
+    AuctionNotEnded,
+    NoBids,
+    HasBids
+} from "../../../src/factories/erc721/ERC721AuctionInstance.sol";
+import { UniAlignmentVault } from "../../../src/vaults/uni/UniAlignmentVault.sol";
+import { MockEXECToken } from "../../mocks/MockEXECToken.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { MockZRouter } from "../../mocks/MockZRouter.sol";
+import { MockVaultPriceValidator } from "../../mocks/MockVaultPriceValidator.sol";
+import { IVaultPriceValidator } from "../../../src/interfaces/IVaultPriceValidator.sol";
+import { GlobalMessageRegistry } from "../../../src/registry/GlobalMessageRegistry.sol";
+import { LibClone } from "solady/utils/LibClone.sol";
+import { Currency } from "v4-core/types/Currency.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { MockAlignmentRegistry } from "../../mocks/MockAlignmentRegistry.sol";
+import { IAlignmentRegistry } from "../../../src/master/interfaces/IAlignmentRegistry.sol";
+import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
+import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 
 contract ERC721AuctionFactoryTest is Test {
     ERC721AuctionFactory public factory;
@@ -118,7 +128,7 @@ contract ERC721AuctionFactoryTest is Test {
         vm.deal(artist, 1 ether);
         vm.prank(artist);
 
-        address instance = factory.createInstance{value: 0}(_nextSalt(), _params());
+        address instance = factory.createInstance{ value: 0 }(_nextSalt(), _params());
 
         assertTrue(instance != address(0));
         ERC721AuctionInstance inst = ERC721AuctionInstance(payable(instance));
@@ -138,7 +148,7 @@ contract ERC721AuctionFactoryTest is Test {
         uint256 treasuryBefore = treasury.balance;
 
         vm.prank(artist);
-        factory.createInstance{value: 0.01 ether}(_nextSalt(), _params());
+        factory.createInstance{ value: 0.01 ether }(_nextSalt(), _params());
 
         assertEq(treasury.balance - treasuryBefore, 0.01 ether);
         assertEq(address(factory).balance, 0);
@@ -176,7 +186,7 @@ contract ERC721AuctionFactoryTest is Test {
     function _createDefaultInstance() internal returns (ERC721AuctionInstance) {
         vm.deal(artist, 100 ether);
         vm.prank(artist);
-        address instance = factory.createInstance{value: 0}(_nextSalt(), _params());
+        address instance = factory.createInstance{ value: 0 }(_nextSalt(), _params());
         return ERC721AuctionInstance(payable(instance));
     }
 
@@ -184,7 +194,7 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         assertEq(auction.tokenId, 1);
@@ -199,7 +209,7 @@ contract ERC721AuctionFactoryTest is Test {
 
         vm.prank(artist);
         vm.expectRevert(DepositRequired.selector);
-        inst.queuePiece{value: 0}("ipfs://piece1");
+        inst.queuePiece{ value: 0 }("ipfs://piece1");
     }
 
     function test_QueuePiece_RequiresURI() public {
@@ -207,7 +217,7 @@ contract ERC721AuctionFactoryTest is Test {
 
         vm.prank(artist);
         vm.expectRevert(URIRequired.selector);
-        inst.queuePiece{value: 0.1 ether}("");
+        inst.queuePiece{ value: 0.1 ether }("");
     }
 
     function test_QueuePiece_OnlyOwner() public {
@@ -216,18 +226,18 @@ contract ERC721AuctionFactoryTest is Test {
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
         vm.expectRevert();
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
     }
 
     function test_Bidding_FirstBid() public {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         assertEq(auction.highBidder, bidder1);
@@ -238,28 +248,28 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
         vm.expectRevert(BidBelowMinimum.selector);
-        inst.createBid{value: 0.05 ether}(1, bytes(""));
+        inst.createBid{ value: 0.05 ether }(1, bytes(""));
     }
 
     function test_Bidding_Outbid() public {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         uint256 bidder1BalBefore = bidder1.balance;
         vm.deal(bidder2, 1 ether);
         vm.prank(bidder2);
-        inst.createBid{value: 0.15 ether}(1, bytes(""));
+        inst.createBid{ value: 0.15 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         assertEq(auction.highBidder, bidder2);
@@ -271,23 +281,23 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         vm.deal(bidder2, 1 ether);
         vm.prank(bidder2);
         vm.expectRevert(BidTooLow.selector);
-        inst.createBid{value: 0.105 ether}(1, bytes(""));
+        inst.createBid{ value: 0.105 ether }(1, bytes(""));
     }
 
     function test_Bidding_AntiSnipe() public {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         uint40 originalEnd = auction.endTime;
@@ -296,7 +306,7 @@ contract ERC721AuctionFactoryTest is Test {
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         auction = inst.getAuction(1);
         assertEq(auction.endTime, uint40(block.timestamp) + TIME_BUFFER);
@@ -307,7 +317,7 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime + 1);
@@ -315,7 +325,7 @@ contract ERC721AuctionFactoryTest is Test {
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
         vm.expectRevert(AuctionExpired.selector);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
     }
 
     // ┌─────────────────────────┐
@@ -326,11 +336,11 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 1 ether}(1, bytes(""));
+        inst.createBid{ value: 1 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -361,11 +371,11 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         vm.expectRevert(AuctionNotEnded.selector);
         inst.settleAuction(1);
@@ -375,7 +385,7 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -392,7 +402,7 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -412,11 +422,11 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -430,7 +440,7 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -447,7 +457,7 @@ contract ERC721AuctionFactoryTest is Test {
     function test_Lines_RoundRobin() public {
         vm.deal(artist, 100 ether);
         vm.prank(artist);
-        address instance = factory.createInstance{value: 0}(
+        address instance = factory.createInstance{ value: 0 }(
             _nextSalt(),
             ERC721AuctionFactory.CreateParams({
                 name: "Multi Line",
@@ -464,12 +474,12 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = ERC721AuctionInstance(payable(instance));
 
         vm.startPrank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://1"); // tokenId 1 -> line 0
-        inst.queuePiece{value: 0.1 ether}("ipfs://2"); // tokenId 2 -> line 1
-        inst.queuePiece{value: 0.1 ether}("ipfs://3"); // tokenId 3 -> line 2
-        inst.queuePiece{value: 0.1 ether}("ipfs://4"); // tokenId 4 -> line 0
-        inst.queuePiece{value: 0.1 ether}("ipfs://5"); // tokenId 5 -> line 1
-        inst.queuePiece{value: 0.1 ether}("ipfs://6"); // tokenId 6 -> line 2
+        inst.queuePiece{ value: 0.1 ether }("ipfs://1"); // tokenId 1 -> line 0
+        inst.queuePiece{ value: 0.1 ether }("ipfs://2"); // tokenId 2 -> line 1
+        inst.queuePiece{ value: 0.1 ether }("ipfs://3"); // tokenId 3 -> line 2
+        inst.queuePiece{ value: 0.1 ether }("ipfs://4"); // tokenId 4 -> line 0
+        inst.queuePiece{ value: 0.1 ether }("ipfs://5"); // tokenId 5 -> line 1
+        inst.queuePiece{ value: 0.1 ether }("ipfs://6"); // tokenId 6 -> line 2
         vm.stopPrank();
 
         assertEq(inst.getActiveAuction(0), 1);
@@ -484,15 +494,15 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.startPrank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://1");
-        inst.queuePiece{value: 0.1 ether}("ipfs://2");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://2");
         vm.stopPrank();
 
         assertEq(inst.getActiveAuction(0), 1);
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -511,11 +521,11 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, bytes(""));
+        inst.createBid{ value: 0.1 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -532,16 +542,16 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.startPrank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://1");
-        inst.queuePiece{value: 0.2 ether}("ipfs://2");
-        inst.queuePiece{value: 0.3 ether}("ipfs://3");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://1");
+        inst.queuePiece{ value: 0.2 ether }("ipfs://2");
+        inst.queuePiece{ value: 0.3 ether }("ipfs://3");
         vm.stopPrank();
 
         assertEq(inst.getActiveAuction(0), 1);
 
         vm.deal(bidder1, 10 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.5 ether}(1, bytes(""));
+        inst.createBid{ value: 0.5 ether }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -558,7 +568,7 @@ contract ERC721AuctionFactoryTest is Test {
         assertEq(inst.getActiveAuction(0), 3);
 
         vm.prank(bidder1);
-        inst.createBid{value: 0.3 ether}(3, bytes(""));
+        inst.createBid{ value: 0.3 ether }(3, bytes(""));
 
         auction = inst.getAuction(3);
         vm.warp(auction.endTime);
@@ -576,11 +586,13 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
 
         vm.deal(bidder1, 1 ether);
         vm.prank(bidder1);
-        inst.createBid{value: 0.1 ether}(1, abi.encode(uint8(0), uint256(0), bytes32(0), bytes32(0), "gm love this piece"));
+        inst.createBid{ value: 0.1 ether }(
+            1, abi.encode(uint8(0), uint256(0), bytes32(0), bytes32(0), "gm love this piece")
+        );
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         assertEq(auction.highBidder, bidder1);
@@ -601,13 +613,13 @@ contract ERC721AuctionFactoryTest is Test {
 
         uint256 minBid = 0.1 ether;
         vm.prank(artist);
-        inst.queuePiece{value: minBid}("ipfs://fuzz1");
+        inst.queuePiece{ value: minBid }("ipfs://fuzz1");
 
         uint256 firstBid = bound(firstBidRaw, minBid, 100 ether);
 
         vm.deal(bidder1, firstBid);
         vm.prank(bidder1);
-        inst.createBid{value: firstBid}(1, bytes(""));
+        inst.createBid{ value: firstBid }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         assertEq(auction.highBid, firstBid);
@@ -618,11 +630,11 @@ contract ERC721AuctionFactoryTest is Test {
         vm.deal(bidder2, lowBid);
         vm.prank(bidder2);
         vm.expectRevert(BidTooLow.selector);
-        inst.createBid{value: lowBid}(1, bytes(""));
+        inst.createBid{ value: lowBid }(1, bytes(""));
 
         vm.deal(bidder2, threshold);
         vm.prank(bidder2);
-        inst.createBid{value: threshold}(1, bytes(""));
+        inst.createBid{ value: threshold }(1, bytes(""));
 
         auction = inst.getAuction(1);
         assertEq(auction.highBidder, bidder2);
@@ -636,11 +648,11 @@ contract ERC721AuctionFactoryTest is Test {
 
         uint256 deposit = 0.01 ether;
         vm.prank(artist);
-        inst.queuePiece{value: deposit}("ipfs://fuzz2");
+        inst.queuePiece{ value: deposit }("ipfs://fuzz2");
 
         vm.deal(bidder1, highBid);
         vm.prank(bidder1);
-        inst.createBid{value: highBid}(1, bytes(""));
+        inst.createBid{ value: highBid }(1, bytes(""));
 
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
@@ -656,11 +668,7 @@ contract ERC721AuctionFactoryTest is Test {
         uint256 artistReceived = artist.balance - artistBalBefore;
         uint256 creatorCut = artistReceived - deposit;
 
-        assertEq(
-            protocolReceived + vaultReceived + creatorCut,
-            highBid,
-            "settlement split does not sum to highBid"
-        );
+        assertEq(protocolReceived + vaultReceived + creatorCut, highBid, "settlement split does not sum to highBid");
     }
 
     // ┌─────────────────────────┐
@@ -675,8 +683,8 @@ contract ERC721AuctionFactoryTest is Test {
 
         // Queue two pieces on the same line so we can prove the line advances past the stuck winner.
         vm.startPrank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece2");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece2");
         vm.stopPrank();
 
         NonReceiverBidder bidder = new NonReceiverBidder();
@@ -707,8 +715,8 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.startPrank(artist);
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece1");
-        inst.queuePiece{value: 0.1 ether}("ipfs://piece2");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece2");
         vm.stopPrank();
 
         RevertingReceiverBidder bidder = new RevertingReceiverBidder();
@@ -728,7 +736,8 @@ contract ERC721AuctionFactoryTest is Test {
     function test_F6_SaltBoundToCreator_DifferentPerCaller() public view {
         bytes32 salt = bytes32(uint256(0xABCDEF));
         assertTrue(
-            factory.computeInstanceAddress(address(0xA11CE), salt) != factory.computeInstanceAddress(address(0xBAD), salt),
+            factory.computeInstanceAddress(address(0xA11CE), salt)
+                != factory.computeInstanceAddress(address(0xBAD), salt),
             "same salt must map to different address per creator"
         );
     }
@@ -737,21 +746,21 @@ contract ERC721AuctionFactoryTest is Test {
 /// @dev A contract that can receive ETH but intentionally omits IERC721Receiver.
 contract NonReceiverBidder {
     function bid(address instance, uint24 tokenId, uint256 amount) external {
-        ERC721AuctionInstance(payable(instance)).createBid{value: amount}(tokenId, bytes(""));
+        ERC721AuctionInstance(payable(instance)).createBid{ value: amount }(tokenId, bytes(""));
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 /// @dev A contract that bids and reverts inside onERC721Received — the hostile-DoS case.
 contract RevertingReceiverBidder {
     function bid(address instance, uint24 tokenId, uint256 amount) external {
-        ERC721AuctionInstance(payable(instance)).createBid{value: amount}(tokenId, bytes(""));
+        ERC721AuctionInstance(payable(instance)).createBid{ value: amount }(tokenId, bytes(""));
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         revert("no NFTs for me");
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

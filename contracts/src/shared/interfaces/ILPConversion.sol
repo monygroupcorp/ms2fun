@@ -8,19 +8,10 @@ pragma solidity ^0.8.20;
 interface ILPConversion {
     // ========== Events ==========
 
-    event ConversionInitiated(
-        uint8 indexed poolType,
-        uint256 ethAmount,
-        uint256 targetTokenAmount,
-        uint256 reward
-    );
+    event ConversionInitiated(uint8 indexed poolType, uint256 ethAmount, uint256 targetTokenAmount, uint256 reward);
 
     event LiquidityAdded(
-        uint8 indexed poolType,
-        address indexed pool,
-        uint256 liquidity,
-        uint256 amount0,
-        uint256 amount1
+        uint8 indexed poolType, address indexed pool, uint256 liquidity, uint256 amount0, uint256 amount1
     );
 
     // ========== V4 Conversion ==========
@@ -33,14 +24,10 @@ interface ILPConversion {
      * @return amount0 Amount of token0 used
      * @return amount1 Amount of token1 used
      */
-    function convertToV4Liquidity(
-        address poolManager,
-        uint256 minOut
-    ) external payable returns (
-        uint256 liquidityAdded,
-        uint256 amount0,
-        uint256 amount1
-    );
+    function convertToV4Liquidity(address poolManager, uint256 minOut)
+        external
+        payable
+        returns (uint256 liquidityAdded, uint256 amount0, uint256 amount1);
 
     // ========== V3 Conversion ==========
 
@@ -53,15 +40,10 @@ interface ILPConversion {
      * @return amount0 Amount of token0 used
      * @return amount1 Amount of token1 used
      */
-    function convertToV3Liquidity(
-        address positionManager,
-        uint256 minOut
-    ) external payable returns (
-        uint256 tokenId,
-        uint128 liquidity,
-        uint256 amount0,
-        uint256 amount1
-    );
+    function convertToV3Liquidity(address positionManager, uint256 minOut)
+        external
+        payable
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
 
     // ========== V2 Conversion ==========
 
@@ -73,12 +55,8 @@ interface ILPConversion {
      * @return amount0 Amount of token0 used
      * @return amount1 Amount of token1 used
      */
-    function convertToV2Liquidity(
-        address router,
-        uint256 minOut
-    ) external payable returns (
-        uint256 lpTokens,
-        uint256 amount0,
-        uint256 amount1
-    );
+    function convertToV2Liquidity(address router, uint256 minOut)
+        external
+        payable
+        returns (uint256 lpTokens, uint256 amount0, uint256 amount1);
 }

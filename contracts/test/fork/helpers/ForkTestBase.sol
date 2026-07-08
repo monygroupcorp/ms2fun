@@ -33,9 +33,9 @@ abstract contract ForkTestBase is Test {
     address internal UNISWAP_V3_POSITION_MANAGER;
 
     // V3 Pools (WETH/USDC)
-    address internal WETH_USDC_V3_005;  // 0.05% fee
-    address internal WETH_USDC_V3_03;   // 0.3% fee
-    address internal WETH_USDC_V3_1;    // 1% fee
+    address internal WETH_USDC_V3_005; // 0.05% fee
+    address internal WETH_USDC_V3_03; // 0.3% fee
+    address internal WETH_USDC_V3_1; // 1% fee
 
     // V3 Pools (WETH/DAI)
     address internal WETH_DAI_V3_005;
@@ -84,7 +84,8 @@ abstract contract ForkTestBase is Test {
         // V3
         UNISWAP_V3_FACTORY = vm.envOr("UNISWAP_V3_FACTORY", address(0x1F98431c8aD98523631AE4a59f267346ea31F984));
         UNISWAP_V3_ROUTER = vm.envOr("UNISWAP_V3_ROUTER", address(0xE592427A0AEce92De3Edee1F18E0157C05861564));
-        UNISWAP_V3_POSITION_MANAGER = vm.envOr("UNISWAP_V3_POSITION_MANAGER", address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88));
+        UNISWAP_V3_POSITION_MANAGER =
+            vm.envOr("UNISWAP_V3_POSITION_MANAGER", address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88));
 
         WETH_USDC_V3_005 = vm.envOr("WETH_USDC_V3_005", address(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640));
         WETH_USDC_V3_03 = vm.envOr("WETH_USDC_V3_03", address(0x8ad599c3A0ff1De082011EFDDc58f1908eb6e6D8));
@@ -97,11 +98,14 @@ abstract contract ForkTestBase is Test {
         WETH_USDT_V3_03 = vm.envOr("WETH_USDT_V3_03", address(0x4e68Ccd3E89f51C3074ca5072bbAC773960dFa36));
 
         // V4 (Ethereum Mainnet deployments)
-        UNISWAP_V4_POOL_MANAGER = vm.envOr("UNISWAP_V4_POOL_MANAGER", address(0x000000000004444c5dc75cB358380D2e3dE08A90));
-        UNISWAP_V4_POSITION_MANAGER = vm.envOr("UNISWAP_V4_POSITION_MANAGER", address(0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e));
+        UNISWAP_V4_POOL_MANAGER =
+            vm.envOr("UNISWAP_V4_POOL_MANAGER", address(0x000000000004444c5dc75cB358380D2e3dE08A90));
+        UNISWAP_V4_POSITION_MANAGER =
+            vm.envOr("UNISWAP_V4_POSITION_MANAGER", address(0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e));
         UNISWAP_V4_QUOTER = vm.envOr("UNISWAP_V4_QUOTER", address(0x52F0E24D1c21C8A0cB1e5a5dD6198556BD9E1203));
         UNISWAP_V4_STATE_VIEW = vm.envOr("UNISWAP_V4_STATE_VIEW", address(0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227));
-        UNISWAP_V4_UNIVERSAL_ROUTER = vm.envOr("UNISWAP_V4_UNIVERSAL_ROUTER", address(0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af));
+        UNISWAP_V4_UNIVERSAL_ROUTER =
+            vm.envOr("UNISWAP_V4_UNIVERSAL_ROUTER", address(0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af));
         UNISWAP_V4_PERMIT2 = vm.envOr("UNISWAP_V4_PERMIT2", address(0x000000000022D473030F116dDEE9F6B43aC78BA3));
 
         // Test addresses
@@ -211,7 +215,15 @@ abstract contract ForkTestBase is Test {
     {
         (bool success, bytes memory data) = pool.staticcall(abi.encodeWithSignature("slot0()"));
         require(success, "slot0 failed");
-        (sqrtPriceX96, tick, observationIndex, observationCardinality, observationCardinalityNext, feeProtocol, unlocked) = abi.decode(data, (uint160, int24, uint16, uint16, uint16, uint8, bool));
+        (
+            sqrtPriceX96,
+            tick,
+            observationIndex,
+            observationCardinality,
+            observationCardinalityNext,
+            feeProtocol,
+            unlocked
+        ) = abi.decode(data, (uint160, int24, uint16, uint16, uint16, uint8, bool));
     }
 
     /**

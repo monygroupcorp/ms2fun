@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {Ownable} from "solady/auth/Ownable.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {Currency, CurrencyLibrary} from "v4-core/types/Currency.sol";
-import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-import {IUnlockCallback} from "v4-core/interfaces/callback/IUnlockCallback.sol";
-import {IHooks} from "v4-core/interfaces/IHooks.sol";
-import {PoolKey} from "v4-core/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/types/PoolId.sol";
-import {BalanceDelta, BalanceDeltaLibrary} from "v4-core/types/BalanceDelta.sol";
-import {StateLibrary} from "v4-core/libraries/StateLibrary.sol";
-import {CurrencySettler} from "../../libraries/v4/CurrencySettler.sol";
-import {LiquidityAmounts} from "../../libraries/v4/LiquidityAmounts.sol";
-import {TickMath} from "v4-core/libraries/TickMath.sol";
-import {IAlignmentVault} from "../../interfaces/IAlignmentVault.sol";
-import {IVaultPriceValidator} from "../../interfaces/IVaultPriceValidator.sol";
-import {IAlignmentRegistry} from "../../master/interfaces/IAlignmentRegistry.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
+import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
+import { IHooks } from "v4-core/interfaces/IHooks.sol";
+import { PoolKey } from "v4-core/types/PoolKey.sol";
+import { PoolId, PoolIdLibrary } from "v4-core/types/PoolId.sol";
+import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/types/BalanceDelta.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { CurrencySettler } from "../../libraries/v4/CurrencySettler.sol";
+import { LiquidityAmounts } from "../../libraries/v4/LiquidityAmounts.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 
 interface IzRouterV4 {
     function swapV4(
@@ -159,8 +159,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // zRouter swap config (set once at initialize)
     address public zRouter;
-    uint24  public zRouterFee;
-    int24   public zRouterTickSpacing;
+    uint24 public zRouterFee;
+    int24 public zRouterTickSpacing;
 
     // Peripherals (set once at initialize, owner can update)
     IVaultPriceValidator public priceValidator;
@@ -183,12 +183,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // ========== Events ==========
 
-    event LiquidityAdded(
-        uint256 ethSwapped,
-        uint256 tokenReceived,
-        uint256 lpPositionValue,
-        uint256 sharesIssued
-    );
+    event LiquidityAdded(uint256 ethSwapped, uint256 tokenReceived, uint256 lpPositionValue, uint256 sharesIssued);
     event DustDistributed(address indexed recipient, uint256 dustShares);
 
     event ProtocolYieldCollected(uint256 amount);
@@ -223,8 +218,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         address _alignmentToken,
         // slither-disable-next-line missing-zero-check
         address _zRouter,
-        uint24  _zRouterFee,
-        int24   _zRouterTickSpacing,
+        uint24 _zRouterFee,
+        int24 _zRouterTickSpacing,
         IVaultPriceValidator _priceValidator,
         IAlignmentRegistry _alignmentRegistry,
         uint256 _alignmentTargetId
@@ -288,11 +283,12 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @param currency Currency of the contribution (unused — vault only accepts native ETH)
     /// @param amount Contribution amount in wei
     /// @param benefactor Address to credit for this contribution (typically the project instance)
-    function receiveContribution(
-        Currency currency,
-        uint256 amount,
-        address benefactor
-    ) external payable override nonReentrant {
+    function receiveContribution(Currency currency, uint256 amount, address benefactor)
+        external
+        payable
+        override
+        nonReentrant
+    {
         if (amount == 0) revert AmountMustBePositive();
         if (msg.value != amount) revert AmountMismatch();
         if (benefactor == address(0)) revert InvalidAddress();
@@ -302,11 +298,11 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     function _trackBenefactorContribution(address benefactor, uint256 amount) internal {
         if (amount < MIN_CONTRIBUTION) revert ContributionBelowMinimum();
-        if(pendingETH[benefactor] == 0){
+        if (pendingETH[benefactor] == 0) {
             if (conversionParticipants.length >= MAX_CONVERSION_PARTICIPANTS) revert TooManyConversionParticipants();
             conversionParticipants.push(benefactor);
         }
-        if(benefactorTotalETH[benefactor] == 0){
+        if (benefactorTotalETH[benefactor] == 0) {
             totalUniqueBenefactors++;
         }
         benefactorTotalETH[benefactor] += amount;
@@ -331,13 +327,13 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     // slither-disable-next-line reentrancy-benign,reentrancy-eth
-    function convertAndAddLiquidity(
-        uint256 minOutTarget
-    ) external nonReentrant returns (uint256 lpPositionValue) {
+    function convertAndAddLiquidity(uint256 minOutTarget) external nonReentrant returns (uint256 lpPositionValue) {
         if (minOutTarget == 0) revert AmountMustBePositive();
         if (totalPendingETH == 0) revert NoPendingETH();
         if (alignmentToken == address(0)) revert NoAlignmentTarget();
-        if (Currency.unwrap(v4PoolKey.currency0) == address(0) && Currency.unwrap(v4PoolKey.currency1) == address(0)) revert PoolKeyNotSet();
+        if (Currency.unwrap(v4PoolKey.currency0) == address(0) && Currency.unwrap(v4PoolKey.currency1) == address(0)) {
+            revert PoolKeyNotSet();
+        }
 
         int24 tickLower = TickMath.minUsableTick(v4PoolKey.tickSpacing);
         int24 tickUpper = TickMath.maxUsableTick(v4PoolKey.tickSpacing);
@@ -345,8 +341,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         priceValidator.validatePrice(alignmentToken, totalPendingETH);
         uint256 proportionToSwap = priceValidator.calculateSwapProportion(
-            alignmentToken, lastTickLower, lastTickUpper, poolManager,
-            bytes32(PoolId.unwrap(v4PoolKey.toId()))
+            alignmentToken, lastTickLower, lastTickUpper, poolManager, bytes32(PoolId.unwrap(v4PoolKey.toId()))
         );
         uint256 ethToSwap = (ethToAdd * proportionToSwap) / 1e18; // round down: excess stays as ethForLP
 
@@ -363,16 +358,20 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-benign,unused-return
-    function _doSwapAndLP(
-        uint256 ethToAdd,
-        uint256 ethToSwap,
-        uint256 minOutTarget,
-        int24 tickLower,
-        int24 tickUpper
-    ) private returns (SwapLPResult memory r) {
-        (, r.targetTokenReceived) = IzRouterV4(zRouter).swapV4{value: ethToSwap}(
-            address(this), false, zRouterFee, zRouterTickSpacing,
-            address(0), alignmentToken, ethToSwap, minOutTarget, type(uint256).max
+    function _doSwapAndLP(uint256 ethToAdd, uint256 ethToSwap, uint256 minOutTarget, int24 tickLower, int24 tickUpper)
+        private
+        returns (SwapLPResult memory r)
+    {
+        (, r.targetTokenReceived) = IzRouterV4(zRouter).swapV4{ value: ethToSwap }(
+            address(this),
+            false,
+            zRouterFee,
+            zRouterTickSpacing,
+            address(0),
+            alignmentToken,
+            ethToSwap,
+            minOutTarget,
+            type(uint256).max
         );
 
         uint256 ethRemaining = ethToAdd - ethToSwap;
@@ -446,15 +445,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         }
 
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: lastTickLower,
-            tickUpper: lastTickUpper,
-            liquidityDelta: 0,
-            salt: 0
+            tickLower: lastTickLower, tickUpper: lastTickUpper, liquidityDelta: 0, salt: 0
         });
 
-        ModifyLiquidityCallbackData memory lpData = ModifyLiquidityCallbackData({
-            params: params
-        });
+        ModifyLiquidityCallbackData memory lpData = ModifyLiquidityCallbackData({ params: params });
 
         bytes memory result = IPoolManager(poolManager).unlock(abi.encode(lpData));
         BalanceDelta delta = abi.decode(result, (BalanceDelta));
@@ -504,24 +498,26 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         }
 
         SafeTransferLib.safeApproveWithRetry(alignmentToken, zRouter, tokenAmount);
-        (, ethReceived) = IzRouterV4(zRouter).swapV4(
-            address(this),
-            false,
-            zRouterFee,
-            zRouterTickSpacing,
-            alignmentToken,
-            address(0),
-            tokenAmount,
-            minEthOut,
-            type(uint256).max
-        );
+        (, ethReceived) = IzRouterV4(zRouter)
+            .swapV4(
+                address(this),
+                false,
+                zRouterFee,
+                zRouterTickSpacing,
+                alignmentToken,
+                address(0),
+                tokenAmount,
+                minEthOut,
+                type(uint256).max
+            );
     }
 
     // slither-disable-next-line incorrect-equality,reentrancy-benign,reentrancy-no-eth,timestamp
     function _collectAndAccumulateVaultFees() internal {
-        if (block.timestamp >= lastVaultFeeCollectionTime + vaultFeeCollectionInterval
-            || lastVaultFeeCollectionTime == 0) {
-
+        if (
+            block.timestamp >= lastVaultFeeCollectionTime + vaultFeeCollectionInterval
+                || lastVaultFeeCollectionTime == 0
+        ) {
             (uint256 ethCollected, uint256 tokenCollected) = _claimVaultFees();
             uint256 ethFromTokens = _convertVaultFeesToEth(tokenCollected);
 
@@ -568,7 +564,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (recipient == address(0)) recipient = benefactor;
 
         if (address(this).balance < ethClaimed) revert InsufficientBalance();
-        (bool success, ) = payable(recipient).call{value: ethClaimed}("");
+        (bool success,) = payable(recipient).call{ value: ethClaimed }("");
         if (!success) revert TransferFailed();
 
         emit FeesClaimed(benefactor, ethClaimed);
@@ -612,12 +608,11 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     // slither-disable-next-line unused-return
-    function _addToLpPosition(
-        uint256 amount0,
-        uint256 amount1,
-        int24 tickLower,
-        int24 tickUpper
-    ) internal virtual returns (uint128 liquidityUnits) {
+    function _addToLpPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
+        internal
+        virtual
+        returns (uint128 liquidityUnits)
+    {
         if (amount0 == 0 || amount1 == 0) revert AmountMustBePositive();
 
         lastTickLower = tickLower;
@@ -634,25 +629,19 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         }
 
         PoolId poolId = v4PoolKey.toId();
-        (uint160 sqrtPriceX96, , ,) = StateLibrary.getSlot0(IPoolManager(poolManager), poolId);
+        (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(poolManager), poolId);
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
-        uint128 liquidityToAdd = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, amount0, amount1
-        );
+        uint128 liquidityToAdd =
+            LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, amount0, amount1);
         if (liquidityToAdd == 0) revert InsufficientLiquidity();
         int256 liquidityDelta = int256(uint256(liquidityToAdd));
 
         IPoolManager.ModifyLiquidityParams memory params = IPoolManager.ModifyLiquidityParams({
-            tickLower: tickLower,
-            tickUpper: tickUpper,
-            liquidityDelta: liquidityDelta,
-            salt: 0
+            tickLower: tickLower, tickUpper: tickUpper, liquidityDelta: liquidityDelta, salt: 0
         });
 
-        ModifyLiquidityCallbackData memory lpData = ModifyLiquidityCallbackData({
-            params: params
-        });
+        ModifyLiquidityCallbackData memory lpData = ModifyLiquidityCallbackData({ params: params });
 
         bytes memory result = IPoolManager(poolManager).unlock(abi.encode(lpData));
 
@@ -673,11 +662,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         ModifyLiquidityCallbackData memory lpData = abi.decode(data, (ModifyLiquidityCallbackData));
 
-        (BalanceDelta delta, ) = IPoolManager(poolManager).modifyLiquidity(
-            v4PoolKey,
-            lpData.params,
-            ""
-        );
+        (BalanceDelta delta,) = IPoolManager(poolManager).modifyLiquidity(v4PoolKey, lpData.params, "");
 
         _settleLPDelta(delta);
 
@@ -706,7 +691,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     // ========== Pool Validation ==========
 
     function _validateV4Pool(PoolKey memory poolKey) internal view {
-        if (Currency.unwrap(poolKey.currency0) == address(0) && Currency.unwrap(poolKey.currency1) == address(0)) revert InvalidPoolKey();
+        if (Currency.unwrap(poolKey.currency0) == address(0) && Currency.unwrap(poolKey.currency1) == address(0)) {
+            revert InvalidPoolKey();
+        }
 
         if (poolKey.fee != 500 && poolKey.fee != 3000 && poolKey.fee != 10000) revert InvalidFeeTier();
 
@@ -741,36 +728,20 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     ///      add would revert on missing config. `currency1` is the alignment-token side (native ETH
     ///      is always `currency0 == address(0)`); an unset pool key leaves both currencies zero.
     function isLiquidityReady() external view returns (bool) {
-        return Currency.unwrap(v4PoolKey.currency1) != address(0)
-            && address(priceValidator) != address(0);
+        return Currency.unwrap(v4PoolKey.currency1) != address(0) && address(priceValidator) != address(0);
     }
 
     // ========== Query Functions ==========
 
-    function getBenefactorContribution(address benefactor)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function getBenefactorContribution(address benefactor) external view override returns (uint256) {
         return benefactorTotalETH[benefactor];
     }
 
-    function getBenefactorShares(address benefactor)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function getBenefactorShares(address benefactor) external view override returns (uint256) {
         return benefactorShares[benefactor];
     }
 
-    function calculateClaimableAmount(address benefactor)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function calculateClaimableAmount(address benefactor) external view override returns (uint256) {
         if (totalShares == 0 || accumulatedFees == 0) return 0;
         return (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
     }
@@ -778,11 +749,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @notice Get the unclaimed fee delta for a benefactor since their last claim
     /// @param benefactor Address to query
     /// @return Unclaimed ETH amount
-    function getUnclaimedFees(address benefactor)
-        external
-        view
-        returns (uint256)
-    {
+    function getUnclaimedFees(address benefactor) external view returns (uint256) {
         uint256 currentShareValue = (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
         return currentShareValue > shareValueAtLastClaim[benefactor]
             ? currentShareValue - shareValueAtLastClaim[benefactor]
@@ -796,12 +763,12 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     function description() external pure override returns (string memory) {
-        return "Full-range liquidity provision on Uniswap V4 with automated fee compounding and benefactor share distribution";
+        return
+            "Full-range liquidity provision on Uniswap V4 with automated fee compounding and benefactor share distribution";
     }
 
     function supportsCapability(bytes32 capability) external pure override returns (bool) {
-        return capability == keccak256("YIELD_GENERATION")
-            || capability == keccak256("BENEFACTOR_DELEGATION");
+        return capability == keccak256("YIELD_GENERATION") || capability == keccak256("BENEFACTOR_DELEGATION");
     }
 
     function currentPolicy() external pure override returns (bytes memory) {
@@ -833,7 +800,12 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @param benefactors Array of benefactor addresses to claim for
     /// @return totalClaimed Total ETH sent to the caller (delegate)
     // slither-disable-next-line reentrancy-benign
-    function claimFeesAsDelegate(address[] calldata benefactors) external override nonReentrant returns (uint256 totalClaimed) {
+    function claimFeesAsDelegate(address[] calldata benefactors)
+        external
+        override
+        nonReentrant
+        returns (uint256 totalClaimed)
+    {
         _collectAndAccumulateVaultFees();
 
         for (uint256 i = 0; i < benefactors.length; i++) {
@@ -861,7 +833,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (totalClaimed == 0) revert NoFeesToClaim();
         if (address(this).balance < totalClaimed) revert InsufficientBalance();
 
-        (bool success, ) = payable(msg.sender).call{value: totalClaimed}("");
+        (bool success,) = payable(msg.sender).call{ value: totalClaimed }("");
         if (!success) revert TransferFailed();
     }
 
@@ -951,7 +923,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         uint256 amount = accumulatedProtocolFees;
         if (amount == 0) revert NoFeesToClaim();
         accumulatedProtocolFees = 0;
-        (bool success, ) = payable(protocolTreasury).call{value: amount}("");
+        (bool success,) = payable(protocolTreasury).call{ value: amount }("");
         if (!success) revert TransferFailed();
         emit ProtocolFeesWithdrawn(amount);
     }

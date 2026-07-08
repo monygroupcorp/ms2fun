@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
-import {ERC1155Instance} from "../../src/factories/erc1155/ERC1155Instance.sol";
-import {ERC1155EditionHandler} from "./handlers/ERC1155EditionHandler.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
+import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol";
+import { ERC1155EditionHandler } from "./handlers/ERC1155EditionHandler.sol";
 
 contract MockGlobalMessageRegistry {
-    function postForAction(address, address, bytes calldata) external {}
+    function postForAction(address, address, bytes calldata) external { }
 }
 
 contract MockAlignmentVault {
-    receive() external payable {}
-    function receiveContribution(bytes32, uint256, address) external payable {}
+    receive() external payable { }
+    function receiveContribution(bytes32, uint256, address) external payable { }
 }
 
 contract ERC1155EditionInvariantTest is StdInvariant, Test {
@@ -64,15 +64,7 @@ contract ERC1155EditionInvariantTest is StdInvariant, Test {
         );
 
         // Add an unlimited edition
-        instance.addEdition(
-            "Open Piece",
-            0.005 ether,
-            0,
-            "ipfs://open",
-            ERC1155Instance.PricingModel.UNLIMITED,
-            0,
-            0
-        );
+        instance.addEdition("Open Piece", 0.005 ether, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
 
         vm.stopPrank();
 
@@ -91,13 +83,9 @@ contract ERC1155EditionInvariantTest is StdInvariant, Test {
     function invariant_mintedNeverExceedsMaxSupply() public view {
         uint256 editionCount = instance.nextEditionId() - 1;
         for (uint256 i = 1; i <= editionCount; i++) {
-            (,, , uint256 supply, uint256 minted,,,,) = instance.editions(i);
+            (,,, uint256 supply, uint256 minted,,,,) = instance.editions(i);
             if (supply > 0) {
-                assertLe(
-                    minted,
-                    supply,
-                    "edition.minted exceeds edition.supply"
-                );
+                assertLe(minted, supply, "edition.minted exceeds edition.supply");
             }
         }
     }
@@ -109,18 +97,14 @@ contract ERC1155EditionInvariantTest is StdInvariant, Test {
         address[] memory actorList = handler.getActors();
 
         for (uint256 i = 1; i <= editionCount; i++) {
-            (,,, , uint256 minted,,,,) = instance.editions(i);
+            (,,,, uint256 minted,,,,) = instance.editions(i);
 
             uint256 balanceSum = 0;
             for (uint256 j = 0; j < actorList.length; j++) {
                 balanceSum += instance.balanceOf(actorList[j], i);
             }
 
-            assertEq(
-                balanceSum,
-                minted,
-                "sum(balanceOf) != edition.minted"
-            );
+            assertEq(balanceSum, minted, "sum(balanceOf) != edition.minted");
         }
     }
 }

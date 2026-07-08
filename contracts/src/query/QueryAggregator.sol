@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SafeOwnableUUPS} from "../shared/SafeOwnableUUPS.sol";
-import {IMasterRegistry} from "../master/interfaces/IMasterRegistry.sol";
-import {IAlignmentVault} from "../interfaces/IAlignmentVault.sol";
-import {IInstance} from "../interfaces/IInstance.sol";
-import {IInstanceLifecycle, TYPE_ERC404, TYPE_ERC1155} from "../interfaces/IInstanceLifecycle.sol";
+import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
+import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
+import { IAlignmentVault } from "../interfaces/IAlignmentVault.sol";
+import { IInstance } from "../interfaces/IInstance.sol";
+import { IInstanceLifecycle, TYPE_ERC404, TYPE_ERC1155 } from "../interfaces/IInstanceLifecycle.sol";
 
 /// @notice Interface for FeaturedQueueManager
 interface IFeaturedQueueManager {
     function getFeaturedInstances(uint256 startIndex, uint256 endIndex)
-        external view returns (address[] memory instances, uint256 total);
+        external
+        view
+        returns (address[] memory instances, uint256 total);
 
-    function getRentalInfo(address instance) external view returns (
-        address renter,
-        uint256 effectiveRank,
-        uint256 expiresAt,
-        bool isActive
-    );
+    function getRentalInfo(address instance)
+        external
+        view
+        returns (address renter, uint256 effectiveRank, uint256 expiresAt, bool isActive);
 }
 
 /// @notice Interface for GlobalMessageRegistry
@@ -39,7 +39,12 @@ interface IERC1155Balance {
 
 /// @notice Minimal ERC1155 edition data interface for batch reads
 interface IERC1155EditionReader {
-    enum PricingModel { UNLIMITED, LIMITED_FIXED, LIMITED_DYNAMIC }
+    enum PricingModel {
+        UNLIMITED,
+        LIMITED_FIXED,
+        LIMITED_DYNAMIC
+    }
+
     struct Edition {
         uint256 id;
         string pieceTitle;
@@ -210,10 +215,9 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @return totalFeatured Total count in featured queue (for pagination)
      */
     function getHomePageData(uint256 offset, uint256 limit)
-        external view returns (
-            ProjectCard[] memory projects,
-            uint256 totalFeatured
-        )
+        external
+        view
+        returns (ProjectCard[] memory projects, uint256 totalFeatured)
     {
         if (limit > MAX_QUERY_LIMIT) revert LimitTooHigh();
 
@@ -236,9 +240,7 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @param instances Array of instance addresses
      * @return cards Fully populated ProjectCard array
      */
-    function getProjectCardsBatch(address[] calldata instances)
-        external view returns (ProjectCard[] memory cards)
-    {
+    function getProjectCardsBatch(address[] calldata instances) external view returns (ProjectCard[] memory cards) {
         if (instances.length > MAX_QUERY_LIMIT) revert TooManyInstances();
 
         cards = new ProjectCard[](instances.length);
@@ -258,7 +260,9 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @return totalClaimable Sum of all claimable rewards (ETH)
      */
     function getPortfolioData(address user, address[] calldata instances, address[] calldata vaultAddrs)
-        external view returns (
+        external
+        view
+        returns (
             ERC404Holding[] memory erc404Holdings,
             ERC1155Holding[] memory erc1155Holdings,
             VaultPosition[] memory vaultPositions,
@@ -308,8 +312,8 @@ contract QueryAggregator is SafeOwnableUUPS {
                         acc.tempERC1155[acc.erc1155Count++] = holding;
                     }
                 }
-            } catch {}
-        } catch {}
+            } catch { }
+        } catch { }
     }
 
     // ============ Internal Helpers ============
@@ -331,7 +335,7 @@ contract QueryAggregator is SafeOwnableUUPS {
             card.registeredAt = info.registeredAt;
             card.factory = info.factory;
             card.vault = info.vaults.length > 0 ? info.vaults[info.vaults.length - 1] : address(0);
-        } catch {}
+        } catch { }
 
         // 2–5 don't depend on step 1 succeeding — they use card fields or instance directly
         _hydrateFactory(card);
@@ -346,7 +350,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         try masterRegistry.getFactoryInfoByAddress(card.factory) returns (IMasterRegistry.FactoryInfo memory info) {
             card.contractType = info.contractType;
             card.factoryTitle = info.title;
-        } catch {}
+        } catch { }
     }
 
     // slither-disable-next-line calls-loop
@@ -354,7 +358,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         if (card.vault == address(0)) return;
         try masterRegistry.getVaultInfo(card.vault) returns (IMasterRegistry.VaultInfo memory info) {
             card.vaultName = info.name;
-        } catch {}
+        } catch { }
     }
 
     // slither-disable-next-line calls-loop
@@ -385,7 +389,9 @@ contract QueryAggregator is SafeOwnableUUPS {
             bool isActive;
             bool hasUnlimited;
             for (uint256 i = 1; i <= count; i++) {
-                try IERC1155EditionReader(card.instance).getEdition(i) returns (IERC1155EditionReader.Edition memory ed) {
+                try IERC1155EditionReader(card.instance).getEdition(i) returns (
+                    IERC1155EditionReader.Edition memory ed
+                ) {
                     if (ed.basePrice < floorPrice) floorPrice = ed.basePrice;
                     totalMinted += ed.minted;
                     if (ed.supply == 0) {
@@ -394,14 +400,15 @@ contract QueryAggregator is SafeOwnableUUPS {
                         maxSupply += ed.supply;
                         if (ed.minted < ed.supply) isActive = true;
                     }
-                } catch {}
+                } catch { }
             }
-            if (hasUnlimited) { maxSupply = 0; isActive = true; }
+            if (hasUnlimited) maxSupply = 0;
+            isActive = true;
             card.currentPrice = floorPrice == type(uint256).max ? 0 : floorPrice;
             card.totalSupply = totalMinted;
             card.maxSupply = maxSupply;
             card.isActive = isActive;
-        } catch {}
+        } catch { }
     }
 
     // slither-disable-next-line calls-loop,unused-return
@@ -413,7 +420,7 @@ contract QueryAggregator is SafeOwnableUUPS {
                 card.featuredRank = rank;
                 card.featuredExpires = expires;
             }
-        } catch {}
+        } catch { }
     }
 
     /**
@@ -421,7 +428,9 @@ contract QueryAggregator is SafeOwnableUUPS {
      */
     // slither-disable-next-line calls-loop
     function _getERC404Holding(address instance, address user, string memory name_)
-        internal view returns (ERC404Holding memory holding)
+        internal
+        view
+        returns (ERC404Holding memory holding)
     {
         holding.instance = instance;
         holding.name = name_;
@@ -431,20 +440,20 @@ contract QueryAggregator is SafeOwnableUUPS {
             holding.tokenBalance = balance;
             // NFT balance is tokenBalance / 1e24 (1M tokens per NFT)
             holding.nftBalance = balance / (1000000 * 1e18); // round down: view-only, standard integer NFT count
-        } catch {}
+        } catch { }
 
         // Get staking info
         try IERC404Staking(instance).stakingEnabled() returns (bool enabled) {
             if (enabled) {
                 try IERC404Staking(instance).stakedBalance(user) returns (uint256 staked) {
                     holding.stakedBalance = staked;
-                } catch {}
+                } catch { }
 
                 try IERC404Staking(instance).calculatePendingRewards(user) returns (uint256 pending) {
                     holding.pendingRewards = pending;
-                } catch {}
+                } catch { }
             }
-        } catch {}
+        } catch { }
     }
 
     /**
@@ -452,7 +461,9 @@ contract QueryAggregator is SafeOwnableUUPS {
      */
     // slither-disable-next-line calls-loop
     function _getERC1155Holding(address instance, address user, string memory name_)
-        internal view returns (ERC1155Holding memory holding)
+        internal
+        view
+        returns (ERC1155Holding memory holding)
     {
         holding.instance = instance;
         holding.name = name_;
@@ -469,7 +480,7 @@ contract QueryAggregator is SafeOwnableUUPS {
                         tempBalances[nonZeroCount] = balance;
                         nonZeroCount++;
                     }
-                } catch {}
+                } catch { }
             }
 
             // Trim to non-zero balances
@@ -485,10 +496,10 @@ contract QueryAggregator is SafeOwnableUUPS {
                             holding.balances[idx] = balance;
                             idx++;
                         }
-                    } catch {}
+                    } catch { }
                 }
             }
-        } catch {}
+        } catch { }
     }
 
     /**
@@ -498,7 +509,9 @@ contract QueryAggregator is SafeOwnableUUPS {
      */
     // slither-disable-next-line calls-loop
     function _getVaultPositions(address user, address[] calldata vaultAddrs)
-        internal view returns (VaultPosition[] memory positions)
+        internal
+        view
+        returns (VaultPosition[] memory positions)
     {
         VaultPosition[] memory tempPositions = new VaultPosition[](vaultAddrs.length);
         uint256 positionCount = 0;
@@ -516,21 +529,23 @@ contract QueryAggregator is SafeOwnableUUPS {
                     // Get vault name
                     try masterRegistry.getVaultInfo(vaultAddr) returns (IMasterRegistry.VaultInfo memory info) {
                         pos.name = info.name;
-                    } catch {}
+                    } catch { }
 
                     // Get contribution
-                    try IAlignmentVault(payable(vaultAddr)).getBenefactorContribution(user) returns (uint256 contribution) {
+                    try IAlignmentVault(payable(vaultAddr)).getBenefactorContribution(user) returns (
+                        uint256 contribution
+                    ) {
                         pos.contribution = contribution;
-                    } catch {}
+                    } catch { }
 
                     // Get claimable
                     try IAlignmentVault(payable(vaultAddr)).calculateClaimableAmount(user) returns (uint256 claimable) {
                         pos.claimable = claimable;
-                    } catch {}
+                    } catch { }
 
                     tempPositions[positionCount++] = pos;
                 }
-            } catch {}
+            } catch { }
         }
 
         // Trim to actual size
@@ -559,7 +574,9 @@ contract QueryAggregator is SafeOwnableUUPS {
     /// @param startId First edition ID (1-indexed, inclusive)
     /// @param endId Last edition ID (inclusive)
     function getERC1155EditionsBatch(address instance, uint256 startId, uint256 endId)
-        external view returns (EditionView[] memory result)
+        external
+        view
+        returns (EditionView[] memory result)
     {
         IERC1155EditionReader reader = IERC1155EditionReader(instance);
         uint256 maxEditionId = reader.nextEditionId() - 1;
@@ -592,11 +609,10 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @param _featuredQueueManager New FeaturedQueueManager address
      * @param _globalMessageRegistry New GlobalMessageRegistry address
      */
-    function setRegistries(
-        address _masterRegistry,
-        address _featuredQueueManager,
-        address _globalMessageRegistry
-    ) external onlyOwner {
+    function setRegistries(address _masterRegistry, address _featuredQueueManager, address _globalMessageRegistry)
+        external
+        onlyOwner
+    {
         if (_masterRegistry != address(0)) {
             masterRegistry = IMasterRegistry(_masterRegistry);
         }
@@ -607,5 +623,4 @@ contract QueryAggregator is SafeOwnableUUPS {
             globalMessageRegistry = IGlobalMessageRegistry(_globalMessageRegistry);
         }
     }
-
 }

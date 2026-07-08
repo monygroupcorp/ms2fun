@@ -13,11 +13,7 @@ interface IHook {
      * @param amount Amount of tokens being transferred
      * @return success Whether the hook execution succeeded
      */
-    function preTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool success);
+    function preTransfer(address from, address to, uint256 amount) external returns (bool success);
 
     /**
      * @notice Execute post-transfer hook logic
@@ -25,11 +21,7 @@ interface IHook {
      * @param to Address that received tokens
      * @param amount Amount of tokens transferred
      */
-    function postTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) external;
+    function postTransfer(address from, address to, uint256 amount) external;
 
     /**
      * @notice Get the vault address this hook pays out to

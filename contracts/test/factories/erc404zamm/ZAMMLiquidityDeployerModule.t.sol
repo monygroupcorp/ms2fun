@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {ZAMMLiquidityDeployerModule} from "../../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
-import {ILiquidityDeployerModule} from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import {MockZAMM} from "../../mocks/MockZAMM.sol";
-import {MockERC20} from "../../mocks/MockERC20.sol";
-import {MockVault} from "../../mocks/MockVault.sol";
-import {MockMasterRegistry} from "../../mocks/MockMasterRegistry.sol";
+import { Test } from "forge-std/Test.sol";
+import { ZAMMLiquidityDeployerModule } from "../../../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
+import { MockZAMM } from "../../mocks/MockZAMM.sol";
+import { MockERC20 } from "../../mocks/MockERC20.sol";
+import { MockVault } from "../../mocks/MockVault.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 
 contract ZAMMLiquidityDeployerModuleTest is Test {
     ZAMMLiquidityDeployerModule module;
@@ -49,14 +49,14 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
         });
 
         vm.deal(address(this), ethReserve);
-        module.deployLiquidity{value: ethReserve}(p);
+        module.deployLiquidity{ value: ethReserve }(p);
 
         // feeOrHook is now an immutable on the module
         assertEq(module.feeOrHook(), 30);
 
         // Fixed 1/19/80 split
         uint256 expectedProtocolFee = ethReserve / 100;
-        uint256 expectedVaultCut    = (ethReserve * 19) / 100;
+        uint256 expectedVaultCut = (ethReserve * 19) / 100;
         assertEq(treasury.balance, expectedProtocolFee, "Protocol should receive 1%");
         assertEq(address(vault).balance, expectedVaultCut, "Vault should receive 19%");
     }
@@ -76,7 +76,7 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
 
         vm.deal(address(this), 5 ether);
         vm.expectRevert();
-        module.deployLiquidity{value: 5 ether}(p);
+        module.deployLiquidity{ value: 5 ether }(p);
     }
 
     // ── Creator carve ─────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
         emit ZAMMLiquidityDeployerModule.CreatorCarvePaid(instance, creator, carve, carve);
 
         vm.deal(address(this), ethReserve);
-        module.deployLiquidity{value: ethReserve}(_carveParams(ethReserve, creator, carve));
+        module.deployLiquidity{ value: ethReserve }(_carveParams(ethReserve, creator, carve));
 
         assertEq(treasury.balance, 0.1 ether + 0.01 ether, "protocol = 1% raise + 1% carve");
         assertEq(address(vault).balance, 1.9 ether + 0.19 ether, "vault = 19% raise + 19% carve");
@@ -126,14 +126,14 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
         token.mint(address(module), 1000 ether);
         vm.deal(address(this), 10 ether);
         vm.expectRevert(ZAMMLiquidityDeployerModule.NoETHForPool.selector);
-        module.deployLiquidity{value: 10 ether}(_carveParams(10 ether, creator, 100 ether));
+        module.deployLiquidity{ value: 10 ether }(_carveParams(10 ether, creator, 100 ether));
     }
 
     /// @notice creator == address(0) defensively zeroes the carve (everything to the pool).
     function test_deployLiquidity_carve_zeroCreatorZeroesCarve() public {
         token.mint(address(module), 1000 ether);
         vm.deal(address(this), 10 ether);
-        module.deployLiquidity{value: 10 ether}(_carveParams(10 ether, address(0), 1 ether));
+        module.deployLiquidity{ value: 10 ether }(_carveParams(10 ether, address(0), 1 ether));
 
         assertEq(treasury.balance, 0.1 ether, "protocol = plain 1%");
         assertEq(address(vault).balance, 1.9 ether, "vault = plain 19%");
@@ -150,7 +150,7 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
         ILiquidityDeployerModule.DeployParams memory p = _carveParams(10 ether, address(0), 0);
         p.instance = address(this);
         vm.expectRevert(ZAMMLiquidityDeployerModule.UnauthorizedCaller.selector);
-        module.deployLiquidity{value: 10 ether}(p);
+        module.deployLiquidity{ value: 10 ether }(p);
     }
 
     /// @notice A caller passing a crafted p.instance it does not control reverts (no impersonation).
@@ -160,6 +160,6 @@ contract ZAMMLiquidityDeployerModuleTest is Test {
         ILiquidityDeployerModule.DeployParams memory p = _carveParams(10 ether, address(0), 0);
         p.instance = makeAddr("victimInstance"); // registered per mock default, but != msg.sender
         vm.expectRevert(ZAMMLiquidityDeployerModule.UnauthorizedCaller.selector);
-        module.deployLiquidity{value: 10 ether}(p);
+        module.deployLiquidity{ value: 10 ether }(p);
     }
 }

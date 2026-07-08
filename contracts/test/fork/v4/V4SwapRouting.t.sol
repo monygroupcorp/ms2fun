@@ -102,10 +102,10 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
         if (!v4Available) return;
         emit log_string("=== WETH/USDC V4 Pools ===");
 
-        bool found1 = _tryQueryPoolWithWETH(USDC, 100);    // 0.01%
-        bool found2 = _tryQueryPoolWithWETH(USDC, 500);    // 0.05%
-        bool found3 = _tryQueryPoolWithWETH(USDC, 3000);   // 0.3%
-        bool found4 = _tryQueryPoolWithWETH(USDC, 10000);  // 1%
+        bool found1 = _tryQueryPoolWithWETH(USDC, 100); // 0.01%
+        bool found2 = _tryQueryPoolWithWETH(USDC, 500); // 0.05%
+        bool found3 = _tryQueryPoolWithWETH(USDC, 3000); // 0.3%
+        bool found4 = _tryQueryPoolWithWETH(USDC, 10000); // 1%
 
         if (found1 || found2 || found3 || found4) {
             emit log_string("FOUND: WETH/USDC V4 pools exist!");
@@ -459,11 +459,8 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
             sqrtPriceLimitX96: TickMath.MAX_SQRT_PRICE - 1
         });
 
-        MultihopSwapData memory multihopData = MultihopSwapData({
-            keys: keys,
-            params: params,
-            recipient: address(this)
-        });
+        MultihopSwapData memory multihopData =
+            MultihopSwapData({ keys: keys, params: params, recipient: address(this) });
 
         // Set multihop flag and execute
         isMultihop = true;
@@ -548,7 +545,7 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
 
         // Give this contract ETH, wrap to WETH
         vm.deal(address(this), amountIn);
-        (bool success,) = WETH.call{value: amountIn}(abi.encodeWithSignature("deposit()"));
+        (bool success,) = WETH.call{ value: amountIn }(abi.encodeWithSignature("deposit()"));
         require(success, "WETH wrap failed");
 
         // Approve V3 router
@@ -558,14 +555,14 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
         // Execute V3 swap
         bytes memory swapData = abi.encodeWithSignature(
             "exactInputSingle((address,address,uint24,address,uint256,uint256,uint256,uint160))",
-            WETH,           // tokenIn
-            USDC,           // tokenOut
-            500,            // fee (0.05%)
-            address(this),  // recipient
-            block.timestamp + 300,  // deadline
-            amountIn,       // amountIn
-            0,              // amountOutMinimum
-            0               // sqrtPriceLimitX96
+            WETH, // tokenIn
+            USDC, // tokenOut
+            500, // fee (0.05%)
+            address(this), // recipient
+            block.timestamp + 300, // deadline
+            amountIn, // amountIn
+            0, // amountOutMinimum
+            0 // sqrtPriceLimitX96
         );
 
         bytes memory result;
@@ -768,7 +765,9 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
      * @dev V4's flash accounting nets deltas for shared currencies automatically
      * We manually track and net the deltas, then settle once per currency
      */
-    function _settleAllMultihopDeltas(PoolKey[] memory keys, BalanceDelta[] memory allDeltas, address recipient) internal {
+    function _settleAllMultihopDeltas(PoolKey[] memory keys, BalanceDelta[] memory allDeltas, address recipient)
+        internal
+    {
         // Track net deltas for each currency
         Currency[] memory currencies = new Currency[](10); // Support up to 10 unique currencies
         int256[] memory netDeltas = new int256[](10);
@@ -840,12 +839,10 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
      * @param recipient Address to receive output tokens
      * @return amountOut Amount of output tokens received
      */
-    function _executeV4Swap(
-        PoolKey memory key,
-        bool zeroForOne,
-        int256 amountSpecified,
-        address recipient
-    ) internal returns (uint256 amountOut) {
+    function _executeV4Swap(PoolKey memory key, bool zeroForOne, int256 amountSpecified, address recipient)
+        internal
+        returns (uint256 amountOut)
+    {
         // Set price limit to allow full price range
         // This ensures the swap can complete even with concentrated liquidity
         uint160 sqrtPriceLimit;
@@ -859,17 +856,11 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
 
         // Prepare swap params
         IPoolManager.SwapParams memory swapParams = IPoolManager.SwapParams({
-            zeroForOne: zeroForOne,
-            amountSpecified: amountSpecified,
-            sqrtPriceLimitX96: sqrtPriceLimit
+            zeroForOne: zeroForOne, amountSpecified: amountSpecified, sqrtPriceLimitX96: sqrtPriceLimit
         });
 
         // Encode callback data
-        SwapCallbackData memory callbackData = SwapCallbackData({
-            key: key,
-            params: swapParams,
-            recipient: recipient
-        });
+        SwapCallbackData memory callbackData = SwapCallbackData({ key: key, params: swapParams, recipient: recipient });
 
         // Execute swap via unlock
         bytes memory result = poolManager.unlock(abi.encode(callbackData));
@@ -897,12 +888,10 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
      * @param recipient Address to receive output tokens
      * @return amountIn Amount of input tokens spent
      */
-    function _executeV4ExactOutput(
-        PoolKey memory key,
-        bool zeroForOne,
-        int256 amountOut,
-        address recipient
-    ) internal returns (uint256 amountIn) {
+    function _executeV4ExactOutput(PoolKey memory key, bool zeroForOne, int256 amountOut, address recipient)
+        internal
+        returns (uint256 amountIn)
+    {
         require(amountOut > 0, "amountOut must be positive for exact output");
 
         // Set price limit to allow full price range
@@ -923,11 +912,7 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
         });
 
         // Encode callback data
-        SwapCallbackData memory callbackData = SwapCallbackData({
-            key: key,
-            params: swapParams,
-            recipient: recipient
-        });
+        SwapCallbackData memory callbackData = SwapCallbackData({ key: key, params: swapParams, recipient: recipient });
 
         // Execute swap via unlock
         bytes memory result = poolManager.unlock(abi.encode(callbackData));
@@ -965,17 +950,17 @@ contract V4SwapRoutingTest is ForkTestBase, IUnlockCallback {
      * @dev V4 uses same tick spacing as V3
      */
     function _getTickSpacing(uint24 fee) internal pure returns (int24) {
-        if (fee == 100) return 1;      // 0.01%
-        if (fee == 500) return 10;     // 0.05%
-        if (fee == 3000) return 60;    // 0.3%
-        if (fee == 10000) return 200;  // 1%
+        if (fee == 100) return 1; // 0.01%
+        if (fee == 500) return 10; // 0.05%
+        if (fee == 3000) return 60; // 0.3%
+        if (fee == 10000) return 200; // 1%
         revert("Unknown fee tier");
     }
 
     /**
      * @notice Allow contract to receive ETH
      */
-    receive() external payable {}
+    receive() external payable { }
 
     /**
      * @notice Try to query a specific V4 pool

@@ -45,11 +45,17 @@ contract MockCypherAlgebraTest is Test {
 
         (uint256 tokenId, uint128 liquidity,,) = positionManager.mint(
             IAlgebraNFTPositionManager.MintParams({
-                token0: address(t0), token1: address(t1), deployer: address(0),
-                tickLower: -887220, tickUpper: 887220,
-                amount0Desired: 1e18, amount1Desired: 1e18,
-                amount0Min: 0, amount1Min: 0,
-                recipient: address(this), deadline: block.timestamp + 1
+                token0: address(t0),
+                token1: address(t1),
+                deployer: address(0),
+                tickLower: -887220,
+                tickUpper: 887220,
+                amount0Desired: 1e18,
+                amount1Desired: 1e18,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: address(this),
+                deadline: block.timestamp + 1
             })
         );
         assertEq(tokenId, 1);
@@ -68,11 +74,17 @@ contract MockCypherAlgebraTest is Test {
 
         (uint256 tokenId,,,) = positionManager.mint(
             IAlgebraNFTPositionManager.MintParams({
-                token0: address(t0), token1: address(t1), deployer: address(0),
-                tickLower: -887220, tickUpper: 887220,
-                amount0Desired: 1e18, amount1Desired: 1e18,
-                amount0Min: 0, amount1Min: 0,
-                recipient: address(this), deadline: block.timestamp + 1
+                token0: address(t0),
+                token1: address(t1),
+                deployer: address(0),
+                tickLower: -887220,
+                tickUpper: 887220,
+                amount0Desired: 1e18,
+                amount1Desired: 1e18,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: address(this),
+                deadline: block.timestamp + 1
             })
         );
 
@@ -83,8 +95,7 @@ contract MockCypherAlgebraTest is Test {
 
         (uint256 a0, uint256 a1) = positionManager.collect(
             IAlgebraNFTPositionManager.CollectParams({
-                tokenId: tokenId, recipient: address(this),
-                amount0Max: type(uint128).max, amount1Max: type(uint128).max
+                tokenId: tokenId, recipient: address(this), amount0Max: type(uint128).max, amount1Max: type(uint128).max
             })
         );
         assertEq(a0, 0.1e18);

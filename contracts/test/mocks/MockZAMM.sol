@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice Mock ZAMM for unit testing ZAMMAlignmentVault
 /// Simulates addLiquidity/removeLiquidity/balanceOf/pools() without real math.
@@ -35,7 +35,7 @@ contract MockZAMM {
     uint256 public ethPerLp = 1e15; // 0.001 ETH per LP unit
     uint256 public tokenPerLp = 1e15;
 
-    receive() external payable {}
+    receive() external payable { }
 
     function balanceOf(address owner, uint256 id) external view returns (uint256) {
         return lpBalances[owner][id];
@@ -50,20 +50,36 @@ contract MockZAMM {
     // Configurable swap output for swapExactIn
     uint256 public ethPerToken = 1e15; // 0.001 ETH per token
 
-    function setLpToMint(uint256 amount) external { lpToMint = amount; }
-    function setEthPerLp(uint256 amount) external { ethPerLp = amount; }
-    function setTokenPerLp(uint256 amount) external { tokenPerLp = amount; }
-    function setEthPerToken(uint256 amount) external { ethPerToken = amount; }
+    function setLpToMint(uint256 amount) external {
+        lpToMint = amount;
+    }
+
+    function setEthPerLp(uint256 amount) external {
+        ethPerLp = amount;
+    }
+
+    function setTokenPerLp(uint256 amount) external {
+        tokenPerLp = amount;
+    }
+
+    function setEthPerToken(uint256 amount) external {
+        ethPerToken = amount;
+    }
 
     /// @notice Simulates swapExactIn: pulls tokens from caller, sends ETH to `to`
     function swapExactIn(
         PoolKey calldata poolKey,
         uint256 amountIn,
-        uint256 /*amountOutMin*/,
-        bool /*zeroForOne*/,
+        uint256,
+        /*amountOutMin*/
+        bool,
+        /*zeroForOne*/
         address to,
         uint256 /*deadline*/
-    ) external returns (uint256 amountOut) {
+    )
+        external
+        returns (uint256 amountOut)
+    {
         // Pull the non-ETH token from caller
         address token = poolKey.token0 != address(0) ? poolKey.token0 : poolKey.token1;
         if (token != address(0)) {
@@ -71,7 +87,7 @@ contract MockZAMM {
         }
         amountOut = amountIn * ethPerToken / 1 ether;
         if (amountOut > 0 && address(this).balance >= amountOut) {
-            (bool ok,) = payable(to).call{value: amountOut}("");
+            (bool ok,) = payable(to).call{ value: amountOut }("");
             require(ok, "MockZAMM: ETH transfer failed");
         }
     }
@@ -81,8 +97,10 @@ contract MockZAMM {
         PoolKey calldata poolKey,
         uint256 amount0Desired,
         uint256 amount1Desired,
-        uint256 /*amount0Min*/,
-        uint256 /*amount1Min*/,
+        uint256,
+        /*amount0Min*/
+        uint256,
+        /*amount1Min*/
         address to,
         uint256 /*deadline*/
     ) external payable returns (uint256 amount0, uint256 amount1, uint256 liquidity) {
@@ -112,11 +130,16 @@ contract MockZAMM {
     function removeLiquidity(
         PoolKey calldata poolKey,
         uint256 liquidity,
-        uint256 /*amount0Min*/,
-        uint256 /*amount1Min*/,
+        uint256,
+        /*amount0Min*/
+        uint256,
+        /*amount1Min*/
         address to,
         uint256 /*deadline*/
-    ) external returns (uint256 amount0, uint256 amount1) {
+    )
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
         uint256 poolId = uint256(keccak256(abi.encode(poolKey)));
         require(lpBalances[msg.sender][poolId] >= liquidity, "insufficient LP");
         uint256 supplyBefore = pools[poolId].supply;
@@ -136,7 +159,7 @@ contract MockZAMM {
 
         // Send ETH via call (transfer only forwards 2300 gas, not enough for vault receive())
         if (amount0 > 0 && address(this).balance >= amount0) {
-            (bool ok,) = payable(to).call{value: amount0}("");
+            (bool ok,) = payable(to).call{ value: amount0 }("");
             require(ok, "MockZAMM: ETH transfer failed");
         }
         // Send token

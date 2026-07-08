@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "solady/auth/Ownable.sol";
-import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {IAlignmentRegistry} from "./interfaces/IAlignmentRegistry.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
 
 /// @dev Minimal read surface for the dup guard — `tokenToTargetIds` is a public mapping on
 ///      AlignmentRegistryV1 (no length getter, so the guard is best-effort on the first target).
@@ -37,17 +37,23 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     error NoRefund();
 
     // ── Types ───────────────────────────────────────────────────────────────
-    enum Status { None, Pending, Approved, Rejected, Expired }
+    enum Status {
+        None,
+        Pending,
+        Approved,
+        Rejected,
+        Expired
+    }
 
     struct Request {
         address requester;
-        address token;        // primary token — feeds the pool scout + the dup guard
-        string  title;
-        string  description;
-        string  metadataURI;
-        uint256 deposit;      // escrowed while Pending
-        uint40  submittedAt;
-        Status  status;
+        address token; // primary token — feeds the pool scout + the dup guard
+        string title;
+        string description;
+        string metadataURI;
+        uint256 deposit; // escrowed while Pending
+        uint40 submittedAt;
+        Status status;
     }
 
     // ── Storage ─────────────────────────────────────────────────────────────
@@ -75,7 +81,9 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
     mapping(uint256 => uint256) internal _pendingIndex;
 
     // ── Events ──────────────────────────────────────────────────────────────
-    event RequestSubmitted(uint256 indexed id, address indexed requester, address indexed token, string title, uint256 deposit);
+    event RequestSubmitted(
+        uint256 indexed id, address indexed requester, address indexed token, string title, uint256 deposit
+    );
     event RequestApproved(uint256 indexed id, address indexed requester, uint256 refunded);
     event RequestRejected(uint256 indexed id, address indexed requester, bool forfeited, uint256 amount);
     event RequestExpired(uint256 indexed id, address indexed requester, uint256 refunded);
