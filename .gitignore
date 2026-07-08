@@ -52,6 +52,7 @@ docs/*
 !docs/contract-facts.md
 !docs/phases/
 !docs/decisions/
+!docs/_archive/
 
 # Root-level planning docs
 ABI_COVERAGE_REPORT.json
@@ -60,10 +61,8 @@ CONTRACTS_AGENT_BRIEFING.md
 DATA_LAYER_ARCHITECTURE.md
 FRONTEND_COVERAGE_CHECKLIST.md
 GITHUB_PAGES_ROUTING.md
-LOCAL_DEV_GUIDE.md
 MESSAGE_SYSTEM_FIXES.md
 V2_PROJECT_STRUCTURE.md
-localdeployment.md
 
 # Debug/diagnostic scripts
 diagnose-*.js
