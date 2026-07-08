@@ -27,6 +27,14 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error ZeroLiquidity();
     /// @dev Caller is not the genuine, registered ERC404 instance named in p.instance.
     error UnauthorizedCaller();
+    /// @dev An attacker pre-initialized the graduation pool at a price outside tolerance.
+    error PoolPriceMismatch();
+
+    /// @notice Max deviation (bps) tolerated between an already-initialized pool's sqrtPriceX96 and
+    ///         the intended graduation price. 100 bps (1%) mirrors the 99/100 LP-min-slippage
+    ///         convention already used in this module. A larger gap means the pool was seeded by a
+    ///         front-runner at a skewed price — we revert (retryable) rather than mint LP into it.
+    uint256 public constant MAX_INIT_PRICE_DEVIATION_BPS = 100;
 
     address public immutable algebraFactory;
     address public immutable positionManager;
@@ -103,9 +111,12 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         // ── Wrap ETH to WETH for LP ──
         IWETH(weth).deposit{ value: r.ethToLP }();
 
-        // ── Create Algebra pool ──
-        r.pool = IAlgebraFactory(algebraFactory).createPool(p.token, weth, "");
-        IAlgebraPool(r.pool).initialize(sqrtPriceX96);
+        // ── Create/validate Algebra pool (front-run-safe) ──
+        // Algebra's createPool reverts if the pair already exists, so an attacker who pre-created the
+        // pool would have permanently DoS'd graduation. Instead: reuse an existing pool, initialize it
+        // if still fresh, and if it was already initialized accept it only within price tolerance —
+        // never mint LP into an attacker-skewed pool.
+        r.pool = _createOrValidatePool(p.token, sqrtPriceX96);
 
         // ── Determine token ordering and amounts ──
         r.tokenIsZero = tokenIsZero;
@@ -158,6 +169,33 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
             emit CreatorCarvePaid(p.instance, p.creator, p.carveEth, r.carvePaid);
         }
         emit LiquidityDeployed(p.vault, r.pool, r.tokenId, r.ethToLP, p.tokenReserve);
+    }
+
+    /// @dev Front-run-safe pool acquisition. Returns a pool initialized at (or within tolerance of)
+    ///      the intended graduation price, reverting PoolPriceMismatch on an attacker-skewed pre-init.
+    function _createOrValidatePool(address token, uint160 intendedSqrtPriceX96) private returns (address pool) {
+        pool = IAlgebraFactory(algebraFactory).poolByPair(token, weth);
+        if (pool == address(0)) {
+            pool = IAlgebraFactory(algebraFactory).createPool(token, weth, "");
+            IAlgebraPool(pool).initialize(intendedSqrtPriceX96);
+        } else {
+            (uint160 existingSqrtPriceX96,,,,,) = IAlgebraPool(pool).globalState();
+            if (existingSqrtPriceX96 == 0) {
+                IAlgebraPool(pool).initialize(intendedSqrtPriceX96);
+            } else {
+                _requireSqrtPriceWithinTolerance(existingSqrtPriceX96, intendedSqrtPriceX96);
+            }
+        }
+    }
+
+    /// @dev Reverts unless |existing - intended| / intended <= MAX_INIT_PRICE_DEVIATION_BPS / 10000.
+    function _requireSqrtPriceWithinTolerance(uint160 existingSqrtPriceX96, uint160 intendedSqrtPriceX96) private pure {
+        uint256 diff = existingSqrtPriceX96 > intendedSqrtPriceX96
+            ? existingSqrtPriceX96 - intendedSqrtPriceX96
+            : intendedSqrtPriceX96 - existingSqrtPriceX96;
+        if (diff * 10_000 > uint256(intendedSqrtPriceX96) * MAX_INIT_PRICE_DEVIATION_BPS) {
+            revert PoolPriceMismatch();
+        }
     }
 
     receive() external payable { }
