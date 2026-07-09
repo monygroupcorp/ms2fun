@@ -58,7 +58,7 @@ contract BondingCurveHandler is Test {
 
         vm.deal(actor, actor.balance + totalWithFee);
         vm.prank(actor);
-        instance.buyBonding{ value: totalWithFee }(amount, totalWithFee, false, bytes32(0), "", 0);
+        instance.buyBonding{ value: totalWithFee }(amount, totalWithFee, false, bytes(""), "", 0);
 
         ghost_totalBuyCost += cost;
         ghost_buyCount++;

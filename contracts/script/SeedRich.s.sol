@@ -274,14 +274,14 @@ contract SeedRich is Script {
     function _buyEdition(address inst, uint256 editionId, uint256 amount, uint256 key) internal {
         uint256 cost = ERC1155Instance(inst).calculateMintCost(editionId, amount);
         vm.startBroadcast(key);
-        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, bytes32(0), "", cost);
+        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, bytes(""), "", cost);
         vm.stopBroadcast();
     }
 
     function _buyEditionGated(address inst, uint256 editionId, uint256 amount, uint256 key, string memory pw) internal {
         uint256 cost = ERC1155Instance(inst).calculateMintCost(editionId, amount);
         vm.startBroadcast(key);
-        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, keccak256(bytes(pw)), "", cost);
+        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, abi.encode(keccak256(bytes(pw))), "", cost);
         vm.stopBroadcast();
     }
 
@@ -291,7 +291,7 @@ contract SeedRich is Script {
         uint256 cost = BondingCurveMath.calculateCost(p, b.totalBondingSupply(), amount);
         uint256 total = cost + (cost * b.bondingFeeBps()) / 10000;
         vm.startBroadcast(key);
-        b.buyBonding{ value: total }(amount, total, false, pw_(pw), "", 0);
+        b.buyBonding{ value: total }(amount, total, false, abi.encode(pw_(pw)), "", 0);
         vm.stopBroadcast();
     }
 

@@ -15,6 +15,9 @@ import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
 import { TierConfig, TierType } from "../../../src/gating/IPasswordTierGatingModule.sol";
+import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
+import { MerkleConfig } from "../../../src/gating/IMerkleGatingModule.sol";
+import { MerkleAllowlistHelper } from "../../gating/MerkleAllowlistHelper.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
 import { IGatingModule } from "../../../src/gating/IGatingModule.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
@@ -308,7 +311,7 @@ contract ERC404FreeMintTest is Test {
         uint256 maxCost = 10 ether; // generous cap; exact cost not the point of this test
         vm.deal(user1, maxCost);
         vm.prank(user1);
-        instance.buyBonding{ value: maxCost }(buyAmount, maxCost, true, bytes32(0), "", 0);
+        instance.buyBonding{ value: maxCost }(buyAmount, maxCost, true, bytes(""), "", 0);
         // If it didn't revert, the gate was bypassed for paid buys ✓
         assertGt(instance.balanceOf(user1), 0);
     }
@@ -361,5 +364,106 @@ contract ERC404FreeMintTest is Test {
         assertEq(uint8(instBoth.gatingScope()), uint8(GatingScope.BOTH));
         assertEq(uint8(instFMO.gatingScope()), uint8(GatingScope.FREE_MINT_ONLY));
         assertEq(uint8(instPO.gatingScope()), uint8(GatingScope.PAID_ONLY));
+    }
+
+    // ── Merkle allowlist gating on ERC404 (single curve → editionId 0) ─────────────
+
+    function _merkleModule() internal returns (MerkleGatingModule m) {
+        m = new MerkleGatingModule(address(mockRegistry));
+        vm.prank(protocol);
+        componentRegistry.approveComponent(address(m), keccak256("gating"), "Merkle Allowlist Gating");
+    }
+
+    /// @dev allowlist over {user1, user2}, both with a large cap. Returns root + user1's proof/maxQty.
+    function _merkleUser1() internal returns (bytes32 root, bytes memory data) {
+        MerkleAllowlistHelper helper = new MerkleAllowlistHelper();
+        MerkleAllowlistHelper.Entry[] memory e = new MerkleAllowlistHelper.Entry[](2);
+        e[0] = MerkleAllowlistHelper.Entry(user1, 1e30);
+        e[1] = MerkleAllowlistHelper.Entry(user2, 1e30);
+        bytes32[] memory proof;
+        uint256 q;
+        (root, proof, q) = helper.build(e, 0);
+        data = helper.encodeData(0, q, proof);
+    }
+
+    function _configEdition0(MerkleGatingModule merkle, address inst, bytes32 root) internal {
+        bytes32[] memory roots = new bytes32[](1);
+        roots[0] = root;
+        uint256[] memory times = new uint256[](1);
+        times[0] = 0;
+        vm.prank(creator); // creator == instance owner authors the config post-create
+        merkle.configureFor(inst, MerkleConfig({ editionId: 0, roots: roots, tierOpenTimes: times }));
+    }
+
+    function test_merkle_erc404_freePath_editionZero() public {
+        MerkleGatingModule merkle = _merkleModule();
+        (bytes32 root, bytes memory data) = _merkleUser1();
+
+        ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(merkle));
+        _configEdition0(merkle, address(inst), root);
+
+        // Allowlisted user1 claims the free mint (module keyed on editionId 0).
+        vm.prank(user1);
+        inst.claimFreeMint(data);
+        assertEq(inst.freeMintsClaimed(), 1);
+        assertEq(merkle.claimed(address(inst), 0, user1), inst.unit());
+
+        // Non-allowlisted intruder replaying user1's proof → rejected.
+        vm.prank(makeAddr("intruder404"));
+        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        inst.claimFreeMint(data);
+    }
+
+    function test_merkle_erc404_paidPath_editionZero() public {
+        MerkleGatingModule merkle = _merkleModule();
+        (bytes32 root, bytes memory data) = _merkleUser1();
+
+        ERC404BondingInstance inst = _deploy(0, GatingScope.BOTH, address(merkle));
+        _configEdition0(merkle, address(inst), root);
+
+        vm.startPrank(creator);
+        inst.setBondingOpenTime(block.timestamp + 1);
+        vm.warp(block.timestamp + 2);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+
+        uint256 buyAmount = inst.unit();
+        uint256 maxCost = 10 ether;
+
+        // Allowlisted user1 buys on the curve with a valid proof.
+        vm.deal(user1, maxCost);
+        vm.prank(user1);
+        inst.buyBonding{ value: maxCost }(buyAmount, maxCost, false, data, "", 0);
+        assertGt(inst.balanceOf(user1), 0);
+
+        // Non-allowlisted intruder with user1's proof → rejected on the paid path.
+        address intruder = makeAddr("intruderPaid");
+        vm.deal(intruder, maxCost);
+        vm.prank(intruder);
+        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        inst.buyBonding{ value: maxCost }(buyAmount, maxCost, false, data, "", 0);
+    }
+
+    function test_merkle_erc404_scope_freeMintOnly_paidBypassesGate() public {
+        // FREE_MINT_ONLY: the paid curve is open — a non-allowlisted buyer needs no proof.
+        MerkleGatingModule merkle = _merkleModule();
+        (bytes32 root,) = _merkleUser1();
+
+        ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.FREE_MINT_ONLY, address(merkle));
+        _configEdition0(merkle, address(inst), root);
+
+        vm.startPrank(creator);
+        inst.setBondingOpenTime(block.timestamp + 1);
+        vm.warp(block.timestamp + 2);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+
+        address intruder = makeAddr("intruderFMO");
+        uint256 maxCost = 10 ether;
+        uint256 amt = inst.unit(); // precompute: an inline external call would consume the prank below
+        vm.deal(intruder, maxCost);
+        vm.prank(intruder);
+        inst.buyBonding{ value: maxCost }(amt, maxCost, false, bytes(""), "", 0);
+        assertGt(inst.balanceOf(intruder), 0);
     }
 }

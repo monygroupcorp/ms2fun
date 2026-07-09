@@ -51,7 +51,8 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
     /// @dev Initial configuration may be called by a registered factory (threaded through
     ///      createInstance at deploy time) OR by the instance owner (post-create setup).
     ///      Subsequent updates may only be called by the instance owner.
-    ///      canMint data encoding: abi.encode(bytes32 passwordHash, uint256 openTime)
+    ///      canMint data encoding: abi.encode(bytes32 passwordHash); openTime is now an authoritative
+    ///      IGatingModule.canMint parameter (de-wrapped from data), not part of the payload.
     function configureFor(address instance, TierConfig calldata config) external override {
         if (!configured[instance]) {
             // Least privilege (D1): the caller must be THE factory that registered this specific
@@ -87,18 +88,19 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
 
     // ── IGatingModule ──────────────────────────────────────────────────────────
 
-    /// @dev msg.sender is the calling instance.
-    /// @param data abi.encode(bytes32 passwordHash, uint256 openTime)
-    ///             passwordHash: bytes32(0) = open tier (no password).
-    ///             openTime: instance/edition open timestamp; used by TIME_BASED enforcement.
+    /// @dev msg.sender is the calling instance. This module ignores `editionId` — password tiers are
+    ///      instance-wide, not per-edition. `openTime` arrives as an authoritative parameter from the
+    ///      instance (edition.openTime / bondingOpenTime), replacing the old abi.encode(hash, openTime)
+    ///      wrap so the interface can also carry a raw merkle proof for other modules.
+    /// @param data abi.encode(bytes32 passwordHash); passwordHash bytes32(0) = open tier (no password).
     // slither-disable-next-line timestamp
-    function canMint(address user, uint256 amount, bytes calldata data)
+    function canMint(address user, uint256, uint256 amount, uint256 openTime, bytes calldata data)
         external
         override
         returns (bool allowed, bool permanent)
     {
         TierConfig storage config = _configs[msg.sender];
-        (bytes32 passwordHash, uint256 openTime) = abi.decode(data, (bytes32, uint256));
+        bytes32 passwordHash = abi.decode(data, (bytes32));
 
         uint256 tier = passwordHash == bytes32(0) ? 0 : _tierByPasswordHash[msg.sender][passwordHash];
         if (tier == 0 && passwordHash != bytes32(0)) revert InvalidPassword();
@@ -114,8 +116,8 @@ contract PasswordTierGatingModule is IGatingModule, IPasswordTierGatingModule, O
         permanent = false; // PasswordTierGating never self-deactivates
     }
 
-    /// @dev msg.sender is the calling instance.
-    function onMint(address user, uint256 amount) external override {
+    /// @dev msg.sender is the calling instance. `editionId` ignored (instance-wide volume tracking).
+    function onMint(address user, uint256, uint256 amount) external override {
         userPurchaseVolume[msg.sender][user] += amount;
     }
 

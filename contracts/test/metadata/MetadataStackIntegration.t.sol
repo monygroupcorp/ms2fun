@@ -223,7 +223,7 @@ contract MetadataStackIntegrationTest is Test {
         uint256 total = cost + fee;
         vm.deal(creator, total);
         vm.prank(creator);
-        b.buyBonding{ value: total }(amount, total, true, bytes32(0), "", 0); // mintNFT = true
+        b.buyBonding{ value: total }(amount, total, true, bytes(""), "", 0); // mintNFT = true
     }
 
     function test_tokenURI_resolvesOverlayThenTierThenBase() public {

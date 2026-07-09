@@ -233,9 +233,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         }
 
         if (address(gatingModule) != address(0) && gatingScope != GatingScope.PAID_ONLY) {
-            (bool allowed,) = gatingModule.canMint(msg.sender, 1, gatingData);
+            (bool allowed,) = gatingModule.canMint(msg.sender, editionId, 1, edition.openTime, gatingData);
             if (!allowed) revert GatingCheckFailed();
-            gatingModule.onMint(msg.sender, 1);
+            gatingModule.onMint(msg.sender, editionId, 1);
         }
 
         freeMintClaimed[msg.sender] = true;
@@ -386,7 +386,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     function mint(
         uint256 editionId,
         uint256 amount,
-        bytes32 gatingData, // NEW: password hash (bytes32(0) = open tier)
+        bytes calldata gatingData, // module payload: password hash, or merkle (tierId, maxQty, proof)
         bytes calldata messageData,
         uint256 maxCost
     ) external payable nonReentrant {
@@ -399,12 +399,12 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             if (block.timestamp < edition.openTime) revert EditionNotOpen();
         }
 
-        // Gating check — forwards edition's openTime as the time reference
+        // Gating check — forwards authoritative editionId + edition openTime; gatingData carries the
+        // raw module payload (no password-shaped wrap, so a bytes32[] merkle proof fits).
         if (address(gatingModule) != address(0)) {
-            bytes memory encoded = abi.encode(gatingData, edition.openTime);
-            (bool allowed,) = gatingModule.canMint(msg.sender, amount, encoded);
+            (bool allowed,) = gatingModule.canMint(msg.sender, editionId, amount, edition.openTime, gatingData);
             if (!allowed) revert GatingCheckFailed();
-            gatingModule.onMint(msg.sender, amount);
+            gatingModule.onMint(msg.sender, editionId, amount);
         }
 
         // Check supply limits

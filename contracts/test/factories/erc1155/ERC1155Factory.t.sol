@@ -32,21 +32,32 @@ import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
 import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
 import { TierConfig, TierType } from "../../../src/gating/IPasswordTierGatingModule.sol";
+import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
+import { MerkleConfig } from "../../../src/gating/IMerkleGatingModule.sol";
+import { MerkleAllowlistHelper } from "../../gating/MerkleAllowlistHelper.sol";
 
 contract MockRejectGatingModule {
-    function canMint(address, uint256, bytes calldata) external pure returns (bool allowed, bool permanent) {
+    function canMint(address, uint256, uint256, uint256, bytes calldata)
+        external
+        pure
+        returns (bool allowed, bool permanent)
+    {
         allowed = false;
         permanent = false;
     }
-    function onMint(address, uint256) external { }
+    function onMint(address, uint256, uint256) external { }
 }
 
 contract MockAllowGatingModule {
-    function canMint(address, uint256, bytes calldata) external pure returns (bool allowed, bool permanent) {
+    function canMint(address, uint256, uint256, uint256, bytes calldata)
+        external
+        pure
+        returns (bool allowed, bool permanent)
+    {
         allowed = true;
         permanent = false;
     }
-    function onMint(address, uint256) external { }
+    function onMint(address, uint256, uint256) external { }
 }
 
 /**
@@ -364,7 +375,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         ERC1155Instance instanceContract = ERC1155Instance(instance);
 
         // Mint 5 tokens
-        instanceContract.mint{ value: 0.5 ether }(1, 5, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 0.5 ether }(1, 5, bytes(""), bytes(""), 0);
 
         assertEq(instanceContract.balanceOf(minter1, 1), 5);
         ERC1155Instance.Edition memory edition = instanceContract.getEdition(1);
@@ -397,17 +408,17 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         ERC1155Instance instanceContract = ERC1155Instance(instance);
 
         // Mint 5 tokens
-        instanceContract.mint{ value: 1 ether }(1, 5, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 1 ether }(1, 5, bytes(""), bytes(""), 0);
         assertEq(instanceContract.balanceOf(minter1, 1), 5);
         ERC1155Instance.Edition memory edition1 = instanceContract.getEdition(1);
         assertEq(edition1.minted, 5);
 
         // Try to mint 6 more (would exceed supply)
         vm.expectRevert(ExceedsSupply.selector);
-        instanceContract.mint{ value: 1.2 ether }(1, 6, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 1.2 ether }(1, 6, bytes(""), bytes(""), 0);
 
         // Mint remaining 5
-        instanceContract.mint{ value: 1 ether }(1, 5, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 1 ether }(1, 5, bytes(""), bytes(""), 0);
         ERC1155Instance.Edition memory edition2 = instanceContract.getEdition(1);
         assertEq(edition2.minted, 10);
 
@@ -442,7 +453,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(price1, 0.1 ether);
 
         // Mint 1 token
-        instanceContract.mint{ value: 0.2 ether }(1, 1, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 0.2 ether }(1, 1, bytes(""), bytes(""), 0);
 
         // Price should increase for next mint
         uint256 price2 = instanceContract.getCurrentPrice(1);
@@ -474,7 +485,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         vm.startPrank(minter1);
         ERC1155Instance instanceContract = ERC1155Instance(instance);
 
-        instanceContract.mint{ value: 0.1 ether }(1, 1, bytes32(0), _buildPostMessage("Hello from minter!"), 0);
+        instanceContract.mint{ value: 0.1 ether }(1, 1, bytes(""), _buildPostMessage("Hello from minter!"), 0);
 
         // Check message count in global registry
         _assertMessageCount(1);
@@ -510,7 +521,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         vm.startPrank(minter1);
         ERC1155Instance instanceContract = ERC1155Instance(instance);
-        instanceContract.mint{ value: 1 ether }(1, 1, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 1 ether }(1, 1, bytes(""), bytes(""), 0);
         vm.stopPrank();
 
         uint256 treasuryBefore = treasury.balance;
@@ -556,11 +567,11 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         vm.startPrank(minter1);
         ERC1155Instance instanceContract = ERC1155Instance(instance);
-        instanceContract.mint{ value: 0.1 ether }(1, 1, bytes32(0), _buildPostMessage("Message 1"), 0);
+        instanceContract.mint{ value: 0.1 ether }(1, 1, bytes(""), _buildPostMessage("Message 1"), 0);
         vm.stopPrank();
 
         vm.startPrank(minter2);
-        instanceContract.mint{ value: 0.1 ether }(1, 1, bytes32(0), _buildPostMessage("Message 2"), 0);
+        instanceContract.mint{ value: 0.1 ether }(1, 1, bytes(""), _buildPostMessage("Message 2"), 0);
         vm.stopPrank();
 
         // Verify message count (messages are now event-only)
@@ -786,7 +797,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         vm.startPrank(minter1);
         ERC1155Instance instanceContract = ERC1155Instance(instance);
-        instanceContract.mint{ value: 0.5 ether }(1, 5, bytes32(0), bytes(""), 0);
+        instanceContract.mint{ value: 0.5 ether }(1, 5, bytes(""), bytes(""), 0);
         vm.stopPrank();
 
         ERC1155Instance.Edition memory ed = instanceContract.getEdition(1);
@@ -916,7 +927,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         // Attempt to mint before openTime
         vm.expectRevert(EditionNotOpen.selector);
-        inst.mint{ value: 0.01 ether }(editionId, 1, bytes32(0), "", 0);
+        inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
     }
 
     function test_instance_openTime_allowsMintAfterOpen() public {
@@ -932,7 +943,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         vm.warp(block.timestamp + 2 hours);
 
         // Mint should succeed
-        inst.mint{ value: 0.01 ether }(editionId, 1, bytes32(0), "", 0);
+        inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
         assertEq(inst.balanceOf(address(this), editionId), 1);
     }
 
@@ -945,7 +956,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
-        inst.mint{ value: 0.01 ether }(editionId, 1, bytes32(0), "", 0);
+        inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
         assertEq(inst.balanceOf(address(this), editionId), 1);
     }
 
@@ -960,7 +971,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         uint256 editionId = inst.nextEditionId() - 1;
 
         vm.expectRevert(GatingCheckFailed.selector);
-        inst.mint{ value: 0.01 ether }(editionId, 1, bytes32(0), "", 0);
+        inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
     }
 
     function test_instance_gating_allowsMintOnPassingCheck() public {
@@ -973,7 +984,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
-        inst.mint{ value: 0.01 ether }(editionId, 1, bytes32(0), "", 0);
+        inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
         assertEq(inst.balanceOf(address(this), editionId), 1);
     }
 
@@ -1134,5 +1145,118 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         address forCreator = factory.computeInstanceAddress(creator, salt);
         address forAttacker = factory.computeInstanceAddress(address(0xBAD), salt);
         assertTrue(forCreator != forAttacker, "same salt must map to different address per creator");
+    }
+
+    // ┌───────────────────────────────────────────────────────────────────────────┐
+    // │   Merkle allowlist gating — end-to-end through a real ERC1155 instance      │
+    // └───────────────────────────────────────────────────────────────────────────┘
+
+    function _deployMerkle() internal returns (MerkleGatingModule m) {
+        m = new MerkleGatingModule(address(mockRegistry));
+        vm.prank(registryOwner);
+        componentRegistry.approveComponent(address(m), keccak256("gating"), "Merkle Allowlist Gating");
+    }
+
+    /// @dev allowlist: minter1 cap 3, minter2 cap 1.
+    function _merkleList() internal view returns (MerkleAllowlistHelper.Entry[] memory e) {
+        e = new MerkleAllowlistHelper.Entry[](2);
+        e[0] = MerkleAllowlistHelper.Entry(minter1, 3);
+        e[1] = MerkleAllowlistHelper.Entry(minter2, 1);
+    }
+
+    function _createMerkleInstance(address merkle, uint256 allocation, GatingScope scope)
+        internal
+        returns (address instance)
+    {
+        vm.prank(creator);
+        instance = factory.createInstance{ value: 0 }(
+            _nextSalt(),
+            ERC1155Factory.CreateParams({
+                name: string(abi.encodePacked("Merkle", vm.toString(_saltCounter))),
+                metadataURI: "ipfs://m",
+                creator: creator,
+                vault: address(vault),
+                styleUri: "",
+                gatingModule: merkle,
+                freeMint: FreeMintParams({ allocation: allocation, scope: scope })
+            })
+        );
+        // Edition 1: unlimited, fixed price 0.01 ETH, open immediately.
+        vm.prank(creator);
+        ERC1155Instance(instance)
+            .addEdition("Piece", 0.01 ether, 0, "ipfs://p", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+    }
+
+    function _configMerkle(MerkleGatingModule merkle, address instance, uint256 editionId, bytes32 root) internal {
+        bytes32[] memory roots = new bytes32[](1);
+        roots[0] = root;
+        uint256[] memory times = new uint256[](1);
+        times[0] = 0;
+        vm.prank(creator);
+        merkle.configureFor(instance, MerkleConfig({ editionId: editionId, roots: roots, tierOpenTimes: times }));
+    }
+
+    function test_merkle_freePath_endToEnd() public {
+        MerkleGatingModule merkle = _deployMerkle();
+        MerkleAllowlistHelper helper = new MerkleAllowlistHelper();
+        (bytes32 root, bytes32[] memory proof, uint256 q) = helper.build(_merkleList(), 0); // minter1
+        bytes memory data = helper.encodeData(0, q, proof);
+
+        address instance = _createMerkleInstance(address(merkle), 5, GatingScope.BOTH);
+        _configMerkle(merkle, instance, 1, root);
+
+        // Allowlisted minter1 claims the free mint.
+        vm.prank(minter1);
+        ERC1155Instance(instance).claimFreeMint(1, data);
+        assertEq(ERC1155Instance(instance).balanceOf(minter1, 1), 1);
+        assertEq(merkle.claimed(instance, 1, minter1), 1);
+
+        // A non-allowlisted intruder replaying minter1's proof is rejected.
+        address intruder = address(0x9999);
+        vm.prank(intruder);
+        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        ERC1155Instance(instance).claimFreeMint(1, data);
+    }
+
+    function test_merkle_paidPath_endToEnd_withCumulativeCap() public {
+        MerkleGatingModule merkle = _deployMerkle();
+        MerkleAllowlistHelper helper = new MerkleAllowlistHelper();
+        (bytes32 root, bytes32[] memory proof, uint256 q) = helper.build(_merkleList(), 0); // minter1 cap 3
+        bytes memory data = helper.encodeData(0, q, proof);
+
+        address instance = _createMerkleInstance(address(merkle), 0, GatingScope.BOTH);
+        _configMerkle(merkle, instance, 1, root);
+
+        vm.deal(minter1, 1 ether);
+        vm.prank(minter1);
+        ERC1155Instance(instance).mint{ value: 0.02 ether }(1, 2, data, "", 0);
+        assertEq(ERC1155Instance(instance).balanceOf(minter1, 1), 2);
+
+        // cumulative 2 + 2 = 4 > cap 3 → module reverts.
+        vm.prank(minter1);
+        vm.expectRevert(MerkleGatingModule.QtyCapExceeded.selector);
+        ERC1155Instance(instance).mint{ value: 0.02 ether }(1, 2, data, "", 0);
+
+        // wrong proof on paid path rejected too.
+        address intruder = address(0x9999);
+        vm.deal(intruder, 1 ether);
+        vm.prank(intruder);
+        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        ERC1155Instance(instance).mint{ value: 0.01 ether }(1, 1, data, "", 0);
+    }
+
+    function test_merkle_scope_paidOnly_freePathOpen() public {
+        // PAID_ONLY: the free-mint path is NOT gated — a non-allowlisted user may claim it FCFS.
+        MerkleGatingModule merkle = _deployMerkle();
+        MerkleAllowlistHelper helper = new MerkleAllowlistHelper();
+        (bytes32 root,,) = helper.build(_merkleList(), 0);
+
+        address instance = _createMerkleInstance(address(merkle), 5, GatingScope.PAID_ONLY);
+        _configMerkle(merkle, instance, 1, root);
+
+        address intruder = address(0x9999); // NOT on the allowlist
+        vm.prank(intruder);
+        ERC1155Instance(instance).claimFreeMint(1, bytes(""));
+        assertEq(ERC1155Instance(instance).balanceOf(intruder, 1), 1);
     }
 }

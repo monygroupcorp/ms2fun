@@ -820,7 +820,7 @@ contract ERC404FactoryTest is Test {
         uint256 cost =
             curveComp.calculateCost(BondingCurveMath.Params(ip, qc, cc, qd, nf), inst.totalBondingSupply(), amount);
         vm.prank(creator1);
-        inst.buyBonding{ value: cost }(amount, cost, false, bytes32(0), "", 0);
+        inst.buyBonding{ value: cost }(amount, cost, false, bytes(""), "", 0);
     }
 
     function _lastCarve() internal view returns (address creatorArg, uint256 carveArg) {
