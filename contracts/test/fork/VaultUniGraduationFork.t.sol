@@ -76,7 +76,8 @@ contract VaultUniGraduationForkTest is ForkTestBase {
             FEE,
             TICK_SPACING,
             IVaultPriceValidator(address(priceValidator)),
-            IAlignmentRegistry(address(registry))
+            IAlignmentRegistry(address(registry)),
+            address(0)
         );
         vault = UniAlignmentVault(
             payable(factory.deployVault(
