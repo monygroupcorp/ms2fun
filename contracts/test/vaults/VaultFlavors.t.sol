@@ -120,8 +120,9 @@ contract VaultFlavorsTest is Test {
     /// @dev A ZAMM vault deployed with a ZERO pool key is NOT liquidity-ready (wizard hides it);
     ///      wiring the real ETH/token key via the factory flips it ready. Guards the O2 contract.
     function test_zammPoolKeyWiringGate() public {
-        ZAMMAlignmentVaultFactory f =
-            new ZAMMAlignmentVaultFactory(STUB_ZAMM, address(1), address(2), IVaultPriceValidator(address(3)));
+        ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
+            STUB_ZAMM, address(1), address(2), IVaultPriceValidator(address(3)), address(0)
+        );
 
         IZAMM.PoolKey memory zero; // token1 == address(0) → unwired
         address vault = f.deployVault(bytes32(uint256(0xF1A)), STUB_LINK, zero);
@@ -139,8 +140,9 @@ contract VaultFlavorsTest is Test {
     /// @dev Only the factory owner (deployer/protocol) may wire the pool key — a front-runner cannot
     ///      point the vault at a manipulated pool before the real key is set.
     function test_zammSetVaultPoolKeyOnlyOwner() public {
-        ZAMMAlignmentVaultFactory f =
-            new ZAMMAlignmentVaultFactory(STUB_ZAMM, address(1), address(2), IVaultPriceValidator(address(3)));
+        ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
+            STUB_ZAMM, address(1), address(2), IVaultPriceValidator(address(3)), address(0)
+        );
         IZAMM.PoolKey memory zero;
         address vault = f.deployVault(bytes32(uint256(0xF1B)), STUB_LINK, zero);
 

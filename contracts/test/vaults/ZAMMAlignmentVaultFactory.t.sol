@@ -41,7 +41,8 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
             address(mockZamm),
             address(mockZRouter),
             treasury,
-            IVaultPriceValidator(address(0)) // floor-mechanics covered elsewhere; deploy test only
+            IVaultPriceValidator(address(0)), // floor-mechanics covered elsewhere; deploy test only
+            address(0)
         );
     }
 

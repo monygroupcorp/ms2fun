@@ -57,7 +57,8 @@ contract UniAlignmentVaultFactoryTest is Test {
             3000,
             60,
             IVaultPriceValidator(address(mockPriceValidator)),
-            IAlignmentRegistry(address(mockRegistry))
+            IAlignmentRegistry(address(mockRegistry)),
+            address(0)
         );
     }
 

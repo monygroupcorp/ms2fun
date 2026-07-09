@@ -274,7 +274,8 @@ contract DeployCore is Script {
             cfg.zrouterFee,
             cfg.zrouterTickSpacing,
             IVaultPriceValidator(address(priceValidator)),
-            alignmentRegistry
+            alignmentRegistry,
+            address(0) // zQuoter: best-route disabled at deploy; wire a chain-specific zQuoter via setZQuoter
         );
 
         if (cfg.cypherPositionManager != address(0)) {
@@ -285,7 +286,7 @@ contract DeployCore is Script {
 
         if (cfg.zamm != address(0)) {
             zammVaultFactory = new ZAMMAlignmentVaultFactory(
-                cfg.zamm, address(zrouter), address(treasury), IVaultPriceValidator(address(priceValidator))
+                cfg.zamm, address(zrouter), address(treasury), IVaultPriceValidator(address(priceValidator)), address(0)
             );
         }
 

@@ -107,7 +107,8 @@ contract SeedSepolia is Script {
             POOL_FEE,
             POOL_TICK_SPACING,
             IVaultPriceValidator(PRICE_VALIDATOR),
-            ALIGNMENT_REGISTRY
+            ALIGNMENT_REGISTRY,
+            address(0) // zQuoter: best-route disabled at deploy; wire a chain-specific zQuoter via setZQuoter
         );
 
         // Index-based salts — consistent with DeployCore pattern (LINK was index 0)
