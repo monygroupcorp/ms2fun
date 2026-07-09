@@ -1,14 +1,18 @@
 # Project Status — resume here
 
+**Reconciled to git-truth 2026-07-08** — see PR #22 (`4217ac7`) and the `alignment-target-requests`
+merge (`8e6e3f2`): the full write-path fork-verify (portfolio/featured/admin) and the target-requests
+feature are both landed on `main`, not pending as prior revisions of this doc said.
+
 **As of 2026-06-30.** Single pickup point for the ms2.fun rebuild. The detailed interface map is
 `contract-surface-coverage.md`; the methodology/plan is `attack-plan.md`. Everything below is on
 **`main`**, gate-green (371 frontend tests; `forge build` clean; 1162 forge tests green; 15 e2e).
 **Security audit closed out + metadata resolver stack shipped to `main` — 2026-06-30 (see below).**
 
-**► RESUME HERE:** the metadata resolver stack **and vault flavors are done** (four vault families,
-family→venue wizard, live Uni V4 graduation fork-verified — see `vault-flavors.md`). Remaining
-pre-testnet tracks: the **holistic design/style pass** and a **full end-to-end fork-verify** (portfolio/
-featured/admin write paths). After those, the real **testnet deploy** (Phase 4).
+**► RESUME HERE:** the metadata resolver stack, **vault flavors**, the **full end-to-end fork-verify**
+(portfolio/featured/admin write paths, PR #22 `4217ac7`), and **alignment target requests**
+(`8e6e3f2`) are all done and on `main`. Remaining pre-testnet track: the **holistic design/style
+pass**. After that, the real **testnet deploy** (Phase 4).
 
 ---
 
@@ -194,26 +198,27 @@ with on-chain vaultType/readiness verified):
   regression `test_ConvertAndAddLiquidity_acceptsZRouterDustRefund` verified to fail pre-fix.
 
 ## Not yet verified / open
-- **Fork-verify Phase 2 + Phase 3 end-to-end** — on main + gate-green but not fully walked (portfolio
-  holdings, featured rent/boost, the 5 admin panels operating as ADMIN). The **gating-config AND
-  metadata-stack flows are now walked** (`app/e2e/gating.spec.ts`, `app/e2e/metadata.spec.ts`). The
-  injected-wallet E2E harness (`app/e2e/fixtures/anvilWallet.ts` + the `@fork` pattern, refreshed for the
-  stepped wizard) is the template to walk these remaining write paths headlessly — `pnpm chain:fork` +
-  `pnpm chain:deploy`, then `pnpm test:e2e` (currently 15 green, 1 skipped).
+- ~~Fork-verify Phase 2 + Phase 3 end-to-end~~ — **DONE (2026-07-08, PR #22 `4217ac7`).** Portfolio
+  holdings, featured rent/boost/renew/prune, and all 5 admin panels are now walked as the real
+  ADMIN/holder through the actual UI (`app/e2e/portfolio.spec.ts`, `app/e2e/featured.spec.ts`,
+  `app/e2e/admin-panels.spec.ts`), on top of the earlier gating-config and metadata-stack walks
+  (`app/e2e/gating.spec.ts`, `app/e2e/metadata.spec.ts`). The injected-wallet E2E harness
+  (`app/e2e/fixtures/anvilWallet.ts` + the `@fork` pattern) remains the template for any further
+  write-path walks.
 - **Real testnet deploy** — only the anvil mainnet-fork has been exercised. With the metadata stack
-  shipped, **no feature work now blocks testnet** — remaining gates are the Phase-4 design pass + the
-  full fork-verify above. Testnet readiness (a real testnet, read-only provider, EXEC404 grandfathering)
-  is a separate push.
+  and the full write-path fork-verify both shipped, **no feature work now blocks testnet** — the
+  remaining gate is the Phase-4 design pass. Testnet readiness (a real testnet, read-only provider,
+  EXEC404 grandfathering) is a separate push.
 
 ## Backlog (non-blocking, with captured designs)
 - **Admin pool-liquidity scout** — `contracts/script/ScanAlignmentPools.s.sol` (built, fork-proven):
   per-alignment-token, ranks ETH/token pools across venues + recommends the deepest V4 pool key to wire
   (resolves vault-flavors O3 by measurement). Uncommitted in the working tree.
-- **Request an alignment target** — BUILT + fork-verified on `feat/alignment-target-requests`
+- **Request an alignment target** — **DONE, merged to `main` (`8e6e3f2`)**
   (`docs/phases/alignment-target-requests.md`, ADR-0009): standalone `AlignmentTargetRequestRegistry`
   (refundable deposit, two-tx admin approve) + admin review panel + public `/request-target` form.
   Gate-green: forge 1185, frontend 398, e2e 17 (incl. the submit→approve fork-walk). Pairs with the
-  scout. Not yet on `main` (feature branch, ready for PR).
+  scout (scout script itself remains uncommitted, see above).
 - **Style renderer** — `styleUri` is write-only today; a scoped-CSS renderer for collection + edition
   pages. Nomenclature locked (content URI vs style URI); edition style → content-JSON `styleURI` field.
   Design captured in `[[improvements-backlog]]`.

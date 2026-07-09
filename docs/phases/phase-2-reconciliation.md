@@ -1,6 +1,9 @@
 # Phase 2 — Reconciliation: the API + the Crux
 
-**Status:** 🟡 Mostly DONE — T1/T2/T3/T5/T6 complete and merged to `main` 2026-06-23 (`a3d310a`); **T4 (Aave vault) is the lone open item** and gates the entire create/write path.
+**Status:** ✅ DONE — T1/T2/T3/T5/T6 merged to `main` 2026-06-23 (`a3d310a`); **T4 (Aave vault) also
+DONE** (`e66f7e8`, core shipped + fork-verified 2026-06-23; see
+[t4-aave-vault-handoff.md](./t4-aave-vault-handoff.md) and `vault-flavors.md` for the later promotion
+to a first-class vault family).
 **Depends on:** Phase 1 (stack proven)
 **Exit gate owner:** Mony
 
@@ -63,18 +66,20 @@ consume, and add the one new economic piece (the Aave vault).
   [ADR-0005](../decisions/0005-module-option-schema.md): hybrid source (on-chain ComponentRegistry
   enumerates modules + `configType`; client holds typed config forms + hand-authored factory
   descriptors), generic declarative `FieldSchema` + shared evaluator, vault slot modelled (provider
-  pending T4). Types in `app/src/lib/wizard/` (schema/projectTypes/configTypes/useApprovedModules);
-  live `useApprovedModules` verified on the fork (gating→3, liquidity→3, vault→0).
-- [ ] T4 — Aave vault: select base, implement the endowment splits + maturity, Foundry tests.
-  **Build handoff ready → [t4-aave-vault-handoff.md](./t4-aave-vault-handoff.md)** (seams pinned,
-  prerequisites + open decisions flagged). The lone open Phase-2 item; gates the create/write path.
+  landed with T4). Types in `app/src/lib/wizard/` (schema/projectTypes/configTypes/useApprovedModules);
+  live `useApprovedModules` verified on the fork (gating→3, liquidity→3, vault→0 at the time; vault
+  providers landed with T4).
+- [x] T4 — Aave vault: select base, implement the endowment splits + maturity, Foundry tests.
+  **DONE (`e66f7e8`), core shipped + fork-verified 2026-06-23** →
+  [t4-aave-vault-handoff.md](./t4-aave-vault-handoff.md) (seams + open decisions as landed). Later
+  promoted to a first-class vault family alongside Uni/ZAMM/Cypher — see `vault-flavors.md`.
 - [~] T5 — Typed domain layer over bindings (profiles/collections/metadata/modules/messages).
   **Profiles + collections DONE** (ProfileRegistry + metadata hooks; `getHomePageData` cards).
   Remaining: the **GlobalMessageRegistry feed** (invariant) + creator→collections enumeration
   (`CreatorInstanceAdded`) + modules.
 - [~] T6 — Deploy the reconciled set + Aave vault to the fork via the existing pipeline + seeds.
   **Fork deploy + seed DONE** (`SeedAnvil.s.sol`: 3 featured ERC1155 collections + 2 profiles,
-  all backend-free `data:` metadata; verified via `getHomePageData`/`profileURI`). Aave pending T4.
+  all backend-free `data:` metadata; verified via `getHomePageData`/`profileURI`). Aave landed with T4.
 
 ## T1 — Inventory & classification (2026-06-22)
 
