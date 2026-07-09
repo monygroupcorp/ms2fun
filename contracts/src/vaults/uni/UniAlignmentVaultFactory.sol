@@ -22,6 +22,9 @@ contract UniAlignmentVaultFactory is Ownable {
     address public immutable zRouter;
     uint24 public immutable zRouterFee;
     int24 public immutable zRouterTickSpacing;
+    /// @notice zQuoter wired into every deployed vault for best-route acquisition (Front 2). When
+    ///         address(0), vaults acquire via the fixed zRouterFee/zRouterTickSpacing pool only.
+    address public immutable zQuoter;
 
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
@@ -35,7 +38,9 @@ contract UniAlignmentVaultFactory is Ownable {
         uint24 _zRouterFee,
         int24 _zRouterTickSpacing,
         IVaultPriceValidator _defaultPriceValidator,
-        IAlignmentRegistry _alignmentRegistry
+        IAlignmentRegistry _alignmentRegistry,
+        // slither-disable-next-line missing-zero-check
+        address _zQuoter
     ) {
         _initializeOwner(msg.sender);
         weth = _weth;
@@ -45,6 +50,7 @@ contract UniAlignmentVaultFactory is Ownable {
         zRouterTickSpacing = _zRouterTickSpacing;
         defaultPriceValidator = _defaultPriceValidator;
         alignmentRegistry = _alignmentRegistry;
+        zQuoter = _zQuoter;
         vaultImplementation = address(new UniAlignmentVault());
     }
 
@@ -89,6 +95,10 @@ contract UniAlignmentVaultFactory is Ownable {
                 alignmentRegistry,
                 alignmentTargetId
             );
+
+        // Wire best-route acquisition post-init (factory is the vault owner). address(0) leaves the
+        // vault on fixed-pool acquisition, so this is a no-op change to today's behavior until set.
+        if (zQuoter != address(0)) UniAlignmentVault(payable(vault)).setZQuoter(zQuoter);
 
         emit VaultDeployed(vault, alignmentToken);
     }

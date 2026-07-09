@@ -18,6 +18,7 @@ import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
+import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
 
 interface IzRouterV4 {
     function swapV4(
@@ -162,6 +163,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     uint24 public zRouterFee;
     int24 public zRouterTickSpacing;
 
+    // zQuoter for on-chain best-route acquisition (owner-set, address(0) = fixed-pool fallback only).
+    // Wired post-deploy by the factory; the fixed zRouterFee/zRouterTickSpacing pool stays the fallback.
+    address public zQuoter;
+
     // Peripherals (set once at initialize, owner can update)
     IVaultPriceValidator public priceValidator;
 
@@ -193,6 +198,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     event AlignmentTokenUpdated(address indexed oldToken, address indexed newToken);
     event V4PoolKeyUpdated(bytes32 indexed poolId);
+    event ZQuoterUpdated(address indexed zQuoter);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event DustDistributionThresholdUpdated(uint256 newThreshold);
     event BenefactorDelegateSet(address indexed benefactor, address indexed delegate);
@@ -362,16 +368,11 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         private
         returns (SwapLPResult memory r)
     {
-        (, r.targetTokenReceived) = IzRouterV4(zRouter).swapV4{ value: ethToSwap }(
-            address(this),
-            false,
-            zRouterFee,
-            zRouterTickSpacing,
-            address(0),
-            alignmentToken,
-            ethToSwap,
-            minOutTarget,
-            type(uint256).max
+        // Unified acquire (Front 2): pick the deepest pool via on-chain zQuoter and dispatch to the
+        // matching TYPED zRouter leg; degrade to the fixed zRouterFee/zRouterTickSpacing swapV4 pool
+        // when zQuoter is unset/empty. minOutTarget (the oracle floor) is enforced by the router.
+        r.targetTokenReceived = BestRouteAcquirer.acquireViaV4(
+            zRouter, zQuoter, alignmentToken, ethToSwap, minOutTarget, zRouterFee, zRouterTickSpacing, type(uint256).max
         );
 
         uint256 ethRemaining = ethToAdd - ethToSwap;
@@ -870,6 +871,18 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         _validateV4Pool(newPoolKey);
         v4PoolKey = newPoolKey;
         emit V4PoolKeyUpdated(keccak256(abi.encode(newPoolKey)));
+    }
+
+    /// @notice Set the on-chain zQuoter used for best-route acquisition (owner = deploying factory).
+    /// @dev address(0) disables best-route selection, leaving only the fixed zRouterFee/
+    ///      zRouterTickSpacing swapV4 fallback (mirrors the priceValidator "inert when zero" pattern).
+    ///      Only the acquire (ETH->alignment token) leg consults it; the vault-fee token->ETH swap is
+    ///      unchanged. `minOut` is always the vault's own oracle floor, so a mis-set quoter can never
+    ///      widen slippage — the worst case is degrading to the fixed pool.
+    /// @param newZQuoter zQuoter address, or address(0) to use fixed-pool acquisition only
+    function setZQuoter(address newZQuoter) external onlyOwner {
+        zQuoter = newZQuoter;
+        emit ZQuoterUpdated(newZQuoter);
     }
 
     /// @notice Set maximum allowed price deviation for manipulation protection
