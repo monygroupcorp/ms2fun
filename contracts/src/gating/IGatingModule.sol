@@ -18,13 +18,24 @@ interface IGatingModule is IComponentModule {
     /// @notice Returns (allowed, permanent).
     ///         When permanent == true, the caller MUST set gatingActive = false —
     ///         this module guarantees it will never block again.
-    /// @param user    The buyer address.
-    /// @param amount  Token amount (not NFT count).
-    /// @param data    Arbitrary data — password hash, merkle proof, etc.
-    function canMint(address user, uint256 amount, bytes calldata data) external returns (bool allowed, bool permanent);
+    /// @param user      The buyer address.
+    /// @param editionId Authoritative edition/curve id supplied by the calling instance. ERC1155
+    ///                  instances pass the real edition; ERC404 (single curve) passes 0. Per-edition
+    ///                  modules key their roots and claim accounting on this — the instance is the
+    ///                  source of truth, so a proof for edition A cannot be replayed on edition B.
+    /// @param amount    Token amount (not NFT count).
+    /// @param openTime  Authoritative open timestamp for this entry point (edition.openTime for
+    ///                  ERC1155, bondingOpenTime for ERC404). De-wrapped from `data` so `data` carries
+    ///                  only the module payload — a bytes32[] merkle proof cannot be smuggled through the
+    ///                  old abi.encode(payload, openTime) wrap.
+    /// @param data      Module-specific payload — password hash, merkle (tierId, maxQty, proof), etc.
+    function canMint(address user, uint256 editionId, uint256 amount, uint256 openTime, bytes calldata data)
+        external
+        returns (bool allowed, bool permanent);
 
     /// @notice Record a successful mint. Called by instance after canMint passes.
-    /// @param user   The buyer address.
-    /// @param amount Token amount minted.
-    function onMint(address user, uint256 amount) external;
+    /// @param user      The buyer address.
+    /// @param editionId Authoritative edition/curve id (see canMint). 0 for ERC404.
+    /// @param amount    Token amount minted.
+    function onMint(address user, uint256 editionId, uint256 amount) external;
 }
