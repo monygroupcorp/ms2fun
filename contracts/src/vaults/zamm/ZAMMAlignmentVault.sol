@@ -9,6 +9,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
 
 /// @notice Minimal ZAMM interface (mirrors ZAMM.sol ABI without requiring its compiler version)
 interface IZAMM {
@@ -106,6 +107,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     event DelegateSet(address indexed benefactor, address indexed delegate);
     event ProtocolYieldCutUpdated(uint256 newBps);
     event PriceValidatorUpdated(address indexed validator);
+    event ZQuoterUpdated(address indexed zQuoter);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
@@ -117,6 +119,10 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     address public alignmentToken;
     IZAMM.PoolKey internal _poolKey;
     uint256 public poolId;
+
+    // zQuoter for on-chain best-route acquisition (owner-set, address(0) = fixed-pool fallback only).
+    // Wired post-deploy by the factory; the fixed _poolKey.feeOrHook ZAMM pool stays the fallback.
+    address public zQuoter;
 
     // ── Protocol economics ────────────────────────────────────────────────
     address public protocolTreasury;
@@ -324,17 +330,12 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 minEth,
         uint256 minToken
     ) private returns (SwapLPResult memory r) {
-        (, r.tokenBought) = IzRouterV2(zRouter).swapVZ{ value: ethToSwap }(
-            address(this),
-            false,
-            _poolKey.feeOrHook,
-            address(0),
-            alignmentToken,
-            0,
-            0,
-            ethToSwap,
-            minTokenOut,
-            block.timestamp + 15 minutes
+        // Unified acquire (Front 2): pick the deepest pool via on-chain zQuoter and dispatch to the
+        // matching TYPED zRouter leg; degrade to the fixed _poolKey.feeOrHook swapVZ pool when zQuoter
+        // is unset/empty. minTokenOut (the oracle floor) is enforced by the router. The ZAMM LP-add
+        // below is unchanged (venue-native).
+        r.tokenBought = BestRouteAcquirer.acquireViaVZ(
+            zRouter, zQuoter, alignmentToken, ethToSwap, minTokenOut, _poolKey.feeOrHook, block.timestamp + 15 minutes
         );
 
         IERC20(alignmentToken).forceApprove(zamm, r.tokenBought);
@@ -489,6 +490,18 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     function setPriceValidator(address validator) external onlyOwner {
         priceValidator = IVaultPriceValidator(validator);
         emit PriceValidatorUpdated(validator);
+    }
+
+    /// @notice Set the on-chain zQuoter used for best-route acquisition (owner = deploying factory).
+    /// @dev address(0) disables best-route selection, leaving only the fixed _poolKey.feeOrHook swapVZ
+    ///      fallback (mirrors the priceValidator "inert when zero" pattern). Only the acquire
+    ///      (ETH->alignment token) leg consults it; the harvest token->ETH swap is unchanged.
+    ///      minTokenOut is always the vault's own oracle floor, so a mis-set quoter can never widen
+    ///      slippage — the worst case is degrading to the fixed pool.
+    /// @param newZQuoter zQuoter address, or address(0) to use fixed-pool acquisition only
+    function setZQuoter(address newZQuoter) external onlyOwner {
+        zQuoter = newZQuoter;
+        emit ZQuoterUpdated(newZQuoter);
     }
 
     function setMaxPriceDeviationBps(uint256 bps) external onlyOwner {

@@ -18,6 +18,9 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     /// @notice Oracle/TWAP validator wired into every deployed vault (F5). The vault's swap floor is
     ///         inert when this is address(0), so production must pass the shared validator.
     IVaultPriceValidator public immutable defaultPriceValidator;
+    /// @notice zQuoter wired into every deployed vault for best-route acquisition (Front 2). When
+    ///         address(0), vaults acquire via the fixed _poolKey.feeOrHook pool only.
+    address public immutable zQuoter;
 
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
@@ -25,12 +28,14 @@ contract ZAMMAlignmentVaultFactory is Ownable {
         address _zamm,
         address _zRouter,
         address _protocolTreasury,
-        IVaultPriceValidator _defaultPriceValidator
+        IVaultPriceValidator _defaultPriceValidator,
+        address _zQuoter
     ) {
         zamm = _zamm;
         zRouter = _zRouter;
         protocolTreasury = _protocolTreasury;
         defaultPriceValidator = _defaultPriceValidator;
+        zQuoter = _zQuoter;
         vaultImplementation = address(new ZAMMAlignmentVault());
         _initializeOwner(msg.sender);
     }
@@ -52,6 +57,11 @@ contract ZAMMAlignmentVaultFactory is Ownable {
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
         ZAMMAlignmentVault(payable(vault))
             .initialize(zamm, zRouter, alignmentToken, poolKey, protocolTreasury, address(defaultPriceValidator));
+
+        // Wire best-route acquisition post-init (factory is the vault owner). address(0) leaves the
+        // vault on fixed-pool acquisition, so this is a no-op change to today's behavior until set.
+        if (zQuoter != address(0)) ZAMMAlignmentVault(payable(vault)).setZQuoter(zQuoter);
+
         emit VaultDeployed(vault, alignmentToken);
     }
 
