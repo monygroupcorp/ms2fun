@@ -4,6 +4,7 @@ import {
   CURVE_COMPUTER_TAG,
   EMPTY_BYTES,
   ZERO_BYTES32,
+  encodeBuyGatingData,
   encodeGatingData,
   encodeMessageData,
   resolveBuyPasswordHash,
@@ -35,6 +36,23 @@ describe('encodeGatingData', () => {
     )
     expect(decodedHash).toBe(hash)
     expect(decodedTime).toBe(1234n)
+  })
+})
+
+describe('encodeBuyGatingData', () => {
+  it('round-trips through the merged canMint decoder (abi.decode(data,(bytes32)))', () => {
+    const hash = keccak256(stringToBytes('pw'))
+    const encoded = encodeBuyGatingData(hash)
+    const [decodedHash] = decodeAbiParameters([{ name: 'passwordHash', type: 'bytes32' }], encoded)
+    expect(decodedHash).toBe(hash)
+  })
+  it('is a single 32-byte word, byte-identical to the raw hash (abi.encode(bytes32))', () => {
+    const hash = keccak256(stringToBytes('pw'))
+    expect(encodeBuyGatingData(hash)).toBe(hash)
+    expect(encodeBuyGatingData(hash).length).toBe(2 + 64)
+  })
+  it('open tier: encodes bytes32(0) for the zero-sentinel password', () => {
+    expect(encodeBuyGatingData(ZERO_BYTES32)).toBe(ZERO_BYTES32)
   })
 })
 
