@@ -43,7 +43,7 @@ contract Finding4_ERC1155ForceFeedTest is Test {
     /// @notice Force-fed ETH must not allow withdrawal beyond totalProceeds
     function test_withdraw_cannotExceedTotalProceeds() public {
         vm.prank(buyer);
-        instance.mint{ value: 1 ether }(1, 1, bytes32(0), "", 0);
+        instance.mint{ value: 1 ether }(1, 1, bytes(""), "", 0);
 
         assertEq(instance.totalProceeds(), 1 ether);
 
@@ -58,7 +58,7 @@ contract Finding4_ERC1155ForceFeedTest is Test {
     /// @notice Normal withdrawal within proceeds works
     function test_withdraw_worksWithinProceeds() public {
         vm.prank(buyer);
-        instance.mint{ value: 1 ether }(1, 1, bytes32(0), "", 0);
+        instance.mint{ value: 1 ether }(1, 1, bytes(""), "", 0);
 
         vm.deal(treasury, 10 ether);
         vm.prank(creator);
@@ -68,7 +68,7 @@ contract Finding4_ERC1155ForceFeedTest is Test {
     /// @notice totalWithdrawn prevents double-withdrawal
     function test_withdraw_preventsDoubleWithdrawal() public {
         vm.prank(buyer);
-        instance.mint{ value: 1 ether }(1, 1, bytes32(0), "", 0);
+        instance.mint{ value: 1 ether }(1, 1, bytes(""), "", 0);
 
         vm.deal(treasury, 10 ether);
         vm.prank(creator);
