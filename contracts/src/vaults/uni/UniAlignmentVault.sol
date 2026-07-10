@@ -330,12 +330,22 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     struct SwapLPResult {
         uint256 targetTokenReceived;
         uint256 liquidityUnitsAdded;
+        // ETH actually deployed into the position this convert (swapped leg + ETH leg genuinely LP'd).
+        uint256 ethDeployed;
+        // ETH offered to the position but not pulled by modifyLiquidity (rounding residual); this is
+        // re-credited to totalPendingETH so it is never stranded (noesis-034).
+        uint256 ethUnabsorbed;
     }
 
     // slither-disable-next-line reentrancy-benign,reentrancy-eth
     function convertAndAddLiquidity(uint256 minOutTarget) external nonReentrant returns (uint256 lpPositionValue) {
         if (minOutTarget == 0) revert AmountMustBePositive();
         if (totalPendingETH == 0) revert NoPendingETH();
+        // A rounding residual re-credited to totalPendingETH (see _distributeSharesAndCleanup) can
+        // leave totalPendingETH > 0 with NO tracked participant. Converting that alone would revert on
+        // the empty activeBenefactors[0] access; treat it as "nothing to convert" until a real
+        // contribution re-registers a participant, at which point the residual rides along (noesis-034).
+        if (conversionParticipants.length == 0) revert NoPendingETH();
         if (alignmentToken == address(0)) revert NoAlignmentTarget();
         if (Currency.unwrap(v4PoolKey.currency0) == address(0) && Currency.unwrap(v4PoolKey.currency1) == address(0)) {
             revert PoolKeyNotSet();
@@ -357,7 +367,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         SwapLPResult memory r = _doSwapAndLP(ethToAdd, ethToSwap, effMinOut, tickLower, tickUpper);
 
         address[] memory activeBenefactors = _getActiveBenefactors();
-        _distributeSharesAndCleanup(ethToAdd, r.liquidityUnitsAdded, activeBenefactors);
+        _distributeSharesAndCleanup(ethToAdd, r.ethDeployed, r.ethUnabsorbed, r.liquidityUnitsAdded, activeBenefactors);
 
         lpPositionValue = ethToSwap + r.targetTokenReceived;
         emit LiquidityAdded(ethToSwap, r.targetTokenReceived, lpPositionValue, r.liquidityUnitsAdded);
@@ -380,13 +390,25 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
             ? (r.targetTokenReceived, ethRemaining)
             : (ethRemaining, r.targetTokenReceived);
 
-        r.liquidityUnitsAdded = uint256(_addToLpPosition(amount0, amount1, tickLower, tickUpper));
+        (uint128 liquidityUnits, uint256 ethDeposited) = _addToLpPosition(amount0, amount1, tickLower, tickUpper);
+        r.liquidityUnitsAdded = uint256(liquidityUnits);
         totalLPUnits += r.liquidityUnitsAdded;
+
+        // ETH offered to the position (ethRemaining) that modifyLiquidity did not pull is legitimate
+        // rounding residual — re-credit it (via ethUnabsorbed) so it is spendable on the next convert
+        // instead of being stranded. ethDeposited <= ethRemaining always (liquidity is sized by the
+        // binding leg), but clamp defensively against fee credits that could net the ETH delta up.
+        r.ethUnabsorbed = ethRemaining > ethDeposited ? ethRemaining - ethDeposited : 0;
+        // ETH actually deployed = everything offered minus what came back as residual. Equivalently
+        // ethToSwap (spent to acquire the token leg) + ethDeposited (ETH leg genuinely LP'd).
+        r.ethDeployed = ethToAdd - r.ethUnabsorbed;
     }
 
     // slither-disable-next-line divide-before-multiply
     function _distributeSharesAndCleanup(
         uint256 ethToAdd,
+        uint256 ethDeployed,
+        uint256 ethUnabsorbed,
         uint256 totalSharesIssued,
         address[] memory activeBenefactors
     ) private {
@@ -429,8 +451,15 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         // Reward debt for newly-issued shares is set inline at issuance above (MasterChef pattern);
         // existing holders are not re-watermarked, so their accrued entitlement is preserved.
-        totalEthLocked += ethToAdd;
-        totalPendingETH = 0;
+        //
+        // totalEthLocked credits ETH ACTUALLY deployed into the position, not the ethToAdd offered:
+        // the pre-fix `+= ethToAdd` over-reported locked value whenever any ETH went unabsorbed.
+        // (No consumer reads totalEthLocked except its public getter — share math keys off shares and
+        //  accFeesPerShare, never this field — so the semantics change is payout-neutral.)
+        totalEthLocked += ethDeployed;
+        // Re-credit the unabsorbed rounding residual so no ETH becomes unspendable; it is untracked at
+        // the per-benefactor level and is swept into the next convert that has a live participant.
+        totalPendingETH = ethUnabsorbed;
         _clearConversionParticipants();
     }
 
@@ -612,7 +641,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     function _addToLpPosition(uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)
         internal
         virtual
-        returns (uint128 liquidityUnits)
+        returns (uint128 liquidityUnits, uint256 ethDeposited)
     {
         if (amount0 == 0 || amount1 == 0) revert AmountMustBePositive();
 
@@ -648,9 +677,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
         BalanceDelta delta = abi.decode(result, (BalanceDelta));
 
+        // ETH actually pulled by modifyLiquidity for this add = the negative (owed) delta on the ETH
+        // leg. currency0 is native ETH for every valid pool key here (address(0) is the smallest
+        // address, so it sorts to currency0). A non-negative delta means the position took no ETH
+        // (e.g. fully token-bound, or fee credits netted the leg up) → ethDeposited = 0.
+        int128 ethDelta = currency0.isAddressZero() ? delta.amount0() : delta.amount1();
+        ethDeposited = ethDelta < 0 ? uint256(uint128(-ethDelta)) : 0;
+
         liquidityUnits = liquidityToAdd;
 
-        return liquidityUnits;
+        return (liquidityUnits, ethDeposited);
     }
 
     /// @notice Uniswap V4 PoolManager unlock callback for modifyLiquidity operations
