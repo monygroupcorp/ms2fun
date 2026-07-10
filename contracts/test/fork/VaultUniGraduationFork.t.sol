@@ -120,7 +120,11 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         uint256 lpUnits = vault.totalLPUnits();
         assertGt(lpUnits, 0, "vault must book LP units");
         assertGt(vault.benefactorShares(alice), 0, "contributor earns shares");
-        assertEq(vault.totalPendingETH(), 0, "dragnet cleared");
+        // Post-noesis-034 the dragnet clears down to at most a rounding residual, not exactly 0:
+        // ETH offered to the position but not pulled by modifyLiquidity is re-credited to
+        // totalPendingETH (never stranded). On convert #1 the stale-tick guard swaps ~50%, so the
+        // residual is tiny relative to the 5 ETH deployed.
+        assertLt(vault.totalPendingETH(), 0.05 ether, "dragnet cleared to at most a rounding residual");
 
         // ── The position is REAL: read it back from the V4 PoolManager. ──
         PoolKey memory key = PoolKey({
@@ -140,5 +144,52 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         assertEq(uint256(posLiquidity), lpUnits, "on-chain position matches the vault's booked LP units");
 
         emit log_named_uint("Live V4 position liquidity", posLiquidity);
+    }
+
+    /// @notice REGRESSION (noesis-034) — THE TWO-CONVERT TEST THAT NEVER EXISTED.
+    /// @dev The swap-proportion defect does NOT fire on convert #1: stale lastTickLower/Upper == 0
+    ///      short-circuits calculateSwapProportion to 5e17. It fires on convert #2+, once #1 stamps
+    ///      nonzero full-range ticks and the real _computeProportionFromSqrtPrice path runs against the
+    ///      pool's actual price (USDC is a P ≫ 1 tokens-per-ETH target — CULT-like). A SINGLE-convert
+    ///      test is structurally incapable of catching this; that is precisely why the bug shipped.
+    ///      DO NOT "simplify" this back to one convert.
+    ///
+    ///      With the pre-fix formula the second convert would swap a sliver, LP a sliver, and strand
+    ///      ~all of the 5 ETH as raw balance while booking the full 5 ETH as totalEthLocked. With the
+    ///      fix it deploys ~all of the pending ETH and books only what it deployed.
+    function test_uniVault_secondConvert_deploysNearlyAllPendingETH() public {
+        vm.deal(alice, 20 ether);
+
+        // Convert #1 — stamps full-range lastTickLower/Upper; proportion is the stale-tick 5e17.
+        vm.prank(alice);
+        (bool ok1,) = address(vault).call{ value: 5 ether }("");
+        require(ok1, "contribution #1 failed");
+        vault.convertAndAddLiquidity(1);
+        assertTrue(vault.lastTickUpper() != 0, "convert #1 must stamp nonzero ticks (arms the defect)");
+
+        // Convert #2 — nonzero ticks ⇒ the real proportion path runs. This is the guarded convert.
+        // (pendingBefore is ~5 ETH; convert #1 may have re-credited a tiny ETH residual, so read it
+        // rather than assuming exactly 5 ether.)
+        vm.prank(alice);
+        (bool ok2,) = address(vault).call{ value: 5 ether }("");
+        require(ok2, "contribution #2 failed");
+        uint256 pendingBefore = vault.totalPendingETH();
+        assertGt(pendingBefore, 4.95 ether, "second dragnet ~= 5 ETH");
+        uint256 lockedBefore = vault.totalEthLocked();
+
+        vault.convertAndAddLiquidity(1);
+
+        // The second convert must deploy ≈ all pending ETH; only a rounding residual is re-credited.
+        uint256 residual = vault.totalPendingETH();
+        assertLt(residual, 0.05 ether, "convert #2 must deploy ~all pending ETH (defect stranded ~all of it)");
+
+        // Accounting identity: ethDeployed + ethUnabsorbed == ethToAdd. totalEthLocked credits ETH
+        // ACTUALLY deployed, NOT the amount offered — the false-accounting half of the defect.
+        uint256 deployed = vault.totalEthLocked() - lockedBefore;
+        assertEq(deployed, pendingBefore - residual, "totalEthLocked == ETH actually deployed");
+        assertGt(deployed, 4.9 ether, "nearly all pending ETH is deployed on convert #2");
+
+        emit log_named_uint("Convert #2 residual re-credited (wei)", residual);
+        emit log_named_uint("Convert #2 ETH deployed (wei)", deployed);
     }
 }

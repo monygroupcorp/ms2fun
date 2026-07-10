@@ -8,6 +8,7 @@ import { PoolId } from "v4-core/types/PoolId.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { LiquidityAmounts } from "../libraries/v4/LiquidityAmounts.sol";
+import { FullMath } from "v4-core/libraries/FullMath.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 
@@ -205,36 +206,66 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
             return 5e17;
         }
 
-        // Cross-check V4 spot proportion against V3 TWAP proportion.
-        // V4 slot0 is a manipulable spot price; the TWAP guard prevents sandwich attacks
-        // on vault ETH during convertAndAddLiquidity.
+        // Cross-check V4 spot proportion against a V3 TWAP proportion, then apply the absolute
+        // clamp. V4 slot0 is a manipulable spot price; the TWAP deviation guard catches manipulation
+        // between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against absolute
+        // mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
         uint160 twapSqrtPrice = _getTwapSqrtPriceX96(token);
+        bool twapValid = false;
+        uint256 twapProportion = 0;
         if (twapSqrtPrice != 0) {
-            (bool twapValid, uint256 twapProportion) =
-                _computeProportionFromSqrtPrice(twapSqrtPrice, token, tickLower, tickUpper);
-            if (twapValid) {
-                uint256 diff =
-                    spotProportion > twapProportion ? spotProportion - twapProportion : twapProportion - spotProportion;
-                // Reject if V4 spot proportion deviates more than 5% (5e16) from V3 TWAP proportion.
-                // A 5% shift in proportion corresponds to a significant price manipulation.
-                if (diff > 5e16) revert SwapProportionDeviationTooHigh();
-            }
-        } else {
-            // No V3 TWAP available (new pool or insufficient observation history).
-            // Clamp to a safety band [35%, 65%] to limit sandwich attack profit
-            // without bricking the vault. Full-range positions at unmanipulated prices
-            // are naturally in this range.
-            if (spotProportion < 35e16) spotProportion = 35e16;
-            if (spotProportion > 65e16) spotProportion = 65e16;
+            (twapValid, twapProportion) = _computeProportionFromSqrtPrice(twapSqrtPrice, token, tickLower, tickUpper);
         }
 
+        return _applyProportionGuards(spotProportion, twapValid, twapProportion);
+    }
+
+    /// @dev Applies the two independent swap-proportion guards and returns the guarded proportion.
+    ///      (1) Spot-vs-TWAP deviation check — catches price manipulation between the manipulable V4
+    ///          spot price and the V3 TWAP. Kept, but it is COMMON-MODE BLIND to absolute error:
+    ///          both operands come from the same computation, so a systematic bias cancels and can
+    ///          never trip this check. It is therefore NOT sufficient on its own.
+    ///      (2) Absolute clamp to [35%, 65%] — applied UNCONDITIONALLY (previously it lived only in
+    ///          the no-TWAP branch, leaving TWAP-covered targets with no backstop against absolute
+    ///          mis-sizing, which is exactly the failure mode that shipped). Full-range positions are
+    ///          50/50 BY VALUE at every price; this band bounds worst-case swap mis-sizing.
+    function _applyProportionGuards(uint256 spotProportion, bool twapValid, uint256 twapProportion)
+        internal
+        pure
+        returns (uint256)
+    {
+        if (twapValid) {
+            uint256 diff =
+                spotProportion > twapProportion ? spotProportion - twapProportion : twapProportion - spotProportion;
+            // A >5% (5e16) shift in proportion corresponds to a significant price manipulation.
+            if (diff > 5e16) revert SwapProportionDeviationTooHigh();
+        }
+
+        if (spotProportion < 35e16) spotProportion = 35e16;
+        if (spotProportion > 65e16) spotProportion = 65e16;
         return spotProportion;
     }
 
-    /// @dev Computes swap proportion from a given sqrtPriceX96 for the LP tick range.
-    ///      Returns (false, 0) when the price is outside the tick range (both amounts zero).
+    /// @dev Computes the fraction of pending ETH to swap INTO the alignment token for a zap-in to the
+    ///      [tickLower, tickUpper] position at the given price. Returns (false, 0) when the price is
+    ///      outside the tick range (both position amounts zero).
+    ///
+    ///      Both position legs are valued in ONE numeraire (ETH) before ratioing. The ORIGINAL bug
+    ///      summed amount0 (wei of ETH) and amount1 (alignment-token units) — dimensionally invalid —
+    ///      which returned 1/(1+P) instead of the correct proportion and silently stranded ETH.
+    ///
+    ///      Derivation. Let E = pending ETH, s = ETH swapped, P = tokens per ETH. Post-swap the vault
+    ///      holds (E - s) ETH and s*P tokens, which must match the position's required amount0:amount1
+    ///      (ETH:token) ratio:
+    ///          (E - s) / (s*P) = amount0 / amount1
+    ///        ⇒ s/E = amount1 / (P*amount0 + amount1) = tokenValueInEth / (ethValue + tokenValueInEth)
+    ///      i.e. the TOKEN side over the total. At the LOWER tick the position is ~all ETH
+    ///      (amount1 ≈ 0) ⇒ proportion → 0 (swap ~nothing); at the UPPER tick ~all token ⇒ → 1e18.
+    ///      For a FULL-RANGE position this reduces to exactly 5e17 at every price — but that is a
+    ///      theorem about the vault's configuration, NOT hardcoded here: this validator is a shared
+    ///      IVaultPriceValidator and must be correct for bounded ranges too.
     function _computeProportionFromSqrtPrice(uint160 sqrtPriceX96, address token, int24 tickLower, int24 tickUpper)
-        private
+        internal
         pure
         returns (bool valid, uint256 proportion)
     {
@@ -244,18 +275,46 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         (uint256 amount0, uint256 amount1) =
             LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, 1e18);
 
-        uint256 total = amount0 + amount1;
-        if (total == 0) {
+        // currency0 is native ETH when address(0) < token (Uniswap V4 currency ordering). address(0)
+        // is the smallest address, so ETH is always currency0 for an ETH-paired pool.
+        bool ethIsCurrency0 = address(0) < token;
+        uint256 ethValue = ethIsCurrency0 ? amount0 : amount1;
+        uint256 tokenAmount = ethIsCurrency0 ? amount1 : amount0;
+
+        // Value the token leg in ETH so both legs share one numeraire.
+        uint256 tokenValueInEth = _tokenValueInEth(sqrtPriceX96, tokenAmount, ethIsCurrency0);
+
+        uint256 denom = ethValue + tokenValueInEth;
+        if (denom == 0) {
             return (false, 0);
         }
 
-        // currency0 is native ETH when address(0) < token (Uniswap V4 currency ordering)
-        bool currency0IsNativeETH = address(0) < token;
-        uint256 ethAmount = currency0IsNativeETH ? amount0 : amount1;
-
-        proportion = (ethAmount * 1e18) / total;
+        proportion = FullMath.mulDiv(tokenValueInEth, 1e18, denom);
         if (proportion > 1e18) proportion = 1e18;
         return (true, proportion);
+    }
+
+    /// @dev Converts `tokenAmount` alignment-token units to their ETH value at `sqrtPriceX96`, using
+    ///      overflow-safe 512-bit math (the canonical Uniswap OracleLibrary.getQuoteAtTick split so
+    ///      sqrtPriceX96**2 never overflows uint256). With ETH as currency0 the pool price P is
+    ///      tokens-per-ETH, so token→ETH divides by P (multiply by 2**192 / sqrtPriceX96**2); with ETH
+    ///      as currency1 it multiplies by P instead.
+    function _tokenValueInEth(uint160 sqrtPriceX96, uint256 tokenAmount, bool ethIsCurrency0)
+        private
+        pure
+        returns (uint256)
+    {
+        if (sqrtPriceX96 <= type(uint128).max) {
+            uint256 ratioX192 = uint256(sqrtPriceX96) * uint256(sqrtPriceX96);
+            return ethIsCurrency0
+                ? FullMath.mulDiv(1 << 192, tokenAmount, ratioX192)
+                : FullMath.mulDiv(ratioX192, tokenAmount, 1 << 192);
+        } else {
+            uint256 ratioX128 = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, 1 << 64);
+            return ethIsCurrency0
+                ? FullMath.mulDiv(1 << 128, tokenAmount, ratioX128)
+                : FullMath.mulDiv(ratioX128, tokenAmount, 1 << 128);
+        }
     }
 
     /// @dev Queries V3 pools (across standard fee tiers) for a TWAP-derived sqrtPriceX96.
