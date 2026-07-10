@@ -9,6 +9,9 @@ import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVa
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 /// @title Finding6_HardcodedDeadlineTest
 /// @notice Verifies that ZAMMAlignmentVault uses block.timestamp + 15 min (not type(uint256).max)
@@ -35,9 +38,25 @@ contract Finding6_HardcodedDeadlineTest is Test {
 
         poolKey = IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: address(token), feeOrHook: 30 });
 
+        MockAlignmentRegistry registry = new MockAlignmentRegistry();
+        registry.setReferencePool(
+            1, address(token), IAlignmentRegistry.ReferencePool({ pool: address(0xBEEF), kind: 0, twapWindow: 1800 })
+        );
+        MockVaultPriceValidator validator = new MockVaultPriceValidator();
+        validator.setEthPer1e18Tokens(1e18); // honest 1:1 mock swaps clear the floor
+
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(address(mockZamm), address(mockZRouter), address(token), poolKey, treasury, address(0));
+        vault.initialize(
+            address(mockZamm),
+            address(mockZRouter),
+            address(token),
+            poolKey,
+            treasury,
+            address(validator),
+            IAlignmentRegistry(address(registry)),
+            1
+        );
 
         // Seed: contribute + convert (exercises the swapVZ deadline codepath)
         vm.deal(alice, 100 ether);

@@ -9,6 +9,7 @@ import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
 
 /// @notice Minimal ZAMM interface (mirrors ZAMM.sol ABI without requiring its compiler version)
@@ -96,6 +97,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error TooManyPendingBenefactors();
     error HarvestSameBlock();
     error PoolKeyLocked();
+    error NoReferencePool();
 
     // ── Anti-DoS constants ────────────────────────────────────────────────
     uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
@@ -133,6 +135,12 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ///         permissionless convert/harvest paths. address(0) = no floor (caller minOut only).
     IVaultPriceValidator public priceValidator;
     uint256 public maxPriceDeviationBps; // default 500 (5%)
+
+    // ── Alignment target binding (set once at init; mirrors Uni) ──────────
+    /// @notice Registry holding the DAO-pinned canonical {ReferencePool} the anti-sandwich floor reads.
+    IAlignmentRegistry public alignmentRegistry;
+    /// @notice ID of the alignment target this vault serves; keys the reference-pool lookup.
+    uint256 public alignmentTargetId;
 
     // ── Principal tracking ────────────────────────────────────────────────
     uint256 public principalETH; // nominal cumulative ETH deposited (reporting)
@@ -175,7 +183,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         address _alignmentToken,
         IZAMM.PoolKey calldata key,
         address _protocolTreasury,
-        address _priceValidator
+        address _priceValidator,
+        IAlignmentRegistry _alignmentRegistry,
+        uint256 _alignmentTargetId
     ) external {
         if (_initialized) revert VaultAlreadyInitialized();
         if (_protocolTreasury == address(0)) revert TreasuryNotSet();
@@ -193,6 +203,11 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // F5: wire the oracle floor at init (mirrors Uni). address(0) → floor inert (back-compat);
         // production deploys pass the shared UniswapVaultPriceValidator so swaps are TWAP-floored.
         priceValidator = IVaultPriceValidator(_priceValidator);
+
+        // Alignment target binding (mirrors Uni): the anti-sandwich floor resolves the DAO-pinned
+        // canonical ReferencePool from this registry keyed by (alignmentTargetId, alignmentToken).
+        alignmentRegistry = _alignmentRegistry;
+        alignmentTargetId = _alignmentTargetId;
 
         _initializeOwner(msg.sender);
     }
@@ -510,22 +525,32 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         emit MaxPriceDeviationUpdated(bps);
     }
 
-    /// @dev Floor a caller-supplied token-out minimum (ETH->token swap) to an oracle-derived value.
-    ///      Falls back to the caller value when no validator is wired or no reliable price exists.
+    /// @dev Floor a caller-supplied token-out minimum (ETH->token swap) to a canonical-reference-derived
+    ///      value. Reads the DAO-pinned {ReferencePool} for this (target, token) and prices it via the
+    ///      validator's pinned-pool TWAP path. NO fail-open: an unset reference reverts {NoReferencePool}
+    ///      and an unusable one reverts inside {quoteEthForTokensVia}, so a permissionless caller cannot
+    ///      disable the floor. 1e18 is the reference token amount; the pinned quote is linear so the
+    ///      per-unit price cancels the decimals.
     function _floorTokenOut(uint256 ethIn, uint256 callerMin) internal view returns (uint256) {
-        if (address(priceValidator) == address(0)) return callerMin;
-        uint256 ethPerTokenUnit = priceValidator.quoteEthForTokens(alignmentToken, 1e18);
-        if (ethPerTokenUnit == 0) return callerMin;
+        IAlignmentRegistry.ReferencePool memory ref =
+            alignmentRegistry.getReferencePool(alignmentTargetId, alignmentToken);
+        if (ref.pool == address(0)) revert NoReferencePool();
+        uint256 ethPerTokenUnit =
+            priceValidator.quoteEthForTokensVia(ref.pool, ref.kind, ref.twapWindow, alignmentToken, 1e18);
         uint256 expectedOut = ethIn * 1e18 / ethPerTokenUnit;
         uint256 floor = expectedOut * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
         return callerMin > floor ? callerMin : floor;
     }
 
-    /// @dev Floor a caller-supplied ETH-out minimum (token->ETH swap) to an oracle-derived value.
+    /// @dev Floor a caller-supplied ETH-out minimum (token->ETH swap) to a canonical-reference-derived
+    ///      value, using the SAME pinned {ReferencePool} as the buy-side floor. NO fail-open (see
+    ///      {_floorTokenOut}).
     function _floorEthOut(uint256 tokenIn, uint256 callerMin) internal view returns (uint256) {
-        if (address(priceValidator) == address(0)) return callerMin;
-        uint256 expectedEth = priceValidator.quoteEthForTokens(alignmentToken, tokenIn);
-        if (expectedEth == 0) return callerMin;
+        IAlignmentRegistry.ReferencePool memory ref =
+            alignmentRegistry.getReferencePool(alignmentTargetId, alignmentToken);
+        if (ref.pool == address(0)) revert NoReferencePool();
+        uint256 expectedEth =
+            priceValidator.quoteEthForTokensVia(ref.pool, ref.kind, ref.twapWindow, alignmentToken, tokenIn);
         uint256 floor = expectedEth * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
         return callerMin > floor ? callerMin : floor;
     }

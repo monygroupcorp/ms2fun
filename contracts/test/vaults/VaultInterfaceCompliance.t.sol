@@ -74,7 +74,14 @@ contract VaultInterfaceComplianceTest is Test {
         ZAMMAlignmentVault implV2 = new ZAMMAlignmentVault();
         ultraVaultV2 = ZAMMAlignmentVault(payable(LibClone.clone(address(implV2))));
         ultraVaultV2.initialize(
-            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, address(0x99), address(0)
+            address(mockZamm),
+            address(mockZRouter),
+            address(alignmentToken),
+            poolKey,
+            address(0x99),
+            address(mockValidator),
+            IAlignmentRegistry(address(mockRegistry)),
+            1
         );
 
         // Deploy MockVault

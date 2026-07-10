@@ -8,6 +8,9 @@ import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVa
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { ZAMMVaultHandler } from "./handlers/ZAMMVaultHandler.sol";
 
 contract ZAMMVaultInvariantTest is StdInvariant, Test {
@@ -33,10 +36,26 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
         IZAMM.PoolKey memory poolKey =
             IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: address(alignmentToken), feeOrHook: 30 });
 
+        MockAlignmentRegistry registry = new MockAlignmentRegistry();
+        registry.setReferencePool(
+            1,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: address(0xBEEF), kind: 0, twapWindow: 1800 })
+        );
+        MockVaultPriceValidator validator = new MockVaultPriceValidator();
+        validator.setEthPer1e18Tokens(1e18); // honest 1:1 mock swaps clear the floor
+
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
         vault.initialize(
-            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, treasury, address(0)
+            address(mockZamm),
+            address(mockZRouter),
+            address(alignmentToken),
+            poolKey,
+            treasury,
+            address(validator),
+            IAlignmentRegistry(address(registry)),
+            1
         );
 
         actors.push(address(0xA11CE));
