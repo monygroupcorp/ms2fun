@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import { BestRouteAcquirer } from "../../src/shared/libraries/BestRouteAcquirer.sol";
 import { MockZQuoter } from "../mocks/MockZQuoter.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
+import { IAlgebraSwapRouter } from "../../src/interfaces/algebra/IAlgebra.sol";
 
 /// @notice zRouter stand-in that records which TYPED leg the acquirer dispatched to and mints the
 ///         configured output. Enforces `amountOut >= amountLimit` (like the real router) so a minOut
@@ -123,6 +124,50 @@ contract RecordingRouter {
     receive() external payable { }
 }
 
+/// @notice Algebra SwapRouter stand-in for the fixed-pool fallback leg. Accepts NATIVE ETH exactly like
+///         the real Algebra/Uniswap-V3 SwapRouter (`payable`, `tokenIn == WNativeToken` + msg.value), and
+///         enforces `amountOut >= amountOutMinimum` so a minOut breach reverts here. Records the params so
+///         the test can prove the fallback used the vault's own Algebra router with the right tokenIn/ETH.
+contract RecordingAlgebraRouter {
+    MockERC20 public immutable tokenOut;
+
+    uint256 public out; // configured fixed-pool output
+    bool public called;
+    address public lastTokenIn;
+    address public lastRecipient;
+    uint256 public lastDeadline;
+    uint256 public lastMsgValue;
+    uint256 public lastAmountIn;
+
+    constructor(MockERC20 _tokenOut) {
+        tokenOut = _tokenOut;
+    }
+
+    function setOut(uint256 _out) external {
+        out = _out;
+    }
+
+    function exactInputSingle(IAlgebraSwapRouter.ExactInputSingleParams calldata p)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
+        // Native ETH in: msg.value must fund amountIn, mirroring the real router's `pay()` wrap path.
+        require(msg.value == p.amountIn, "RecordingAlgebraRouter: native ETH mismatch");
+        require(out >= p.amountOutMinimum, "RecordingAlgebraRouter: insufficient output");
+        called = true;
+        lastTokenIn = p.tokenIn;
+        lastRecipient = p.recipient;
+        lastDeadline = p.deadline;
+        lastMsgValue = msg.value;
+        lastAmountIn = p.amountIn;
+        amountOut = out;
+        tokenOut.mint(p.recipient, amountOut);
+    }
+
+    receive() external payable { }
+}
+
 /// @notice Thin caller so the internal library runs in a real contract context (address(this) = the
 ///         "vault"): tokens land here and ETH is forwarded from here, mirroring the vault call site.
 contract AcquirerHarness {
@@ -155,11 +200,27 @@ contract AcquirerHarness {
         );
     }
 
+    function acquireAlgebra(
+        address zRouter,
+        address zQuoter,
+        address tokenOut,
+        uint256 ethAmount,
+        uint256 minOut,
+        address algebraRouter,
+        address weth,
+        uint256 fallbackDeadline
+    ) external payable returns (uint256) {
+        return BestRouteAcquirer.acquireViaAlgebra(
+            zRouter, zQuoter, tokenOut, ethAmount, minOut, algebraRouter, weth, fallbackDeadline
+        );
+    }
+
     receive() external payable { }
 }
 
 contract BestRouteAcquirerTest is Test {
     RecordingRouter internal router;
+    RecordingAlgebraRouter internal algebraRouter;
     MockZQuoter internal quoter;
     MockERC20 internal token;
     AcquirerHarness internal harness;
@@ -170,13 +231,69 @@ contract BestRouteAcquirerTest is Test {
     int24 internal constant FIXED_TICK = 60;
     // ZAMM fixed-pool fallback feeOrHook.
     uint256 internal constant FIXED_FEEORHOOK = 100;
+    // WNativeToken address passed as the Algebra router `tokenIn` for the native-ETH fallback.
+    address internal constant WETH = address(0x1111);
 
     function setUp() public {
         token = new MockERC20("Align", "ALGN");
         router = new RecordingRouter(token);
+        algebraRouter = new RecordingAlgebraRouter(token);
         quoter = new MockZQuoter();
         harness = new AcquirerHarness();
         vm.deal(address(this), 100 ether);
+    }
+
+    function _callAlgebra(address zQuoter, uint256 minOut, uint256 deadline) internal returns (uint256) {
+        return harness.acquireAlgebra{ value: ETH_IN }(
+            address(router), zQuoter, address(token), ETH_IN, minOut, address(algebraRouter), WETH, deadline
+        );
+    }
+
+    // ── Algebra-family entry point (acquireViaAlgebra) ─────────────────────────────────────────
+
+    /// Quoter unset ⇒ fixed Algebra-router fallback: buys tokenOut for native ETH on the vault's own
+    /// Algebra venue (tokenIn = WNativeToken), enforces minOut, delivers tokens to the caller.
+    function test_algebra_fallbackBuysViaAlgebraRouter() public {
+        algebraRouter.setOut(3e18);
+        uint256 deadline = block.timestamp + 15 minutes;
+        uint256 got = _callAlgebra(address(0), 1e18, deadline);
+
+        assertTrue(algebraRouter.called(), "algebra fixed-pool fallback engaged");
+        assertEq(algebraRouter.lastTokenIn(), WETH, "tokenIn is WNativeToken (router wraps forwarded ETH)");
+        assertEq(algebraRouter.lastRecipient(), address(harness), "tokens delivered to the vault");
+        assertEq(algebraRouter.lastAmountIn(), ETH_IN, "amountIn == ethAmount");
+        assertEq(algebraRouter.lastMsgValue(), ETH_IN, "native ETH forwarded as msg.value");
+        assertEq(algebraRouter.lastDeadline(), deadline, "fallback deadline threaded through");
+        assertEq(got, 3e18, "returns the Algebra router output");
+        assertEq(token.balanceOf(address(harness)), 3e18, "tokens to caller");
+    }
+
+    /// minOut is enforced as amountOutMinimum on the Algebra fallback: a breach reverts (never silent).
+    function test_algebra_minOutEnforcedOnFallback() public {
+        algebraRouter.setOut(100e18);
+        vm.expectRevert(bytes("RecordingAlgebraRouter: insufficient output"));
+        _callAlgebra(address(0), 150e18, block.timestamp + 15 minutes);
+    }
+
+    /// A wired quoter routes through the typed best-route leg; the Algebra fixed pool is NOT touched.
+    function test_algebra_bestRouteTakenWhenQuoterWired() public {
+        router.setV4Out(500, 3e18); // feeBps 5 -> fee 500 / spacing 10
+        quoter.setBest(MockZQuoter.AMM.UNI_V4, 5, ETH_IN, 3e18);
+        uint256 got = _callAlgebra(address(quoter), 1e18, block.timestamp + 15 minutes);
+
+        assertEq(uint256(router.lastLeg()), uint256(RecordingRouter.Leg.V4), "best route via zRouter V4 leg");
+        assertFalse(algebraRouter.called(), "Algebra fallback NOT engaged when best-route is available");
+        assertEq(got, 3e18, "returns the best-route output");
+    }
+
+    /// A best-route minOut breach must revert — it is NEVER silently re-routed to the Algebra fixed pool.
+    function test_algebra_bestRouteMinOutBreachDoesNotFallBack() public {
+        router.setV4Out(500, 150e18);
+        algebraRouter.setOut(999e18); // fixed pool COULD satisfy, but must NOT be silently used
+        quoter.setBest(MockZQuoter.AMM.UNI_V4, 5, ETH_IN, 150e18);
+
+        vm.expectRevert(bytes("RecordingRouter: insufficient output"));
+        _callAlgebra(address(quoter), 200e18, block.timestamp + 15 minutes);
     }
 
     function _callV4(address zQuoter, uint256 minOut) internal returns (uint256) {

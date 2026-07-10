@@ -289,24 +289,47 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
             return 5e17;
         }
 
-        // Get current V4 pool spot price
+        // Get current V4 pool spot price and delegate to the venue-agnostic core so the numeraire +
+        // direction fix cannot drift between the V4 and non-V4 (Algebra) entry points.
         (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
+        return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96);
+    }
+
+    /// @inheritdoc IVaultPriceValidator
+    function calculateSwapProportionFromSqrtPrice(address token, int24 tickLower, int24 tickUpper, uint160 sqrtPriceX96)
+        external
+        view
+        override
+        returns (uint256 proportion)
+    {
+        return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96);
+    }
+
+    /// @dev Venue-agnostic swap-proportion core shared by {calculateSwapProportion} (V4 spot) and
+    ///      {calculateSwapProportionFromSqrtPrice} (caller-supplied spot). Computes the proportion at
+    ///      `sqrtPriceX96`, cross-checks it against a V3 TWAP proportion, and applies the absolute
+    ///      [35%,65%] clamp. A zero / out-of-range spot degrades to the balanced 50:50 entry (5e17),
+    ///      identical to the pre-refactor V4 behavior.
+    function _swapProportionFromSqrtPrice(address token, int24 tickLower, int24 tickUpper, uint160 sqrtPriceX96)
+        private
+        view
+        returns (uint256)
+    {
         if (sqrtPriceX96 == 0) {
             return 5e17;
         }
 
-        // Compute proportion from V4 spot price
         (bool spotValid, uint256 spotProportion) =
             _computeProportionFromSqrtPrice(sqrtPriceX96, token, tickLower, tickUpper);
         if (!spotValid) {
             return 5e17;
         }
 
-        // Cross-check V4 spot proportion against a V3 TWAP proportion, then apply the absolute
-        // clamp. V4 slot0 is a manipulable spot price; the TWAP deviation guard catches manipulation
-        // between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against absolute
-        // mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
+        // Cross-check the spot proportion against a V3 TWAP proportion, then apply the absolute clamp.
+        // A slot0/globalState spot price is manipulable within a block; the TWAP deviation guard catches
+        // manipulation between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against
+        // absolute mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
         uint160 twapSqrtPrice = _getTwapSqrtPriceX96(token);
         bool twapValid = false;
         uint256 twapProportion = 0;

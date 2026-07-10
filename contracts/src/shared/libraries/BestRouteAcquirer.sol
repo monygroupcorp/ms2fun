@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { IAlgebraSwapRouter } from "../../interfaces/algebra/IAlgebra.sol";
+
 /// @notice On-chain best-route quote surface (zQuoter.getQuotes). The base quoter
 ///         (`zQuoterBase`) only ever reports one of these five single-hop sources, and every one of
 ///         them maps to a typed zRouter leg below — so no route is ever dispatched through the
@@ -157,6 +159,50 @@ library BestRouteAcquirer {
 
         (, amountReceived) = IBestRouteRouter(zRouter).swapVZ{ value: ethAmount }(
             address(this), false, fallbackFeeOrHook, address(0), tokenOut, 0, 0, ethAmount, minOut, fallbackDeadline
+        );
+    }
+
+    /// @notice Acquire `tokenOut` with `ethAmount` for an Algebra-family (Cypher) vault: best-route typed
+    ///         dispatch, falling back to a fixed exact-in swap on the Algebra venue the vault LPs into.
+    /// @dev The fallback buys on the vault's OWN Algebra router (`IAlgebraSwapRouter.exactInputSingle`), not
+    ///      a generic executor — the alignment token is acquired on the same venue it will be LP'd into.
+    ///      Native ETH is paid in exactly as the V4/VZ siblings do: `ethAmount` is forwarded as `msg.value`
+    ///      with `tokenIn = weth` (the Algebra SwapRouter wraps native ETH from its own balance when
+    ///      `tokenIn == WNativeToken`). `minOut` is enforced as `amountOutMinimum`, so the router reverts on
+    ///      a `received < minOut` breach — the best route is NEVER silently re-routed to the fixed pool on
+    ///      a swap failure (the `_tryBestRoute` swap is outside the fallback path, same as the siblings).
+    /// @param zRouter zRouter address (typed legs) for the best-route path.
+    /// @param zQuoter zQuoter address for on-chain best-route selection; `address(0)` = fallback only.
+    /// @param tokenOut Alignment token to buy.
+    /// @param ethAmount ETH to spend (exact-in).
+    /// @param minOut Oracle-floored minimum token out; enforced as the router `amountOutMinimum`.
+    /// @param algebraRouter The vault's Algebra SwapRouter for the fixed fallback leg.
+    /// @param weth WNativeToken address, passed as the router `tokenIn` so it wraps the forwarded ETH.
+    /// @param fallbackDeadline Deadline for the fallback leg (vault preserves its current value).
+    /// @return amountReceived Alignment tokens received (>= minOut, enforced by the router).
+    function acquireViaAlgebra(
+        address zRouter,
+        address zQuoter,
+        address tokenOut,
+        uint256 ethAmount,
+        uint256 minOut,
+        address algebraRouter,
+        address weth,
+        uint256 fallbackDeadline
+    ) internal returns (uint256 amountReceived) {
+        (bool ok, uint256 out) = _tryBestRoute(zRouter, zQuoter, tokenOut, ethAmount, minOut);
+        if (ok) return out;
+
+        amountReceived = IAlgebraSwapRouter(algebraRouter).exactInputSingle{ value: ethAmount }(
+            IAlgebraSwapRouter.ExactInputSingleParams({
+                tokenIn: weth,
+                tokenOut: tokenOut,
+                recipient: address(this),
+                deadline: fallbackDeadline,
+                amountIn: ethAmount,
+                amountOutMinimum: minOut,
+                limitSqrtPrice: 0
+            })
         );
     }
 
