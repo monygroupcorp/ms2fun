@@ -1942,6 +1942,13 @@ export const cypherLiquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_INIT_PRICE_DEVIATION_BPS',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'TICK_LOWER',
     outputs: [{ name: '', internalType: 'int24', type: 'int24' }],
     stateMutability: 'view',
@@ -2246,6 +2253,7 @@ export const cypherLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'InvalidParams' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
   { type: 'error', inputs: [], name: 'ZeroLiquidity' },
@@ -3349,7 +3357,7 @@ export const erc1155InstanceAbi = [
     inputs: [
       { name: 'editionId', internalType: 'uint256', type: 'uint256' },
       { name: 'amount', internalType: 'uint256', type: 'uint256' },
-      { name: 'gatingData', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'gatingData', internalType: 'bytes', type: 'bytes' },
       { name: 'messageData', internalType: 'bytes', type: 'bytes' },
       { name: 'maxCost', internalType: 'uint256', type: 'uint256' },
     ],
@@ -3877,6 +3885,11 @@ export const erc1155InstanceAbi = [
     name: 'SmartTransferFailed',
   },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  {
+    type: 'error',
+    inputs: [{ name: 'vaultType', internalType: 'string', type: 'string' }],
+    name: 'UnknownVaultFamily',
+  },
   { type: 'error', inputs: [], name: 'UnlimitedMustHaveZeroSupply' },
 ] as const
 
@@ -3963,7 +3976,7 @@ export const erc404BondingInstanceAbi = [
       { name: 'amount', internalType: 'uint256', type: 'uint256' },
       { name: 'maxCost', internalType: 'uint256', type: 'uint256' },
       { name: 'mintNFT', internalType: 'bool', type: 'bool' },
-      { name: 'passwordHash', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'gatingData', internalType: 'bytes', type: 'bytes' },
       { name: 'messageData', internalType: 'bytes', type: 'bytes' },
       { name: 'deadline', internalType: 'uint256', type: 'uint256' },
     ],
@@ -5795,6 +5808,7 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'UnapprovedLiquidityDeployer' },
   { type: 'error', inputs: [], name: 'UnapprovedResolver' },
   { type: 'error', inputs: [], name: 'UnapprovedStakingModule' },
+  { type: 'error', inputs: [], name: 'UnapprovedVault' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'VaultMustBeContract' },
   { type: 'error', inputs: [], name: 'VaultRequired' },
@@ -7140,6 +7154,11 @@ export const erc721AuctionInstanceAbi = [
   { type: 'error', inputs: [], name: 'TransferToZeroAddress' },
   { type: 'error', inputs: [], name: 'URIRequired' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  {
+    type: 'error',
+    inputs: [{ name: 'vaultType', internalType: 'string', type: 'string' }],
+    name: 'UnknownVaultFamily',
+  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8324,6 +8343,36 @@ export const iMasterRegistryMinAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IMerkleGatingModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iMerkleGatingModuleAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      {
+        name: 'config',
+        internalType: 'struct MerkleConfig',
+        type: 'tuple',
+        components: [
+          { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+          { name: 'roots', internalType: 'bytes32[]', type: 'bytes32[]' },
+          {
+            name: 'tierOpenTimes',
+            internalType: 'uint256[]',
+            type: 'uint256[]',
+          },
+        ],
+      },
+    ],
+    name: 'configureFor',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IOverlayInstance
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -8538,6 +8587,13 @@ export const liquidityDeployerModuleAbi = [
     stateMutability: 'nonpayable',
   },
   { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'MAX_INIT_PRICE_DEVIATION_BPS',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
   {
     type: 'function',
     inputs: [],
@@ -8832,6 +8888,7 @@ export const liquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
+  { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
 ] as const
@@ -9668,6 +9725,253 @@ export const masterRegistryV1Abi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// MerkleGatingModule
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const merkleGatingModuleAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'canMint',
+    outputs: [
+      { name: 'allowed', internalType: 'bool', type: 'bool' },
+      { name: 'permanent', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'user', internalType: 'address', type: 'address' },
+    ],
+    name: 'claimed',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      {
+        name: 'config',
+        internalType: 'struct MerkleConfig',
+        type: 'tuple',
+        components: [
+          { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+          { name: 'roots', internalType: 'bytes32[]', type: 'bytes32[]' },
+          {
+            name: 'tierOpenTimes',
+            internalType: 'uint256[]',
+            type: 'uint256[]',
+          },
+        ],
+      },
+    ],
+    name: 'configureFor',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'configured',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getRoots',
+    outputs: [{ name: '', internalType: 'bytes32[]', type: 'bytes32[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'instance', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getTierOpenTimes',
+    outputs: [{ name: '', internalType: 'uint256[]', type: 'uint256[]' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address' },
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'onMint',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'EmptyRootSet' },
+  { type: 'error', inputs: [], name: 'InvalidProof' },
+  { type: 'error', inputs: [], name: 'InvalidTier' },
+  { type: 'error', inputs: [], name: 'LengthMismatch' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'QtyCapExceeded' },
+  { type: 'error', inputs: [], name: 'TierNotOpen' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'ZeroRoot' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // MetadataOverlayModule
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -10432,7 +10736,9 @@ export const passwordTierGatingModuleAbi = [
     type: 'function',
     inputs: [
       { name: 'user', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
       { name: 'amount', internalType: 'uint256', type: 'uint256' },
+      { name: 'openTime', internalType: 'uint256', type: 'uint256' },
       { name: 'data', internalType: 'bytes', type: 'bytes' },
     ],
     name: 'canMint',
@@ -10540,6 +10846,7 @@ export const passwordTierGatingModuleAbi = [
     type: 'function',
     inputs: [
       { name: 'user', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
       { name: 'amount', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'onMint',
@@ -11995,6 +12302,13 @@ export const zammLiquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_INIT_PRICE_DEVIATION_BPS',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'cancelOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
@@ -12268,6 +12582,7 @@ export const zammLiquidityDeployerModuleAbi = [
   { type: 'error', inputs: [], name: 'NoETHForPool' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
+  { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
 ] as const
@@ -14838,6 +15153,15 @@ export const useWatchCurveParamsComputerOwnershipTransferredEvent =
  */
 export const useReadCypherLiquidityDeployerModule =
   /*#__PURE__*/ createUseReadContract({ abi: cypherLiquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"MAX_INIT_PRICE_DEVIATION_BPS"`
+ */
+export const useReadCypherLiquidityDeployerModuleMaxInitPriceDeviationBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'MAX_INIT_PRICE_DEVIATION_BPS',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"TICK_LOWER"`
@@ -21190,6 +21514,37 @@ export const useReadIMasterRegistryMinIsRegisteredInstance =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iMerkleGatingModuleAbi}__
+ */
+export const useWriteIMerkleGatingModule = /*#__PURE__*/ createUseWriteContract(
+  { abi: iMerkleGatingModuleAbi },
+)
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iMerkleGatingModuleAbi}__ and `functionName` set to `"configureFor"`
+ */
+export const useWriteIMerkleGatingModuleConfigureFor =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: iMerkleGatingModuleAbi,
+    functionName: 'configureFor',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iMerkleGatingModuleAbi}__
+ */
+export const useSimulateIMerkleGatingModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: iMerkleGatingModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iMerkleGatingModuleAbi}__ and `functionName` set to `"configureFor"`
+ */
+export const useSimulateIMerkleGatingModuleConfigureFor =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: iMerkleGatingModuleAbi,
+    functionName: 'configureFor',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link iOverlayInstanceAbi}__
  */
 export const useReadIOverlayInstance = /*#__PURE__*/ createUseReadContract({
@@ -21463,6 +21818,15 @@ export const useSimulateIwethWithdraw = /*#__PURE__*/ createUseSimulateContract(
  */
 export const useReadLiquidityDeployerModule =
   /*#__PURE__*/ createUseReadContract({ abi: liquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"MAX_INIT_PRICE_DEVIATION_BPS"`
+ */
+export const useReadLiquidityDeployerModuleMaxInitPriceDeviationBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'MAX_INIT_PRICE_DEVIATION_BPS',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"masterRegistry"`
@@ -22557,6 +22921,302 @@ export const useWatchMasterRegistryV1VaultRegisteredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: masterRegistryV1Abi,
     eventName: 'VaultRegistered',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__
+ */
+export const useReadMerkleGatingModule = /*#__PURE__*/ createUseReadContract({
+  abi: merkleGatingModuleAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"claimed"`
+ */
+export const useReadMerkleGatingModuleClaimed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'claimed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"configured"`
+ */
+export const useReadMerkleGatingModuleConfigured =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'configured',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"getRoots"`
+ */
+export const useReadMerkleGatingModuleGetRoots =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'getRoots',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"getTierOpenTimes"`
+ */
+export const useReadMerkleGatingModuleGetTierOpenTimes =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'getTierOpenTimes',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadMerkleGatingModuleMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadMerkleGatingModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadMerkleGatingModuleOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadMerkleGatingModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__
+ */
+export const useWriteMerkleGatingModule = /*#__PURE__*/ createUseWriteContract({
+  abi: merkleGatingModuleAbi,
+})
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"canMint"`
+ */
+export const useWriteMerkleGatingModuleCanMint =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'canMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteMerkleGatingModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteMerkleGatingModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"configureFor"`
+ */
+export const useWriteMerkleGatingModuleConfigureFor =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'configureFor',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"onMint"`
+ */
+export const useWriteMerkleGatingModuleOnMint =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'onMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteMerkleGatingModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteMerkleGatingModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteMerkleGatingModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteMerkleGatingModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__
+ */
+export const useSimulateMerkleGatingModule =
+  /*#__PURE__*/ createUseSimulateContract({ abi: merkleGatingModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"canMint"`
+ */
+export const useSimulateMerkleGatingModuleCanMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'canMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateMerkleGatingModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateMerkleGatingModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"configureFor"`
+ */
+export const useSimulateMerkleGatingModuleConfigureFor =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'configureFor',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"onMint"`
+ */
+export const useSimulateMerkleGatingModuleOnMint =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'onMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateMerkleGatingModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateMerkleGatingModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateMerkleGatingModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateMerkleGatingModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: merkleGatingModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link merkleGatingModuleAbi}__
+ */
+export const useWatchMerkleGatingModuleEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: merkleGatingModuleAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchMerkleGatingModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: merkleGatingModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchMerkleGatingModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: merkleGatingModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchMerkleGatingModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: merkleGatingModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link merkleGatingModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchMerkleGatingModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: merkleGatingModuleAbi,
+    eventName: 'OwnershipTransferred',
   })
 
 /**
@@ -24934,6 +25594,15 @@ export const useWatchTierRevealModuleTiersSealedEvent =
  */
 export const useReadZammLiquidityDeployerModule =
   /*#__PURE__*/ createUseReadContract({ abi: zammLiquidityDeployerModuleAbi })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"MAX_INIT_PRICE_DEVIATION_BPS"`
+ */
+export const useReadZammLiquidityDeployerModuleMaxInitPriceDeviationBps =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'MAX_INIT_PRICE_DEVIATION_BPS',
+  })
 
 /**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"feeOrHook"`

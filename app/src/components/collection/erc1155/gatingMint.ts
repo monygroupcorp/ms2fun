@@ -2,34 +2,27 @@
  * Pure encoding helpers for ERC1155 gated/message mints — kept React-free so they can be unit
  * tested directly (mirrors the erc404/erc721 pattern of a pure module + colocated tests).
  *
- * GATING APPROACH
- * ---------------
+ * GATING APPROACH (post-#25 merged ABI)
+ * -------------------------------------
  * The instance stores an immutable `gatingScope` (BOTH | FREE_MINT_ONLY | PAID_ONLY) and an
  * optional `gatingModule` address. A call site consults the module only when:
  *   - paid `mint`        → module set AND scope != FREE_MINT_ONLY
  *   - `claimFreeMint`    → module set AND scope != PAID_ONLY
  * (see contracts/docs/plans/2026-03-02-free-mints-gating-scope-design.md)
  *
- * When the module gates a call it receives a `gatingData` credential which it forwards to
- * `canMint(addr, amount, gatingData)`. The one shipped module is PasswordTierGating: the
- * credential is the keccak256 hash of the user's plaintext password (the same `passwordHash`
- * bytes32 that ERC404BondingInstance.buyBonding accepts). We therefore resolve a password tier
- * by hashing the plaintext client-side.
+ * Both entry points now take `bytes gatingData` and forward it UNCHANGED to
+ * `IGatingModule.canMint(user, editionId, amount, openTime, data)`. `openTime` is an authoritative
+ * parameter supplied by the instance (`edition.openTime`) — it is NO LONGER wrapped into `data` (#25;
+ * the old `mint` took a raw `bytes32` that the instance re-wrapped as `abi.encode(hash, openTime)`).
+ * The one shipped module, PasswordTierGating, decodes `abi.decode(data, (bytes32 passwordHash))` where
+ * passwordHash = keccak256(utf8(plaintext)) and bytes32(0) selects the open tier. So a SINGLE encoder
+ * (`encodePasswordGatingData`) now serves both the paid and free password paths: `abi.encode(bytes32)`.
  *
- * Two encodings differ by call site because the call sites forward the credential differently:
- *   - `mint(... bytes32 gatingData ...)`  → the raw keccak256 hash (a bytes32). The INSTANCE wraps
- *     it as `abi.encode(gatingData, edition.openTime)` before calling the module, so the client
- *     passes only the hash.
- *   - `claimFreeMint(bytes gatingData)`   → forwarded DIRECTLY to the module, which does
- *     `abi.decode(data, (bytes32, uint256))`. So the client must itself encode
- *     `abi.encode(passwordHash, openTime)`. Passing a bare hash here reverts in abi.decode.
- *
- * MERKLE SEAM: an allowlist (merkle-allowlist-gating) module would instead expect an
- * ABI-encoded merkle proof (`bytes32[]`) as gatingData. Resolving a proof needs the full leaf
- * set / a proof service, which is out of scope for this slice — see `resolveMerkleGatingData`
- * for the clearly-marked seam. Until that lands, a user with no password supplied falls back to
- * the zero credential so the call reaches the module and reverts visibly (normal tx-failed UX)
- * rather than fabricating a credential.
+ * MERKLE SEAM: an allowlist (MerkleGatingModule) would instead expect an ABI-encoded merkle proof as
+ * `data`. Resolving a proof needs the full leaf set / a proof service, out of scope for this slice —
+ * see `resolveMerkleGatingData` for the clearly-marked seam (noesis-029/030 own it). Until that lands,
+ * a user with no password supplied falls back to the zero credential so the call reaches the module
+ * and reverts visibly (normal tx-failed UX) rather than fabricating a credential.
  */
 import { encodeAbiParameters, keccak256, toHex, type Hex } from 'viem'
 
@@ -70,8 +63,10 @@ export function isFreeMintGated(
 }
 
 /**
- * Resolve a plaintext password into the `bytes32` credential the paid `mint` path expects.
- * Empty input → ZERO_BYTES32 (treated as "no credential supplied").
+ * Resolve a plaintext password into its keccak256 `bytes32` password hash — the value the
+ * PasswordTierGating module keys tiers by. Empty input → ZERO_BYTES32 (the open-tier sentinel).
+ * This is the INNER hash; `encodePasswordGatingData` wraps it into the `bytes` credential the
+ * mint call sites pass.
  */
 export function passwordToBytes32(password: string): Hex {
   const trimmed = password.trim()
@@ -80,22 +75,17 @@ export function passwordToBytes32(password: string): Hex {
 }
 
 /**
- * Encode the `bytes` credential the `claimFreeMint` path expects. Unlike paid `mint` (where the
- * instance wraps the hash with the edition's openTime), `claimFreeMint` forwards this blob straight
- * to the module's `abi.decode(data, (bytes32, uint256))`, so we must encode the pair ourselves:
- * `abi.encode(passwordHash, openTime)`. An empty password yields `(bytes32(0), openTime)` → the
- * module reads tier 0. `openTime` only affects TIME_BASED tiers; free mint has no per-claim time
- * anchor, so it defaults to 0 (callers with a TIME_BASED free-mint tier can pass the edition's
- * openTime). Note: only call this when the free mint is actually gated — pass '0x' otherwise, since
- * the module isn't consulted and abi.decode('0x') would revert.
+ * Encode the `bytes gatingData` credential for the password-gated paid `mint` AND `claimFreeMint`
+ * paths. Post-#25 both entry points forward this blob straight to PasswordTierGating, which decodes
+ * `abi.decode(data, (bytes32 passwordHash))` (the edition's openTime now arrives as its own
+ * `canMint` parameter, not inside `data`). So we ABI-encode the single bytes32 hash. An empty
+ * password yields `abi.encode(bytes32(0))` → the module reads the open tier (0). Pass '0x' instead
+ * when the call is ungated: the module isn't consulted and `abi.decode('0x', (bytes32))` would revert.
  */
-export function encodeFreeMintGatingData(password: string, openTime: bigint = 0n): Hex {
+export function encodePasswordGatingData(password: string): Hex {
   return encodeAbiParameters(
-    [
-      { name: 'passwordHash', type: 'bytes32' },
-      { name: 'openTime', type: 'uint256' },
-    ],
-    [passwordToBytes32(password), openTime],
+    [{ name: 'passwordHash', type: 'bytes32' }],
+    [passwordToBytes32(password)],
   )
 }
 

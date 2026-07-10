@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { decodeAbiParameters, keccak256, toHex } from 'viem'
 import {
-  encodeFreeMintGatingData,
   encodeMintMessage,
+  encodePasswordGatingData,
   GatingScope,
   hasGatingModule,
   isFreeMintGated,
@@ -61,28 +61,28 @@ describe('passwordToBytes32', () => {
   })
 })
 
-describe('encodeFreeMintGatingData', () => {
-  const params = [
-    { name: 'passwordHash', type: 'bytes32' },
-    { name: 'openTime', type: 'uint256' },
-  ] as const
+describe('encodePasswordGatingData', () => {
+  // The merged PasswordTierGatingModule.canMint decodes exactly this out of `data` (#25):
+  //   abi.decode(data, (bytes32 passwordHash))   — openTime is now a separate canMint param.
+  const decoderShape = [{ name: 'passwordHash', type: 'bytes32' }] as const
 
-  it('abi-encodes (passwordHash, openTime) so the module can abi.decode it', () => {
-    const encoded = encodeFreeMintGatingData('hunter2', 1234n)
-    const [hash, openTime] = decodeAbiParameters(params, encoded)
+  it('round-trips through the merged canMint decoder (abi.decode(data,(bytes32)))', () => {
+    const encoded = encodePasswordGatingData('hunter2')
+    const [hash] = decodeAbiParameters(decoderShape, encoded)
     expect(hash).toBe(passwordToBytes32('hunter2'))
-    expect(openTime).toBe(1234n)
+    expect(hash).toBe(keccak256(toHex('hunter2')))
   })
 
-  it('empty password → (bytes32(0), openTime) → module reads tier 0', () => {
-    const [hash, openTime] = decodeAbiParameters(params, encodeFreeMintGatingData(''))
+  it('empty password → abi.encode(bytes32(0)) → module reads the open tier (0)', () => {
+    const [hash] = decodeAbiParameters(decoderShape, encodePasswordGatingData(''))
     expect(hash).toBe(ZERO_BYTES32)
-    expect(openTime).toBe(0n)
   })
 
-  it('encodes to 64 bytes (two 32-byte words), not a bare 32-byte hash', () => {
-    // The original bug: a bare bytes32 (66 chars) reverts in abi.decode((bytes32,uint256)).
-    expect(encodeFreeMintGatingData('x').length).toBe(2 + 128)
+  it('encodes to a single 32-byte word (the merged decoder reads one bytes32)', () => {
+    // abi.encode(bytes32) is 32 bytes = 64 hex chars + '0x'. Byte-identical to the raw hash, which is
+    // what the module receives as `data` and abi.decode((bytes32))s back.
+    expect(encodePasswordGatingData('x').length).toBe(2 + 64)
+    expect(encodePasswordGatingData('x')).toBe(passwordToBytes32('x'))
   })
 })
 
