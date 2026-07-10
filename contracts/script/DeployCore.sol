@@ -44,6 +44,7 @@ import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 import { MockComponentModule } from "../test/mocks/MockComponentModule.sol";
 import { LiquidityDeployerModule } from "../src/factories/erc404/LiquidityDeployerModule.sol";
 import { ZAMMLiquidityDeployerModule } from "../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
+import { CypherLiquidityDeployerModule } from "../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { MockSafe } from "../test/mocks/MockSafe.sol";
 import { ICreateX, CREATEX } from "../src/shared/CreateXConstants.sol";
 
@@ -77,6 +78,9 @@ contract DeployCore is Script {
         // Vault AMM addresses — address(0) means that AMM isn't on this network, skip factory
         address cypherPositionManager;
         address cypherRouter;
+        // Cypher/Algebra factory — needed by the REAL CypherLiquidityDeployerModule (launch pool).
+        // address(0) means Cypher has no launch venue on this network → deployer is omitted, NOT stubbed.
+        address cypherAlgebraFactory;
         address zamm;
         address aaveStataToken; // Aave WETH StaticATokenV2 (waEthWETH); address(0) = no endowment vault
 
@@ -532,10 +536,20 @@ contract DeployCore is Script {
         }
         componentRegistry.approveComponent(moduleZAMMDeployer, FeatureUtils.LIQUIDITY_DEPLOYER, "ZAMM Deployer");
 
-        // Cypher/Algebra stays the stub for now — the embedded-swap Cypher path is a fast-follow
-        // (link-out), and the real module needs an Algebra factory address not yet in the config.
-        moduleCypherDeployer = address(new MockComponentModule(deployer, cypherMeta));
-        componentRegistry.approveComponent(moduleCypherDeployer, FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
+        // Cypher/Algebra: build the REAL launch deployer where the Algebra addresses are configured
+        // (algebraFactory + positionManager/NFPM + weth are the exact ctor args). Where Cypher has no
+        // launch venue on this network (e.g. Sepolia), DO NOT approve a metadata-only stub under the
+        // functional LIQUIDITY_DEPLOYER tag — an approved stub bricks graduation. Omit it instead so
+        // the wizard simply won't offer Cypher on that network.
+        if (cfg.cypherAlgebraFactory != address(0) && cfg.cypherPositionManager != address(0) && cfg.weth != address(0))
+        {
+            CypherLiquidityDeployerModule cypherMod = new CypherLiquidityDeployerModule(
+                cfg.cypherAlgebraFactory, cfg.cypherPositionManager, cfg.weth, masterRegistry
+            );
+            cypherMod.setMetadataURI(cypherMeta);
+            moduleCypherDeployer = address(cypherMod);
+            componentRegistry.approveComponent(moduleCypherDeployer, FeatureUtils.LIQUIDITY_DEPLOYER, "Cypher Deployer");
+        }
 
         // ERC404 staking module (functional, not a stub) — the ERC404 factory wires this into
         // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
