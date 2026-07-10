@@ -97,7 +97,7 @@ contract ERC404FactoryTest is Test {
         componentRegistry.initialize(protocolAdmin);
 
         // Approve the curve computer and default deployer
-        componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "StandardCurve");
+        componentRegistry.approveComponent(address(curveComp), bytes32("curve_computer"), "StandardCurve");
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "MockDeployer");
 
         // Set up default preset
@@ -1093,5 +1093,68 @@ contract ERC404FactoryTest is Test {
         vm.prank(protocolAdmin);
         factory.setDeployBondEscrow(address(0xCAFE));
         assertEq(factory.deployBondEscrow(), address(0xCAFE));
+    }
+
+    // ============================================================
+    // noesis-038 — tag-scoped approval (§3.1)
+    // A component approved under tag A must NOT pass a slot requiring tag B.
+    // Each ERC404 slot surfaces its OWN error selector (not a uniform one).
+    // ============================================================
+
+    function test_tagScope_gatingSlot_rejectsWrongTag() public {
+        // Approved under STAKING, passed into the GATING slot → per-site UnapprovedGatingModule.
+        address wrongTag = address(new MockVault());
+        vm.prank(protocolAdmin);
+        componentRegistry.approveComponent(wrongTag, keccak256("staking"), "StakingTaggedMod");
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.UnapprovedGatingModule.selector);
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            _identity("GateWrong", "GW", creator1),
+            "ipfs://metadata",
+            address(mockDeployer),
+            wrongTag,
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
+    }
+
+    function test_tagScope_stakingSlot_rejectsWrongTag() public {
+        // Approved under GATING, passed into the STAKING slot → per-site UnapprovedStakingModule.
+        address wrongTag = address(new MockVault());
+        vm.prank(protocolAdmin);
+        componentRegistry.approveComponent(wrongTag, keccak256("gating"), "GatingTaggedMod");
+
+        ERC404Factory.CreateParams memory p = _identity("StakeWrong", "SW", creator1);
+        p.stakingModule = wrongTag;
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.UnapprovedStakingModule.selector);
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            p,
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
+    }
+
+    function test_tagScope_liquiditySlot_rejectsWrongTag() public {
+        // Approved under GATING, passed as the liquidity deployer → per-site UnapprovedLiquidityDeployer.
+        address wrongTag = address(new MockVault());
+        vm.prank(protocolAdmin);
+        componentRegistry.approveComponent(wrongTag, keccak256("gating"), "GatingTaggedMod");
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.UnapprovedLiquidityDeployer.selector);
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            _identity("LiqWrong", "LW", creator1),
+            "ipfs://metadata",
+            wrongTag,
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
     }
 }

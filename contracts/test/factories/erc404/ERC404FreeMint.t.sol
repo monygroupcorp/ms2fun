@@ -89,7 +89,7 @@ contract ERC404FreeMintTest is Test {
         address proxy = LibClone.deployERC1967(address(impl));
         componentRegistry = ComponentRegistry(proxy);
         componentRegistry.initialize(protocol);
-        componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "Curve");
+        componentRegistry.approveComponent(address(curveComp), bytes32("curve_computer"), "Curve");
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "Deployer");
 
         launchMgr.setPreset(

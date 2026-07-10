@@ -134,7 +134,7 @@ contract NamespaceCollisionTest is Test {
         address compRegProxy = LibClone.deployERC1967(address(compRegImpl));
         ComponentRegistry componentRegistry = ComponentRegistry(compRegProxy);
         componentRegistry.initialize(owner);
-        componentRegistry.approveComponent(address(curveComputer), keccak256("curve"), "StandardCurve");
+        componentRegistry.approveComponent(address(curveComputer), bytes32("curve_computer"), "StandardCurve");
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "MockDeployer");
 
         // Set up default preset

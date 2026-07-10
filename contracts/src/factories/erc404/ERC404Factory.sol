@@ -242,12 +242,14 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         MetadataConfig memory metadataConfig
     ) private returns (address instance) {
         if (gatingModule != address(0)) {
-            if (!componentRegistry.isApprovedComponent(gatingModule)) {
+            if (!componentRegistry.isApprovedForTag(gatingModule, FeatureUtils.GATING)) {
                 revert UnapprovedGatingModule();
             }
         }
         if (params.stakingModule != address(0)) {
-            if (!componentRegistry.isApprovedComponent(params.stakingModule)) revert UnapprovedStakingModule();
+            if (!componentRegistry.isApprovedForTag(params.stakingModule, FeatureUtils.STAKING)) {
+                revert UnapprovedStakingModule();
+            }
         }
 
         // Route creation ETH. Deploy-bond lever (N12) is OFF when no escrow is wired or its
@@ -294,7 +296,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (freeMint.allocation >= params.nftCount) revert FreeMintAllocationExceedsNftCount();
 
         // Validate liquidity deployer
-        if (!componentRegistry.isApprovedComponent(liquidityDeployer)) revert UnapprovedLiquidityDeployer();
+        if (!componentRegistry.isApprovedForTag(liquidityDeployer, FeatureUtils.LIQUIDITY_DEPLOYER)) {
+            revert UnapprovedLiquidityDeployer();
+        }
 
         // Soft vault capability check — YIELD_GENERATION is expected for ERC404 staking rewards
         try IAlignmentVault(payable(params.vault)).supportsCapability(keccak256("YIELD_GENERATION")) returns (
@@ -334,26 +338,39 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     function _wireMetadata(address instance, MetadataConfig memory cfg) private {
         if (cfg.resolver == address(0)) return; // feature off
 
-        if (!componentRegistry.isApprovedComponent(cfg.resolver)) revert UnapprovedResolver();
+        // Resolver slot accepts any resolver-family module (a MetadataResolverRouter or a single
+        // resolver/overlay/tier module used directly), matching the MetadataConfig docstring. The
+        // family check still rejects a gating/staking/liquidity module in the slot (the actual hole).
+        if (!_isApprovedResolverFamily(cfg.resolver)) revert UnapprovedResolver();
         ERC404BondingInstance(payable(instance)).initModule(METADATA_RESOLVER, cfg.resolver);
 
         // Router children (precedence order), validated + sealed. Empty when resolver is a single module.
         if (cfg.childResolvers.length > 0) {
             for (uint256 i = 0; i < cfg.childResolvers.length; i++) {
-                if (!componentRegistry.isApprovedComponent(cfg.childResolvers[i])) revert UnapprovedResolver();
+                if (!_isApprovedResolverFamily(cfg.childResolvers[i])) revert UnapprovedResolver();
             }
             MetadataResolverRouter(cfg.resolver).initResolvers(instance, cfg.childResolvers);
         }
 
         // Per-module sealed config.
         if (cfg.tier != address(0)) {
-            if (!componentRegistry.isApprovedComponent(cfg.tier)) revert UnapprovedResolver();
+            if (!componentRegistry.isApprovedForTag(cfg.tier, FeatureUtils.TIER)) revert UnapprovedResolver();
             TierRevealModule(cfg.tier).initTiers(instance, cfg.tiers);
         }
         if (cfg.overlay != address(0)) {
-            if (!componentRegistry.isApprovedComponent(cfg.overlay)) revert UnapprovedResolver();
+            if (!componentRegistry.isApprovedForTag(cfg.overlay, FeatureUtils.OVERLAY)) revert UnapprovedResolver();
             MetadataOverlayModule(cfg.overlay).initConfig(instance, cfg.autoLatest, cfg.defaultPayout);
         }
+    }
+
+    /// @dev Resolver-family membership: an approved component tagged RESOLVER, OVERLAY, or TIER.
+    ///      The resolver slot and its child resolvers accept any of these (a router or a single
+    ///      resolver/overlay/tier module used directly). Membership is composed here in the factory
+    ///      (over three tag-scoped registry reads) so the registry stays type-agnostic.
+    function _isApprovedResolverFamily(address component) private view returns (bool) {
+        return componentRegistry.isApprovedForTag(component, FeatureUtils.RESOLVER)
+            || componentRegistry.isApprovedForTag(component, FeatureUtils.OVERLAY)
+            || componentRegistry.isApprovedForTag(component, FeatureUtils.TIER);
     }
 
     function _deployAndInitialize(
@@ -366,7 +383,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ) private returns (address instance) {
         // Fetch preset and validate its curve computer
         LaunchManager.Preset memory preset = launchManager.getPreset(params.presetId);
-        if (!componentRegistry.isApprovedComponent(preset.curveComputer)) revert UnapprovedCurveComputer();
+        // DeployCore approves the curve computer under the raw literal tag bytes32("curve_computer")
+        // (NOT keccak256) — mirror that exactly so the real deploy path still passes.
+        if (!componentRegistry.isApprovedForTag(preset.curveComputer, bytes32("curve_computer"))) {
+            revert UnapprovedCurveComputer();
+        }
 
         uint256 unit = preset.unitPerNFT * 1e18;
         uint256 curveNftCount = params.nftCount - freeMint.allocation;
