@@ -70,6 +70,11 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     /// @dev Temporary — intended for removal in the next upgrade cycle.
     mapping(address => bool) public revokedInstances;
 
+    /// @notice nameHash => instance. The reverse of `nameHashes`, for slug resolution.
+    /// @dev Storage-append only: this is the last state var so the layout stays proxy-safe.
+    ///      Kept alongside `nameHashes` (not replacing it) — `nameHashes` is public/ABI-visible.
+    mapping(bytes32 => address) public instanceByNameHash;
+
     // Events
     event AlignmentRegistrySet(address indexed oldRegistry, address indexed newRegistry);
     event CreatorInstanceAdded(address indexed creator, address indexed instance);
@@ -240,6 +245,7 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         if (nameHashes[nameHash]) revert NameAlreadyTaken();
 
         nameHashes[nameHash] = true;
+        instanceByNameHash[nameHash] = instance;
 
         address[] memory initialVaults = new address[](1);
         initialVaults[0] = vault;
@@ -299,6 +305,15 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     function isNameTaken(string memory name) external view override returns (bool) {
         bytes32 nameHash = MetadataUtils.toNameHash(name);
         return nameHashes[nameHash];
+    }
+
+    /// @notice Resolve a collection name to its instance address.
+    /// @dev Case-insensitive (names are lowercased before hashing). Returns address(0) for an
+    ///      unknown name. Deliberately ignores revocation: a revoked instance still resolves so
+    ///      its slug stays reserved and cannot be squatted. Resolution and display are separate
+    ///      concerns — the frontend gates revoked instances.
+    function resolveName(string calldata name) external view override returns (address) {
+        return instanceByNameHash[MetadataUtils.toNameHash(name)];
     }
 
     // ============ Vault Registry ============
