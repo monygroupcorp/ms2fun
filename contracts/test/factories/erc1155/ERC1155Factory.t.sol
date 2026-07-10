@@ -1259,4 +1259,50 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         ERC1155Instance(instance).claimFreeMint(1, bytes(""));
         assertEq(ERC1155Instance(instance).balanceOf(intruder, 1), 1);
     }
+
+    // ============================================================
+    // noesis-038 — tag-scoped approval (§3.1)
+    // An approved-but-wrong-typed module must not pass a foreign slot.
+    // ============================================================
+
+    function test_tagScope_gatingSlot_rejectsWrongTag() public {
+        // A module approved under LIQUIDITY_DEPLOYER, passed into the gating slot, must revert.
+        MockAllowGatingModule wrongTag = new MockAllowGatingModule();
+        vm.prank(registryOwner);
+        componentRegistry.approveComponent(address(wrongTag), keccak256("liquidity"), "LiquidityTaggedMod");
+
+        ERC1155Factory.CreateParams memory p = _params("GateWrong", creator, address(vault));
+        p.gatingModule = address(wrongTag);
+
+        vm.deal(creator, 1 ether);
+        vm.prank(creator);
+        vm.expectRevert(ERC1155Factory.UnapprovedComponent.selector);
+        factory.createInstance(_nextSalt(), p);
+    }
+
+    function test_tagScope_gatingSlot_acceptsGatingTag() public {
+        // The same module, approved under GATING, passes the slot and deploys (happy path unchanged).
+        MockAllowGatingModule rightTag = new MockAllowGatingModule();
+        vm.prank(registryOwner);
+        componentRegistry.approveComponent(address(rightTag), keccak256("gating"), "GatingTaggedMod");
+
+        ERC1155Factory.CreateParams memory p = _params("GateRight", creator, address(vault));
+        p.gatingModule = address(rightTag);
+
+        vm.deal(creator, 1 ether);
+        vm.prank(creator);
+        address instance = factory.createInstance(_nextSalt(), p);
+        assertTrue(instance != address(0), "right-tag gating module should deploy");
+    }
+
+    function test_tagScope_dynamicPricingSlot_rejectsWrongTag() public {
+        // A module approved under GATING, set as the dynamic-pricing module, must revert.
+        DynamicPricingModule wrongTag = new DynamicPricingModule();
+        vm.prank(registryOwner);
+        componentRegistry.approveComponent(address(wrongTag), keccak256("gating"), "GatingTaggedMod");
+
+        vm.prank(owner);
+        vm.expectRevert(ERC1155Factory.UnapprovedComponent.selector);
+        factory.setDynamicPricingModule(address(wrongTag));
+    }
 }

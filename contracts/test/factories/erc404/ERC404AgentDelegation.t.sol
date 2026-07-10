@@ -82,7 +82,7 @@ contract ERC404AgentDelegationTest is Test {
         ComponentRegistry compRegImpl = new ComponentRegistry();
         componentRegistry = ComponentRegistry(LibClone.deployERC1967(address(compRegImpl)));
         componentRegistry.initialize(protocolAdmin);
-        componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "StandardCurve");
+        componentRegistry.approveComponent(address(curveComp), bytes32("curve_computer"), "StandardCurve");
         componentRegistry.approveComponent(address(mockDeployer), keccak256("liquidity"), "MockDeployer");
 
         launchMgr.setPreset(

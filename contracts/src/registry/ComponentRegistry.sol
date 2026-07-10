@@ -86,6 +86,11 @@ contract ComponentRegistry is SafeOwnableUUPS, IComponentRegistry {
     }
 
     /// @inheritdoc IComponentRegistry
+    function isApprovedForTag(address component, bytes32 tag) external view returns (bool) {
+        return isApproved[component] && componentTag[component] == tag;
+    }
+
+    /// @inheritdoc IComponentRegistry
     function getApprovedComponents() external view returns (address[] memory) {
         uint256 len = allComponents.length;
         uint256 count = 0;
