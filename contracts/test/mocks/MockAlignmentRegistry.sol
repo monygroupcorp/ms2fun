@@ -7,6 +7,7 @@ import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegist
 contract MockAlignmentRegistry is IAlignmentRegistry {
     mapping(uint256 => bool) public activeTargets;
     mapping(uint256 => mapping(address => bool)) public tokenInTarget;
+    mapping(uint256 => mapping(address => AcquireRoute)) internal acquireRoutes;
     /// @notice Mirrors AlignmentRegistryV1's public `tokenToTargetIds` (reverse index) for the
     ///         request registry's best-effort dup guard.
     mapping(address => uint256[]) public tokenToTargetIds;
@@ -21,6 +22,10 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
 
     function pushTokenTarget(address token, uint256 targetId) external {
         tokenToTargetIds[token].push(targetId);
+    }
+
+    function setAcquireRouteRaw(uint256 targetId, address token, AcquireRoute calldata route) external {
+        acquireRoutes[targetId][token] = route;
     }
 
     // ── IAlignmentRegistry implementation ──
@@ -67,5 +72,13 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
 
     function getCommunityPayout(uint256) external pure override returns (address) {
         return address(0);
+    }
+
+    function setAcquireRoute(uint256 targetId, address token, AcquireRoute calldata route) external override {
+        acquireRoutes[targetId][token] = route;
+    }
+
+    function getAcquireRoute(uint256 targetId, address token) external view override returns (AcquireRoute memory) {
+        return acquireRoutes[targetId][token];
     }
 }
