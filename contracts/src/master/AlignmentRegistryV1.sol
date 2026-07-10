@@ -3,6 +3,19 @@ pragma solidity ^0.8.20;
 
 import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
+import { IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
+
+/// @notice Minimal Uniswap V3 pool surface the reference-pool setter probes. Hand-written (repo practice:
+///         see the identical interface in `peripherals/UniswapVaultPriceValidator.sol`) rather than vendored.
+///         `token0()/token1()` are ABI-identical on Algebra pools, so the Algebra probe reuses this cast.
+interface IUniswapV3Pool {
+    function observe(uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+}
 
 /**
  * @title AlignmentRegistryV1
@@ -19,6 +32,17 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error NotAmbassador();
     error TokenNotInTarget();
     error InvalidRoute();
+    error InvalidReferenceKind();
+    error ReferencePoolUnusable();
+    error ReferencePoolTokenMismatch();
+
+    /// @notice Default TWAP window (seconds) used when a `ReferencePool.twapWindow` is left at 0.
+    uint32 internal constant DEFAULT_TWAP_WINDOW = 1800;
+
+    /// @notice Canonical WETH, injected at deploy. It is the mandatory counter-asset of every reference pool:
+    ///         the anti-sandwich floor denominates in ETH, so a reference pool's other side MUST be WETH or its
+    ///         TWAP is the wrong numeraire. An immutable lives in impl bytecode, NOT proxy storage — layout-safe.
+    address public immutable weth;
 
     // ── State ──
     bool private _initialized;
@@ -36,7 +60,17 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     // UUPS proxy are preserved across the upgrade. See the storage-layout proof in AlignmentRegistryUpgrade.t.sol.
     mapping(uint256 => mapping(address => AcquireRoute)) internal acquireRoutes;
 
-    constructor() {
+    // ── Appended storage (noesis-035) ──
+    // MUST remain the LAST declared state var, strictly AFTER `acquireRoutes`. Appending here keeps the layout
+    // of every var above (_initialized … acquireRoutes) byte-for-byte identical, so curated targets and routes
+    // behind the UUPS proxy are preserved across the upgrade. See the storage-layout proof in
+    // AlignmentRegistryReferencePoolUpgrade.t.sol. (`weth` is an immutable — impl bytecode, not storage.)
+    mapping(uint256 => mapping(address => ReferencePool)) internal referencePools;
+
+    /// @param _weth Canonical WETH address (the mandatory counter-asset of every reference pool). Stored as an
+    ///        immutable, so it lives in impl bytecode and adds nothing to proxy storage.
+    constructor(address _weth) {
+        weth = _weth;
         _initializeOwner(msg.sender);
     }
 
@@ -246,5 +280,90 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
             if (assets[i].token == token) return true;
         }
         return false;
+    }
+
+    // ============ Reference Pool ============
+
+    /**
+     * @notice Pin the deep reference pool whose TWAP is the price authority for a `(targetId, token)` pair.
+     * @dev Governance data: the anti-sandwich vault floor (noesis-037) reads this pool's own on-chain oracle
+     *      TWAP — a price an attacker cannot move within a single transaction. A creator-supplied reference
+     *      would let an adversary point the floor at a pool they control, so this is `onlyOwner` with no other
+     *      path (mirrors `setAcquireRoute`). The setter has TEETH: it reverts unless the pool actually produces
+     *      a TWAP over the window AND its pair is exactly `{token, weth}` — the fail-open floor (which today
+     *      passes when the oracle can't price a thin/fresh token) is closed here.
+     * @param targetId ID of the alignment target (must exist and be active)
+     * @param token    Token that must already belong to the target
+     * @param ref      Reference pool: `pool`, `kind` (0 = Uniswap V3, 1 = Algebra), `twapWindow` (0 => default)
+     */
+    function setReferencePool(uint256 targetId, address token, ReferencePool calldata ref) external override onlyOwner {
+        if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
+        if (!alignmentTargets[targetId].active) revert TargetNotFound();
+        if (!_isTokenInTarget(targetId, token)) revert TokenNotInTarget();
+        if (ref.pool.code.length == 0) revert ReferencePoolUnusable();
+        if (ref.kind > 1) revert InvalidReferenceKind();
+
+        uint32 window = ref.twapWindow == 0 ? DEFAULT_TWAP_WINDOW : ref.twapWindow;
+        if (ref.kind == 0) {
+            _probeUniswapReference(ref.pool, token, window);
+        } else {
+            _probeAlgebraReference(ref.pool, token, window);
+        }
+
+        referencePools[targetId][token] = ref;
+        emit ReferencePoolSet(targetId, token, ref.pool, ref.kind);
+    }
+
+    /**
+     * @notice Return the reference pool for a `(target, token)` pair.
+     * @dev An unset pair returns a zeroed struct (`pool == address(0)`); callers MUST treat that as
+     *      "no reference configured" and NOT fall back to any hardcoded pool.
+     */
+    function getReferencePool(uint256 targetId, address token) external view override returns (ReferencePool memory) {
+        return referencePools[targetId][token];
+    }
+
+    /// @dev Probe a Uniswap V3 reference pool: its pair must be `{token, weth}` and it must serve a TWAP over
+    ///      the window. A pool that reverts on `observe` or returns fewer than two cumulatives is unusable.
+    function _probeUniswapReference(address pool, address token, uint32 window) private view {
+        if (!_isTokenWethPair(IUniswapV3Pool(pool).token0(), IUniswapV3Pool(pool).token1(), token)) {
+            revert ReferencePoolTokenMismatch();
+        }
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = window;
+        secondsAgos[1] = 0;
+        try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
+            if (tickCumulatives.length != 2) revert ReferencePoolUnusable();
+        } catch {
+            revert ReferencePoolUnusable();
+        }
+    }
+
+    /// @dev Probe an Algebra reference pool: its pair must be `{token, weth}`, it must expose a volatility-oracle
+    ///      plugin (`plugin() != 0`), and that oracle must serve a TWAP over the window. `token0()/token1()` are
+    ///      ABI-identical to Uniswap's, so the pair read reuses the `IUniswapV3Pool` cast.
+    function _probeAlgebraReference(address pool, address token, uint32 window) private view {
+        if (!_isTokenWethPair(IUniswapV3Pool(pool).token0(), IUniswapV3Pool(pool).token1(), token)) {
+            revert ReferencePoolTokenMismatch();
+        }
+        address oracle = IAlgebraPool(pool).plugin();
+        if (oracle == address(0)) revert ReferencePoolUnusable();
+
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = window;
+        secondsAgos[1] = 0;
+        try IVolatilityOracle(oracle).getTimepoints(secondsAgos) returns (
+            int56[] memory tickCumulatives, uint88[] memory
+        ) {
+            if (tickCumulatives.length != 2) revert ReferencePoolUnusable();
+        } catch {
+            revert ReferencePoolUnusable();
+        }
+    }
+
+    /// @dev True iff `{t0, t1}` is exactly `{token, weth}` in either order. The reference floor denominates in
+    ///      ETH, so WETH MUST be one side — a non-WETH counter-asset would make the TWAP the wrong numeraire.
+    function _isTokenWethPair(address t0, address t1, address token) private view returns (bool) {
+        return (t0 == token && t1 == weth) || (t0 == weth && t1 == token);
     }
 }

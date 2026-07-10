@@ -17,7 +17,7 @@ contract AlignmentRegistryAcquireRouteTest is Test {
     address public otherToken = makeAddr("OTHER");
 
     function setUp() public {
-        AlignmentRegistryV1 impl = new AlignmentRegistryV1();
+        AlignmentRegistryV1 impl = new AlignmentRegistryV1(makeAddr("WETH"));
         address proxy = LibClone.deployERC1967(address(impl));
         registry = AlignmentRegistryV1(proxy);
         registry.initialize(daoOwner);
