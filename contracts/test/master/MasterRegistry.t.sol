@@ -64,7 +64,7 @@ contract MasterRegistryReworkTest is Test {
         registry = new MasterRegistryV1();
         registry.initialize(daoOwner);
 
-        alignmentRegistry = new AlignmentRegistryV1();
+        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
         alignmentRegistry.initialize(daoOwner);
 
         // Wire alignment registry

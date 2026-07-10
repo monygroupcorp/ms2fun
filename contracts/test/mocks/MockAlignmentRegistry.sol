@@ -8,6 +8,7 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
     mapping(uint256 => bool) public activeTargets;
     mapping(uint256 => mapping(address => bool)) public tokenInTarget;
     mapping(uint256 => mapping(address => AcquireRoute)) internal acquireRoutes;
+    mapping(uint256 => mapping(address => ReferencePool)) internal referencePools;
     /// @notice Mirrors AlignmentRegistryV1's public `tokenToTargetIds` (reverse index) for the
     ///         request registry's best-effort dup guard.
     mapping(address => uint256[]) public tokenToTargetIds;
@@ -80,5 +81,13 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
 
     function getAcquireRoute(uint256 targetId, address token) external view override returns (AcquireRoute memory) {
         return acquireRoutes[targetId][token];
+    }
+
+    function setReferencePool(uint256 targetId, address token, ReferencePool calldata ref) external override {
+        referencePools[targetId][token] = ref;
+    }
+
+    function getReferencePool(uint256 targetId, address token) external view override returns (ReferencePool memory) {
+        return referencePools[targetId][token];
     }
 }
