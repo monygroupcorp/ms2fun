@@ -14,7 +14,7 @@ import {
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
 import { txErrorReason } from '../../ui/useTxAction'
-import { encodeMintMessage, isPaidMintGated, passwordToBytes32, ZERO_BYTES32 } from './gatingMint'
+import { encodeMintMessage, encodePasswordGatingData, isPaidMintGated } from './gatingMint'
 import type { EditionView } from '../useEditions'
 import styles from '../EditionList.module.css'
 
@@ -38,8 +38,8 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   })
 
   // Gating config for the paid mint path. When a module is set and scope isn't FREE_MINT_ONLY,
-  // `mint` consults the module — we then resolve the user's password credential into bytes32
-  // (see erc1155/gatingMint.ts for the approach + the merkle seam). Otherwise gatingData = zero.
+  // `mint` consults the module — we then encode the user's password credential as `bytes`
+  // (see erc1155/gatingMint.ts for the approach + the merkle seam). Otherwise gatingData = '0x'.
   const { data: gatingModule } = useReadErc1155InstanceGatingModule({
     address: instance,
     chainId: forkChainId,
@@ -70,8 +70,10 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
 
   function handleMint(): void {
     if (costData === undefined) return
-    // Real gatingData when the paid path is gated (keccak256(password) as bytes32), else zero.
-    const gatingData = gated ? passwordToBytes32(password) : ZERO_BYTES32
+    // `bytes` gatingData when the paid path is gated (abi.encode(keccak256(password))); the merged
+    // `mint(bytes gatingData)` forwards it to the module's abi.decode(data,(bytes32)). '0x' when open
+    // (module isn't consulted; an empty blob avoids a spurious abi.decode).
+    const gatingData = gated ? encodePasswordGatingData(password) : '0x'
     // Optional attached message, ABI-encoded to the registry's 5-field convention (else '0x').
     const messageData = encodeMintMessage(message)
     writeContract({

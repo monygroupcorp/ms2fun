@@ -11,8 +11,9 @@
  *
  * SELL is unchanged: a token amount, quoted by `calculateRefund`, with %-of-balance quick-fill.
  *
- * buyBonding(amount, maxCost, mintNFT, passwordHash, messageData, deadline) — payable, value = maxCost.
- * sellBonding(amount, minRefund, passwordHash, messageData, deadline).
+ * buyBonding(amount, maxCost, mintNFT, gatingData, messageData, deadline) — payable, value = maxCost.
+ *   (post-#25 `gatingData` is `bytes` = abi.encode(bytes32 passwordHash); see gating.encodeBuyGatingData.)
+ * sellBonding(amount, minRefund, passwordHash, messageData, deadline) — passwordHash still `bytes32`.
  */
 import { useEffect, useState } from 'react'
 import { formatEther, formatUnits, parseEther, parseUnits } from 'viem'
@@ -31,7 +32,7 @@ import { forkChainId } from '../../../lib/addresses'
 import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
-import { EMPTY_BYTES, ZERO_BYTES32, resolveBuyPasswordHash } from './gating'
+import { EMPTY_BYTES, ZERO_BYTES32, encodeBuyGatingData, resolveBuyPasswordHash } from './gating'
 import { encodeActionMessage } from '../../../lib/actionMessage'
 import { type CostInverse, solveBuyAmount } from './costInverse'
 import { curveParamsFromTuple, curvePriceAt } from './curveSampler'
@@ -246,6 +247,9 @@ export function SwapPanel({
 
   function handleSubmit(): void {
     const deadline = BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_BUFFER_SEC
+    // `sellBonding` still takes the raw bytes32 passwordHash; `buyBonding` (post-#25) takes `bytes`
+    // gatingData, forwarded to the module's abi.decode(data,(bytes32)). Derive the hash once, then
+    // wrap it for the buy path.
     const passwordHash = gatingActive ? resolveBuyPasswordHash(password) : ZERO_BYTES32
 
     if (isBuy) {
@@ -254,10 +258,11 @@ export function SwapPanel({
       const trimmedMsg = message.trim()
       const messageData = trimmedMsg ? encodeActionMessage(trimmedMsg) : EMPTY_BYTES
       const maxCost = applyBuySlippage(resolved.cost, slippageBps)
+      const gatingData = gatingActive ? encodeBuyGatingData(passwordHash) : EMPTY_BYTES
       buy.writeContract({
         address: instance,
         chainId: forkChainId,
-        args: [resolved.amount, maxCost, mintNFT, passwordHash, messageData, deadline],
+        args: [resolved.amount, maxCost, mintNFT, gatingData, messageData, deadline],
         value: maxCost,
       })
     } else {
