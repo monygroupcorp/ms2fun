@@ -11,6 +11,7 @@ import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 import { IZAMM, ZAMMAlignmentVault } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
 import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 /// @title VaultFlavorsTest
 /// @notice Coverage for the vault-flavors promotion (Yield + LP families): all four vault families
@@ -121,11 +122,16 @@ contract VaultFlavorsTest is Test {
     ///      wiring the real ETH/token key via the factory flips it ready. Guards the O2 contract.
     function test_zammPoolKeyWiringGate() public {
         ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
-            STUB_ZAMM, address(1), address(2), IVaultPriceValidator(address(3)), address(0)
+            STUB_ZAMM,
+            address(1),
+            address(2),
+            IVaultPriceValidator(address(3)),
+            IAlignmentRegistry(address(0)),
+            address(0)
         );
 
         IZAMM.PoolKey memory zero; // token1 == address(0) → unwired
-        address vault = f.deployVault(bytes32(uint256(0xF1A)), STUB_LINK, zero);
+        address vault = f.deployVault(bytes32(uint256(0xF1A)), STUB_LINK, 1, zero);
 
         assertFalse(_ready(vault), "unwired ZAMM must not be liquidity-ready");
 
@@ -141,10 +147,15 @@ contract VaultFlavorsTest is Test {
     ///      point the vault at a manipulated pool before the real key is set.
     function test_zammSetVaultPoolKeyOnlyOwner() public {
         ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
-            STUB_ZAMM, address(1), address(2), IVaultPriceValidator(address(3)), address(0)
+            STUB_ZAMM,
+            address(1),
+            address(2),
+            IVaultPriceValidator(address(3)),
+            IAlignmentRegistry(address(0)),
+            address(0)
         );
         IZAMM.PoolKey memory zero;
-        address vault = f.deployVault(bytes32(uint256(0xF1B)), STUB_LINK, zero);
+        address vault = f.deployVault(bytes32(uint256(0xF1B)), STUB_LINK, 1, zero);
 
         IZAMM.PoolKey memory key =
             IZAMM.PoolKey({ id0: 0, id1: 0, token0: address(0), token1: STUB_LINK, feeOrHook: 100 });

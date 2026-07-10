@@ -59,6 +59,14 @@ contract UniAlignmentVaultTest is Test {
         mockAlignmentRegistry = new MockAlignmentRegistry();
         mockAlignmentRegistry.setTargetActive(TARGET_ID, true);
         mockAlignmentRegistry.setTokenInTarget(TARGET_ID, address(alignmentToken), true);
+        // Canonical-reference wiring (noesis-037): the floor now reads the DAO-pinned ReferencePool and
+        // prices it via the pinned-pool TWAP path — mandatory (no fail-open), so convert tests need it.
+        mockAlignmentRegistry.setReferencePool(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: address(0xBEEF), kind: 0, twapWindow: 1800 })
+        );
+        mockValidator.setEthPer1e18Tokens(1e18); // 1:1 → honest mock swaps clear the 95% floor
 
         // Pre-fund MockZRouter for both swap directions
         vm.deal(address(mockZRouter), 100 ether);
@@ -1477,17 +1485,40 @@ contract UniAlignmentVaultTest is Test {
         assertGt(vault.totalShares(), 0, "honest conversion should succeed");
     }
 
-    /// @dev F7: when no reliable price source exists (quote == 0), the floor is skipped and the
-    ///      caller's minOut governs (documented edge case, mirrors the fee-conversion path).
-    function test_F7_NoFloorWhenNoPriceSource() public {
-        // mockValidator.ethPer1e18Tokens stays 0 → quoteEthForTokens returns 0 → no floor.
+    /// @dev noesis-037: the floor no longer fails open. With the DAO-pinned ReferencePool unset, a
+    ///      convert reverts {NoReferencePool} rather than swapping unguarded — a permissionless caller
+    ///      cannot disable the anti-sandwich floor by clearing/racing the reference.
+    function test_convertRevertsWhenNoReferencePool() public {
+        // Clear the pinned reference for this (target, token): pool == address(0) is "unset".
+        mockAlignmentRegistry.setReferencePool(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: address(0), kind: 0, twapWindow: 0 })
+        );
         mockZRouter.setOutRatio(5e20);
         vm.prank(alice);
         (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
 
         vm.prank(dave);
-        vault.convertAndAddLiquidity(1); // succeeds despite degraded rate — no oracle to floor against
-        assertGt(vault.totalShares(), 0);
+        vm.expectRevert(UniAlignmentVault.NoReferencePool.selector);
+        vault.convertAndAddLiquidity(1);
+    }
+
+    /// @dev noesis-037 self-sandwich sim: the attacker degrades the thin VENUE pool (modeled by a
+    ///      degraded router out-ratio) and calls convert with minOut=1, but the floor is priced from
+    ///      the UNMOVED canonical ReferencePool TWAP — so the swap cannot clear it and reverts. The
+    ///      attacker cannot extract beyond maxPriceDeviationBps of the canonical price.
+    function test_selfSandwichCannotBeatCanonicalFloor() public {
+        // Canonical price stays 1 ETH / 1e18 tokens (validator rate from setUp). Attacker moves only
+        // the venue: the router now pays far fewer tokens per ETH than the canonical reference.
+        mockZRouter.setOutRatio(1e16); // 0.01x → far below the 95% canonical floor
+        vm.prank(alice);
+        (bool s,) = address(vault).call{ value: 10 ether }("");
+        assertTrue(s);
+
+        vm.prank(dave);
+        vm.expectRevert(bytes("MockZRouter: insufficient output"));
+        vault.convertAndAddLiquidity(1); // caller minOut=1, but the canonical floor governs
     }
 }

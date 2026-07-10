@@ -8,6 +8,8 @@ import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 
 contract ZAMMAlignmentVaultTest is Test {
@@ -21,6 +23,11 @@ contract ZAMMAlignmentVaultTest is Test {
     MockZAMM public mockZamm;
     MockZRouter public mockZRouter;
     MockEXECToken public alignmentToken;
+    MockAlignmentRegistry public registry;
+    MockVaultPriceValidator public validator;
+
+    uint256 internal constant TARGET_ID = 1;
+    address internal constant REF_POOL = address(0xBEEF);
 
     address public owner = address(0x1);
     address public treasury = address(0x99);
@@ -49,12 +56,31 @@ contract ZAMMAlignmentVaultTest is Test {
             feeOrHook: 30 // 0.3%
         });
 
+        // Canonical-reference wiring: the anti-sandwich floor reads the DAO-pinned ReferencePool from
+        // the registry and prices it via the validator's pinned-pool TWAP path. A usable reference is
+        // mandatory now (no fail-open), so every convert/harvest path needs both set.
+        registry = new MockAlignmentRegistry();
+        registry.setReferencePool(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: REF_POOL, kind: 0, twapWindow: 1800 })
+        );
+        validator = new MockVaultPriceValidator();
+        validator.setEthPer1e18Tokens(1e18); // 1 ETH per 1e18 tokens → honest 1:1 mock swaps clear the floor
+
         vm.prank(owner);
         impl = new ZAMMAlignmentVault();
 
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
         vault.initialize(
-            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, treasury, address(0)
+            address(mockZamm),
+            address(mockZRouter),
+            address(alignmentToken),
+            poolKey,
+            treasury,
+            address(validator),
+            IAlignmentRegistry(address(registry)),
+            TARGET_ID
         );
 
         vm.deal(alice, 100 ether);
@@ -82,7 +108,14 @@ contract ZAMMAlignmentVaultTest is Test {
     function test_initialize_revertIfCalledTwice() public {
         vm.expectRevert();
         vault.initialize(
-            address(mockZamm), address(mockZRouter), address(alignmentToken), poolKey, treasury, address(0)
+            address(mockZamm),
+            address(mockZRouter),
+            address(alignmentToken),
+            poolKey,
+            treasury,
+            address(validator),
+            IAlignmentRegistry(address(registry)),
+            TARGET_ID
         );
     }
 
@@ -599,13 +632,35 @@ contract ZAMMAlignmentVaultTest is Test {
         assertGt(vault.totalContributions(), 0, "honest conversion should succeed");
     }
 
-    /// @dev F5: with no validator wired (default), behaviour is unchanged — caller minimums govern.
-    function test_F5_NoFloorWhenValidatorUnset() public {
-        mockZRouter.setOutRatio(1e20); // degraded, but no oracle floor configured
+    /// @dev noesis-037: the floor no longer fails open. With the DAO-pinned ReferencePool unset, a
+    ///      convert reverts {NoReferencePool} instead of swapping unguarded — a permissionless caller
+    ///      cannot disable the anti-sandwich floor by racing an approval or clearing the reference.
+    function test_convertRevertsWhenNoReferencePool() public {
+        // Clear the pinned reference for this (target, token): pool == address(0) is "unset".
+        registry.setReferencePool(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: address(0), kind: 0, twapWindow: 0 })
+        );
         _receiveFromAlice(10 ether);
         _setupPool(10 ether, 10_000e18);
 
-        vault.convertAndAddLiquidity(0, 0, 0); // succeeds — no validator to floor against
-        assertGt(vault.totalContributions(), 0);
+        vm.expectRevert(ZAMMAlignmentVault.NoReferencePool.selector);
+        vault.convertAndAddLiquidity(0, 0, 0);
+    }
+
+    /// @dev noesis-037 self-sandwich sim: an attacker degrades the thin VENUE pool (modeled by a
+    ///      degraded router out-ratio) and calls convert with minTokenOut=1, but the floor is priced
+    ///      from the UNMOVED canonical ReferencePool — so the swap cannot clear it and reverts. The
+    ///      attacker cannot extract beyond maxPriceDeviationBps of the canonical price.
+    function test_selfSandwichCannotBeatCanonicalFloor() public {
+        // Canonical price stays 1 ETH / 1e18 tokens (validator rate from setUp). Attacker moves only
+        // the venue: router now pays 100x fewer tokens per ETH than canonical.
+        mockZRouter.setOutRatio(1e16); // 0.01x → far below the 95% canonical floor
+        _receiveFromAlice(10 ether);
+        _setupPool(10 ether, 10_000e18);
+
+        vm.expectRevert(bytes("MockZRouter: insufficient output"));
+        vault.convertAndAddLiquidity(1, 0, 0); // caller minOut=1, but the canonical floor governs
     }
 }
