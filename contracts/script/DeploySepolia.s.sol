@@ -31,10 +31,14 @@ contract DeploySepolia is DeployCore {
         cfg.v4PoolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
         cfg.v3Factory = 0x0227628f3F023bb0B980b67D528571c95c6DaC1c;
         cfg.v2Factory = 0xF62c03E08ada871A0bEb309762E260a7a6a880E6;
+        // Cypher has no known Sepolia deployment — leave UNWIRED. DeployCore omits the Cypher launch
+        // deployer entirely (no functional-tag stub) rather than reuse mainnet Algebra addresses.
         cfg.cypherPositionManager = address(0);
         cfg.cypherRouter = address(0);
-        cfg.zamm = address(0);
-        cfg.zrouter = address(0);
+        cfg.cypherAlgebraFactory = address(0);
+        // ZAMM + zRouter are canonical CREATE2 singletons (same address on every chain they're deployed to).
+        cfg.zamm = 0x000000000000040470635EB91b7CE4D132D616eD; // V1
+        cfg.zrouter = 0x000000000000FB114709235f1ccBFfb925F600e4; // canonical aggregator
         cfg.safe = address(0); // deploys MockSafe
         // Vanity salts — deployer guard: 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6
         cfg.saltMasterRegistry = 0x1821bd18cbdd267ce4e389f893ddfe7beb333ab6006fc783a2ee2a5801bcc77a; // => 0x00001152cba5fdb16a0fae780ffebd5b9df8e7cf
@@ -47,6 +51,7 @@ contract DeploySepolia is DeployCore {
         cfg.twapSeconds = 1800;
         cfg.zrouterFee = 3000;
         cfg.zrouterTickSpacing = 60;
+        cfg.zammFeeOrHook = 30; // 0.3% — LOCKED (rth, 2026-07-10)
         cfg.alignmentTargets = targets;
         cfg.jsonOutputPath = "./deployments/sepolia.json";
     }
