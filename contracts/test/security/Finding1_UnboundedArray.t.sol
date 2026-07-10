@@ -9,6 +9,7 @@ import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVa
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 contract Finding1_ZAMMUnboundedArrayTest is Test {
     ZAMMAlignmentVault public vault;
@@ -30,7 +31,18 @@ contract Finding1_ZAMMUnboundedArrayTest is Test {
 
         ZAMMAlignmentVault impl = new ZAMMAlignmentVault();
         vault = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(address(mockZamm), address(mockZRouter), address(token), poolKey, address(0x99), address(0));
+        // This suite exercises only the benefactor-cap paths (no convert/harvest), so the floor's
+        // reference wiring is left unset — a zero registry is never read here.
+        vault.initialize(
+            address(mockZamm),
+            address(mockZRouter),
+            address(token),
+            poolKey,
+            address(0x99),
+            address(0),
+            IAlignmentRegistry(address(0)),
+            1
+        );
     }
 
     /// @notice Contributions below MIN_CONTRIBUTION must revert

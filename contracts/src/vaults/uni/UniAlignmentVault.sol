@@ -82,6 +82,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     error AmountMismatch();
     error ContributionBelowMinimum();
     error TooManyConversionParticipants();
+    error NoReferencePool();
 
     // ── Anti-DoS constants ────────────────────────────────────────────────
     uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
@@ -500,14 +501,19 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     // slither-disable-next-line unused-return
-    /// @dev Floor a caller-supplied token-out minimum to an oracle-derived value for the vault's
-    ///      ETH->token swap. Falls back to the caller value when no reliable price source exists
-    ///      (mirrors the no-source behaviour of _convertVaultFeesToEth). 1e18 is the reference token
-    ///      amount; quoteEthForTokens is linear so the per-unit price cancels the decimals.
+    /// @dev Floor a caller-supplied token-out minimum to a canonical-reference-derived value for the
+    ///      vault's ETH->token swap. Reads the DAO-pinned {ReferencePool} for this (target, token) from
+    ///      the registry and prices it via the validator's pinned-pool TWAP path. NO fail-open: an
+    ///      unset reference reverts {NoReferencePool}, and an unusable one reverts inside
+    ///      {quoteEthForTokensVia} — a permissionless caller can never disable the floor by pointing at
+    ///      a thin pool. 1e18 is the reference token amount; the pinned quote is linear so the per-unit
+    ///      price cancels the decimals.
     function _floorTokenOut(uint256 ethIn, uint256 callerMin) internal view returns (uint256) {
-        if (address(priceValidator) == address(0)) return callerMin;
-        uint256 ethPerTokenUnit = priceValidator.quoteEthForTokens(alignmentToken, 1e18);
-        if (ethPerTokenUnit == 0) return callerMin;
+        IAlignmentRegistry.ReferencePool memory ref =
+            alignmentRegistry.getReferencePool(alignmentTargetId, alignmentToken);
+        if (ref.pool == address(0)) revert NoReferencePool();
+        uint256 ethPerTokenUnit =
+            priceValidator.quoteEthForTokensVia(ref.pool, ref.kind, ref.twapWindow, alignmentToken, 1e18);
         uint256 expectedOut = ethIn * 1e18 / ethPerTokenUnit;
         uint256 floor = expectedOut * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
         return callerMin > floor ? callerMin : floor;
@@ -516,16 +522,16 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     function _convertVaultFeesToEth(uint256 tokenAmount) internal returns (uint256 ethReceived) {
         if (tokenAmount == 0) return 0;
 
-        // Derive a TWAP-based minimum output to guard against sandwich attacks.
-        // If the validator has no price data (new pool / no history), minEthOut stays 0
-        // and the swap proceeds unguarded — acceptable as a rare edge case.
-        uint256 minEthOut = 0;
-        if (address(priceValidator) != address(0)) {
-            uint256 ethEstimate = priceValidator.quoteEthForTokens(alignmentToken, tokenAmount);
-            if (ethEstimate > 0) {
-                minEthOut = ethEstimate * (10000 - maxPriceDeviationBps) / 10000;
-            }
-        }
+        // Derive the sell-side minimum from the SAME canonical reference as the buy-side floor, so a
+        // permissionless fee-collection caller cannot sandwich the vault's token->ETH swap. NO
+        // fail-open: an unset reference reverts {NoReferencePool} and an unusable one reverts inside
+        // {quoteEthForTokensVia} (035's setter guarantees a usable reference for any approved target).
+        IAlignmentRegistry.ReferencePool memory ref =
+            alignmentRegistry.getReferencePool(alignmentTargetId, alignmentToken);
+        if (ref.pool == address(0)) revert NoReferencePool();
+        uint256 ethEstimate =
+            priceValidator.quoteEthForTokensVia(ref.pool, ref.kind, ref.twapWindow, alignmentToken, tokenAmount);
+        uint256 minEthOut = ethEstimate * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
 
         SafeTransferLib.safeApproveWithRetry(alignmentToken, zRouter, tokenAmount);
         (, ethReceived) = IzRouterV4(zRouter)
