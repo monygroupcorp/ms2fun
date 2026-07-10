@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { IZAMM, ZAMMAlignmentVault } from "./ZAMMAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
+import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 
@@ -18,6 +19,9 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     /// @notice Oracle/TWAP validator wired into every deployed vault (F5). The vault's swap floor is
     ///         inert when this is address(0), so production must pass the shared validator.
     IVaultPriceValidator public immutable defaultPriceValidator;
+    /// @notice Registry wired into every deployed vault; source of the DAO-pinned canonical
+    ///         ReferencePool the vault's anti-sandwich floor reads (mirrors UniAlignmentVaultFactory).
+    IAlignmentRegistry public immutable alignmentRegistry;
     /// @notice zQuoter wired into every deployed vault for best-route acquisition (Front 2). When
     ///         address(0), vaults acquire via the fixed _poolKey.feeOrHook pool only.
     address public immutable zQuoter;
@@ -29,12 +33,14 @@ contract ZAMMAlignmentVaultFactory is Ownable {
         address _zRouter,
         address _protocolTreasury,
         IVaultPriceValidator _defaultPriceValidator,
+        IAlignmentRegistry _alignmentRegistry,
         address _zQuoter
     ) {
         zamm = _zamm;
         zRouter = _zRouter;
         protocolTreasury = _protocolTreasury;
         defaultPriceValidator = _defaultPriceValidator;
+        alignmentRegistry = _alignmentRegistry;
         zQuoter = _zQuoter;
         vaultImplementation = address(new ZAMMAlignmentVault());
         _initializeOwner(msg.sender);
@@ -43,12 +49,15 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     /// @notice Deploy a new ZAMM-backed vault clone via CREATE3
     /// @param salt CREATE3 deployment salt for deterministic vanity address
     /// @param alignmentToken The token this vault aligns to
+    /// @param alignmentTargetId The alignment target this vault is bound to (keys the reference-pool lookup)
     /// @param poolKey ZAMM pool key for the ETH/alignmentToken pool
     /// @return vault Address of the deployed vault clone
-    function deployVault(bytes32 salt, address alignmentToken, IZAMM.PoolKey calldata poolKey)
-        external
-        returns (address vault)
-    {
+    function deployVault(
+        bytes32 salt,
+        address alignmentToken,
+        uint256 alignmentTargetId,
+        IZAMM.PoolKey calldata poolKey
+    ) external returns (address vault) {
         bytes memory proxyCreationCode = abi.encodePacked(
             hex"3d602d80600a3d3981f3363d3d373d3d3d363d73", vaultImplementation, hex"5af43d82803e903d91602b57fd5bf3"
         );
@@ -56,7 +65,16 @@ contract ZAMMAlignmentVaultFactory is Ownable {
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, salt));
         vault = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
         ZAMMAlignmentVault(payable(vault))
-            .initialize(zamm, zRouter, alignmentToken, poolKey, protocolTreasury, address(defaultPriceValidator));
+            .initialize(
+                zamm,
+                zRouter,
+                alignmentToken,
+                poolKey,
+                protocolTreasury,
+                address(defaultPriceValidator),
+                alignmentRegistry,
+                alignmentTargetId
+            );
 
         // Wire best-route acquisition post-init (factory is the vault owner). address(0) leaves the
         // vault on fixed-pool acquisition, so this is a no-op change to today's behavior until set.

@@ -287,7 +287,12 @@ contract DeployCore is Script {
 
         if (cfg.zamm != address(0)) {
             zammVaultFactory = new ZAMMAlignmentVaultFactory(
-                cfg.zamm, address(zrouter), address(treasury), IVaultPriceValidator(address(priceValidator)), address(0)
+                cfg.zamm,
+                address(zrouter),
+                address(treasury),
+                IVaultPriceValidator(address(priceValidator)),
+                alignmentRegistry,
+                address(0)
             );
         }
 
@@ -386,7 +391,7 @@ contract DeployCore is Script {
                 IZAMM.PoolKey memory poolKey = IZAMM.PoolKey({
                     id0: 0, id1: 0, token0: address(0), token1: t.token, feeOrHook: cfg.zammFeeOrHook
                 });
-                address vault = zammVaultFactory.deployVault(salt, t.token, poolKey);
+                address vault = zammVaultFactory.deployVault(salt, t.token, targetId, poolKey);
                 MasterRegistryV1(masterRegistry)
                     .registerVault(vault, deployer, string.concat(t.symbol, " ZAMM Vault"), "https://ms2.fun", targetId);
                 zammVaults.push(vault);
