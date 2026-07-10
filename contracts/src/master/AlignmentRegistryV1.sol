@@ -17,6 +17,8 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     error TargetNotFound();
     error AmbassadorAlreadyAssigned();
     error NotAmbassador();
+    error TokenNotInTarget();
+    error InvalidRoute();
 
     // ── State ──
     bool private _initialized;
@@ -27,6 +29,12 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     mapping(uint256 => mapping(address => bool)) internal _isAmbassador;
     mapping(address => uint256[]) public tokenToTargetIds;
     mapping(uint256 => address) public communityPayout;
+
+    // ── Appended storage (noesis-031) ──
+    // MUST remain the LAST declared state var. Appending here keeps the layout of every var above
+    // (_initialized … communityPayout) byte-for-byte identical, so existing curated targets behind the
+    // UUPS proxy are preserved across the upgrade. See the storage-layout proof in AlignmentRegistryUpgrade.t.sol.
+    mapping(uint256 => mapping(address => AcquireRoute)) internal acquireRoutes;
 
     constructor() {
         _initializeOwner(msg.sender);
@@ -181,5 +189,62 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
      */
     function getCommunityPayout(uint256 targetId) external view override returns (address) {
         return communityPayout[targetId];
+    }
+
+    // ============ Acquire Routing ============
+
+    /**
+     * @notice Set the owner-curated acquisition route for a target's token.
+     * @dev Routing is governance data: a target knows where its own token trades, so the DAO/Safe curates it
+     *      here rather than a vault creator supplying it. A creator-supplied route would be an attack surface
+     *      (point a vault at an attacker pool, LP into it, drain), so this is `onlyOwner` with no other path.
+     * @param targetId ID of the alignment target (must exist and be active)
+     * @param token    Token that must already belong to the target
+     * @param route    Venue classification + the compact params that venue's swap leg consumes
+     */
+    function setAcquireRoute(uint256 targetId, address token, AcquireRoute calldata route) external override onlyOwner {
+        if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
+        if (!alignmentTargets[targetId].active) revert TargetNotFound();
+        if (!_isTokenInTarget(targetId, token)) revert TokenNotInTarget();
+        _validateRoute(route);
+
+        acquireRoutes[targetId][token] = route;
+        emit AcquireRouteSet(targetId, token, route.venue);
+    }
+
+    /**
+     * @notice Return the acquisition route for a (target, token) pair.
+     * @dev An unset pair returns `Venue.NONE` with zeroed params. Callers MUST treat `Venue.NONE` as
+     *      "no route configured" and revert rather than fall back to any hardcoded pool (see noesis-031).
+     */
+    function getAcquireRoute(uint256 targetId, address token) external view override returns (AcquireRoute memory) {
+        return acquireRoutes[targetId][token];
+    }
+
+    /// @dev Reject any route whose params are inconsistent with its venue. Governance-curated routes must be
+    ///      well-formed: a malformed route (e.g. a UNI_V4 leg with fee 0) would misroute a DAO convert.
+    function _validateRoute(AcquireRoute calldata route) private pure {
+        if (route.venue == Venue.NONE) {
+            // NONE clears the route; it must carry no params.
+            if (route.fee != 0 || route.tickSpacing != 0 || route.feeOrHook != 0) revert InvalidRoute();
+        } else if (route.venue == Venue.UNI_V4) {
+            // Uni v4 pool key needs a real fee and tick spacing; feeOrHook is a ZAMM-only field.
+            if (route.fee == 0 || route.tickSpacing == 0 || route.feeOrHook != 0) revert InvalidRoute();
+        } else if (route.venue == Venue.ZAMM) {
+            // ZAMM leg needs feeOrHook; the UNI_V4 fields must be empty.
+            if (route.feeOrHook == 0 || route.fee != 0 || route.tickSpacing != 0) revert InvalidRoute();
+        } else {
+            // ALGEBRA derives its own pool and uses dynamic fees; it carries no params.
+            if (route.fee != 0 || route.tickSpacing != 0 || route.feeOrHook != 0) revert InvalidRoute();
+        }
+    }
+
+    /// @dev Internal mirror of `isTokenInTarget` so the setter can reuse the check without an external call.
+    function _isTokenInTarget(uint256 targetId, address token) private view returns (bool) {
+        AlignmentAsset[] storage assets = alignmentTargetAssets[targetId];
+        for (uint256 i = 0; i < assets.length; i++) {
+            if (assets[i].token == token) return true;
+        }
+        return false;
     }
 }
