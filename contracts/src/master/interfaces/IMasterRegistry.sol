@@ -106,6 +106,11 @@ interface IMasterRegistry {
     // Namespace Protection
     function isNameTaken(string memory name) external view returns (bool);
 
+    /// @notice Resolve a collection name to its instance address (case-insensitive).
+    /// @dev Returns address(0) for an unknown name. Does not honor revocation — a revoked
+    ///      instance still resolves so its slug stays reserved.
+    function resolveName(string calldata name) external view returns (address);
+
     // Instance Vault Migration
     function migrateVault(address instance, address newVault) external;
     function getInstanceVaults(address instance) external view returns (address[] memory);
