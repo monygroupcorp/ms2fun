@@ -40,7 +40,7 @@ contract AlignmentTargetIntegrationTest is Test {
     function setUp() public {
         registry = new MasterRegistryV1();
         registry.initialize(daoOwner);
-        alignmentRegistry = new AlignmentRegistryV1();
+        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
         alignmentRegistry.initialize(daoOwner);
         vm.prank(daoOwner);
         registry.setAlignmentRegistry(address(alignmentRegistry));
