@@ -26,6 +26,12 @@ interface IComponentRegistry {
     /// @notice Returns true if the component is currently approved.
     function isApprovedComponent(address component) external view returns (bool);
 
+    /// @notice Returns true if the component is currently approved AND was approved under `tag`.
+    /// @dev Tag-scoped guard: an approved component only passes the slot whose tag it carries.
+    ///      Factories use this to stop a right-approved / wrong-typed module from being selected
+    ///      in the wrong slot (e.g. a liquidity deployer passed as a gating module).
+    function isApprovedForTag(address component, bytes32 tag) external view returns (bool);
+
     // ── Frontend enumeration ──────────────────────────────────────────────────
 
     /// @notice Returns all currently approved component addresses.

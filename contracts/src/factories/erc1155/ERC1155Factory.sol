@@ -91,7 +91,9 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         returns (address instance)
     {
         if (params.gatingModule != address(0)) {
-            if (!componentRegistry.isApprovedComponent(params.gatingModule)) revert UnapprovedComponent();
+            if (!componentRegistry.isApprovedForTag(params.gatingModule, FeatureUtils.GATING)) {
+                revert UnapprovedComponent();
+            }
         }
 
         // Forward fee directly to treasury — factory holds no ETH
@@ -158,7 +160,9 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     ///         address(0) disables dynamic pricing for new deployments.
     function setDynamicPricingModule(address module) external onlyOwner {
         if (module != address(0)) {
-            if (!componentRegistry.isApprovedComponent(module)) revert UnapprovedComponent();
+            if (!componentRegistry.isApprovedForTag(module, FeatureUtils.DYNAMIC_PRICING)) {
+                revert UnapprovedComponent();
+            }
         }
         dynamicPricingModule = module;
     }
