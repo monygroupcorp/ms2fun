@@ -39,6 +39,7 @@ import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFacto
 import { QueryAggregator } from "../src/query/QueryAggregator.sol";
 import { zRouter } from "../src/peripherals/zRouter.sol";
 import { PasswordTierGatingModule } from "../src/gating/PasswordTierGatingModule.sol";
+import { MerkleGatingModule } from "../src/gating/MerkleGatingModule.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 import { MockComponentModule } from "../test/mocks/MockComponentModule.sol";
 import { LiquidityDeployerModule } from "../src/factories/erc404/LiquidityDeployerModule.sol";
@@ -165,8 +166,8 @@ contract DeployCore is Script {
     PasswordTierGatingModule public passwordTierGatingModule;
     QueryAggregator public queryAggregator;
 
-    // Seed component modules — wizard-facing metadata stubs (testnet + local)
-    MockComponentModule public moduleMerkleGating;
+    // Real per-instance merkle-allowlist gating module (carries its own wizard metadata).
+    MerkleGatingModule public moduleMerkleGating;
     // `address` (not a concrete type) so each slot can hold either the real LP deployer module or the
     // MockComponentModule stub, chosen per-network by whether that AMM's config is present.
     address public moduleUniV4Deployer;
@@ -493,8 +494,12 @@ contract DeployCore is Script {
         // Real module carries its own wizard metadata (configType drives the password-tier form).
         passwordTierGatingModule.setMetadataURI(passwordGatingMeta);
 
-        moduleMerkleGating = new MockComponentModule(deployer, merkleGatingMeta);
+        // Real merkle-allowlist gating module: per-instance, per-edition, quantity-capped allowlists.
+        // The wizard passes its address to createInstance verbatim; the owner calls configureFor
+        // post-create with the merkle roots. Carries its own configType metadata ("merkle-allowlist-gating").
+        moduleMerkleGating = new MerkleGatingModule(masterRegistry);
         componentRegistry.approveComponent(address(moduleMerkleGating), FeatureUtils.GATING, "Merkle Allowlist Gating");
+        moduleMerkleGating.setMetadataURI(merkleGatingMeta);
 
         // Uni-V4 + ZAMM: deploy the REAL LP deployer modules where the AMM's config is present (the
         // mainnet fork + live networks), so graduation actually stands up a pool and the modules

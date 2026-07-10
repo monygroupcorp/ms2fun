@@ -768,7 +768,7 @@ contract SeedAnvil is Script {
         uint256 fee = (cost * b.bondingFeeBps()) / 10000;
         uint256 total = cost + fee;
         vm.startBroadcast(key);
-        b.buyBonding{ value: total }(amount, total, true, bytes32(0), "", 0);
+        b.buyBonding{ value: total }(amount, total, true, bytes(""), "", 0);
         vm.stopBroadcast();
     }
 
@@ -783,7 +783,7 @@ contract SeedAnvil is Script {
         uint256 fee = (cost * b.bondingFeeBps()) / 10000;
         uint256 total = cost + fee;
         vm.startBroadcast(key);
-        b.buyBonding{ value: total }(amount, total, false, bytes32(0), "", 0);
+        b.buyBonding{ value: total }(amount, total, false, bytes(""), "", 0);
         vm.stopBroadcast();
     }
 

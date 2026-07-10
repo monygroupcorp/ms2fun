@@ -48,7 +48,7 @@ contract ERC1155EditionHandler is Test {
 
         vm.deal(actor, actor.balance + cost);
         vm.prank(actor);
-        instance.mint{ value: cost }(editionId, amount, bytes32(0), "", 0);
+        instance.mint{ value: cost }(editionId, amount, bytes(""), "", 0);
 
         ghost_balances[editionId][actor] += amount;
         ghost_mintCount++;

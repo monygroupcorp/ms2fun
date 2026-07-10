@@ -66,7 +66,7 @@ contract FamilyAwareSplitTest is Test {
         vm.prank(CREATOR);
         inst.addEdition("Piece", 1 ether, 0, "ipfs://m", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
         vm.prank(BUYER);
-        inst.mint{ value: 1 ether }(1, 1, bytes32(0), "", 0);
+        inst.mint{ value: 1 ether }(1, 1, bytes(""), "", 0);
     }
 
     function test_1155_yieldFamily_keeps_1_80_19() public {

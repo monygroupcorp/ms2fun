@@ -333,10 +333,11 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
 
         if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.PAID_ONLY) {
-            (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, unit, gatingData);
+            // Single curve → editionId 0; bondingOpenTime is the authoritative open reference.
+            (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, 0, unit, bondingOpenTime, gatingData);
             if (!allowed) revert GatingNotAllowed();
             if (permanent) gatingActive = false;
-            gatingModule.onMint(msg.sender, unit);
+            gatingModule.onMint(msg.sender, 0, unit);
         }
 
         freeMintClaimed[msg.sender] = true;
@@ -460,7 +461,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         uint256 amount,
         uint256 maxCost,
         bool mintNFT,
-        bytes32 passwordHash,
+        bytes calldata gatingData, // module payload: password hash, or merkle (tierId, maxQty, proof)
         bytes calldata messageData,
         uint256 deadline
     ) external payable nonReentrant {
@@ -471,13 +472,13 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
             revert ExceedsBonding();
         }
 
-        // Gating check (address(0) or gatingActive==false = open)
+        // Gating check (address(0) or gatingActive==false = open). Single curve → editionId 0;
+        // bondingOpenTime is the authoritative open reference; gatingData carries the raw module payload.
         if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.FREE_MINT_ONLY) {
-            bytes memory gatingData = abi.encode(passwordHash, bondingOpenTime);
-            (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, amount, gatingData);
+            (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, 0, amount, bondingOpenTime, gatingData);
             if (!allowed) revert GatingNotAllowed();
             if (permanent) gatingActive = false;
-            gatingModule.onMint(msg.sender, amount);
+            gatingModule.onMint(msg.sender, 0, amount);
         }
 
         uint256 totalCost = BondingCurveMath.calculateCost(curveParams, totalBondingSupply, amount);
