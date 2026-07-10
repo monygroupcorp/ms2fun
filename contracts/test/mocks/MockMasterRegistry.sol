@@ -169,6 +169,20 @@ contract MockMasterRegistry is IMasterRegistry {
         return _nameHashes[nameHash];
     }
 
+    // Reverse index for name→instance resolution, mirroring MasterRegistryV1.instanceByNameHash.
+    mapping(bytes32 => address) private _instanceByNameHash;
+
+    function resolveName(string calldata name) external view override returns (address) {
+        bytes32 nameHash = keccak256(abi.encodePacked(_toLowerCase(name)));
+        return _instanceByNameHash[nameHash];
+    }
+
+    /// @dev TEST HELPER: record which instance a name resolves to.
+    function setResolvedName(string calldata name, address instance) external {
+        bytes32 nameHash = keccak256(abi.encodePacked(_toLowerCase(name)));
+        _instanceByNameHash[nameHash] = instance;
+    }
+
     // Helper to mark a name as taken (for testing)
     function markNameTaken(string memory name) external {
         bytes32 nameHash = keccak256(abi.encodePacked(_toLowerCase(name)));
