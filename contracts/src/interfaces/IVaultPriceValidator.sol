@@ -30,17 +30,27 @@ interface IVaultPriceValidator {
     /// @dev The venue-independent core of {calculateSwapProportion}: it needs only the LP tick range and
     ///      a spot `sqrtPriceX96`, not a V4 PoolManager, so a non-V4 caller (e.g. an Algebra vault reading
     ///      `IAlgebraPool.globalState().price`) can size its own zap-in. Applies the SAME TWAP cross-check
-    ///      and absolute [35%,65%] clamp as {calculateSwapProportion}; V4 pool ordering (ETH = currency0)
-    ///      is assumed for the numeraire, matching the alignment-vault pools.
-    /// @param token Alignment token address (used only for currency ordering)
+    ///      and absolute [35%,65%] clamp as {calculateSwapProportion}.
+    ///
+    ///      The numeraire ordering is NOT assumed — the caller passes `ethIsCurrency0` for its own pool.
+    ///      A V4 native-ETH pool has ETH = currency0 (address(0) sorts first), so its caller passes `true`.
+    ///      An Algebra/Cypher pool is ERC20/ERC20 ordered by WNativeToken-vs-token address, so its caller
+    ///      passes `weth < token` (which is `false` when the alignment token sorts below WETH — a real,
+    ///      supported ordering). Passing the wrong flag inverts the price direction and mis-sizes the swap,
+    ///      so the ordering MUST reflect the pool that produced `sqrtPriceX96`.
+    /// @param token Alignment token address (used to resolve the V3 TWAP cross-check pool)
     /// @param tickLower Vault's current LP position lower tick
     /// @param tickUpper Vault's current LP position upper tick
     /// @param sqrtPriceX96 Caller-supplied spot price (Q64.96) to size the swap against
+    /// @param ethIsCurrency0 True iff the ETH/WETH numeraire is currency0 (token0) in the caller's pool
     /// @return proportion 1e18-scaled fraction of ETH to swap into `token` (5e17 = 50%)
-    function calculateSwapProportionFromSqrtPrice(address token, int24 tickLower, int24 tickUpper, uint160 sqrtPriceX96)
-        external
-        view
-        returns (uint256 proportion);
+    function calculateSwapProportionFromSqrtPrice(
+        address token,
+        int24 tickLower,
+        int24 tickUpper,
+        uint160 sqrtPriceX96,
+        bool ethIsCurrency0
+    ) external view returns (uint256 proportion);
 
     /// @notice Quote the expected ETH output for selling `tokenAmount` alignment tokens.
     /// @dev DEPRECATED — see {quoteEthForTokensVia}. This shotgun path searches a fixed set of Uniswap

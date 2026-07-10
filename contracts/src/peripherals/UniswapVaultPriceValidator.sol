@@ -293,17 +293,20 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // direction fix cannot drift between the V4 and non-V4 (Algebra) entry points.
         (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(IPoolManager(_poolManager), PoolId.wrap(poolId));
 
-        return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96);
+        // A V4 alignment pool is native-ETH-paired: ETH = address(0) sorts first, so ETH is ALWAYS
+        // currency0. Pass ethIsCurrency0 = true to preserve the pre-refactor V4 numeraire exactly.
+        return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96, true);
     }
 
     /// @inheritdoc IVaultPriceValidator
-    function calculateSwapProportionFromSqrtPrice(address token, int24 tickLower, int24 tickUpper, uint160 sqrtPriceX96)
-        external
-        view
-        override
-        returns (uint256 proportion)
-    {
-        return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96);
+    function calculateSwapProportionFromSqrtPrice(
+        address token,
+        int24 tickLower,
+        int24 tickUpper,
+        uint160 sqrtPriceX96,
+        bool ethIsCurrency0
+    ) external view override returns (uint256 proportion) {
+        return _swapProportionFromSqrtPrice(token, tickLower, tickUpper, sqrtPriceX96, ethIsCurrency0);
     }
 
     /// @dev Venue-agnostic swap-proportion core shared by {calculateSwapProportion} (V4 spot) and
@@ -311,17 +314,19 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      `sqrtPriceX96`, cross-checks it against a V3 TWAP proportion, and applies the absolute
     ///      [35%,65%] clamp. A zero / out-of-range spot degrades to the balanced 50:50 entry (5e17),
     ///      identical to the pre-refactor V4 behavior.
-    function _swapProportionFromSqrtPrice(address token, int24 tickLower, int24 tickUpper, uint160 sqrtPriceX96)
-        private
-        view
-        returns (uint256)
-    {
+    function _swapProportionFromSqrtPrice(
+        address token,
+        int24 tickLower,
+        int24 tickUpper,
+        uint160 sqrtPriceX96,
+        bool ethIsCurrency0
+    ) private view returns (uint256) {
         if (sqrtPriceX96 == 0) {
             return 5e17;
         }
 
         (bool spotValid, uint256 spotProportion) =
-            _computeProportionFromSqrtPrice(sqrtPriceX96, token, tickLower, tickUpper);
+            _computeProportionFromSqrtPrice(sqrtPriceX96, ethIsCurrency0, tickLower, tickUpper);
         if (!spotValid) {
             return 5e17;
         }
@@ -330,11 +335,17 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         // A slot0/globalState spot price is manipulable within a block; the TWAP deviation guard catches
         // manipulation between the spot and the 30-min TWAP. The clamp is a SEPARATE backstop against
         // absolute mis-sizing (see _applyProportionGuards) — it must apply whether or not a TWAP exists.
+        //
+        // The TWAP pool is Uniswap V3 WETH/`token`, ordered by `weth < token`. That is the SAME address
+        // comparison an Algebra caller uses to derive `ethIsCurrency0`, so the caller's flag already
+        // matches the TWAP pool's ordering; for the V4 path the flag is `true`, exactly the pre-refactor
+        // numeraire. Reusing it keeps spot and TWAP proportions on one numeraire without a second read.
         uint160 twapSqrtPrice = _getTwapSqrtPriceX96(token);
         bool twapValid = false;
         uint256 twapProportion = 0;
         if (twapSqrtPrice != 0) {
-            (twapValid, twapProportion) = _computeProportionFromSqrtPrice(twapSqrtPrice, token, tickLower, tickUpper);
+            (twapValid, twapProportion) =
+                _computeProportionFromSqrtPrice(twapSqrtPrice, ethIsCurrency0, tickLower, tickUpper);
         }
 
         return _applyProportionGuards(spotProportion, twapValid, twapProportion);
@@ -384,20 +395,23 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     ///      For a FULL-RANGE position this reduces to exactly 5e17 at every price — but that is a
     ///      theorem about the vault's configuration, NOT hardcoded here: this validator is a shared
     ///      IVaultPriceValidator and must be correct for bounded ranges too.
-    function _computeProportionFromSqrtPrice(uint160 sqrtPriceX96, address token, int24 tickLower, int24 tickUpper)
-        internal
-        pure
-        returns (bool valid, uint256 proportion)
-    {
+    ///      The numeraire ordering is supplied by the caller (`ethIsCurrency0`), NOT derived from the
+    ///      token address: a V4 native-ETH pool always has ETH = currency0, but an Algebra/Cypher pool is
+    ///      ERC20/ERC20 ordered by WNativeToken-vs-token address, so its WETH leg can be currency1. A
+    ///      hardcoded `address(0) < token` (always true) would invert the direction for a token0-token pool
+    ///      and strand ETH or token in the vault.
+    function _computeProportionFromSqrtPrice(
+        uint160 sqrtPriceX96,
+        bool ethIsCurrency0,
+        int24 tickLower,
+        int24 tickUpper
+    ) internal pure returns (bool valid, uint256 proportion) {
         uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(tickUpper);
 
         (uint256 amount0, uint256 amount1) =
             LiquidityAmounts.getAmountsForLiquidity(sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, 1e18);
 
-        // currency0 is native ETH when address(0) < token (Uniswap V4 currency ordering). address(0)
-        // is the smallest address, so ETH is always currency0 for an ETH-paired pool.
-        bool ethIsCurrency0 = address(0) < token;
         uint256 ethValue = ethIsCurrency0 ? amount0 : amount1;
         uint256 tokenAmount = ethIsCurrency0 ? amount1 : amount0;
 

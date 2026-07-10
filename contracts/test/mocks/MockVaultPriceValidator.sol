@@ -31,7 +31,7 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
         return fixedProportion;
     }
 
-    function calculateSwapProportionFromSqrtPrice(address, int24, int24, uint160)
+    function calculateSwapProportionFromSqrtPrice(address, int24, int24, uint160, bool)
         external
         view
         override

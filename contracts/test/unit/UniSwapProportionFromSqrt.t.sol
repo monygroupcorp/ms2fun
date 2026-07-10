@@ -45,7 +45,7 @@ contract UniSwapProportionFromSqrtTest is Test {
         int24 lower = TickMath.minUsableTick(SPACING);
         int24 upper = TickMath.maxUsableTick(SPACING);
         uint160 sqrtP = TickMath.getSqrtPriceAtTick(spotTick);
-        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP);
+        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, true);
         // Full range is 50% BY VALUE at every price; 5e17 sits inside the clamp band so it passes through.
         // 16-wei tolerance absorbs getAmountsForLiquidity truncation + mulDiv floor at extreme prices.
         assertApproxEqAbs(prop, 5e17, 16, "full-range proportion is 50% by value");
@@ -65,7 +65,7 @@ contract UniSwapProportionFromSqrtTest is Test {
         assertTrue(valid, "in-range at lower boundary");
         assertLt(raw, 5e17, "raw is the TOKEN side (low), never the inverted ETH side");
 
-        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP);
+        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, true);
         assertEq(prop, 35e16, "clamp floors the ~0 token-side proportion to 35%");
     }
 
@@ -81,7 +81,7 @@ contract UniSwapProportionFromSqrtTest is Test {
         assertTrue(valid, "interior in-range");
         assertApproxEqAbs(raw, 0.3118e18, 0.02e18, "raw is the token side over total (not inverted 0.688)");
 
-        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP);
+        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, true);
         assertEq(prop, 35e16, "0.312 is below the 35% floor => clamped, not returned as 5e17");
     }
 
@@ -96,7 +96,7 @@ contract UniSwapProportionFromSqrtTest is Test {
         assertTrue(valid, "in-range at upper boundary");
         assertGt(raw, 5e17, "raw is the TOKEN side (high), never the inverted ETH side");
 
-        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP);
+        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, true);
         assertEq(prop, 65e16, "clamp caps the ~1e18 token-side proportion to 65%");
     }
 
@@ -116,7 +116,7 @@ contract UniSwapProportionFromSqrtTest is Test {
         assertLt(raw, 65e16, "raw inside the clamp band (below the cap)");
         assertLt(raw, 5e17, "price below center => token side below half (direction, not inverted)");
 
-        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP);
+        uint256 prop = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, true);
         assertEq(prop, raw, "in-band: new entry point returns the exact core proportion (pure delegation)");
     }
 
@@ -124,6 +124,39 @@ contract UniSwapProportionFromSqrtTest is Test {
     function test_fromSqrt_zeroSpot_isBalanced() public view {
         int24 lower = -6932;
         int24 upper = 20_794;
-        assertEq(harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, 0), 5e17, "zero spot => 50%");
+        assertEq(harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, 0, true), 5e17, "zero spot => 50%");
+    }
+
+    // ── Numeraire ordering (the 027a gauntlet fix): an Algebra/Cypher pool where the alignment token sorts
+    //    BELOW WETH has the token as currency0 and the WETH numeraire as currency1 (ethIsCurrency0 == false).
+    //    CAMEL.sol supports this ordering, so the core must NOT hardcode `address(0) < token` (always true).
+    //    Same sqrtPrice + range as test_fromSqrt_boundedInterior_isTokenSideThenClamped (P=1, range ≈ [0.5,8]),
+    //    but with ethIsCurrency0=false the ETH/token legs swap: the raw core becomes ~0.688e18 (the MIRROR of
+    //    the 0.312e18 currency0 case), and the clamp caps to 65% instead of flooring to 35%. That the two
+    //    orderings diverge is the proof the flag is honored and the direction is not inverted. ─────────────
+
+    function test_fromSqrt_ethIsCurrency1_ordering_mirrorsAndClampsHigh() public view {
+        int24 lower = -6932; // ≈ 0.5
+        int24 upper = 20_794; // ≈ 8
+        uint160 sqrtP = TickMath.getSqrtPriceAtTick(0); // P = 1
+
+        // Raw core with WETH as currency1 (token is currency0): the token leg is amount0, so the proportion
+        // is the MIRROR of the currency0 case (~0.688, not the ~0.312 the true-ordering path returns).
+        (bool valid, uint256 rawCcy1) = harness.computeProportionOrdered(sqrtP, false, lower, upper);
+        assertTrue(valid, "interior in-range");
+        assertApproxEqAbs(rawCcy1, 0.6882e18, 0.02e18, "eth-currency1: token side is amount0 (mirror of 0.312)");
+
+        // It genuinely differs from the eth-currency0 core — proving the flag is not ignored.
+        (, uint256 rawCcy0) = harness.computeProportionOrdered(sqrtP, true, lower, upper);
+        assertApproxEqAbs(rawCcy0 + rawCcy1, 1e18, 0.001e18, "the two orderings are complements (E-vs-token flip)");
+        assertGt(rawCcy1, rawCcy0, "currency1 ordering is the high side here");
+
+        // Public entry point, ethIsCurrency0=false: raw ~0.688 is above the 65% cap => clamped to 65e16
+        // (the currency0 case clamps to 35e16 — see test_fromSqrt_boundedInterior_isTokenSideThenClamped).
+        uint256 propCcy1 = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, false);
+        assertEq(propCcy1, 65e16, "0.688 above the 65% cap => clamped high, the OPPOSITE of the currency0 path");
+
+        uint256 propCcy0 = harness.calculateSwapProportionFromSqrtPrice(TOKEN, lower, upper, sqrtP, true);
+        assertEq(propCcy0, 35e16, "same price+range, currency0 ordering => clamped low: the ordering flag decides");
     }
 }
