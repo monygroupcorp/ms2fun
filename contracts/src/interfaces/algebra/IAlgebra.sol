@@ -47,6 +47,15 @@ interface IAlgebraNFTPositionManager {
         uint256 deadline;
     }
 
+    struct IncreaseLiquidityParams {
+        uint256 tokenId;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
+        uint256 amount0Min;
+        uint256 amount1Min;
+        uint256 deadline;
+    }
+
     struct CollectParams {
         uint256 tokenId;
         address recipient;
@@ -66,6 +75,13 @@ interface IAlgebraNFTPositionManager {
         external
         payable
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1);
+
+    /// @dev Adds liquidity to an existing `tokenId` with tokens paid by `msg.sender`. Signature matches
+    ///      the production Algebra Integral NFPM (camel404 `lib/Algebra/.../INonfungiblePositionManager.sol`).
+    function increaseLiquidity(IncreaseLiquidityParams calldata params)
+        external
+        payable
+        returns (uint128 liquidity, uint256 amount0, uint256 amount1);
 
     function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
 

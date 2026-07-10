@@ -99,6 +99,23 @@ contract MockAlgebraPositionManager {
         emit Transfer(address(0), p.recipient, tokenId);
     }
 
+    function increaseLiquidity(IAlgebraNFTPositionManager.IncreaseLiquidityParams calldata p)
+        external
+        payable
+        returns (uint128 liquidity, uint256 amount0, uint256 amount1)
+    {
+        Position storage pos = _positions[p.tokenId];
+        if (p.amount0Desired > 0) MockERC20(pos.token0).transferFrom(msg.sender, address(this), p.amount0Desired);
+        if (p.amount1Desired > 0) MockERC20(pos.token1).transferFrom(msg.sender, address(this), p.amount1Desired);
+
+        amount0 = p.amount0Desired;
+        amount1 = p.amount1Desired;
+        // Mirror the mint mock's liquidity convention (amount0 + amount1) so a repeat convert into ONE
+        // tokenId strictly increases the stored liquidity — the aggregation primitive 027b's B2 fix needs.
+        liquidity = uint128(amount0 + amount1);
+        pos.liquidity += liquidity;
+    }
+
     function collect(IAlgebraNFTPositionManager.CollectParams calldata p)
         external
         payable
