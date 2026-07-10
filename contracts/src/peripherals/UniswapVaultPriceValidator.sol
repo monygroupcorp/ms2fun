@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { IVaultPriceValidator } from "../interfaces/IVaultPriceValidator.sol";
+import { IAlgebraPool, IVolatilityOracle } from "../interfaces/algebra/IAlgebra.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { PoolId } from "v4-core/types/PoolId.sol";
@@ -63,6 +64,11 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     error InvalidDenominator();
     error InsufficientPurchasePower();
     error SwapProportionDeviationTooHigh();
+    /// @notice The pinned canonical pool could not produce a usable TWAP. Thrown by
+    ///         {quoteEthForTokensVia} INSTEAD OF returning 0 — this is the anti-fail-open guarantee.
+    error ReferenceTwapUnavailable();
+    /// @notice `kind` passed to {quoteEthForTokensVia} is not a supported pool family (only 0 and 1 are).
+    error UnsupportedPoolKind(uint8 kind);
 
     address public immutable weth;
     address public immutable v2Factory;
@@ -95,6 +101,8 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     // --- IVaultPriceValidator ---
 
     /// @inheritdoc IVaultPriceValidator
+    /// @dev deprecated — see {quoteEthForTokensVia}. Fail-open (returns 0) shotgun path kept until
+    ///      callers migrate to the pinned-pool read; do not delete while any caller remains.
     function quoteEthForTokens(address token, uint256 tokenAmount) external view override returns (uint256) {
         if (tokenAmount == 0) return 0;
 
@@ -111,6 +119,95 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
         }
 
         return 0;
+    }
+
+    /// @inheritdoc IVaultPriceValidator
+    function quoteEthForTokensVia(address pool, uint8 kind, uint32 window, address token, uint256 amount)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        // Invalid pool family is a caller/config error — reject before doing anything else.
+        if (kind >= 2) revert UnsupportedPoolKind(kind);
+        if (amount == 0) return 0;
+
+        // window == 0 falls back to the validator's configured TWAP window (constructor-guaranteed non-zero).
+        uint32 win = window == 0 ? twapSecondsAgo : window;
+
+        int56 tickCumulativeDelta = _pinnedTwapTickDelta(pool, kind, win);
+
+        // Token ordering is canonical (token0 = lower address) for both Uniswap V3 and Algebra factories,
+        // so WETH is token0 iff `weth < token` — no token0() call needed (Algebra's minimal interface omits it).
+        (bool ok, uint256 ethPerToken) = _ethPerTokenFromTwapDelta(tickCumulativeDelta, win, weth < token);
+
+        // NO fail-open: a zero / unusable price means the pinned pool cannot serve as a reference.
+        if (!ok) revert ReferenceTwapUnavailable();
+
+        return (amount * ethPerToken) / 1e18;
+    }
+
+    /// @dev Reads the tick-cumulative delta over `window` from the pinned `pool`. `kind == 0` uses the
+    ///      Uniswap V3 `observe`; `kind == 1` uses the Algebra volatility-oracle plugin's `getTimepoints`.
+    ///      ANY failure to obtain the delta (pool has no code, insufficient observation history, missing
+    ///      or reverting plugin) reverts `ReferenceTwapUnavailable` — never a silent 0. Callers must have
+    ///      already rejected `kind >= 2`.
+    function _pinnedTwapTickDelta(address pool, uint8 kind, uint32 window) private view returns (int56) {
+        // A no-code target's high-level call reverts via the compiler's extcodesize pre-check, which
+        // try/catch does NOT trap (it reverts with empty data). Guard it explicitly so an absent pool
+        // is the named ReferenceTwapUnavailable, never a bare revert and never a fail-open.
+        if (pool.code.length == 0) revert ReferenceTwapUnavailable();
+
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = window;
+        secondsAgos[1] = 0;
+
+        if (kind == 0) {
+            try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory tickCumulatives, uint160[] memory) {
+                return tickCumulatives[1] - tickCumulatives[0];
+            } catch {
+                revert ReferenceTwapUnavailable();
+            }
+        }
+
+        // kind == 1 (Algebra): the TWAP oracle lives on the pool's plugin (hook), not the pool itself.
+        try IAlgebraPool(pool).plugin() returns (address oracle) {
+            if (oracle == address(0)) revert ReferenceTwapUnavailable();
+            try IVolatilityOracle(oracle).getTimepoints(secondsAgos) returns (
+                int56[] memory tickCumulatives, uint88[] memory
+            ) {
+                return tickCumulatives[1] - tickCumulatives[0];
+            } catch {
+                revert ReferenceTwapUnavailable();
+            }
+        } catch {
+            revert ReferenceTwapUnavailable();
+        }
+    }
+
+    /// @dev Converts a tick-cumulative delta over `window` seconds into a WETH-per-`token` price (1e18-scaled),
+    ///      using the SAME mean-tick fixed-point math as the V3 shotgun path (`_queryV3PoolForFee`): mean tick
+    ///      → sqrtPriceX96 → raw token1/token0 price, then oriented by `token0IsWeth`. Returns ok=false when the
+    ///      price rounds to zero, so the pinned-pool caller reverts rather than fail-open with a zero quote.
+    function _ethPerTokenFromTwapDelta(int56 tickCumulativeDelta, uint32 window, bool token0IsWeth)
+        private
+        pure
+        returns (bool ok, uint256 ethPerToken)
+    {
+        int24 meanTick = int24(tickCumulativeDelta / int56(uint56(window)));
+        // Round toward negative infinity when the remainder is negative (standard V3 TWAP rounding).
+        if (tickCumulativeDelta < 0 && (tickCumulativeDelta % int56(uint56(window)) != 0)) meanTick--;
+
+        uint160 sqrtPriceX96 = TickMath.getSqrtPriceAtTick(meanTick);
+        uint256 sqrtScaled = uint256(sqrtPriceX96) >> 48;
+        uint256 rawPrice = (sqrtScaled * sqrtScaled * 1e18) >> 96;
+        if (rawPrice == 0) return (false, 0);
+
+        // rawPrice is token1/token0. If WETH is token0 the pool price is token-per-ETH → invert to ETH-per-token;
+        // otherwise WETH is token1 and rawPrice is already ETH-per-token.
+        ethPerToken = token0IsWeth ? (1e18 * 1e18) / rawPrice : rawPrice;
+        if (ethPerToken == 0) return (false, 0);
+        return (true, ethPerToken);
     }
 
     function validatePrice(address token, uint256 pendingETH) external view override {

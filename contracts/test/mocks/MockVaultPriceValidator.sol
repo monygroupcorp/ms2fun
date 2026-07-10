@@ -36,4 +36,14 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
     function quoteEthForTokens(address, uint256 tokenAmount) external view override returns (uint256) {
         return tokenAmount * ethPer1e18Tokens / 1e18;
     }
+
+    // Mirrors the linear quote for the pinned-pool signature; pool/kind/window are ignored by the mock.
+    function quoteEthForTokensVia(address, uint8, uint32, address, uint256 amount)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return amount * ethPer1e18Tokens / 1e18;
+    }
 }
