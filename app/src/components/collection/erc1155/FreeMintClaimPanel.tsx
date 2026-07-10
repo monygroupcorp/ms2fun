@@ -19,7 +19,7 @@ import {
 } from '../../../generated/contracts'
 import { forkChainId } from '../../../lib/addresses'
 import { txErrorReason } from '../../ui/useTxAction'
-import { encodeFreeMintGatingData, isFreeMintGated } from './gatingMint'
+import { encodePasswordGatingData, isFreeMintGated } from './gatingMint'
 import styles from './Erc1155Actions.module.css'
 
 interface FreeMintClaimPanelProps {
@@ -80,11 +80,11 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
   const eligible = isConnected && allocationOpen && !exhausted && hasClaimed === false
 
   function handleClaim(): void {
-    // Free-mint gating ('bytes' arg): the module decodes (bytes32 passwordHash, uint256 openTime),
-    // so encode that pair when gated; pass '0x' when open (module isn't consulted). openTime 0 is
-    // correct for password/volume tiers; TIME_BASED free-mint tiers would pass the edition openTime.
+    // Free-mint gating ('bytes' arg): post-#25 the module decodes abi.decode(data,(bytes32
+    // passwordHash)) — openTime is now an authoritative canMint param (edition.openTime), not part of
+    // data. So encode just the hash when gated; pass '0x' when open (module isn't consulted).
     // Merkle resolution is a documented seam in gatingMint.ts.
-    const gatingData = gated ? encodeFreeMintGatingData(password) : '0x'
+    const gatingData = gated ? encodePasswordGatingData(password) : '0x'
     writeContract({
       address: instance,
       chainId: forkChainId,
