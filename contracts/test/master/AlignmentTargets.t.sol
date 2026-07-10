@@ -34,7 +34,7 @@ contract AlignmentTargetsTest is Test {
     address public remiliaMultisig2 = makeAddr("remilia-multisig2");
 
     function setUp() public {
-        alignmentRegistry = new AlignmentRegistryV1();
+        alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
         alignmentRegistry.initialize(daoOwner);
 
         masterRegistry = new MasterRegistryV1();

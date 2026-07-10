@@ -14,6 +14,21 @@ interface IAlgebraPool {
         external
         view
         returns (uint160 price, int24 tick, uint16 lastFee, uint8 pluginConfig, uint16 communityFee, bool unlocked);
+    /// @notice The plugin (hook) attached to this pool; the Integral volatility-oracle plugin lives here.
+    /// @dev `address(0)` = no plugin, so the pool exposes no TWAP oracle and cannot serve as a reference pool.
+    function plugin() external view returns (address);
+}
+
+/// @notice Minimal Algebra Integral volatility-oracle plugin interface (the pool's `plugin()`).
+/// @dev Hand-written against the production Algebra Integral `IVolatilityOracle` signature (verified against
+///      camel404 `lib/Algebra/src/plugin/contracts/interfaces/plugins/IVolatilityOracle.sol`). `getTimepoints`
+///      is the Algebra analogue of Uniswap V3's `observe`: it returns cumulative ticks at the requested lookback
+///      offsets, from which a TWAP tick is `(tickCumulatives[1] - tickCumulatives[0]) / window`.
+interface IVolatilityOracle {
+    function getTimepoints(uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int56[] memory tickCumulatives, uint88[] memory volatilityCumulatives);
 }
 
 /// @notice Algebra V2 NonFungiblePositionManager (adds deployer field vs Uniswap V3)
