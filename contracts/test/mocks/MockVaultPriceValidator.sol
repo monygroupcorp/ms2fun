@@ -31,6 +31,15 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
         return fixedProportion;
     }
 
+    function calculateSwapProportionFromSqrtPrice(address, int24, int24, uint160, bool)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return fixedProportion;
+    }
+
     // Linear TWAP quote: ethOut = tokenAmount * ethPer1e18Tokens / 1e18.
     // Returns 0 when unset so existing tests are unaffected (no oracle floor applied).
     function quoteEthForTokens(address, uint256 tokenAmount) external view override returns (uint256) {

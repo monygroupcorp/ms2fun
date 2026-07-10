@@ -15,7 +15,19 @@ contract UniPriceValidatorHarness is UniswapVaultPriceValidator {
         pure
         returns (bool valid, uint256 proportion)
     {
-        return _computeProportionFromSqrtPrice(sqrtPriceX96, token, tickLower, tickUpper);
+        // These tests model the V4 native-ETH pool (ETH = address(0) sorts first), so any nonzero token
+        // means ETH is currency0; forward that ordering to the core's explicit `ethIsCurrency0` param.
+        return _computeProportionFromSqrtPrice(sqrtPriceX96, address(0) < token, tickLower, tickUpper);
+    }
+
+    /// @notice Exposes the core with an EXPLICIT numeraire ordering, so tests can model an Algebra/Cypher
+    ///         pool where the WETH leg is currency1 (`ethIsCurrency0 == false` — the token0-alignment case).
+    function computeProportionOrdered(uint160 sqrtPriceX96, bool ethIsCurrency0, int24 tickLower, int24 tickUpper)
+        external
+        pure
+        returns (bool valid, uint256 proportion)
+    {
+        return _computeProportionFromSqrtPrice(sqrtPriceX96, ethIsCurrency0, tickLower, tickUpper);
     }
 
     function applyGuards(uint256 spotProportion, bool twapValid, uint256 twapProportion)
