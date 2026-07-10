@@ -81,7 +81,7 @@ contract MetadataStackIntegrationTest is Test {
         ComponentRegistry impl = new ComponentRegistry();
         componentRegistry = ComponentRegistry(LibClone.deployERC1967(address(impl)));
         componentRegistry.initialize(protocolAdmin);
-        componentRegistry.approveComponent(address(curveComp), keccak256("curve"), "Curve");
+        componentRegistry.approveComponent(address(curveComp), bytes32("curve_computer"), "Curve");
         componentRegistry.approveComponent(address(deployer), keccak256("liquidity"), "Deployer");
 
         launchMgr.setPreset(
@@ -365,5 +365,43 @@ contract MetadataStackIntegrationTest is Test {
             inst, "solo-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
         );
         assertEq(_uri(b, 7), "solo-7");
+    }
+
+    // ── noesis-038: tag-scoped resolver family (§3.1) ──────────────────────────
+    // The resolver slot and its child resolvers accept the RESOLVER/OVERLAY/TIER family only.
+    // A module that IS approved but under a foreign tag (e.g. GATING) must still be rejected —
+    // that is the cross-slot hole tag-scoping closes. (A never-approved address is already covered
+    // by the *unapproved* tests above; these prove tag, not mere approval, is what gates.)
+
+    function test_tagScope_resolverSlot_rejectsForeignTag() public {
+        address gatingTagged = address(new MockVault());
+        vm.prank(protocolAdmin);
+        componentRegistry.approveComponent(gatingTagged, keccak256("gating"), "GatingTaggedMod");
+
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = gatingTagged; // approved, but GATING — outside the resolver family
+        vm.expectRevert(ERC404Factory.UnapprovedResolver.selector);
+        _create("gatingAsResolver", meta);
+    }
+
+    function test_tagScope_childResolver_rejectsForeignTag() public {
+        address gatingTagged = address(new MockVault());
+        vm.prank(protocolAdmin);
+        componentRegistry.approveComponent(gatingTagged, keccak256("gating"), "GatingTaggedMod");
+
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.childResolvers = _children(address(overlay), gatingTagged); // second child GATING-tagged
+        vm.expectRevert(ERC404Factory.UnapprovedResolver.selector);
+        _create("gatingAsChild", meta);
+    }
+
+    function test_tagScope_childResolver_acceptsOverlayTierFamily() public {
+        // Positive control: [overlay, tier] are both resolver-family → the family check permits them.
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.childResolvers = _children(address(overlay), address(tier));
+        address inst = _create("familyChildren", meta);
+        assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
     }
 }
