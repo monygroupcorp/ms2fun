@@ -92,7 +92,7 @@ async function main(): Promise<void> {
   // 2. Deploy via forge (Solidity owns the deploy).
   console.log('\n▶ forge script DeployAnvil.s.sol --broadcast')
   execSync(
-    `forge script script/DeployAnvil.s.sol --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID} --code-size-limit 30000`,
+    `forge script script/DeployAnvil.s.sol --rpc-url ${RPC} --broadcast --slow --chain-id ${CHAIN_ID} --code-size-limit 30000`,
     {
       cwd: contractsDir,
       stdio: 'inherit',
@@ -105,7 +105,7 @@ async function main(): Promise<void> {
   //     Anvil-only — never part of DeployCore / a production deploy.
   console.log('\n▶ forge script SeedAnvil.s.sol --broadcast')
   execSync(
-    `forge script script/SeedAnvil.s.sol --rpc-url ${RPC} --broadcast --chain-id ${CHAIN_ID} --code-size-limit 30000`,
+    `forge script script/SeedAnvil.s.sol --rpc-url ${RPC} --broadcast --slow --chain-id ${CHAIN_ID} --code-size-limit 30000`,
     {
       cwd: contractsDir,
       stdio: 'inherit',

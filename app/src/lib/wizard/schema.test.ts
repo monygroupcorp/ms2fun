@@ -176,8 +176,16 @@ describe('validateField', () => {
   describe('kind: address', () => {
     const f = field({ kind: 'address' })
 
-    it('accepts a valid 0x40-hex address', () => {
-      expect(validateField(f, '0xaAbBcCdDeEfF0011223344556677889900aAbBcC')).toBeNull()
+    it('accepts an all-lowercase 0x40-hex address (no checksum to verify)', () => {
+      expect(validateField(f, '0x54efd4549ae44bd03b2ccc1c72492ca9a3219c86')).toBeNull()
+    })
+
+    it('accepts a correctly EIP-55-checksummed address', () => {
+      expect(validateField(f, '0x54EfD4549AE44bD03B2cCC1C72492CA9A3219C86')).toBeNull()
+    })
+
+    it('rejects a mixed-case address whose EIP-55 checksum is wrong (likely typo)', () => {
+      expect(validateField(f, '0x54efD4549AE44bD03B2cCC1C72492CA9A3219C86')).not.toBeNull()
     })
 
     it('rejects a string that is too short', () => {

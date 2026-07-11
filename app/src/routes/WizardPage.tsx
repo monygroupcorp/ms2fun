@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useAccount } from 'wagmi'
 import { toHex } from 'viem'
+import { useReadMasterRegistryV1IsAgent } from '../generated/contracts'
+import { forkAddresses } from '../lib/addresses'
 import {
   PROJECT_TYPES,
   getProjectType,
@@ -14,21 +16,28 @@ import {
   validateTierConfig,
   encodeMetadataConfig,
   validateMetadataConfig,
-  groupVaultsByFamily,
   type MetadataModuleSelection,
   type ModuleSlot,
   type ProjectTypeSchema,
   type SelectedModules,
-  type VaultFamily,
+  type CreateCall,
 } from '../lib/wizard'
+import { embedBreakdown } from '../lib/wizard/deployGasBreakdown'
+import { DeployGasBreakdown } from '../components/wizard/DeployGasBreakdown'
+import { useDeployGasEstimate } from '../components/wizard/useDeployGasEstimate'
 import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
 import { useReadDeployBondEscrowBondAmount } from '../generated/contracts'
-import { forkAddresses, forkChainId } from '../lib/addresses'
+import { forkChainId } from '../lib/addresses'
+import { validateCollectionName } from '../lib/wizard/collectionName'
+import { useNameAvailability } from '../components/wizard/useNameAvailability'
 import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { BondNotice } from '../components/wizard/BondNotice'
 import { SchemaForm } from '../components/wizard/SchemaForm'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
+import { StylePreviewControl } from '../components/wizard/StylePreviewControl'
+import { CollectionHeroPreview } from '../components/wizard/CollectionHeroPreview'
+import { AlignmentTargetPicker } from '../components/wizard/AlignmentTargetPicker'
 import { useRegisteredVaults } from '../components/wizard/useRegisteredVaults'
 import { useCreateSubmit } from '../components/wizard/useCreateSubmit'
 import { WalletButton } from '../components/WalletButton'
@@ -72,31 +81,6 @@ const TYPE_LABEL: Record<string, string> = {
   erc721: 'ERC-721',
 }
 
-/** Alignment family choice (D3) — the economic model, surfaced not hidden. Yield parks WETH for
- *  yield (refundable); Liquidity builds a real tradeable market on the 1/19/80 graduation split. */
-const FAMILY_META: Record<VaultFamily, { label: string; tag: string; tradeoff: string }> = {
-  yield: {
-    label: 'Yield',
-    tag: 'Aave endowment',
-    tradeoff:
-      'Parks WETH in Aave earning yield — principal stays refundable. No tradeable market is made.',
-  },
-  lp: {
-    label: 'Liquidity',
-    tag: 'Tradeable market',
-    tradeoff:
-      'Builds a real tradeable market — price discovery + exit liquidity, on a 1/19/80 graduation split.',
-  },
-}
-
-/** Per-venue one-line tradeoff (D4) — Uni is the default workhorse; ZAMM/Cypher are situational. */
-const VENUE_TRADEOFF: Record<string, string> = {
-  UniswapV4: 'Deepest, most-real liquidity — the default.',
-  ZAMM: 'Constant-product AMM — situational.',
-  Cypher: 'Algebra concentrated liquidity — situational.',
-  AaveEndowment: 'WETH endowment earning Aave yield; principal-refundable.',
-}
-
 /**
  * Launch wizard (Phase 3 / T2). Drives the ADR-0005 option schema → a real `createInstance`:
  * project type → core fields (generic `SchemaForm`) → module slots → alignment vault → collection
@@ -106,16 +90,13 @@ const VENUE_TRADEOFF: Record<string, string> = {
  * step machine only gates *navigation*; behaviour, validation, and the create builder are unchanged.
  */
 export function WizardPage() {
-  const { address: creator } = useAccount()
+  const { address: wallet } = useAccount()
   const [, setLocation] = useLocation()
 
   const [typeKey, setTypeKey] = useState<ProjectTypeSchema['key']>('erc1155')
   const projectType = getProjectType(typeKey)
   const [values, setValues] = useState<Record<string, string>>({})
   const [vault, setVault] = useState<`0x${string}` | undefined>(undefined)
-  // Alignment: which family (Yield/Liquidity) the venue picker is expanded to. Falls back to the
-  // selected vault's own family (so navigating back re-opens the right group).
-  const [alignFamily, setAlignFamily] = useState<VaultFamily | undefined>(undefined)
   const [modules, setModules] = useState<Record<string, `0x${string}`>>({})
   // The gating module's metadata `configType` (drives which config form to show) + its form values.
   const [gatingConfigType, setGatingConfigType] = useState('')
@@ -136,10 +117,48 @@ export function WizardPage() {
     chainId: forkChainId,
   })
 
+  // The instance owner. Defaults to the connected wallet; a creator MAY set a different owner ONLY if
+  // their wallet is a MasterRegistry agent — the factories revert `NotAuthorizedAgent` otherwise
+  // (ERC1155Factory.createInstance et al). We mirror that rule client-side so it fails in the form,
+  // not on-chain.
+  const creatorOverride = (values.creator ?? '').trim()
+  const effectiveCreator = (creatorOverride || wallet || '') as `0x${string}`
+  const { data: walletIsAgent } = useReadMasterRegistryV1IsAgent({
+    address: forkAddresses.MasterRegistryV1,
+    args: wallet ? [wallet] : undefined,
+    query: { enabled: Boolean(wallet) },
+  })
+  const settingOtherOwner =
+    Boolean(creatorOverride) &&
+    Boolean(wallet) &&
+    creatorOverride.toLowerCase() !== wallet!.toLowerCase()
+  const ownerNeedsAgent = settingOtherOwner && walletIsAgent === false
+
+  // Prefill the Creator field with the connected wallet so the common case (own collection) needs no
+  // typing, and the on-chain `creator == msg.sender` check passes without thought.
+  useEffect(() => {
+    if (wallet && !values.creator) setValues((v) => ({ ...v, creator: wallet }))
+  }, [wallet, values.creator])
+
+  // Name is authored in CollectionMetaForm; mirror it into `values.name` so the create builder (which
+  // reads `values.name`) and the manifest stay in sync with the single source of truth.
+  function handleMetadata(next: CollectionMetadata) {
+    setMetadata(next)
+    setValues((v) => (v.name === next.name ? v : { ...v, name: next.name }))
+  }
+
   // Redirect to the new collection once the InstanceCreated event is mined.
   useEffect(() => {
     if (submit.isSuccess && submit.instance) setLocation(`/collection/${submit.instance}`)
   }, [submit.isSuccess, submit.instance, setLocation])
+
+  // Reaching Review means the user is trying to finish, so surface field-level errors on every step
+  // from here on. Otherwise the deploy button stays disabled while `deployBlockers` is non-empty, so a
+  // click can never fire `handleSubmit` to set `attempted` — the blocker list says "Complete the
+  // contract details" but the Contract/Modules tabs never mark which inputs are missing.
+  useEffect(() => {
+    if (stepKey === 'review') setAttempted(true)
+  }, [stepKey])
 
   if (!projectType) return null
   // Stable non-null binding so the step-body / slot closures keep the narrowing.
@@ -171,11 +190,86 @@ export function WizardPage() {
   const metaErrors =
     attempted && anyMetaModule ? validateMetadataConfig(metaSelection, metaValues) : {}
 
+  const nameStatus = useNameAvailability(metadata.name)
+
+  // Everything that would make handleSubmit bail before it ever sends the create tx — surfaced on the
+  // Review step so "Deploy" never silently no-ops. Each line points at the step to fix.
+  const deployBlockers: string[] = (() => {
+    const out: string[] = []
+    if (!metadata.name.trim()) out.push('Set a collection name — Collection page step.')
+    else {
+      // The registry claims names globally and case-insensitively; both of these revert
+      // `createInstance` if we let them through. Same query key as the form's — wagmi dedupes.
+      const bad = validateCollectionName(metadata.name)
+      if (bad) out.push(`Collection name: ${bad.toLowerCase()} — Collection page step.`)
+      else if (nameStatus.state === 'taken')
+        out.push(`Collection name “${metadata.name.trim()}” is already taken — Collection page step.`)
+    }
+    if (!wallet) out.push('Connect your wallet.')
+    if (ownerNeedsAgent)
+      out.push(
+        'Creator is a different address and your wallet isn’t a registered agent — clear it or use your own wallet (Contract step).',
+      )
+    if (!vault) out.push('Select an alignment vault — Alignment step.')
+    if (Object.keys(validateFields(pt.coreFields, values)).length > 0)
+      out.push('Complete the contract details — Contract step.')
+    if (
+      showGatingForm &&
+      gatingSchema &&
+      (Object.keys(validateFields(gatingSchema.fields, gatingValues)).length > 0 ||
+        Object.keys(validateTierConfig(gatingValues)).length > 0)
+    )
+      out.push('Complete the gating config — Gating step.')
+    if (anyMetaModule && Object.keys(validateMetadataConfig(metaSelection, metaValues)).length > 0)
+      out.push('Fix the metadata module config — Modules step.')
+    return out
+  })()
+
+  // Assemble the exact `createInstance` call from current wizard state. Shared by the deploy submit
+  // (handleSubmit) and the Review-step gas estimate, so the tx we price is the tx we send.
+  function assembleCall(vaultAddr: `0x${string}`, salt: `0x${string}`): CreateCall {
+    const selected: SelectedModules = {
+      vault: vaultAddr,
+      ...(modules.gatingModule ? { gatingModule: modules.gatingModule } : {}),
+      ...(modules.liquidityDeployer ? { liquidityDeployer: modules.liquidityDeployer } : {}),
+      ...(modules.stakingModule ? { stakingModule: modules.stakingModule } : {}),
+      ...(modules.resolver ? { resolver: modules.resolver } : {}),
+      ...(modules.overlay ? { overlay: modules.overlay } : {}),
+      ...(modules.tier ? { tier: modules.tier } : {}),
+    }
+    const gatingConfig =
+      modules.gatingModule && hasTierConfig(gatingValues) ? encodeTierConfig(gatingValues) : undefined
+    const metadataConfig = anyMetaModule
+      ? encodeMetadataConfig(metaSelection, metaValues)
+      : undefined
+    return buildCreateInstance(typeKey, {
+      values,
+      creator: effectiveCreator,
+      metadataURI: collectionToDataUri(metadata),
+      salt,
+      modules: selected,
+      // Only ERC404 charges a deploy bond (N12); other builders ignore this field. Grafted onto the
+      // assembleCall refactor during the wizard-tree rebase so the upstream deploy-bond wiring survives.
+      ...(typeKey === 'erc404' && deployBondAmount ? { bondAmount: deployBondAmount } : {}),
+      ...(gatingConfig ? { gatingConfig } : {}),
+      ...(metadataConfig ? { metadataConfig } : {}),
+    })
+  }
+
+  // Stable salt for the estimate only (the real deploy mints a fresh one) — a new salt each render
+  // would change the calldata and thrash the gas query.
+  const estimateSalt = useMemo(() => toHex(crypto.getRandomValues(new Uint8Array(32))), [])
+  const reviewCall =
+    stepKey === 'review' && deployBlockers.length === 0 && vault
+      ? assembleCall(vault, estimateSalt)
+      : undefined
+  const gasEstimate = useDeployGasEstimate(reviewCall, wallet)
+  const embedBreakdownData = useMemo(() => embedBreakdown(metadata), [metadata])
+
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
     setValues({})
     setVault(undefined)
-    setAlignFamily(undefined)
     setModules({})
     setGatingConfigType('')
     setGatingValues({})
@@ -190,7 +284,11 @@ export function WizardPage() {
     if (!projectType || busy) return
     setAttempted(true)
     if (Object.keys(validateFields(projectType.coreFields, values)).length > 0) return
-    if (!creator || !vault || !metadata.name.trim()) return
+    if (!effectiveCreator || !vault || !metadata.name.trim()) return
+    // `registerInstance` reverts on a malformed name (InvalidName) or a claimed one (NameAlreadyTaken).
+    if (validateCollectionName(metadata.name) || nameStatus.state === 'taken') return
+    // A non-agent wallet cannot deploy a collection owned by someone else — the factory reverts.
+    if (ownerNeedsAgent) return
     if (
       showGatingForm &&
       gatingSchema &&
@@ -203,37 +301,7 @@ export function WizardPage() {
       return
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(32)))
-    const selected: SelectedModules = {
-      vault,
-      ...(modules.gatingModule ? { gatingModule: modules.gatingModule } : {}),
-      ...(modules.liquidityDeployer ? { liquidityDeployer: modules.liquidityDeployer } : {}),
-      ...(modules.stakingModule ? { stakingModule: modules.stakingModule } : {}),
-      ...(modules.resolver ? { resolver: modules.resolver } : {}),
-      ...(modules.overlay ? { overlay: modules.overlay } : {}),
-      ...(modules.tier ? { tier: modules.tier } : {}),
-    }
-    // Thread tier config into the same create tx when the gating form has at least one tier.
-    const gatingConfig =
-      modules.gatingModule && hasTierConfig(gatingValues)
-        ? encodeTierConfig(gatingValues)
-        : undefined
-    // Thread the metadata-resolution stack (ADR-0006/0007) when any resolver/overlay/tier is picked.
-    const metadataConfig = anyMetaModule
-      ? encodeMetadataConfig(metaSelection, metaValues)
-      : undefined
-    submit.submit(
-      buildCreateInstance(typeKey, {
-        values,
-        creator,
-        metadataURI: collectionToDataUri(metadata),
-        salt,
-        modules: selected,
-        // Only ERC404 charges a bond; the other builders ignore this field.
-        ...(typeKey === 'erc404' && deployBondAmount ? { bondAmount: deployBondAmount } : {}),
-        ...(gatingConfig ? { gatingConfig } : {}),
-        ...(metadataConfig ? { metadataConfig } : {}),
-      }),
-    )
+    submit.submit(assembleCall(vault, salt))
   }
 
   const missingVault = attempted && !vault
@@ -389,6 +457,13 @@ export function WizardPage() {
                 onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                 errors={coreErrors}
               />
+              {settingOtherOwner && (
+                <p className={ownerNeedsAgent ? styles.error : styles.help}>
+                  {ownerNeedsAgent
+                    ? 'Creator differs from your wallet. Only a registered agent can deploy on behalf of another owner — this would revert. Clear it to use your own wallet.'
+                    : 'Deploying on behalf of another owner (your wallet is a registered agent).'}
+                </p>
+              )}
               {/* ERC404: the declared-max carve disclosure gets a live allowance/depth preview so
                   the number being committed to (immutably) is priced in, not abstract. */}
               {typeKey === 'erc404' && (
@@ -439,94 +514,22 @@ export function WizardPage() {
       }
 
       case 'alignment': {
-        // Family → venue picker. Group all registered vaults by family/venue; the expanded family
-        // falls back to the selected vault's own family so back-navigation re-opens the right group.
-        const groups = vaults.data ? groupVaultsByFamily(vaults.data) : []
-        const activeFamily = alignFamily ?? selectedVault?.family
-        const activeGroup = groups.find((g) => g.family === activeFamily)
-        const pickFamily = (f: VaultFamily) => {
-          setAlignFamily(f)
-          // Switching to a different family invalidates a selection made under the old one.
-          if (selectedVault && selectedVault.family !== f) setVault(undefined)
-        }
         return (
           <div className={styles.body}>
             <div className={styles.decision}>
               <h2 className={styles.question}>How should this align?</h2>
               <p className={styles.lede}>
                 Every launch binds <b>~20% of its fees</b> to an alignment vault — on mint and every
-                resale, forever. First the <b>model</b>, then the <b>venue</b>. This is what makes
-                it not a grift.
+                resale, forever. Pick the <b>community</b> you&rsquo;re aligning to, then its{' '}
+                <b>vault</b>. This is what makes it not a grift.
               </p>
-              {vaults.isPending && <StateBlock variant="loading">loading vaults…</StateBlock>}
-              {vaults.isError && (
-                <StateBlock variant="error">could not load vaults — is the fork up?</StateBlock>
-              )}
-              {vaults.data && vaults.data.length === 0 && (
-                <StateBlock variant="empty" boxed>
-                  no alignment vaults registered yet.
-                </StateBlock>
-              )}
-              {/* Level 1 — family (economic model). */}
-              <div className={styles.cards}>
-                {groups.map((g) => {
-                  const meta = FAMILY_META[g.family]
-                  const on = g.family === activeFamily
-                  return (
-                    <button
-                      key={g.family}
-                      type="button"
-                      className={`${styles.bigCard} ${on ? styles.bigSelected : ''}`}
-                      onClick={() => pickFamily(g.family)}
-                      aria-pressed={on}
-                    >
-                      <span className={styles.bigCardName}>{meta.label}</span>
-                      <span className={styles.bigCardSummary}>{meta.tradeoff}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              {/* Level 2 — venue within the chosen family. */}
-              {activeGroup && activeFamily && (
-                <>
-                  <h3 className={styles.sectionTitle}>Venue — {FAMILY_META[activeFamily].tag}</h3>
-                  <div className={styles.cards}>
-                    {activeGroup.venues.map((opt) => {
-                      const addr = opt.vault.address
-                      const on = addr === vault
-                      const tradeoff = VENUE_TRADEOFF[opt.venue] ?? opt.vault.description
-                      return (
-                        <button
-                          key={opt.venue}
-                          type="button"
-                          className={`${styles.bigCard} ${on ? styles.bigSelected : ''} ${
-                            opt.disabled ? styles.cardDisabled : ''
-                          }`}
-                          onClick={() => !opt.disabled && setVault(addr)}
-                          disabled={opt.disabled}
-                          aria-pressed={on}
-                          aria-disabled={opt.disabled}
-                        >
-                          <span className={styles.bigCardName}>{opt.venueLabel}</span>
-                          <span className={styles.bigCardSummary}>{tradeoff}</span>
-                          {opt.disabled ? (
-                            <span className={styles.unreadyNote}>not yet wired for liquidity</span>
-                          ) : (
-                            <span className={styles.unreadyNote}>
-                              {opt.vault.name || truncateAddress(addr)} · target #
-                              {opt.vault.targetId.toString()}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-              <p className={styles.lede}>
-                Don&rsquo;t see the community you want to align to?{' '}
-                <Link href="/request-target">Request a new alignment target →</Link>
-              </p>
+              <AlignmentTargetPicker
+                vaults={vaults.data}
+                isPending={vaults.isPending}
+                isError={vaults.isError}
+                selectedVault={vault}
+                onSelectVault={setVault}
+              />
               {vault && (
                 <>
                   <div className={`noesis-bind ${styles.bind}`}>
@@ -556,7 +559,7 @@ export function WizardPage() {
               The collection&rsquo;s page — name, description, and imagery. This is what visitors
               meet.
             </p>
-            <CollectionMetaForm onChange={setMetadata} />
+            <CollectionMetaForm onChange={handleMetadata} />
             {missingName && <p className={styles.error}>a collection name is required</p>}
             {pt.coreFields.some((f) => f.key === 'styleUri') && (
               <div className={styles.formBlock}>
@@ -567,13 +570,14 @@ export function WizardPage() {
                   onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                   errors={coreErrors}
                 />
+                <StylePreviewControl
+                  styleUri={values['styleUri'] ?? ''}
+                  name={metadata.name}
+                  description={metadata.description}
+                  image={metadata.image}
+                />
               </div>
             )}
-            <CollectionPreview
-              name={metadata.name}
-              typeLabel={TYPE_LABEL[typeKey] ?? typeKey}
-              vaultLabel={vault ? vaultLabel : undefined}
-            />
           </div>
         )
 
@@ -585,10 +589,13 @@ export function WizardPage() {
                 <span>Your collection page — live preview</span>
                 <span>Nothing hidden</span>
               </div>
-              <CollectionPreview
+              <CollectionHeroPreview
                 name={metadata.name}
-                typeLabel={TYPE_LABEL[typeKey] ?? typeKey}
-                vaultLabel={vault ? vaultLabel : undefined}
+                description={metadata.description}
+                image={metadata.image}
+                contractType={typeKey === 'erc404' ? 'ERC404' : typeKey === 'erc721' ? 'ERC721' : 'ERC1155'}
+                vaultName={vault ? vaultLabel : ''}
+                className={styles.reviewFrame}
               />
             </div>
             <aside className={styles.summary}>
@@ -616,6 +623,11 @@ export function WizardPage() {
                 and the <b>~20% alignment</b> are fixed on-chain —{' '}
                 <b>they can&rsquo;t be undone.</b>
               </div>
+              <DeployGasBreakdown
+                breakdown={embedBreakdownData}
+                liveGas={gasEstimate.gas}
+                liveLoading={gasEstimate.isLoading}
+              />
             </aside>
           </div>
         )
@@ -707,7 +719,7 @@ export function WizardPage() {
               <button type="button" className={styles.continue} onClick={() => goStep(1)}>
                 Continue{nextStep ? ` · ${nextStep.label}` : ''} →
               </button>
-            ) : !creator ? (
+            ) : !wallet ? (
               <div className={styles.connect}>
                 <StateBlock variant="empty">connect your wallet to deploy</StateBlock>
                 <WalletButton />
@@ -717,7 +729,7 @@ export function WizardPage() {
                 type="button"
                 className={styles.continue}
                 onClick={handleSubmit}
-                disabled={busy}
+                disabled={busy || deployBlockers.length > 0}
               >
                 {submit.isPending
                   ? 'Confirm in wallet…'
@@ -729,6 +741,16 @@ export function WizardPage() {
               </button>
             )}
           </div>
+          {stepKey === 'review' && wallet && deployBlockers.length > 0 && (
+            <div className={styles.blockers}>
+              <p className={styles.blockersHead}>Before you can deploy:</p>
+              <ul className={styles.blockersList}>
+                {deployBlockers.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {submit.isError && <p className={styles.error}>transaction failed — try again</p>}
         </div>
       </div>
@@ -736,41 +758,3 @@ export function WizardPage() {
   )
 }
 
-/** Live collection-page preview (the wizard's C register) — a scaled stand-in for the page being
- * built: the title, the alignment bind, and a gallery hang of placeholder tiles. "This is what
- * deploys — nothing hidden." */
-function CollectionPreview({
-  name,
-  typeLabel,
-  vaultLabel,
-}: {
-  name: string
-  typeLabel: string
-  vaultLabel?: string | undefined
-}) {
-  return (
-    <div className={styles.preview}>
-      <div className={styles.previewLabel}>
-        <h3 className={styles.previewTitle}>{name.trim() || 'Untitled collection'}</h3>
-        <p className={styles.previewBy}>by you · {typeLabel}</p>
-        {vaultLabel && (
-          <div className={`noesis-bind ${styles.previewBind}`}>
-            <div className="cell">
-              fees<b>fees</b>
-            </div>
-            <div className="arrow">→</div>
-            <div className="cell vault">
-              {vaultLabel}
-              <b>~20%</b>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className={styles.previewHang} aria-hidden>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className={styles.previewTile} />
-        ))}
-      </div>
-    </div>
-  )
-}

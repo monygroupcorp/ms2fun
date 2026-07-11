@@ -9,7 +9,7 @@ import { VaultPanel } from '../components/collection/VaultPanel'
 import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { resolveCollectionSurfaces } from '../components/collection/types/collectionSurfaces'
 import { ProjectStyle } from '../components/collection/ProjectStyle'
-import { IpfsImage } from '../components/ui/IpfsImage'
+import { CollectionHero } from '../components/collection/CollectionHero'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
@@ -46,18 +46,11 @@ export function CollectionPage() {
     )
   }
 
-  const title = metadata?.name || card?.name || truncateAddress(instance)
-  const fallbackGlyph = card?.name?.slice(0, 1).toUpperCase() || '✦'
-
   const isNotFound = !isPending && !isError && (!card || card.instance === ZERO_ADDRESS)
 
-  // Mint-state readout. The working mint/buy controls live in the type-specific component (the
-  // "works" column); this rail block is the honest readout — how far the drop has gone.
+  // Mint-state readout for the mobile MintBar (the hero owns the desktop readout).
   const minted = card?.totalSupply ?? 0n
   const cap = card?.maxSupply ?? 0n
-  const meterPct = cap > 0n ? Math.min(100, Number((minted * 100n) / cap)) : 0
-  const hasVault = !!card && card.vault !== ZERO_ADDRESS
-  const vaultLabel = card?.vaultName || 'Alignment'
 
   // Per-type surfaces, split across the page's three regions: Primary (in the shell), Gallery
   // (pieces grid below the shell, N10), Admin (below the featured queue, N5).
@@ -87,113 +80,20 @@ export function CollectionPage() {
           )}
 
           {/* The gallery hang: a specimen rail (the disclosure) beside the works (the goods).
-              Transparency-forward — the mechanic is read before you acquire. */}
-          <div className={styles.shell}>
-            <aside className={styles.specimen}>
-              <p className={styles.kicker}>
-                Collections / {card.isActive ? 'Live' : 'Ended'} · Ethereum
-              </p>
-              <h1 className={styles.title}>{title}</h1>
-              <p className={styles.by}>
-                by{' '}
-                <Link href={`/profile/${card.creator}`} className={styles.byLink}>
-                  {truncateAddress(card.creator)}
-                </Link>
-              </p>
-              {metadata?.description && <p className={styles.desc}>{metadata.description}</p>}
-
-              <div className={styles.mintstate}>
-                <div className={styles.mintTop}>
-                  <span className={styles.price}>{formatGwei(card.currentPrice)} gwei</span>
-                  <span className={styles.count}>
-                    {minted.toString()}
-                    {cap > 0n ? ` / ${cap.toString()}` : ''}
-                    {cap > 0n && <small>{(cap - minted).toString()} remaining</small>}
-                  </span>
-                </div>
-                {cap > 0n && (
-                  <div className={styles.meter}>
-                    <i style={{ width: `${meterPct}%` }} />
-                  </div>
-                )}
-              </div>
-
-              {hasVault && (
-                <div className={styles.alignment}>
-                  <div className={styles.alignHead}>
-                    <span>Alignment</span>
-                    <span>Contract-enforced</span>
-                  </div>
-                  <div className="noesis-bind">
-                    <div className="cell">
-                      your mint fee<b>fees</b>
-                    </div>
-                    <div className="arrow">→</div>
-                    <div className="cell vault">
-                      {vaultLabel} vault<b>~20%</b>
-                    </div>
-                  </div>
-                  <p className={styles.who}>
-                    Aligned to <b>{vaultLabel}</b> — ~20% of fees bind to its vault on every mint,
-                    forever. <b>The creator can&rsquo;t walk.</b>
-                  </p>
-                </div>
-              )}
-
-              <dl className={styles.facts}>
-                <div className={styles.fact}>
-                  <dt>Standard</dt>
-                  <dd>{card.contractType}</dd>
-                </div>
-                <div className={styles.fact}>
-                  <dt>Contract</dt>
-                  <dd>{truncateAddress(instance)}</dd>
-                </div>
-                {hasVault && (
-                  <div className={styles.fact}>
-                    <dt>Vault</dt>
-                    <dd>{truncateAddress(card.vault)}</dd>
-                  </div>
-                )}
-                {card.factoryTitle && (
-                  <div className={styles.fact}>
-                    <dt>Factory</dt>
-                    <dd>{card.factoryTitle}</dd>
-                  </div>
-                )}
-              </dl>
-            </aside>
-
-            <section className={styles.works} id="mint">
-              <div className={styles.ghead}>The collection</div>
-              {/* B11: caption the cover as a COVER (figure/figcaption) so it doesn't read as a
-                  mintable piece — the actual works + mint/buy/swap controls are the type component
-                  below. */}
-              <figure className={styles.coverFigure}>
-                <div className={`noesis-piece ${styles.cover}`}>
-                  <IpfsImage
-                    uri={metadata?.image ?? ''}
-                    alt={`${title} cover`}
-                    className="noesis-art"
-                    loading="eager"
-                    fallback={
-                      <span className={styles.coverGlyph} aria-hidden>
-                        {fallbackGlyph}
-                      </span>
-                    }
-                  />
-                </div>
-                <figcaption className={styles.coverCaption}>
-                  Collection cover — scroll for the{' '}
-                  {card.contractType === 'ERC721' ? 'auction' : 'mintable pieces'} below
-                </figcaption>
-              </figure>
-
-              {/* Primary action stays in the shell (buy/sell for 404, bid for 721). The 1155 has
-                  none — minting is per-edition down in the gallery. */}
-              {surfaces?.Primary && <surfaces.Primary instance={instance} creator={card.creator} />}
-            </section>
-          </div>
+              Transparency-forward — the mechanic is read before you acquire. Extracted to
+              CollectionHero so the launch-wizard style preview renders the SAME markup with mock
+              data. The type-specific primary action (buy/sell for 404, bid for 721) is slotted in;
+              the 1155 has none — minting is per-edition down in the gallery. */}
+          <CollectionHero
+            instance={instance}
+            card={card}
+            metadata={metadata}
+            primary={
+              surfaces?.Primary ? (
+                <surfaces.Primary instance={instance} creator={card.creator} />
+              ) : undefined
+            }
+          />
 
           {/* ERC404 curve + candles, full-width below the shell (they made the trading column tower
               over the specimen rail). Above the gallery. */}
@@ -206,7 +106,9 @@ export function CollectionPage() {
           {/* Holder portfolio: your own pieces + reroll (multiselect keep), above the full gallery.
               Renders with no wrapper — it self-hides (returns null) when disconnected / you hold none,
               so there's no empty spacer; the card owns its own top margin. */}
-          {surfaces?.Portfolio && <surfaces.Portfolio instance={instance} creator={card.creator} />}
+          {surfaces?.Portfolio && (
+            <surfaces.Portfolio instance={instance} creator={card.creator} />
+          )}
 
           {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment).
               Given generous head/tail space so the work breathes before the secondary panels. */}

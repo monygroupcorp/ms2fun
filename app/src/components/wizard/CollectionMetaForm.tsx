@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import type { CollectionMetadata, ProfileLink } from '../../lib/metadata'
+import { collectionToDataUri, type CollectionMetadata, type ProfileLink } from '../../lib/metadata'
+import { NAME_MAX, toSlug } from '../../lib/wizard/collectionName'
 import styles from './CollectionMetaForm.module.css'
+import { ImageSourceInput } from './ImageSourceInput'
+import { useNameAvailability } from './useNameAvailability'
 
 export interface CollectionMetaFormProps {
   initial?: CollectionMetadata
@@ -42,6 +45,8 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
   const [banner, setBanner] = useState(initial?.banner ?? '')
   const [category, setCategory] = useState(initial?.category ?? '')
   const [links, setLinks] = useState<ProfileLink[]>(() => initLinks(initial?.links))
+
+  const nameStatus = useNameAvailability(name)
 
   function emit(patch: {
     name?: string
@@ -85,6 +90,20 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
     emit({ category: v })
   }
 
+  const utf8Len = (s: string) => new TextEncoder().encode(s).length
+
+  /**
+   * The bytes an image *adds* to the on-chain `metadataURI` — the serialized-with minus the
+   * serialized-without. Charging the bare data URI under-counts: `toJsonDataUri` URL-encodes the
+   * whole JSON, tripling every `"`, `+`, `/`, and `=`. Measured on a real deploy: ~1.14x.
+   */
+  function marginalBytes(field: 'image' | 'banner', uri: string): number {
+    const base = assemble(schemaVersion, name, description, image, banner, category, links)
+    const withUri = collectionToDataUri({ ...base, [field]: uri.trim() })
+    const without = collectionToDataUri({ ...base, [field]: '' })
+    return Math.max(0, utf8Len(withUri) - utf8Len(without))
+  }
+
   function addLink() {
     const next: ProfileLink[] = [...links, { label: '', url: '' }]
     setLinks(next)
@@ -103,24 +122,57 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
 
   return (
     <div className={styles.form}>
+      <div className={styles.explainer}>
+        <strong className={styles.explainerTitle}>This describes the collection itself</strong>
+        <p className={styles.explainerBody}>
+          Its title, story, and cover art — the page visitors land on. This is <em>not</em> the
+          individual artworks or editions. You add those afterward from the collection dashboard.
+          Everything here is written on-chain, so keep text tight and host images externally where
+          you can.
+        </p>
+      </div>
+
       <div className={styles.field}>
         <label className={styles.label} htmlFor="cmf-name">
           Name
         </label>
+        <p className={styles.help}>
+          Letters, numbers, hyphens, and underscores &mdash; no spaces. Claimed once, globally and
+          case-insensitively, and you can&rsquo;t rename it later. This becomes your collection&rsquo;s
+          address on the site.
+        </p>
         <input
           id="cmf-name"
           className={styles.input}
           type="text"
           value={name}
           onChange={(e) => handleName(e.target.value)}
-          placeholder="Collection name"
+          placeholder="my-collection"
+          maxLength={NAME_MAX}
+          spellCheck={false}
+          autoComplete="off"
+          aria-invalid={nameStatus.state === 'invalid' || nameStatus.state === 'taken'}
+          aria-describedby="cmf-name-status"
         />
+        <p id="cmf-name-status" className={styles.nameStatus} aria-live="polite">
+          {nameStatus.state === 'invalid' && <span className={styles.nameBad}>{nameStatus.reason}</span>}
+          {nameStatus.state === 'taken' && (
+            <span className={styles.nameBad}>&ldquo;{name.trim()}&rdquo; is already taken.</span>
+          )}
+          {nameStatus.state === 'checking' && <span className={styles.nameMuted}>Checking&hellip;</span>}
+          {nameStatus.state === 'available' && (
+            <span className={styles.nameOk}>Available &middot; /{toSlug(name)}</span>
+          )}
+        </p>
       </div>
 
       <div className={styles.field}>
         <label className={styles.label} htmlFor="cmf-description">
           Description
         </label>
+        <p className={styles.help}>
+          A sentence or two on what this collection is and the community it aligns to.
+        </p>
         <textarea
           id="cmf-description"
           className={styles.textarea}
@@ -135,6 +187,7 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
         <label className={styles.label} htmlFor="cmf-category">
           Category
         </label>
+        <p className={styles.help}>One word to file it under — helps discovery.</p>
         <input
           id="cmf-category"
           className={styles.input}
@@ -145,33 +198,27 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
         />
       </div>
 
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="cmf-image">
-          Image URI
-        </label>
-        <input
-          id="cmf-image"
-          className={styles.input}
-          type="text"
-          value={image}
-          onChange={(e) => handleImage(e.target.value)}
-          placeholder="ipfs://, ar://, https://, or data:"
-        />
-      </div>
+      <ImageSourceInput
+        id="cmf-image"
+        label="Cover image"
+        value={image}
+        onChange={handleImage}
+        aspect="square"
+        maxEdge={512}
+        marginalBytes={(uri) => marginalBytes('image', uri)}
+        help="The square thumbnail shown on cards and the collection header. Host it anywhere permanent — IPFS or Arweave (recommended, permanent), or any HTTPS link you control — and paste the URL. We never store it for you. No link? Embed a small copy on-chain instead."
+      />
 
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor="cmf-banner">
-          Banner URI
-        </label>
-        <input
-          id="cmf-banner"
-          className={styles.input}
-          type="text"
-          value={banner}
-          onChange={(e) => handleBanner(e.target.value)}
-          placeholder="ipfs://, ar://, https://, or data:"
-        />
-      </div>
+      <ImageSourceInput
+        id="cmf-banner"
+        label="Banner image"
+        value={banner}
+        onChange={handleBanner}
+        aspect="wide"
+        maxEdge={1200}
+        marginalBytes={(uri) => marginalBytes('banner', uri)}
+        help="Optional wide banner. Its main job is to populate the on-chain metadata that DEX charts (DEXScreener / DEXtools) read — so your chart shows a banner without paying for a listing upgrade. Paste a hosted link, or embed a small copy on-chain."
+      />
 
       {/* Links */}
       <div className={styles.section}>
@@ -190,7 +237,7 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
             {links.map((link, idx) => (
               <div key={idx} className={styles.row}>
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${styles.rowLabel}`}
                   type="text"
                   value={link.label}
                   onChange={(e) => updateLink(idx, 'label', e.target.value)}
