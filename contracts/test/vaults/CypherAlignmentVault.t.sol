@@ -279,6 +279,71 @@ contract CypherAlignmentVaultTest is Test {
         assertEq(vault.lpPool(), pool);
     }
 
+    // ── Griefing DoS recovery — owner override out of a permissionless off-price pool ─────
+    // Algebra createPool+initialize are permissionless, so a griefer can pre-seed the vault's
+    // target/WETH pool at a garbage price (+ a dust off-price position that does not self-correct).
+    // The automatic resolver then reverts LpPoolPriceDeviation forever and never stores lpPool, so
+    // convert is permanently bricked and the accrued tithe is stranded. setLpPool is the owner escape.
+
+    function test_grief_offPricePoolBricks_thenOwnerOverrideRecovers() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(1000 ether, 1e18);
+
+        // Griefer: createPool + initialize at 2x the reference (>5% off) + a dust position so the
+        // pool cannot be freely repriced back within tolerance.
+        address pool = factory.createPool(address(alignmentToken), address(weth), "");
+        MockAlgebraPool(pool).initialize(uint160(uint256(_refSqrt(ETH_PER_TOKEN)) * 2));
+        MockAlgebraPool(pool).setLiquidity(1);
+
+        // The brick: convert reverts and no pool is stored — repeats forever, tithe stranded.
+        vm.expectRevert(CypherAlignmentVault.LpPoolPriceDeviation.selector);
+        vault.convertAndAddLiquidity(0);
+        assertEq(vault.lpPool(), address(0), "no pool stored while bricked");
+        assertGt(vault.totalPendingETH(), 0, "tithe still pending (stranded) while bricked");
+
+        // Owner escape hatch: pin the (vetted/repriced) canonical pool.
+        vault.setLpPool(pool);
+        assertTrue(vault.lpPoolOwnerSet(), "owner override flagged");
+        assertEq(vault.lpPool(), pool, "override stores the pool");
+
+        // Convert now proceeds despite the >5% spot — the deviation guard is bypassed for the
+        // owner-accepted pool, so the tithe converts into the alignment position.
+        uint256 lpValue = vault.convertAndAddLiquidity(0);
+        assertGt(lpValue, 0, "convert recovers after the override");
+        assertEq(vault.lpTokenId(), 1, "alignment position minted");
+        assertEq(vault.lpPool(), pool, "LP'd into the owner-accepted pool");
+    }
+
+    function test_setLpPool_onlyOwner() public {
+        address pool = factory.createPool(address(alignmentToken), address(weth), "");
+        MockAlgebraPool(pool).initialize(_refSqrt(ETH_PER_TOKEN));
+        vm.prank(alice);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        vault.setLpPool(pool);
+    }
+
+    function test_setLpPool_revertsOnNonCanonicalPool() public {
+        // Not the poolByPair(token, weth) for this vault → rejected before any state read.
+        vm.expectRevert(CypherAlignmentVault.InvalidLpPool.selector);
+        vault.setLpPool(makeAddr("randomPool"));
+    }
+
+    function test_setLpPool_revertsOnUninitializedPool() public {
+        address pool = factory.createPool(address(alignmentToken), address(weth), "");
+        // Created but never initialized (globalState price 0) — the owner must accept a live pool.
+        vm.expectRevert(CypherAlignmentVault.InvalidLpPool.selector);
+        vault.setLpPool(pool);
+    }
+
+    function test_setLpPool_revertsAfterPositionOpen() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(1000 ether, 1e18);
+        vault.convertAndAddLiquidity(0); // fresh-creates + mints the position
+        address pool = vault.lpPool();
+        vm.expectRevert(CypherAlignmentVault.InvalidLpPool.selector);
+        vault.setLpPool(pool); // repointing after a mint would orphan the NFT
+    }
+
     // ── D1 — no tithe ETH left unspendable; residual re-credited to pending ───
 
     function test_convert_residualEthReturnsToPending() public {
