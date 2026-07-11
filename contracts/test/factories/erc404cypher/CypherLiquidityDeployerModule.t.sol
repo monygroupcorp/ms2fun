@@ -14,6 +14,7 @@ import {
     MockAlgebraSwapRouter
 } from "../../mocks/MockCypherAlgebra.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { MockAlignmentRegistry } from "../../mocks/MockAlignmentRegistry.sol";
 
 contract CypherLiquidityDeployerModuleTest is Test {
     CypherLiquidityDeployerModule deployer;
@@ -24,11 +25,14 @@ contract CypherLiquidityDeployerModuleTest is Test {
     MockERC20 token;
     MockWETH weth;
     MockMasterRegistry registry;
+    MockAlignmentRegistry alignmentRegistry;
 
     address protocolTreasury = makeAddr("treasury");
     // The graduating instance is the caller (msg.sender) — the strict guard requires
     // msg.sender == p.instance && registered. This test contract stands in for that instance.
     address instance;
+
+    uint256 constant TARGET_ID = 1;
 
     function setUp() public {
         algebraFactory = new MockAlgebraFactory();
@@ -37,6 +41,9 @@ contract CypherLiquidityDeployerModuleTest is Test {
         token = new MockERC20("Token", "TKN");
         weth = new MockWETH();
         registry = new MockMasterRegistry();
+        alignmentRegistry = new MockAlignmentRegistry();
+        alignmentRegistry.setTargetActive(TARGET_ID, true);
+        alignmentRegistry.setTokenInTarget(TARGET_ID, address(token), true);
         instance = address(this);
 
         deployer = new CypherLiquidityDeployerModule(
@@ -48,11 +55,15 @@ contract CypherLiquidityDeployerModuleTest is Test {
         vault.initialize(
             address(positionManager),
             address(swapRouter),
+            address(algebraFactory),
             address(weth),
             address(token),
             protocolTreasury,
-            address(deployer), // liquidityDeployer = this module
-            address(0) // priceValidator inert
+            address(0), // zRouter
+            address(0), // zQuoter
+            address(0), // priceValidator inert
+            alignmentRegistry,
+            TARGET_ID
         );
     }
 
@@ -77,11 +88,13 @@ contract CypherLiquidityDeployerModuleTest is Test {
             })
         );
 
-        uint256 tokenId = vault.lpTokenId();
-        address pool = vault.lpPool();
-        assertGt(tokenId, 0);
-        assertNotEq(pool, address(0));
-        // instance is registered with ethToLP as contribution (ethReserve minus fees)
+        // D2 — decoupled launch LP: the graduation position is minted to the INSTANCE, not the vault.
+        // The mock NFPM assigns tokenId 1 to the first mint; the instance (this test contract) owns it.
+        assertEq(positionManager.ownerOf(1), instance, "launch LP owned by the instance, not the vault");
+        assertNotEq(algebraFactory.poolByPair(address(token), address(weth)), address(0), "pool created");
+        // The vault is NOT coupled to the launch position: it registers no launch tokenId/pool.
+        assertEq(vault.lpTokenId(), 0, "vault holds no launch position (registerPosition dropped)");
+        // The 19% tithe still lands on the vault via receiveContribution, crediting the instance.
         assertGt(vault.benefactorContribution(instance), 0);
     }
 
@@ -154,7 +167,9 @@ contract CypherLiquidityDeployerModuleTest is Test {
         // credits the benefactor BOTH the LP registration (0.7) and the receiveContribution
         // (0.209), so the tracked contribution is their sum.
         assertEq(weth.balanceOf(address(positionManager)), 0.7 ether, "LP leg loses exactly the carve");
-        assertEq(vault.benefactorContribution(instance), 0.7 ether + 0.209 ether, "contribution = LP leg + vault cut");
+        // D2: the launch position is no longer registered on the vault, so the LP leg (0.7) is NOT
+        // credited as a vault contribution — only the 19% raise + 19% carve tithe (0.209) is.
+        assertEq(vault.benefactorContribution(instance), 0.209 ether, "contribution = vault cut only");
     }
 
     // ── Caller guard (strict, registry-checked) ───────────────────────────────
