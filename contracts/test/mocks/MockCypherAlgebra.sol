@@ -10,6 +10,9 @@ contract MockAlgebraPool {
     address public token1;
     bool public initialized;
     uint160 public sqrtPriceX96;
+    /// @notice In-range liquidity reported by {liquidity}; settable so tests can model an empty
+    ///         (mis-seeded) pool vs a dust/live one. Defaults to 0 (empty).
+    uint128 public poolLiquidity;
 
     constructor(address _token0, address _token1) {
         token0 = _token0;
@@ -20,6 +23,20 @@ contract MockAlgebraPool {
         require(!initialized, "Already initialized");
         initialized = true;
         sqrtPriceX96 = _sqrtPriceX96;
+    }
+
+    function liquidity() external view returns (uint128) {
+        return poolLiquidity;
+    }
+
+    // Test helper: pre-set the pool spot (models a griefer's createPool+initialize at a garbage price).
+    function setSqrtPrice(uint160 _sqrtPriceX96) external {
+        initialized = true;
+        sqrtPriceX96 = _sqrtPriceX96;
+    }
+
+    function setLiquidity(uint128 _liquidity) external {
+        poolLiquidity = _liquidity;
     }
 
     function globalState()

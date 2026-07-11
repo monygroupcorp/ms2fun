@@ -60,6 +60,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error LpPoolPriceDeviation();
     /// @dev Convert: the registry's acquire route for this target is not the Algebra venue.
     error WrongAcquireVenue();
+    /// @dev setLpPool: the override pool is zero, is not the canonical `poolByPair(token, weth)`, or a
+    ///      position is already open (repointing after a mint would orphan the existing NFT).
+    error InvalidLpPool();
 
     // ── Events ────────────────────────────────────────────────────────────
     event LiquidityAdded(uint256 ethSwapped, uint256 targetReceived, uint256 lpPositionValue, uint256 tokenId);
@@ -70,6 +73,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     event PriceValidatorUpdated(address indexed validator);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event PoolResolved(address indexed pool, bool tokenIsZero, bool created);
+    event LpPoolOverridden(address indexed pool, bool tokenIsZero, bool empty);
 
     // ── Full-range ticks (Algebra tick spacing 60: floor(887272/60)*60 = 887220) ──
     int24 public constant TICK_LOWER = -887220;
@@ -96,6 +100,12 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     uint256 public lpTokenId; // NFT position token ID (0 = not yet minted)
     address public lpPool; // Algebra target/WETH pool address
     bool public tokenIsZero; // true if alignmentToken < weth (token0 in pool)
+    /// @notice Set true by {setLpPool}: the owner has explicitly vetted/accepted `lpPool` as the LP
+    ///         venue, so `convertAndAddLiquidity` sizes against its live spot and SKIPS the
+    ///         reference-deviation revert. The escape hatch that stops a permissionlessly-created,
+    ///         off-price Algebra pool (create/initialize is open to anyone) from permanently bricking
+    ///         convert — the collection's tithe can never be stranded behind a griefed pool.
+    bool public lpPoolOwnerSet;
 
     // ── Spendable pending ETH (the accumulated tithe awaiting conversion) ───
     uint256 public totalPendingETH;
@@ -328,7 +338,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     /// @dev A previously-created pool: initialize a still-fresh one at the reference; otherwise require
-    ///      its spot within tolerance of the reference (a manipulated/pushed pool reverts).
+    ///      its spot within tolerance of the reference (a manipulated/pushed pool reverts) — UNLESS the
+    ///      owner has accepted this pool via {setLpPool}, in which case the vault sizes against the pool's
+    ///      own live spot (the owner-vetted escape hatch out of a permissionless off-price grief). The
+    ///      acquire leg stays reference-floored either way, so a bad spot cannot loosen the swap bound.
     function _validateExistingPool(address pool, uint160 referenceSqrtPrice)
         private
         returns (uint160 validatedSqrtPrice)
@@ -338,6 +351,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             IAlgebraPool(pool).initialize(referenceSqrtPrice);
             return referenceSqrtPrice;
         }
+        if (lpPoolOwnerSet) return existingSqrtPrice;
         uint256 diff = existingSqrtPrice > referenceSqrtPrice
             ? existingSqrtPrice - referenceSqrtPrice
             : referenceSqrtPrice - existingSqrtPrice;
@@ -509,6 +523,31 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (bps > 2000) revert ExceedsMaxBps();
         maxPriceDeviationBps = bps;
         emit MaxPriceDeviationUpdated(bps);
+    }
+
+    /// @notice Owner escape hatch: accept a specific canonical target/WETH Algebra pool as the LP venue,
+    ///         bypassing the reference-deviation guard on subsequent converts.
+    /// @dev `createPool`+`initialize` on Algebra are permissionless, so anyone can pre-create the vault's
+    ///      target/WETH pool at a garbage price (optionally with a dust off-price position). The automatic
+    ///      resolver would then revert `LpPoolPriceDeviation` on every convert with no way to store the
+    ///      pool — permanently bricking convert and stranding the accumulated tithe. This lets the owner
+    ///      (the trusted platform), after vetting/repricing the pool to a fair value, pin it so convert
+    ///      proceeds by sizing against the pool's own live spot. Only settable before the first LP mint
+    ///      (`lpTokenId == 0`); repointing after a position exists would orphan the NFT. The acquire leg
+    ///      remains floored to the canonical reference regardless, so this never loosens the swap bound.
+    function setLpPool(address pool) external onlyOwner {
+        if (lpTokenId != 0) revert InvalidLpPool();
+        if (pool == address(0)) revert InvalidLpPool();
+        // Must be THE canonical pool for the pair (Algebra is one-pool-per-pair) and already initialized
+        // — the owner accepts a live pool they have vetted, not an arbitrary or unseeded address.
+        if (IAlgebraFactory(algebraFactory).poolByPair(alignmentToken, weth) != pool) revert InvalidLpPool();
+        (uint160 price,,,,,) = IAlgebraPool(pool).globalState();
+        if (price == 0) revert InvalidLpPool();
+
+        lpPool = pool;
+        tokenIsZero = alignmentToken < weth;
+        lpPoolOwnerSet = true;
+        emit LpPoolOverridden(pool, tokenIsZero, IAlgebraPool(pool).liquidity() == 0);
     }
 
     // ── IAlignmentVault compliance ────────────────────────────────────────

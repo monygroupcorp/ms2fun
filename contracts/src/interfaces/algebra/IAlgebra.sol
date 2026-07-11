@@ -17,6 +17,9 @@ interface IAlgebraPool {
     /// @notice The plugin (hook) attached to this pool; the Integral volatility-oracle plugin lives here.
     /// @dev `address(0)` = no plugin, so the pool exposes no TWAP oracle and cannot serve as a reference pool.
     function plugin() external view returns (address);
+    /// @notice The pool's currently in-range liquidity. Zero for a pool that was `initialize`d but never
+    ///         seeded — the signal that distinguishes an empty/mis-seeded pool from a live (LP-backed) one.
+    function liquidity() external view returns (uint128);
 }
 
 /// @notice Minimal Algebra Integral volatility-oracle plugin interface (the pool's `plugin()`).
