@@ -67,6 +67,13 @@ contract MockAlgebraPositionManager {
     mapping(uint256 => uint256) public fees0;
     mapping(uint256 => uint256) public fees1;
     uint256 public nextTokenId = 1;
+    /// @notice Fraction (bps) of each desired amount actually pulled into the position; the remainder
+    ///         is left with the caller (models an LP add that under-absorbs one side). Default = full.
+    uint256 public absorbBps = 10_000;
+
+    function setAbsorbBps(uint256 bps) external {
+        absorbBps = bps;
+    }
 
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Collect(uint256 indexed tokenId, address recipient, uint256 amount0, uint256 amount1);
@@ -76,11 +83,11 @@ contract MockAlgebraPositionManager {
         payable
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
-        if (p.amount0Desired > 0) MockERC20(p.token0).transferFrom(msg.sender, address(this), p.amount0Desired);
-        if (p.amount1Desired > 0) MockERC20(p.token1).transferFrom(msg.sender, address(this), p.amount1Desired);
+        amount0 = p.amount0Desired * absorbBps / 10_000;
+        amount1 = p.amount1Desired * absorbBps / 10_000;
+        if (amount0 > 0) MockERC20(p.token0).transferFrom(msg.sender, address(this), amount0);
+        if (amount1 > 0) MockERC20(p.token1).transferFrom(msg.sender, address(this), amount1);
 
-        amount0 = p.amount0Desired;
-        amount1 = p.amount1Desired;
         liquidity = uint128(amount0 + amount1);
         tokenId = nextTokenId++;
         owners[tokenId] = p.recipient;
@@ -105,11 +112,11 @@ contract MockAlgebraPositionManager {
         returns (uint128 liquidity, uint256 amount0, uint256 amount1)
     {
         Position storage pos = _positions[p.tokenId];
-        if (p.amount0Desired > 0) MockERC20(pos.token0).transferFrom(msg.sender, address(this), p.amount0Desired);
-        if (p.amount1Desired > 0) MockERC20(pos.token1).transferFrom(msg.sender, address(this), p.amount1Desired);
+        amount0 = p.amount0Desired * absorbBps / 10_000;
+        amount1 = p.amount1Desired * absorbBps / 10_000;
+        if (amount0 > 0) MockERC20(pos.token0).transferFrom(msg.sender, address(this), amount0);
+        if (amount1 > 0) MockERC20(pos.token1).transferFrom(msg.sender, address(this), amount1);
 
-        amount0 = p.amount0Desired;
-        amount1 = p.amount1Desired;
         // Mirror the mint mock's liquidity convention (amount0 + amount1) so a repeat convert into ONE
         // tokenId strictly increases the stored liquidity — the aggregation primitive 027b's B2 fix needs.
         liquidity = uint128(amount0 + amount1);
@@ -249,7 +256,10 @@ contract MockAlgebraSwapRouter {
         payable
         returns (uint256 amountOut)
     {
-        MockERC20(p.tokenIn).transferFrom(msg.sender, address(this), p.amountIn);
+        // Native-ETH-in (the vault's acquire path): the real Algebra router wraps forwarded ETH from
+        // its own balance when tokenIn == WNativeToken, so no transferFrom is needed. ERC20-in (the
+        // harvest target->WETH swap) still pulls tokenIn from the caller.
+        if (msg.value == 0) MockERC20(p.tokenIn).transferFrom(msg.sender, address(this), p.amountIn);
         uint256 rate = rates[p.tokenIn][p.tokenOut];
         if (rate == 0) rate = 1e18;
         amountOut = (p.amountIn * rate) / 1e18;

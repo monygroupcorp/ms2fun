@@ -10,6 +10,8 @@ import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeploye
 import { MockERC20 } from "../mocks/MockERC20.sol";
 import { MockVault } from "../mocks/MockVault.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
+import { IAlgebraFactory } from "../../src/interfaces/algebra/IAlgebra.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
 /**
@@ -96,16 +98,24 @@ contract LaunchDeployerGraduationForkTest is ForkTestBase {
         CypherLiquidityDeployerModule module =
             new CypherLiquidityDeployerModule(CYPHER_ALGEBRA_FACTORY, CYPHER_NFPM, WETH, address(registry));
 
+        MockAlignmentRegistry alignmentRegistry = new MockAlignmentRegistry();
+        alignmentRegistry.setTargetActive(1, true);
+        alignmentRegistry.setTokenInTarget(1, address(token), true);
+
         CypherAlignmentVault impl = new CypherAlignmentVault();
         CypherAlignmentVault vault = CypherAlignmentVault(payable(LibClone.clone(address(impl))));
         vault.initialize(
             CYPHER_NFPM,
             CYPHER_SWAP_ROUTER,
+            CYPHER_ALGEBRA_FACTORY,
             WETH,
             address(token),
             protocolTreasury,
-            address(module), // liquidityDeployer = this module
-            address(0) // priceValidator inert
+            address(0), // zRouter
+            address(0), // zQuoter
+            address(0), // priceValidator inert
+            alignmentRegistry,
+            1
         );
 
         token.mint(address(module), tokenReserve);
@@ -124,9 +134,15 @@ contract LaunchDeployerGraduationForkTest is ForkTestBase {
             })
         );
 
-        assertGt(vault.lpTokenId(), 0, "Cypher graduation must mint an Algebra NFT LP position");
-        assertTrue(vault.lpPool() != address(0), "Cypher graduation must create/record the Algebra pool");
-        assertGt(vault.benefactorContribution(address(this)), 0, "instance registered with an ethToLP contribution");
+        // D2 — decoupled launch LP: the module creates the Algebra pool and mints the full-range launch
+        // position to the INSTANCE (address(this)), NOT the vault. The vault's own LP position is its
+        // later reference-priced alignment position, so the launch pool is created but not vault-owned.
+        assertTrue(
+            IAlgebraFactory(CYPHER_ALGEBRA_FACTORY).poolByPair(address(token), WETH) != address(0),
+            "Cypher graduation must create the Algebra pool"
+        );
+        assertEq(vault.lpTokenId(), 0, "vault holds no launch position (D2: registerPosition dropped)");
+        assertGt(vault.benefactorContribution(address(this)), 0, "instance credited with the 19% tithe");
     }
 
     /// @dev Pull the `liquidity` field out of the ZAMM module's LiquidityDeployed event.

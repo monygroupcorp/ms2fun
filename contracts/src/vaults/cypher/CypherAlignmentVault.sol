@@ -3,12 +3,20 @@ pragma solidity ^0.8.24;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
-import { IAlgebraNFTPositionManager, IAlgebraSwapRouter } from "../../interfaces/algebra/IAlgebra.sol";
+import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
+import {
+    IAlgebraFactory,
+    IAlgebraPool,
+    IAlgebraNFTPositionManager,
+    IAlgebraSwapRouter
+} from "../../interfaces/algebra/IAlgebra.sol";
+import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
 
 interface IWETH9 {
     function deposit() external payable;
@@ -20,52 +28,82 @@ interface IWETH9 {
 }
 
 /// @title CypherAlignmentVault
-/// @notice Algebra V2 (Cypher AMM) backed alignment vault. Holds one LP position NFT.
-///         Fees collected from LP, swapped to ETH, distributed via MasterChef accumulator.
+/// @notice Algebra (Cypher AMM) external-target alignment vault. Accumulates the alignment tithe as
+///         spendable pending ETH, then — on a permissionless `convertAndAddLiquidity` — acquires the
+///         external alignment target with part of that ETH and LPs target/WETH into a user-chosen
+///         Algebra pool it resolves or creates. Both the seed price of a fresh pool and the swap floor
+///         are derived from the canonical `ReferencePool` TWAP (owner-pinned, deep, unmanipulable) —
+///         never from the LP pool's own (thin/manipulable) spot. Holds ONE alignment LP position NFT;
+///         repeat converts aggregate into it via `increaseLiquidity` (never a second NFT). Fees are
+///         collected from that position, swapped to ETH, and distributed via a MasterChef accumulator.
 contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ── Errors ────────────────────────────────────────────────────────────
     error VaultAlreadyInitialized();
     error ETHOnly();
-    error OnlyLiquidityDeployer();
-    error PositionAlreadyRegistered();
     error NoPosition();
     error ZeroContributions();
+    error NoPendingETH();
     error NotDelegate();
     error TransferFailed();
     error ExceedsMaxBps();
+    /// @dev Init: the alignment target is inactive in the registry.
+    error TargetNotActive();
+    /// @dev Init: the alignment token is not a member of the alignment target.
+    error TokenNotInTarget();
+    /// @dev Convert/harvest: no canonical ReferencePool is pinned for this (target, token) — the price
+    ///      authority is missing, so the vault refuses to seed/floor at a guessed price.
+    error NoReferencePool();
+    /// @dev Convert: the resolved LP pool's spot price is off vs the canonical reference beyond
+    ///      `maxPriceDeviationBps` — the pool was pushed/manipulated; retry once it re-converges.
+    error LpPoolPriceDeviation();
+    /// @dev Convert: the registry's acquire route for this target is not the Algebra venue.
+    error WrongAcquireVenue();
 
     // ── Events ────────────────────────────────────────────────────────────
-    event PositionRegistered(
-        uint256 indexed tokenId, address pool, bool tokenIsZero, address benefactor, uint256 contribution
-    );
+    event LiquidityAdded(uint256 ethSwapped, uint256 targetReceived, uint256 lpPositionValue, uint256 tokenId);
     event Harvested(uint256 totalFeesETH, uint256 benefactorFees, uint256 protocolFees);
     event DelegateSet(address indexed benefactor, address indexed delegate);
     event ProtocolYieldCutUpdated(uint256 newBps);
     event ProtocolFeesWithdrawn(uint256 amount);
     event PriceValidatorUpdated(address indexed validator);
     event MaxPriceDeviationUpdated(uint256 newBps);
+    event PoolResolved(address indexed pool, bool tokenIsZero, bool created);
+
+    // ── Full-range ticks (Algebra tick spacing 60: floor(887272/60)*60 = 887220) ──
+    int24 public constant TICK_LOWER = -887220;
+    int24 public constant TICK_UPPER = 887220;
 
     // ── Config ────────────────────────────────────────────────────────────
     IAlgebraNFTPositionManager public positionManager;
     IAlgebraSwapRouter public swapRouter;
+    address public algebraFactory;
     address public weth;
+    /// @notice The EXTERNAL alignment target token this vault acquires and LPs.
     address public alignmentToken;
     address public protocolTreasury;
-    address public liquidityDeployer;
 
-    // ── LP position ───────────────────────────────────────────────────────
-    uint256 public lpTokenId; // NFT position token ID (0 = not registered)
-    address public lpPool; // Algebra pool address
+    // ── Acquisition routing (Front 2: best-route + Algebra fallback) ────────
+    address public zRouter;
+    address public zQuoter;
+
+    // ── Alignment target binding (set once at initialize) ───────────────────
+    IAlignmentRegistry public alignmentRegistry;
+    uint256 public alignmentTargetId;
+
+    // ── LP position (the vault's OWN alignment position) ───────────────────
+    uint256 public lpTokenId; // NFT position token ID (0 = not yet minted)
+    address public lpPool; // Algebra target/WETH pool address
     bool public tokenIsZero; // true if alignmentToken < weth (token0 in pool)
+
+    // ── Spendable pending ETH (the accumulated tithe awaiting conversion) ───
+    uint256 public totalPendingETH;
 
     // ── Economics ─────────────────────────────────────────────────────────
     uint256 public protocolYieldCutBps; // default 100 (1%)
 
-    // ── Price-manipulation guard (sandwich floor, mirrors Uni/ZAMM F5) ─────
-    /// @notice Independent price source (Uniswap TWAP) used to floor the permissionless harvest
-    ///         swap's slippage. address(0) = no floor (caller minAmountOut only — back-compat).
+    // ── Price-manipulation guard (reference-derived floor + LP-pool deviation) ──
     IVaultPriceValidator public priceValidator;
     uint256 public maxPriceDeviationBps; // default 500 (5%)
 
@@ -91,29 +129,43 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         address _positionManager,
         address _swapRouter,
         // slither-disable-next-line missing-zero-check
+        address _algebraFactory,
+        // slither-disable-next-line missing-zero-check
         address _weth,
         // slither-disable-next-line missing-zero-check
         address _alignmentToken,
         // slither-disable-next-line missing-zero-check
         address _protocolTreasury,
         // slither-disable-next-line missing-zero-check
-        address _liquidityDeployer,
+        address _zRouter,
         // slither-disable-next-line missing-zero-check
-        address _priceValidator
+        address _zQuoter,
+        // slither-disable-next-line missing-zero-check
+        address _priceValidator,
+        IAlignmentRegistry _alignmentRegistry,
+        uint256 _alignmentTargetId
     ) external {
         if (_initialized) revert VaultAlreadyInitialized();
         _initialized = true;
 
+        // D3 — registry validation: the target must be active and the token a member of it, or the
+        // vault would acquire/LP a token the platform never approved for this alignment target.
+        if (address(_alignmentRegistry) == address(0)) revert TargetNotActive();
+        if (!_alignmentRegistry.isAlignmentTargetActive(_alignmentTargetId)) revert TargetNotActive();
+        if (!_alignmentRegistry.isTokenInTarget(_alignmentTargetId, _alignmentToken)) revert TokenNotInTarget();
+
         positionManager = IAlgebraNFTPositionManager(_positionManager);
         swapRouter = IAlgebraSwapRouter(_swapRouter);
+        algebraFactory = _algebraFactory;
         weth = _weth;
         alignmentToken = _alignmentToken;
         protocolTreasury = _protocolTreasury;
-        liquidityDeployer = _liquidityDeployer;
+        zRouter = _zRouter;
+        zQuoter = _zQuoter;
+        alignmentRegistry = _alignmentRegistry;
+        alignmentTargetId = _alignmentTargetId;
         protocolYieldCutBps = 100;
         maxPriceDeviationBps = 500;
-        // Wire the oracle floor at init (mirrors Uni/ZAMM). address(0) → floor inert (back-compat);
-        // production deploys pass the shared UniswapVaultPriceValidator so the harvest swap is floored.
         priceValidator = IVaultPriceValidator(_priceValidator);
 
         _initializeOwner(msg.sender);
@@ -121,12 +173,17 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Receive ───────────────────────────────────────────────────────────
 
+    /// @dev Bare receive: accepts WETH unwrap proceeds and swap-dust refunds during a vault operation
+    ///      without crediting them as contributions (contributions arrive only via receiveContribution).
     receive() external payable { }
 
     function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable override {
         if (Currency.unwrap(currency) != address(0)) revert ETHOnly();
         if (benefactor == address(0) || msg.value == 0) return;
+        // Credit MasterChef fee weight AND accumulate spendable pending ETH so the tithe is convertible
+        // into the alignment LP (the corrected D1 invariant: no tithe ETH is left unspendable).
         _addContribution(benefactor, msg.value);
+        totalPendingETH += msg.value;
         emit ContributionReceived(benefactor, msg.value);
     }
 
@@ -137,37 +194,205 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         totalContributions += amount;
     }
 
-    // ── Position Registration (called by liquidityDeployer at graduation) ──
+    // ── Convert & add liquidity ─────────────────────────────────────────────
 
-    function registerPosition(
-        uint256 tokenId,
-        // slither-disable-next-line missing-zero-check
-        address pool,
-        bool _tokenIsZero,
-        address benefactor,
-        uint256 contributionAmount
-    ) external {
-        if (msg.sender != liquidityDeployer) revert OnlyLiquidityDeployer();
-        if (lpTokenId != 0) revert PositionAlreadyRegistered();
+    /// @notice Acquire the alignment target with part of the pending ETH and LP target/WETH into the
+    ///         user-chosen Algebra pool, all priced from the canonical reference. Permissionless.
+    /// @param minOutTarget Caller's minimum alignment tokens out for the acquire swap (floored to an
+    ///        oracle-derived value so a loose bound cannot sandwich the vault's own ETH->token swap).
+    /// @return lpPositionValue ethSwapped + targetReceived deployed this convert.
+    // slither-disable-next-line reentrancy-benign,reentrancy-eth
+    function convertAndAddLiquidity(uint256 minOutTarget) external nonReentrant returns (uint256 lpPositionValue) {
+        uint256 pending = totalPendingETH;
+        if (pending == 0) revert NoPendingETH();
 
-        lpTokenId = tokenId;
-        lpPool = pool;
-        tokenIsZero = _tokenIsZero;
+        // (a) Reference price — the sole price authority (deep, owner-pinned, unmanipulable TWAP).
+        uint256 ethPerToken = _referenceEthPerToken();
+        uint160 referenceSqrtPrice = _deriveReferenceSqrtPrice(ethPerToken);
 
-        _addContribution(benefactor, contributionAmount);
-        emit PositionRegistered(tokenId, pool, _tokenIsZero, benefactor, contributionAmount);
+        // (b) Resolve/create the LP pool; a fresh pool is seeded at the REFERENCE price, an existing
+        //     one is accepted only within maxPriceDeviationBps of it. `validatedSqrtPrice` is the price
+        //     the swap proportion is sized against (reference for a fresh/just-seeded pool).
+        uint160 validatedSqrtPrice = _resolveOrCreatePool(referenceSqrtPrice);
+
+        // (c) Proportion of ETH to swap vs. hold for LP (027a venue-agnostic core). ethIsCurrency0 is
+        //     true iff WETH sorts below the alignment token (WETH is token0 of the Algebra pool).
+        uint256 proportion = priceValidator.calculateSwapProportionFromSqrtPrice(
+            alignmentToken, TICK_LOWER, TICK_UPPER, validatedSqrtPrice, weth < alignmentToken
+        );
+        uint256 ethToSwap = pending * proportion / 1e18; // round down: excess stays as ethForLP
+
+        // (d) Acquire — sanity-assert the registry route is Algebra, floor the min-out via the
+        //     canonical reference, then best-route (zQuoter) with an Algebra fixed-pool fallback.
+        if (
+            alignmentRegistry.getAcquireRoute(alignmentTargetId, alignmentToken).venue
+                != IAlignmentRegistry.Venue.ALGEBRA
+        ) {
+            revert WrongAcquireVenue();
+        }
+        uint256 flooredMinOut = _floorTargetOut(ethToSwap, minOutTarget);
+        uint256 targetReceived = BestRouteAcquirer.acquireViaAlgebra(
+            zRouter, zQuoter, alignmentToken, ethToSwap, flooredMinOut, address(swapRouter), weth, block.timestamp
+        );
+
+        // (e) LP — first convert mints ONE full-range NFT; every later convert aggregates into it.
+        uint256 ethForLP = pending - ethToSwap;
+        uint256 wethUsed = _addToPosition(targetReceived, ethForLP);
+
+        // (f) D1 residual — unabsorbed ETH (WETH not taken by the LP add) returns to pending so no
+        //     tithe ETH is ever left unspendable. The swap leg (ethToSwap) is fully consumed.
+        totalPendingETH = ethForLP - wethUsed;
+
+        lpPositionValue = ethToSwap + targetReceived;
+        emit LiquidityAdded(ethToSwap, targetReceived, lpPositionValue, lpTokenId);
+    }
+
+    /// @dev Wrap `ethForLP` to WETH and add (target, WETH) into the vault's single alignment position:
+    ///      mint on the first convert (stores `lpTokenId`), `increaseLiquidity` on every later one.
+    ///      Returns the WETH actually pulled by the position manager (for residual accounting). Leftover
+    ///      target dust remains as tokens in the vault.
+    // slither-disable-next-line reentrancy-benign
+    function _addToPosition(uint256 targetAmount, uint256 ethForLP) private returns (uint256 wethUsed) {
+        IWETH9(weth).deposit{ value: ethForLP }();
+        IERC20(alignmentToken).forceApprove(address(positionManager), targetAmount);
+        IWETH9(weth).approve(address(positionManager), ethForLP);
+
+        (uint256 amount0Desired, uint256 amount1Desired) =
+            tokenIsZero ? (targetAmount, ethForLP) : (ethForLP, targetAmount);
+
+        uint256 used0;
+        uint256 used1;
+        if (lpTokenId == 0) {
+            (address token0, address token1) = tokenIsZero ? (alignmentToken, weth) : (weth, alignmentToken);
+            (uint256 tokenId,, uint256 a0, uint256 a1) = positionManager.mint(
+                IAlgebraNFTPositionManager.MintParams({
+                    token0: token0,
+                    token1: token1,
+                    deployer: address(0),
+                    tickLower: TICK_LOWER,
+                    tickUpper: TICK_UPPER,
+                    amount0Desired: amount0Desired,
+                    amount1Desired: amount1Desired,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: address(this),
+                    deadline: block.timestamp
+                })
+            );
+            lpTokenId = tokenId;
+            (used0, used1) = (a0, a1);
+        } else {
+            (, uint256 a0, uint256 a1) = positionManager.increaseLiquidity(
+                IAlgebraNFTPositionManager.IncreaseLiquidityParams({
+                    tokenId: lpTokenId,
+                    amount0Desired: amount0Desired,
+                    amount1Desired: amount1Desired,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    deadline: block.timestamp
+                })
+            );
+            (used0, used1) = (a0, a1);
+        }
+
+        wethUsed = tokenIsZero ? used1 : used0;
+        // Return any WETH the position manager did not pull back to native ETH for the pending balance.
+        uint256 leftoverWeth = ethForLP - wethUsed;
+        if (leftoverWeth > 0) IWETH9(weth).withdraw(leftoverWeth);
+    }
+
+    /// @dev Resolve the target/WETH Algebra pool, creating and seeding it at the reference price when
+    ///      absent (or when present-but-uninitialized). An already-initialized pool is accepted only
+    ///      within `maxPriceDeviationBps` of the reference. Sets `lpPool`/`tokenIsZero`. Returns the
+    ///      sqrtPrice the swap proportion should be sized against (reference for a fresh/seeded pool).
+    // slither-disable-next-line reentrancy-benign
+    function _resolveOrCreatePool(uint160 referenceSqrtPrice) private returns (uint160 validatedSqrtPrice) {
+        bool created;
+        address pool = lpPool;
+        if (pool == address(0)) {
+            pool = IAlgebraFactory(algebraFactory).poolByPair(alignmentToken, weth);
+            if (pool == address(0)) {
+                pool = IAlgebraFactory(algebraFactory).createPool(alignmentToken, weth, "");
+                IAlgebraPool(pool).initialize(referenceSqrtPrice);
+                created = true;
+                validatedSqrtPrice = referenceSqrtPrice;
+            } else {
+                validatedSqrtPrice = _validateExistingPool(pool, referenceSqrtPrice);
+            }
+            lpPool = pool;
+            tokenIsZero = alignmentToken < weth;
+            emit PoolResolved(pool, tokenIsZero, created);
+        } else {
+            validatedSqrtPrice = _validateExistingPool(pool, referenceSqrtPrice);
+        }
+    }
+
+    /// @dev A previously-created pool: initialize a still-fresh one at the reference; otherwise require
+    ///      its spot within tolerance of the reference (a manipulated/pushed pool reverts).
+    function _validateExistingPool(address pool, uint160 referenceSqrtPrice)
+        private
+        returns (uint160 validatedSqrtPrice)
+    {
+        (uint160 existingSqrtPrice,,,,,) = IAlgebraPool(pool).globalState();
+        if (existingSqrtPrice == 0) {
+            IAlgebraPool(pool).initialize(referenceSqrtPrice);
+            return referenceSqrtPrice;
+        }
+        uint256 diff = existingSqrtPrice > referenceSqrtPrice
+            ? existingSqrtPrice - referenceSqrtPrice
+            : referenceSqrtPrice - existingSqrtPrice;
+        if (diff * 10_000 > uint256(referenceSqrtPrice) * maxPriceDeviationBps) revert LpPoolPriceDeviation();
+        validatedSqrtPrice = existingSqrtPrice;
+    }
+
+    /// @dev sqrtPriceX96 for the target/WETH pool derived purely from the canonical reference's
+    ///      ETH-per-1e18-token. Decimals cancel because `ethPerToken` is denominated per the SAME 1e18
+    ///      raw-token amount used as the token-side reserve. Ordering mirrors the launch deployer.
+    function _deriveReferenceSqrtPrice(uint256 ethPerToken) private view returns (uint160) {
+        (uint256 amount0, uint256 amount1) =
+            alignmentToken < weth ? (uint256(1e18), ethPerToken) : (ethPerToken, uint256(1e18));
+        return uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0)));
+    }
+
+    /// @dev Read the canonical ReferencePool's ETH value of 1e18 alignment tokens. Reverts (no
+    ///      fail-open) when the reference is unset or yields no usable TWAP — the vault refuses to
+    ///      seed or floor at a guessed price.
+    function _referenceEthPerToken() private view returns (uint256 ethPerToken) {
+        IAlignmentRegistry.ReferencePool memory ref =
+            alignmentRegistry.getReferencePool(alignmentTargetId, alignmentToken);
+        if (ref.pool == address(0)) revert NoReferencePool();
+        ethPerToken = priceValidator.quoteEthForTokensVia(ref.pool, ref.kind, ref.twapWindow, alignmentToken, 1e18);
+        if (ethPerToken == 0) revert NoReferencePool();
+    }
+
+    /// @dev Floor a caller-supplied token-out minimum (ETH->target acquire) to a reference-derived
+    ///      value. Reference-priced, not LP-pool-priced, so a manipulated LP spot cannot loosen it.
+    function _floorTargetOut(uint256 ethIn, uint256 callerMin) private view returns (uint256) {
+        uint256 ethPerToken = _referenceEthPerToken();
+        uint256 expectedOut = ethIn * 1e18 / ethPerToken; // round down
+        uint256 floor = expectedOut * (10_000 - maxPriceDeviationBps) / 10_000; // round down: lenient floor
+        return callerMin > floor ? callerMin : floor;
+    }
+
+    /// @dev Floor a caller-supplied WETH-out minimum (target->WETH harvest swap) to a reference-derived
+    ///      value. Reverts (no fail-open) when the reference is unset (mirrors the acquire floor).
+    function _floorWethOut(uint256 tokenIn, uint256 callerMin) internal view returns (uint256) {
+        uint256 ethPerToken = _referenceEthPerToken();
+        uint256 expectedEth = ethPerToken * tokenIn / 1e18; // round down
+        uint256 floor = expectedEth * (10_000 - maxPriceDeviationBps) / 10_000; // round down: lenient floor
+        return callerMin > floor ? callerMin : floor;
     }
 
     // ── harvest ───────────────────────────────────────────────────────────
 
-    /// @notice Collect LP fees, swap to ETH, distribute via accumulator.
-    /// @param minAmountOut Minimum WETH to receive from alignment token swap (sandwich protection)
+    /// @notice Collect fees from the vault's alignment LP position, swap the target leg to ETH, and
+    ///         distribute via the MasterChef accumulator.
+    /// @param minAmountOut Minimum WETH from the target->WETH swap (floored to the reference).
     // slither-disable-next-line incorrect-equality,reentrancy-benign,timestamp
     function harvest(uint256 minAmountOut) external nonReentrant returns (uint256 feesETH) {
         if (totalContributions == 0) revert ZeroContributions();
         if (lpTokenId == 0) revert NoPosition();
 
-        // Collect fees from LP position
         (uint256 amount0, uint256 amount1) = positionManager.collect(
             IAlgebraNFTPositionManager.CollectParams({
                 tokenId: lpTokenId,
@@ -177,16 +402,12 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
             })
         );
 
-        // Determine which amount is alignment token, which is WETH
         uint256 alignmentFees = tokenIsZero ? amount0 : amount1;
         uint256 wethFees = tokenIsZero ? amount1 : amount0;
 
-        // Swap alignment token fees → WETH
         // slither-disable-next-line uninitialized-local
         uint256 wethFromSwap;
         if (alignmentFees > 0) {
-            // Floor the caller's slippage bound to an oracle-derived minimum so a permissionless caller
-            // cannot pass loose minAmountOut and sandwich the vault's own token->WETH swap.
             uint256 effMinAmountOut = _floorWethOut(alignmentFees, minAmountOut);
             IERC20(alignmentToken).forceApprove(address(swapRouter), alignmentFees);
             wethFromSwap = swapRouter.exactInputSingle(
@@ -205,18 +426,15 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 totalWETH = wethFees + wethFromSwap;
         if (totalWETH == 0) return 0;
 
-        // Unwrap WETH → ETH
         IWETH9(weth).withdraw(totalWETH);
         feesETH = totalWETH;
 
-        // Split: protocol cut, rest to benefactors
         uint256 protocolCut = feesETH * protocolYieldCutBps / 10000; // round down: favors benefactors
         uint256 benefactorFees = feesETH - protocolCut;
 
         accumulatedProtocolFees += protocolCut;
         _totalAccumulatedFees += benefactorFees;
 
-        // Update MasterChef accumulator
         if (benefactorFees > 0) {
             accRewardPerContribution += benefactorFees * 1e18 / totalContributions; // round down: dust stays in vault
         }
@@ -281,8 +499,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         emit ProtocolYieldCutUpdated(bps);
     }
 
-    /// @notice Wire the independent price validator used to floor the harvest swap slippage.
-    ///         Pass address(0) to disable the floor (caller-supplied minimum only).
+    /// @notice Wire the independent price validator used to floor swaps and read the reference TWAP.
     function setPriceValidator(address validator) external onlyOwner {
         priceValidator = IVaultPriceValidator(validator);
         emit PriceValidatorUpdated(validator);
@@ -292,17 +509,6 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (bps > 2000) revert ExceedsMaxBps();
         maxPriceDeviationBps = bps;
         emit MaxPriceDeviationUpdated(bps);
-    }
-
-    /// @dev Floor a caller-supplied WETH-out minimum (token->WETH swap) to an oracle-derived value.
-    ///      Falls back to the caller value when no validator is wired or no reliable price exists,
-    ///      so the vault never bricks when no oracle source exists (mirrors Uni/ZAMM degradation).
-    function _floorWethOut(uint256 tokenIn, uint256 callerMin) internal view returns (uint256) {
-        if (address(priceValidator) == address(0)) return callerMin;
-        uint256 expectedEth = priceValidator.quoteEthForTokens(alignmentToken, tokenIn);
-        if (expectedEth == 0) return callerMin;
-        uint256 floor = expectedEth * (10000 - maxPriceDeviationBps) / 10000; // round down: lenient floor
-        return callerMin > floor ? callerMin : floor;
     }
 
     // ── IAlignmentVault compliance ────────────────────────────────────────
@@ -322,11 +528,12 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     /// @notice Whether this vault is operationally wired for liquidity provision (O2 gate).
-    /// @dev True once the Algebra position manager AND a price validator are configured, so the
-    ///      wizard can safely offer the Cypher venue. A vault deployed without a real Algebra
-    ///      position manager / validator reports false and is hidden/disabled in the picker.
+    /// @dev True once the Algebra position manager, factory, and a price validator are configured, so
+    ///      the wizard can safely offer the Cypher venue.
     function isLiquidityReady() external view returns (bool) {
-        return address(positionManager) != address(0) && address(priceValidator) != address(0);
+        return
+            address(positionManager) != address(0) && algebraFactory != address(0)
+                && address(priceValidator) != address(0);
     }
 
     function vaultType() external pure override returns (string memory) {
@@ -334,7 +541,7 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     }
 
     function description() external pure override returns (string memory) {
-        return "Full-range liquidity provision on Algebra V2 (Cypher AMM)";
+        return "External-target alignment: reference-priced acquire + full-range LP on Algebra (Cypher AMM)";
     }
 
     function accumulatedFees() external view override returns (uint256) {

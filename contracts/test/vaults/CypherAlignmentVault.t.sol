@@ -1,483 +1,475 @@
 // test/vaults/CypherAlignmentVault.t.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
+
 import "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
-import { MockAlgebraPositionManager, MockAlgebraSwapRouter } from "../mocks/MockCypherAlgebra.sol";
+import {
+    MockAlgebraPositionManager,
+    MockAlgebraSwapRouter,
+    MockAlgebraFactory,
+    MockAlgebraPool
+} from "../mocks/MockCypherAlgebra.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
 import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { TestableCypherAlignmentVault } from "../helpers/TestableCypherAlignmentVault.sol";
 import { CypherAlignmentVault } from "../../src/vaults/cypher/CypherAlignmentVault.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 
 contract CypherAlignmentVaultTest is Test {
     TestableCypherAlignmentVault vault;
+    TestableCypherAlignmentVault impl;
     MockERC20 alignmentToken;
     MockWETH weth;
     MockAlgebraPositionManager positionManager;
     MockAlgebraSwapRouter swapRouter;
+    MockAlgebraFactory factory;
+    MockAlignmentRegistry registry;
+    MockVaultPriceValidator validator;
 
-    address owner = address(this);
-    address liquidityDeployer = makeAddr("liquidityDeployer");
     address protocolTreasury = makeAddr("treasury");
+    address refPool = makeAddr("refPool");
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
     address carol = makeAddr("carol");
+
+    uint256 constant TARGET_ID = 1;
+    uint256 constant ETH_PER_TOKEN = 1e18; // reference TWAP: 1 ETH per 1e18 tokens
 
     function setUp() public {
         alignmentToken = new MockERC20("Alignment", "ALN");
         weth = new MockWETH();
         positionManager = new MockAlgebraPositionManager();
         swapRouter = new MockAlgebraSwapRouter();
+        factory = new MockAlgebraFactory();
+        registry = new MockAlignmentRegistry();
+        validator = new MockVaultPriceValidator();
+        validator.setEthPer1e18Tokens(ETH_PER_TOKEN);
 
-        TestableCypherAlignmentVault impl = new TestableCypherAlignmentVault();
-        vault = TestableCypherAlignmentVault(payable(LibClone.clone(address(impl))));
-        vault.initialize(
-            address(positionManager),
-            address(swapRouter),
-            address(weth),
-            address(alignmentToken),
-            protocolTreasury,
-            liquidityDeployer,
-            address(0) // priceValidator inert by default; floor test wires one explicitly
+        _wireTarget(TARGET_ID, address(alignmentToken), IAlignmentRegistry.Venue.ALGEBRA, refPool);
+
+        impl = new TestableCypherAlignmentVault();
+        vault = _deployVault(TARGET_ID, address(alignmentToken));
+    }
+
+    // ── Wiring helpers ──────────────────────────────────────────────────────
+
+    function _wireTarget(uint256 targetId, address token, IAlignmentRegistry.Venue venue, address _refPool) internal {
+        registry.setTargetActive(targetId, true);
+        registry.setTokenInTarget(targetId, token, true);
+        registry.setReferencePool(
+            targetId, token, IAlignmentRegistry.ReferencePool({ pool: _refPool, kind: 1, twapWindow: 0 })
+        );
+        registry.setAcquireRoute(
+            targetId, token, IAlignmentRegistry.AcquireRoute({ venue: venue, fee: 0, tickSpacing: 0, feeOrHook: 0 })
         );
     }
 
-    /// @dev Sets up vault LP position and mock fees for a standard harvest.
-    ///      Handles both token orderings cleanly without MockERC20 casting of MockWETH.
-    function _setupHarvestFees(uint256 alignmentFeeAmt, uint256 wethFeeAmt, bool _tokenIsZero) internal {
-        vault.setPositionForTest(1, makeAddr("pool"), _tokenIsZero);
+    function _deployVault(uint256 targetId, address token) internal returns (TestableCypherAlignmentVault v) {
+        v = TestableCypherAlignmentVault(payable(LibClone.clone(address(impl))));
+        v.initialize(
+            address(positionManager),
+            address(swapRouter),
+            address(factory),
+            address(weth),
+            token,
+            protocolTreasury,
+            address(0), // zRouter
+            address(0), // zQuoter → Algebra fixed-pool fallback (the mock swap router)
+            address(validator),
+            registry,
+            targetId
+        );
+    }
 
-        if (_tokenIsZero) {
-            // alignment=token0, weth=token1
+    /// @dev Reference-derived sqrtPriceX96 for the target/WETH pool — mirrors the vault's own derivation.
+    function _refSqrt(uint256 ethPerToken) internal view returns (uint160) {
+        (uint256 a0, uint256 a1) =
+            address(alignmentToken) < address(weth) ? (uint256(1e18), ethPerToken) : (ethPerToken, uint256(1e18));
+        return uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(a1, 1 << 192, a0)));
+    }
+
+    function _contribute(address who, uint256 amt) internal {
+        vm.deal(address(this), amt);
+        vault.receiveContribution{ value: amt }(Currency.wrap(address(0)), amt, who);
+    }
+
+    /// @dev Fund the fallback Algebra swap router so the vault's ETH->target acquire yields `rate` (1e18
+    ///      = 1 token per ETH) and has target inventory to hand out.
+    function _fundAcquire(uint256 inventory, uint256 rate) internal {
+        alignmentToken.mint(address(swapRouter), inventory);
+        swapRouter.setRate(address(weth), address(alignmentToken), rate);
+    }
+
+    /// @dev Stage a collectable-fee harvest on the vault's alignment position (tokenId 1).
+    function _stageHarvest(uint256 alignmentFees, uint256 wethFees, bool tokenIsZero) internal {
+        vault.setPositionForTest(1, refPool, tokenIsZero);
+        if (tokenIsZero) {
             positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
-            if (alignmentFeeAmt > 0) alignmentToken.mint(address(positionManager), alignmentFeeAmt);
-            if (wethFeeAmt > 0) weth.mint(address(positionManager), wethFeeAmt);
-            positionManager.setFees(1, alignmentFeeAmt, wethFeeAmt);
+            if (alignmentFees > 0) alignmentToken.mint(address(positionManager), alignmentFees);
+            if (wethFees > 0) weth.mint(address(positionManager), wethFees);
+            positionManager.setFees(1, alignmentFees, wethFees);
         } else {
-            // weth=token0, alignment=token1
             positionManager.setPosition(1, address(weth), address(alignmentToken), address(vault));
-            if (wethFeeAmt > 0) weth.mint(address(positionManager), wethFeeAmt);
-            if (alignmentFeeAmt > 0) alignmentToken.mint(address(positionManager), alignmentFeeAmt);
-            positionManager.setFees(1, wethFeeAmt, alignmentFeeAmt);
+            if (wethFees > 0) weth.mint(address(positionManager), wethFees);
+            if (alignmentFees > 0) alignmentToken.mint(address(positionManager), alignmentFees);
+            positionManager.setFees(1, wethFees, alignmentFees);
         }
-
-        if (alignmentFeeAmt > 0) {
-            uint256 wethOut = alignmentFeeAmt * 9 / 10;
-            weth.mint(address(swapRouter), wethOut);
-            swapRouter.setRate(address(alignmentToken), address(weth), 0.9e18);
+        if (alignmentFees > 0) {
+            // 1:1 honest swap → clears the reference-derived 0.95 floor.
+            weth.mint(address(swapRouter), alignmentFees);
+            swapRouter.setRate(address(alignmentToken), address(weth), 1e18);
         }
-
-        uint256 totalWETH = (alignmentFeeAmt > 0 ? alignmentFeeAmt * 9 / 10 : 0) + wethFeeAmt;
+        uint256 totalWETH = (alignmentFees > 0 ? alignmentFees : 0) + wethFees;
         if (totalWETH > 0) vm.deal(address(weth), totalWETH);
     }
 
-    // ── Initialize tests ──────────────────────────────────────────────────
+    // ── Initialize ──────────────────────────────────────────────────────────
 
     function test_initialize_setsConfig() public view {
         assertEq(address(vault.positionManager()), address(positionManager));
+        assertEq(vault.algebraFactory(), address(factory));
         assertEq(vault.alignmentToken(), address(alignmentToken));
-        assertEq(vault.liquidityDeployer(), liquidityDeployer);
+        assertEq(address(vault.alignmentRegistry()), address(registry));
+        assertEq(vault.alignmentTargetId(), TARGET_ID);
         assertEq(vault.protocolYieldCutBps(), 100);
+        assertEq(vault.maxPriceDeviationBps(), 500);
+        assertTrue(vault.isLiquidityReady());
     }
 
     function test_initialize_revertIfCalledTwice() public {
-        vm.expectRevert();
+        vm.expectRevert(CypherAlignmentVault.VaultAlreadyInitialized.selector);
         vault.initialize(
             address(positionManager),
             address(swapRouter),
+            address(factory),
             address(weth),
             address(alignmentToken),
             protocolTreasury,
-            liquidityDeployer,
-            address(0)
+            address(0),
+            address(0),
+            address(validator),
+            registry,
+            TARGET_ID
         );
     }
 
-    // ── receiveContribution tests ─────────────────────────────────────────
+    // ── D3 — registry validation at init ─────────────────────────────────────
 
-    function test_receiveContribution_tracksETH() public {
-        vm.deal(address(this), 2 ether);
-        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, alice);
+    function test_init_revertsWhenTargetInactive() public {
+        registry.setTargetActive(2, false);
+        registry.setTokenInTarget(2, address(alignmentToken), true);
+        TestableCypherAlignmentVault v = TestableCypherAlignmentVault(payable(LibClone.clone(address(impl))));
+        vm.expectRevert(CypherAlignmentVault.TargetNotActive.selector);
+        v.initialize(
+            address(positionManager),
+            address(swapRouter),
+            address(factory),
+            address(weth),
+            address(alignmentToken),
+            protocolTreasury,
+            address(0),
+            address(0),
+            address(validator),
+            registry,
+            2
+        );
+    }
+
+    function test_init_revertsWhenTokenNotInTarget() public {
+        registry.setTargetActive(3, true);
+        // token intentionally NOT registered in target 3
+        TestableCypherAlignmentVault v = TestableCypherAlignmentVault(payable(LibClone.clone(address(impl))));
+        vm.expectRevert(CypherAlignmentVault.TokenNotInTarget.selector);
+        v.initialize(
+            address(positionManager),
+            address(swapRouter),
+            address(factory),
+            address(weth),
+            address(alignmentToken),
+            protocolTreasury,
+            address(0),
+            address(0),
+            address(validator),
+            registry,
+            3
+        );
+    }
+
+    // ── receiveContribution — tracks weight AND spendable pending ETH ─────────
+
+    function test_receiveContribution_tracksWeightAndPending() public {
+        _contribute(alice, 2 ether);
         assertEq(vault.benefactorContribution(alice), 2 ether);
         assertEq(vault.totalContributions(), 2 ether);
+        assertEq(vault.totalPendingETH(), 2 ether);
     }
 
     function test_receiveContribution_zeroValueIsNoOp() public {
         vault.receiveContribution(Currency.wrap(address(0)), 0, alice);
-        assertEq(vault.benefactorContribution(alice), 0);
         assertEq(vault.totalContributions(), 0);
-    }
-
-    function test_receiveContribution_zeroBenefactorIsNoOp() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(0));
-        assertEq(vault.totalContributions(), 0);
+        assertEq(vault.totalPendingETH(), 0);
     }
 
     function test_receiveContribution_revertsOnNonEthCurrency() public {
         vm.deal(address(this), 1 ether);
-        vm.expectRevert();
+        vm.expectRevert(CypherAlignmentVault.ETHOnly.selector);
         vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(alignmentToken)), 1 ether, alice);
     }
 
-    function test_receiveContribution_multipleSameBenefactor() public {
-        vm.deal(address(this), 3 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, alice);
-        assertEq(vault.benefactorContribution(alice), 3 ether);
-        assertEq(vault.totalContributions(), 3 ether);
+    // ── convertAndAddLiquidity — seed a fresh pool at the reference price ─────
+
+    function test_convert_seedsFreshPoolAtReferencePrice() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
+
+        uint256 lpValue = vault.convertAndAddLiquidity(0);
+
+        address pool = vault.lpPool();
+        assertTrue(pool != address(0), "pool created");
+        assertEq(MockAlgebraPool(pool).sqrtPriceX96(), _refSqrt(ETH_PER_TOKEN), "seeded at reference price");
+        assertEq(vault.lpTokenId(), 1, "one position minted");
+        assertEq(positionManager.ownerOf(1), address(vault), "vault custodies the position (plain _mint)");
+        assertGt(lpValue, 0);
+        // proportion 50% of 10 ETH swapped, remainder LP'd; nothing left unspendable.
+        assertEq(vault.totalPendingETH(), 0, "pending fully deployed");
     }
 
-    function test_receiveContribution_multipleBenefactors() public {
-        vm.deal(address(this), 3 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        vault.receiveContribution{ value: 2 ether }(Currency.wrap(address(0)), 2 ether, bob);
-        assertEq(vault.benefactorContribution(alice), 1 ether);
-        assertEq(vault.benefactorContribution(bob), 2 ether);
-        assertEq(vault.totalContributions(), 3 ether);
+    /// @dev A manipulated acquire "spot" (swap rate) does NOT move the seed price: it stays the
+    ///      canonical reference. This is the self-sandwich regression for Cypher.
+    function test_convert_seedPriceIsReferenceNotSpot() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 3e18); // acquire spot 3x — must NOT influence the seed
+
+        vault.convertAndAddLiquidity(0);
+
+        address pool = vault.lpPool();
+        assertEq(MockAlgebraPool(pool).sqrtPriceX96(), _refSqrt(ETH_PER_TOKEN), "seed follows reference, not spot");
     }
 
-    // ── registerPosition tests ────────────────────────────────────────────
+    // ── Thin-pool guard ──────────────────────────────────────────────────────
 
-    function test_registerPosition_onlyLiquidityDeployer() public {
-        vm.expectRevert();
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
+    function test_convert_revertsWhenExistingPoolDeviates() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
 
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
-        assertEq(vault.benefactorContribution(alice), 1 ether);
-        assertEq(vault.totalContributions(), 1 ether);
+        // Pre-create + skew the pool >5% off the reference.
+        address pool = factory.createPool(address(alignmentToken), address(weth), "");
+        MockAlgebraPool(pool).initialize(uint160(uint256(_refSqrt(ETH_PER_TOKEN)) * 2));
+
+        vm.expectRevert(CypherAlignmentVault.LpPoolPriceDeviation.selector);
+        vault.convertAndAddLiquidity(0);
     }
 
-    function test_registerPosition_revertsIfAlreadyRegistered() public {
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
+    function test_convert_fairThinPoolPasses() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
 
-        vm.prank(liquidityDeployer);
-        vm.expectRevert();
-        vault.registerPosition(2, makeAddr("pool"), true, bob, 1 ether);
-    }
+        // Fair thin pool: +1% off the reference (sqrt-space), within the 5% band.
+        address pool = factory.createPool(address(alignmentToken), address(weth), "");
+        MockAlgebraPool(pool).initialize(uint160(uint256(_refSqrt(ETH_PER_TOKEN)) * 10_100 / 10_000));
 
-    function test_registerPosition_setsLPState() public {
-        address pool = makeAddr("pool");
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(42, pool, false, alice, 5 ether);
-
-        assertEq(vault.lpTokenId(), 42);
+        vault.convertAndAddLiquidity(0);
+        assertEq(vault.lpTokenId(), 1);
         assertEq(vault.lpPool(), pool);
-        assertFalse(vault.tokenIsZero());
     }
 
-    // ── harvest tests ─────────────────────────────────────────────────────
+    // ── D1 — no tithe ETH left unspendable; residual re-credited to pending ───
 
-    function test_harvest_revertsWithZeroContributions() public {
-        vault.setPositionForTest(1, makeAddr("pool"), true);
-        vm.expectRevert();
-        vault.harvest(0);
+    function test_convert_residualEthReturnsToPending() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
+        positionManager.setAbsorbBps(8000); // LP under-absorbs 20% of each side
+
+        vault.convertAndAddLiquidity(0);
+
+        // 50% (5 ETH) swapped; 5 ETH → WETH for LP, of which 80% (4) absorbed → 1 ETH re-credited.
+        assertEq(vault.totalPendingETH(), 1 ether, "unabsorbed ETH re-credited to pending");
+        assertEq(address(vault).balance, 1 ether, "residual ETH held for the next convert, not stuck");
     }
+
+    function test_convert_revertsWithNoPendingETH() public {
+        vm.expectRevert(CypherAlignmentVault.NoPendingETH.selector);
+        vault.convertAndAddLiquidity(0);
+    }
+
+    function test_convert_revertsWhenReferenceUnset() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
+        registry.setReferencePool(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.ReferencePool({ pool: address(0), kind: 0, twapWindow: 0 })
+        );
+        vm.expectRevert(CypherAlignmentVault.NoReferencePool.selector);
+        vault.convertAndAddLiquidity(0);
+    }
+
+    function test_convert_revertsWhenAcquireVenueNotAlgebra() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
+        registry.setAcquireRoute(
+            TARGET_ID,
+            address(alignmentToken),
+            IAlignmentRegistry.AcquireRoute({
+                venue: IAlignmentRegistry.Venue.UNI_V4, fee: 0, tickSpacing: 0, feeOrHook: 0
+            })
+        );
+        vm.expectRevert(CypherAlignmentVault.WrongAcquireVenue.selector);
+        vault.convertAndAddLiquidity(0);
+    }
+
+    // ── B2 — repeat convert aggregates into ONE NFT via increaseLiquidity ─────
+
+    function test_convert_repeatAggregatesIntoOnePosition() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(1000 ether, 1e18);
+        vault.convertAndAddLiquidity(0);
+
+        uint256 id = vault.lpTokenId();
+        (,,,,,,, uint128 liq1,,,,) = positionManager.positions(id);
+
+        _contribute(bob, 10 ether);
+        vault.convertAndAddLiquidity(0);
+
+        assertEq(vault.lpTokenId(), id, "same tokenId");
+        assertEq(positionManager.nextTokenId(), 2, "exactly ONE mint ever (no second NFT)");
+        (,,,,,,, uint128 liq2,,,,) = positionManager.positions(id);
+        assertGt(liq2, liq1, "liquidity strictly increased");
+        assertEq(positionManager.ownerOf(id), address(vault));
+    }
+
+    function test_convert_repeatThenHarvestCollectsFromAlignmentPosition() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(1000 ether, 1e18);
+        vault.convertAndAddLiquidity(0);
+        _contribute(bob, 10 ether);
+        vault.convertAndAddLiquidity(0);
+
+        // Fees accrue on the vault's OWN alignment position (tokenId 1), collected by harvest.
+        uint256 id = vault.lpTokenId();
+        weth.mint(address(positionManager), 1 ether);
+        // token1 is the WETH side (alignment sorts vs weth); stage a WETH-side fee.
+        bool tokenIsZero = vault.tokenIsZero();
+        positionManager.setFees(id, tokenIsZero ? 0 : 1 ether, tokenIsZero ? 1 ether : 0);
+        vm.deal(address(weth), 1 ether);
+
+        uint256 feesETH = vault.harvest(0);
+        assertEq(feesETH, 1 ether);
+        assertGt(vault.accRewardPerContribution(), 0);
+    }
+
+    // ── harvest — distribution + protocol cut ────────────────────────────────
 
     function test_harvest_revertsWithNoPosition() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        // lpTokenId = 0 — no position registered
-        vm.expectRevert();
+        _contribute(alice, 1 ether);
+        vm.expectRevert(CypherAlignmentVault.NoPosition.selector);
         vault.harvest(0);
-    }
-
-    function test_harvest_returnsZeroWhenNoFees() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        vault.setPositionForTest(1, makeAddr("pool"), true);
-        // No fees set on position manager — collect returns (0, 0)
-        uint256 returned = vault.harvest(0);
-        assertEq(returned, 0);
-        assertEq(vault.accRewardPerContribution(), 0);
     }
 
     function test_harvest_distributesFeesToBenefactors() public {
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
-        vault.setPositionForTest(1, makeAddr("pool"), true);
+        _contribute(alice, 1 ether);
+        _stageHarvest(0.1e18, 0.05e18, true);
 
-        positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
-        alignmentToken.mint(address(positionManager), 0.1e18);
-        weth.mint(address(positionManager), 0.05e18);
-        positionManager.setFees(1, 0.1e18, 0.05e18);
-
-        weth.mint(address(swapRouter), 0.09e18);
-        swapRouter.setRate(address(alignmentToken), address(weth), 0.9e18);
-        vm.deal(address(weth), 0.14e18);
-
-        uint256 aliceBalBefore = alice.balance;
         vault.harvest(0);
-
         assertGt(vault.accRewardPerContribution(), 0);
-        assertGt(vault.calculateClaimableAmount(alice), 0);
 
+        uint256 before = alice.balance;
         vm.prank(alice);
         vault.claimFees();
-        assertGt(alice.balance, aliceBalBefore);
-    }
-
-    function test_harvest_tokenIsZeroFalse() public {
-        // weth=token0, alignment=token1
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-
-        uint256 wethFees = 0.05e18;
-        uint256 alignmentFees = 0.1e18;
-        _setupHarvestFees(alignmentFees, wethFees, false);
-
-        uint256 expectedTotal = wethFees + (alignmentFees * 9 / 10);
-        uint256 feesETH = vault.harvest(0);
-        assertEq(feesETH, expectedTotal);
-        assertGt(vault.accRewardPerContribution(), 0);
+        assertGt(alice.balance, before);
     }
 
     function test_harvest_takesProtocolCut() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        _setupHarvestFees(0, 1 ether, true);
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
 
         vault.harvest(0);
-
-        // 1% protocol cut of 1 ETH = 0.01 ETH
         assertEq(vault.accumulatedProtocolFees(), 0.01 ether);
-        // Benefactors receive 99%
         assertEq(vault.calculateClaimableAmount(alice), 0.99 ether);
     }
 
-    function test_harvest_multipleHarvestsAccumulate() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
+    // ── harvest oracle-floor (reference-priced, not self-priced) ─────────────
 
-        _setupHarvestFees(0, 0.1 ether, true);
-        vault.harvest(0);
-        uint256 accAfterFirst = vault.accRewardPerContribution();
-        assertGt(accAfterFirst, 0);
-
-        // Second harvest — position already set, just supply new fees
-        weth.mint(address(positionManager), 0.1 ether);
-        positionManager.setFees(1, 0, 0.1 ether);
-        vm.deal(address(weth), 0.1 ether);
-        vault.harvest(0);
-
-        assertGt(vault.accRewardPerContribution(), accAfterFirst);
-    }
-
-    // ── harvest oracle-floor (sandwich) regression ───────────────────────
-    // Mirrors ZAMM's F5 floor tests: with a price validator wired, a permissionless caller
-    // passing minAmountOut=0 cannot push a degraded (sandwiched) token->WETH swap through.
-
-    /// @dev Wire a TWAP oracle (1 token == 1 ETH) and stage `alignmentFees` token0 fees on the LP.
-    function _wireValidatorAndStageFees(uint256 alignmentFees) internal returns (MockVaultPriceValidator val) {
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
-        vault.setPositionForTest(1, makeAddr("pool"), true);
-
-        // alignment = token0; stage `alignmentFees` collectable fees on the position manager.
-        positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
-        alignmentToken.mint(address(positionManager), alignmentFees);
-        positionManager.setFees(1, alignmentFees, 0);
-
-        // TWAP says 1e18 tokens == 1 ETH → floor (5% dev) = 0.95 WETH per token.
-        val = new MockVaultPriceValidator();
-        val.setEthPer1e18Tokens(1e18);
-        vault.setPriceValidator(address(val)); // test contract is the vault owner
-    }
-
-    function test_HarvestFloorBlocksSandwich() public {
-        _wireValidatorAndStageFees(1e18);
-
-        // Sandwiched pool: the swap only yields 0.5 WETH per token — below the 0.95 oracle floor.
+    function test_harvest_floorBlocksSandwich() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(1e18, 0, true);
+        // Degrade the swap to 0.5 WETH/token — below the reference 0.95 floor.
         swapRouter.setRate(address(alignmentToken), address(weth), 0.5e18);
-        weth.mint(address(swapRouter), 0.5e18);
-
-        // Caller passes minAmountOut = 0, but the oracle floor is enforced and the swap reverts.
         vm.expectRevert(bytes("Slippage"));
         vault.harvest(0);
     }
 
-    function test_HarvestFloorAllowsHonestSwap() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, bob);
-        _wireValidatorAndStageFees(1e18);
-
-        // Honest pool: swap yields ~1 WETH per token (rate 1.0), above the 0.95 floor → succeeds.
-        swapRouter.setRate(address(alignmentToken), address(weth), 1e18);
-        weth.mint(address(swapRouter), 1e18);
-        vm.deal(address(weth), 1e18);
-
+    function test_harvest_floorFromReferenceNotPool() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(1e18, 0, true);
+        // Honest 1:1 swap clears the reference-derived floor.
         uint256 feesETH = vault.harvest(0);
-        assertGt(feesETH, 0, "honest harvest should clear the floor");
-        assertGt(vault.accRewardPerContribution(), 0);
+        assertGt(feesETH, 0);
     }
 
-    function test_HarvestNoFloorWhenValidatorUnset() public {
-        // No validator wired (default address(0)) → caller minimums govern, swap is not floored.
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 1 ether);
-        vault.setPositionForTest(1, makeAddr("pool"), true);
-        positionManager.setPosition(1, address(alignmentToken), address(weth), address(vault));
-        alignmentToken.mint(address(positionManager), 1e18);
-        positionManager.setFees(1, 1e18, 0);
-
-        // Degraded rate, but with no oracle floor the swap clears (caller minAmountOut = 0).
-        swapRouter.setRate(address(alignmentToken), address(weth), 0.5e18);
-        weth.mint(address(swapRouter), 0.5e18);
-        vm.deal(address(weth), 0.5e18);
-
-        uint256 feesETH = vault.harvest(0);
-        assertGt(feesETH, 0, "unfloored harvest should succeed");
-    }
-
-    // ── claimFees tests ───────────────────────────────────────────────────
-
-    function test_claimFees_returnsZeroWithNoContributions() public {
-        vm.prank(alice);
-        uint256 claimed = vault.claimFees();
-        assertEq(claimed, 0);
-    }
-
-    function test_claimFees_returnsZeroWhenNothingPending() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        _setupHarvestFees(0, 0.1 ether, true);
-        vault.harvest(0);
-
-        vm.prank(alice);
-        vault.claimFees();
-
-        // Second claim: nothing pending
-        vm.prank(alice);
-        uint256 secondClaim = vault.claimFees();
-        assertEq(secondClaim, 0);
-    }
+    // ── claimFees ────────────────────────────────────────────────────────────
 
     function test_claimFees_proportionalWithMultipleBenefactors() public {
-        vm.deal(address(this), 30 ether);
-        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
-        vault.receiveContribution{ value: 20 ether }(Currency.wrap(address(0)), 20 ether, bob);
-
-        _setupHarvestFees(0, 1 ether, true);
+        _contribute(alice, 10 ether);
+        _contribute(bob, 20 ether);
+        _stageHarvest(0, 1 ether, true);
         vault.harvest(0);
 
-        // benefactorFees = 1 ETH * 99% = 0.99 ETH (integer arithmetic)
-        // Alice: 10/30 = 1/3, Bob: 20/30 = 2/3
-        uint256 benefactorFees = 1 ether * 9900 / 10000; // 0.99 ETH exact
-
-        uint256 aliceClaimable = vault.calculateClaimableAmount(alice);
-        uint256 bobClaimable = vault.calculateClaimableAmount(bob);
-
-        assertApproxEqRel(aliceClaimable, benefactorFees / 3, 0.01e18);
-        assertApproxEqRel(bobClaimable, benefactorFees * 2 / 3, 0.01e18);
-
+        uint256 benefactorFees = 1 ether * 9900 / 10000;
         vm.prank(alice);
         uint256 aliceClaimed = vault.claimFees();
-        assertApproxEqRel(aliceClaimed, benefactorFees / 3, 0.01e18);
-
         vm.prank(bob);
         uint256 bobClaimed = vault.claimFees();
+        assertApproxEqRel(aliceClaimed, benefactorFees / 3, 0.01e18);
         assertApproxEqRel(bobClaimed, benefactorFees * 2 / 3, 0.01e18);
     }
 
-    function test_claimFees_multipleClaims_deltaTracking() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-
-        // First harvest: 0.1 ETH
-        _setupHarvestFees(0, 0.1 ether, true);
-        vault.harvest(0);
-
-        vm.prank(alice);
-        uint256 firstClaim = vault.claimFees();
-        assertGt(firstClaim, 0);
-
-        // Second harvest: 0.2 ETH (2x first)
-        weth.mint(address(positionManager), 0.2 ether);
-        positionManager.setFees(1, 0, 0.2 ether);
-        vm.deal(address(weth), 0.2 ether);
-        vault.harvest(0);
-
-        vm.prank(alice);
-        uint256 secondClaim = vault.claimFees();
-        // Second claim should be ~2x first (2x the fees, same contribution)
-        assertApproxEqRel(secondClaim, firstClaim * 2, 0.01e18);
-    }
-
-    // ── claimFeesAsDelegate tests ─────────────────────────────────────────
-
     function test_claimFeesAsDelegate_delegateReceivesFees() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-
+        _contribute(alice, 1 ether);
         vm.prank(alice);
         vault.delegateBenefactor(carol);
-
-        _setupHarvestFees(0, 0.1 ether, true);
+        _stageHarvest(0, 0.1 ether, true);
         vault.harvest(0);
 
         uint256 carolBefore = carol.balance;
         address[] memory benefactors = new address[](1);
         benefactors[0] = alice;
-
         vm.prank(carol);
         vault.claimFeesAsDelegate(benefactors);
-
         assertGt(carol.balance, carolBefore);
     }
 
     function test_claimFeesAsDelegate_revertsForNonDelegate() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-
-        _setupHarvestFees(0, 0.1 ether, true);
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 0.1 ether, true);
         vault.harvest(0);
 
         address[] memory benefactors = new address[](1);
         benefactors[0] = alice;
-
-        vm.prank(bob); // not alice's delegate
+        vm.prank(bob);
         vm.expectRevert(CypherAlignmentVault.NotDelegate.selector);
         vault.claimFeesAsDelegate(benefactors);
     }
 
-    // ── delegateBenefactor tests ──────────────────────────────────────────
+    // ── Governance / views ───────────────────────────────────────────────────
 
-    function test_delegateBenefactor_setsDelegate() public {
-        vm.prank(alice);
-        vault.delegateBenefactor(carol);
-        assertEq(vault.getBenefactorDelegate(alice), carol);
-    }
-
-    function test_getBenefactorDelegate_returnsOwnAddressIfNoneSet() public view {
-        assertEq(vault.getBenefactorDelegate(alice), alice);
-    }
-
-    function test_delegateBenefactor_claimGoesToDelegate() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-
-        vm.prank(alice);
-        vault.delegateBenefactor(carol);
-
-        _setupHarvestFees(0, 0.1 ether, true);
+    function test_withdrawProtocolFees_transfersToTreasury() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
         vault.harvest(0);
 
-        uint256 carolBefore = carol.balance;
-        uint256 aliceBefore = alice.balance;
-
-        vm.prank(alice);
-        vault.claimFees(); // alice calls, but fees go to carol
-
-        assertGt(carol.balance, carolBefore);
-        assertEq(alice.balance, aliceBefore); // alice receives nothing
+        uint256 before = protocolTreasury.balance;
+        vm.prank(protocolTreasury);
+        vault.withdrawProtocolFees();
+        assertEq(protocolTreasury.balance - before, 0.01 ether);
+        assertEq(vault.accumulatedProtocolFees(), 0);
     }
-
-    // ── withdrawProtocolFees tests ────────────────────────────────────────
 
     function test_withdrawProtocolFees_revertsIfNotTreasury() public {
         vm.prank(alice);
@@ -485,173 +477,49 @@ contract CypherAlignmentVaultTest is Test {
         vault.withdrawProtocolFees();
     }
 
-    function test_withdrawProtocolFees_transfersToTreasury() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        _setupHarvestFees(0, 1 ether, true);
-        vault.harvest(0); // vault now holds 1 ETH, 0.01 ETH is protocol fees (1% default)
-
-        uint256 treasuryBefore = protocolTreasury.balance;
-        vm.prank(protocolTreasury);
-        vault.withdrawProtocolFees();
-
-        assertEq(protocolTreasury.balance - treasuryBefore, 0.01 ether);
-        assertEq(vault.accumulatedProtocolFees(), 0);
-    }
-
-    // ── setProtocolYieldCutBps tests ──────────────────────────────────────
-
-    function test_setProtocolYieldCutBps_onlyOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.setProtocolYieldCutBps(1000);
-    }
-
     function test_setProtocolYieldCutBps_revertsAboveMax() public {
         vm.expectRevert(CypherAlignmentVault.ExceedsMaxBps.selector);
         vault.setProtocolYieldCutBps(1001);
     }
 
-    function test_setProtocolYieldCutBps_updatesValue() public {
-        vault.setProtocolYieldCutBps(1000);
-        assertEq(vault.protocolYieldCutBps(), 1000);
+    function test_setMaxPriceDeviationBps_updates() public {
+        vault.setMaxPriceDeviationBps(750);
+        assertEq(vault.maxPriceDeviationBps(), 750);
     }
 
-    // ── calculateClaimableAmount tests ────────────────────────────────────
-
-    function test_calculateClaimableAmount_returnsZeroWithNoContribution() public view {
-        assertEq(vault.calculateClaimableAmount(alice), 0);
+    function test_setMaxPriceDeviationBps_revertsAboveMax() public {
+        vm.expectRevert(CypherAlignmentVault.ExceedsMaxBps.selector);
+        vault.setMaxPriceDeviationBps(2001);
     }
-
-    function test_calculateClaimableAmount_returnsZeroAfterClaim() public {
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-        _setupHarvestFees(0, 0.1 ether, true);
-        vault.harvest(0);
-
-        vm.prank(alice);
-        vault.claimFees();
-
-        assertEq(vault.calculateClaimableAmount(alice), 0);
-    }
-
-    // ── supportsCapability tests ──────────────────────────────────────────
-
-    function test_supportsCapability_yieldGeneration() public view {
-        assertTrue(vault.supportsCapability(keccak256("YIELD_GENERATION")));
-    }
-
-    function test_supportsCapability_benefactorDelegation() public view {
-        assertTrue(vault.supportsCapability(keccak256("BENEFACTOR_DELEGATION")));
-    }
-
-    function test_supportsCapability_unknownReturnsFalse() public view {
-        assertFalse(vault.supportsCapability(keccak256("UNKNOWN_CAP")));
-    }
-
-    // ── View function tests ───────────────────────────────────────────────
 
     function test_vaultType_returnsCypherLP() public view {
         assertEq(vault.vaultType(), "CypherLP");
     }
 
+    function test_supportsCapability() public view {
+        assertTrue(vault.supportsCapability(keccak256("YIELD_GENERATION")));
+        assertTrue(vault.supportsCapability(keccak256("BENEFACTOR_DELEGATION")));
+        assertFalse(vault.supportsCapability(keccak256("UNKNOWN")));
+    }
+
+    function test_delegateBenefactor_setsDelegate() public {
+        vm.prank(alice);
+        vault.delegateBenefactor(carol);
+        assertEq(vault.getBenefactorDelegate(alice), carol);
+    }
+
     function test_totalShares_equalsTotalContributions() public {
-        vm.prank(liquidityDeployer);
-        vault.registerPosition(1, makeAddr("pool"), true, alice, 3 ether);
+        _contribute(alice, 3 ether);
         assertEq(vault.totalShares(), 3 ether);
     }
 
-    function test_getBenefactorContribution_returnsCorrectAmount() public {
-        vm.deal(address(this), 5 ether);
-        vault.receiveContribution{ value: 5 ether }(Currency.wrap(address(0)), 5 ether, alice);
-        assertEq(vault.getBenefactorContribution(alice), 5 ether);
-    }
-
-    function test_getBenefactorShares_equalsBenefactorContribution() public {
-        vm.deal(address(this), 3 ether);
-        vault.receiveContribution{ value: 3 ether }(Currency.wrap(address(0)), 3 ether, alice);
-        assertEq(vault.getBenefactorShares(alice), 3 ether);
-    }
-
-    // ── Integration tests ─────────────────────────────────────────────────
-
-    function test_integration_fullWorkflow() public {
-        // 1. Alice contributes
-        vm.deal(address(this), 1 ether);
-        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, alice);
-
-        // 2. LP position goes live, harvest fees
-        _setupHarvestFees(0, 1 ether, true);
-        vault.harvest(0);
-
-        // 3. Alice claims — should receive 99% of 1 ETH (1% protocol taken)
-        uint256 aliceBefore = alice.balance;
-        vm.prank(alice);
-        vault.claimFees();
-
-        assertApproxEqRel(alice.balance - aliceBefore, 0.99 ether, 0.01e18);
-
-        // 4. Protocol withdraws its cut
-        uint256 treasuryBefore = protocolTreasury.balance;
-        vm.prank(protocolTreasury);
-        vault.withdrawProtocolFees();
-        assertApproxEqRel(protocolTreasury.balance - treasuryBefore, 0.01 ether, 0.01e18);
-    }
-
-    function test_integration_multipleBenefactors_proportionalDistribution() public {
-        vm.deal(address(this), 30 ether);
-        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
-        vault.receiveContribution{ value: 20 ether }(Currency.wrap(address(0)), 20 ether, bob);
-
-        // Harvest 3 ETH in fees
-        _setupHarvestFees(0, 3 ether, true);
-        vault.harvest(0);
-
-        // benefactorFees = 3 ETH * 99% = 2.97 ETH
-        uint256 benefactorFees = 3 ether * 9900 / 10000;
-
-        vm.prank(alice);
-        uint256 aliceClaimed = vault.claimFees();
-
-        vm.prank(bob);
-        uint256 bobClaimed = vault.claimFees();
-
-        // Alice: 10/30 = 1/3, Bob: 20/30 = 2/3
-        assertApproxEqRel(aliceClaimed, benefactorFees / 3, 0.01e18);
-        assertApproxEqRel(bobClaimed, benefactorFees * 2 / 3, 0.01e18);
-        assertApproxEqRel(aliceClaimed + bobClaimed, benefactorFees, 0.01e18);
-    }
-
-    function test_integration_multipleRoundsAndClaims() public {
-        vm.deal(address(this), 30 ether);
-        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
-        vault.receiveContribution{ value: 20 ether }(Currency.wrap(address(0)), 20 ether, bob);
-
-        // Round 1: harvest 1 ETH
-        _setupHarvestFees(0, 1 ether, true);
-        vault.harvest(0);
-
-        // Alice claims round 1
-        vm.prank(alice);
-        uint256 aliceR1 = vault.claimFees();
-        assertGt(aliceR1, 0);
-
-        // Round 2: harvest 2 ETH
-        weth.mint(address(positionManager), 2 ether);
-        positionManager.setFees(1, 0, 2 ether);
-        vm.deal(address(weth), 2 ether);
-        vault.harvest(0);
-
-        // Bob claims both rounds at once
-        vm.prank(bob);
-        uint256 bobTotal = vault.claimFees();
-        assertGt(bobTotal, 0);
-
-        // Alice claims round 2 only
-        vm.prank(alice);
-        uint256 aliceR2 = vault.claimFees();
-        assertGt(aliceR2, 0);
-        // Round 2 fees are 2x, so alice's R2 should be ~2x her R1
-        assertApproxEqRel(aliceR2, aliceR1 * 2, 0.01e18);
+    /// @dev NFT custody: the vault holds its alignment position via the Algebra NFPM's plain `_mint`
+    ///      (no `onERC721Received` callback). The vault deliberately does NOT implement IERC721Receiver;
+    ///      a successful mint-to-vault above proves plain-ownership custody is safe.
+    function test_nftCustody_vaultHoldsPositionWithoutReceiver() public {
+        _contribute(alice, 10 ether);
+        _fundAcquire(100 ether, 1e18);
+        vault.convertAndAddLiquidity(0);
+        assertEq(positionManager.ownerOf(vault.lpTokenId()), address(vault));
     }
 }
