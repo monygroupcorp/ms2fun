@@ -1,0 +1,177 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  margin: 0;
+}
+
+.help {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ── Target roster ── */
+.targetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--gap-sm);
+}
+
+.targetCard {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  text-align: left;
+  padding: var(--space-3);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.targetCard:hover {
+  border-color: var(--border-primary);
+}
+
+.targetSelected {
+  border-color: var(--border-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.targetLogo {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--border-secondary);
+  background-color: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.targetImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.targetGlyph {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-body-lg);
+}
+
+.targetBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.targetName {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.targetDesc {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.targetMeta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+}
+
+.requestLine {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+}
+
+/* ── Venue (vault) selection for the chosen target ── */
+.venueSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-top: 1px solid var(--border-secondary);
+  padding-top: var(--space-3);
+}
+
+.familyBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.familyTag {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.venueGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--gap-sm);
+}
+
+.venueCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: left;
+  padding: var(--space-3);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.venueCard:hover {
+  border-color: var(--border-primary);
+}
+
+.venueSelected {
+  border-color: var(--border-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.venueDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.venueCreate {
+  border-style: dashed;
+  cursor: default;
+  opacity: 0.7;
+}
+
+.venueName {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.venueNote {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+}

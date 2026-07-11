@@ -8,11 +8,19 @@ import { decentralizedTransport } from './rpc'
  * The local anvil mainnet-fork. Chain id is 1337 (from the local-chain deploy bridge,
  * `contracts/.../contracts.local.json`), NOT anvil's default 31337.
  */
+// Dev-only: reach anvil at whatever host served the app. On localhost that's localhost:8545; over
+// Tailscale (walking the app from another machine) it's <archbox-host>:8545, since the browser's
+// localhost is NOT the box running anvil. Falls back to localhost for SSR/no-window.
+const ANVIL_RPC =
+  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? `http://${window.location.hostname}:8545`
+    : 'http://localhost:8545'
+
 export const anvilFork = defineChain({
   id: 1337,
   name: 'Anvil Fork',
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: { default: { http: ['http://localhost:8545'] } },
+  rpcUrls: { default: { http: [ANVIL_RPC] } },
   // The mainnet fork carries Multicall3 at its canonical mainnet address. WITHOUT declaring it,
   // viem's `client.multicall` throws ChainDoesNotSupportContract — which broke every multicall
   // reader (the ERC721 auction surface, the NFT galleries). Single-contract reads were unaffected.

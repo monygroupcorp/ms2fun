@@ -1,0 +1,93 @@
+.root {
+  margin-top: var(--space-4);
+  border-top: var(--border-width-thin, 1px) solid var(--color-border);
+  padding-top: var(--space-4);
+}
+
+.head {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.gwei {
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.7;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.table th {
+  text-align: right;
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 0 var(--space-2);
+  border-bottom: var(--border-width-thin, 1px) solid var(--color-border);
+}
+
+.table th:first-child {
+  text-align: left;
+}
+
+.table td {
+  text-align: right;
+  padding: var(--space-2) 0;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.table td:first-child {
+  text-align: left;
+  color: var(--color-text-muted);
+  white-space: normal;
+}
+
+.zero td {
+  opacity: 0.45;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border: var(--border-width-thin, 1px) solid var(--color-border);
+  border-radius: 2px;
+  padding: 0 var(--space-1);
+}
+
+.derived td {
+  border-top: var(--border-width-thin, 1px) dashed var(--color-border);
+}
+
+.table tfoot td {
+  border-top: var(--border-width-thick, 2px) solid var(--color-border);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+  padding-top: var(--space-2);
+}
+
+.note {
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-relaxed);
+  margin: var(--space-3) 0 0;
+}

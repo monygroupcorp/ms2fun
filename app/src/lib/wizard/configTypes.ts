@@ -60,13 +60,14 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
           { value: '0', label: 'Volume cap' },
           { value: '1', label: 'Time-based' },
         ],
+        help: 'How each password unlocks minting. Volume cap: a password grants each wallet a per-wallet purchase ceiling. Time-based: a password unlocks its tier at a set time after bonding opens.',
         validation: { required: true },
       },
       {
         key: 'passwords',
         label: 'Passwords',
         kind: 'list',
-        help: 'Hashed (keccak256) at submit; one per tier',
+        help: 'One secret per tier — buyers enter it to unlock that tier. Hashed (keccak256) before it ever touches the chain, so it is never stored in the clear. Add tiers top to bottom; the caps/times below line up in the same order.',
         item: {
           key: 'password',
           label: 'Password',
@@ -77,6 +78,9 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         key: 'volumeCaps',
         label: 'Volume caps',
         kind: 'list',
+        // Contract: canMint checks userPurchaseVolume[instance][user] + amount > cap (per-wallet
+        // cumulative), NOT a global mint counter — a password does not "run out" across all buyers.
+        help: 'Per-WALLET cumulative limit for each password (same order as Passwords). A wallet holding this password may mint up to this many units total — it is not a shared supply, so the password never "runs out" globally. No password (tier 0) is unlimited.',
         item: {
           key: 'volumeCap',
           label: 'Volume cap',
@@ -89,7 +93,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         key: 'tierUnlockTimes',
         label: 'Tier unlock times',
         kind: 'list',
-        help: 'Relative to bonding open',
+        help: 'Seconds after bonding opens before each password can mint (same order as Passwords). e.g. 3600 = that tier unlocks one hour in.',
         item: {
           key: 'tierUnlockTime',
           label: 'Tier unlock time',

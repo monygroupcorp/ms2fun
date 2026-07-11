@@ -19,6 +19,61 @@
   letter-spacing: var(--letter-spacing-wide);
 }
 
+.help {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+  font-family: var(--font-mono);
+}
+
+/* Live name-availability line. Reserves its own row so the form doesn't jump as it settles. */
+.nameStatus {
+  margin: var(--space-1) 0 0;
+  min-height: 1.25em;
+  font-size: var(--font-size-body-sm);
+  font-family: var(--font-mono);
+  line-height: var(--line-height-relaxed);
+}
+
+.nameMuted {
+  color: var(--text-tertiary);
+}
+
+.nameOk {
+  color: var(--text-secondary);
+}
+
+.nameBad {
+  color: var(--color-text);
+  border-left: var(--border-width-thick, 2px) solid var(--color-text);
+  padding-left: var(--space-2);
+}
+
+.explainer {
+  border-left: 2px solid var(--border-primary);
+  background-color: var(--bg-secondary);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.explainerTitle {
+  font-size: var(--font-size-body-sm);
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  font-weight: var(--font-weight-medium);
+}
+
+.explainerBody {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
 .input {
   font-family: var(--font-mono);
   font-size: var(--font-size-body);
@@ -105,8 +160,15 @@
   gap: var(--gap-sm);
 }
 
+/* Label is a short tag ("Twitter"), the URL is long — give the URL the room. */
+.rowLabel {
+  flex: 0 0 9rem;
+  min-width: 0;
+}
+
 .rowUrl {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .removeBtn {

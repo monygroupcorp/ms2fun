@@ -1,0 +1,170 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.help {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+  font-family: var(--font-mono);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+.input {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body);
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-none);
+  flex: 1;
+  min-width: 12rem;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast);
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--border-primary);
+}
+
+.input:disabled {
+  opacity: 0.5;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.or {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.hiddenFile {
+  display: none;
+}
+
+.error {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-error);
+}
+
+.previewWrap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.preview {
+  flex-shrink: 0;
+  border: 1px solid var(--border-secondary);
+  background-color: var(--bg-tertiary);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.square {
+  width: 6rem;
+  height: 6rem;
+}
+
+.wide {
+  width: 12rem;
+  height: 4rem;
+}
+
+.previewImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+}
+
+.ok {
+  color: var(--text-tertiary);
+}
+
+.caution {
+  color: var(--text-primary);
+}
+
+.warn {
+  color: var(--color-danger);
+  line-height: var(--line-height-relaxed);
+}
+
+.scale {
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ── Bitcrush controls ── */
+.crush {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-secondary);
+}
+
+.crushRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.crushLabel {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+  min-width: 11rem;
+}
+
+.slider {
+  flex: 1 1 8rem;
+  min-width: 8rem;
+  accent-color: var(--text-primary);
+}
+
+.fitBtns {
+  display: flex;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}

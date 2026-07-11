@@ -45,6 +45,14 @@ export default defineConfig({
       devOptions: { enabled: false }, // SW only in production build; dev server is untouched
     }),
   ],
+  // Dev over Tailscale (walking the app from another machine): allow any host and let the HMR
+  // client dial the same host:port it loaded from, so the live-reload WebSocket upgrades cleanly
+  // instead of logging "Connection header did not include 'upgrade'". Dev-only.
+  server: {
+    host: true,
+    allowedHosts: true,
+    hmr: { clientPort: 5173 },
+  },
   resolve: {
     alias: { '@': resolve(__dirname, 'src') },
   },
