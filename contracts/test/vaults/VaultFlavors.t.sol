@@ -27,6 +27,7 @@ contract VaultFlavorsTest is Test {
     address constant STUB_CYPHER_PM = address(0xADD1);
     address constant STUB_CYPHER_ROUTER = address(0xADD2);
     address constant STUB_STATA = address(0xADD3);
+    address constant STUB_CYPHER_FACTORY = address(0xADD4);
 
     bytes constant RETURN_TRUE = hex"600160005260206000f3";
 
@@ -59,6 +60,7 @@ contract VaultFlavorsTest is Test {
         cfg.v4PoolManager = address(1);
         cfg.cypherPositionManager = STUB_CYPHER_PM;
         cfg.cypherRouter = STUB_CYPHER_ROUTER;
+        cfg.cypherAlgebraFactory = STUB_CYPHER_FACTORY; // O2: Cypher vault needs its Algebra factory wired
         cfg.zamm = STUB_ZAMM;
         cfg.aaveStataToken = STUB_STATA;
         cfg.saltMasterRegistry = bytes32(uint256(1));

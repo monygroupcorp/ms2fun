@@ -139,7 +139,7 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
                     amount1Desired: amount1,
                     amount0Min: amount0 * 99 / 100, // 1% slippage tolerance
                     amount1Min: amount1 * 99 / 100,
-                    recipient: p.vault,
+                    recipient: p.instance,
                     deadline: block.timestamp + 15 minutes
                 })
             );
@@ -148,7 +148,9 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
 
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events,timestamp
     function _postMint(ILiquidityDeployerModule.DeployParams calldata p, PoolSetupResult memory r) private {
-        CypherAlignmentVault(payable(p.vault)).registerPosition(r.tokenId, r.pool, r.tokenIsZero, p.instance, r.ethToLP);
+        // D2 — decoupled launch LP: the graduation position is now owned by p.instance (minted to it
+        // above), NOT the vault. The vault's own LP position is its reference-priced ALIGNMENT position
+        // built via convertAndAddLiquidity, so the module no longer registers a launch position here.
         // 1% → protocol treasury
         if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
