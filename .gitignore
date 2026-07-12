@@ -85,3 +85,10 @@ playwright-report/
 
 # Stray Foundry fuzz cache when forge is run from the repo root (contracts/cache is already ignored)
 /cache/
+
+# Forge-installed dependencies. These are independent forge-install repos (solady, forge-std, v4-core,
+# zRouter, zamm, ...), never tracked here. contracts/.gitignore already ignores `lib/` for the directory
+# form, but a trailing-slash rule does NOT match a symlink — which is how a self-referential `contracts/lib`
+# symlink got committed once (noesis-040). This anchored, slash-less rule ignores the path regardless of
+# type (dir OR symlink), so the landmine can never re-materialize into the index.
+contracts/lib
