@@ -23,6 +23,7 @@ contract DeployAnvil is DeployCore {
     address constant ZAMM = 0x000000000000040470635EB91b7CE4D132D616eD;
     // Cypher = Algebra Integral on Ethereum mainnet (live — verified on the fork; addresses from the
     // camel404 mainnet deployment). Enables the Cypher LP vault family.
+    address constant CYPHER_ALGEBRA_FACTORY = 0xfb8Ed3485EfA29a0e4bed93351dD51B59fC4b0f0;
     address constant CYPHER_POSITION_MANAGER = 0x0a984a446A116335ac90425d2D1E69A7199A2f7c;
     address constant CYPHER_SWAP_ROUTER = 0x20C5893f69F635f55b0367C519F3f95e59c0b0Ab;
 
@@ -64,6 +65,7 @@ contract DeployAnvil is DeployCore {
         cfg.v4PoolManager = V4_PM;
         cfg.v3Factory = V3_FACTORY;
         cfg.v2Factory = V2_FACTORY;
+        cfg.cypherAlgebraFactory = CYPHER_ALGEBRA_FACTORY; // Algebra Integral factory — live on the fork
         cfg.cypherPositionManager = CYPHER_POSITION_MANAGER; // Cypher (Algebra Integral) — live on the fork
         cfg.cypherRouter = CYPHER_SWAP_ROUTER;
         cfg.zamm = ZAMM; // ZAMM LP family — live on the mainnet fork
