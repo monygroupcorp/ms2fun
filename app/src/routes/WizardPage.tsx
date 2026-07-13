@@ -667,6 +667,11 @@ export function WizardPage() {
                 and the <b>~20% alignment</b> are fixed on-chain —{' '}
                 <b>they can&rsquo;t be undone.</b>
               </div>
+              {!metadata.image.trim() && (
+                <p className={styles.bindNote}>
+                  Launching without a cover image — you can add one anytime after.
+                </p>
+              )}
               <DeployGasBreakdown
                 breakdown={embedBreakdownData}
                 liveGas={gasEstimate.gas}

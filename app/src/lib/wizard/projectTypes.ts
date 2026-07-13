@@ -45,6 +45,7 @@ const vaultSlot: ModuleSlot = {
   tag: 'vault',
   required: true,
   help: 'Aave endowment vault (pending T4)',
+  learnMore: 'alignment-vault',
   pendingProvider: true,
 }
 
