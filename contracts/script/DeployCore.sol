@@ -285,8 +285,14 @@ contract DeployCore is Script {
 
         if (cfg.cypherPositionManager != address(0)) {
             CypherAlignmentVault cypherImpl = new CypherAlignmentVault();
-            cypherVaultFactory =
-                new CypherAlignmentVaultFactory(address(cypherImpl), IVaultPriceValidator(address(priceValidator)));
+            cypherVaultFactory = new CypherAlignmentVaultFactory(
+                address(cypherImpl),
+                IVaultPriceValidator(address(priceValidator)),
+                cfg.cypherAlgebraFactory,
+                address(zrouter),
+                address(0), // zQuoter: best-route disabled at deploy; wire a chain-specific zQuoter later
+                alignmentRegistry
+            );
         }
 
         if (cfg.zamm != address(0)) {
@@ -376,7 +382,7 @@ contract DeployCore is Script {
                         cfg.weth,
                         t.token,
                         address(treasury),
-                        address(0)
+                        targetId
                     )
                 );
                 MasterRegistryV1(masterRegistry)

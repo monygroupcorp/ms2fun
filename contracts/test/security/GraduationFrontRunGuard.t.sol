@@ -20,6 +20,7 @@ import { MockVault } from "../mocks/MockVault.sol";
 import { MockWETH } from "../mocks/MockWETH.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { MockAlgebraFactory, MockAlgebraPositionManager, MockAlgebraSwapRouter } from "../mocks/MockCypherAlgebra.sol";
+import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 
 /**
@@ -135,12 +136,14 @@ contract CypherFrontRunGuardTest is Test {
     MockERC20 token;
     MockWETH weth;
     MockMasterRegistry registry;
+    MockAlignmentRegistry alignmentRegistry;
 
     address protocolTreasury = makeAddr("treasury");
     address instance;
 
     uint256 constant ETH_RESERVE = 1 ether;
     uint256 constant TOKEN_RESERVE = 1000e18;
+    uint256 constant TARGET_ID = 1;
 
     function setUp() public {
         algebraFactory = new MockAlgebraFactory();
@@ -149,6 +152,9 @@ contract CypherFrontRunGuardTest is Test {
         token = new MockERC20("Token", "TKN");
         weth = new MockWETH();
         registry = new MockMasterRegistry();
+        alignmentRegistry = new MockAlignmentRegistry();
+        alignmentRegistry.setTargetActive(TARGET_ID, true);
+        alignmentRegistry.setTokenInTarget(TARGET_ID, address(token), true);
         instance = address(this);
 
         deployer = new CypherLiquidityDeployerModule(
@@ -160,11 +166,15 @@ contract CypherFrontRunGuardTest is Test {
         vault.initialize(
             address(positionManager),
             address(swapRouter),
+            address(algebraFactory),
             address(weth),
             address(token),
             protocolTreasury,
-            address(deployer),
-            address(0)
+            address(0), // zRouter
+            address(0), // zQuoter
+            address(0), // priceValidator inert
+            alignmentRegistry,
+            TARGET_ID
         );
     }
 
@@ -213,7 +223,8 @@ contract CypherFrontRunGuardTest is Test {
         IAlgebraPool(pool).initialize(_intendedSqrtPrice());
 
         _deploy();
-        assertGt(vault.lpTokenId(), 0, "graduation must complete despite benign pre-init");
+        // D2: the launch position is minted to the instance (tokenId 1), not registered on the vault.
+        assertEq(positionManager.ownerOf(1), instance, "graduation must complete despite benign pre-init");
     }
 
     /// @notice Attacker only pre-CREATES the pool (uninitialized) — the old unconditional createPool
@@ -221,7 +232,7 @@ contract CypherFrontRunGuardTest is Test {
     function test_cypher_frontRun_createdButUninitialized_success() public {
         algebraFactory.createPool(address(token), address(weth), ""); // exists but price == 0
         _deploy();
-        assertGt(vault.lpTokenId(), 0, "graduation must complete on a pre-created uninitialized pool");
+        assertEq(positionManager.ownerOf(1), instance, "graduation must complete on a pre-created uninitialized pool");
     }
 }
 
