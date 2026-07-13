@@ -568,7 +568,7 @@ export function WizardPage() {
               The collection&rsquo;s page — name, description, and imagery. This is what visitors
               meet.
             </p>
-            <CollectionMetaForm onChange={handleMetadata} />
+            <CollectionMetaForm initial={metadata} onChange={handleMetadata} />
             {missingName && <p className={styles.error}>a collection name is required</p>}
             {pt.coreFields.some((f) => f.key === 'styleUri') && (
               <div className={styles.formBlock}>
