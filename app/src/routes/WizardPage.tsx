@@ -160,11 +160,11 @@ export function WizardPage() {
     if (stepKey === 'review') setAttempted(true)
   }, [stepKey])
 
-  if (!projectType) return null
-  // Stable non-null binding so the step-body / slot closures keep the narrowing.
-  const pt = projectType
-
-  const coreErrors = attempted ? validateFields(pt.coreFields, values) : {}
+  // NB: every hook below MUST run unconditionally, so the `if (!projectType) return null` guard is
+  // deferred to just before the render body (below the last hook). Uses of `projectType` up here are
+  // null-safe (`projectType?.coreFields ?? []`); they're inert while it's undefined (the component
+  // still returns null in that case) and identical to `pt.coreFields` once it's non-null.
+  const coreErrors = attempted ? validateFields(projectType?.coreFields ?? [], values) : {}
   const busy = submit.isPending || submit.isConfirming
 
   // Config form for the selected gating module (currently only password-tier-gating has inputs).
@@ -203,7 +203,9 @@ export function WizardPage() {
       const bad = validateCollectionName(metadata.name)
       if (bad) out.push(`Collection name: ${bad.toLowerCase()} — Collection page step.`)
       else if (nameStatus.state === 'taken')
-        out.push(`Collection name “${metadata.name.trim()}” is already taken — Collection page step.`)
+        out.push(
+          `Collection name “${metadata.name.trim()}” is already taken — Collection page step.`,
+        )
     }
     if (!wallet) out.push('Connect your wallet.')
     if (ownerNeedsAgent)
@@ -211,7 +213,7 @@ export function WizardPage() {
         'Creator is a different address and your wallet isn’t a registered agent — clear it or use your own wallet (Contract step).',
       )
     if (!vault) out.push('Select an alignment vault — Alignment step.')
-    if (Object.keys(validateFields(pt.coreFields, values)).length > 0)
+    if (Object.keys(validateFields(projectType?.coreFields ?? [], values)).length > 0)
       out.push('Complete the contract details — Contract step.')
     if (
       showGatingForm &&
@@ -238,7 +240,9 @@ export function WizardPage() {
       ...(modules.tier ? { tier: modules.tier } : {}),
     }
     const gatingConfig =
-      modules.gatingModule && hasTierConfig(gatingValues) ? encodeTierConfig(gatingValues) : undefined
+      modules.gatingModule && hasTierConfig(gatingValues)
+        ? encodeTierConfig(gatingValues)
+        : undefined
     const metadataConfig = anyMetaModule
       ? encodeMetadataConfig(metaSelection, metaValues)
       : undefined
@@ -265,6 +269,11 @@ export function WizardPage() {
       : undefined
   const gasEstimate = useDeployGasEstimate(reviewCall, wallet)
   const embedBreakdownData = useMemo(() => embedBreakdown(metadata), [metadata])
+
+  // All hooks have run — safe to bail now. Stable non-null binding so the step-body / slot closures
+  // below keep the narrowing.
+  if (!projectType) return null
+  const pt = projectType
 
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
@@ -593,7 +602,9 @@ export function WizardPage() {
                 name={metadata.name}
                 description={metadata.description}
                 image={metadata.image}
-                contractType={typeKey === 'erc404' ? 'ERC404' : typeKey === 'erc721' ? 'ERC721' : 'ERC1155'}
+                contractType={
+                  typeKey === 'erc404' ? 'ERC404' : typeKey === 'erc721' ? 'ERC721' : 'ERC1155'
+                }
                 vaultName={vault ? vaultLabel : ''}
                 className={styles.reviewFrame}
               />
@@ -757,4 +768,3 @@ export function WizardPage() {
     </div>
   )
 }
-

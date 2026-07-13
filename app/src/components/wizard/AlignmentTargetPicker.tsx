@@ -91,10 +91,7 @@ export function AlignmentTargetPicker({
     [vaults, targetId],
   )
   const groups = useMemo(() => groupVaultsByFamily(targetVaults), [targetVaults])
-  const presentVenues = useMemo(
-    () => new Set(targetVaults.map((v) => v.venue)),
-    [targetVaults],
-  )
+  const presentVenues = useMemo(() => new Set(targetVaults.map((v) => v.venue)), [targetVaults])
   const missingVenues = ALL_VENUES.filter((c) => !presentVenues.has(c.venue))
 
   // A vault count per target for the roster cards.
@@ -114,7 +111,8 @@ export function AlignmentTargetPicker({
 
   if (isPending || targetsPending)
     return <StateBlock variant="loading">loading alignment targets…</StateBlock>
-  if (isError) return <StateBlock variant="error">could not load vaults — is the fork up?</StateBlock>
+  if (isError)
+    return <StateBlock variant="error">could not load vaults — is the fork up?</StateBlock>
   if (targets.length === 0)
     return (
       <StateBlock variant="empty" boxed>

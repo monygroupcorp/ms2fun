@@ -181,7 +181,8 @@ export function ImageSourceInput({
   const isEmbed = value.trim().startsWith('data:')
   const embedBytes = isEmbed ? onChainBytes(value) : 0
   const gas = estimateEmbedGas(embedBytes)
-  const tone = embedBytes > WARN_BYTES ? styles.warn : embedBytes > OK_BYTES ? styles.caution : styles.ok
+  const tone =
+    embedBytes > WARN_BYTES ? styles.warn : embedBytes > OK_BYTES ? styles.caution : styles.ok
   const out = dims ? fitDims(dims.w, dims.h, edge) : null
 
   return (
@@ -203,7 +204,11 @@ export function ImageSourceInput({
           aria-label={`${label} link`}
         />
         <span className={styles.or}>or</span>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => fileRef.current?.click()}>
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          onClick={() => fileRef.current?.click()}
+        >
           Embed a file on-chain
         </button>
         <input
@@ -244,7 +249,11 @@ export function ImageSourceInput({
                       : 'Small enough to embed cheaply.'}
                 </span>
                 {hasSource && (
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setCropping((c) => !c)}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setCropping((c) => !c)}
+                  >
                     {cropping ? 'Close crop' : 'Crop'}
                   </button>
                 )}
@@ -309,7 +318,12 @@ export function ImageSourceInput({
             <span className={styles.crushLabel}>Fit to</span>
             <div className={styles.fitBtns}>
               {FIT_TARGETS.map((kb) => (
-                <button key={kb} type="button" className="btn btn-sm btn-ghost" onClick={() => fitTo(kb)}>
+                <button
+                  key={kb}
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => fitTo(kb)}
+                >
                   {kb} KB
                 </button>
               ))}

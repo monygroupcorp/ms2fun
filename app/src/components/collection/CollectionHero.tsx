@@ -92,8 +92,8 @@ export function CollectionHero({ instance, card, metadata, primary }: Collection
               </div>
             </div>
             <p className={styles.who}>
-              Aligned to <b>{vaultLabel}</b> — ~20% of fees bind to its vault on every mint, forever.{' '}
-              <b>The creator can&rsquo;t walk.</b>
+              Aligned to <b>{vaultLabel}</b> — ~20% of fees bind to its vault on every mint,
+              forever. <b>The creator can&rsquo;t walk.</b>
             </p>
           </div>
         )}

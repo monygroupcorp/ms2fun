@@ -14,7 +14,9 @@ describe('validateCollectionName', () => {
 
   it('rejects punctuation and unicode', () => {
     for (const bad of ['hello!', 'a.b', 'café', 'emoji😀', 'a/b'])
-      expect(validateCollectionName(bad), bad).toBe('Letters, numbers, hyphens, and underscores only.')
+      expect(validateCollectionName(bad), bad).toBe(
+        'Letters, numbers, hyphens, and underscores only.',
+      )
   })
 
   it('rejects empty and over-long names', () => {

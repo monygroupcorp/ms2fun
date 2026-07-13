@@ -61,7 +61,10 @@ export function ImageCropper({ srcUrl, bitmap, presets, onApply, onCancel }: Ima
 
   function toNorm(e: React.PointerEvent) {
     const b = boxRef.current!.getBoundingClientRect()
-    return { nx: clamp01((e.clientX - b.left) / b.width), ny: clamp01((e.clientY - b.top) / b.height) }
+    return {
+      nx: clamp01((e.clientX - b.left) / b.width),
+      ny: clamp01((e.clientY - b.top) / b.height),
+    }
   }
 
   function onDown(mode: 'move' | Handle) {
@@ -111,7 +114,7 @@ export function ImageCropper({ srcUrl, bitmap, presets, onApply, onCancel }: Ima
     }
 
     // Locked ratio: width from the horizontal drag, height derived, both scaled to stay in bounds.
-    let rw = Math.max(MIN, Math.abs((growRight ? s.w + dx : s.w - dx)))
+    let rw = Math.max(MIN, Math.abs(growRight ? s.w + dx : s.w - dx))
     let rh = (rw * W) / (H * aspect)
     const maxW = growRight ? 1 - ax : ax
     const maxH = growDown ? 1 - ay : ay
