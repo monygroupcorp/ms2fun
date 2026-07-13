@@ -9,6 +9,7 @@
 import { useApprovedModules } from '../../lib/wizard/useApprovedModules'
 import type { ModuleSlot } from '../../lib/wizard/schema'
 import { LearnLink } from './LearnLink'
+import { moduleConceptSlug } from '../../lib/learn/moduleConcepts'
 import styles from './ModuleSlotPicker.module.css'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -93,6 +94,7 @@ export function ModuleSlotPicker({ slot, value, onChange }: ModuleSlotPickerProp
       <div className={styles.options}>
         {resolvedOptions.map((opt) => {
           const isSelected = value === opt.address
+          const conceptSlug = moduleConceptSlug(opt.meta.configType)
           return (
             <button
               key={opt.address}
@@ -112,6 +114,13 @@ export function ModuleSlotPicker({ slot, value, onChange }: ModuleSlotPickerProp
               )}
               {opt.meta.description !== '' && (
                 <p className={styles.optionDescription}>{opt.meta.description}</p>
+              )}
+              {conceptSlug && (
+                // Stop the click from bubbling to the card's select onClick — reading the doc
+                // (new tab) must never select the module.
+                <span onClick={(e) => e.stopPropagation()}>
+                  <LearnLink slug={conceptSlug} />
+                </span>
               )}
             </button>
           )
