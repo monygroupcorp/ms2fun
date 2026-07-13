@@ -7,6 +7,7 @@ import { StateBlock } from '../ui/StateBlock'
 import { groupVaultsByFamily, venueLabel, type VaultFamily } from '../../lib/wizard/vaultFlavor'
 import type { RegisteredVault } from './useRegisteredVaults'
 import { truncateAddress } from '../../lib/format'
+import { LearnLink } from './LearnLink'
 import styles from './AlignmentTargetPicker.module.css'
 
 /** The full venue catalog, so a target missing a venue can surface a "create it" affordance. */
@@ -138,6 +139,10 @@ export function AlignmentTargetPicker({
     <div className={styles.wrap}>
       {/* Level 1 — the community. */}
       <h3 className={styles.sectionTitle}>Community</h3>
+      <p className={styles.help}>
+        Every collection binds ~20% of its fees to a vault aligned with the community you pick.{' '}
+        <LearnLink slug="alignment-vault" />
+      </p>
       <div className={styles.targetGrid}>
         {targets.map((t) => (
           <TargetCard
