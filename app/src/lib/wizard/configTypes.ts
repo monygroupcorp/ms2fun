@@ -113,6 +113,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         label: 'Allowlisted addresses',
         kind: 'list',
         help: 'Merkle root computed client-side at submit',
+        learnMore: 'merkle-allowlist',
         item: {
           key: 'address',
           label: 'Address',
