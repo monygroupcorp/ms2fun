@@ -3,6 +3,7 @@ import { collectionToDataUri, type CollectionMetadata, type ProfileLink } from '
 import { NAME_MAX, toSlug } from '../../lib/wizard/collectionName'
 import styles from './CollectionMetaForm.module.css'
 import { ImageSourceInput } from './ImageSourceInput'
+import { LearnLink } from './LearnLink'
 import { useNameAvailability } from './useNameAvailability'
 
 export interface CollectionMetaFormProps {
@@ -202,27 +203,37 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
         />
       </div>
 
-      <ImageSourceInput
-        id="cmf-image"
-        label="Cover image"
-        value={image}
-        onChange={handleImage}
-        aspect="square"
-        maxEdge={512}
-        marginalBytes={(uri) => marginalBytes('image', uri)}
-        help="The square thumbnail shown on cards and the collection header. Host it anywhere permanent — IPFS or Arweave (recommended, permanent), or any HTTPS link you control — and paste the URL. We never store it for you. No link? Embed a small copy on-chain instead."
-      />
+      <div className={styles.field}>
+        <ImageSourceInput
+          id="cmf-image"
+          label="Cover image"
+          value={image}
+          onChange={handleImage}
+          aspect="square"
+          maxEdge={512}
+          marginalBytes={(uri) => marginalBytes('image', uri)}
+          help="You can launch without a cover and add or reveal art anytime after. A ready collection tends to do better — but that's your call. Host it anywhere permanent (IPFS, Arweave, or any HTTPS link you control) and paste the URL, or embed a small copy on-chain."
+        />
+        <p className={styles.help}>
+          <LearnLink slug="withholding-art" /> · <LearnLink slug="onchain-image-cost" />
+        </p>
+      </div>
 
-      <ImageSourceInput
-        id="cmf-banner"
-        label="Banner image"
-        value={banner}
-        onChange={handleBanner}
-        aspect="wide"
-        maxEdge={1200}
-        marginalBytes={(uri) => marginalBytes('banner', uri)}
-        help="Optional wide banner. Its main job is to populate the on-chain metadata that DEX charts (DEXScreener / DEXtools) read — so your chart shows a banner without paying for a listing upgrade. Paste a hosted link, or embed a small copy on-chain."
-      />
+      <div className={styles.field}>
+        <ImageSourceInput
+          id="cmf-banner"
+          label="Banner image"
+          value={banner}
+          onChange={handleBanner}
+          aspect="wide"
+          maxEdge={1200}
+          marginalBytes={(uri) => marginalBytes('banner', uri)}
+          help="Optional wide banner. Its main job is to populate the on-chain metadata that DEX charts (DEXScreener / DEXtools) read — so your chart shows a banner without paying for a listing upgrade. Paste a hosted link, or embed a small copy on-chain."
+        />
+        <p className={styles.help}>
+          <LearnLink slug="cover-vs-banner" />
+        </p>
+      </div>
 
       {/* Links */}
       <div className={styles.section}>
