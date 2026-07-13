@@ -174,6 +174,7 @@ const erc404: ProjectTypeSchema = {
       tag: 'overlay',
       required: false,
       help: 'Augmentation layer: event waves + paid commissions (configured post-create)',
+      learnMore: 'metadata-overlay',
     },
     {
       key: 'tier',
@@ -181,6 +182,7 @@ const erc404: ProjectTypeSchema = {
       tag: 'tier',
       required: false,
       help: 'Rarity-by-ownership reveal; tier table is set at create (immutable)',
+      learnMore: 'tier-reveal',
     },
   ],
 }
