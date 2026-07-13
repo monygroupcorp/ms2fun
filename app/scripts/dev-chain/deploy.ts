@@ -304,6 +304,8 @@ async function main(): Promise<void> {
       ProtocolTreasuryV1: required(c, 'ProtocolTreasury'),
       QueryAggregator: required(c, 'QueryAggregator'),
       ERC404Factory: required(f, 'ERC404'),
+      // Refundable creator deploy-bond escrow (N12) — the wizard reads bondAmount() off it.
+      DeployBondEscrow: required(c, 'DeployBondEscrow'),
       ERC1155Factory: required(f, 'ERC1155'),
       ERC721AuctionFactory: required(f, 'ERC721'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
