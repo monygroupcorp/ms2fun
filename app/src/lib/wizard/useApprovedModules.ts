@@ -42,6 +42,19 @@ const COMPONENT_META_ABI = [
   },
 ] as const
 
+// The label the registry owner set at `approveComponent(component, tag, name)`. It lives on the
+// registry, not the module, so it survives modules that expose no `metadataURI` of their own (e.g.
+// ERC404StakingModule reverts on every getter). Used as the display-name fallback.
+const REGISTRY_NAME_ABI = [
+  {
+    type: 'function',
+    name: 'componentName',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'string' }],
+  },
+] as const
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -84,18 +97,35 @@ export function useApprovedModules(tag: ComponentTag): {
 
       return Promise.all(
         addresses.map(async (address): Promise<ModuleOption> => {
-          try {
-            const uri = await client.readContract({
-              address,
-              abi: COMPONENT_META_ABI,
-              functionName: 'metadataURI',
-            })
-            const json = uri ? await fetchJson(uri) : null
-            return { address, meta: parseComponentMeta(json) }
-          } catch {
-            // Unreachable module or bad ABI — include with empty meta so it's not silently dropped.
-            return { address, meta: parseComponentMeta(null) }
-          }
+          // Read the module's own metadata and the registry's stored label independently — a module
+          // that reverts on `metadataURI` (ERC404StakingModule reverts on every getter) must still
+          // get its registry name, or the card renders as a bare address.
+          const [meta, registryName] = await Promise.all([
+            (async () => {
+              try {
+                const uri = await client.readContract({
+                  address,
+                  abi: COMPONENT_META_ABI,
+                  functionName: 'metadataURI',
+                })
+                return parseComponentMeta(uri ? await fetchJson(uri) : null)
+              } catch {
+                // Unreachable module or bad ABI — empty meta so the option is not silently dropped.
+                return parseComponentMeta(null)
+              }
+            })(),
+            client
+              .readContract({
+                address: forkAddresses.ComponentRegistry,
+                abi: REGISTRY_NAME_ABI,
+                functionName: 'componentName',
+                args: [address],
+              })
+              .catch(() => ''),
+          ])
+          // Prefer the module's own name; fall back to the registry label so every card is named.
+          if (meta.name === '' && registryName !== '') meta.name = registryName
+          return { address, meta }
         }),
       )
     },

@@ -22,12 +22,18 @@ export interface ProfileMetadata {
   socials: Record<string, string> // e.g. { x: "...", farcaster: "..." }
 }
 
-/** Collection metadata behind `MasterRegistry.instanceInfo[instance].metadataURI`. */
+/**
+ * Collection metadata behind `MasterRegistry.instanceInfo[instance].metadataURI`.
+ *
+ * NOTE: the on-chain JSON uses ERC-7572 key names (`banner_image`, `external_link`) so marketplaces
+ * can read it; these in-memory names are ours. The mapping lives in `encode.ts` / `parseCollection`.
+ */
 export interface CollectionMetadata {
   schemaVersion: number
   name: string
   description: string
   image: string
+  /** Serialized as `banner_image`. */
   banner: string
   category: string
   links: ProfileLink[]
@@ -81,8 +87,18 @@ export function parseCollection(json: unknown): CollectionMetadata {
     name: str(o.name),
     description: str(o.description),
     image: str(o.image),
-    banner: str(o.banner),
+    // ERC-7572 spells it `banner_image`; `banner` is our pre-7572 key, still read so collections
+    // written before the rename (and any third-party JSON) keep rendering.
+    banner: str(o.banner_image) || str(o.banner),
     category: str(o.category),
-    links: links(o.links),
+    // `external_link` is derived from links[0] on write, so it needs no read-back — but a
+    // third-party collection may carry only `external_link`. Surface it as the sole link.
+    links: links(o.links).length > 0 ? links(o.links) : externalLink(o.external_link),
   }
+}
+
+/** An ERC-7572 `external_link` promoted to our labelled-link shape. */
+function externalLink(v: unknown): ProfileLink[] {
+  const url = str(v)
+  return HTTP_URL_RE.test(url) ? [{ label: 'Website', url }] : []
 }

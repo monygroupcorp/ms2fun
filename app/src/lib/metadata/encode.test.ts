@@ -140,6 +140,48 @@ describe('buildCollectionJson', () => {
     expect(obj).not.toHaveProperty('links')
   })
 
+  it('serializes ERC-7572 wire keys, not our in-memory field names', () => {
+    const c: CollectionMetadata = {
+      schemaVersion: 1,
+      name: 'My Drop',
+      description: '',
+      image: '',
+      banner: 'https://example.com/banner.png',
+      category: '',
+      links: [{ label: 'Docs', url: 'https://docs.example.com' }],
+    }
+    const obj = JSON.parse(buildCollectionJson(c))
+    // Marketplaces read these; MasterRegistry is not a thing they know about.
+    expect(obj.banner_image).toBe('https://example.com/banner.png')
+    expect(obj.external_link).toBe('https://docs.example.com')
+    expect(obj).not.toHaveProperty('banner')
+  })
+
+  it('omits external_link when there are no links', () => {
+    const c: CollectionMetadata = {
+      schemaVersion: 1,
+      name: 'No Links',
+      description: '',
+      image: '',
+      banner: '',
+      category: '',
+      links: [],
+    }
+    const obj = JSON.parse(buildCollectionJson(c))
+    expect(obj).not.toHaveProperty('external_link')
+    expect(obj).not.toHaveProperty('banner_image')
+  })
+
+  it('reads back a pre-rename `banner` key', () => {
+    const parsed = parseCollection({ name: 'Old', banner: 'https://example.com/old.png' })
+    expect(parsed.banner).toBe('https://example.com/old.png')
+  })
+
+  it('promotes a third-party `external_link` to a labelled link', () => {
+    const parsed = parseCollection({ name: 'Foreign', external_link: 'https://foreign.xyz' })
+    expect(parsed.links).toEqual([{ label: 'Website', url: 'https://foreign.xyz' }])
+  })
+
   it('round-trips through parseCollection for a fully-populated collection', () => {
     const c: CollectionMetadata = {
       schemaVersion: 3,
