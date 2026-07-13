@@ -242,6 +242,45 @@
   margin: var(--space-3) 0 0;
 }
 
+.help {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-tertiary);
+  line-height: var(--line-height-relaxed);
+  margin: var(--space-3) 0 0;
+}
+
+.reviewFrame {
+  width: 100%;
+  height: 30rem;
+  border: 1px solid var(--border-secondary);
+  background-color: var(--color-bg);
+}
+
+.blockers {
+  margin: var(--space-3) 0 0;
+  border-left: var(--border-width-thick, 2px) solid var(--color-text);
+  padding-left: var(--space-3);
+}
+
+.blockersHead {
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text);
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+}
+
+.blockersList {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
 /* C register — Review: live preview | deploy summary. */
 .reviewGrid {
   display: grid;

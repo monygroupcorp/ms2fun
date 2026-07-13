@@ -15,6 +15,8 @@
  * React/wagmi — so both consumers reuse it.
  */
 
+import { isAddress } from 'viem'
+
 /** Renderable input kinds. `group` nests `fields`; `list` repeats `item`. */
 export type FieldKind =
   | 'text'
@@ -189,10 +191,16 @@ export function validateField(
   if (isEmpty) return null // optional + empty → valid
 
   switch (field.kind) {
-    case 'address':
+    case 'address': {
       if (typeof value !== 'string' || !ADDRESS_RE.test(value))
         return rules?.message ?? `${field.label} must be a 0x address`
+      // EIP-55: a mixed-case address whose checksum doesn't verify is almost always a typo — reject it
+      // rather than let it become a permanent owner. All-lowercase/all-uppercase carry no checksum and
+      // pass. `isAddress(strict:true)` does the shape + checksum check.
+      if (!isAddress(value, { strict: true }))
+        return `${field.label} has an invalid checksum — re-paste the exact address`
       break
+    }
     case 'number':
     case 'bigint': {
       const n = Number(value)

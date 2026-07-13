@@ -55,28 +55,24 @@ const erc404: ProjectTypeSchema = {
   factory: 'ERC404Factory',
   summary: 'Hybrid ERC-20/ERC-721 bonding-curve collection with optional free mint and staking.',
   coreFields: [
-    {
-      key: 'name',
-      label: 'Name',
-      kind: 'text',
-      validation: { required: true },
-    },
+    // `name` is authored once on the "Collection page" step (CollectionMetaForm) and mirrored into
+    // the create params — not a coreField, to avoid two Name inputs that could drift apart.
     {
       key: 'symbol',
       label: 'Symbol',
       kind: 'text',
       validation: { required: true },
     },
+    // NOTE: `metadataURI` is NOT a coreField — it is authored on the "Collection page" step by
+    // CollectionMetaForm and assembled at submit (collectionToDataUri). A raw text field here was
+    // dead input (always overwritten) and read as "paste your art", which confused creators.
     {
-      key: 'metadataURI',
-      label: 'Collection metadata',
-      kind: 'text',
-      help: 'Assembled from the collection metadata editor (data:/ipfs URI)',
-      validation: { required: true },
-    },
-    {
-      key: 'owner',
-      label: 'Owner',
+      // Keyed `creator` (not `owner`) to share the wizard's creator plumbing with ERC1155/ERC721:
+      // the autofill effect, `effectiveCreator`, and the agent-delegation gate all read
+      // `values.creator`. The ERC404 builder maps it to the instance `owner` at submit. A field keyed
+      // `owner` here was orphaned — never autofilled and read by nothing.
+      key: 'creator',
+      label: 'Creator',
       kind: 'address',
       help: 'Defaults to the connected wallet',
       validation: { required: true },
@@ -192,19 +188,8 @@ const erc1155: ProjectTypeSchema = {
   factory: 'ERC1155Factory',
   summary: 'Multi-edition ERC-1155 collection with per-edition pricing and optional gating.',
   coreFields: [
-    {
-      key: 'name',
-      label: 'Name',
-      kind: 'text',
-      validation: { required: true },
-    },
-    {
-      key: 'metadataURI',
-      label: 'Collection metadata',
-      kind: 'text',
-      help: 'Assembled from the collection metadata editor (data:/ipfs URI)',
-      validation: { required: true },
-    },
+    // `name` + `metadataURI` are authored on the "Collection page" step (CollectionMetaForm) — name is
+    // mirrored into the create params, metadataURI is assembled at submit. See the ERC-404 note above.
     {
       key: 'creator',
       label: 'Creator',
@@ -302,19 +287,8 @@ const erc721: ProjectTypeSchema = {
   summary:
     'Sequential ERC-721 auction collection with configurable auction lines and anti-snipe buffer.',
   coreFields: [
-    {
-      key: 'name',
-      label: 'Name',
-      kind: 'text',
-      validation: { required: true },
-    },
-    {
-      key: 'metadataURI',
-      label: 'Collection metadata',
-      kind: 'text',
-      help: 'Assembled from the collection metadata editor (data:/ipfs URI)',
-      validation: { required: true },
-    },
+    // `name` + `metadataURI` are authored on the "Collection page" step (CollectionMetaForm) — name is
+    // mirrored into the create params, metadataURI is assembled at submit. See the ERC-404 note above.
     {
       key: 'creator',
       label: 'Creator',

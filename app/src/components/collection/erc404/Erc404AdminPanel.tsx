@@ -11,6 +11,7 @@
  */
 import { useState } from 'react'
 import { formatEther } from 'viem'
+import { useBlock } from 'wagmi'
 import {
   deployBondEscrowAbi,
   erc404BondingInstanceAbi,
@@ -171,12 +172,18 @@ function SetTimeRow({
   })
 
   const seconds = toUnixSeconds(value)
-  const nowSec = BigInt(Math.floor(Date.now() / 1000))
+  // The contract checks `TimeMustBeInFuture` against `block.timestamp`, NOT the browser clock. Those
+  // differ — a mainnet-fork's chain time runs hours ahead of the wall clock, and even on live networks
+  // the two drift — so validating against `Date.now()` lets a value pass the UI and revert on-chain.
+  // Use chain time; fall back to the wall clock only until the first block loads.
+  const { data: block } = useBlock({ chainId: forkChainId, watch: true })
+  const nowSec = block?.timestamp ?? BigInt(Math.floor(Date.now() / 1000))
 
   // Maturity must be > openTime AND in the future; surface the reason inline.
   let invalidReason: string | undefined
   if (seconds !== undefined) {
-    if (seconds <= nowSec) invalidReason = 'must be in the future'
+    if (seconds <= nowSec)
+      invalidReason = `must be after chain time (${new Date(Number(nowSec) * 1000).toISOString()})`
     else if (kind === 'maturity' && openTime !== undefined && seconds <= openTime)
       invalidReason = 'must be after open time'
   }

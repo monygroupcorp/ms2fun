@@ -54,19 +54,30 @@ export function buildProfileJson(p: ProfileMetadata): string {
 }
 
 /**
- * Canonical JSON string for a CollectionMetadata value.
- * Key order: schemaVersion, name, description, image, banner, category, links.
+ * Canonical JSON string for a CollectionMetadata value — the document served by `contractURI()`.
+ *
+ * Wire keys follow **ERC-7572** so marketplaces and indexers (OpenSea, Rarible, Zora…) can read a
+ * collection without knowing about MasterRegistry: `name`, `description`, `image`, `banner_image`,
+ * `external_link`. Our in-memory field names stay `banner` / `links` — the mapping lives here and
+ * nowhere else.
+ *
+ * `links` has no ERC-7572 equivalent (it's a labelled list, `external_link` is one URL), so we keep
+ * it as an extension AND derive `external_link` from the first link. Consumers ignore unknown keys.
+ *
+ * Key order: schemaVersion, name, description, image, banner_image, category, external_link, links.
  * Empty-string / empty-array fields are omitted; schemaVersion is always present.
  */
 export function buildCollectionJson(c: CollectionMetadata): string {
+  const serialized = serializeLinks(c.links)
   const raw: Record<string, unknown> = {
     schemaVersion: c.schemaVersion,
     name: c.name,
     description: c.description,
     image: c.image,
-    banner: c.banner,
+    banner_image: c.banner,
     category: c.category,
-    links: serializeLinks(c.links),
+    external_link: serialized[0]?.url ?? '',
+    links: serialized,
   }
   return JSON.stringify(omitEmpty(raw))
 }

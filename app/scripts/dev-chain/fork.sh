@@ -39,7 +39,7 @@ exec anvil \
   --fork-url "$MAINNET_RPC_URL" \
   --chain-id 1337 \
   --port 8545 \
-  --host 127.0.0.1 \
+  --host 0.0.0.0 \
   --accounts 10 \
   --balance 10000 \
   --code-size-limit 30000
