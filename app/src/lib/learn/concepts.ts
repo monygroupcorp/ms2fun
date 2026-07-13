@@ -210,6 +210,58 @@ A tier-1 can itself be a stepping stone to tier-2 under the same rule.
 `,
     related: ['token-standard'],
   },
+  'metadata-overlay': {
+    title: 'Artist overlay',
+    summary:
+      'An augmentation layer added after launch: cohort event waves and paid per-piece commissions, layered over the base art.',
+    body: `
+The artist overlay is a metadata module you **wire in at create** and then author over the life of the collection. The wiring is frozen at deploy; the *content* — event waves and commissions — is added later from the creator-admin panel, never in the create transaction. Only **two policy flags** are set at create:
+
+- **Auto-apply latest wave** — when on, the newest eligible event wave shows automatically until a holder pins a specific version. When off, holders opt in.
+- **Default commission payout** — where a paid commission's revenue goes by default: entirely to the **artist**, or **split** across protocol, alignment vault, and artist.
+
+Two kinds of overlay content:
+
+- **Event waves** — cohort-wide art drops. Waves are **append-only**: once published, a wave's terms are immutable, and a piece's event art is that wave's art for its id. You add waves over time; you don't edit or delete them.
+- **Per-piece commissions** — bespoke art for a single token id. A commission can be free or paid; once a buyer **pays**, that commission **locks** (buyer protection — it can't be changed out from under them).
+
+The collection's **base art is never overwritten** — the overlay augments it, and a holder can always fall back to the base.
+`,
+    related: ['tier-reveal', 'token-standard'],
+  },
+  'tier-reveal': {
+    title: 'Tier reveal',
+    summary:
+      'Rarity-by-ownership: a piece reveals its rare art only while the holder clears a holdings threshold. The tier table is set at create and never changes.',
+    body: `
+Tier reveal ties a piece's artwork to **how much of the collection its holder owns**. You define ranges of token ids, and for each range a **minimum-holdings threshold** and a **revealed base URI** (optionally also a *locked* teaser URI).
+
+- A piece in a range shows its **revealed** art only while the holder's **effective holdings** — wallet balance **plus staked balance** — clear that tier's threshold.
+- Below the threshold, the piece shows the **locked** URI, or falls through to the collection's base art if you leave locked blank.
+- Reveal is **live and reversible**: it follows current holdings, so a piece re-locks if the holder sells below the threshold.
+
+Rules the wizard enforces: ranges must be **ascending and non-overlapping**. The tier table is **sealed at create and is immutable** — there is no post-create editing, because mutable rarity would let a creator rug the reveal after buyers have committed.
+
+This is **not** the same as a *tier upgrade*: reveal changes only the **art shown** based on holdings; a tier upgrade moves **pieces** between tiers.
+`,
+    related: ['metadata-overlay', 'tier-upgrade'],
+  },
+  'agent-delegation': {
+    title: 'Agent delegation',
+    summary:
+      'An authorized agent can create a collection on your behalf — but what it may do afterward depends on the standard.',
+    body: `
+An **agent** is a wallet the protocol has registered as authorized to act for creators. An agent can deploy a collection **on your behalf**: the **creator is set to you**, not the agent, regardless of who sent the transaction — so you are the owner from the start.
+
+What an agent can do **after** create depends on the token standard:
+
+- **ERC-1155 and ERC-721** — if you leave **delegation enabled** (it starts on for an agent-created collection), the agent can also **manage** the collection for you: add editions (ERC-1155) or queue auction pieces (ERC-721). You can toggle delegation **off at any time**, and every action remains available to you as the owner.
+- **ERC-404** — an agent can **create** a bonding collection for you, but **cannot manage it afterward**. Every post-create action — opening the curve, deploying liquidity at graduation, claiming fees, setting metadata — is **owner-only**. This create-but-not-manage asymmetry is deliberate: the agent bootstraps the launch, but the live market is yours alone.
+
+In every case the **owner keeps ultimate control**: an agent never becomes the owner, and its authority is a delegation you can withdraw.
+`,
+    related: ['token-standard'],
+  },
   'onchain-image-cost': {
     title: 'Embedding art on-chain',
     summary:
@@ -272,6 +324,9 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
     slugs: ['bonding-curve-graduation', 'mint-fee-and-supply', 'free-mint-reserve'],
   },
   { title: 'Gating', slugs: ['gating-overview', 'password-tier-gating', 'merkle-allowlist'] },
-  { title: 'Modules', slugs: ['tier-upgrade'] },
+  {
+    title: 'Modules',
+    slugs: ['tier-upgrade', 'tier-reveal', 'metadata-overlay', 'agent-delegation'],
+  },
   { title: 'Collection page', slugs: ['onchain-image-cost', 'cover-vs-banner', 'withholding-art'] },
 ]
