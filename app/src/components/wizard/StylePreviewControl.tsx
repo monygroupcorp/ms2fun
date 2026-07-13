@@ -33,7 +33,12 @@ export interface StylePreviewControlProps {
  * and overlays the fetched `styleUri` CSS — so a theme applies pixel-accurately against the actual
  * page markup without leaking into the wizard.
  */
-export function StylePreviewControl({ styleUri, name, description, image }: StylePreviewControlProps) {
+export function StylePreviewControl({
+  styleUri,
+  name,
+  description,
+  image,
+}: StylePreviewControlProps) {
   const [css, setCss] = useState('')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const uriRef = useRef(styleUri)
@@ -106,8 +111,10 @@ export function StylePreviewControl({ styleUri, name, description, image }: Styl
       <p className={styles.hint}>
         Live preview of your collection page (mock data). Theme it by overriding design tokens under{' '}
         <code>body.has-project-style</code> — e.g.{' '}
-        <code>body.has-project-style{'{'}--bg-primary:#0a0a12;--text-primary:#c9b3ff{'}'}</code>. A
-        generic public stylesheet won&rsquo;t match this design system.
+        <code>
+          body.has-project-style{'{'}--bg-primary:#0a0a12;--text-primary:#c9b3ff{'}'}
+        </code>
+        . A generic public stylesheet won&rsquo;t match this design system.
       </p>
     </div>
   )

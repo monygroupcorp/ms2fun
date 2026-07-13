@@ -138,8 +138,8 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
         </label>
         <p className={styles.help}>
           Letters, numbers, hyphens, and underscores &mdash; no spaces. Claimed once, globally and
-          case-insensitively, and you can&rsquo;t rename it later. This becomes your collection&rsquo;s
-          address on the site.
+          case-insensitively, and you can&rsquo;t rename it later. This becomes your
+          collection&rsquo;s address on the site.
         </p>
         <input
           id="cmf-name"
@@ -155,11 +155,15 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
           aria-describedby="cmf-name-status"
         />
         <p id="cmf-name-status" className={styles.nameStatus} aria-live="polite">
-          {nameStatus.state === 'invalid' && <span className={styles.nameBad}>{nameStatus.reason}</span>}
+          {nameStatus.state === 'invalid' && (
+            <span className={styles.nameBad}>{nameStatus.reason}</span>
+          )}
           {nameStatus.state === 'taken' && (
             <span className={styles.nameBad}>&ldquo;{name.trim()}&rdquo; is already taken.</span>
           )}
-          {nameStatus.state === 'checking' && <span className={styles.nameMuted}>Checking&hellip;</span>}
+          {nameStatus.state === 'checking' && (
+            <span className={styles.nameMuted}>Checking&hellip;</span>
+          )}
           {nameStatus.state === 'available' && (
             <span className={styles.nameOk}>Available &middot; /{toSlug(name)}</span>
           )}

@@ -33,7 +33,9 @@
   position: absolute;
   box-sizing: border-box;
   /* Dim everything outside the selection with a huge translucent ring, leaving the crop bright. */
+  /* stylelint-disable-next-line declaration-property-value-allowed-list -- bespoke crop overlay: intentional non-token white/scrim for visibility over arbitrary images */
   box-shadow: 0 0 0 100vmax rgb(0 0 0 / 45%);
+  /* stylelint-disable-next-line color-no-hex -- bespoke crop overlay: intentional non-token white/scrim for visibility over arbitrary images */
   border: 1px solid #fff;
   outline: 1px dashed rgb(0 0 0 / 60%);
   cursor: move;
@@ -43,6 +45,7 @@
   position: absolute;
   width: 12px;
   height: 12px;
+  /* stylelint-disable-next-line color-no-hex, scale-unlimited/declaration-strict-value -- bespoke crop overlay: intentional non-token white/scrim for visibility over arbitrary images */
   background-color: #fff;
   border: 1px solid var(--border-primary);
 }

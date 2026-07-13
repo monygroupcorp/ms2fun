@@ -22,12 +22,7 @@ export interface IframeCanvasProps {
  * wizard. The frame is same-origin (about:blank) so we can reach its document; creator CSS is inert
  * (CSS can't run JS).
  */
-export function IframeCanvas({
-  creatorCss,
-  className,
-  virtualWidth,
-  children,
-}: IframeCanvasProps) {
+export function IframeCanvas({ creatorCss, className, virtualWidth, children }: IframeCanvasProps) {
   const ref = useRef<HTMLIFrameElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const creatorStyleRef = useRef<HTMLStyleElement | null>(null)
@@ -81,7 +76,11 @@ export function IframeCanvas({
     const scale = box.w > 0 ? box.w / virtualWidth : 1
     return (
       <>
-        <div ref={wrapRef} className={className} style={{ position: 'relative', overflow: 'hidden' }}>
+        <div
+          ref={wrapRef}
+          className={className}
+          style={{ position: 'relative', overflow: 'hidden' }}
+        >
           <iframe
             ref={ref}
             title="preview"

@@ -19,8 +19,7 @@ export function DeployGasBreakdown({ breakdown, liveGas, liveLoading }: DeployGa
   const embedGas = breakdown.totalGas
   // Remainder = base contract creation + modules. Only meaningful when the live total is in and
   // exceeds the embeddings (it always should — embeddings are a subset of the tx).
-  const remainder =
-    liveGas !== undefined ? Math.max(0, Number(liveGas) - embedGas) : undefined
+  const remainder = liveGas !== undefined ? Math.max(0, Number(liveGas) - embedGas) : undefined
 
   return (
     <div className={styles.root} data-testid="deploy-gas-breakdown">

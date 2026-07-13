@@ -20,7 +20,10 @@ import type { CreateCall } from '../../lib/wizard/submit'
 
 const FACTORY = {
   ERC1155Factory: { address: forkAddresses.ERC1155Factory, abi: erc1155FactoryAbi },
-  ERC721AuctionFactory: { address: forkAddresses.ERC721AuctionFactory, abi: erc721AuctionFactoryAbi },
+  ERC721AuctionFactory: {
+    address: forkAddresses.ERC721AuctionFactory,
+    abi: erc721AuctionFactoryAbi,
+  },
   ERC404Factory: { address: forkAddresses.ERC404Factory, abi: erc404FactoryAbi },
 } as const
 
@@ -43,7 +46,9 @@ export function useDeployGasEstimate(
       'deploy-gas',
       account,
       call?.factory,
-      call ? JSON.stringify(call.args, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)) : null,
+      call
+        ? JSON.stringify(call.args, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))
+        : null,
       call?.value?.toString(),
     ],
     enabled: !!client && !!call && !!account,
