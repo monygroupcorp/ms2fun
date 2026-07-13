@@ -55,6 +55,7 @@ const erc404: ProjectTypeSchema = {
   title: 'ERC-404 Bonding Collection',
   factory: 'ERC404Factory',
   summary: 'Hybrid ERC-20/ERC-721 bonding-curve collection with optional free mint and staking.',
+  learnMore: 'erc404',
   coreFields: [
     // `name` is authored once on the "Collection page" step (CollectionMetaForm) and mirrored into
     // the create params — not a coreField, to avoid two Name inputs that could drift apart.
@@ -190,6 +191,7 @@ const erc1155: ProjectTypeSchema = {
   title: 'ERC-1155 Edition Collection',
   factory: 'ERC1155Factory',
   summary: 'Multi-edition ERC-1155 collection with per-edition pricing and optional gating.',
+  learnMore: 'erc1155',
   coreFields: [
     // `name` + `metadataURI` are authored on the "Collection page" step (CollectionMetaForm) — name is
     // mirrored into the create params, metadataURI is assembled at submit. See the ERC-404 note above.
@@ -290,6 +292,7 @@ const erc721: ProjectTypeSchema = {
   factory: 'ERC721AuctionFactory',
   summary:
     'Sequential ERC-721 auction collection with configurable auction lines and anti-snipe buffer.',
+  learnMore: 'erc721',
   coreFields: [
     // `name` + `metadataURI` are authored on the "Collection page" step (CollectionMetaForm) — name is
     // mirrored into the create params, metadataURI is assembled at submit. See the ERC-404 note above.

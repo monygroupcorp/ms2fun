@@ -38,7 +38,58 @@ One-of-one pieces sold by timed auction. Best for scarce, individually-valued wo
 
 Every standard binds the same **~20% alignment** to a vault and settles fees the same way — the difference is purely how minting and pricing work.
 `,
-    related: ['alignment-vault', 'bonding-curve-graduation'],
+    related: ['erc404', 'erc1155', 'erc721', 'alignment-vault', 'bonding-curve-graduation'],
+  },
+  erc404: {
+    title: 'ERC-404 — bonding-curve collection',
+    summary:
+      'A hybrid NFT/fungible token that mints along a bonding curve and graduates to a live DEX market.',
+    body: `
+**What it is.** ERC-404 is a hybrid: every piece is at once an NFT and a slice of a fungible token. Buyers mint along a **bonding curve** — the price of the next mint rises as supply sells — and there is no fixed edition price. When the curve reaches its funding target the collection **graduates**: liquidity is deployed to the DEX you chose (Uniswap V4, ZAMM, or Cypher) and the token trades openly. It also supports an optional **free-mint reserve**.
+
+**Who it's for.** Creators who want **price discovery and a liquid market** rather than a fixed-price drop — a launch that funds itself as it fills and then trades like any token.
+
+**What you gain.** A market-driven price, automatic DEX liquidity at graduation, and one token that is both collectible and tradable.
+
+**What you give up.** Predictability. There is no set price per piece, nothing can be minted or claimed until the curve opens, and a curve that never reaches its target never graduates — so it only works with real demand.
+
+**This is fixed on deploy.** The standard is chosen when you create the collection and **cannot be changed later** — you can't convert an ERC-404 into editions or an auction after the fact.
+`,
+    related: ['token-standard', 'bonding-curve-graduation', 'free-mint-reserve', 'alignment-vault'],
+  },
+  erc1155: {
+    title: 'ERC-1155 — edition collection',
+    summary:
+      'Classic open editions: you define pieces up front, each with its own supply and fixed price.',
+    body: `
+**What it is.** ERC-1155 is a straightforward **edition** collection. You define pieces up front, each with its own **supply** (unlimited or a fixed limit) and its own **price** (fixed, or dynamic within rules you set). Buyers mint the edition they want at that price — no curve, no auction. Gating and an optional free mint work the same as the other standards.
+
+**Who it's for.** Creators running a **clear, known drop** — you already know the pieces and what each should cost, and you want buyers to mint them directly.
+
+**What you gain.** Control and simplicity: set prices, per-edition supply caps, and a mint that behaves exactly as configured, with no market mechanics to reason about.
+
+**What you give up.** The market machinery of ERC-404 — there is no bonding-curve price discovery and no automatic graduation to a DEX pool. Price is what you set, not what a curve finds.
+
+**This is fixed on deploy.** The standard is chosen when you create the collection and **cannot be changed later** — editions can't be converted into a bonding curve or an auction afterward.
+`,
+    related: ['token-standard', 'alignment-vault'],
+  },
+  erc721: {
+    title: 'ERC-721 — auction collection',
+    summary:
+      'One-of-one pieces sold by timed English auction, with 1–3 parallel lines and an anti-snipe buffer.',
+    body: `
+**What it is.** ERC-721 here is a **1/1 auction** collection. You queue individual pieces, each with metadata and a starting deposit (its minimum bid), and buyers compete in a **timed English auction** — the high bid wins when the clock runs out. It runs **1–3 parallel auction lines** at once, assigning tokens round-robin, and an **anti-snipe buffer** extends the clock when a late bid lands. The auction parameters are immutable after creation.
+
+**Who it's for.** Creators of **scarce, individually-valued work** — one-of-ones where each piece should find its own price through open bidding rather than a set list price.
+
+**What you gain.** True per-piece price discovery via competitive bidding, and anti-snipe protection so a last-second bid can't steal a lot without giving others a chance to respond.
+
+**What you give up.** Instant, fixed-price buying and fungible liquidity. Buyers must bid and wait for settlement; there is no bonding curve and no shared tradable token.
+
+**This is fixed on deploy.** The standard is chosen when you create the collection and **cannot be changed later** — an auction collection can't become editions or a bonding curve afterward.
+`,
+    related: ['token-standard', 'alignment-vault'],
   },
   'alignment-vault': {
     title: 'Alignment vaults',
@@ -212,7 +263,10 @@ export function getConcept(slug: string): LearnConcept | undefined {
 
 /** Grouped for the /learn index. Order is authored, not alphabetical. */
 export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
-  { title: 'Getting started', slugs: ['token-standard', 'alignment-vault'] },
+  {
+    title: 'Getting started',
+    slugs: ['token-standard', 'erc404', 'erc1155', 'erc721', 'alignment-vault'],
+  },
   {
     title: 'ERC-404 mechanics',
     slugs: ['bonding-curve-graduation', 'mint-fee-and-supply', 'free-mint-reserve'],
