@@ -9,14 +9,15 @@
  * renders as inert, visible text — never as markup.
  *
  * Grammar (intentionally tiny — NOT a general Markdown engine): ATX headings `#`–`###`, paragraphs,
- * unordered (`-`/`*`) and ordered (`1.`) lists, links `[text](href)`, and inline `` `code` ``.
- * Unsupported syntax degrades to plain text.
+ * unordered (`-`/`*`) and ordered (`1.`) lists, links `[text](href)`, inline `` `code` ``, and
+ * `**bold**`. Unsupported syntax degrades to plain text.
  */
 import type { ReactNode } from 'react'
 
 type Inline =
   | { type: 'text'; value: string }
   | { type: 'code'; value: string }
+  | { type: 'bold'; value: string }
   | { type: 'link'; text: string; href: string }
 
 type Block =
@@ -24,7 +25,7 @@ type Block =
   | { type: 'list'; ordered: boolean; items: Inline[][] }
   | { type: 'paragraph'; inline: Inline[] }
 
-const INLINE_RE = /(`[^`]*`)|(\[[^\]]*\]\([^)\s]+\))/g
+const INLINE_RE = /(\*\*[^*]+\*\*)|(`[^`]*`)|(\[[^\]]*\]\([^)\s]+\))/g
 const LINK_RE = /^\[([^\]]*)\]\(([^)\s]+)\)$/
 
 /** Allow only http(s), mailto, and same-origin relative/anchor hrefs; everything else is dropped. */
@@ -47,7 +48,9 @@ function parseInline(text: string): Inline[] {
     const token = m[0]
     if (token === undefined) continue
     if (idx > last) out.push({ type: 'text', value: text.slice(last, idx) })
-    if (token.startsWith('`')) {
+    if (token.startsWith('**')) {
+      out.push({ type: 'bold', value: token.slice(2, -2) })
+    } else if (token.startsWith('`')) {
       out.push({ type: 'code', value: token.slice(1, -1) })
     } else {
       const link = LINK_RE.exec(token)
@@ -114,6 +117,7 @@ function parseBlocks(source: string): Block[] {
 function renderInline(nodes: Inline[]): ReactNode[] {
   return nodes.map((n, k) => {
     if (n.type === 'code') return <code key={k}>{n.value}</code>
+    if (n.type === 'bold') return <strong key={k}>{n.value}</strong>
     if (n.type === 'link')
       return (
         <a key={k} href={n.href} rel="noopener noreferrer">
@@ -124,22 +128,25 @@ function renderInline(nodes: Inline[]): ReactNode[] {
   })
 }
 
-/** Read-only Markdown view. See the security contract above. */
+/**
+ * Parse Markdown `source` into an array of read-only React block elements. See the security
+ * contract above — text reaches the DOM only as escaped React children, never as raw HTML.
+ */
+export function renderMarkdown(source: string): ReactNode[] {
+  return parseBlocks(source).map((b, k) => {
+    if (b.type === 'heading') {
+      const Tag = `h${b.level}` as 'h1' | 'h2' | 'h3'
+      return <Tag key={k}>{renderInline(b.inline)}</Tag>
+    }
+    if (b.type === 'list') {
+      const items = b.items.map((it, j) => <li key={j}>{renderInline(it)}</li>)
+      return b.ordered ? <ol key={k}>{items}</ol> : <ul key={k}>{items}</ul>
+    }
+    return <p key={k}>{renderInline(b.inline)}</p>
+  })
+}
+
+/** Read-only Markdown view — a `renderMarkdown` fragment wrapper. */
 export function Markdown({ source }: { source: string }): ReactNode {
-  const blocks = parseBlocks(source)
-  return (
-    <>
-      {blocks.map((b, k) => {
-        if (b.type === 'heading') {
-          const Tag = `h${b.level}` as 'h1' | 'h2' | 'h3'
-          return <Tag key={k}>{renderInline(b.inline)}</Tag>
-        }
-        if (b.type === 'list') {
-          const items = b.items.map((it, j) => <li key={j}>{renderInline(it)}</li>)
-          return b.ordered ? <ol key={k}>{items}</ol> : <ul key={k}>{items}</ul>
-        }
-        return <p key={k}>{renderInline(b.inline)}</p>
-      })}
-    </>
-  )
+  return <>{renderMarkdown(source)}</>
 }

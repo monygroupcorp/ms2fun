@@ -458,10 +458,10 @@ export function WizardPage() {
             </div>
             <div className={styles.formBlock}>
               <h3 className={styles.sectionTitle}>Details</h3>
-              {/* styleUri is a page concern, not a contract concern — it's rendered on the
-                  Collection-page step instead (same `values` state). */}
+              {/* styleUri is a page concern (rendered on the Collection-page step) and freeMint is a
+                  distribution/gating concern (rendered on the Gating step) — both share `values` state. */}
               <SchemaForm
-                fields={pt.coreFields.filter((f) => f.key !== 'styleUri')}
+                fields={pt.coreFields.filter((f) => f.key !== 'styleUri' && f.key !== 'freeMint')}
                 values={values}
                 onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                 errors={coreErrors}
@@ -500,12 +500,29 @@ export function WizardPage() {
 
       case 'gating': {
         const slot = slotByKey('gatingModule')
+        const freeMintField = pt.coreFields.find((f) => f.key === 'freeMint')
         return (
           <div className={styles.body}>
             <p className={styles.lede}>
               Gate the mint behind password tiers or a merkle allowlist — or leave it open.
             </p>
             {slot && renderSlot(slot)}
+            {freeMintField && (
+              <div className={styles.formBlock}>
+                <h3 className={styles.sectionTitle}>Free mint (optional)</h3>
+                <p className={styles.help}>
+                  Reserve a slice of supply to hand out at zero cost — claimable once the mint
+                  opens, not before. Its gating <b>scope</b> decides whether the allowlist above
+                  applies to free claims, paid buys, or both.
+                </p>
+                <SchemaForm
+                  fields={[freeMintField]}
+                  values={values}
+                  onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
+                  errors={coreErrors}
+                />
+              </div>
+            )}
           </div>
         )
       }
@@ -651,6 +668,9 @@ export function WizardPage() {
         <Link href="/" className={styles.back}>
           ← noesis
         </Link>
+        <a href="/learn" target="_blank" rel="noopener noreferrer" className={styles.back}>
+          Learn how it works ↗
+        </a>
       </nav>
 
       <div className={styles.shell}>
