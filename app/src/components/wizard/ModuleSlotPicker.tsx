@@ -8,6 +8,7 @@
 
 import { useApprovedModules } from '../../lib/wizard/useApprovedModules'
 import type { ModuleSlot } from '../../lib/wizard/schema'
+import { LearnLink } from './LearnLink'
 import styles from './ModuleSlotPicker.module.css'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -41,6 +42,7 @@ export function ModuleSlotPicker({ slot, value, onChange }: ModuleSlotPickerProp
         {slot.required && <span className={styles.required}>*</span>}
       </span>
       {slot.help && <p className={styles.help}>{slot.help}</p>}
+      {slot.learnMore && <LearnLink slug={slot.learnMore} />}
     </div>
   )
 

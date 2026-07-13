@@ -3,6 +3,7 @@
 import { useId } from 'react'
 import type { FieldSchema, FieldKind, SelectOption } from '@/lib/wizard/schema'
 import { isFieldVisible } from '@/lib/wizard/schema'
+import { LearnLink } from './LearnLink'
 import styles from './SchemaForm.module.css'
 
 // ── Public interface ──────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ function GroupField({ field, values, onChange, errors }: FieldRendererProps) {
         )}
       </legend>
       {field.help && <p className={styles.help}>{field.help}</p>}
+      {field.learnMore && <LearnLink slug={field.learnMore} />}
       <div className={styles.groupBody}>
         {childFields.map((child) => (
           <FieldRenderer
@@ -145,6 +147,7 @@ function ListField({ field, values, onChange, errors }: FieldRendererProps) {
         )}
       </div>
       {field.help && <p className={styles.help}>{field.help}</p>}
+      {field.learnMore && <LearnLink slug={field.learnMore} />}
       {rowIndices.length > 0 && (
         <div className={styles.listRows}>
           {rowIndices.map((idx) => {
@@ -183,6 +186,7 @@ function ListField({ field, values, onChange, errors }: FieldRendererProps) {
                     ×
                   </button>
                 </div>
+                {item.learnMore && <LearnLink slug={item.learnMore} />}
                 {item.help && (
                   <p id={helpId} className={styles.help}>
                     {item.help}
@@ -238,6 +242,7 @@ function LeafField({ field, values, onChange, errors }: FieldRendererProps) {
           {field.help}
         </p>
       )}
+      {field.learnMore && <LearnLink slug={field.learnMore} />}
       <InputForKind
         field={field as FieldSchema & { kind: LeafKind }}
         inputId={inputId}

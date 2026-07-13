@@ -81,6 +81,8 @@ export interface FieldSchema {
   label: string
   kind: FieldKind
   help?: string
+  /** A /learn concept slug (lib/learn/concepts). Renders a LearnLink after the inline help. */
+  learnMore?: string
   default?: unknown
   /** For `select`. */
   options?: SelectOption[]
@@ -105,6 +107,8 @@ export interface ModuleSlot {
   tag: ComponentTag
   required: boolean
   help?: string
+  /** A /learn concept slug (lib/learn/concepts). Renders a LearnLink after the slot help. */
+  learnMore?: string
   pendingProvider?: boolean
 }
 

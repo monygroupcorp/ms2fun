@@ -43,6 +43,7 @@ const RequestTargetPage = lazy(() =>
   import('./routes/RequestTargetPage').then((m) => ({ default: m.RequestTargetPage })),
 )
 const AdminPage = lazy(() => import('./routes/AdminPage').then((m) => ({ default: m.AdminPage })))
+const LearnPage = lazy(() => import('./routes/LearnPage').then((m) => ({ default: m.LearnPage })))
 import { useOwnerGate } from './components/ui/useOwnerGate'
 import { forkAddresses } from './lib/addresses'
 import styles from './App.module.css'
@@ -195,6 +196,8 @@ export function App() {
                   <Route path="/vaults" component={VaultsPage} />
                   <Route path="/vault/:address" component={VaultPage} />
                   <Route path="/request-target" component={RequestTargetPage} />
+                  <Route path="/learn/:slug" component={LearnPage} />
+                  <Route path="/learn" component={LearnPage} />
                   {/* Portfolio merged into the profile plate (Held/Vaults tabs) — /portfolio shows
                   the connected wallet's own plate. */}
                   <Route path="/portfolio" component={ProfilePage} />

@@ -53,4 +53,11 @@ describe('Markdown rendering', () => {
     expect(container.querySelectorAll('ul li')).toHaveLength(2)
     expect(container.querySelectorAll('ol li')).toHaveLength(2)
   })
+
+  it('renders **bold** as <strong>, not literal asterisks', () => {
+    const { container } = render(<Markdown source={'This is **important** text'} />)
+    const strong = container.querySelector('strong')
+    expect(strong?.textContent).toBe('important')
+    expect(container.textContent).not.toContain('**')
+  })
 })

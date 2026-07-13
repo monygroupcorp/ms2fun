@@ -14,6 +14,7 @@ const freeMintGroup: FieldSchema = {
   key: 'freeMint',
   label: 'Free mint',
   kind: 'group',
+  learnMore: 'free-mint-reserve',
   fields: [
     {
       key: 'freeMint.allocation',
@@ -139,12 +140,14 @@ const erc404: ProjectTypeSchema = {
       tag: 'liquidity',
       required: true,
       help: 'DEX the bonding curve graduates into',
+      learnMore: 'bonding-curve-graduation',
     },
     {
       key: 'gatingModule',
       label: 'Gating',
       tag: 'gating',
       required: false,
+      learnMore: 'gating-overview',
     },
     {
       key: 'stakingModule',
@@ -211,6 +214,7 @@ const erc1155: ProjectTypeSchema = {
       label: 'Gating',
       tag: 'gating',
       required: false,
+      learnMore: 'gating-overview',
     },
   ],
   postCreate: {
