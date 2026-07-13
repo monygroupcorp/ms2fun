@@ -126,6 +126,9 @@ export interface ProjectTypeSchema {
   /** `forkAddresses` key for the factory. */
   factory: 'ERC404Factory' | 'ERC1155Factory' | 'ERC721AuctionFactory'
   summary: string
+  /** A /learn concept slug (lib/learn/concepts): the explainer for this whole standard. Rendered as
+   * a LearnLink on the type big-card so a creator can read what the standard is before committing. */
+  learnMore?: string
   /** The `createInstance` params the creator fills. */
   coreFields: FieldSchema[]
   /** Selectable modules (enumerated live by tag). */

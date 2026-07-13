@@ -43,7 +43,22 @@ import { useCreateSubmit } from '../components/wizard/useCreateSubmit'
 import { WalletButton } from '../components/WalletButton'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
+import { LearnLink } from '../components/wizard/LearnLink'
 import styles from './WizardPage.module.css'
+
+/**
+ * The `/learn` affordance on a type big-card. The card itself is a `<button>` that selects the type
+ * on click; this is a nested anchor (LearnLink opens the doc in a new tab). We stop the click here so
+ * that reading the explainer and selecting the standard stay two distinct actions — clicking the link
+ * opens the doc without also picking that type.
+ */
+export function TypeLearnLink({ slug }: { slug: string }) {
+  return (
+    <span style={{ display: 'block', marginTop: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+      <LearnLink slug={slug} label="What is this?" />
+    </span>
+  )
+}
 
 /** Metadata-stack slot keys whose selected module shows a per-instance config form (ADR-0006/0007).
  *  `resolver` is configless (its configType `metadata-resolver` has no fields), so only these two. */
@@ -452,6 +467,7 @@ export function WizardPage() {
                   >
                     <span className={styles.bigCardName}>{TYPE_LABEL[t.key] ?? t.title}</span>
                     <span className={styles.bigCardSummary}>{t.summary}</span>
+                    {t.learnMore && <TypeLearnLink slug={t.learnMore} />}
                   </button>
                 ))}
               </div>
