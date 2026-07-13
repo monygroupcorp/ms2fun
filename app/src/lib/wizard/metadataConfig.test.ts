@@ -169,12 +169,12 @@ describe('validateMetadataConfig', () => {
     expect(errs['tierIdStarts.1']).toMatch(/ascending/i)
   })
 
-  it('flags a missing revealed (base) URI', () => {
+  it('does NOT require a revealed (base) URI — consistent with the optional main collection URI', () => {
     const errs = validateMetadataConfig(
       { tier: TIER },
       { 'tierIdStarts.0': '1', 'tierIdEnds.0': '3' },
     )
-    expect(errs['tierBaseURIs.0']).toMatch(/required/i)
+    expect(errs['tierBaseURIs.0']).toBeUndefined()
   })
 
   it('accepts adjacent non-overlapping ranges (start == prevEnd + 1)', () => {

@@ -151,6 +151,13 @@ contract ERC404FreeMintTest is Test {
         return ERC404BondingInstance(payable(inst));
     }
 
+    /// @dev Open the curve so free mints become claimable — they cannot be claimed before it opens.
+    function _open(ERC404BondingInstance inst) internal {
+        vm.prank(creator);
+        inst.setBondingOpenTime(block.timestamp + 1);
+        vm.warp(block.timestamp + 2);
+    }
+
     // ── freeMintAllocation stored correctly ───────────────────────────────────
 
     function test_freeMint_allocationStoredOnInstance() public {
@@ -168,6 +175,7 @@ contract ERC404FreeMintTest is Test {
     function test_freeMint_claim_mintsOneUnit() public {
         ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(0));
         uint256 unit = inst.unit();
+        _open(inst);
 
         vm.prank(user1);
         inst.claimFreeMint("");
@@ -179,6 +187,7 @@ contract ERC404FreeMintTest is Test {
 
     function test_freeMint_multipleUsers_canClaim() public {
         ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(0));
+        _open(inst);
 
         vm.prank(user1);
         inst.claimFreeMint("");
@@ -199,6 +208,7 @@ contract ERC404FreeMintTest is Test {
 
     function test_freeMint_revertsWhenAlreadyClaimed() public {
         ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(0));
+        _open(inst);
         vm.prank(user1);
         inst.claimFreeMint("");
         vm.prank(user1);
@@ -209,6 +219,7 @@ contract ERC404FreeMintTest is Test {
     function test_freeMint_revertsWhenExhausted() public {
         // allocation = 1, two users try to claim
         ERC404BondingInstance inst = _deploy(1, GatingScope.BOTH, address(0));
+        _open(inst);
         vm.prank(user1);
         inst.claimFreeMint("");
         vm.prank(user2);
@@ -256,6 +267,7 @@ contract ERC404FreeMintTest is Test {
         );
 
         ERC404BondingInstance instance = ERC404BondingInstance(payable(inst));
+        _open(instance);
 
         // Without correct password data, claimFreeMint should be gated
         bytes memory badData = abi.encode(bytes32(0), uint256(0));
@@ -347,6 +359,7 @@ contract ERC404FreeMintTest is Test {
         );
 
         ERC404BondingInstance instance = ERC404BondingInstance(payable(inst));
+        _open(instance);
 
         // claimFreeMint should work without any gate data
         vm.prank(user1);
@@ -401,6 +414,7 @@ contract ERC404FreeMintTest is Test {
 
         ERC404BondingInstance inst = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(merkle));
         _configEdition0(merkle, address(inst), root);
+        _open(inst);
 
         // Allowlisted user1 claims the free mint (module keyed on editionId 0).
         vm.prank(user1);

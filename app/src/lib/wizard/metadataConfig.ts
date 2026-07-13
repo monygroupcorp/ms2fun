@@ -208,9 +208,8 @@ export function validateMetadataConfig(
       if (t.idStart <= prevEnd) {
         errors[`tierIdStarts.${i}`] = `tier ${i + 1}: ranges must be ascending + non-overlapping`
       }
-      if (t.baseURI === '') {
-        errors[`tierBaseURIs.${i}`] = `tier ${i + 1}: revealed URI is required`
-      }
+      // Tier URIs are intentionally NOT required — the main collection URI is optional (art-optional),
+      // so blocking deploy on a per-tier URI is inconsistent. A blank URI encodes as an empty string.
       prevEnd = t.idEnd
     })
   }

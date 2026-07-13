@@ -329,6 +329,10 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // slither-disable-next-line reentrancy-no-eth
     function claimFreeMint(bytes calldata gatingData) external nonReentrant {
         if (freeMintAllocation == 0) revert FreeMintDisabled();
+        // Free mints are part of the curve, not a pre-sale — they cannot be claimed before it opens
+        // (same open reference the buy/graduation paths use).
+        if (bondingOpenTime == 0) revert BondingNotConfigured();
+        if (block.timestamp < bondingOpenTime) revert TooEarly();
         if (freeMintClaimed[msg.sender]) revert FreeMintAlreadyClaimed();
         if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
 

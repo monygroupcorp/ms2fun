@@ -101,8 +101,20 @@ export function AlignmentTargetPicker({
     return m
   }, [vaults])
 
-  // Switching target invalidates a vault selected under a different one.
+  // Rehydrate the chosen community from the lifted vault selection. `targetId` is local, so a step
+  // re-entry remounts this blank while `selectedVault` still holds — without this the community grid
+  // collapses to the top and (via the invalidation effect below) the vault itself gets cleared.
   useEffect(() => {
+    if (targetId === undefined && selectedVault) {
+      const owning = (vaults ?? []).find((v) => v.address === selectedVault)
+      if (owning) setTargetId(owning.targetId)
+    }
+  }, [targetId, selectedVault, vaults])
+
+  // Switching target invalidates a vault selected under a different one. Guarded on a chosen target so
+  // it never fires while `targetId` is still undefined (mount / pre-selection) and wipes the vault.
+  useEffect(() => {
+    if (targetId === undefined) return
     if (selectedVault && !targetVaults.some((v) => v.address === selectedVault)) {
       onSelectVault(undefined)
     }
