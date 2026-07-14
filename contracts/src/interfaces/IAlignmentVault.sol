@@ -5,7 +5,7 @@ import { Currency } from "v4-core/types/Currency.sol";
 
 /**
  * @title IAlignmentVault
- * @notice Standard interface for alignment vaults compatible with ms2fun ecosystem
+ * @notice Standard interface for alignment vaults compatible with the ms2fun ecosystem
  * @dev All vaults must implement this interface to be approved by governance
  *
  * Design Philosophy:
