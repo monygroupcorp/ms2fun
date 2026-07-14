@@ -85,12 +85,14 @@ const erc404: ProjectTypeSchema = {
       label: 'NFT supply',
       kind: 'bigint',
       unit: 'count',
+      learnMore: 'mint-fee-and-supply',
       validation: { required: true, min: 1 },
     },
     {
       key: 'presetId',
       label: 'Launch preset',
       kind: 'select',
+      learnMore: 'mint-fee-and-supply',
       default: '0',
       options: [
         {
