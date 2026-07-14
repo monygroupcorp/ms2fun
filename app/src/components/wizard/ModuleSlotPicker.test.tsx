@@ -32,9 +32,11 @@ const MAPPED: ModuleOption = {
   address: '0x0000000000000000000000000000000000000001',
   meta: meta('password-tier-gating'),
 }
+// A configType with no entry in MODULE_CONCEPT_BY_CONFIG_TYPE (synthetic, so it stays unmapped
+// even as real modules get wired — e.g. metadata-overlay was wired in noesis-049).
 const UNMAPPED: ModuleOption = {
   address: '0x0000000000000000000000000000000000000002',
-  meta: meta('metadata-overlay'),
+  meta: meta('no-such-mapped-config-type'),
 }
 
 test('a known configType card renders a LearnLink to its /learn concept', () => {

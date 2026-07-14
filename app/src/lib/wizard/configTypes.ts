@@ -55,6 +55,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         key: 'tierType',
         label: 'Tier type',
         kind: 'select',
+        learnMore: 'password-tier-gating',
         default: '0',
         options: [
           { value: '0', label: 'Volume cap' },

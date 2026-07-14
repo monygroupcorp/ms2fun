@@ -144,11 +144,11 @@ Use it for a community round, contributors, or a giveaway — but remember every
     title: 'Supply & presets',
     summary: 'How supply and the funding target are sized, and who each preset suits.',
     body: `
-Your **supply** is the number of pieces the collection can ever mint. For ERC-404 the **preset** sets the curve's funding target and shape:
+Your **supply** is the number of pieces the collection can ever mint. For ERC-404 the **preset** sets the curve's funding target:
 
-- **Starter** — a small target; good for a first drop or a tight community.
-- **Standard** — a mid-sized target for a typical public launch.
-- **Whale** — a large target for an established audience expecting real depth.
+- **NICHE — 5 ETH target** — the smallest target, with high supply per NFT (low volume). Good for a first drop or a tight community.
+- **STANDARD — 25 ETH target** — a balanced, mid-sized target for a typical public launch.
+- **HYPE — 50 ETH target** — the largest target, with low supply per NFT (high volume). For an established audience expecting real depth.
 
 Bigger targets need more demand to graduate. Size to the audience you actually have, not the one you hope for — a curve that never fills never graduates.
 `,
