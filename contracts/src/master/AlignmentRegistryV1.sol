@@ -20,7 +20,7 @@ interface IUniswapV3Pool {
 /**
  * @title AlignmentRegistryV1
  * @notice Manages alignment targets and ambassadors for the ms2.fun protocol
- * @dev UUPS upgradeable. Owner is the DAO (GrandCentral + Safe).
+ * @dev UUPS upgradeable. Owner is the protocol Safe/Timelock.
  */
 contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     // ── Custom Errors ──
@@ -75,8 +75,8 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
     }
 
     /**
-     * @notice Initialize the contract with a single owner (DAO address)
-     * @param _owner Address of the DAO or owner
+     * @notice Initialize the contract with a single owner (the protocol Safe/Timelock)
+     * @param _owner Address of the owner (Safe/Timelock)
      */
     function initialize(address _owner) public {
         if (_initialized) revert AlreadyInitialized();
@@ -84,6 +84,17 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
 
         _initialized = true;
         _setOwner(_owner);
+    }
+
+    // ============ Authorization ============
+
+    /// @dev Passes if the caller is the owner OR an appointed ambassador of `targetId`. Ambassadors are trusted
+    ///      with the SAFE metadata field of the target they represent (description/metadataURI) and nothing else —
+    ///      fund- and price-authority setters (`setCommunityPayout`, `setAcquireRoute`, `setReferencePool`) stay
+    ///      strictly `onlyOwner`. Reverts with `Unauthorized` (the same error `onlyOwner` uses) otherwise.
+    modifier onlyOwnerOrAmbassador(uint256 targetId) {
+        if (msg.sender != owner() && !_isAmbassador[targetId][msg.sender]) revert Unauthorized();
+        _;
     }
 
     // ============ Alignment Target Functions ============
@@ -140,10 +151,12 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         emit AlignmentTargetDeactivated(targetId);
     }
 
+    /// @dev Owner OR an appointed ambassador of `targetId` may update the target's description/metadataURI —
+    ///      the SAFE metadata field an ambassador maintains for the community it represents. No other authority.
     function updateAlignmentTarget(uint256 targetId, string memory description, string memory metadataURI)
         external
         override
-        onlyOwner
+        onlyOwnerOrAmbassador(targetId)
     {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
 
