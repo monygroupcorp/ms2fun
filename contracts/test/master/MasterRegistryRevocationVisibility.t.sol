@@ -74,7 +74,9 @@ contract MasterRegistryRevocationVisibilityTest is Test {
     function _registerFactory() internal returns (address factory) {
         factory = address(new MockFactory(alice, daoOwner));
         vm.prank(daoOwner);
-        registry.registerFactory(factory, "ERC404", "Test", "Test Factory", "ipfs://factory", new bytes32[](0));
+        registry.registerFactory(
+            factory, "ERC404", "Test", "Test Factory", "ipfs://factory", new bytes32[](0), address(0)
+        );
     }
 
     function _registerInstance(address factory, address vault) internal returns (address instance) {
