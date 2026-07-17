@@ -39,6 +39,16 @@ contract MockAlignmentRegistry is IAlignmentRegistry {
         return tokenInTarget[targetId][token];
     }
 
+    /// @notice Mirrors AlignmentRegistryV1.hasActiveTarget — exact reverse lookup over every target the
+    ///         token is registered under, so the request registry's dup guard can be driven through this mock.
+    function hasActiveTarget(address token) external view returns (bool) {
+        uint256[] storage ids = tokenToTargetIds[token];
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (activeTargets[ids[i]]) return true;
+        }
+        return false;
+    }
+
     // ── Stubs (not used by vault) ──
 
     function registerAlignmentTarget(string memory, string memory, string memory, AlignmentAsset[] memory)

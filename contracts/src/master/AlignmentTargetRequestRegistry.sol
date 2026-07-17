@@ -6,11 +6,11 @@ import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { IAlignmentRegistry } from "./interfaces/IAlignmentRegistry.sol";
 
-/// @dev Minimal read surface for the dup guard — `tokenToTargetIds` is a public mapping on
-///      AlignmentRegistryV1 (no length getter, so the guard is best-effort on the first target).
+/// @dev Minimal read surface for the dup guard. `hasActiveTarget` is AlignmentRegistryV1's exact reverse
+///      lookup: it scans every target the token is registered under (not just index 0), so the guard is
+///      precise even when a token has multiple targets and an earlier one is inactive.
 interface IAlignmentRegistryDup {
-    function tokenToTargetIds(address token, uint256 index) external view returns (uint256);
-    function isAlignmentTargetActive(uint256 targetId) external view returns (bool);
+    function hasActiveTarget(address token) external view returns (bool);
 }
 
 /// @title AlignmentTargetRequestRegistry
@@ -276,16 +276,11 @@ contract AlignmentTargetRequestRegistry is Ownable, ReentrancyGuard {
 
     // ── Internal ────────────────────────────────────────────────────────────────
 
-    /// @dev Best-effort dup guard: reject if the token's FIRST registered target is active. The registry
-    ///      exposes no array length for `tokenToTargetIds`, so a token with multiple targets is only
-    ///      partially covered — the admin still dedupes on review. try/catch: an empty array reverts
-    ///      (index OOB) → treated as "no active target".
+    /// @dev Exact dup guard: reject if the token belongs to ANY currently-active alignment target. Delegates
+    ///      to the registry's `hasActiveTarget`, which scans every target the token is registered under (not
+    ///      just index 0), so a token whose first target is inactive but a later one is active is caught.
     function _tokenHasActiveTarget(address token) internal view returns (bool) {
-        try IAlignmentRegistryDup(address(alignmentRegistry)).tokenToTargetIds(token, 0) returns (uint256 targetId) {
-            return alignmentRegistry.isAlignmentTargetActive(targetId);
-        } catch {
-            return false;
-        }
+        return IAlignmentRegistryDup(address(alignmentRegistry)).hasActiveTarget(token);
     }
 
     function _removePending(uint256 id) internal {
