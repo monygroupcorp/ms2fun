@@ -66,8 +66,7 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     mapping(address => bool) public isAgent;
     address public emergencyRevoker;
 
-    /// @notice Tracks revoked instances. Revoked instances are invisible to getInstanceInfo.
-    /// @dev Temporary — intended for removal in the next upgrade cycle.
+    /// @notice Tracks revoked instances. Revoked instances are invisible to all existence/legitimacy reads.
     mapping(address => bool) public revokedInstances;
 
     /// @notice nameHash => instance. The reverse of `nameHashes`, for slug resolution.
@@ -294,12 +293,12 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
 
     function isInstanceFromApprovedFactory(address instance) external view override returns (bool) {
         IMasterRegistry.InstanceInfo storage info = instanceInfo[instance];
-        return info.instance != address(0) && registeredFactories[info.factory];
+        return info.instance != address(0) && registeredFactories[info.factory] && !revokedInstances[instance];
     }
 
     // slither-disable-next-line timestamp
     function isRegisteredInstance(address instance) external view override returns (bool) {
-        return instanceInfo[instance].instance != address(0);
+        return instanceInfo[instance].instance != address(0) && !revokedInstances[instance];
     }
 
     function isNameTaken(string memory name) external view override returns (bool) {
