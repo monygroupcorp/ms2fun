@@ -181,7 +181,8 @@ contract NamespaceCollisionTest is Test {
             "ERC404-Factory",
             "ERC404 Factory",
             "ipfs://erc404-factory",
-            new bytes32[](0)
+            new bytes32[](0),
+            address(0)
         );
         registry.registerFactory(
             address(erc1155Factory),
@@ -189,7 +190,8 @@ contract NamespaceCollisionTest is Test {
             "ERC1155-Factory",
             "ERC1155 Factory",
             "ipfs://erc1155-factory",
-            new bytes32[](0)
+            new bytes32[](0),
+            address(0)
         );
 
         vm.stopPrank();
