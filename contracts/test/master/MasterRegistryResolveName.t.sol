@@ -70,7 +70,9 @@ contract MasterRegistryResolveNameTest is Test {
         // One factory + one vault, reused by every instance in these tests.
         factory = address(new MockFactory(alice, daoOwner));
         vm.prank(daoOwner);
-        registry.registerFactory(factory, "ERC404", "Test", "Test Factory", "ipfs://factory", new bytes32[](0));
+        registry.registerFactory(
+            factory, "ERC404", "Test", "Test Factory", "ipfs://factory", new bytes32[](0), address(0)
+        );
 
         sharedVault = address(new MockVaultSimple(dummyToken));
     }

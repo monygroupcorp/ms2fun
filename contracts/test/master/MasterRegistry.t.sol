@@ -79,7 +79,9 @@ contract MasterRegistryReworkTest is Test {
     function test_RegisterFactory_OwnerOnly() public {
         MockFactory factory = new MockFactory(alice, daoOwner);
         vm.prank(daoOwner);
-        registry.registerFactory(address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0));
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), address(0)
+        );
         assertTrue(registry.isFactoryRegistered(address(factory)));
     }
 
@@ -87,7 +89,36 @@ contract MasterRegistryReworkTest is Test {
         MockFactory factory = new MockFactory(alice, daoOwner);
         vm.prank(alice);
         vm.expectRevert(Ownable.Unauthorized.selector);
-        registry.registerFactory(address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0));
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), address(0)
+        );
+    }
+
+    function test_RegisterFactory_CreditsBuilder() public {
+        // A third-party builds the factory; the platform (owner) registers it and
+        // credits the builder via the `creator` argument. Attribution must survive.
+        address builder = address(0xB4173);
+        MockFactory factory = new MockFactory(alice, daoOwner);
+        vm.prank(daoOwner);
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), builder
+        );
+
+        IMasterRegistry.FactoryInfo memory info = registry.getFactoryInfoByAddress(address(factory));
+        assertEq(info.creator, builder);
+    }
+
+    function test_RegisterFactory_ZeroCreatorSentinelAllowed() public {
+        // First-party platform factories have no external builder; address(0) is an
+        // accepted sentinel ("platform-built") and must not revert.
+        MockFactory factory = new MockFactory(alice, daoOwner);
+        vm.prank(daoOwner);
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), address(0)
+        );
+
+        IMasterRegistry.FactoryInfo memory info = registry.getFactoryInfoByAddress(address(factory));
+        assertEq(info.creator, address(0));
     }
 
     function test_RegisterVault_OwnerOnly() public {
@@ -118,7 +149,9 @@ contract MasterRegistryReworkTest is Test {
     function test_DeactivateFactory_OwnerOnly() public {
         MockFactory factory = new MockFactory(alice, daoOwner);
         vm.prank(daoOwner);
-        registry.registerFactory(address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0));
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), address(0)
+        );
 
         vm.prank(daoOwner);
         registry.deactivateFactory(address(factory));
@@ -130,7 +163,9 @@ contract MasterRegistryReworkTest is Test {
     function test_DeactivateFactory_RevertIfNotOwner() public {
         MockFactory factory = new MockFactory(alice, daoOwner);
         vm.prank(daoOwner);
-        registry.registerFactory(address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0));
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), address(0)
+        );
 
         vm.prank(alice);
         vm.expectRevert(Ownable.Unauthorized.selector);
@@ -140,7 +175,9 @@ contract MasterRegistryReworkTest is Test {
     function test_DeactivateFactory_RevertIfAlreadyInactive() public {
         MockFactory factory = new MockFactory(alice, daoOwner);
         vm.prank(daoOwner);
-        registry.registerFactory(address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0));
+        registry.registerFactory(
+            address(factory), "ERC404", "Test", "Test Factory", "ipfs://test", new bytes32[](0), address(0)
+        );
 
         vm.prank(daoOwner);
         registry.deactivateFactory(address(factory));
@@ -171,7 +208,9 @@ contract MasterRegistryReworkTest is Test {
     function _registerFactory() internal returns (address factory) {
         factory = address(new MockFactory(alice, daoOwner));
         vm.prank(daoOwner);
-        registry.registerFactory(factory, "ERC404", "Test", "Test Factory", "ipfs://factory", new bytes32[](0));
+        registry.registerFactory(
+            factory, "ERC404", "Test", "Test Factory", "ipfs://factory", new bytes32[](0), address(0)
+        );
     }
 
     function _registerInstance(address factory, address vault) internal returns (address instance) {

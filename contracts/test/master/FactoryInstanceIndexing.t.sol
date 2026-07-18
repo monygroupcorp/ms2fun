@@ -64,7 +64,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "erc404-factory",
                 "ERC404 Factory",
                 "https://example.com/erc404.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Register ERC1155 factory directly
@@ -75,7 +76,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "erc1155-factory",
                 "ERC1155 Factory",
                 "https://example.com/erc1155.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Verify indexing
@@ -106,7 +108,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "featured-factory",
                 "Featured Factory",
                 "https://example.com/featured.json",
-                features
+                features,
+                address(0)
             );
 
         // Retrieve and verify metadata
@@ -130,7 +133,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "test-factory",
                 "Test Factory",
                 "https://example.com/metadata.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Register multiple instances
@@ -176,7 +180,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "test-factory",
                 "Test Factory",
                 "https://example.com/metadata.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Register instance with metadata
@@ -213,7 +218,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "erc404-factory",
                 "ERC404 Factory",
                 "https://example.com/erc404.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         MasterRegistryV1(proxy)
@@ -223,7 +229,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "erc1155-factory",
                 "ERC1155 Factory",
                 "https://example.com/erc1155.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Register instances from different factories
@@ -271,7 +278,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "test-factory",
                 "Test Factory",
                 "https://example.com/metadata.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Register instance with lowercase name
@@ -310,7 +318,8 @@ contract FactoryInstanceIndexingTest is Test {
                 "featured-factory",
                 "Featured Factory",
                 "https://example.com/featured.json",
-                features
+                features,
+                address(0)
             );
 
         // Retrieve and verify features

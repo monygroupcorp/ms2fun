@@ -603,7 +603,8 @@ contract DeployCore is Script {
                 "ERC404-Bonding-Curve-Factory",
                 "ERC404 Bonding Curve",
                 "https://ms2.fun",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0) // first-party platform factory, no external builder to credit
             );
         MasterRegistryV1(masterRegistry)
             .registerFactory(
@@ -612,7 +613,8 @@ contract DeployCore is Script {
                 "ERC1155-Edition-Factory",
                 "ERC1155 Editions",
                 "https://ms2.fun",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0) // first-party platform factory, no external builder to credit
             );
         MasterRegistryV1(masterRegistry)
             .registerFactory(
@@ -621,7 +623,8 @@ contract DeployCore is Script {
                 "ERC721-Auction-Factory",
                 "ERC721 Auction",
                 "https://ms2.fun",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0) // first-party platform factory, no external builder to credit
             );
 
         MasterRegistryV1(masterRegistry).setEmergencyRevoker(deployer);
