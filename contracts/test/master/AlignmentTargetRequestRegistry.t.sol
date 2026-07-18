@@ -128,6 +128,36 @@ contract AlignmentTargetRequestRegistryTest is Test {
         assertEq(id, 1);
     }
 
+    /// @dev Exact dup guard (noesis-055): a token registered under multiple targets where the FIRST is
+    ///      inactive but a LATER one is active must still be rejected. The old guard probed only index 0 and
+    ///      let this duplicate slip through.
+    function test_submit_revertsWhenLaterTargetActive() public {
+        registry.pushTokenTarget(token, 7); // index 0 → inactive
+        registry.setTargetActive(7, false);
+        registry.pushTokenTarget(token, 8); // index 1 → active
+        registry.setTargetActive(8, true);
+
+        assertTrue(registry.hasActiveTarget(token), "reverse lookup sees the active later target");
+
+        IAlignmentRegistry.AlignmentAsset[] memory a = _assets();
+        vm.prank(alice);
+        vm.expectRevert(AlignmentTargetRequestRegistry.TokenAlreadyActive.selector);
+        reg.submitRequest{ value: DEPOSIT }(token, "t", "d", "u", a);
+    }
+
+    /// @dev Multiple targets, all inactive → not a duplicate, request admitted.
+    function test_submit_allowedWhenAllTargetsInactive() public {
+        registry.pushTokenTarget(token, 7);
+        registry.setTargetActive(7, false);
+        registry.pushTokenTarget(token, 8);
+        registry.setTargetActive(8, false);
+
+        assertFalse(registry.hasActiveTarget(token), "no active target across all indices");
+
+        uint256 id = _submit(alice, token);
+        assertEq(id, 1);
+    }
+
     // ── Approve ────────────────────────────────────────────────────────────────
 
     function test_approve_refundsAndDelists() public {
