@@ -57,7 +57,8 @@ contract DeployERC404Factory is Script {
                 "ERC404-Bonding-Curve-Factory",
                 "ERC404 Bonding Curve",
                 "https://ms2.fun",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0) // first-party platform factory, no external builder to credit
             );
         console.log("Factory registered");
 

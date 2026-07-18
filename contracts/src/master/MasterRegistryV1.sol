@@ -148,7 +148,8 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         string memory title,
         string memory displayTitle,
         string memory metadataURI,
-        bytes32[] memory features
+        bytes32[] memory features,
+        address creator
     ) external onlyOwner {
         if (factoryAddress == address(0)) revert InvalidAddress();
         if (bytes(contractType).length == 0) revert InvalidContractType();
@@ -170,7 +171,7 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
             displayTitle: displayTitle,
             metadataURI: metadataURI,
             features: features,
-            creator: address(0),
+            creator: creator,
             active: true,
             registeredAt: block.timestamp
         });

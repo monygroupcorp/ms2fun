@@ -74,7 +74,8 @@ contract FullWorkflowIntegrationTest is Test {
                 "my-erc404-factory",
                 "My ERC404 Factory",
                 "https://example.com/factory.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Verify factory registered
@@ -119,7 +120,8 @@ contract FullWorkflowIntegrationTest is Test {
                 "factory-1",
                 "Factory 1",
                 "https://example.com/factory1.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Register second factory
@@ -132,7 +134,8 @@ contract FullWorkflowIntegrationTest is Test {
                 "factory-2",
                 "Factory 2",
                 "https://example.com/factory2.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         // Verify both factories registered
@@ -182,7 +185,8 @@ contract FullWorkflowIntegrationTest is Test {
                 "test-factory",
                 "Test Factory",
                 "https://example.com/factory.json",
-                new bytes32[](0)
+                new bytes32[](0),
+                address(0)
             );
 
         address inst1 = _newInstance();
@@ -248,7 +252,8 @@ contract FullWorkflowIntegrationTest is Test {
                     string(abi.encodePacked("factory-", vm.toString(i))),
                     "Test Factory",
                     validURIs[i],
-                    new bytes32[](0)
+                    new bytes32[](0),
+                    address(0)
                 );
         }
 
