@@ -145,6 +145,18 @@ contract AlignmentRegistryV1 is SafeOwnableUUPS, IAlignmentRegistry {
         return alignmentTargets[targetId].active;
     }
 
+    /// @notice True iff `token` belongs to ANY currently-active alignment target.
+    /// @dev Exact reverse lookup for the request registry's dup guard: it scans every target the token is
+    ///      registered under (`tokenToTargetIds[token]`), not just index 0, so a token whose first target is
+    ///      inactive but a later one is active is still reported active. Read-only view; UUPS layout untouched.
+    function hasActiveTarget(address token) external view returns (bool) {
+        uint256[] storage ids = tokenToTargetIds[token];
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (alignmentTargets[ids[i]].active) return true;
+        }
+        return false;
+    }
+
     function deactivateAlignmentTarget(uint256 targetId) external override onlyOwner {
         if (alignmentTargets[targetId].approvedAt == 0) revert TargetNotFound();
         alignmentTargets[targetId].active = false;
