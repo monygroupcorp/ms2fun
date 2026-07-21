@@ -40,12 +40,6 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
         return fixedProportion;
     }
 
-    // Linear TWAP quote: ethOut = tokenAmount * ethPer1e18Tokens / 1e18.
-    // Returns 0 when unset so existing tests are unaffected (no oracle floor applied).
-    function quoteEthForTokens(address, uint256 tokenAmount) external view override returns (uint256) {
-        return tokenAmount * ethPer1e18Tokens / 1e18;
-    }
-
     // Mirrors the linear quote for the pinned-pool signature; pool/kind/window are ignored by the mock.
     function quoteEthForTokensVia(address, uint8, uint32, address, uint256 amount)
         external
