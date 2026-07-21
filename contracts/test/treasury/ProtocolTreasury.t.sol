@@ -4,9 +4,6 @@ pragma solidity ^0.8.20;
 import { Test } from "forge-std/Test.sol";
 import { ProtocolTreasuryV1 } from "../../src/treasury/ProtocolTreasuryV1.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { PoolKey } from "v4-core/types/PoolKey.sol";
-import { Currency } from "v4-core/types/Currency.sol";
-import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @notice Minimal ERC721 mock for testing treasury NFT handling
@@ -37,15 +34,6 @@ contract MockERC721 {
     }
 }
 
-/// @notice Minimal MasterRegistry mock for access control testing
-contract MockMasterRegistry {
-    mapping(address => bool) public isRegisteredInstance;
-
-    function setRegistered(address instance, bool status) external {
-        isRegisteredInstance[instance] = status;
-    }
-}
-
 /// @notice Minimal ERC20 mock
 contract MockERC20 {
     mapping(address => uint256) public balanceOf;
@@ -66,7 +54,6 @@ contract ProtocolTreasuryTest is Test {
     ProtocolTreasuryV1 public treasury;
     MockERC721 public nft;
     MockERC20 public token;
-    MockMasterRegistry public mockRegistry;
 
     address public owner = address(0x1);
     address public alice = address(0x2);
@@ -80,7 +67,6 @@ contract ProtocolTreasuryTest is Test {
 
         nft = new MockERC721();
         token = new MockERC20();
-        mockRegistry = new MockMasterRegistry();
 
         vm.deal(alice, 10 ether);
         vm.deal(bob, 10 ether);
@@ -106,6 +92,15 @@ contract ProtocolTreasuryTest is Test {
         assertEq(treasury.getBalance(), 1 ether);
         (uint256 received,) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.BONDING_FEE);
         assertEq(received, 1 ether);
+    }
+
+    function test_deposit_bondForfeit() public {
+        // The one live producer path (DeployBondEscrow) tags forfeited bonds BOND_FORFEIT.
+        vm.prank(alice);
+        treasury.deposit{ value: 2 ether }(ProtocolTreasuryV1.Source.BOND_FORFEIT);
+
+        (uint256 received,) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.BOND_FORFEIT);
+        assertEq(received, 2 ether);
     }
 
     function test_deposit_multipleSourcesTrackedSeparately() public {
@@ -178,6 +173,32 @@ contract ProtocolTreasuryTest is Test {
         treasury.withdrawETH(address(0), 1 ether);
     }
 
+    // ========== Aggregate `totalWithdrawn` accounting (noesis-066 fix) ==========
+
+    function test_totalWithdrawn_startsZero() public view {
+        assertEq(treasury.totalWithdrawn(), 0);
+        (, uint256 withdrawn) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.BONDING_FEE);
+        assertEq(withdrawn, 0);
+    }
+
+    function test_totalWithdrawn_aggregatesAcrossWithdrawals() public {
+        vm.prank(alice);
+        treasury.deposit{ value: 6 ether }(ProtocolTreasuryV1.Source.BONDING_FEE);
+
+        vm.prank(owner);
+        treasury.withdrawETH(bob, 2 ether);
+        vm.prank(owner);
+        treasury.withdrawETH(bob, 1 ether);
+
+        // Aggregate, honest — not the forever-zero the old per-source mapping reported.
+        assertEq(treasury.totalWithdrawn(), 3 ether);
+
+        // The view now surfaces the aggregate withdrawn for any source query.
+        (uint256 received, uint256 withdrawn) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.BONDING_FEE);
+        assertEq(received, 6 ether);
+        assertEq(withdrawn, 3 ether);
+    }
+
     // ========== ERC721 ==========
 
     function test_receiveERC721() public {
@@ -226,136 +247,39 @@ contract ProtocolTreasuryTest is Test {
         treasury.withdrawERC20(address(token), alice, 1000);
     }
 
-    // ========== V4 Configuration ==========
+    // ========== UUPS storage-layout safety (noesis-066) ==========
+    // The treasury is a live-deployed UUPS proxy. The POL/conductor carve-out replaced removed vars
+    // with same-position `deprecated_*` placeholders. These tests assert the load-bearing slots did
+    // NOT shift — read directly from proxy storage via vm.load.
 
-    function test_setV4PoolManager() public {
-        vm.prank(owner);
-        treasury.setV4PoolManager(address(0x999));
-        assertEq(treasury.v4PoolManager(), address(0x999));
+    /// @dev slot 0 holds the `totalReceived` mapping base. A deposit writes keccak(key, 0); the base
+    ///      slot itself stays zero, and the packed slot 2 must hold `_initialized` at byte 20.
+    function test_layout_initializedStillAtSlot2Byte20() public view {
+        // slot 2 = deprecated_revenueConductor (bytes 0-19, zero) | _initialized (byte 20, true).
+        // With the conductor placeholder zeroed, the whole slot equals 1 << 160.
+        bytes32 slot2 = vm.load(address(treasury), bytes32(uint256(2)));
+        assertEq(uint256(slot2), uint256(1) << 160, "_initialized must remain packed at slot 2 byte 20");
     }
 
-    function test_setV4PoolManager_RevertNonOwner() public {
+    function test_layout_deprecatedSlotsAreZeroAndInert() public {
+        // The migrated placeholders (slots 1,3,4,5,6,7) are untouched by the lean contract and read 0.
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(1)))), 0, "slot1 (deprecated totalWithdrawn)");
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(3)))), 0, "slot3 (deprecated v4PoolManager)");
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(4)))), 0, "slot4 (deprecated weth)");
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(5)))), 0, "slot5 (deprecated masterRegistry)");
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(6)))), 0, "slot6 (deprecated _polPositions)");
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(7)))), 0, "slot7 (deprecated polInstances)");
+    }
+
+    /// @dev The appended aggregate `totalWithdrawn` lives at slot 8 (after the deprecated tail),
+    ///      proving new state is append-only and does not collide with the preserved slots.
+    function test_layout_totalWithdrawnAtSlot8() public {
         vm.prank(alice);
-        vm.expectRevert();
-        treasury.setV4PoolManager(address(0x999));
-    }
-
-    function test_setV4PoolManager_RevertZeroAddress() public {
+        treasury.deposit{ value: 4 ether }(ProtocolTreasuryV1.Source.OTHER);
         vm.prank(owner);
-        vm.expectRevert(ProtocolTreasuryV1.InvalidAddress.selector);
-        treasury.setV4PoolManager(address(0));
-    }
+        treasury.withdrawETH(bob, 1 ether);
 
-    function test_setWETH() public {
-        vm.prank(owner);
-        treasury.setWETH(address(0x888));
-        assertEq(treasury.weth(), address(0x888));
-    }
-
-    function test_setWETH_RevertNonOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        treasury.setWETH(address(0x888));
-    }
-
-    function test_setWETH_RevertZeroAddress() public {
-        vm.prank(owner);
-        vm.expectRevert(ProtocolTreasuryV1.InvalidAddress.selector);
-        treasury.setWETH(address(0));
-    }
-
-    // ========== POL Revert Tests ==========
-
-    function test_receivePOL_RevertRegistryNotConfigured() public {
-        // No registry set — should revert before V4/WETH checks
-        PoolKey memory key = _dummyPoolKey();
-        vm.prank(alice);
-        vm.expectRevert(ProtocolTreasuryV1.RegistryNotConfigured.selector);
-        treasury.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
-    }
-
-    function test_receivePOL_RevertNotRegisteredInstance() public {
-        // Registry set but caller not registered
-        vm.prank(owner);
-        treasury.setMasterRegistry(address(mockRegistry));
-
-        PoolKey memory key = _dummyPoolKey();
-        vm.prank(alice);
-        vm.expectRevert(ProtocolTreasuryV1.NotRegisteredInstance.selector);
-        treasury.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
-    }
-
-    function test_receivePOL_RevertV4NotConfigured() public {
-        // Registry + registered caller, but V4 not configured
-        vm.prank(owner);
-        treasury.setMasterRegistry(address(mockRegistry));
-        mockRegistry.setRegistered(alice, true);
-
-        vm.prank(owner);
-        treasury.setWETH(address(0x888));
-
-        PoolKey memory key = _dummyPoolKey();
-        vm.prank(alice);
-        vm.expectRevert(ProtocolTreasuryV1.V4NotConfigured.selector);
-        treasury.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
-    }
-
-    function test_receivePOL_RevertWETHNotConfigured() public {
-        // Registry + registered caller, V4 set but WETH not configured
-        vm.prank(owner);
-        treasury.setMasterRegistry(address(mockRegistry));
-        mockRegistry.setRegistered(alice, true);
-
-        vm.prank(owner);
-        treasury.setV4PoolManager(address(0x999));
-
-        PoolKey memory key = _dummyPoolKey();
-        vm.prank(alice);
-        vm.expectRevert(ProtocolTreasuryV1.WETHNotConfigured.selector);
-        treasury.receivePOL(key, -887220, 887220, 1 ether, 1 ether);
-    }
-
-    function test_claimPOLFees_RevertNoPosition() public {
-        vm.prank(alice);
-        vm.expectRevert(ProtocolTreasuryV1.NoPOLPosition.selector);
-        treasury.claimPOLFees(address(0xDEAD));
-    }
-
-    // ========== POL Views ==========
-
-    function test_polInstanceCount_InitiallyZero() public {
-        assertEq(treasury.polInstanceCount(), 0);
-    }
-
-    function test_getPolPosition_EmptyForUnknown() public {
-        (int24 tickLower, int24 tickUpper, bytes32 salt, uint128 liquidity) = treasury.getPolPosition(address(0xDEAD));
-        assertEq(tickLower, 0);
-        assertEq(tickUpper, 0);
-        assertEq(salt, bytes32(0));
-        assertEq(liquidity, 0);
-    }
-
-    // ========== POL Revenue Source ==========
-
-    function test_polFees_SourceTracking() public {
-        // Verify POL_FEES source enum works
-        (uint256 received, uint256 withdrawn) = treasury.getRevenueBySource(ProtocolTreasuryV1.Source.POL_FEES);
-        assertEq(received, 0);
-        assertEq(withdrawn, 0);
-    }
-
-    // Note: Full receivePOL integration tests require V4 PoolManager (fork tests)
-    // Unit tests verify config, reverts, and view functions
-
-    // ========== Helpers ==========
-
-    function _dummyPoolKey() internal pure returns (PoolKey memory) {
-        return PoolKey({
-            currency0: Currency.wrap(address(0xAAA)),
-            currency1: Currency.wrap(address(0xBBB)),
-            fee: 3000,
-            tickSpacing: int24(60),
-            hooks: IHooks(address(0))
-        });
+        assertEq(uint256(vm.load(address(treasury), bytes32(uint256(8)))), 1 ether, "totalWithdrawn must be at slot 8");
+        assertEq(treasury.totalWithdrawn(), 1 ether);
     }
 }
