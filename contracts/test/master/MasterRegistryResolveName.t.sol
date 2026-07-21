@@ -75,6 +75,15 @@ contract MasterRegistryResolveNameTest is Test {
         );
 
         sharedVault = address(new MockVaultSimple(dummyToken));
+
+        // registerInstance now gates on vault registration (curation choke-point), so the shared
+        // vault every instance binds to must be a registered + active vault first.
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: dummyToken, symbol: "DUMMY", info: "", metadataURI: "" });
+        vm.prank(daoOwner);
+        uint256 targetId = alignmentRegistry.registerAlignmentTarget("Test Target", "", "", assets);
+        vm.prank(daoOwner);
+        registry.registerVault(sharedVault, daoOwner, "Shared Vault", "ipfs://vault", targetId);
     }
 
     function _register(string memory name) internal returns (address instance) {
