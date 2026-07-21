@@ -213,7 +213,7 @@ contract RejectETH {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Test contract
+// Test contract — reworked money model (specs 2a + 2b)
 // ────────────────────────────────────────────────────────────────────────────
 
 contract AlignmentEndowmentVaultTest is Test {
@@ -227,56 +227,63 @@ contract AlignmentEndowmentVaultTest is Test {
     address public treasury = address(0xAA02);
     address public alignmentToken = address(0xAA03);
     address public communityPayout = address(0xAA04);
+    uint256 public constant TARGET_ID = 7;
 
-    address public alice = address(0xBB01); // EOA user
+    address public alice = address(0xBB01); // EOA user (owner of benefactorContract)
     address public agent = address(0xBB02);
     address public stranger = address(0xBB03);
 
     Currency public nativeCurrency = Currency.wrap(address(0));
 
     uint256 constant ONE_ETH = 1 ether;
-    uint256 constant MATURITY = 365 days;
+    uint256 constant VEST = 26 weeks;
 
     // ── Events ───────────────────────────────────────────────────────────────
     event ContributionReceived(address indexed benefactor, uint256 amount);
-    event PrincipalWithdrawn(address indexed benefactor, uint256 amount, bool matured);
-    event Harvested(uint256 yield, address indexed community);
+    event PrincipalDeposited(address indexed benefactor, uint256 amount, uint256 indexed targetId, uint256 timestamp);
+    event PrincipalVested(address indexed benefactor, uint256 amount, uint256 timestamp);
+    event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
+    event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
+    event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
 
     // ── Setup ─────────────────────────────────────────────────────────────────
 
     function setUp() public {
-        // Deploy core mocks
         weth = new MockWETH();
         stata = new MockStataToken(address(weth));
         masterRegistry = new MockMasterRegistry();
 
-        // benefactorContract is a contract whose "owner" alice will be
         benefactorContract = new MockOwnable(alice);
 
-        // Clone-deploy the vault (impl constructor sets _initialized=true)
+        vault = _deployVault(communityPayout);
+
+        vm.deal(alice, 100 ether);
+        vm.deal(address(this), 100 ether);
+
+        masterRegistry.setAgent(agent, true);
+
+        // Deterministic base timestamp so vest math is stable.
+        vm.warp(1_000_000);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function _deployVault(address payout) internal returns (AlignmentEndowmentVault v) {
         address impl = address(new AlignmentEndowmentVault());
-        vault = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        vault.initialize(
+        v = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
+        v.initialize(
             vaultOwner,
             address(weth),
             address(stata),
             treasury,
             address(masterRegistry),
             alignmentToken,
-            communityPayout
+            TARGET_ID,
+            payout
         );
-
-        // Fund EOAs and test contract with ETH
-        vm.deal(alice, 100 ether);
-        vm.deal(address(this), 100 ether);
-
-        // Allow agent in masterRegistry
-        masterRegistry.setAgent(agent, true);
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// @dev Contribute ETH from alice on behalf of benefactorContract (a contract benefactor).
     function _contributeBenefactor(uint256 amount) internal {
@@ -295,7 +302,6 @@ contract AlignmentEndowmentVaultTest is Test {
     /// @dev Simulate yield: inject ETH into MockWETH (so withdrawals are backed), mint the
     ///      corresponding WETH balance to this test contract, approve stata, and call simulateYield.
     function _simulateYield(uint256 extra) internal {
-        // Back the simulated WETH with real ETH so MockWETH.withdraw can pay out.
         vm.deal(address(weth), address(weth).balance + extra);
         weth.mint(address(this), extra);
         weth.approve(address(stata), extra);
@@ -313,7 +319,9 @@ contract AlignmentEndowmentVaultTest is Test {
         assertEq(address(vault.masterRegistry()), address(masterRegistry));
         assertEq(vault.alignmentToken(), alignmentToken);
         assertEq(vault.communityPayout(), communityPayout);
+        assertEq(vault.targetId(), TARGET_ID);
         assertEq(vault.owner(), vaultOwner);
+        assertEq(vault.VEST_DURATION(), VEST);
     }
 
     function test_initialize_revertsIfCalledAgain() public {
@@ -325,12 +333,12 @@ contract AlignmentEndowmentVaultTest is Test {
             treasury,
             address(masterRegistry),
             alignmentToken,
+            TARGET_ID,
             communityPayout
         );
     }
 
     function test_implLocked() public {
-        // The implementation's constructor sets _initialized; calling initialize on it reverts.
         address impl = address(new AlignmentEndowmentVault());
         vm.expectRevert();
         AlignmentEndowmentVault(payable(impl))
@@ -341,79 +349,47 @@ contract AlignmentEndowmentVaultTest is Test {
                 treasury,
                 address(masterRegistry),
                 alignmentToken,
+                TARGET_ID,
                 communityPayout
             );
     }
 
-    /// @dev initialize sets a one-time max WETH approval for stataToken; deposits use it fine.
-    function test_initialize_maxApprovalWorksForDeposit() public {
-        // A fresh vault with a fresh stata to confirm the max approval path in isolation.
-        MockStataToken freshStata = new MockStataToken(address(weth));
-        address impl = address(new AlignmentEndowmentVault());
-        AlignmentEndowmentVault v2 = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        v2.initialize(
-            vaultOwner,
-            address(weth),
-            address(freshStata),
-            treasury,
-            address(masterRegistry),
-            alignmentToken,
-            communityPayout
-        );
-
-        MockOwnable b = new MockOwnable(alice);
-        vm.prank(alice);
-        v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b));
-
-        assertEq(v2.principal(address(b)), ONE_ETH);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
-    // 2. receiveContribution — happy paths
+    // 2. receiveContribution — happy + revert
     // ═══════════════════════════════════════════════════════════════════════
 
-    function test_contribution_creditsPrincipal() public {
+    function test_contribution_creditsEscrowedPrincipal() public {
         _contributeBenefactor(ONE_ETH);
-
-        assertEq(vault.principal(address(benefactorContract)), ONE_ETH, "principal mismatch");
-        assertEq(vault.totalPrincipal(), ONE_ETH, "totalPrincipal mismatch");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), ONE_ETH);
+        assertEq(vault.totalEscrowedPrincipal(), ONE_ETH);
+        assertEq(vault.principalOf(address(benefactorContract)), ONE_ETH);
+        assertEq(vault.totalPrincipalCommittedAllTime(), ONE_ETH);
+        assertEq(vault.totalPrincipalLocked(), ONE_ETH);
     }
 
     function test_contribution_setsDepositTimeOnFirst() public {
-        vm.warp(1_000_000);
         _contributeBenefactor(ONE_ETH);
         assertEq(vault.depositTime(address(benefactorContract)), 1_000_000);
     }
 
     function test_contribution_doesNotResetDepositTimeOnSecond() public {
-        vm.warp(1_000_000);
         _contributeBenefactor(ONE_ETH);
         vm.warp(2_000_000);
         _contributeBenefactor(ONE_ETH);
-
-        // depositTime must still be the FIRST deposit time
-        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000, "depositTime should not reset");
-        assertEq(vault.principal(address(benefactorContract)), 2 * ONE_ETH, "principal should accumulate");
-        assertEq(vault.totalPrincipal(), 2 * ONE_ETH);
+        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000, "depositTime must not reset");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 2 * ONE_ETH);
+        assertEq(vault.totalEscrowedPrincipal(), 2 * ONE_ETH);
+        assertEq(vault.totalPrincipalCommittedAllTime(), 2 * ONE_ETH);
     }
 
-    function test_contribution_wethInStata() public {
-        _contributeBenefactor(ONE_ETH);
-        // stata should hold WETH equal to the deposit (1:1 on first deposit)
-        uint256 stataAssets = stata.convertToAssets(stata.balanceOf(address(vault)));
-        assertApproxEqAbs(stataAssets, ONE_ETH, 1, "stata should hold deposited WETH");
-    }
-
-    function test_contribution_emitsEvent() public {
+    function test_contribution_emitsBothEvents() public {
         vm.expectEmit(true, false, false, true);
         emit ContributionReceived(address(benefactorContract), ONE_ETH);
+        vm.expectEmit(true, true, false, true);
+        emit PrincipalDeposited(address(benefactorContract), ONE_ETH, TARGET_ID, block.timestamp);
         vm.prank(alice);
         vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(benefactorContract));
     }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // 3. receiveContribution — revert cases
-    // ═══════════════════════════════════════════════════════════════════════
 
     function test_contribution_revertsNonNativeCurrency() public {
         Currency erc20 = Currency.wrap(address(0x1234));
@@ -440,92 +416,180 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(0));
     }
 
-    /// @dev NEW: An EOA benefactor (no code) must revert BenefactorNotContract.
     function test_contribution_revertsEOABenefactor() public {
         address eoa = makeAddr("eoa_benefactor");
-        // eoa has no code — confirming the assumption
-        assertEq(eoa.code.length, 0, "eoa must have no code");
-
-        vm.deal(alice, alice.balance + ONE_ETH);
+        assertEq(eoa.code.length, 0);
         vm.prank(alice);
         vm.expectRevert(AlignmentEndowmentVault.BenefactorNotContract.selector);
         vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, eoa);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 4. harvest — happy path
+    // 3. Principal permanence — NO refund path exists
     // ═══════════════════════════════════════════════════════════════════════
 
-    function test_harvest_splitYield() public {
+    /// @dev The old refund path is gone: calling withdrawPrincipal(address) hits no function and
+    ///      no fallback (only receive() for empty calldata) → the call reverts. Principal cannot be pulled.
+    function test_permanence_noWithdrawPrincipalSelector() public {
         _contributeBenefactor(ONE_ETH);
+        (bool ok,) =
+            address(vault).call(abi.encodeWithSignature("withdrawPrincipal(address)", address(benefactorContract)));
+        assertFalse(ok, "withdrawPrincipal must not exist");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), ONE_ETH);
+    }
 
-        uint256 yieldAmount = 0.1 ether;
-        _simulateYield(yieldAmount);
+    /// @dev The old MATURITY_DURATION refund constant is gone.
+    function test_permanence_noMaturityDuration() public {
+        (bool ok,) = address(vault).staticcall(abi.encodeWithSignature("MATURITY_DURATION()"));
+        assertFalse(ok, "MATURITY_DURATION must not exist");
+    }
 
-        // accumulatedFees == yield
-        assertApproxEqAbs(vault.accumulatedFees(), yieldAmount, 2, "accumulatedFees should equal yield");
+    // ═══════════════════════════════════════════════════════════════════════
+    // 4. Vesting
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function test_vest_revertsBeforeDuration() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.warp(block.timestamp + VEST - 1);
+        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
+        vault.vest(address(benefactorContract));
+    }
+
+    function test_vest_revertsNoPrincipal() public {
+        vm.expectRevert(AlignmentEndowmentVault.NoPrincipal.selector);
+        vault.vest(address(benefactorContract));
+    }
+
+    function test_vest_movesEscrowedToVested_permissionless() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.warp(block.timestamp + VEST);
+
+        vm.expectEmit(true, false, false, true);
+        emit PrincipalVested(address(benefactorContract), ONE_ETH, block.timestamp);
+        vm.prank(stranger); // permissionless
+        vault.vest(address(benefactorContract));
+
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0, "escrow cleared");
+        assertEq(vault.totalEscrowedPrincipal(), 0);
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), ONE_ETH, "vested set");
+        assertEq(vault.vestedOf(address(benefactorContract)), ONE_ETH);
+        assertEq(vault.totalVestedDeployable(), ONE_ETH);
+        assertEq(vault.totalVested(), ONE_ETH);
+        // Still counted as the benefactor's all-time contribution (permanent, no refund).
+        assertEq(vault.getBenefactorContribution(address(benefactorContract)), ONE_ETH);
+    }
+
+    /// @dev After vest, the benefactor accrues NO creator yield on that principal.
+    function test_vest_stopsCreatorAccrual() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+
+        _simulateYield(ONE_ETH);
+        vault.harvest();
+
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "no creator accrual post-vest");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 5. harvest — two-class split (wei-exact)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Escrowed-only class: 80 creator / 19 target / 1 protocol. Two benefactors, unequal weight;
+    ///      each pendingYieldOf is exact to the wei.
+    function test_harvest_escrowedClass_splitAndAccumulatorExact() public {
+        _contributeBenefactor(1 ether); // A = benefactorContract (weight 1)
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 3 ether); // B (weight 3)
+        assertEq(vault.totalEscrowedPrincipal(), 4 ether);
 
         uint256 communityBefore = communityPayout.balance;
         uint256 treasuryBefore = treasury.balance;
 
+        _simulateYield(1 ether); // Y = 1 ETH
+
+        vm.expectEmit(false, false, false, true);
+        emit YieldDistributed(0.8 ether, 0.19 ether, 0.01 ether, block.timestamp);
         vault.harvest();
 
-        uint256 communityGot = communityPayout.balance - communityBefore;
-        uint256 treasuryGot = treasury.balance - treasuryBefore;
+        assertEq(communityPayout.balance - communityBefore, 0.19 ether, "target leg 19%");
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg 1%");
 
-        // 99% community, 1% treasury (allow ≤2 wei rounding)
-        assertApproxEqAbs(communityGot, (yieldAmount * 9900) / 10_000, 2, "community ~99%");
-        assertApproxEqAbs(treasuryGot, (yieldAmount * 100) / 10_000, 2, "treasury ~1%");
+        // creator leg 80% split by weight: A gets 1/4 = 0.2, B gets 3/4 = 0.6 — exact.
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.2 ether, "A creator yield exact");
+        assertEq(vault.pendingYieldOf(address(b)), 0.6 ether, "B creator yield exact");
 
-        // Principal untouched
-        assertEq(vault.totalPrincipal(), ONE_ETH, "principal must not change after harvest");
+        assertEq(vault.totalYieldToCreators(), 0.8 ether);
+        assertEq(vault.totalYieldToTarget(), 0.19 ether);
+        assertEq(vault.totalProtocolFees(), 0.01 ether);
+    }
+
+    /// @dev Vested-only class: 0 creator / 99 target / 1 protocol.
+    function test_harvest_vestedClass_split() public {
+        _contributeBenefactor(1 ether);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+
+        uint256 communityBefore = communityPayout.balance;
+        uint256 treasuryBefore = treasury.balance;
+
+        _simulateYield(1 ether);
+
+        vm.expectEmit(false, false, false, true);
+        emit YieldDistributed(0, 0.99 ether, 0.01 ether, block.timestamp);
+        vault.harvest();
+
+        assertEq(communityPayout.balance - communityBefore, 0.99 ether, "target leg 99% on vested");
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg 1%");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "no creator leg on vested");
+    }
+
+    /// @dev Mixed position: A vested (weight 1), B escrowed (weight 1). Yield apportioned by class.
+    function test_harvest_mixedClasses_split() public {
+        _contributeBenefactor(1 ether); // A
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract)); // A → vested; B stays escrowed
+
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
+        assertEq(vault.totalVestedDeployable(), 1 ether);
+
+        uint256 communityBefore = communityPayout.balance;
+        uint256 treasuryBefore = treasury.balance;
+
+        _simulateYield(1 ether); // total basis 2 ETH → escrowedYield = vestedYield = 0.5
+
+        // escrowed 0.5 → 0.4 creator / 0.095 target / 0.005 proto
+        // vested   0.5 → 0     creator / 0.495 target / 0.005 proto
+        vm.expectEmit(false, false, false, true);
+        emit YieldDistributed(0.4 ether, 0.59 ether, 0.01 ether, block.timestamp);
+        vault.harvest();
+
+        assertEq(communityPayout.balance - communityBefore, 0.59 ether, "target = 0.095 + 0.495");
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol = 0.005 + 0.005");
+        assertEq(vault.pendingYieldOf(address(b)), 0.4 ether, "B (escrowed) gets full creator leg");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "A (vested) gets none");
     }
 
     function test_harvest_noYieldIsNoop() public {
         _contributeBenefactor(ONE_ETH);
-
         uint256 communityBefore = communityPayout.balance;
-        uint256 treasuryBefore = treasury.balance;
-
-        // no revert expected
         vault.harvest();
-
-        assertEq(communityPayout.balance, communityBefore, "no transfer if zero yield");
-        assertEq(treasury.balance, treasuryBefore, "no transfer if zero yield");
+        assertEq(communityPayout.balance, communityBefore);
     }
 
     function test_harvest_revertsIfCommunityPayoutNotSet() public {
-        // Deploy a vault with no communityPayout
-        address impl = address(new AlignmentEndowmentVault());
-        AlignmentEndowmentVault v2 = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        v2.initialize(
-            vaultOwner, address(weth), address(stata), treasury, address(masterRegistry), alignmentToken, address(0)
-        );
-
-        // deposit into v2 using a contract benefactor
+        AlignmentEndowmentVault v2 = _deployVault(address(0));
         MockOwnable b2 = new MockOwnable(alice);
         vm.prank(alice);
         v2.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b2));
-
-        _simulateYield(0.1 ether); // raises stata.totalManaged → v2's position grows too
-
+        _simulateYield(0.1 ether);
         vm.expectRevert(AlignmentEndowmentVault.CommunityPayoutNotSet.selector);
         v2.harvest();
     }
 
-    function test_harvest_emitsEvent() public {
-        _contributeBenefactor(ONE_ETH);
-        _simulateYield(0.1 ether);
-
-        vm.expectEmit(false, true, false, false);
-        emit Harvested(0, communityPayout);
-        vault.harvest();
-    }
-
-    /// @dev NEW: harvest succeeds even when communityPayout rejects ETH (forceSafeTransferETH).
+    /// @dev harvest still succeeds when the target sink rejects ETH (force-send).
     function test_harvest_forcesSendToRejectingCommunity() public {
         RejectETH rejecter = new RejectETH();
-
         vm.prank(vaultOwner);
         vault.setCommunityPayout(address(rejecter));
 
@@ -533,282 +597,152 @@ contract AlignmentEndowmentVaultTest is Test {
         _simulateYield(0.1 ether);
 
         uint256 rejecterBefore = address(rejecter).balance;
-        uint256 treasuryBefore = treasury.balance;
-
-        // Must NOT revert despite rejecter refusing ETH
         vault.harvest();
-
-        // rejecter's balance increased (force-sent)
-        assertGt(address(rejecter).balance, rejecterBefore, "rejecter should have received ETH");
-        // treasury also received its cut
-        assertGt(treasury.balance, treasuryBefore, "treasury should have received ETH");
+        assertGt(address(rejecter).balance, rejecterBefore, "target force-sent");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 5. withdrawPrincipal — matured (80 owner / 19 community / 1 platform)
+    // 6. claimYieldPurse
     // ═══════════════════════════════════════════════════════════════════════
 
-    function test_withdraw_matured_splits() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
+    function test_claimYieldPurse_paysAndZeroes() public {
+        _contributeBenefactor(1 ether);
+        _simulateYield(1 ether);
+        vault.harvest(); // A escrowed-only → creator leg 0.8 ETH
 
-        // Warp past maturity
-        vm.warp(1_000_000 + MATURITY);
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether);
 
         uint256 aliceBefore = alice.balance;
-        uint256 communityBefore = communityPayout.balance;
-        uint256 treasuryBefore = treasury.balance;
-
-        // alice is owner of benefactorContract
+        vm.expectEmit(true, true, false, true);
+        emit YieldClaimed(address(benefactorContract), alice, 0.8 ether);
         vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract));
+        uint256 got = vault.claimYieldPurse(address(benefactorContract));
 
-        uint256 aliceGot = alice.balance - aliceBefore;
-        uint256 communityGot = communityPayout.balance - communityBefore;
-        uint256 treasuryGot = treasury.balance - treasuryBefore;
-
-        assertApproxEqAbs(aliceGot, (ONE_ETH * 8000) / 10_000, 2, "creator ~80% on matured");
-        assertApproxEqAbs(communityGot, (ONE_ETH * 1900) / 10_000, 2, "community ~19% on matured");
-        assertApproxEqAbs(treasuryGot, (ONE_ETH * 100) / 10_000, 2, "treasury ~1% on matured");
-    }
-
-    function test_withdraw_matured_clearsPrincipal() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(1_000_000 + MATURITY);
+        assertEq(got, 0.8 ether);
+        assertEq(alice.balance - aliceBefore, 0.8 ether, "creator (owner) receives ETH");
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0, "purse zeroed");
 
         vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract));
-
-        assertEq(vault.principal(address(benefactorContract)), 0, "principal cleared");
-        assertEq(vault.totalPrincipal(), 0, "totalPrincipal cleared");
+        assertEq(vault.claimYieldPurse(address(benefactorContract)), 0, "second claim zero");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // 6. withdrawPrincipal — early (80 community / 19 owner / 1 platform)
-    // ═══════════════════════════════════════════════════════════════════════
-
-    function test_withdraw_early_splits() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-
-        // Do NOT warp to maturity — early withdrawal
-        uint256 aliceBefore = alice.balance;
-        uint256 communityBefore = communityPayout.balance;
-        uint256 treasuryBefore = treasury.balance;
-
-        vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract));
-
-        uint256 aliceGot = alice.balance - aliceBefore;
-        uint256 communityGot = communityPayout.balance - communityBefore;
-        uint256 treasuryGot = treasury.balance - treasuryBefore;
-
-        assertApproxEqAbs(communityGot, (ONE_ETH * 8000) / 10_000, 2, "community ~80% on early");
-        assertApproxEqAbs(aliceGot, (ONE_ETH * 1900) / 10_000, 2, "creator ~19% on early");
-        assertApproxEqAbs(treasuryGot, (ONE_ETH * 100) / 10_000, 2, "treasury ~1% on early");
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // 7. withdrawPrincipal — auth
-    // ═══════════════════════════════════════════════════════════════════════
-
-    function test_withdraw_revertsStranger() public {
-        _contributeBenefactor(ONE_ETH);
-
+    function test_claimYieldPurse_revertsStranger() public {
+        _contributeBenefactor(1 ether);
+        _simulateYield(1 ether);
+        vault.harvest();
         vm.prank(stranger);
         vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
-        vault.withdrawPrincipal(address(benefactorContract));
+        vault.claimYieldPurse(address(benefactorContract));
     }
 
-    function test_withdraw_agentSucceeds() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-        vm.warp(1_000_000 + MATURITY);
+    function test_claimYieldPurse_agentSucceeds_paysCreator() public {
+        _contributeBenefactor(1 ether);
+        _simulateYield(1 ether);
+        vault.harvest();
 
-        // agent is allowed via masterRegistry
-        vm.prank(agent);
-        vault.withdrawPrincipal(address(benefactorContract)); // should not revert
+        uint256 aliceBefore = alice.balance;
+        vm.prank(agent); // agent acts for the benefactor; funds still go to the creator (owner)
+        vault.claimYieldPurse(address(benefactorContract));
+        assertEq(alice.balance - aliceBefore, 0.8 ether, "agent claim pays creator");
     }
 
-    function test_withdraw_newOwnerCanWithdraw() public {
-        _contributeBenefactor(ONE_ETH);
+    function test_claimYieldPurse_newOwnerReceivesAfterTransfer() public {
+        _contributeBenefactor(1 ether);
+        _simulateYield(1 ether);
+        vault.harvest();
 
         address newOwner = address(0xCC01);
-        vm.deal(newOwner, 1 ether);
-
-        // alice transfers benefactorContract ownership to newOwner
         vm.prank(alice);
         benefactorContract.transferOwnership(newOwner);
 
-        // newOwner can withdraw
+        uint256 newOwnerBefore = newOwner.balance;
         vm.prank(newOwner);
-        vault.withdrawPrincipal(address(benefactorContract)); // must not revert
+        vault.claimYieldPurse(address(benefactorContract));
+        assertEq(newOwner.balance - newOwnerBefore, 0.8 ether, "new owner receives creator yield");
     }
 
-    function test_withdraw_oldOwnerCannotAfterTransfer() public {
-        _contributeBenefactor(ONE_ETH);
-
-        address newOwner = address(0xCC02);
-        vm.prank(alice);
-        benefactorContract.transferOwnership(newOwner);
-
-        // alice (old owner) can no longer withdraw
-        vm.prank(alice);
-        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
-        vault.withdrawPrincipal(address(benefactorContract));
-    }
-
-    function test_withdraw_revertsNoPrincipal() public {
-        // benefactorContract has no principal
-        vm.prank(alice);
-        vm.expectRevert(AlignmentEndowmentVault.NoPrincipal.selector);
-        vault.withdrawPrincipal(address(benefactorContract));
-    }
-
-    /// @dev NEW: RedeemShortfall — liquidity crunch reverts and state is unchanged.
-    function test_withdraw_revertsRedeemShortfall() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-
-        // Cap maxWithdraw to half of principal → shortfall >> REDEEM_DUST (1e6)
-        stata.setMaxWithdrawCap(ONE_ETH / 2);
-
-        vm.prank(alice);
-        vm.expectRevert(AlignmentEndowmentVault.RedeemShortfall.selector);
-        vault.withdrawPrincipal(address(benefactorContract));
-
-        // State must be unchanged
-        assertEq(vault.principal(address(benefactorContract)), ONE_ETH, "principal must be intact");
-        assertEq(vault.totalPrincipal(), ONE_ETH, "totalPrincipal must be intact");
-        assertEq(vault.depositTime(address(benefactorContract)), 1_000_000, "depositTime must be intact");
-    }
-
-    /// @dev NEW: A shortfall within REDEEM_DUST (cap = p-1) is absorbed; withdrawal succeeds.
-    function test_withdraw_dustShortfallSucceeds() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-
-        // cap = p - 1 wei → shortfall = 1 wei ≤ REDEEM_DUST (1e6)
-        stata.setMaxWithdrawCap(ONE_ETH - 1);
-
-        vm.warp(1_000_000 + MATURITY);
-        vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract)); // must NOT revert
-
-        assertEq(vault.principal(address(benefactorContract)), 0, "principal cleared after dust-shortfall withdraw");
-    }
-
-    /// @dev NEW: After removing the cap, withdrawal succeeds following a previous crunch.
-    function test_withdraw_succeedsAfterCapLifted() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-
-        // Crunch
-        stata.setMaxWithdrawCap(ONE_ETH / 2);
-        vm.prank(alice);
-        vm.expectRevert(AlignmentEndowmentVault.RedeemShortfall.selector);
-        vault.withdrawPrincipal(address(benefactorContract));
-
-        // Lift cap
-        stata.setMaxWithdrawCap(0);
-        vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract)); // now succeeds
-
-        assertEq(vault.principal(address(benefactorContract)), 0);
-    }
-
-    // ── Shared-position first-mover bank run (audit #36 Tier-2) ────────────────
-    //
-    // All benefactors share ONE Aave position. If it is impaired (worth less than the sum of
-    // principals), withdrawals must socialize the loss pro-rata — NOT let a first mover redeem 100%
-    // and brick latecomers. After simulateLoss burns the unbacked WETH, MockWETH is topped up so the
-    // (reduced) redemptions can still settle in native ETH.
-
-    /// @dev Total ETH a withdrawal paid out across all three split legs (creator/community/platform).
-    function _payout(address creator, uint256 c0, uint256 m0, uint256 t0) internal view returns (uint256) {
-        return (creator.balance - c0) + (communityPayout.balance - m0) + (treasury.balance - t0);
-    }
-
-    /// @dev THE fix: under a 50% impairment, two equal benefactors each get ~50% — the first mover
-    ///      cannot drain the position and the second is NOT bricked. Pre-fix the first took 100% and
-    ///      the second reverted RedeemShortfall forever.
-    function test_withdraw_impairedPositionSocializesLossProRata() public {
-        vm.warp(1_000_000);
-
-        // Two equal benefactors: alice's benefactorContract + a second one owned by 0xCAFE.
-        _contributeBenefactor(10 ether);
-        MockOwnable b2 = _contributeNewBenefactor(address(0xCAFE), 10 ether);
-        assertEq(vault.totalPrincipal(), 20 ether);
-
-        // Aave loses 50% of the shared position (10 of 20 ETH of value gone).
-        stata.simulateLoss(10 ether);
-        vm.deal(address(weth), 100 ether); // native ETH backs the reduced redemptions
-
-        // Mature so creator (the benefactor's owner) is the 80% leg.
-        vm.warp(1_000_000 + MATURITY);
-
-        // First mover (alice) withdraws — total paid out must be the pro-rata ~5 ETH, not the full 10.
-        uint256 c0 = alice.balance;
-        uint256 m0 = communityPayout.balance;
-        uint256 t0 = treasury.balance;
-        vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract));
-        assertApproxEqAbs(_payout(alice, c0, m0, t0), 5 ether, 1e9, "first mover must get ~pro-rata 5 ETH");
-
-        // Second benefactor is NOT bricked and also gets ~5 ETH (the ratio held constant).
-        c0 = address(0xCAFE).balance;
-        m0 = communityPayout.balance;
-        t0 = treasury.balance;
-        vm.prank(address(0xCAFE));
-        vault.withdrawPrincipal(address(b2)); // must NOT revert
-        assertApproxEqAbs(_payout(address(0xCAFE), c0, m0, t0), 5 ether, 1e9, "second must also get ~pro-rata 5 ETH");
-        assertEq(vault.principal(address(b2)), 0, "second benefactor withdrew, not bricked");
-        assertEq(vault.totalPrincipal(), 0, "ledger fully cleared");
-    }
-
-    /// @dev Solvency haircut (value < principal) is honored and does NOT spuriously revert: a lone
-    ///      benefactor under impairment withdraws the reduced value rather than reverting RedeemShortfall.
-    function test_withdraw_soleBenefactorTakesImpairedValue() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(10 ether);
-
-        stata.simulateLoss(4 ether); // 40% impairment → value 6 ETH
-        vm.deal(address(weth), 100 ether);
-
-        vm.warp(1_000_000 + MATURITY);
-        vm.prank(alice);
-        vault.withdrawPrincipal(address(benefactorContract)); // must NOT revert
-
-        assertEq(vault.principal(address(benefactorContract)), 0, "principal cleared");
-        assertEq(vault.totalPrincipal(), 0, "totalPrincipal cleared");
-        // The full nominal principal leaves the ledger; the 4 ETH shortfall is a realized loss.
-    }
-
-    /// @dev NEW: withdrawPrincipal succeeds even when creator rejects ETH (forceSafeTransferETH).
-    function test_withdraw_forcesSendToRejectingCreator() public {
+    /// @dev A creator contract that rejects ETH does not brick its own claim (force-send).
+    function test_claimYieldPurse_forcesSendToRejectingCreator() public {
         RejectETH rejecter = new RejectETH();
-
-        // benefactor owned by the rejecting contract (so creator cut goes to rejecter)
         MockOwnable b = new MockOwnable(address(rejecter));
-        vm.deal(address(rejecter), 10 ether);
-
-        // Deposit from alice as the caller; benefactor is b (owned by rejecter)
         vm.prank(alice);
-        vault.receiveContribution{ value: ONE_ETH }(nativeCurrency, ONE_ETH, address(b));
-
-        vm.warp(MATURITY + 1);
+        vault.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
+        _simulateYield(1 ether);
+        vault.harvest();
 
         uint256 rejecterBefore = address(rejecter).balance;
-        uint256 communityBefore = communityPayout.balance;
-
-        // rejecter is the owner of b, so it can call withdrawPrincipal
         vm.prank(address(rejecter));
-        vault.withdrawPrincipal(address(b)); // must NOT revert
+        vault.claimYieldPurse(address(b));
+        assertGt(address(rejecter).balance, rejecterBefore, "creator force-sent");
+    }
 
-        // rejecter's ETH balance increased (force-sent creator cut)
-        assertGt(address(rejecter).balance, rejecterBefore, "creator rejecter got ETH via force-send");
-        assertGt(communityPayout.balance, communityBefore, "community got their cut");
+    // ═══════════════════════════════════════════════════════════════════════
+    // 7. Impairment socialization on migrate (escrow-only)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function test_migrate_impaired_socializesProRata() public {
+        _contributeBenefactor(10 ether);
+        _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        assertEq(vault.totalEscrowedPrincipal(), 20 ether);
+
+        // 50% impairment.
+        stata.simulateLoss(10 ether);
+        vm.deal(address(weth), 100 ether);
+
+        address recovery = makeAddr("recovery");
+        vm.deal(recovery, 0);
+
+        // Escrowed share = value(10) * escrowed(20)/basis(20) = 10 ETH redeemed to recovery.
+        vm.prank(vaultOwner);
+        vm.expectEmit(false, false, false, true);
+        emit ImpairmentRealized(5000, block.timestamp);
+        vault.migratePosition(recovery);
+
+        assertApproxEqAbs(recovery.balance, 10 ether, 1e9, "escrow tranche (impaired) moved to recovery");
+        // Per-benefactor accounting PRESERVED on-chain (no zero-and-forget).
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 10 ether, "ledger preserved");
+        assertEq(vault.totalEscrowedPrincipal(), 20 ether, "ledger preserved");
+    }
+
+    /// @dev migrate moves only the escrowed tranche; the vested tranche stays in the position.
+    function test_migrate_escrowOnly_leavesVested() public {
+        _contributeBenefactor(1 ether); // A → will vest
+        _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → stays escrowed
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
+        assertEq(vault.totalVestedDeployable(), 1 ether);
+
+        address recovery = makeAddr("recovery");
+        vm.deal(recovery, 0);
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(recovery);
+
+        // Only the escrowed 1 ETH is redeemed; vested 1 ETH remains as position value.
+        assertApproxEqAbs(recovery.balance, 1 ether, 2, "only escrow tranche moved");
+        assertApproxEqAbs(vault.currentPositionValue(), 1 ether, 2, "vested tranche left in position");
+        assertEq(vault.totalVestedDeployable(), 1 ether, "vested accounting intact");
+    }
+
+    function test_migrate_revertsZeroRecipient() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.prank(vaultOwner);
+        vm.expectRevert(AlignmentEndowmentVault.InvalidAddress.selector);
+        vault.migratePosition(address(0));
+    }
+
+    function test_migrate_revertsNonOwner() public {
+        _contributeBenefactor(ONE_ETH);
+        vm.prank(stranger);
+        vm.expectRevert();
+        vault.migratePosition(stranger);
+    }
+
+    function test_migrate_revertsNoEscrow() public {
+        vm.prank(vaultOwner);
+        vm.expectRevert(AlignmentEndowmentVault.NoPrincipal.selector);
+        vault.migratePosition(makeAddr("recovery"));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -836,7 +770,7 @@ contract AlignmentEndowmentVaultTest is Test {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 9. Admin: setCommunityPayout, migratePosition
+    // 9. Admin: setCommunityPayout
     // ═══════════════════════════════════════════════════════════════════════
 
     function test_setCommunityPayout_ownerUpdates() public {
@@ -845,7 +779,6 @@ contract AlignmentEndowmentVaultTest is Test {
         vm.expectEmit(true, false, false, false);
         emit CommunityPayoutUpdated(newPayout);
         vault.setCommunityPayout(newPayout);
-
         assertEq(vault.communityPayout(), newPayout);
     }
 
@@ -861,76 +794,44 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.setCommunityPayout(address(0));
     }
 
-    /// @dev NEW: migratePosition(address(0)) reverts InvalidAddress.
-    function test_migratePosition_revertsZeroRecipient() public {
-        _contributeBenefactor(ONE_ETH);
-
-        vm.prank(vaultOwner);
-        vm.expectRevert(AlignmentEndowmentVault.InvalidAddress.selector);
-        vault.migratePosition(address(0));
-    }
-
-    /// @dev NEW: non-owner cannot call migratePosition.
-    function test_migratePosition_revertsNonOwner() public {
-        _contributeBenefactor(ONE_ETH);
-
-        vm.prank(stranger);
-        vm.expectRevert();
-        vault.migratePosition(stranger);
-    }
-
-    /// @dev NEW: migratePosition(recipient) sends all ETH to recipient, zeroes totalPrincipal, emits Migrated.
-    function test_migratePosition_sendsToRecipient() public {
-        _contributeBenefactor(ONE_ETH);
-
-        address recipient = address(0xEE01);
-        vm.deal(recipient, 0);
-
-        uint256 recipientBefore = recipient.balance;
-
-        vm.prank(vaultOwner);
-        vm.expectEmit(true, false, false, true);
-        emit Migrated(recipient, ONE_ETH);
-        vault.migratePosition(recipient);
-
-        uint256 recipientGot = recipient.balance - recipientBefore;
-        assertApproxEqAbs(recipientGot, ONE_ETH, 1, "recipient should get full position");
-        assertEq(vault.totalPrincipal(), 0, "totalPrincipal must be zeroed after migrate");
-    }
-
-    /// @dev NEW: migratePosition with yield in position also moves yield to recipient.
-    function test_migratePosition_includesYield() public {
-        _contributeBenefactor(ONE_ETH);
-        _simulateYield(0.1 ether);
-
-        address recipient = makeAddr("migrate_recipient");
-        vm.deal(recipient, 0);
-
-        vm.prank(vaultOwner);
-        vault.migratePosition(recipient);
-
-        // Recipient should have gotten at least principal + most of yield (minus rounding)
-        assertGe(recipient.balance, ONE_ETH, "recipient should get at least principal");
-        assertEq(vault.totalPrincipal(), 0, "totalPrincipal zeroed");
-    }
-
-    /// @dev NEW: migratePosition force-sends even if recipient rejects ETH.
-    function test_migratePosition_forcesSendToRejectingRecipient() public {
-        _contributeBenefactor(ONE_ETH);
-
-        RejectETH rejecter = new RejectETH();
-        uint256 rejecterBefore = address(rejecter).balance;
-
-        vm.prank(vaultOwner);
-        vault.migratePosition(address(rejecter)); // must NOT revert
-
-        assertGt(address(rejecter).balance, rejecterBefore, "rejecter received ETH via force-send");
-        assertEq(vault.totalPrincipal(), 0);
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
-    // 10. Views
+    // 10. Stat surface + interface views
     // ═══════════════════════════════════════════════════════════════════════
+
+    function test_statSurface_acrossLifecycle() public {
+        _contributeBenefactor(2 ether);
+        assertEq(vault.totalPrincipalLocked(), 2 ether);
+        assertEq(vault.totalPrincipalCommittedAllTime(), 2 ether);
+        assertEq(vault.totalVested(), 0);
+        assertEq(vault.totalDeployedByTarget(), 0);
+        assertApproxEqAbs(vault.currentPositionValue(), 2 ether, 2);
+
+        _simulateYield(1 ether);
+        assertApproxEqAbs(vault.accumulatedFees(), 1 ether, 2);
+        vault.harvest();
+        assertEq(vault.totalYieldToCreators(), 0.8 ether);
+        assertEq(vault.totalYieldToTarget(), 0.19 ether);
+        assertEq(vault.totalProtocolFees(), 0.01 ether);
+
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+        assertEq(vault.totalVested(), 2 ether);
+        assertEq(vault.totalPrincipalLocked(), 0);
+        assertEq(vault.vestedOf(address(benefactorContract)), 2 ether);
+    }
+
+    function test_totalShares_equalsPrincipalBasis() public {
+        _contributeBenefactor(1 ether);
+        _contributeNewBenefactor(alice, 2 ether);
+        assertEq(vault.totalShares(), 3 ether);
+    }
+
+    function test_calculateClaimableAmount_isYieldPurse() public {
+        _contributeBenefactor(1 ether);
+        _simulateYield(1 ether);
+        vault.harvest();
+        assertEq(vault.calculateClaimableAmount(address(benefactorContract)), 0.8 ether);
+    }
 
     function test_vaultType() public view {
         assertEq(vault.vaultType(), "AaveEndowment");
@@ -938,59 +839,12 @@ contract AlignmentEndowmentVaultTest is Test {
 
     function test_supportsCapability_yieldGeneration() public view {
         assertTrue(vault.supportsCapability(keccak256("YIELD_GENERATION")));
-    }
-
-    function test_supportsCapability_unknownFalse() public view {
         assertFalse(vault.supportsCapability(keccak256("UNKNOWN")));
-    }
-
-    function test_calculateClaimableAmount_beforeMaturity() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-
-        // Just before maturity
-        vm.warp(1_000_000 + MATURITY - 1);
-        assertEq(vault.calculateClaimableAmount(address(benefactorContract)), 0, "not claimable before maturity");
-    }
-
-    function test_calculateClaimableAmount_atMaturity() public {
-        vm.warp(1_000_000);
-        _contributeBenefactor(ONE_ETH);
-
-        vm.warp(1_000_000 + MATURITY);
-        assertEq(
-            vault.calculateClaimableAmount(address(benefactorContract)), ONE_ETH, "should be claimable at maturity"
-        );
-    }
-
-    function test_getBenefactorContribution() public {
-        _contributeBenefactor(ONE_ETH);
-        assertEq(vault.getBenefactorContribution(address(benefactorContract)), ONE_ETH);
-    }
-
-    function test_getBenefactorShares() public {
-        _contributeBenefactor(ONE_ETH);
-        assertEq(vault.getBenefactorShares(address(benefactorContract)), ONE_ETH);
-    }
-
-    function test_totalShares_equalsTotalPrincipal() public {
-        _contributeBenefactor(ONE_ETH);
-        MockOwnable b2 = new MockOwnable(alice);
-        vm.prank(alice);
-        vault.receiveContribution{ value: 2 ether }(nativeCurrency, 2 ether, address(b2));
-        assertEq(vault.totalShares(), vault.totalPrincipal());
     }
 
     function test_accumulatedFees_zeroWithNoYield() public {
         _contributeBenefactor(ONE_ETH);
         assertEq(vault.accumulatedFees(), 0);
-    }
-
-    function test_accumulatedFees_afterYield() public {
-        _contributeBenefactor(ONE_ETH);
-        uint256 y = 0.05 ether;
-        _simulateYield(y);
-        assertApproxEqAbs(vault.accumulatedFees(), y, 1);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
