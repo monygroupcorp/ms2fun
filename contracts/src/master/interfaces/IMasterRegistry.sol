@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
+import { IAlignmentRegistry } from "./IAlignmentRegistry.sol";
 
 /**
  * @title IMasterRegistry
@@ -118,6 +119,10 @@ interface IMasterRegistry {
 
     // Agent Management
     function isAgent(address agent) external view returns (bool);
+
+    // Alignment Registry (curation of alignment targets + their ambassadors). The public
+    // `alignmentRegistry` storage var of MasterRegistryV1 already implements this getter.
+    function alignmentRegistry() external view returns (IAlignmentRegistry);
 
     // ComponentRegistry
     function componentRegistry() external view returns (IComponentRegistry);

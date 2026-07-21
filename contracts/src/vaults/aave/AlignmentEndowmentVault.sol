@@ -7,6 +7,7 @@ import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 
 /// @dev Minimal WETH surface used by the vault.
 interface IWETH {
@@ -84,6 +85,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error BenefactorNotContract();
     error RedeemShortfall();
     error NotVested();
+    error ExceedsDeployableCorpus();
 
     // ┌─────────────────────────┐
     // │       Constants         │
@@ -157,6 +159,11 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
+    /// @notice Emitted when the alignment target (via an ambassador) deploys vested corpus capital.
+    ///         `selector` = the first 4 bytes of `data` (0x00000000 for a plain value transfer).
+    event CapitalDeployed(
+        address indexed ambassador, address indexed to, uint256 value, bytes4 selector, uint256 timestamp
+    );
 
     constructor() {
         // Lock the implementation; clones initialize via initialize().
@@ -439,6 +446,75 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         // reconstructing each benefactor's stake there.
         if (got > 0) SafeTransferLib.forceSafeTransferETH(to, got);
         emit Migrated(to, got);
+    }
+
+    // ┌─────────────────────────────────────────┐
+    // │  Target-sovereign deployment (spec 2c)  │
+    // └─────────────────────────────────────────┘
+
+    /// @notice The ETH-equivalent of the deployable (vested) corpus an ambassador may `execute` against.
+    /// @dev    This is the VESTED principal tranche (`totalVestedDeployable`), tracked 1:1 in WETH (== ETH).
+    ///         It is deliberately NOT the vested tranche's proportional share of the live position value:
+    ///         any position value above the principal basis is UNHARVESTED yield, which belongs to the
+    ///         yield legs (99 target / 1 protocol on the vested class, realized by `harvest()`), NOT to the
+    ///         deployable principal corpus. Deployment is principal-corpus only (spec 2c §2), so the bound
+    ///         is the principal, keeping the protocol's 1% yield leg out of reach of `execute`.
+    function deployableCorpus() public view returns (uint256) {
+        return totalVestedDeployable;
+    }
+
+    /// @notice Target-sovereign deployment of vested capital. The alignment target — acting through any of
+    ///         its ambassadors — may deploy up to `deployableCorpus()` with an ARBITRARY external call:
+    ///         any `to`, any `value` (≤ corpus), any `data`. No whitelist, no creator/owner approval, no
+    ///         forbidden actions (withdraw-to-EOA is `execute(eoa, amount, "")`). The tithe is freely given;
+    ///         the target is sovereign over what has vested. The sole backstop against a rogue ambassador is
+    ///         the platform owner's `removeAmbassador` on the alignment registry, which revokes deploy rights
+    ///         for any capital not yet moved. Escrowed (unvested) principal is UNTOUCHABLE here — the bound
+    ///         is the vested corpus only.
+    /// @dev    Auth resolves LIVE against the canonical alignment registry
+    ///         (`masterRegistry.alignmentRegistry().isAmbassador(targetId, msg.sender)`) so a platform
+    ///         re-point of the alignment registry is honored and there is no stale-cache risk. Strict
+    ///         checks-effects-interactions + `nonReentrant`: the corpus is decremented and the redeem is
+    ///         settled BEFORE the arbitrary external call, so a malicious `to` re-entering `execute` cannot
+    ///         double-spend. Redeems `value` from the Aave vested tranche; an Aave shortfall reverts (no
+    ///         partial deploy).
+    /// @param  to    Target of the deployment call (any address).
+    /// @param  value ETH to deploy (must be ≤ `deployableCorpus()`).
+    /// @param  data  Calldata for the deployment call (empty for a plain transfer).
+    /// @return result The raw return data of the external call.
+    function execute(address to, uint256 value, bytes calldata data)
+        external
+        nonReentrant
+        returns (bytes memory result)
+    {
+        IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
+        if (!ar.isAmbassador(targetId, msg.sender)) revert NotAuthorized();
+        if (value > deployableCorpus()) revert ExceedsDeployableCorpus();
+
+        // ── Effects (before the arbitrary external call) ──
+        totalVestedDeployable -= value; // ≤ deployableCorpus(), so no underflow
+        _totalDeployedByTarget += value;
+
+        // Redeem the deployed value from the Aave vested tranche to native ETH. `value ≤ vested basis ≤
+        // position value`, so `maxWithdraw` covers it and the escrowed tranche is never drawn upon. A
+        // shortfall beyond dust rounding is an Aave liquidity event → revert (do not partial-deploy).
+        uint256 got = _redeem(value);
+        if (got + REDEEM_DUST < value) revert RedeemShortfall();
+
+        bytes4 selector;
+        if (data.length >= 4) selector = bytes4(data[:4]);
+        emit CapitalDeployed(msg.sender, to, value, selector, block.timestamp);
+
+        // ── Interaction: the arbitrary external call ──
+        bool ok;
+        (ok, result) = to.call{ value: value }(data);
+        if (!ok) {
+            // Bubble the callee's revert reason verbatim.
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
+        return result;
     }
 
     // ┌─────────────────────────┐
