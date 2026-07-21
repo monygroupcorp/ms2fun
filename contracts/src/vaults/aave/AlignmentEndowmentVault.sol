@@ -32,21 +32,41 @@ interface IOwnable {
 
 /**
  * @title AlignmentEndowmentVault
- * @notice The Aave endowment vault (ADR-0003). One impl, clone-deployed PER alignment target by
- *         `AlignmentEndowmentVaultFactory`, so each clone serves exactly ONE community — which keeps
- *         yield routing trivial (no per-benefactor accumulator).
+ * @notice The Aave endowment vault (rework, specs 2a + 2b). One impl, clone-deployed PER alignment
+ *         target by `AlignmentEndowmentVaultFactory`. N benefactors (aligned collections) pool their
+ *         pledged principal into ONE Aave `StaticATokenV2` position per target.
  *
- * @dev Each aligned collection ("benefactor" = the instance) parks a refundable WETH PRINCIPAL in
- *      this clone's own Aave `StaticATokenV2` position. Principal compounds; the spread above
- *      `totalPrincipal` is harvestable YIELD.
- *      - Intake (`receiveContribution`): wrap ETH → WETH → supply to the stataToken; `principal += amount`.
- *      - `harvest()` (permissionless): realize yield → MVP split **99% community / 1% platform**
- *        (the creator-19% yield purse is a documented fast-follow — the only thing an accumulator buys).
- *      - `withdrawPrincipal()`: matured → 80 creator / 19 community / 1 platform; early → 80 community /
- *        19 creator / 1 platform. Maturity is a GLOBAL platform constant.
- *      Clone-compatible (EIP-1167): initialized via `initialize()`, owned by the factory.
- *      Legacy LP/share/delegation methods of `IAlignmentVault` revert `NotSupported` (endowment has no
- *      tradable shares). See docs/phases/t4-aave-vault-handoff.md.
+ * @dev Money model (locked design session 2026-07-21 — see docs/plans/spec-endowment-vault-rework.md
+ *      + spec-endowment-yield-accumulator.md; Part 0 of spec-alignment-vault-economics.md is the law):
+ *
+ *      - **Principal is a PERMANENT donation.** There is NO refund path — a benefactor's pledged
+ *        principal never returns to them. It is committed to the alignment target forever.
+ *      - **Principal vests over 6 months per benefactor** (`VEST_DURATION`, measured from the
+ *        benefactor's first deposit). Before vest the principal is *escrowed*; at vest it becomes the
+ *        target's *deployable* corpus. Vest mechanic (b): vested principal STAYS in the Aave position
+ *        earning until the target deploys it (deployment = spec 2c / a separate item) — it is never
+ *        idle. The position therefore holds two principal classes at once: `escrowedPrincipal` and
+ *        `vestedDeployable`.
+ *      - **Yield split (Part 0), applied per class on each `harvest()`:**
+ *          escrowed class → 80 creator / 19 target / 1 protocol
+ *          vested   class →  0 creator / 99 target / 1 protocol   (creator exited; protocol keeps 1%)
+ *        Hard bps constants, no setter (the ratio is sacred). The creator leg flows through a
+ *        per-benefactor MasterChef accumulator (`accCreatorYieldPerPrincipal` + `rewardDebt`, weighted
+ *        by escrowed principal) and is pulled via `claimYieldPurse()`. Target leg → `communityPayout`
+ *        (native ETH). Protocol leg → `protocolTreasury`.
+ *      - **Impairment socialization** (pro-rata-on-shortfall) is preserved for escrowed principal in the
+ *        redeeming emergency path (`migratePosition`). Once vested, the corpus is the target's; its risk
+ *        is the venue the target deploys into, so escrow impairment no longer applies to it.
+ *      - **migratePosition** is an escrow-only Aave-reserve-deprecation emergency that preserves
+ *        per-benefactor accounting ON-CHAIN (no off-chain reconcile).
+ *
+ *      Clone-compatible (EIP-1167): initialized via `initialize()`, owned by the factory. The legacy
+ *      tradable-share / delegation methods of `IAlignmentVault` revert `NotSupported` (an endowment has
+ *      no tradable shares); the endowment claim path is `claimYieldPurse()`.
+ *
+ *      NOTE (audit): this is a fund-holding money-core rework. Deployment of vested capital (the
+ *      target-sovereign `execute`) is intentionally NOT in this contract — it is a separately-audited
+ *      follow-on. Re-audit required before any deploy.
  */
 contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // ┌─────────────────────────┐
@@ -63,21 +83,30 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error NotSupported();
     error BenefactorNotContract();
     error RedeemShortfall();
+    error NotVested();
 
     // ┌─────────────────────────┐
     // │       Constants         │
     // └─────────────────────────┘
-    /// @notice Platform-wide endowment lock. Global, not per-vault or per-collection (decision T4).
-    uint256 public constant MATURITY_DURATION = 365 days;
+    /// @notice Per-benefactor vesting duration — a platform constant (6 months), measured from the
+    ///         benefactor's first deposit. NOT a refund trigger: at vest, principal becomes the
+    ///         target's deployable corpus, it does not return to the benefactor.
+    uint256 public constant VEST_DURATION = 26 weeks;
+
     uint256 internal constant BPS = 10_000;
-    // Split weights (the platform 1% is always the remainder, so dust never strands).
-    uint256 internal constant MAJOR_BPS = 8_000; // 80%
-    uint256 internal constant MINOR_BPS = 1_900; // 19%
-    // MVP yield community share = MAJOR_BPS + MINOR_BPS (= 99%); the creator-19% purse is the
-    // documented fast-follow. Derived (not a separate constant) so it can't drift out of sync.
-    // A principal redemption short of the request by ≤ REDEEM_DUST is absorbed as ERC-4626
-    // floor-rounding; a larger shortfall is treated as an Aave liquidity event and reverts so the
-    // benefactor can retry once liquidity returns (rather than losing the unredeemed remainder).
+    /// @dev Sacred protocol cut — exactly 1% of ALL yield (both principal classes). Hard, no setter.
+    uint256 internal constant PROTOCOL_BPS = 100; // 1%
+    /// @dev Target cut on the ESCROWED class — 19%. Creator = remainder of the escrowed class (80%).
+    ///      On the VESTED class the creator leg is zero and the target takes the whole non-protocol
+    ///      remainder (99%), so no separate vested-target constant is needed.
+    uint256 internal constant TARGET_BPS_ESCROW = 1_900; // 19%
+
+    /// @dev Fixed-point precision for the per-benefactor yield accumulator (MasterChef-style).
+    uint256 internal constant ACC_PRECISION = 1e18;
+
+    /// @dev A redemption short of the request by ≤ REDEEM_DUST is absorbed as ERC-4626 floor-rounding;
+    ///      a larger shortfall is treated as an Aave liquidity event and reverts so the caller can retry
+    ///      once liquidity returns (rather than clearing accounting for funds we could not recover).
     uint256 internal constant REDEEM_DUST = 1e6; // wei
 
     // ┌─────────────────────────┐
@@ -86,17 +115,46 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     bool private _initialized;
     IStataToken public stataToken; // this clone's Aave position (waEthWETH)
     IWETH public weth;
-    address public protocolTreasury; // 1% platform cut
+    address public protocolTreasury; // 1% protocol cut sink
     IMasterRegistry public masterRegistry; // agent authorization
     address public alignmentToken; // satisfies registerVault's alignmentToken() check
-    address public communityPayout; // where this clone's community cut goes (owner-updatable)
+    address public communityPayout; // target sink (registry-pinned at deploy, owner-updatable)
+    uint256 public targetId; // the alignment target this clone serves (for the stat surface / events)
 
-    mapping(address => uint256) public principal; // benefactor(instance) → WETH principal, refundable
-    mapping(address => uint256) public depositTime; // first-deposit ts; maturity = +MATURITY_DURATION
-    uint256 public totalPrincipal;
+    // ── Per-benefactor accounting ─────────────────────────────────────────────
+    /// @notice A benefactor's live ESCROWED (pre-vest) principal — the accumulator weight.
+    mapping(address => uint256) public escrowedPrincipal;
+    /// @notice A benefactor's principal that has VESTED (now the target's deployable corpus).
+    mapping(address => uint256) public vestedPrincipal;
+    /// @notice First-deposit timestamp; the benefactor's principal vests at `depositTime + VEST_DURATION`.
+    mapping(address => uint256) public depositTime;
+    /// @notice MasterChef reward debt (settled snapshot of `escrowedPrincipal * acc / 1e18`).
+    mapping(address => uint256) public rewardDebt;
+    /// @notice Accrued, still-unclaimed creator yield (native ETH wei) held by the vault for the benefactor.
+    mapping(address => uint256) public yieldPurse;
 
-    event PrincipalWithdrawn(address indexed benefactor, uint256 amount, bool matured);
-    event Harvested(uint256 yield, address indexed community);
+    // ── Aggregates / accumulator ──────────────────────────────────────────────
+    uint256 public totalEscrowedPrincipal; // Σ escrowed principal (live) — accumulator weight
+    uint256 public totalVestedDeployable; // Σ vested principal still in the position, awaiting deploy
+    /// @notice Creator-yield-per-escrowed-principal accumulator, scaled by 1e18 (MasterChef).
+    uint256 public accCreatorYieldPerPrincipal;
+
+    // ── Cumulative stat counters (spec 2a §5) ─────────────────────────────────
+    uint256 internal _totalPrincipalCommittedAllTime; // monotonic Σ of all principal ever deposited
+    uint256 internal _totalVested; // monotonic Σ of all principal ever vested
+    uint256 internal _totalDeployedByTarget; // Σ deployed by the target (deployment is a separate item; 0 here)
+    uint256 internal _totalYieldToCreators; // Σ creator leg routed to the accumulator
+    uint256 internal _totalYieldToTarget; // Σ target leg routed to communityPayout
+    uint256 internal _totalProtocolFees; // Σ protocol leg routed to protocolTreasury
+
+    // ┌─────────────────────────┐
+    // │         Events          │
+    // └─────────────────────────┘
+    event PrincipalDeposited(address indexed benefactor, uint256 amount, uint256 indexed targetId, uint256 timestamp);
+    event PrincipalVested(address indexed benefactor, uint256 amount, uint256 timestamp);
+    event YieldDistributed(uint256 creatorLeg, uint256 targetLeg, uint256 protocolLeg, uint256 timestamp);
+    event YieldClaimed(address indexed benefactor, address indexed recipient, uint256 amount);
+    event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
 
@@ -113,6 +171,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         address _protocolTreasury,
         address _masterRegistry,
         address _alignmentToken,
+        uint256 _targetId,
         address _communityPayout
     ) external {
         if (_initialized) revert AlreadyInitialized();
@@ -128,6 +187,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         protocolTreasury = _protocolTreasury;
         masterRegistry = IMasterRegistry(_masterRegistry);
         alignmentToken = _alignmentToken;
+        targetId = _targetId;
         communityPayout = _communityPayout; // may be set later via setCommunityPayout
 
         // One-time max approval: the vault is the sole holder of its WETH, deposited each intake into
@@ -141,10 +201,10 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
     /// @inheritdoc IAlignmentVault
     /// @dev Native ETH only (`currency` must be the zero Currency); `msg.value == amount`. Wraps to
-    ///      WETH and supplies the stataToken, crediting `benefactor`'s refundable principal. Open +
-    ///      guarded (matches the reference vault): there is no tradable-share surface to inflate, so
-    ///      no caller gate is required. `benefactor` MUST be a contract — withdrawal reads
-    ///      `IOwnable(benefactor).owner()`, so crediting a codeless address would strand the funds.
+    ///      WETH and supplies the stataToken, crediting `benefactor`'s ESCROWED (permanent, vesting)
+    ///      principal. Open + guarded (matches the reference vault): there is no tradable-share surface
+    ///      to inflate, so no caller gate is required. `benefactor` MUST be a contract — the yield-claim
+    ///      path reads `IOwnable(benefactor).owner()`, so crediting a codeless address would strand it.
     function receiveContribution(Currency currency, uint256 amount, address benefactor)
         external
         payable
@@ -169,102 +229,163 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         stataToken.deposit(amount, address(this));
 
         if (depositTime[benefactor] == 0) depositTime[benefactor] = block.timestamp;
-        principal[benefactor] += amount;
-        totalPrincipal += amount;
+
+        // Settle the benefactor's accrued creator yield at their OLD escrow weight, then grow the
+        // weight and re-baseline `rewardDebt` so the new principal earns only future yield.
+        _settle(benefactor);
+        escrowedPrincipal[benefactor] += amount;
+        totalEscrowedPrincipal += amount;
+        rewardDebt[benefactor] = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+
+        _totalPrincipalCommittedAllTime += amount;
+
         emit ContributionReceived(benefactor, amount);
+        emit PrincipalDeposited(benefactor, amount, targetId, block.timestamp);
+    }
+
+    // ┌─────────────────────────┐
+    // │   Vesting               │
+    // └─────────────────────────┘
+
+    /// @notice Realize a benefactor's vest once `depositTime + VEST_DURATION` has elapsed. Permissionless
+    ///         (anyone may poke it — it moves no value to the caller). Settles and STOPS the benefactor's
+    ///         creator-yield accrual, then moves their principal from the escrowed class to the target's
+    ///         deployable class. Mechanic (b): the principal STAYS in the Aave position (no redeem) and
+    ///         from here earns 0 creator / 99 target / 1 protocol until the target deploys it.
+    function vest(address benefactor) external nonReentrant {
+        uint256 e = escrowedPrincipal[benefactor];
+        if (e == 0) revert NoPrincipal();
+        if (block.timestamp < depositTime[benefactor] + VEST_DURATION) revert NotVested();
+
+        // Settle at the current escrow weight (their creator purse is already-earned ETH; untouched here),
+        // then remove them from the accumulator weight — from now they accrue nothing on this principal.
+        _settle(benefactor);
+        escrowedPrincipal[benefactor] = 0;
+        rewardDebt[benefactor] = 0;
+        totalEscrowedPrincipal -= e;
+
+        vestedPrincipal[benefactor] += e;
+        totalVestedDeployable += e;
+        _totalVested += e;
+
+        emit PrincipalVested(benefactor, e, block.timestamp);
     }
 
     // ┌─────────────────────────┐
     // │   Yield (harvest)       │
     // └─────────────────────────┘
 
-    /// @notice Realize the compounded yield and distribute it (MVP: 99% community / 1% platform).
-    ///         Permissionless — it only moves the fixed split to fixed destinations.
+    /// @notice Realize the compounded Aave yield and split it per class (spec 2b §1). Permissionless —
+    ///         it only moves the fixed split to fixed destinations.
+    ///         escrowed class → 80 creator / 19 target / 1 protocol; vested class → 0 / 99 / 1.
     function harvest() external nonReentrant {
         uint256 y = _pendingYield();
         if (y == 0) return;
-        if (communityPayout == address(0)) revert CommunityPayoutNotSet();
+
+        uint256 totalInAave = totalEscrowedPrincipal + totalVestedDeployable;
+        // `y > 0` implies position value > principal basis, which requires basis > 0 (value is 0 with no
+        // shares). Guard defensively anyway.
+        if (totalInAave == 0) return;
 
         uint256 got = _redeem(y);
-        // creator purse deferred → creator share 0; community 99% (= MAJOR+MINOR); platform = remainder.
-        _distribute(got, address(0), 0, communityPayout, MAJOR_BPS + MINOR_BPS);
-        emit Harvested(got, communityPayout);
+        if (got == 0) return;
+
+        // Apportion realized yield across the two principal classes (remainder-safe).
+        uint256 escrowedYield = (got * totalEscrowedPrincipal) / totalInAave;
+        uint256 vestedYield = got - escrowedYield;
+
+        // Escrowed class → 80 creator / 19 target / 1 protocol.
+        uint256 protoE = (escrowedYield * PROTOCOL_BPS) / BPS;
+        uint256 targetE = (escrowedYield * TARGET_BPS_ESCROW) / BPS;
+        uint256 creatorLeg = escrowedYield - protoE - targetE;
+
+        // Vested class → 0 creator / 99 target / 1 protocol (creator exited; protocol keeps its 1%).
+        uint256 protoV = (vestedYield * PROTOCOL_BPS) / BPS;
+        uint256 targetV = vestedYield - protoV;
+
+        uint256 protocolLeg = protoE + protoV;
+        uint256 targetLeg = targetE + targetV;
+
+        // Creator leg → per-benefactor accumulator (weighted by escrowed principal). If there is no
+        // escrowed weight the escrowed class produced no creator leg (escrowedYield == 0), so this is a
+        // no-op; the guard protects the division.
+        if (creatorLeg > 0 && totalEscrowedPrincipal > 0) {
+            accCreatorYieldPerPrincipal += (creatorLeg * ACC_PRECISION) / totalEscrowedPrincipal;
+            _totalYieldToCreators += creatorLeg;
+        }
+
+        // Target + protocol legs are pushed out now (creator leg stays as ETH for `claimYieldPurse`).
+        if (targetLeg > 0) {
+            if (communityPayout == address(0)) revert CommunityPayoutNotSet();
+            _totalYieldToTarget += targetLeg;
+            // force-send: a target sink that rejects ETH must not brick harvest for everyone else.
+            SafeTransferLib.forceSafeTransferETH(communityPayout, targetLeg);
+        }
+        if (protocolLeg > 0) {
+            _totalProtocolFees += protocolLeg;
+            SafeTransferLib.forceSafeTransferETH(protocolTreasury, protocolLeg);
+        }
+
+        emit YieldDistributed(creatorLeg, targetLeg, protocolLeg, block.timestamp);
         emit FeesAccumulated(got);
     }
 
     // ┌─────────────────────────┐
-    // │   Principal withdraw    │
+    // │   Yield claim (creator) │
     // └─────────────────────────┘
 
-    /// @notice Withdraw a benefactor's refundable principal. Matured → 80 creator / 19 community / 1
-    ///         platform; early → 80 community / 19 creator / 1 platform. Callable by the collection's
-    ///         current owner (follows ownership transfers) or an approved platform agent acting for them.
-    function withdrawPrincipal(address benefactor) external nonReentrant {
-        uint256 p = principal[benefactor];
-        if (p == 0) revert NoPrincipal();
-
+    /// @notice Pull-payment: withdraw a benefactor's accrued creator-yield purse in native ETH to the
+    ///         benefactor's current owner (the creator). Callable by that owner or an approved platform
+    ///         agent acting for them. `nonReentrant`, checks-effects-interactions.
+    function claimYieldPurse(address benefactor) external nonReentrant returns (uint256 amount) {
         address creator = IOwnable(benefactor).owner();
         if (msg.sender != creator && !masterRegistry.isAgent(msg.sender)) revert NotAuthorized();
-        if (communityPayout == address(0)) revert CommunityPayoutNotSet();
 
-        bool matured = block.timestamp >= depositTime[benefactor] + MATURITY_DURATION;
+        // Settle any accrued-but-unmoved creator yield into the purse (effects) before paying it out.
+        _settle(benefactor);
+        amount = yieldPurse[benefactor];
+        if (amount == 0) return 0;
+        yieldPurse[benefactor] = 0; // effect before interaction (CEI)
 
-        // All benefactors share ONE Aave position, so if it is ever impaired (worth less than the sum
-        // of principals — e.g. an Aave bad-debt event) a benefactor redeeming their FULL nominal `p`
-        // would drain the position and leave latecomers unable to redeem at all: a first-mover bank
-        // run where the loss falls entirely on whoever withdraws last. Instead, socialize the loss
-        // pro-rata: when the position is impaired, this benefactor's fair claim is their slice of the
-        // CURRENT value. Redeeming `claim` while clearing the full nominal `p` from the ledger leaves
-        // value/principal unchanged for everyone remaining, so no withdrawal order is advantaged.
-        uint256 totalValue = _stataValue();
-        uint256 claim = p;
-        if (totalValue < totalPrincipal) {
-            claim = (p * totalValue) / totalPrincipal; // round down: dust stays for remaining benefactors
-        }
-
-        // Redeem from Aave FIRST (trusted calls only) so we never clear accounting for funds we
-        // couldn't recover: a shortfall below the (already pro-rated) claim beyond rounding dust is an
-        // Aave *liquidity* event → revert so the benefactor retries later, rather than losing the
-        // unredeemed remainder to phantom yield. (A solvency haircut is already reflected in `claim`.)
-        uint256 got = _redeem(claim);
-        if (got + REDEEM_DUST < claim) revert RedeemShortfall();
-
-        // effects (clear state) before the untrusted distribution interactions. The full nominal `p`
-        // leaves the ledger even under a haircut — the shortfall is a realized loss, not a deferred debt.
-        principal[benefactor] = 0;
-        depositTime[benefactor] = 0;
-        totalPrincipal -= p;
-
-        if (matured) {
-            // creator 80 / community 19 / platform 1
-            _distribute(got, creator, MAJOR_BPS, communityPayout, MINOR_BPS);
-        } else {
-            // community 80 / creator 19 / platform 1
-            _distribute(got, creator, MINOR_BPS, communityPayout, MAJOR_BPS);
-        }
-        emit PrincipalWithdrawn(benefactor, p, matured);
-        emit FeesClaimed(benefactor, got);
+        // force-send: a creator contract that rejects ETH must not be able to brick its own claim path.
+        SafeTransferLib.forceSafeTransferETH(creator, amount);
+        emit YieldClaimed(benefactor, creator, amount);
+        emit FeesClaimed(benefactor, amount);
+        return amount;
     }
 
     // ┌─────────────────────────┐
     // │   Internal helpers      │
     // └─────────────────────────┘
 
+    /// @dev Move a benefactor's accrued-but-unsettled creator yield into their purse and re-baseline
+    ///      their `rewardDebt` to the current accumulator at their CURRENT escrow weight.
+    function _settle(address benefactor) internal {
+        uint256 accumulated = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+        uint256 debt = rewardDebt[benefactor];
+        if (accumulated > debt) {
+            yieldPurse[benefactor] += accumulated - debt;
+        }
+        rewardDebt[benefactor] = accumulated;
+    }
+
     /// @dev WETH value the vault could redeem from its stataToken position right now.
     function _stataValue() internal view returns (uint256) {
         return stataToken.convertToAssets(stataToken.balanceOf(address(this)));
     }
 
-    /// @dev Yield = position value above tracked principal (guarded against rounding underflow).
+    /// @dev Yield = position value above the tracked principal basis (both classes), guarded against
+    ///      rounding underflow.
     function _pendingYield() internal view returns (uint256) {
         uint256 v = _stataValue();
-        return v > totalPrincipal ? v - totalPrincipal : 0;
+        uint256 basis = totalEscrowedPrincipal + totalVestedDeployable;
+        return v > basis ? v - basis : 0;
     }
 
     /// @dev Redeem up to `assets` WETH from the stataToken and unwrap to native ETH. Caps at
-    ///      `maxWithdraw` so ERC-4626 floor-rounding (the position can be worth `assets − 1 wei`)
-    ///      never reverts the withdrawal; returns the amount actually redeemed (`assets` minus any
-    ///      sub-wei dust, which stays in the position).
+    ///      `maxWithdraw` so ERC-4626 floor-rounding (the position can be worth `assets − 1 wei`) never
+    ///      reverts; returns the amount actually redeemed (`assets` minus any sub-wei dust, which stays
+    ///      in the position).
     function _redeem(uint256 assets) internal returns (uint256) {
         uint256 avail = stataToken.maxWithdraw(address(this));
         uint256 amt = assets < avail ? assets : avail;
@@ -275,51 +396,117 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         return amt;
     }
 
-    /// @dev Split `amount` of ETH: creator (creatorBps) + community (communityBps) + platform
-    ///      (remainder, ~1% incl. rounding dust). Skips zero legs; reverts if a community leg is due
-    ///      but no payout is set (caught earlier, defensive here).
-    function _distribute(uint256 amount, address creator, uint256 creatorBps, address community, uint256 communityBps)
-        internal
-    {
-        uint256 creatorCut = (amount * creatorBps) / BPS;
-        uint256 communityCut = (amount * communityBps) / BPS;
-        uint256 platformCut = amount - creatorCut - communityCut;
-
-        // force-send: a recipient that rejects ETH (e.g. a creator/community contract without a
-        // payable receiver) must not be able to brick harvest/withdrawal for everyone else.
-        if (communityCut > 0) {
-            if (community == address(0)) revert CommunityPayoutNotSet();
-            SafeTransferLib.forceSafeTransferETH(community, communityCut);
-        }
-        if (creatorCut > 0 && creator != address(0)) {
-            SafeTransferLib.forceSafeTransferETH(creator, creatorCut);
-        }
-        if (platformCut > 0) SafeTransferLib.forceSafeTransferETH(protocolTreasury, platformCut);
-    }
-
     // ┌─────────────────────────┐
     // │   Admin                 │
     // └─────────────────────────┘
 
-    /// @notice Update where this clone's community cut is sent (owner = factory).
+    /// @notice Update where this clone's target cut is sent (owner = factory).
     function setCommunityPayout(address payout) external onlyOwner {
         if (payout == address(0)) revert InvalidAddress();
         communityPayout = payout;
         emit CommunityPayoutUpdated(payout);
     }
 
-    /// @notice Emergency escape hatch (owner = factory): redeem the ENTIRE position to native ETH and
-    ///         force-send it to `to` (the protocol's recovery address) for an Aave reserve
-    ///         deprecation/migration. Zeroes `totalPrincipal`; per-benefactor entries are reconciled
-    ///         off-chain — post-migration the vault is decommissioned (withdrawals revert RedeemShortfall).
-    /// @dev    Sends to an explicit `to` rather than `owner()`: the owner is the factory, which has no
-    ///         `receive()`, so paying it directly would always revert.
+    /// @notice Emergency (owner = factory): escrow-only Aave-reserve-deprecation migration. Redeems the
+    ///         ESCROWED tranche's pro-rata share of the position to native ETH and force-sends it to `to`
+    ///         (the protocol's recovery / new-venue address), PRESERVING per-benefactor principal
+    ///         accounting on-chain (no zero-and-off-chain-reconcile). The vested tranche is the target's
+    ///         corpus and is moved by the target's own deployment path, not here.
+    /// @dev    Impairment socialization: the escrowed share is `value * escrowed / (escrowed + vested)`,
+    ///         so a position worth less than principal is redeemed pro-rata rather than first-come. A
+    ///         shortfall beyond `REDEEM_DUST` is an Aave liquidity event → revert so the owner can retry.
+    ///         Sends to an explicit `to` (the factory owner has no `receive()`).
     function migratePosition(address to) external onlyOwner nonReentrant {
         if (to == address(0)) revert InvalidAddress();
-        uint256 got = _redeem(_stataValue());
-        totalPrincipal = 0;
+        uint256 escrowed = totalEscrowedPrincipal;
+        if (escrowed == 0) revert NoPrincipal();
+
+        uint256 basis = escrowed + totalVestedDeployable;
+        uint256 value = _stataValue();
+
+        // Escrowed tranche's pro-rata claim on the (possibly impaired) position value.
+        uint256 escrowValue = (value * escrowed) / basis;
+        if (value < basis) {
+            uint256 shortfallBps = ((basis - value) * BPS) / basis;
+            emit ImpairmentRealized(shortfallBps, block.timestamp);
+        }
+
+        uint256 got = _redeem(escrowValue);
+        if (got + REDEEM_DUST < escrowValue) revert RedeemShortfall();
+
+        // Per-benefactor escrow accounting is intentionally PRESERVED (not zeroed): the value is
+        // relocated to `to`/the new venue, and the on-chain ledger remains the source of truth for
+        // reconstructing each benefactor's stake there.
         if (got > 0) SafeTransferLib.forceSafeTransferETH(to, got);
         emit Migrated(to, got);
+    }
+
+    // ┌─────────────────────────┐
+    // │   Stat surface (2a §5)  │
+    // └─────────────────────────┘
+
+    /// @notice Live escrowed (pre-vest) principal across all benefactors.
+    function totalPrincipalLocked() external view returns (uint256) {
+        return totalEscrowedPrincipal;
+    }
+
+    /// @notice Monotonic sum of all principal ever committed to this vault.
+    function totalPrincipalCommittedAllTime() external view returns (uint256) {
+        return _totalPrincipalCommittedAllTime;
+    }
+
+    /// @notice Monotonic sum of all principal that has vested into the target's deployable corpus.
+    function totalVested() external view returns (uint256) {
+        return _totalVested;
+    }
+
+    /// @notice Sum of principal deployed by the target (deployment is a separate follow-on item; 0 here).
+    function totalDeployedByTarget() external view returns (uint256) {
+        return _totalDeployedByTarget;
+    }
+
+    /// @notice Cumulative creator-leg yield routed to the per-benefactor accumulator.
+    function totalYieldToCreators() external view returns (uint256) {
+        return _totalYieldToCreators;
+    }
+
+    /// @notice Cumulative target-leg yield routed to `communityPayout`.
+    function totalYieldToTarget() external view returns (uint256) {
+        return _totalYieldToTarget;
+    }
+
+    /// @notice Cumulative protocol-leg yield routed to `protocolTreasury`.
+    function totalProtocolFees() external view returns (uint256) {
+        return _totalProtocolFees;
+    }
+
+    /// @notice Live redeemable WETH value of the Aave position.
+    function currentPositionValue() external view returns (uint256) {
+        return _stataValue();
+    }
+
+    /// @notice A benefactor's live escrowed (pre-vest) principal.
+    function principalOf(address benefactor) external view returns (uint256) {
+        return escrowedPrincipal[benefactor];
+    }
+
+    /// @notice A benefactor's principal that has vested into the target's deployable corpus.
+    function vestedOf(address benefactor) external view returns (uint256) {
+        return vestedPrincipal[benefactor];
+    }
+
+    /// @notice A benefactor's total claimable creator yield in native ETH: already-settled purse plus the
+    ///         live-unsettled accrual on their current escrow weight.
+    function pendingYieldOf(address benefactor) external view returns (uint256) {
+        return _claimable(benefactor);
+    }
+
+    /// @dev Total claimable creator yield = settled purse + live-unsettled accrual at current weight.
+    function _claimable(address benefactor) internal view returns (uint256) {
+        uint256 accumulated = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+        uint256 debt = rewardDebt[benefactor];
+        uint256 live = accumulated > debt ? accumulated - debt : 0;
+        return yieldPurse[benefactor] + live;
     }
 
     // ┌─────────────────────────┐
@@ -335,47 +522,47 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
     /// @notice Whether this vault is operationally wired (O2 gate — parity with the LP vaults).
     /// @dev The endowment needs no pool key or DEX wiring: the Aave stataToken position is set at
-    ///      initialize and never requires post-deploy operational config. Always ready, so the
-    ///      wizard's Yield family is always selectable.
+    ///      initialize and never requires post-deploy operational config. Always ready.
     function isLiquidityReady() external pure returns (bool) {
         return true;
     }
 
     /// @inheritdoc IAlignmentVault
     function description() external pure override returns (string memory) {
-        return "Perpetual community endowment: refundable creator principal in Aave, yield to the community.";
+        return "Per-target endowment: permanent, 6-month-vesting creator donations in Aave; yield 80/19/1.";
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Endowment semantics: returns harvestable yield still IN the Aave position (a preview),
+    /// @dev Endowment semantics: returns the harvestable yield still IN the Aave position (a preview),
     ///      NOT withdrawn ETH. Realized only by `harvest()`.
     function accumulatedFees() external view override returns (uint256) {
         return _pendingYield();
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Not tradable shares — this is the total refundable WETH principal ledger (in wei).
+    /// @dev Not tradable shares — the total principal basis (escrowed + vested) still in the position.
     function totalShares() external view override returns (uint256) {
-        return totalPrincipal;
+        return totalEscrowedPrincipal + totalVestedDeployable;
     }
 
     /// @inheritdoc IAlignmentVault
+    /// @dev A benefactor's all-time principal (permanent — escrowed + vested; never decreases, no refund).
     function getBenefactorContribution(address benefactor) external view override returns (uint256) {
-        return principal[benefactor];
+        return escrowedPrincipal[benefactor] + vestedPrincipal[benefactor];
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Not shares — the benefactor's refundable WETH principal (in wei).
+    /// @dev Not tradable shares — the benefactor's total principal (escrowed + vested), in wei.
     function getBenefactorShares(address benefactor) external view override returns (uint256) {
-        return principal[benefactor];
+        return escrowedPrincipal[benefactor] + vestedPrincipal[benefactor];
     }
 
     /// @inheritdoc IAlignmentVault
-    /// @dev Endowment semantics: 0 while principal is LOCKED (not "no claim") → the gross principal at
-    ///      maturity (pre-split). Use `principal()`/`depositTime()` for the locked amount + unlock time.
+    /// @dev Endowment semantics: principal is a PERMANENT donation and is never claimable as cash. The
+    ///      only claimable amount is the benefactor's accrued creator-yield purse — returned here so the
+    ///      generic interface query reports the real claimable ETH (pulled via `claimYieldPurse`).
     function calculateClaimableAmount(address benefactor) external view override returns (uint256) {
-        if (block.timestamp < depositTime[benefactor] + MATURITY_DURATION) return 0;
-        return principal[benefactor];
+        return _claimable(benefactor);
     }
 
     /// @inheritdoc IAlignmentVault
@@ -402,8 +589,8 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     // ┌─────────────────────────┐
     // │  Unsupported legacy API │
     // └─────────────────────────┘
-    // Endowment has no tradable shares / per-caller fee claims / delegation. Use harvest() +
-    // withdrawPrincipal() instead.
+    // Endowment has no tradable shares / per-caller fee claims / delegation. The endowment claim path is
+    // `claimYieldPurse()`; yield realization is `harvest()`.
 
     /// @inheritdoc IAlignmentVault
     function claimFees() external pure override returns (uint256) {

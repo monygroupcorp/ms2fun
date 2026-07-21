@@ -49,8 +49,10 @@ contract AlignmentEndowmentVaultFactory is Ownable {
         AlignmentEndowmentVault(payable(vault)).setCommunityPayout(payout);
     }
 
-    /// @notice Emergency: migrate a vault's entire Aave position to `to` (the factory owns its vaults,
-    ///         and the vault's `migratePosition` is onlyOwner). For an Aave reserve deprecation.
+    /// @notice Emergency: migrate a vault's ESCROWED tranche (pro-rata, impairment-aware) to `to` (the
+    ///         factory owns its vaults, and the vault's `migratePosition` is onlyOwner). For an Aave
+    ///         reserve deprecation. Per-benefactor accounting is preserved on-chain; the vested tranche
+    ///         is the target's and is not moved here.
     /// @param vault Address of the vault (must have been deployed by this factory)
     /// @param to    Recovery recipient for the redeemed ETH
     function migrateVault(address vault, address to) external onlyOwner {
@@ -77,7 +79,16 @@ contract AlignmentEndowmentVaultFactory is Ownable {
         address payout = alignmentRegistry.getCommunityPayout(alignmentTargetId);
 
         AlignmentEndowmentVault(payable(vault))
-            .initialize(address(this), weth, stataToken, protocolTreasury, masterRegistry, alignmentToken, payout);
+            .initialize(
+                address(this),
+                weth,
+                stataToken,
+                protocolTreasury,
+                masterRegistry,
+                alignmentToken,
+                alignmentTargetId,
+                payout
+            );
 
         emit VaultDeployed(vault, alignmentToken, alignmentTargetId);
     }
