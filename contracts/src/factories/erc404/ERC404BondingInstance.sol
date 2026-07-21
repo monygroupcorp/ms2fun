@@ -80,6 +80,14 @@ interface ICarveParamsSource {
         returns (uint256);
 }
 
+/// @notice Read-side of the staking module's per-instance total. The instance credits its own
+///         staking-liability reserve only when the module can actually distribute (`totalStaked > 0`);
+///         this mirrors the module's own guard in `recordFeesReceived`. Declared inline to keep the
+///         change local to this file (the shared `IERC404StakingModule` interface is unchanged).
+interface IStakingTotals {
+    function totalStaked(address instance) external view returns (uint256);
+}
+
 /**
  * @title ERC404BondingInstance
  * @notice AMM-agnostic ERC404 bonding token. Graduation delegates to an ILiquidityDeployerModule.
@@ -165,6 +173,12 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // Staking module (address(0) = staking not available for this instance)
     IERC404StakingModule public stakingModule;
     bool public stakingActive;
+
+    // ETH currently owed to stakers (a liability held in this instance's balance, NOT part of the
+    // bonding `reserve`). Credited when distributable fees arrive (`claimAllFees`, only while
+    // `totalStaked > 0`), debited as stakers are actually paid (`unstake`, `claimStakingRewards`).
+    // `withdrawDust` subtracts this so the owner can never sweep staker-owed ETH (noesis-061 F1).
+    uint256 public stakingReserve;
 
     // Generic keyed module slots (ADR-0006/0007). One slot for all known + future module pointers
     // (role => module; 0 = absent). Wired ONCE by the factory at create, then sealed — no owner setter.
@@ -329,6 +343,9 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // slither-disable-next-line reentrancy-no-eth
     function claimFreeMint(bytes calldata gatingData) external nonReentrant {
         if (freeMintAllocation == 0) revert FreeMintDisabled();
+        // Free mints are part of the bonding curve: once graduated the curve is closed, so a late
+        // claim would mint tokens against a drained curve / already-deployed pool (noesis-061 F2).
+        if (graduated) revert BondingEnded();
         // Free mints are part of the curve, not a pre-sale — they cannot be claimed before it opens
         // (same open reference the buy/graduation paths use).
         if (bondingOpenTime == 0) revert BondingNotConfigured();
@@ -409,20 +426,39 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         }
         if (stakingActive) {
             uint256 delta = address(this).balance - before;
-            if (delta > 0) stakingModule.recordFeesReceived(delta);
+            if (delta > 0) {
+                stakingModule.recordFeesReceived(delta);
+                // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
+                // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
+                // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
+                // `delta` is a conservative over-estimate of the true liability (the module truncates
+                // rewardPerToken), which is the safe direction for a sweep guard.
+                if (IStakingTotals(address(stakingModule)).totalStaked(address(this)) > 0) {
+                    stakingReserve += delta;
+                }
+            }
         }
+    }
+
+    /// @dev Debit the staking-liability reserve by ETH actually paid to a staker, clamped so it can
+    ///      never underflow (the reserve is a conservative over-estimate; a payout may exceed the
+    ///      residual tracked liability by truncation dust).
+    function _debitStakingReserve(uint256 amount) private {
+        stakingReserve = amount >= stakingReserve ? 0 : stakingReserve - amount;
     }
 
     /// @notice Recover ETH held by the instance that is NOT part of the bonding `reserve`.
     /// @dev Surplus ETH can accumulate here — e.g. staking fees pushed by a vault while
     ///      totalStaked == 0 (the staking module can't distribute them, so they sit in the
-    ///      instance balance). Only the balance ABOVE the tracked `reserve` is withdrawable;
-    ///      `reserve` is never touched because it backs sellBonding refunds.
+    ///      instance balance). Only the balance ABOVE the tracked `reserve` AND the tracked
+    ///      `stakingReserve` is withdrawable; `reserve` backs sellBonding refunds and
+    ///      `stakingReserve` is ETH owed to stakers — neither is ever sweepable (noesis-061 F1).
     function withdrawDust() external onlyOwner nonReentrant {
         uint256 bal = address(this).balance;
-        // Guard against underflow: never withdraw if balance is at/below tracked reserve.
-        if (bal <= reserve) revert NothingToWithdraw();
-        uint256 surplus = bal - reserve;
+        uint256 locked = reserve + stakingReserve;
+        // Guard against underflow: never withdraw if balance is at/below the locked liabilities.
+        if (bal <= locked) revert NothingToWithdraw();
+        uint256 surplus = bal - locked;
         (bool ok,) = payable(owner()).call{ value: surplus }("");
         if (!ok) revert WithdrawFailed();
     }
@@ -444,7 +480,10 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         if (!stakingActive) revert StakingModuleNotSet();
         uint256 rewardAmount = stakingModule.recordUnstake(msg.sender, amount);
         _transfer(address(this), msg.sender, amount);
-        if (rewardAmount > 0) SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
+        if (rewardAmount > 0) {
+            _debitStakingReserve(rewardAmount);
+            SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
+        }
         emit Unstaked(msg.sender, amount, rewardAmount);
     }
 
@@ -452,6 +491,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     function claimStakingRewards() external nonReentrant {
         if (!stakingActive) revert StakingModuleNotSet();
         uint256 rewardAmount = stakingModule.computeClaim(msg.sender);
+        _debitStakingReserve(rewardAmount);
         SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
         emit StakingRewardsClaimed(msg.sender, rewardAmount);
     }
