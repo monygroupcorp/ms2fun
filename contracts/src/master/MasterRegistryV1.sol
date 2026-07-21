@@ -36,6 +36,7 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     error TargetNotActive();
     error TokenNotInTarget();
     error VaultMustBeContract();
+    error UnregisteredVault();
     error VaultAlreadyInArray();
     error NoVaults();
     error NoAlignmentToken();
@@ -235,6 +236,11 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         if (instanceVault == address(0)) revert InstanceHasNoVault();
         if (instanceVault != vault) revert VaultMismatch();
         if (instanceVault.code.length == 0) revert VaultNotDeployed();
+        // Vault-registry gate (choke-point): the alignment tithe must only ever route to a vault the
+        // registry has registered + alignment-validated. A code.length check alone lets a creator bind
+        // an instance to any contract exposing the vault surface and redirect the tithe off-curation.
+        // Mirrors the migrateVault predicate (registeredVaults && active) so no factory can repeat the hole.
+        if (!registeredVaults[vault] || !vaultInfo[vault].active) revert UnregisteredVault();
 
         address instanceTreasury = IFactoryInstance(instance).protocolTreasury();
         if (instanceTreasury == address(0)) revert InstanceHasNoTreasury();

@@ -234,6 +234,46 @@ contract MasterRegistryReworkTest is Test {
         assertEq(registry.getActiveVault(instance), vault);
     }
 
+    // ============ Vault-Registry Gate (curation choke-point) ============
+
+    function test_RegisterInstance_RevertsOnUnregisteredVault() public {
+        // A code-bearing but UNregistered vault must be rejected at the choke-point so the alignment
+        // tithe can't be routed to a creator-controlled, off-curation contract.
+        address factory = _registerFactory();
+        address rogueVault = address(new MockVaultSimple(dummyToken)); // has code, never registered
+
+        MockInstance inst = new MockInstance();
+        inst.initialize(rogueVault, alice, address(0x999), address(registry));
+
+        vm.prank(factory);
+        vm.expectRevert(MasterRegistryV1.UnregisteredVault.selector);
+        registry.registerInstance(address(inst), factory, alice, "Rogue", "ipfs://proj", rogueVault);
+    }
+
+    function test_RegisterInstance_RevertsOnDeactivatedVault() public {
+        // A registered-but-deactivated vault is not `active` → same gate rejects it.
+        (, address vault) = _setupTargetAndVault(dummyToken);
+        address factory = _registerFactory();
+
+        vm.prank(daoOwner);
+        registry.deactivateVault(vault);
+
+        MockInstance inst = new MockInstance();
+        inst.initialize(vault, alice, address(0x999), address(registry));
+
+        vm.prank(factory);
+        vm.expectRevert(MasterRegistryV1.UnregisteredVault.selector);
+        registry.registerInstance(address(inst), factory, alice, "Deactivated", "ipfs://proj", vault);
+    }
+
+    function test_RegisterInstance_PassesOnRegisteredVault() public {
+        // A registered + active vault passes the gate (regression guard for legitimate flows).
+        (, address vault) = _setupTargetAndVault(dummyToken);
+        address factory = _registerFactory();
+        address instance = _registerInstance(factory, vault);
+        assertTrue(registry.isRegisteredInstance(instance));
+    }
+
     function test_MigrateVault_AppendsToArray() public {
         (uint256 targetId, address vault1) = _setupTargetAndVault(dummyToken);
         address factory = _registerFactory();
