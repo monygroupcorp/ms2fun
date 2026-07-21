@@ -3,55 +3,35 @@ pragma solidity ^0.8.20;
 
 import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
-import { IUnlockCallback } from "v4-core/interfaces/callback/IUnlockCallback.sol";
-import { PoolKey } from "v4-core/types/PoolKey.sol";
-import { PoolId, PoolIdLibrary } from "v4-core/types/PoolId.sol";
-import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
-import { BalanceDelta, BalanceDeltaLibrary } from "v4-core/types/BalanceDelta.sol";
-import { CurrencySettler } from "../libraries/v4/CurrencySettler.sol";
-import { LiquidityAmounts } from "../libraries/v4/LiquidityAmounts.sol";
-import { TickMath } from "v4-core/libraries/TickMath.sol";
-import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
-import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
-
-interface IWETH {
-    function deposit() external payable;
-    function transfer(address to, uint256 value) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
-}
 
 /**
  * @title ProtocolTreasuryV1
- * @notice UUPS upgradeable treasury that receives protocol revenue from all sources
- * @dev Receives ETH (bonding fees, creation fees, queue revenue) and ERC721 (position NFTs).
- *      Manages protocol-owned V4 LP positions via receivePOL().
- *      Tracks revenue by source for accounting. Owner-gated withdrawals.
+ * @notice UUPS upgradeable treasury that receives protocol revenue from all sources.
+ * @dev Lean revenue sink: `deposit(Source)` / `receive()` in, owner-gated `withdraw*` out, plus
+ *      revenue-by-source views. Tracks per-source receipts and an aggregate withdrawn total.
+ *
+ *      This is a LIVE-deployed UUPS proxy. Protocol-owned-liquidity (V4) was carved out into the
+ *      standalone `ProtocolOwnedLiquidityV1` and the retired-DAO revenue conductor was stripped
+ *      (noesis-066). To preserve the deployed proxy's storage layout on upgrade, the removed slots
+ *      are held in place as `deprecated_*` placeholders rather than deleted — do NOT reorder or
+ *      collapse them. Slot 2 co-hosts `_initialized` (packed at byte 20); its address placeholder
+ *      MUST stay a same-size `address` so `_initialized` does not shift.
  */
-// slither-disable-next-line missing-inheritance
-contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
-    using PoolIdLibrary for PoolKey;
-    using CurrencyLibrary for Currency;
-    using CurrencySettler for Currency;
-    using StateLibrary for IPoolManager;
-
+contract ProtocolTreasuryV1 is SafeOwnableUUPS {
     // ============ Custom Errors ============
     // Note: AlreadyInitialized() and Unauthorized() are inherited from Ownable
 
     error InvalidAddress();
     error NoValue();
-    error RegistryNotConfigured();
-    error NotRegisteredInstance();
-    error V4NotConfigured();
-    error WETHNotConfigured();
-    error POLAlreadyDeployed();
-    error NoPOLPosition();
     error InsufficientBalance();
     error InvalidRecipient();
     error TransferFailed();
 
     // ============ Revenue Tracking ============
 
+    // Enum kept as-is (a prune is a separate follow-up). POL_FEES is no longer produced here — it
+    // moved with the POL carve-out to ProtocolOwnedLiquidityV1 — but the ordinals are preserved so
+    // existing producers (e.g. DeployBondEscrow => BOND_FORFEIT) keep their on-chain source tags.
     enum Source {
         BONDING_FEE,
         CREATION_FEE,
@@ -61,9 +41,35 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         BOND_FORFEIT
     }
 
+    // -- Storage layout (slot-locked to the deployed proxy — see contract NatSpec) --
+    // slot 0
     mapping(Source => uint256) public totalReceived;
-    // slither-disable-next-line uninitialized-state
-    mapping(Source => uint256) public totalWithdrawn;
+    // slot 1 — was `mapping(Source => uint256) totalWithdrawn` (never written). Held as a placeholder;
+    // the honest aggregate withdrawn total is the appended `totalWithdrawn` below.
+    uint256 private deprecated_totalWithdrawn_slot1;
+    // slot 2 (bytes 0-19) — was `address revenueConductor`. MUST remain a same-size `address` so the
+    // packed `_initialized` bool at byte 20 keeps its position.
+    address private deprecated_revenueConductor;
+    // slot 2 (byte 20) — live `true` on the deployed proxy; packed with the placeholder above.
+    bool private _initialized;
+    // slot 3 — was `address v4PoolManager` (moved to ProtocolOwnedLiquidityV1).
+    address private deprecated_v4PoolManager;
+    // slot 4 — was `address weth` (moved to ProtocolOwnedLiquidityV1).
+    address private deprecated_weth;
+    // slot 5 — was `IMasterRegistry masterRegistry`; its only consumer was the receivePOL gate, which
+    // moved to ProtocolOwnedLiquidityV1, so it is deprecated here.
+    address private deprecated_masterRegistry;
+    // slot 6 — was `mapping(address => POLPosition) _polPositions` (moved).
+    uint256 private deprecated_polPositions_slot6;
+    // slot 7 — was `address[] polInstances` (moved).
+    uint256 private deprecated_polInstances_slot7;
+
+    // slot 8 — appended after the deprecated tail: honest aggregate of ETH withdrawn via withdrawETH.
+    // ETH is fungible once pooled, so a single aggregate (not per-source) is the honest accounting.
+    uint256 public totalWithdrawn;
+
+    // Reserved storage for future upgrades (append-only growth below slot 8).
+    uint256[50] private __gap;
 
     // ============ Events ============
 
@@ -71,92 +77,14 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
     event ETHWithdrawn(address indexed to, uint256 amount);
     event ERC20Withdrawn(address indexed token, address indexed to, uint256 amount);
     event ERC721Withdrawn(address indexed token, address indexed to, uint256 tokenId);
-    event V4PoolManagerUpdated(address indexed newPoolManager);
-    event WETHUpdated(address indexed newWETH);
-    event POLPositionDeployed(address indexed instance, uint128 liquidity, bytes32 salt);
-    event POLFeesCollected(address indexed instance, uint256 amount0, uint256 amount1);
-    event MasterRegistryUpdated(address indexed newRegistry);
-    event RevenueConductorUpdated(address indexed conductor);
-    event RevenueRouted(address indexed conductor, address indexed safe, uint256 amount);
-
-    // ============ Revenue Conductor ============
-
-    address public revenueConductor;
 
     // ============ Initialization ============
-
-    bool private _initialized;
-
-    // ============ V4 Integration ============
-
-    address public v4PoolManager;
-    address public weth;
-    IMasterRegistry public masterRegistry;
-
-    // POL position tracking
-    struct POLPosition {
-        PoolKey poolKey;
-        int24 tickLower;
-        int24 tickUpper;
-        bytes32 salt;
-        uint128 liquidity;
-    }
-
-    mapping(address => POLPosition) internal _polPositions; // instance => position
-    address[] public polInstances;
-
-    // Callback routing (mirrors UniAlignmentVault pattern)
-    enum CallbackOperation {
-        DEPLOY_POL,
-        COLLECT_FEES
-    }
-
-    struct CallbackData {
-        CallbackOperation operation;
-        bytes data;
-    }
-
-    struct DeployPOLCallbackData {
-        PoolKey poolKey;
-        int24 tickLower;
-        int24 tickUpper;
-        bytes32 salt;
-        uint256 amount0;
-        uint256 amount1;
-    }
-
-    struct CollectFeesCallbackData {
-        PoolKey poolKey;
-        int24 tickLower;
-        int24 tickUpper;
-        bytes32 salt;
-    }
 
     function initialize(address _owner) external {
         if (_initialized) revert AlreadyInitialized();
         if (_owner == address(0)) revert InvalidAddress();
         _initialized = true;
         _setOwner(_owner);
-    }
-
-    // ============ V4 Configuration ============
-
-    function setV4PoolManager(address _pm) external onlyOwner {
-        if (_pm == address(0)) revert InvalidAddress();
-        v4PoolManager = _pm;
-        emit V4PoolManagerUpdated(_pm);
-    }
-
-    function setWETH(address _weth) external onlyOwner {
-        if (_weth == address(0)) revert InvalidAddress();
-        weth = _weth;
-        emit WETHUpdated(_weth);
-    }
-
-    function setMasterRegistry(address _registry) external onlyOwner {
-        if (_registry == address(0)) revert InvalidAddress();
-        masterRegistry = IMasterRegistry(_registry);
-        emit MasterRegistryUpdated(_registry);
     }
 
     // ============ Revenue Intake ============
@@ -174,191 +102,13 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         emit RevenueReceived(Source.OTHER, msg.sender, msg.value);
     }
 
-    // ============ Protocol-Owned Liquidity ============
-
-    /// @notice Called by instances during graduation to deploy treasury-owned LP
-    // slither-disable-next-line reentrancy-benign,reentrancy-events,reentrancy-no-eth,unused-return
-    function receivePOL(PoolKey calldata poolKey, int24 tickLower, int24 tickUpper, uint256 amount0, uint256 amount1)
-        external
-    {
-        if (address(masterRegistry) == address(0)) revert RegistryNotConfigured();
-        if (!masterRegistry.isRegisteredInstance(msg.sender)) revert NotRegisteredInstance();
-        if (v4PoolManager == address(0)) revert V4NotConfigured();
-        if (weth == address(0)) revert WETHNotConfigured();
-        if (_polPositions[msg.sender].liquidity != 0) revert POLAlreadyDeployed();
-
-        // Deterministic salt per instance
-        bytes32 salt = keccak256(abi.encodePacked("POL", msg.sender));
-
-        // Approve PoolManager for both currencies
-        Currency currency0 = poolKey.currency0;
-        Currency currency1 = poolKey.currency1;
-        if (!currency0.isAddressZero()) {
-            SafeTransferLib.safeApproveWithRetry(Currency.unwrap(currency0), v4PoolManager, amount0);
-        }
-        if (!currency1.isAddressZero()) {
-            SafeTransferLib.safeApproveWithRetry(Currency.unwrap(currency1), v4PoolManager, amount1);
-        }
-
-        // Deploy via unlock callback
-        CallbackData memory cbData = CallbackData({
-            operation: CallbackOperation.DEPLOY_POL,
-            data: abi.encode(
-                DeployPOLCallbackData({
-                    poolKey: poolKey,
-                    tickLower: tickLower,
-                    tickUpper: tickUpper,
-                    salt: salt,
-                    amount0: amount0,
-                    amount1: amount1
-                })
-            )
-        });
-
-        bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
-        uint128 liquidity = abi.decode(result, (uint128));
-
-        // Store position
-        _polPositions[msg.sender] = POLPosition({
-            poolKey: poolKey, tickLower: tickLower, tickUpper: tickUpper, salt: salt, liquidity: liquidity
-        });
-        polInstances.push(msg.sender);
-
-        emit POLPositionDeployed(msg.sender, liquidity, salt);
-    }
-
-    /// @notice Permissionless fee collection for a treasury-owned POL position
-    // slither-disable-next-line reentrancy-benign,reentrancy-events
-    function claimPOLFees(address instance) external returns (uint256 amount0, uint256 amount1) {
-        POLPosition storage pos = _polPositions[instance];
-        if (pos.liquidity == 0) revert NoPOLPosition();
-
-        CollectFeesCallbackData memory feeParams = CollectFeesCallbackData({
-            poolKey: pos.poolKey, tickLower: pos.tickLower, tickUpper: pos.tickUpper, salt: pos.salt
-        });
-
-        CallbackData memory cbData =
-            CallbackData({ operation: CallbackOperation.COLLECT_FEES, data: abi.encode(feeParams) });
-
-        bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
-        BalanceDelta delta = abi.decode(result, (BalanceDelta));
-
-        amount0 = delta.amount0() > 0 ? uint256(int256(delta.amount0())) : 0;
-        amount1 = delta.amount1() > 0 ? uint256(int256(delta.amount1())) : 0;
-
-        totalReceived[Source.POL_FEES] += amount0 + amount1;
-
-        emit POLFeesCollected(instance, amount0, amount1);
-    }
-
-    // ============ V4 Callback ============
-
-    function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        if (msg.sender != v4PoolManager) revert Unauthorized();
-
-        CallbackData memory cbData = abi.decode(data, (CallbackData));
-
-        if (cbData.operation == CallbackOperation.DEPLOY_POL) {
-            return _handleDeployPOL(cbData.data);
-        } else {
-            return _handleCollectFees(cbData.data);
-        }
-    }
-
-    // slither-disable-next-line unused-return
-    function _handleDeployPOL(bytes memory data) internal returns (bytes memory) {
-        DeployPOLCallbackData memory params = abi.decode(data, (DeployPOLCallbackData));
-
-        PoolId poolId = params.poolKey.toId();
-        (uint160 sqrtPriceX96,,,) = IPoolManager(v4PoolManager).getSlot0(poolId);
-        uint160 sqrtPriceAX96 = TickMath.getSqrtPriceAtTick(params.tickLower);
-        uint160 sqrtPriceBX96 = TickMath.getSqrtPriceAtTick(params.tickUpper);
-
-        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            sqrtPriceX96, sqrtPriceAX96, sqrtPriceBX96, params.amount0, params.amount1
-        );
-
-        IPoolManager.ModifyLiquidityParams memory modifyParams = IPoolManager.ModifyLiquidityParams({
-            tickLower: params.tickLower,
-            tickUpper: params.tickUpper,
-            liquidityDelta: int256(uint256(liquidity)),
-            salt: params.salt
-        });
-
-        (BalanceDelta delta,) = IPoolManager(v4PoolManager).modifyLiquidity(params.poolKey, modifyParams, "");
-        _settleDelta(params.poolKey, delta);
-
-        return abi.encode(liquidity);
-    }
-
-    // slither-disable-next-line unused-return
-    function _handleCollectFees(bytes memory data) internal returns (bytes memory) {
-        CollectFeesCallbackData memory params = abi.decode(data, (CollectFeesCallbackData));
-
-        IPoolManager.ModifyLiquidityParams memory modifyParams = IPoolManager.ModifyLiquidityParams({
-            tickLower: params.tickLower, tickUpper: params.tickUpper, liquidityDelta: 0, salt: params.salt
-        });
-
-        (BalanceDelta delta,) = IPoolManager(v4PoolManager).modifyLiquidity(params.poolKey, modifyParams, "");
-        _settleDelta(params.poolKey, delta);
-
-        return abi.encode(delta);
-    }
-
-    function _settleDelta(PoolKey memory poolKey, BalanceDelta delta) internal {
-        IPoolManager pm = IPoolManager(v4PoolManager);
-        int128 delta0 = delta.amount0();
-        int128 delta1 = delta.amount1();
-
-        if (delta0 < 0) {
-            poolKey.currency0.settle(pm, address(this), uint128(-delta0), false);
-        } else if (delta0 > 0) {
-            poolKey.currency0.take(pm, address(this), uint128(delta0), false);
-        }
-        if (delta1 < 0) {
-            poolKey.currency1.settle(pm, address(this), uint128(-delta1), false);
-        } else if (delta1 > 0) {
-            poolKey.currency1.take(pm, address(this), uint128(delta1), false);
-        }
-    }
-
-    // ============ POL Views ============
-
-    function getPolPosition(address instance)
-        external
-        view
-        returns (int24 tickLower, int24 tickUpper, bytes32 salt, uint128 liquidity)
-    {
-        POLPosition storage pos = _polPositions[instance];
-        return (pos.tickLower, pos.tickUpper, pos.salt, pos.liquidity);
-    }
-
-    function polInstanceCount() external view returns (uint256) {
-        return polInstances.length;
-    }
-
-    // ============ Revenue Routing ============
-
-    // slither-disable-next-line missing-zero-check
-    function setRevenueConductor(address _conductor) external onlyOwner {
-        revenueConductor = _conductor;
-        emit RevenueConductorUpdated(_conductor);
-    }
-
-    /// @notice Route ETH to the DAO Safe — callable only by the conductor, destination locked to DAO safe
-    function routeToDAO(address safe, uint256 amount) external {
-        if (msg.sender != revenueConductor) revert Unauthorized();
-        if (safe == address(0)) revert InvalidAddress();
-        if (amount > address(this).balance) revert InsufficientBalance();
-        SafeTransferLib.safeTransferETH(safe, amount);
-        emit RevenueRouted(msg.sender, safe, amount);
-    }
-
     // ============ Withdrawals (Owner Only) ============
 
     function withdrawETH(address to, uint256 amount) external onlyOwner {
         if (to == address(0)) revert InvalidRecipient();
         if (amount > address(this).balance) revert InsufficientBalance();
+        // Effects before interaction: record the aggregate withdrawn total before the transfer.
+        totalWithdrawn += amount;
         SafeTransferLib.safeTransferETH(to, amount);
         emit ETHWithdrawn(to, amount);
     }
@@ -392,7 +142,10 @@ contract ProtocolTreasuryV1 is SafeOwnableUUPS, IUnlockCallback {
         return address(this).balance;
     }
 
+    /// @notice Revenue accounting for a source. `received` is per-source; `withdrawn` is the protocol
+    ///         aggregate of ETH withdrawn (ETH is fungible once pooled — there is no honest per-source
+    ///         withdrawn figure, and the withdrawal path is not source-tagged).
     function getRevenueBySource(Source source) external view returns (uint256 received, uint256 withdrawn) {
-        return (totalReceived[source], totalWithdrawn[source]);
+        return (totalReceived[source], totalWithdrawn);
     }
 }
