@@ -11,6 +11,14 @@ library RevenueSplitLib {
     ///         deploy-config error and reverts loud rather than falling through to a default split.
     error UnknownVaultFamily(string vaultType);
 
+    // Precomputed keccak of the recognized vaultType() literals. The strings are compile-time
+    // constants, so hashing them once as `constant`s avoids recomputing four keccaks on every
+    // settlement call in `isLiquidityFamily`.
+    bytes32 private constant _HASH_UNISWAP_V4_LP = keccak256(bytes("UniswapV4LP"));
+    bytes32 private constant _HASH_ZAMM_LP = keccak256(bytes("ZAMMLP"));
+    bytes32 private constant _HASH_CYPHER_LP = keccak256(bytes("CypherLP"));
+    bytes32 private constant _HASH_AAVE_ENDOWMENT = keccak256(bytes("AaveEndowment"));
+
     struct Split {
         uint256 protocolCut; // 1%
         uint256 vaultCut; // vault share
@@ -56,12 +64,10 @@ library RevenueSplitLib {
     /// @return liquidityFamily True for the liquidity set, false for the yield set; reverts otherwise.
     function isLiquidityFamily(string memory vaultType) internal pure returns (bool liquidityFamily) {
         bytes32 h = keccak256(bytes(vaultType));
-        if (
-            h == keccak256(bytes("UniswapV4LP")) || h == keccak256(bytes("ZAMMLP")) || h == keccak256(bytes("CypherLP"))
-        ) {
+        if (h == _HASH_UNISWAP_V4_LP || h == _HASH_ZAMM_LP || h == _HASH_CYPHER_LP) {
             return true;
         }
-        if (h == keccak256(bytes("AaveEndowment"))) {
+        if (h == _HASH_AAVE_ENDOWMENT) {
             return false;
         }
         revert UnknownVaultFamily(vaultType);
@@ -111,6 +117,14 @@ library RevenueSplitLib {
     ///      comes only out of the LP 80. The pool floor is a carve-CLAMP, never a gate: when the
     ///      LP share can't reach the floor the carve is squeezed (to zero if needed) and the pool
     ///      takes everything — this function never reverts on a thin raise.
+    /// @dev INVARIANT / FOOTGUN: with `minPoolEth = 0` this lib's own clamp only guarantees
+    ///      `carve <= lp` — the pool can be starved to zero. `carveEth` MUST already be clamped to
+    ///      the pool floor by the caller (as `ERC404Factory.effectiveCarveEth` does), OR a real
+    ///      `minPoolEth` must be passed here. Passing a raw (unclamped) carve request with
+    ///      `minPoolEth = 0` lets the carve consume the full LP 80 and starve the pool without this
+    ///      function complaining. Today's deployers pass the factory's already-clamped carve with
+    ///      `minPoolEth = 0`, so the real floor lives upstream in the factory — this note keeps that
+    ///      precondition explicit for the next caller.
     function splitGraduation(uint256 raise, uint256 carveEth, uint256 minPoolEth)
         internal
         pure

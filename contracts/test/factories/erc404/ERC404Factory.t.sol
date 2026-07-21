@@ -890,6 +890,36 @@ contract ERC404FactoryTest is Test {
         assertEq(got.r3, 500);
     }
 
+    function test_setCarveBrackets_rejectsNonMonotonicRates() public {
+        // r1 < r2 inverts the documented income-tax-inverted shape (rate must fall as raise grows).
+        RevenueSplitLib.BracketParams memory r1LtR2 =
+            RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 1000, r2: 2500, r3: 500 });
+        vm.prank(protocolAdmin);
+        vm.expectRevert(ERC404Factory.InvalidBracketParams.selector);
+        factory.setCarveBrackets(r1LtR2);
+
+        // r2 < r3 also inverts intent.
+        RevenueSplitLib.BracketParams memory r2LtR3 =
+            RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 5000, r2: 1000, r3: 2500 });
+        vm.prank(protocolAdmin);
+        vm.expectRevert(ERC404Factory.InvalidBracketParams.selector);
+        factory.setCarveBrackets(r2LtR3);
+
+        // Equal rates hold (r1 == r2 == r3) — monotonic non-increasing is satisfied.
+        RevenueSplitLib.BracketParams memory flat =
+            RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 2000, r2: 2000, r3: 2000 });
+        vm.prank(protocolAdmin);
+        factory.setCarveBrackets(flat);
+        assertEq(factory.carveBracketParams().r2, 2000);
+
+        // Strictly falling rates pass.
+        RevenueSplitLib.BracketParams memory falling =
+            RevenueSplitLib.BracketParams({ b1: 4 ether, b2: 20 ether, r1: 6000, r2: 3000, r3: 1000 });
+        vm.prank(protocolAdmin);
+        factory.setCarveBrackets(falling);
+        assertEq(factory.carveBracketParams().r1, 6000);
+    }
+
     function test_effectiveCarveEth_workedPoints() public view {
         // R=4, full declared, full request: allowance 2.0, LP80 3.2, headroom 2.2 -> 2.0.
         assertEq(factory.effectiveCarveEth(4 ether, 10000, 10000), 2 ether);

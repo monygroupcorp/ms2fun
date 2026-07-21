@@ -465,6 +465,10 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     /// @notice Set the progressive carve-allowance brackets (market regimes change).
     function setCarveBrackets(RevenueSplitLib.BracketParams calldata p) external onlyRoles(PROTOCOL_ROLE) {
         if (p.b1 > p.b2 || p.r1 > 10000 || p.r2 > 10000 || p.r3 > 10000) revert InvalidBracketParams();
+        // Marginal rate must fall (or hold) as the raise grows — the documented income-tax-inverted
+        // shape (r1 >= r2 >= r3). Guards against a PROTOCOL_ROLE holder inverting design intent so
+        // larger raises carve a higher marginal rate.
+        if (p.r1 < p.r2 || p.r2 < p.r3) revert InvalidBracketParams();
         _carveBrackets = p;
         emit CarveBracketsUpdated(p.b1, p.b2, p.r1, p.r2, p.r3);
     }
