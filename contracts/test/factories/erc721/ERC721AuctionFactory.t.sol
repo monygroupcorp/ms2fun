@@ -408,14 +408,63 @@ contract ERC721AuctionFactoryTest is Test {
         vm.warp(auction.endTime);
 
         uint256 treasuryBalBefore = treasury.balance;
+        uint256 artistBalBefore = artist.balance;
 
         vm.prank(artist);
         inst.reclaimUnsold(1);
 
-        assertEq(treasury.balance - treasuryBalBefore, 0.1 ether);
+        // Unsold refund: creator (owner) gets deposit minus a 1% protocol cut (was 100% forfeit).
+        uint256 protocolCut = 0.1 ether / 100; // 0.001 ether
+        assertEq(treasury.balance - treasuryBalBefore, protocolCut);
+        assertEq(artist.balance - artistBalBefore, 0.1 ether - protocolCut);
 
         auction = inst.getAuction(1);
         assertTrue(auction.settled);
+    }
+
+    function test_ReclaimUnsold_Permissionless() public {
+        // After endTime a no-bid piece can be reclaimed by ANYONE; the refund still goes to the
+        // creator (owner), so the line self-heals without depending on the owner acting.
+        ERC721AuctionInstance inst = _createDefaultInstance();
+
+        vm.prank(artist);
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+
+        ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
+        vm.warp(auction.endTime);
+
+        uint256 artistBalBefore = artist.balance;
+
+        // bidder1 is not the owner
+        vm.prank(bidder1);
+        inst.reclaimUnsold(1);
+
+        uint256 protocolCut = 0.1 ether / 100;
+        assertEq(artist.balance - artistBalBefore, 0.1 ether - protocolCut);
+        assertTrue(inst.getAuction(1).settled);
+    }
+
+    function test_ReclaimUnsold_SelfHealsLine() public {
+        // A no-bid piece queued ahead of a second piece must not freeze the line: reclaiming it
+        // (even by a non-owner) advances the queue and starts the next piece.
+        ERC721AuctionInstance inst = _createDefaultInstance();
+
+        vm.startPrank(artist);
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece2");
+        vm.stopPrank();
+
+        // piece 2 is queued behind piece 1 on the same (single) line and has not started
+        assertEq(inst.getAuction(2).startTime, 0);
+
+        ERC721AuctionInstance.Auction memory a1 = inst.getAuction(1);
+        vm.warp(a1.endTime);
+
+        vm.prank(bidder1); // non-owner clears the stuck line
+        inst.reclaimUnsold(1);
+
+        // piece 2 now started
+        assertGt(inst.getAuction(2).startTime, 0);
     }
 
     function test_ReclaimUnsold_HasBids() public {
@@ -436,7 +485,25 @@ contract ERC721AuctionFactoryTest is Test {
         inst.reclaimUnsold(1);
     }
 
-    function test_ReclaimUnsold_OnlyOwner() public {
+    function test_ReclaimUnsold_RevertsBeforeEndTime() public {
+        // Permissionless, but still gated by endTime: an unended auction cannot be reclaimed.
+        ERC721AuctionInstance inst = _createDefaultInstance();
+
+        vm.prank(artist);
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+
+        vm.prank(bidder1);
+        vm.expectRevert(AuctionNotEnded.selector);
+        inst.reclaimUnsold(1);
+    }
+
+    function test_ReclaimUnsold_RevertingTreasuryDoesNotBrick() public {
+        // The protocolCut leg is force-transferred, so a treasury that reverts on receive cannot
+        // brick the reclaim path (line liveness). The creator still gets refunded.
+        RevertingReceiver badTreasury = new RevertingReceiver();
+        vm.prank(owner);
+        factory.setProtocolTreasury(address(badTreasury));
+
         ERC721AuctionInstance inst = _createDefaultInstance();
 
         vm.prank(artist);
@@ -445,9 +512,13 @@ contract ERC721AuctionFactoryTest is Test {
         ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
         vm.warp(auction.endTime);
 
+        uint256 artistBalBefore = artist.balance;
         vm.prank(bidder1);
-        vm.expectRevert();
-        inst.reclaimUnsold(1);
+        inst.reclaimUnsold(1); // must not revert
+
+        uint256 protocolCut = 0.1 ether / 100;
+        assertEq(artist.balance - artistBalBefore, 0.1 ether - protocolCut);
+        assertTrue(inst.getAuction(1).settled);
     }
 
     // ┌─────────────────────────┐
@@ -763,4 +834,12 @@ contract RevertingReceiverBidder {
     }
 
     receive() external payable { }
+}
+
+/// @dev Treasury that reverts on plain ETH receipt — used to prove the force-transferred protocolCut
+///      cannot brick reclaim/settlement.
+contract RevertingReceiver {
+    receive() external payable {
+        revert("no ETH");
+    }
 }
