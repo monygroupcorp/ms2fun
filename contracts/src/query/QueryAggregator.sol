@@ -8,8 +8,10 @@ import { IInstance } from "../interfaces/IInstance.sol";
 import { IInstanceLifecycle, TYPE_ERC404, TYPE_ERC1155 } from "../interfaces/IInstanceLifecycle.sol";
 
 /// @notice Interface for FeaturedQueueManager
+/// @dev The real FeaturedQueueManager signature is getFeaturedInstances(offset, limit) — the second
+///      positional argument is a COUNT (limit), not an end index. Call sites must pass `limit`.
 interface IFeaturedQueueManager {
-    function getFeaturedInstances(uint256 startIndex, uint256 endIndex)
+    function getFeaturedInstances(uint256 offset, uint256 limit)
         external
         view
         returns (address[] memory instances, uint256 total);
@@ -20,14 +22,11 @@ interface IFeaturedQueueManager {
         returns (address renter, uint256 effectiveRank, uint256 expiresAt, bool isActive);
 }
 
-/// @notice Interface for GlobalMessageRegistry
-interface IGlobalMessageRegistry {
-    function messageCount() external view returns (uint256);
-}
-
 /// @notice Interface for ERC404 balance queries
 interface IERC404Balance {
     function balanceOf(address account) external view returns (uint256);
+    /// @notice Token units that represent one whole NFT (the ERC404 divisor)
+    function unit() external view returns (uint256);
 }
 
 /// @notice Interface for ERC1155 balance queries
@@ -157,7 +156,15 @@ contract QueryAggregator is SafeOwnableUUPS {
 
     IMasterRegistry public masterRegistry;
     IFeaturedQueueManager public featuredQueueManager;
-    IGlobalMessageRegistry public globalMessageRegistry;
+
+    /// @dev DEPRECATED (noesis-067): formerly `IGlobalMessageRegistry public globalMessageRegistry`.
+    ///      The social feed is emit-only and read client-side via event logs (EventIndexer); this
+    ///      aggregator serves contract-state snapshots, so the pointer was never read. Removed from the
+    ///      read path but the STORAGE SLOT is retained as a layout-safe placeholder — this is a deployed
+    ///      UUPS proxy, so the slot must not be reordered/removed (doing so would shift `_initialized`
+    ///      and every appended slot). Do not repurpose without a slot-map review.
+    // slither-disable-next-line constable-states,unused-state
+    address private __deprecated_globalMessageRegistry;
 
     uint256 public constant MAX_QUERY_LIMIT = 50;
 
@@ -166,7 +173,11 @@ contract QueryAggregator is SafeOwnableUUPS {
     // ============ Events ============
 
     // slither-disable-next-line unindexed-event-address
-    event Initialized(address masterRegistry, address featuredQueueManager, address globalMessageRegistry);
+    event Initialized(address masterRegistry, address featuredQueueManager);
+
+    /// @notice Emitted when an owner updates registry addresses via setRegistries.
+    // slither-disable-next-line unindexed-event-address
+    event RegistriesUpdated(address masterRegistry, address featuredQueueManager);
 
     // ============ Constructor ============
 
@@ -180,19 +191,21 @@ contract QueryAggregator is SafeOwnableUUPS {
      * @notice Initialize the aggregator with registry addresses
      * @param _masterRegistry MasterRegistry contract address
      * @param _featuredQueueManager FeaturedQueueManager contract address
-     * @param _globalMessageRegistry GlobalMessageRegistry contract address
      * @param _owner Owner address
+     * @dev The third positional argument is the DEPRECATED globalMessageRegistry pointer (noesis-067).
+     *      It is ignored — accepted only to preserve the deployment call ABI — and never stored.
      */
     function initialize(
         address _masterRegistry,
         address _featuredQueueManager,
-        address _globalMessageRegistry,
+        address, /* _globalMessageRegistry (deprecated, ignored) */
         address _owner
-    ) external {
+    )
+        external
+    {
         if (_initialized) revert AlreadyInitialized();
         if (_masterRegistry == address(0)) revert InvalidAddress();
         if (_featuredQueueManager == address(0)) revert InvalidAddress();
-        if (_globalMessageRegistry == address(0)) revert InvalidAddress();
         if (_owner == address(0)) revert InvalidAddress();
 
         _initialized = true;
@@ -200,9 +213,8 @@ contract QueryAggregator is SafeOwnableUUPS {
 
         masterRegistry = IMasterRegistry(_masterRegistry);
         featuredQueueManager = IFeaturedQueueManager(_featuredQueueManager);
-        globalMessageRegistry = IGlobalMessageRegistry(_globalMessageRegistry);
 
-        emit Initialized(_masterRegistry, _featuredQueueManager, _globalMessageRegistry);
+        emit Initialized(_masterRegistry, _featuredQueueManager);
     }
 
     // ============ Main Query Methods ============
@@ -222,9 +234,11 @@ contract QueryAggregator is SafeOwnableUUPS {
         if (limit > MAX_QUERY_LIMIT) revert LimitTooHigh();
 
         // Get active featured instances — getFeaturedInstances handles filtering,
-        // pagination clamping, and returns the true active total in one call
-        (address[] memory featuredAddresses, uint256 total) =
-            featuredQueueManager.getFeaturedInstances(offset, offset + limit);
+        // pagination clamping, and returns the true active total in one call.
+        // NOTE: the second argument is a COUNT (limit), not an end index. Passing `offset + limit`
+        // (the prior bug) made FQM over-fetch by `offset` on page 2+, potentially exceeding
+        // MAX_QUERY_LIMIT; pass `limit` so the returned window is exactly `limit` wide.
+        (address[] memory featuredAddresses, uint256 total) = featuredQueueManager.getFeaturedInstances(offset, limit);
 
         totalFeatured = total;
 
@@ -269,6 +283,12 @@ contract QueryAggregator is SafeOwnableUUPS {
             uint256 totalClaimable
         )
     {
+        // Bound both client-supplied arrays (mirrors getProjectCardsBatch) so a huge wallet cannot
+        // make the single eth_call time out, and to honor the frontend's documented cap invariant.
+        if (instances.length > MAX_QUERY_LIMIT || vaultAddrs.length > MAX_QUERY_LIMIT) {
+            revert TooManyInstances();
+        }
+
         // slither-disable-next-line uninitialized-local
         PortfolioAccumulator memory acc;
         acc.tempERC404 = new ERC404Holding[](instances.length);
@@ -403,11 +423,13 @@ contract QueryAggregator is SafeOwnableUUPS {
                 } catch { }
             }
             if (hasUnlimited) maxSupply = 0;
-            isActive = true;
+            // Honest active flag: active iff any UNLIMITED edition exists OR any LIMITED edition still
+            // has minted < supply. `isActive` already captured the LIMITED case in the loop; OR in the
+            // unlimited case here. A fully-minted, all-limited collection correctly reports inactive.
             card.currentPrice = floorPrice == type(uint256).max ? 0 : floorPrice;
             card.totalSupply = totalMinted;
             card.maxSupply = maxSupply;
-            card.isActive = isActive;
+            card.isActive = isActive || hasUnlimited;
         } catch { }
     }
 
@@ -438,8 +460,15 @@ contract QueryAggregator is SafeOwnableUUPS {
         // Get token balance
         try IERC404Balance(instance).balanceOf(user) returns (uint256 balance) {
             holding.tokenBalance = balance;
-            // NFT balance is tokenBalance / 1e24 (1M tokens per NFT)
-            holding.nftBalance = balance / (1000000 * 1e18); // round down: view-only, standard integer NFT count
+            // NFT balance = tokenBalance / unit. Live-read the instance's actual units-per-NFT rather
+            // than hardcoding 1e24 (1M tokens/NFT): the shared lens must not bake one instance's ratio,
+            // and a per-instance override would silently mis-count NFTs. Guard against a zero/failed read
+            // (leaves nftBalance = 0) so a broken instance never reverts the batch.
+            try IERC404Balance(instance).unit() returns (uint256 unit_) {
+                if (unit_ > 0) {
+                    holding.nftBalance = balance / unit_; // round down: standard integer NFT count
+                }
+            } catch { }
         } catch { }
 
         // Get staking info
@@ -470,13 +499,16 @@ contract QueryAggregator is SafeOwnableUUPS {
 
         // Get all edition IDs
         try IERC1155Balance(instance).getAllEditionIds() returns (uint256[] memory editionIds) {
-            // Check balance for each edition
+            // Single pass: record the edition id alongside its balance for every non-zero holding,
+            // then trim. Avoids a second balanceOf sweep over the same editions.
+            uint256[] memory tempIds = new uint256[](editionIds.length);
             uint256[] memory tempBalances = new uint256[](editionIds.length);
             uint256 nonZeroCount = 0;
 
             for (uint256 i = 0; i < editionIds.length; i++) {
                 try IERC1155Balance(instance).balanceOf(user, editionIds[i]) returns (uint256 balance) {
                     if (balance > 0) {
+                        tempIds[nonZeroCount] = editionIds[i];
                         tempBalances[nonZeroCount] = balance;
                         nonZeroCount++;
                     }
@@ -488,15 +520,9 @@ contract QueryAggregator is SafeOwnableUUPS {
                 holding.editionIds = new uint256[](nonZeroCount);
                 holding.balances = new uint256[](nonZeroCount);
 
-                uint256 idx = 0;
-                for (uint256 i = 0; i < editionIds.length && idx < nonZeroCount; i++) {
-                    try IERC1155Balance(instance).balanceOf(user, editionIds[i]) returns (uint256 balance) {
-                        if (balance > 0) {
-                            holding.editionIds[idx] = editionIds[i];
-                            holding.balances[idx] = balance;
-                            idx++;
-                        }
-                    } catch { }
+                for (uint256 i = 0; i < nonZeroCount; i++) {
+                    holding.editionIds[i] = tempIds[i];
+                    holding.balances[i] = tempBalances[i];
                 }
             }
         } catch { }
@@ -586,18 +612,30 @@ contract QueryAggregator is SafeOwnableUUPS {
         result = new EditionView[](endId - startId + 1);
         for (uint256 i = 0; i < result.length; i++) {
             uint256 editionId = startId + i;
-            IERC1155EditionReader.Edition memory ed = reader.getEdition(editionId);
-            result[i] = EditionView({
-                id: ed.id,
-                pieceTitle: ed.pieceTitle,
-                basePrice: ed.basePrice,
-                currentPrice: reader.getCurrentPrice(editionId),
-                supply: ed.supply,
-                minted: ed.minted,
-                metadataURI: ed.metadataURI,
-                pricingModel: IERC1155EditionReader.PricingModel(uint8(ed.pricingModel)),
-                priceIncreaseRate: ed.priceIncreaseRate
-            });
+            // Failure-tolerant per edition (matches the lens doctrine): a single broken/upgraded
+            // edition read yields a zero-valued entry (with its id preserved for mapping) instead of
+            // reverting the whole batch.
+            // slither-disable-next-line calls-loop
+            try reader.getEdition(editionId) returns (IERC1155EditionReader.Edition memory ed) {
+                uint256 currentPrice;
+                // slither-disable-next-line calls-loop
+                try reader.getCurrentPrice(editionId) returns (uint256 price) {
+                    currentPrice = price;
+                } catch { }
+                result[i] = EditionView({
+                    id: ed.id,
+                    pieceTitle: ed.pieceTitle,
+                    basePrice: ed.basePrice,
+                    currentPrice: currentPrice,
+                    supply: ed.supply,
+                    minted: ed.minted,
+                    metadataURI: ed.metadataURI,
+                    pricingModel: IERC1155EditionReader.PricingModel(uint8(ed.pricingModel)),
+                    priceIncreaseRate: ed.priceIncreaseRate
+                });
+            } catch {
+                result[i].id = editionId;
+            }
         }
     }
 
@@ -605,11 +643,16 @@ contract QueryAggregator is SafeOwnableUUPS {
 
     /**
      * @notice Update registry addresses
-     * @param _masterRegistry New MasterRegistry address
-     * @param _featuredQueueManager New FeaturedQueueManager address
-     * @param _globalMessageRegistry New GlobalMessageRegistry address
+     * @param _masterRegistry New MasterRegistry address (ignored if zero)
+     * @param _featuredQueueManager New FeaturedQueueManager address (ignored if zero)
+     * @dev The third positional argument is the DEPRECATED globalMessageRegistry pointer (noesis-067).
+     *      It is ignored — accepted only to preserve the admin call ABI — and never stored.
      */
-    function setRegistries(address _masterRegistry, address _featuredQueueManager, address _globalMessageRegistry)
+    function setRegistries(
+        address _masterRegistry,
+        address _featuredQueueManager,
+        address /* _globalMessageRegistry (deprecated, ignored) */
+    )
         external
         onlyOwner
     {
@@ -619,8 +662,6 @@ contract QueryAggregator is SafeOwnableUUPS {
         if (_featuredQueueManager != address(0)) {
             featuredQueueManager = IFeaturedQueueManager(_featuredQueueManager);
         }
-        if (_globalMessageRegistry != address(0)) {
-            globalMessageRegistry = IGlobalMessageRegistry(_globalMessageRegistry);
-        }
+        emit RegistriesUpdated(address(masterRegistry), address(featuredQueueManager));
     }
 }
