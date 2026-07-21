@@ -101,27 +101,6 @@ contract UniswapVaultPriceValidator is IVaultPriceValidator {
     // --- IVaultPriceValidator ---
 
     /// @inheritdoc IVaultPriceValidator
-    /// @dev deprecated — see {quoteEthForTokensVia}. Fail-open (returns 0) shotgun path kept until
-    ///      callers migrate to the pinned-pool read; do not delete while any caller remains.
-    function quoteEthForTokens(address token, uint256 tokenAmount) external view override returns (uint256) {
-        if (tokenAmount == 0) return 0;
-
-        // Prefer V3 TWAP — most manipulation-resistant
-        (, uint256 priceV3,) = _getV3PriceAndLiquidity(token);
-        if (priceV3 > 0) {
-            return (tokenAmount * priceV3) / 1e18;
-        }
-
-        // Fall back to V2 spot price (acceptable for low-frequency fee conversion)
-        (, uint256 priceV2,,) = _getV2PriceAndReserves(token);
-        if (priceV2 > 0) {
-            return (tokenAmount * priceV2) / 1e18;
-        }
-
-        return 0;
-    }
-
-    /// @inheritdoc IVaultPriceValidator
     function quoteEthForTokensVia(address pool, uint8 kind, uint32 window, address token, uint256 amount)
         external
         view
