@@ -15,7 +15,7 @@ import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndow
 
 // ---------------------------------------------------------------------------
 // Minimal helper: a contract that acts as the benefactor collection instance.
-// withdrawPrincipal() calls IOwnable(benefactor).owner(), so the benefactor
+// The yield-claim path calls IOwnable(benefactor).owner(), so the benefactor
 // must be a real contract whose owner() returns our test address.
 // ---------------------------------------------------------------------------
 contract MockBenefactor {
@@ -38,75 +38,66 @@ contract MockMasterRegistry {
 
 /**
  * @title AlignmentEndowmentVaultFork
- * @notice Fork integration test for AlignmentEndowmentVault against REAL Aave V3 on mainnet.
+ * @notice Fork integration test for the reworked AlignmentEndowmentVault (specs 2a + 2b) against REAL
+ *         Aave V3 on mainnet. Exercises: deposit round-trip, the two-class yield split via harvest,
+ *         the per-benefactor vest transition, and multi-benefactor creator-yield accrual across a vest
+ *         boundary — end-to-end through real Aave.
  *
  * Run (with a fork URL set):
  *   forge test --match-path "test/fork/vaults/AlignmentEndowmentVaultFork.t.sol" \
  *              --fork-url $ETH_RPC_URL -vvv
  *
- * Without a fork URL this test auto-skips (vm.skip) — consistent with the
- * existing ForkTestBase guard used by all other fork tests in this repo.
- *
- * Guard: if the WETH bytecode is absent (no fork) we skip rather than revert.
- *
- * Rounding tolerance: ±5 wei absolute for the individual-recipient checks (the
- * ERC-4626 redeem is exact-assets; the only rounding is integer division in the
- * BPS split). convertToAssets ≈ principal is asserted within 2 wei (stataToken
- * exchange rate starts at 1:1 and barely moves in the same block).
+ * Without a fork URL this test auto-skips (vm.skip) — consistent with the existing ForkTestBase guard
+ * used by all other fork tests in this repo. Deterministic split arithmetic is covered to the wei by the
+ * unit suite; this fork test proves the real Aave redeem paths behave.
  */
 contract AlignmentEndowmentVaultForkTest is Test {
     // ── Real Aave V3 mainnet addresses ──────────────────────────────────────
     // Source: lib/aave-address-book/src/AaveV3Ethereum.sol, AaveV3EthereumAssets
     // WETH_UNDERLYING  → line 148 → 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
     // WETH_STATA_TOKEN → line 169 → 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202 (waEthWETH)
-    // Direct import avoided because AaveV3Ethereum.sol requires the aave-v3-origin
-    // submodule which is absent from this repo's lib tree.
     address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant STATA = 0x0bfc9d54Fc184518A81162F8fB99c2eACa081202;
 
+    uint256 internal constant TARGET_ID = 42;
+    uint256 internal constant VEST = 26 weeks;
+
     // ── Test participants ────────────────────────────────────────────────────
     address internal owner; // vault owner (factory stand-in)
-    address internal treasury; // protocolTreasury (1% platform)
-    address internal community; // communityPayout  (99% yield / 19-or-80% principal)
-    address internal creator; // benefactor's Ownable.owner() — receives 80% on maturity
+    address internal treasury; // protocolTreasury (1% protocol)
+    address internal community; // communityPayout (target sink)
+    address internal creator; // benefactor's Ownable.owner() — receives creator yield
 
     AlignmentEndowmentVault internal vault;
     MockBenefactor internal benefactor; // acts as the aligned collection instance
     MockMasterRegistry internal masterRegistry;
 
     function setUp() public {
-        // ── Fork guard: skip cleanly if no fork is active ───────────────────
-        // This mirrors ForkTestBase.loadAddresses(). WETH bytecode is absent
-        // on a plain anvil/blank node, so code.length == 0 means no fork.
+        // Skip cleanly if no fork is active (WETH bytecode absent on a blank node).
         if (WETH.code.length == 0) {
             vm.skip(true);
             return;
         }
 
-        // ── Named test addresses ─────────────────────────────────────────────
         owner = makeAddr("owner");
         treasury = makeAddr("treasury");
         community = makeAddr("community");
         creator = makeAddr("creator");
 
-        // On a mainnet FORK a makeAddr value can collide with a real deployed contract whose
-        // fallback consumes/forwards incoming ETH — which would silently zero out a split leg and
-        // break balance assertions. Force the ETH recipients to be codeless EOAs.
+        // On a mainnet FORK a makeAddr value can collide with a real deployed contract whose fallback
+        // consumes/forwards incoming ETH. Force the ETH recipients to be codeless EOAs.
         vm.etch(treasury, "");
         vm.etch(community, "");
         vm.etch(creator, "");
 
-        // ── Deploy stub contracts ────────────────────────────────────────────
         masterRegistry = new MockMasterRegistry();
         benefactor = new MockBenefactor(creator);
 
-        // ── Deploy + initialize vault clone (mirrors factory flow) ───────────
-        // Use a non-zero placeholder for alignmentToken (not exercised here).
         address alignmentToken = makeAddr("alignmentToken");
 
         address impl = address(new AlignmentEndowmentVault());
         AlignmentEndowmentVault clone = AlignmentEndowmentVault(payable(LibClone.clone(impl)));
-        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, community);
+        clone.initialize(owner, WETH, STATA, treasury, address(masterRegistry), alignmentToken, TARGET_ID, community);
         vault = clone;
     }
 
@@ -114,162 +105,119 @@ contract AlignmentEndowmentVaultForkTest is Test {
     // Test 1 — Deposit round-trips through real Aave
     // ────────────────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Sending ETH through receiveContribution wraps to WETH, supplies Aave,
-     *         and the vault holds real stataToken shares whose asset value ≈ the deposit.
-     */
     function test_deposit_roundTripThroughRealAave() public {
         uint256 amount = 1 ether;
 
-        // Fund the caller and call receiveContribution
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
-        // Principal tracked correctly
-        assertEq(vault.principal(address(benefactor)), amount, "principal mismatch");
-        assertEq(vault.totalPrincipal(), amount, "totalPrincipal mismatch");
+        assertEq(vault.escrowedPrincipal(address(benefactor)), amount, "escrowed principal mismatch");
+        assertEq(vault.totalEscrowedPrincipal(), amount, "totalEscrowed mismatch");
 
-        // Vault actually received stataToken shares from real Aave
         uint256 shares = _stataBalanceOf(address(vault));
         assertGt(shares, 0, "vault should hold stataToken shares");
 
-        // Shares convert back to approximately the deposited amount.
-        // The stataToken exchange rate starts at 1:1 and only moves with block-level
-        // interest; on the same fork block the rounding is at most a few wei.
         uint256 assetsFromShares = _stataConvertToAssets(shares);
-        // Allow 2 wei rounding (ERC-4626 floor division).
         assertApproxEqAbs(assetsFromShares, amount, 2, "stataToken assets should approx eq deposit");
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Test 2 — Principal withdraw returns funds via real Aave (matured path)
+    // Test 2 — Yield realization: escrowed two-class split (best-effort on a fork)
     // ────────────────────────────────────────────────────────────────────────
 
     /**
-     * @notice After maturity (365 days) the creator calls withdrawPrincipal.
-     *         Real stataToken redeems WETH → ETH and the 80/19/1 split is delivered.
-     *
-     * Split math:
-     *   creator    = 80% = MAJOR_BPS / BPS
-     *   community  = 19% = MINOR_BPS / BPS
-     *   treasury   = remainder (~1%, absorbs rounding dust)
-     *
-     * Tolerance: 5 wei absolute per recipient (integer BPS division + ETH transfer).
-     * Deterministic split math is covered by the unit test; this test proves the
-     * real Aave redeem path delivers the right ETH amounts end-to-end.
+     * @notice harvest() against real Aave. On a single fork block interest is typically ~0, so harvest is
+     *         a clean no-op; if the fork state carries accrued interest, the escrowed class splits
+     *         80 creator / 19 target / 1 protocol — the creator leg accrues to the benefactor's purse
+     *         (claimable), and target + protocol receive ETH.
      */
-    function test_withdrawPrincipal_matured_returnsFundsSplit() public {
+    function test_harvest_escrowedSplitOrCleanNoop() public {
         uint256 amount = 1 ether;
 
-        // --- deposit ---
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
-        // --- warp past maturity ---
-        vm.warp(block.timestamp + 365 days + 1);
+        assertGe(vault.accumulatedFees(), 0, "accumulatedFees must not underflow");
 
-        // --- snapshot balances ---
-        uint256 creatorBefore = creator.balance;
+        vm.warp(block.timestamp + 30 days);
+        uint256 feesAfterWarp = vault.accumulatedFees();
+
         uint256 communityBefore = community.balance;
         uint256 treasuryBefore = treasury.balance;
 
-        // --- withdraw as benefactor's owner (creator) ---
-        vm.prank(creator);
-        vault.withdrawPrincipal(address(benefactor));
+        vault.harvest(); // must never revert
 
-        // --- accounting cleared ---
-        assertEq(vault.principal(address(benefactor)), 0, "principal should be 0 after withdrawal");
-        assertEq(vault.totalPrincipal(), 0, "totalPrincipal should be 0 after withdrawal");
-
-        // --- recipients received ETH ---
-        uint256 creatorGot = creator.balance - creatorBefore;
-        uint256 communityGot = community.balance - communityBefore;
-        uint256 treasuryGot = treasury.balance - treasuryBefore;
-
-        uint256 totalOut = creatorGot + communityGot + treasuryGot;
-
-        // Total should equal ~amount (real Aave redeem is exact-assets, so amount itself
-        // is returned; any additional compounding above principal is accumulatedFees and
-        // NOT included in the principal redemption path).
-        // Allow 2 wei for ERC-4626 rounding in stataToken.withdraw.
-        assertApproxEqAbs(totalOut, amount, 2, "total out should approx eq deposit amount");
-
-        // Individual split checks: 80 / 19 / ~1.
-        // Expected values from integer BPS math on `totalOut`.
-        uint256 expectedCreator = (totalOut * 8000) / 10_000;
-        uint256 expectedCommunity = (totalOut * 1900) / 10_000;
-        uint256 expectedTreasury = totalOut - expectedCreator - expectedCommunity;
-
-        // 5-wei tolerance covers the BPS integer division across the three legs.
-        assertApproxEqAbs(creatorGot, expectedCreator, 5, "creator cut mismatch");
-        assertApproxEqAbs(communityGot, expectedCommunity, 5, "community cut mismatch");
-        assertApproxEqAbs(treasuryGot, expectedTreasury, 5, "treasury cut mismatch");
+        if (feesAfterWarp > 0) {
+            // target (19%) + protocol (1%) received ETH; creator leg (80%) is in the purse.
+            assertGt(community.balance - communityBefore, 0, "target should receive yield");
+            assertGt(treasury.balance - treasuryBefore, 0, "protocol should receive its cut");
+            assertGt(vault.pendingYieldOf(address(benefactor)), 0, "creator leg accrued to purse");
+            // principal intact
+            assertEq(vault.escrowedPrincipal(address(benefactor)), amount, "principal intact after harvest");
+        } else {
+            assertEq(community.balance, communityBefore, "no yield -> no target transfer");
+            assertEq(treasury.balance, treasuryBefore, "no yield -> no protocol transfer");
+            assertEq(vault.pendingYieldOf(address(benefactor)), 0, "no yield -> no creator accrual");
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Test 3 — Yield realization (best-effort on a fork)
+    // Test 3 — Vest transition through real Aave (mechanic b: stays in position)
     // ────────────────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Demonstrates the harvest() path against real Aave.
-     *
-     * WETH supply APY on Aave V3 mainnet is typically low (often < 0.1%).
-     * On a single fork block no interest accrues, so accumulatedFees() is
-     * almost certainly 0 and harvest() is a clean no-op. This is expected and
-     * acceptable — the yield split arithmetic is covered deterministically by
-     * the unit test suite; this fork test proves:
-     *   (a) harvest() never reverts or underflows when fees ≈ 0.
-     *   (b) If fees somehow exceed 0 (non-zero Aave state at the fork block),
-     *       community and treasury receive their share and principal is intact.
-     *   (c) accumulatedFees() never underflows (always ≥ 0).
-     *
-     * We warp 365 days to let interest notionally compound. Whether the fork
-     * reflects any accrued interest depends on when the fork block was taken.
-     */
-    function test_harvest_yieldRealizationOrCleanNoop() public {
+    function test_vest_transitionThroughRealAave() public {
         uint256 amount = 1 ether;
 
-        // --- deposit ---
         vm.deal(address(this), amount);
         vault.receiveContribution{ value: amount }(Currency.wrap(address(0)), amount, address(benefactor));
 
-        // accumulatedFees() should never underflow — a key safety invariant.
-        uint256 feesBefore = vault.accumulatedFees();
-        assertGe(feesBefore, 0, "accumulatedFees must not underflow"); // uint so always true; documents intent
+        uint256 sharesBefore = _stataBalanceOf(address(vault));
 
-        // Warp one year to allow interest to accrue in the fork state.
-        vm.warp(block.timestamp + 365 days);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactor)); // permissionless
 
-        uint256 feesAfterWarp = vault.accumulatedFees();
-        assertGe(feesAfterWarp, 0, "accumulatedFees after warp must not underflow");
+        // Accounting moved escrowed → vested; position (shares) UNCHANGED (mechanic b: no redeem).
+        assertEq(vault.escrowedPrincipal(address(benefactor)), 0, "escrow cleared");
+        assertEq(vault.vestedPrincipal(address(benefactor)), amount, "vested set");
+        assertEq(vault.totalVestedDeployable(), amount, "totalVested set");
+        assertEq(_stataBalanceOf(address(vault)), sharesBefore, "position stays in Aave (no redeem at vest)");
+    }
 
-        uint256 communityBefore = community.balance;
-        uint256 treasuryBefore = treasury.balance;
+    // ────────────────────────────────────────────────────────────────────────
+    // Test 4 — Multi-benefactor creator accrual across a vest boundary
+    // ────────────────────────────────────────────────────────────────────────
 
-        // harvest() must never revert regardless of accumulated amount.
+    /**
+     * @notice Two benefactors escrowed; one vests. A subsequent harvest accrues the creator leg only to
+     *         the still-escrowed benefactor (the vested one earns nothing on their creator leg). Verified
+     *         end-to-end against real Aave. Directional on a fork (real yield magnitude is unknown), so we
+     *         assert the vested benefactor's creator accrual stays zero and the escrowed one's is ≥ it.
+     */
+    function test_multiBenefactor_accrualAcrossVestBoundary() public {
+        MockBenefactor benefactorB = new MockBenefactor(makeAddr("creatorB"));
+
+        vm.deal(address(this), 2 ether);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(benefactor));
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 1 ether, address(benefactorB));
+
+        // A vests, B stays escrowed.
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactor));
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "only B remains escrowed");
+        assertEq(vault.totalVestedDeployable(), 1 ether, "A vested");
+
+        // Let interest notionally accrue, then harvest.
+        vm.warp(block.timestamp + 30 days);
         vault.harvest();
 
-        if (feesAfterWarp > 0) {
-            // Yield was present — verify split (99% community / ~1% platform).
-            uint256 communityGot = community.balance - communityBefore;
-            uint256 treasuryGot = treasury.balance - treasuryBefore;
-
-            assertGt(communityGot, 0, "community should receive yield");
-            assertGt(treasuryGot, 0, "treasury should receive platform cut");
-
-            // After harvest, principal is unaffected.
-            assertEq(vault.principal(address(benefactor)), amount, "principal must be intact after harvest");
-            assertEq(vault.totalPrincipal(), amount, "totalPrincipal must be intact after harvest");
-
-            // accumulatedFees resets to ~0 post-harvest (any leftover is sub-wei rounding).
-            assertLe(vault.accumulatedFees(), 1, "fees should be ~0 after harvest");
-        } else {
-            // No yield on this fork block — harvest is a clean no-op.
-            assertEq(community.balance, communityBefore, "community balance should be unchanged (no yield)");
-            assertEq(treasury.balance, treasuryBefore, "treasury balance should be unchanged (no yield)");
-            // Principal unaffected.
-            assertEq(vault.principal(address(benefactor)), amount, "principal must be intact after noop harvest");
-        }
+        // The vested benefactor (A) accrues NO creator yield; the escrowed one (B) accrues ≥ 0 and never
+        // less than A. (On a fork with zero accrued interest both are 0 — still consistent.)
+        assertEq(vault.pendingYieldOf(address(benefactor)), 0, "vested benefactor accrues no creator yield");
+        assertGe(
+            vault.pendingYieldOf(address(benefactorB)),
+            vault.pendingYieldOf(address(benefactor)),
+            "escrowed benefactor accrues at least as much as the vested one"
+        );
     }
 
     // ────────────────────────────────────────────────────────────────────────
