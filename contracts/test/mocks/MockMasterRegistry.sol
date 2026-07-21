@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 import { IComponentRegistry } from "../../src/registry/interfaces/IComponentRegistry.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
 /**
  * @title MockMasterRegistry
@@ -138,6 +139,12 @@ contract MockMasterRegistry is IMasterRegistry {
 
     function getActiveVault(address) external view override returns (address) {
         return address(0);
+    }
+
+    // No-op alignment registry getter so this shared mock still satisfies IMasterRegistry after the
+    // interface gained `alignmentRegistry()` (noesis-058). Vault-execute auth tests use a dedicated mock.
+    function alignmentRegistry() external view override returns (IAlignmentRegistry) {
+        return IAlignmentRegistry(address(0));
     }
 
     function componentRegistry() external view override returns (IComponentRegistry) {

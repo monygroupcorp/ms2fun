@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { AlignmentEndowmentVault } from "../../../src/vaults/aave/AlignmentEndowmentVault.sol";
+import { IAlignmentRegistry } from "../../../src/master/interfaces/IAlignmentRegistry.sol";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Inline mocks (all-in-one file to avoid collision with shared mock directory)
@@ -170,9 +171,11 @@ contract MockStataToken {
     }
 }
 
-/// @dev Minimal MasterRegistry mock: settable isAgent mapping.
+/// @dev Minimal MasterRegistry mock: settable isAgent mapping + a live-readable alignmentRegistry handle
+///      (the vault's `execute` resolves ambassador auth via `masterRegistry.alignmentRegistry()`).
 contract MockMasterRegistry {
     mapping(address => bool) private _agents;
+    IAlignmentRegistry private _alignmentRegistry;
 
     function setAgent(address agent, bool flag) external {
         _agents[agent] = flag;
@@ -180,6 +183,69 @@ contract MockMasterRegistry {
 
     function isAgent(address agent) external view returns (bool) {
         return _agents[agent];
+    }
+
+    function setAlignmentRegistry(address registry) external {
+        _alignmentRegistry = IAlignmentRegistry(registry);
+    }
+
+    function alignmentRegistry() external view returns (IAlignmentRegistry) {
+        return _alignmentRegistry;
+    }
+}
+
+/// @dev Alignment-registry mock with a settable ambassador set, so `execute` auth can be driven and the
+///      `removeAmbassador` backstop exercised. Only `isAmbassador` is read by the vault.
+contract MockAmbassadorRegistry {
+    mapping(uint256 => mapping(address => bool)) private _amb;
+
+    function setAmbassador(uint256 targetId, address account, bool flag) external {
+        _amb[targetId][account] = flag;
+    }
+
+    /// @dev Mirrors AlignmentRegistryV1.removeAmbassador (the sole `execute` backstop).
+    function removeAmbassador(uint256 targetId, address account) external {
+        _amb[targetId][account] = false;
+    }
+
+    function isAmbassador(uint256 targetId, address account) external view returns (bool) {
+        return _amb[targetId][account];
+    }
+}
+
+/// @dev A trivial "DEX" a target might deploy vested capital through: takes ETH, credits an aligned-token
+///      balance to the recipient. Used to prove an aligned-token buy routes through `execute`.
+contract MockDeployDEX {
+    mapping(address => uint256) public tokenBalanceOf;
+    uint256 public totalEthIn;
+
+    /// @notice Buy aligned tokens for `recipient`, 1 token-unit per wei (deterministic for assertions).
+    function buy(address recipient) external payable {
+        totalEthIn += msg.value;
+        tokenBalanceOf[recipient] += msg.value;
+    }
+}
+
+/// @dev Malicious deployment target that re-enters `execute` on receiving ETH. The `nonReentrant` guard
+///      must make the re-entry fail; this mock records whether it did, and does NOT bubble the failure so
+///      the outer call still settles — proving a single spend, not a double one.
+contract ReentrantDeployer {
+    AlignmentEndowmentVault public immutable vault;
+    bool public reentryAttempted;
+    bool public reentrySucceeded;
+
+    constructor(AlignmentEndowmentVault _vault) {
+        vault = _vault;
+    }
+
+    receive() external payable {
+        if (reentryAttempted) return; // only attempt once, avoid infinite recursion on any path
+        reentryAttempted = true;
+        // Attempt to re-enter and drain the corpus a second time. Swallow the result so the outer
+        // `execute` interaction still returns success — the corpus must have moved exactly once.
+        (bool ok,) =
+            address(vault).call(abi.encodeWithSelector(vault.execute.selector, address(this), 1 wei, bytes("")));
+        reentrySucceeded = ok;
     }
 }
 
@@ -221,6 +287,7 @@ contract AlignmentEndowmentVaultTest is Test {
     MockWETH public weth;
     MockStataToken public stata;
     MockMasterRegistry public masterRegistry;
+    MockAmbassadorRegistry public ambassadorRegistry;
     MockOwnable public benefactorContract;
 
     address public vaultOwner = address(0xAA01);
@@ -232,6 +299,7 @@ contract AlignmentEndowmentVaultTest is Test {
     address public alice = address(0xBB01); // EOA user (owner of benefactorContract)
     address public agent = address(0xBB02);
     address public stranger = address(0xBB03);
+    address public ambassador = address(0xBB04); // authorized to deploy vested corpus via execute
 
     Currency public nativeCurrency = Currency.wrap(address(0));
 
@@ -247,6 +315,9 @@ contract AlignmentEndowmentVaultTest is Test {
     event ImpairmentRealized(uint256 shortfallBps, uint256 timestamp);
     event CommunityPayoutUpdated(address indexed payout);
     event Migrated(address indexed to, uint256 amount);
+    event CapitalDeployed(
+        address indexed ambassador, address indexed to, uint256 value, bytes4 selector, uint256 timestamp
+    );
 
     // ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -254,6 +325,9 @@ contract AlignmentEndowmentVaultTest is Test {
         weth = new MockWETH();
         stata = new MockStataToken(address(weth));
         masterRegistry = new MockMasterRegistry();
+        ambassadorRegistry = new MockAmbassadorRegistry();
+        masterRegistry.setAlignmentRegistry(address(ambassadorRegistry));
+        ambassadorRegistry.setAmbassador(TARGET_ID, ambassador, true);
 
         benefactorContract = new MockOwnable(alice);
 
@@ -854,5 +928,164 @@ contract AlignmentEndowmentVaultTest is Test {
     function test_receiveEth_accepted() public {
         (bool ok,) = address(vault).call{ value: 0.01 ether }("");
         assertTrue(ok, "vault should accept ETH via receive()");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 12. execute — target-sovereign deployment of vested corpus (spec 2c)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Contribute `amount` from benefactorContract and vest it into the deployable corpus.
+    function _vest(uint256 amount) internal {
+        _contributeBenefactor(amount);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+    }
+
+    function test_execute_ambassadorDeploysUpToCorpus() public {
+        _vest(2 ether);
+        assertEq(vault.deployableCorpus(), 2 ether, "corpus == vested principal");
+
+        address sink = makeAddr("sink");
+        vm.prank(ambassador);
+        vault.execute(sink, 2 ether, "");
+
+        assertEq(sink.balance, 2 ether, "full corpus deployed");
+        assertEq(vault.deployableCorpus(), 0, "corpus emptied");
+        assertEq(vault.totalVestedDeployable(), 0);
+        assertEq(vault.totalDeployedByTarget(), 2 ether, "deploy counter updated");
+    }
+
+    function test_execute_revertsNonAmbassador() public {
+        _vest(1 ether);
+        vm.prank(stranger);
+        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
+        vault.execute(makeAddr("sink"), 1 ether, "");
+    }
+
+    function test_execute_revertsOverCorpus() public {
+        _vest(1 ether);
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
+        vault.execute(makeAddr("sink"), 1 ether + 1, "");
+    }
+
+    /// @dev The escrowed (unvested) tranche is UNTOUCHABLE by execute even for an ambassador: the corpus
+    ///      bound is the vested principal only, and a full-corpus deploy leaves escrowed accounting and the
+    ///      remaining position value intact.
+    function test_execute_cannotReachEscrowedPrincipal() public {
+        _contributeBenefactor(1 ether); // A → will vest
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → stays escrowed
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract)); // A vested; B escrowed
+        assertEq(vault.deployableCorpus(), 1 ether, "corpus is the vested tranche only");
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
+
+        // Cannot reach beyond the vested 1 ETH even though 2 ETH sits in the shared position.
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
+        vault.execute(makeAddr("sink"), 1 ether + 1, "");
+
+        // Deploying the full vested corpus leaves B's escrowed principal + the position untouched.
+        address sink = makeAddr("sink");
+        vm.prank(ambassador);
+        vault.execute(sink, 1 ether, "");
+
+        assertEq(sink.balance, 1 ether);
+        assertEq(vault.totalVestedDeployable(), 0);
+        assertEq(vault.escrowedPrincipal(address(b)), 1 ether, "escrowed principal untouched");
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed total untouched");
+        assertApproxEqAbs(vault.currentPositionValue(), 1 ether, 2, "only the vested tranche left");
+    }
+
+    function test_execute_withdrawToEOA() public {
+        _vest(1 ether);
+        address eoa = makeAddr("eoa_sink");
+        assertEq(eoa.code.length, 0);
+
+        vm.prank(ambassador);
+        bytes memory ret = vault.execute(eoa, 1 ether, "");
+
+        assertEq(ret.length, 0, "plain transfer returns no data");
+        assertEq(eoa.balance, 1 ether, "withdraw-to-EOA works");
+        assertEq(vault.totalDeployedByTarget(), 1 ether);
+    }
+
+    /// @dev An aligned-token buy routed through a mock DEX: ETH deploys, tokens credit the recipient, the
+    ///      deploy counter + corpus update, and CapitalDeployed carries the call selector.
+    function test_execute_alignedTokenBuyThroughDex() public {
+        _vest(3 ether);
+        MockDeployDEX dex = new MockDeployDEX();
+        address recipient = makeAddr("token_recipient");
+        bytes memory data = abi.encodeWithSelector(MockDeployDEX.buy.selector, recipient);
+
+        vm.expectEmit(true, true, false, true);
+        emit CapitalDeployed(ambassador, address(dex), 2 ether, MockDeployDEX.buy.selector, block.timestamp);
+        vm.prank(ambassador);
+        vault.execute(address(dex), 2 ether, data);
+
+        assertEq(dex.totalEthIn(), 2 ether, "DEX received the deployed ETH");
+        assertEq(dex.tokenBalanceOf(recipient), 2 ether, "aligned tokens credited to recipient");
+        assertEq(vault.totalDeployedByTarget(), 2 ether, "deploy counter updated");
+        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus decremented by the deploy");
+    }
+
+    /// @dev The sole backstop: owner `removeAmbassador` on the alignment registry revokes execute rights.
+    function test_execute_removeAmbassadorRevokes() public {
+        _vest(1 ether);
+        ambassadorRegistry.removeAmbassador(TARGET_ID, ambassador);
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
+        vault.execute(makeAddr("sink"), 1 ether, "");
+    }
+
+    /// @dev Auth resolves LIVE through `masterRegistry.alignmentRegistry()`: a re-point of the alignment
+    ///      registry is honored immediately (no cache), and a grant on the live registry enables execute.
+    function test_execute_authResolvesLiveThroughMasterRegistry() public {
+        _vest(1 ether);
+
+        // Re-point to a fresh registry where `ambassador` is not (yet) authorized → auth fails live.
+        MockAmbassadorRegistry fresh = new MockAmbassadorRegistry();
+        masterRegistry.setAlignmentRegistry(address(fresh));
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.NotAuthorized.selector);
+        vault.execute(makeAddr("sink"), 1 ether, "");
+
+        // Granting on the live registry is honored on the very next call.
+        fresh.setAmbassador(TARGET_ID, ambassador, true);
+        address sink = makeAddr("sink2");
+        vm.prank(ambassador);
+        vault.execute(sink, 1 ether, "");
+        assertEq(sink.balance, 1 ether, "live re-point honored");
+    }
+
+    /// @dev A malicious deployment target that re-enters execute cannot double-spend: nonReentrant blocks
+    ///      the re-entry, and CEI means the corpus was already decremented exactly once before the call.
+    function test_execute_reentrancyCannotDoubleSpend() public {
+        _vest(2 ether);
+        ReentrantDeployer attacker = new ReentrantDeployer(vault);
+        // The attacker must pass auth for the re-entry to actually exercise the nonReentrant guard.
+        ambassadorRegistry.setAmbassador(TARGET_ID, address(attacker), true);
+
+        vm.prank(ambassador);
+        vault.execute(address(attacker), 1 ether, "");
+
+        assertTrue(attacker.reentryAttempted(), "attacker attempted re-entry");
+        assertFalse(attacker.reentrySucceeded(), "re-entry blocked by nonReentrant");
+        assertEq(address(attacker).balance, 1 ether, "attacker received exactly one deployment");
+        assertEq(vault.totalDeployedByTarget(), 1 ether, "single spend recorded");
+        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus decremented once (2 - 1)");
+    }
+
+    /// @dev A callee that reverts bubbles its revert and rolls back the whole deploy (no partial spend).
+    function test_execute_bubblesCalleeRevertAndRollsBack() public {
+        _vest(1 ether);
+        RejectETH r = new RejectETH();
+        vm.prank(ambassador);
+        vm.expectRevert();
+        vault.execute(address(r), 1 ether, "");
+
+        // Effects rolled back with the revert.
+        assertEq(vault.totalVestedDeployable(), 1 ether, "corpus intact after failed deploy");
+        assertEq(vault.totalDeployedByTarget(), 0, "counter intact after failed deploy");
     }
 }
