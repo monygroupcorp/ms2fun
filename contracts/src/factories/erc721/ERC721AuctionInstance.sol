@@ -109,7 +109,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     event AuctionStarted(uint24 indexed tokenId, uint40 startTime, uint40 endTime);
     event BidPlaced(uint24 indexed tokenId, address indexed bidder, uint256 amount);
     event AuctionSettled(uint24 indexed tokenId, address indexed winner, uint256 amount);
-    event UnsoldReclaimed(uint24 indexed tokenId, uint256 forfeitedDeposit);
+    event UnsoldReclaimed(uint24 indexed tokenId, uint256 creatorRefund, uint256 protocolCut);
     event AgentDelegationChanged(bool enabled);
     event VaultContributionFailed(address indexed vault, uint256 amount);
 
@@ -337,7 +337,8 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(auction.highBid, liquidityFamily);
 
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {
-            SafeTransferLib.safeTransferETH(protocolTreasury, s.protocolCut);
+            // force-transfer so a reverting treasury cannot brick the line (matches vaultCut hardening)
+            SafeTransferLib.forceSafeTransferETH(protocolTreasury, s.protocolCut);
         }
 
         try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) { }
@@ -359,12 +360,14 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
 
     /**
      * @notice Reclaim an unsold piece (auction expired with no bids)
-     * @dev NFT is never minted. Creator deposit is forfeited to protocol treasury.
-     *      Line advances to next queued piece.
+     * @dev Permissionless after endTime so an ended no-bid piece cannot freeze the line queue: the
+     *      deposit payout goes to the recorded creator (owner()) regardless of caller, so no caller
+     *      can profit and anyone can clear the line. NFT is never minted. The creator is refunded
+     *      the deposit minus a 1% protocol cut (skin-in-the-game, not a penalty). Line advances.
      * @param tokenId The token ID to reclaim
      */
     // slither-disable-next-line timestamp
-    function reclaimUnsold(uint24 tokenId) external onlyOwner nonReentrant {
+    function reclaimUnsold(uint24 tokenId) external nonReentrant {
         Auction storage auction = auctions[tokenId];
         if (auction.tokenId == 0) revert AuctionDoesNotExist();
         if (auction.startTime == 0) revert AuctionNotStarted();
@@ -374,11 +377,23 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
 
         auction.settled = true;
 
-        // Forfeit deposit to protocol treasury
+        // Refund creator minus a 1% protocol cut (was 100% forfeit). protocolCut floors to 0 for
+        // tiny deposits; skip the treasury leg if it is zero or unset.
         uint256 deposit = auction.minBid;
-        SafeTransferLib.safeTransferETH(protocolTreasury, deposit);
+        uint256 protocolCut = deposit / 100;
+        uint256 creatorRefund = deposit - protocolCut;
 
-        emit UnsoldReclaimed(tokenId, deposit);
+        if (protocolCut > 0 && protocolTreasury != address(0)) {
+            // force-transfer so a reverting treasury cannot brick the line
+            SafeTransferLib.forceSafeTransferETH(protocolTreasury, protocolCut);
+        } else {
+            // treasury unset: no cut is taken, refund the full deposit to the creator
+            creatorRefund = deposit;
+        }
+        // force-transfer so a non-receiving owner cannot strand the refund or freeze the line
+        SafeTransferLib.forceSafeTransferETH(owner(), creatorRefund);
+
+        emit UnsoldReclaimed(tokenId, creatorRefund, protocolCut);
 
         // Advance line to next queued piece
         _advanceLine(tokenId);

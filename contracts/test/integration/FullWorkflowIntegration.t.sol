@@ -10,6 +10,17 @@ import { MockFactory } from "../mocks/MockFactory.sol";
 import { MockInstance } from "../mocks/MockInstance.sol";
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
 import { TestHelpers } from "../helpers/TestHelpers.sol";
+import { AlignmentRegistryV1 } from "../../src/master/AlignmentRegistryV1.sol";
+import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
+
+/// @dev Minimal vault mock exposing the alignmentToken() surface the registry validates.
+contract MockAlignedVault {
+    address public alignmentToken;
+
+    constructor(address _token) {
+        alignmentToken = _token;
+    }
+}
 
 /**
  * @title FullWorkflowIntegrationTest
@@ -53,8 +64,19 @@ contract FullWorkflowIntegrationTest is Test {
         queueManager.initialize(proxy, owner);
         queueManager.setProtocolTreasury(makeAddr("treasury"));
 
-        // Deploy a contract to serve as the mock vault (just needs code at address)
-        mockVault = address(new MockInstance(address(0)));
+        // registerInstance now gates on vault registration (the curation choke-point), so the vault
+        // the mock instances bind to must be a registered + active vault first.
+        address vaultToken = address(0xDECA);
+        AlignmentRegistryV1 alignmentRegistry = new AlignmentRegistryV1(makeAddr("WETH"));
+        alignmentRegistry.initialize(owner);
+        MasterRegistryV1(proxy).setAlignmentRegistry(address(alignmentRegistry));
+
+        IAlignmentRegistry.AlignmentAsset[] memory assets = new IAlignmentRegistry.AlignmentAsset[](1);
+        assets[0] = IAlignmentRegistry.AlignmentAsset({ token: vaultToken, symbol: "DECA", info: "", metadataURI: "" });
+        uint256 targetId = alignmentRegistry.registerAlignmentTarget("Test Target", "", "", assets);
+
+        mockVault = address(new MockAlignedVault(vaultToken));
+        MasterRegistryV1(proxy).registerVault(mockVault, owner, "Test Vault", "ipfs://vault", targetId);
 
         erc404Factory = new MockFactory(owner, owner);
         erc404Factory.setMasterRegistry(proxy);
