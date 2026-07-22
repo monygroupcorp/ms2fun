@@ -50,6 +50,7 @@ contract ZAMMVaultInvariantTest is StdInvariant, Test {
         vault.initialize(
             address(mockZamm),
             address(mockZRouter),
+            address(0xE7), // WETH fallback rail (nonzero; direct-ETH path used in this test)
             address(alignmentToken),
             poolKey,
             treasury,

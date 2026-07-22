@@ -36,6 +36,7 @@ contract Finding1_ZAMMUnboundedArrayTest is Test {
         vault.initialize(
             address(mockZamm),
             address(mockZRouter),
+            address(0xE7), // WETH fallback rail (nonzero)
             address(token),
             poolKey,
             address(0x99),

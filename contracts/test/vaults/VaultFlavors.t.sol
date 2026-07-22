@@ -129,6 +129,7 @@ contract VaultFlavorsTest is Test {
         ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
             STUB_ZAMM,
             address(1),
+            address(0xE7), // weth fallback rail (nonzero)
             address(2),
             IVaultPriceValidator(address(3)),
             IAlignmentRegistry(address(0)),
@@ -154,6 +155,7 @@ contract VaultFlavorsTest is Test {
         ZAMMAlignmentVaultFactory f = new ZAMMAlignmentVaultFactory(
             STUB_ZAMM,
             address(1),
+            address(0xE7), // weth fallback rail (nonzero)
             address(2),
             IVaultPriceValidator(address(3)),
             IAlignmentRegistry(address(0)),

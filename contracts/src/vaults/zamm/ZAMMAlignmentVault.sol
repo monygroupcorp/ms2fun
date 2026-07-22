@@ -11,6 +11,7 @@ import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
+import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 
 /// @notice Minimal ZAMM interface (mirrors ZAMM.sol ABI without requiring its compiler version)
 interface IZAMM {
@@ -92,6 +93,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error InsufficientOutput();
     error TransferFailed();
     error ExceedsMaxBps();
+    /// @dev Init: a required address argument (the WETH fallback rail) was the zero address.
+    error InvalidAddress();
     error TreasuryNotSet();
     error ContributionBelowMinimum();
     error TooManyPendingBenefactors();
@@ -175,11 +178,19 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── Clone guard ───────────────────────────────────────────────────────
     bool private _initialized;
 
+    // ── WETH fallback rail ────────────────────────────────────────────────
+    /// @notice Canonical WETH used as the ETH-transfer fallback when a benefactor/delegate is a smart
+    ///         wallet that rejects plain ETH (adoption-gap F1). Set once at init, zero-checked. Appended
+    ///         at the end of storage so the addition is slot-append-only (layout-safe for these fresh,
+    ///         non-upgradeable CREATE3 clones — each clone owns its storage against a fixed impl).
+    address public weth;
+
     // ── Init ──────────────────────────────────────────────────────────────
 
     function initialize(
         address _zamm,
         address _zRouter,
+        address _weth,
         address _alignmentToken,
         IZAMM.PoolKey calldata key,
         address _protocolTreasury,
@@ -189,10 +200,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ) external {
         if (_initialized) revert VaultAlreadyInitialized();
         if (_protocolTreasury == address(0)) revert TreasuryNotSet();
+        // WETH is the fallback rail for benefactor yield when a smart-wallet recipient rejects plain ETH
+        // (adoption-gap F1). A zero WETH would silently disable the fallback, so reject it at init.
+        if (_weth == address(0)) revert InvalidAddress();
         _initialized = true;
 
         zamm = _zamm;
         zRouter = _zRouter;
+        weth = _weth;
         alignmentToken = _alignmentToken;
         _poolKey = key;
         poolId = uint256(keccak256(abi.encode(key)));
@@ -479,8 +494,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 pending = contrib * accRewardPerContribution / 1e18 - rewardDebt[benefactor]; // round down: favors vault
         if (pending == 0) return 0;
         rewardDebt[benefactor] = contrib * accRewardPerContribution / 1e18; // round down: benefactor cannot over-claim
-        (bool ok,) = recipient.call{ value: pending }("");
-        if (!ok) revert TransferFailed();
+        // WETH-fallback transfer: a smart-wallet recipient rejecting plain ETH still receives its yield
+        // as WETH instead of bricking the claim (adoption-gap F1). Covers both claimFees and delegate.
+        SmartTransferLib.smartTransferETH(recipient, pending, weth);
         ethClaimed = pending;
         emit FeesClaimed(benefactor, pending);
     }

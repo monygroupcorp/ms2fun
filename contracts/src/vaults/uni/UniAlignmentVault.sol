@@ -19,6 +19,7 @@ import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
+import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 
 interface IzRouterV4 {
     function swapV4(
@@ -602,8 +603,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (recipient == address(0)) recipient = benefactor;
 
         if (address(this).balance < ethClaimed) revert InsufficientBalance();
-        (bool success,) = payable(recipient).call{ value: ethClaimed }("");
-        if (!success) revert TransferFailed();
+        // WETH-fallback transfer: a benefactor/delegate that is a smart wallet rejecting plain ETH
+        // still receives its yield as WETH instead of bricking the claim (adoption-gap F1).
+        SmartTransferLib.smartTransferETH(recipient, ethClaimed, weth);
 
         emit FeesClaimed(benefactor, ethClaimed);
 
@@ -878,8 +880,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (totalClaimed == 0) revert NoFeesToClaim();
         if (address(this).balance < totalClaimed) revert InsufficientBalance();
 
-        (bool success,) = payable(msg.sender).call{ value: totalClaimed }("");
-        if (!success) revert TransferFailed();
+        // WETH-fallback transfer (see claimFees): the delegate may be a smart wallet rejecting ETH.
+        SmartTransferLib.smartTransferETH(msg.sender, totalClaimed, weth);
     }
 
     // ========== Configuration ==========

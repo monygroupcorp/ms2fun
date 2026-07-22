@@ -306,6 +306,7 @@ contract DeployCore is Script {
             zammVaultFactory = new ZAMMAlignmentVaultFactory(
                 cfg.zamm,
                 address(zrouter),
+                cfg.weth,
                 address(treasury),
                 IVaultPriceValidator(address(priceValidator)),
                 alignmentRegistry,
