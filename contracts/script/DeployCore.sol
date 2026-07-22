@@ -87,6 +87,14 @@ contract DeployCore is Script {
         address zrouter;
         address safe;
 
+        // On-chain best-route quoter (`zQuoter.getQuotes`) wired into every vault factory so deployed
+        // vaults acquire from the deepest venue instead of their fixed family pool. address(0) = best-route
+        // DISABLED (fixed-pool fallback only) — the pre-noesis-063 default that silently shipped the
+        // multi-venue purchase capability off. On mainnet set the canonical `zQuoterBase`; on a testnet
+        // with no canonical quoter, leave 0 (fallback-only) or point at a compatible quoter. OPERATOR INPUT
+        // — see docs/HUMAN_GATES.md.
+        address zQuoter;
+
         // CREATE3 salts for UUPS proxies
         bytes32 saltMasterRegistry;
         bytes32 saltTreasury;
@@ -279,7 +287,7 @@ contract DeployCore is Script {
             cfg.zrouterTickSpacing,
             IVaultPriceValidator(address(priceValidator)),
             alignmentRegistry,
-            address(0) // zQuoter: best-route disabled at deploy; wire a chain-specific zQuoter via setZQuoter
+            cfg.zQuoter // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT, see HUMAN_GATES
         );
 
         if (cfg.cypherPositionManager != address(0)) {
@@ -289,7 +297,7 @@ contract DeployCore is Script {
                 IVaultPriceValidator(address(priceValidator)),
                 cfg.cypherAlgebraFactory,
                 address(zrouter),
-                address(0), // zQuoter: best-route disabled at deploy; wire a chain-specific zQuoter later
+                cfg.zQuoter, // best-route quoter (address(0) = Algebra fixed-pool fallback); OPERATOR INPUT
                 alignmentRegistry
             );
         }
@@ -301,7 +309,7 @@ contract DeployCore is Script {
                 address(treasury),
                 IVaultPriceValidator(address(priceValidator)),
                 alignmentRegistry,
-                address(0)
+                cfg.zQuoter // best-route quoter (address(0) = ZAMM fixed-pool fallback); OPERATOR INPUT
             );
         }
 
