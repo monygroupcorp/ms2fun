@@ -401,7 +401,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
         // Gating check — forwards authoritative editionId + edition openTime; gatingData carries the
         // raw module payload (no password-shaped wrap, so a bytes32[] merkle proof fits).
-        if (address(gatingModule) != address(0)) {
+        // FREE_MINT_ONLY intentionally leaves paid buys open (gates free-mint claims only), mirroring
+        // the ERC404 buyBonding guard and IGatingModule's GatingScope doc. Any other scope gates the
+        // paid buy — closing the bypass where a Merkle-gated collection's paid mint slipped through.
+        if (address(gatingModule) != address(0) && gatingScope != GatingScope.FREE_MINT_ONLY) {
             (bool allowed,) = gatingModule.canMint(msg.sender, editionId, amount, edition.openTime, gatingData);
             if (!allowed) revert GatingCheckFailed();
             gatingModule.onMint(msg.sender, editionId, amount);
@@ -458,9 +461,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(vault.vaultType());
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, liquidityFamily);
 
-        // Protocol cut to treasury
+        // Protocol cut to treasury. Use smartTransferETH (WETH fallback) so a reverting/non-receiving
+        // treasury cannot brick withdraw — consistent with the try/catch vault-cut path below and the
+        // artist remainder payout. No pending-retry lane: the treasury is trusted and the 1% cut is small.
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {
-            SafeTransferLib.safeTransferETH(protocolTreasury, s.protocolCut);
+            SmartTransferLib.smartTransferETH(protocolTreasury, s.protocolCut, weth);
         }
 
         // Vault cut — tracks this instance as benefactor
@@ -539,6 +544,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @notice Transfer tokens
      */
     function safeTransferFrom(address from, address to, uint256 id, uint256 amount, bytes memory data) external {
+        if (to == address(0)) revert InvalidAddress();
         if (from != msg.sender && !isApprovedForAll[from][msg.sender]) revert Unauthorized();
         if (balanceOf[from][id] < amount) revert InsufficientBalance();
 
@@ -561,6 +567,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         uint256[] memory amounts,
         bytes memory data
     ) external {
+        if (to == address(0)) revert InvalidAddress();
         if (from != msg.sender && !isApprovedForAll[from][msg.sender]) revert Unauthorized();
         if (ids.length != amounts.length) revert LengthMismatch();
 
