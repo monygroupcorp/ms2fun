@@ -28,7 +28,8 @@ interface IGatingModule is IComponentModule {
     ///                  ERC1155, bondingOpenTime for ERC404). De-wrapped from `data` so `data` carries
     ///                  only the module payload — a bytes32[] merkle proof cannot be smuggled through the
     ///                  old abi.encode(payload, openTime) wrap.
-    /// @param data      Module-specific payload — password hash, merkle (tierId, maxQty, proof), etc.
+    /// @param data      Module-specific payload — e.g. merkle (tierId, maxQty, proof), or a future
+    ///                  ZK proof + public signals. Empty (`0x`) when the module needs no payload.
     function canMint(address user, uint256 editionId, uint256 amount, uint256 openTime, bytes calldata data)
         external
         returns (bool allowed, bool permanent);

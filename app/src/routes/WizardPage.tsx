@@ -11,9 +11,6 @@ import {
   collectDefaults,
   validateFields,
   buildCreateInstance,
-  encodeTierConfig,
-  hasTierConfig,
-  validateTierConfig,
   encodeMetadataConfig,
   validateMetadataConfig,
   type MetadataModuleSelection,
@@ -113,9 +110,6 @@ export function WizardPage() {
   const [values, setValues] = useState<Record<string, string>>({})
   const [vault, setVault] = useState<`0x${string}` | undefined>(undefined)
   const [modules, setModules] = useState<Record<string, `0x${string}`>>({})
-  // The gating module's metadata `configType` (drives which config form to show) + its form values.
-  const [gatingConfigType, setGatingConfigType] = useState('')
-  const [gatingValues, setGatingValues] = useState<Record<string, string>>({})
   // Metadata-stack (overlay/tier) per-slot configType + a SHARED values bag (the overlay/tier form
   // keys are disjoint — `overlay…` vs `tier…` — so one bag holds both without collision).
   const [metaConfigTypes, setMetaConfigTypes] = useState<Record<string, string>>({})
@@ -182,19 +176,6 @@ export function WizardPage() {
   const coreErrors = attempted ? validateFields(projectType?.coreFields ?? [], values) : {}
   const busy = submit.isPending || submit.isConfirming
 
-  // Config form for the selected gating module (currently only password-tier-gating has inputs).
-  const gatingSchema = gatingConfigType ? getConfigSchema(gatingConfigType) : undefined
-  const showGatingForm = Boolean(
-    modules.gatingModule && gatingSchema && gatingSchema.fields.length > 0,
-  )
-  const gatingErrors =
-    attempted && showGatingForm && gatingSchema
-      ? {
-          ...validateFields(gatingSchema.fields, gatingValues),
-          ...validateTierConfig(gatingValues),
-        }
-      : {}
-
   // Metadata-resolution stack: the selected resolver/overlay/tier module addresses + validation.
   const metaSelection: MetadataModuleSelection = {
     ...(modules.resolver ? { resolver: modules.resolver } : {}),
@@ -230,13 +211,6 @@ export function WizardPage() {
     if (!vault) out.push('Select an alignment vault — Alignment step.')
     if (Object.keys(validateFields(projectType?.coreFields ?? [], values)).length > 0)
       out.push('Complete the contract details — Contract step.')
-    if (
-      showGatingForm &&
-      gatingSchema &&
-      (Object.keys(validateFields(gatingSchema.fields, gatingValues)).length > 0 ||
-        Object.keys(validateTierConfig(gatingValues)).length > 0)
-    )
-      out.push('Complete the gating config — Gating step.')
     if (anyMetaModule && Object.keys(validateMetadataConfig(metaSelection, metaValues)).length > 0)
       out.push('Fix the metadata module config — Modules step.')
     return out
@@ -254,10 +228,6 @@ export function WizardPage() {
       ...(modules.overlay ? { overlay: modules.overlay } : {}),
       ...(modules.tier ? { tier: modules.tier } : {}),
     }
-    const gatingConfig =
-      modules.gatingModule && hasTierConfig(gatingValues)
-        ? encodeTierConfig(gatingValues)
-        : undefined
     const metadataConfig = anyMetaModule
       ? encodeMetadataConfig(metaSelection, metaValues)
       : undefined
@@ -270,7 +240,6 @@ export function WizardPage() {
       // Only ERC404 charges a deploy bond (N12); other builders ignore this field. Grafted onto the
       // assembleCall refactor during the wizard-tree rebase so the upstream deploy-bond wiring survives.
       ...(typeKey === 'erc404' && deployBondAmount ? { bondAmount: deployBondAmount } : {}),
-      ...(gatingConfig ? { gatingConfig } : {}),
       ...(metadataConfig ? { metadataConfig } : {}),
     })
   }
@@ -295,8 +264,6 @@ export function WizardPage() {
     setValues({})
     setVault(undefined)
     setModules({})
-    setGatingConfigType('')
-    setGatingValues({})
     setMetaConfigTypes({})
     setMetaValues({})
     setAttempted(false)
@@ -313,13 +280,6 @@ export function WizardPage() {
     if (validateCollectionName(metadata.name) || nameStatus.state === 'taken') return
     // A non-agent wallet cannot deploy a collection owned by someone else — the factory reverts.
     if (ownerNeedsAgent) return
-    if (
-      showGatingForm &&
-      gatingSchema &&
-      (Object.keys(validateFields(gatingSchema.fields, gatingValues)).length > 0 ||
-        Object.keys(validateTierConfig(gatingValues)).length > 0)
-    )
-      return
     // Block on a malformed metadata stack (ranges, missing router, empty tier table…).
     if (anyMetaModule && Object.keys(validateMetadataConfig(metaSelection, metaValues)).length > 0)
       return
@@ -403,28 +363,13 @@ export function WizardPage() {
           value={modules[slot.key]}
           onChange={(sel) => {
             setModules((m) => ({ ...m, [slot.key]: sel.address }))
-            if (slot.key === 'gatingModule') {
-              setGatingConfigType(sel.configType)
-              const s = sel.configType ? getConfigSchema(sel.configType) : undefined
-              setGatingValues(s ? collectDefaults(s.fields) : {})
-            } else if ((META_CONFIG_SLOTS as readonly string[]).includes(slot.key)) {
+            if ((META_CONFIG_SLOTS as readonly string[]).includes(slot.key)) {
               setMetaConfigTypes((m) => ({ ...m, [slot.key]: sel.configType }))
               const s = sel.configType ? getConfigSchema(sel.configType) : undefined
               if (s) setMetaValues((v) => ({ ...collectDefaults(s.fields), ...v }))
             }
           }}
         />
-        {slot.key === 'gatingModule' && showGatingForm && gatingSchema && (
-          <div className={styles.moduleConfig}>
-            <h3 className={styles.sectionTitle}>{gatingSchema.title}</h3>
-            <SchemaForm
-              fields={gatingSchema.fields}
-              values={gatingValues}
-              onChange={(key, value) => setGatingValues((v) => ({ ...v, [key]: value }))}
-              errors={gatingErrors}
-            />
-          </div>
-        )}
         {showMetaForm && metaSchema && (
           <div className={styles.moduleConfig}>
             <h3 className={styles.sectionTitle}>{metaSchema.title}</h3>
@@ -520,7 +465,8 @@ export function WizardPage() {
         return (
           <div className={styles.body}>
             <p className={styles.lede}>
-              Gate the mint behind password tiers or a merkle allowlist — or leave it open.
+              Attach a gating module to restrict the mint — or leave it open. The module is
+              configured after create by the collection owner.
             </p>
             {slot && renderSlot(slot)}
             {freeMintField && (
@@ -528,7 +474,7 @@ export function WizardPage() {
                 <h3 className={styles.sectionTitle}>Free mint (optional)</h3>
                 <p className={styles.help}>
                   Reserve a slice of supply to hand out at zero cost — claimable once the mint
-                  opens, not before. Its gating <b>scope</b> decides whether the allowlist above
+                  opens, not before. Its gating <b>scope</b> decides whether the gating module above
                   applies to free claims, paid buys, or both.
                 </p>
                 <SchemaForm

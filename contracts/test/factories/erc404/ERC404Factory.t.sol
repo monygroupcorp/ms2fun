@@ -12,7 +12,7 @@ import { BondingCurveMath } from "../../../src/factories/erc404/libraries/Bondin
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
-import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
+import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
@@ -690,9 +690,9 @@ contract ERC404FactoryTest is Test {
     }
 
     function test_createInstanceWithGating_succeedsWithApprovedModule() public {
-        address gatingModule = address(new PasswordTierGatingModule(address(mockRegistry)));
+        address gatingModule = address(new MerkleGatingModule(address(mockRegistry)));
         vm.prank(protocolAdmin);
-        componentRegistry.approveComponent(gatingModule, keccak256("gating"), "PasswordTierGating");
+        componentRegistry.approveComponent(gatingModule, keccak256("gating"), "MerkleGating");
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
@@ -722,9 +722,9 @@ contract ERC404FactoryTest is Test {
     }
 
     function test_createInstance_withGating_storesModule() public {
-        address gatingModule = address(new PasswordTierGatingModule(address(mockRegistry)));
+        address gatingModule = address(new MerkleGatingModule(address(mockRegistry)));
         vm.prank(protocolAdmin);
-        componentRegistry.approveComponent(gatingModule, keccak256("gating"), "PasswordTierGating2");
+        componentRegistry.approveComponent(gatingModule, keccak256("gating"), "MerkleGating2");
 
         vm.deal(creator1, 1 ether);
         vm.prank(creator1);
