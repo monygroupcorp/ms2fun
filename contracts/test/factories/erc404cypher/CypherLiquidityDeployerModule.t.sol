@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
-import "../../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
+// Named imports (not wildcard): the module now imports the shared `IERC20` while CypherAlignmentVault
+// imports OpenZeppelin's — a wildcard import of both would pull two `IERC20` declarations into this
+// file's global scope and clash. We only need the two contract symbols here.
+import { CypherLiquidityDeployerModule } from "../../../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
-import "../../../src/vaults/cypher/CypherAlignmentVault.sol";
+import { CypherAlignmentVault } from "../../../src/vaults/cypher/CypherAlignmentVault.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { MockERC20 } from "../../mocks/MockERC20.sol";
 import { MockWETH } from "../../mocks/MockWETH.sol";
