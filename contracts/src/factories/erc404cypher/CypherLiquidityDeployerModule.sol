@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "../../shared/interfaces/IERC20.sol";
 import { IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager } from "../../interfaces/algebra/IAlgebra.sol";
 import { CypherAlignmentVault } from "../../vaults/cypher/CypherAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
@@ -18,7 +18,19 @@ interface IWETH {
 
 /// @title CypherLiquidityDeployerModule
 /// @notice Called by ERC404BondingInstance at graduation.
-///         Creates Algebra pool, mints LP to vault, registers benefactor.
+///         Creates Algebra pool, mints the LP position NFT to the instance, registers benefactor.
+/// @dev GRADUATION-LP PERMANENCE INVARIANT (Cypher venue). The Algebra position NFT minted at
+///      graduation (`_setupPool`, `recipient: p.instance`) is permanently locked: it is owned by the
+///      ERC404 instance, and NO code path in this system can move or remove it. This module exposes no
+///      removeLiquidity / decreaseLiquidity / collect / NFT-transfer entry point; the instance is
+///      immutable and exposes no function that transfers a foreign ERC-721 (`withdrawDust` touches only
+///      its own DN404 units + bonding reserve). Graduation liquidity is therefore locked by design, not
+///      by the mere absence of a caller. Do NOT add any path that transfers, burns, or withdraws this
+///      position. Pinned by test (`test/factories/LpLockInvariant.t.sol`).
+///      Sub-note (benign): Algebra LP swap fees accrue to this position, and the instance has no
+///      `collect()` path — they are stranded in the position (they only add to locked depth). This is
+///      NOT the alignment tithe: the perpetual swap tithe exists ONLY on the Uni V4 venue (by design);
+///      the Cypher-graduated pool is untaxed. See docs/phases/vault-flavors.md.
 contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     using FixedPointMathLib for uint256;
 
