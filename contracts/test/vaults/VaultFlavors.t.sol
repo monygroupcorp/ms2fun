@@ -10,6 +10,7 @@ import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 import { IZAMM, ZAMMAlignmentVault } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { ZAMMAlignmentVaultFactory } from "../../src/vaults/zamm/ZAMMAlignmentVaultFactory.sol";
+import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegistry.sol";
 
@@ -28,6 +29,8 @@ contract VaultFlavorsTest is Test {
     address constant STUB_CYPHER_ROUTER = address(0xADD2);
     address constant STUB_STATA = address(0xADD3);
     address constant STUB_CYPHER_FACTORY = address(0xADD4);
+    // Nonzero best-route quoter used to prove the deploy path wires it into every vault (F1 enablement).
+    address constant STUB_QUOTER = address(0xADD5);
 
     bytes constant RETURN_TRUE = hex"600160005260206000f3";
 
@@ -164,5 +167,43 @@ contract VaultFlavorsTest is Test {
         vm.prank(address(0xBEEF));
         vm.expectRevert();
         f.setVaultPoolKey(vault, key);
+    }
+
+    // ── F1: best-route enablement wiring (noesis-063) ────────────────────────
+
+    /// @dev The finding-1 regression: the default deploy config carries no zQuoter (`cfg.zQuoter == 0`),
+    ///      so every deployed vault ships best-route DISABLED (fixed-pool fallback only). This pins that
+    ///      the multi-venue purchase capability is off by default — the state that silently shipped.
+    function test_bestRouteDisabledByDefault() public view {
+        assertEq(UniAlignmentVault(payable(s.uniVaults(0))).zQuoter(), address(0), "uni: quoter unset by default");
+        assertEq(ZAMMAlignmentVault(payable(s.zammVaults(0))).zQuoter(), address(0), "zamm: quoter unset by default");
+        assertEq(_vaultQuoter(s.cypherVaults(0)), address(0), "cypher: quoter unset by default");
+    }
+
+    /// @dev Setting `cfg.zQuoter` to a real quoter must thread it through DeployCore into all three vault
+    ///      factories and onto every deployed vault at deploy time — best-route ENABLED, no post-deploy
+    ///      `setZQuoter` admin action required. This is the load-bearing F1 fix (the deploy scripts passed
+    ///      `address(0)` at every site).
+    function test_bestRouteEnabledWhenConfigWiresQuoter() public {
+        DeployCore s2 = new DeployCore();
+        DeployCore.NetworkConfig memory cfg = _allFamiliesConfig();
+        cfg.zQuoter = STUB_QUOTER;
+        // Distinct CREATE3 proxy salts so s2's core proxies don't collide with setUp()'s deploy.
+        cfg.saltMasterRegistry = bytes32(uint256(11));
+        cfg.saltTreasury = bytes32(uint256(12));
+        cfg.saltQueueManager = bytes32(uint256(13));
+        cfg.saltGlobalMsgReg = bytes32(uint256(14));
+        cfg.saltAlignmentReg = bytes32(uint256(15));
+        cfg.saltComponentReg = bytes32(uint256(16));
+        s2.deploy(address(s2), cfg);
+
+        assertEq(UniAlignmentVault(payable(s2.uniVaults(0))).zQuoter(), STUB_QUOTER, "uni: quoter wired at deploy");
+        assertEq(ZAMMAlignmentVault(payable(s2.zammVaults(0))).zQuoter(), STUB_QUOTER, "zamm: quoter wired at deploy");
+        assertEq(_vaultQuoter(s2.cypherVaults(0)), STUB_QUOTER, "cypher: quoter wired at deploy");
+    }
+
+    function _vaultQuoter(address vault) internal view returns (address) {
+        (, bytes memory ret) = vault.staticcall(abi.encodeWithSignature("zQuoter()"));
+        return abi.decode(ret, (address));
     }
 }
