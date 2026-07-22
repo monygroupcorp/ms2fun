@@ -42,7 +42,6 @@ export default defineConfig({
         'AlignmentEndowmentVault.sol/**',
         'ERC721AuctionFactory.sol/**',
         'ERC721AuctionInstance.sol/**',
-        'PasswordTierGatingModule.sol/**',
         // Merkle allowlist gating (#25). Bindings are consumed by noesis-029/030; harmless here.
         'MerkleGatingModule.sol/**',
         'IMerkleGatingModule.sol/**',

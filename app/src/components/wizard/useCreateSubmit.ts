@@ -4,9 +4,9 @@
  * receipt, and parses the `InstanceCreated` event for the new instance (so the wizard can redirect to
  * `/collection/:instance`).
  *
- * Module config (e.g. password-tier `TierConfig`) is threaded INTO `createInstance` by the
- * submit-builder and applied by the factory in the same tx — so there is no follow-on config
- * transaction here. Post-create edits to gating config go through the creator-admin panel instead.
+ * The factory create path takes no gating-module config — a gating module is attached at create and
+ * configured post-create by the collection owner via the module's own typed setter. The optional
+ * metadata-resolution stack is still threaded into `createInstance` by the submit-builder.
  */
 import { useState } from 'react'
 import { parseEventLogs } from 'viem'

@@ -13,8 +13,6 @@ import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
-import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
-import { TierConfig, TierType } from "../../../src/gating/IPasswordTierGatingModule.sol";
 import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
 import { MerkleConfig } from "../../../src/gating/IMerkleGatingModule.sol";
 import { MerkleAllowlistHelper } from "../../gating/MerkleAllowlistHelper.sol";
@@ -52,7 +50,6 @@ contract ERC404FreeMintTest is Test {
     MockVaultFM mockVault;
     ComponentRegistry componentRegistry;
     MockDeployerFM mockDeployer;
-    PasswordTierGatingModule tierGatingModule;
 
     address protocol = makeAddr("protocol");
     address creator = makeAddr("creator");
@@ -77,13 +74,7 @@ contract ERC404FreeMintTest is Test {
         mockVault = new MockVaultFM();
         launchMgr = new LaunchManager(protocol);
         curveComp = new CurveParamsComputer(protocol);
-        tierGatingModule = new PasswordTierGatingModule(address(mockRegistry));
         mockDeployer = new MockDeployerFM();
-        // These tests pre-seed gating config under the sentinel instance address(0) directly from the
-        // test contract. With D1 factory-of-instance auth, the test contract must be recorded as that
-        // sentinel's registered factory so the first-config short-circuit fires (otherwise the module
-        // would call owner() on the codeless address(0) and revert).
-        mockRegistry.setInstanceFactory(address(0), address(this));
 
         ComponentRegistry impl = new ComponentRegistry();
         address proxy = LibClone.deployERC1967(address(impl));
@@ -240,129 +231,67 @@ contract ERC404FreeMintTest is Test {
         assertEq(inst.balanceOf(address(inst)), inst.maxSupply());
     }
 
-    // ── GatingScope: BOTH ──────────────────────────────────────────────────────
+    // ── GatingScope: BOTH — free-mint path is gated ─────────────────────────────
+    // (PasswordTierGatingModule was removed; these scope-routing tests now use the surviving
+    //  MerkleGatingModule as the concrete gating module. Config is authored post-create by the owner.)
 
     function test_gatingScope_BOTH_gatesFreeMintClaim() public {
-        // Set up a real PasswordTierGatingModule with a single tier
-        vm.prank(protocol);
-        componentRegistry.approveComponent(address(tierGatingModule), keccak256("gating"), "Tiers");
+        MerkleGatingModule merkle = _merkleModule();
+        (bytes32 root, bytes memory data) = _merkleUser1();
 
-        // Build tier config: VOLUME_CAP with 1 tier, cap = unit (1 NFT)
-        bytes32[] memory hashes = new bytes32[](1);
-        hashes[0] = keccak256("secret");
-        uint256[] memory caps = new uint256[](1);
-        caps[0] = 1e24; // large enough
-        TierConfig memory tiers = TierConfig({
-            tierType: TierType.VOLUME_CAP, passwordHashes: hashes, volumeCaps: caps, tierUnlockTimes: new uint256[](0)
-        });
-        tierGatingModule.configureFor(address(0), tiers); // pre-configure (factory passes address(0))
-
-        vm.prank(creator);
-        address inst = factory.createInstance(
-            _identity(),
-            "ipfs://meta",
-            address(mockDeployer),
-            address(tierGatingModule),
-            _freeMint(FREE_MINT_COUNT, GatingScope.BOTH)
-        );
-
-        ERC404BondingInstance instance = ERC404BondingInstance(payable(inst));
+        ERC404BondingInstance instance = _deploy(FREE_MINT_COUNT, GatingScope.BOTH, address(merkle));
+        _configEdition0(merkle, address(instance), root);
         _open(instance);
 
-        // Without correct password data, claimFreeMint should be gated
-        bytes memory badData = abi.encode(bytes32(0), uint256(0));
+        // BOTH consults the module on the free path: allowlisted user1 claims with a valid proof.
         vm.prank(user1);
-        // password hash 0 = open tier, which is allowed in PasswordTierGatingModule
-        // just confirm it doesn't revert with open tier
-        instance.claimFreeMint(badData);
+        instance.claimFreeMint(data);
         assertEq(instance.freeMintsClaimed(), 1);
+
+        // A non-allowlisted claimer is rejected — proving the free path is gated under BOTH.
+        vm.prank(makeAddr("nonlistedFree"));
+        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        instance.claimFreeMint(data);
     }
 
     // ── GatingScope: FREE_MINT_ONLY — paid buys bypass gate ───────────────────
 
     function test_gatingScope_FREE_MINT_ONLY_paidBuyBypassesGate() public {
-        // Deploy with a gating module but FREE_MINT_ONLY scope
-        // Enable bonding and verify buyBonding does NOT check the module
-        vm.prank(protocol);
-        componentRegistry.approveComponent(address(tierGatingModule), keccak256("gating"), "TiersFMO");
+        MerkleGatingModule merkle = _merkleModule();
+        (bytes32 root,) = _merkleUser1();
 
-        bytes32[] memory hashes = new bytes32[](1);
-        hashes[0] = keccak256("secret2");
-        uint256[] memory caps = new uint256[](1);
-        caps[0] = 1e24;
-        tierGatingModule.configureFor(
-            address(0),
-            TierConfig({
-                tierType: TierType.VOLUME_CAP,
-                passwordHashes: hashes,
-                volumeCaps: caps,
-                tierUnlockTimes: new uint256[](0)
-            })
-        );
+        ERC404BondingInstance instance = _deploy(FREE_MINT_COUNT, GatingScope.FREE_MINT_ONLY, address(merkle));
+        _configEdition0(merkle, address(instance), root);
 
-        vm.prank(creator);
-        address inst = factory.createInstance(
-            _identity(),
-            "ipfs://meta",
-            address(mockDeployer),
-            address(tierGatingModule),
-            _freeMint(FREE_MINT_COUNT, GatingScope.FREE_MINT_ONLY)
-        );
-
-        ERC404BondingInstance instance = ERC404BondingInstance(payable(inst));
-
-        // Enable bonding
         vm.startPrank(creator);
         instance.setBondingOpenTime(block.timestamp + 1);
         vm.warp(block.timestamp + 2);
         instance.setBondingActive(true);
         vm.stopPrank();
 
-        // Buy with no password (open tier = bytes32(0)) — should succeed because scope is FREE_MINT_ONLY
+        // FREE_MINT_ONLY: the paid curve is open — a non-allowlisted buyer needs no proof.
+        address buyer = makeAddr("fmoBuyer");
         uint256 buyAmount = instance.unit();
-        uint256 maxCost = 10 ether; // generous cap; exact cost not the point of this test
-        vm.deal(user1, maxCost);
-        vm.prank(user1);
-        instance.buyBonding{ value: maxCost }(buyAmount, maxCost, true, bytes(""), "", 0);
-        // If it didn't revert, the gate was bypassed for paid buys ✓
-        assertGt(instance.balanceOf(user1), 0);
+        uint256 maxCost = 10 ether;
+        vm.deal(buyer, maxCost);
+        vm.prank(buyer);
+        instance.buyBonding{ value: maxCost }(buyAmount, maxCost, false, bytes(""), "", 0);
+        assertGt(instance.balanceOf(buyer), 0);
     }
 
     // ── GatingScope: PAID_ONLY — free mint bypasses gate ──────────────────────
 
     function test_gatingScope_PAID_ONLY_freeMintBypassesGate() public {
-        // gating module set but PAID_ONLY scope: claimFreeMint should not consult it
-        vm.prank(protocol);
-        componentRegistry.approveComponent(address(tierGatingModule), keccak256("gating"), "TiersPO");
+        MerkleGatingModule merkle = _merkleModule();
+        (bytes32 root,) = _merkleUser1();
 
-        bytes32[] memory hashes = new bytes32[](1);
-        hashes[0] = keccak256("secret3");
-        uint256[] memory caps = new uint256[](1);
-        caps[0] = 0; // zero cap — would block everyone
-        tierGatingModule.configureFor(
-            address(0),
-            TierConfig({
-                tierType: TierType.VOLUME_CAP,
-                passwordHashes: hashes,
-                volumeCaps: caps,
-                tierUnlockTimes: new uint256[](0)
-            })
-        );
-
-        vm.prank(creator);
-        address inst = factory.createInstance(
-            _identity(),
-            "ipfs://meta",
-            address(mockDeployer),
-            address(tierGatingModule),
-            _freeMint(FREE_MINT_COUNT, GatingScope.PAID_ONLY)
-        );
-
-        ERC404BondingInstance instance = ERC404BondingInstance(payable(inst));
+        // Root does NOT list the free-mint claimer below — if PAID_ONLY wrongly consulted the module on
+        // the free path, the claim would revert with InvalidProof. It must succeed (free path is open).
+        ERC404BondingInstance instance = _deploy(FREE_MINT_COUNT, GatingScope.PAID_ONLY, address(merkle));
+        _configEdition0(merkle, address(instance), root);
         _open(instance);
 
-        // claimFreeMint should work without any gate data
-        vm.prank(user1);
+        vm.prank(makeAddr("poFreeClaimer"));
         instance.claimFreeMint("");
         assertEq(instance.freeMintsClaimed(), 1);
     }

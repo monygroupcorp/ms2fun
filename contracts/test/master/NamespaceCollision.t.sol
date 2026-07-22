@@ -9,7 +9,6 @@ import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegist
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
-import { PasswordTierGatingModule } from "../../src/gating/PasswordTierGatingModule.sol";
 import { ERC1155Factory } from "../../src/factories/erc1155/ERC1155Factory.sol";
 import { GlobalMessageRegistry } from "../../src/registry/GlobalMessageRegistry.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";

@@ -10,7 +10,6 @@ import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCu
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { FreeMintParams } from "../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../src/gating/IGatingModule.sol";
-import { TierConfig } from "../../src/gating/IPasswordTierGatingModule.sol";
 import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
@@ -155,7 +154,6 @@ contract MetadataStackIntegrationTest is Test {
             declaredMaxAllowanceBps: 0
         });
 
-        TierConfig memory noGating;
         vm.prank(creator);
         address inst = factory.createInstance(
             params,
@@ -163,7 +161,6 @@ contract MetadataStackIntegrationTest is Test {
             address(deployer),
             address(0),
             FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
-            noGating,
             meta
         );
         b = ERC404BondingInstance(payable(inst));
@@ -193,7 +190,6 @@ contract MetadataStackIntegrationTest is Test {
 
     /// @dev Create through the metadata overload with an arbitrary MetadataConfig (unique name+salt).
     function _create(string memory name, ERC404Factory.MetadataConfig memory meta) internal returns (address) {
-        TierConfig memory noGating;
         _nonce++;
         vm.prank(creator);
         return factory.createInstance(
@@ -202,7 +198,6 @@ contract MetadataStackIntegrationTest is Test {
             address(deployer),
             address(0),
             FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
-            noGating,
             meta
         );
     }

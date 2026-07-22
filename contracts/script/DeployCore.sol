@@ -38,7 +38,6 @@ import { DynamicPricingModule } from "../src/factories/erc1155/DynamicPricingMod
 import { ERC721AuctionFactory } from "../src/factories/erc721/ERC721AuctionFactory.sol";
 import { QueryAggregator } from "../src/query/QueryAggregator.sol";
 import { zRouter } from "../src/peripherals/zRouter.sol";
-import { PasswordTierGatingModule } from "../src/gating/PasswordTierGatingModule.sol";
 import { MerkleGatingModule } from "../src/gating/MerkleGatingModule.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 import { MockComponentModule } from "../test/mocks/MockComponentModule.sol";
@@ -167,7 +166,6 @@ contract DeployCore is Script {
     ERC1155Factory public erc1155Factory;
     DynamicPricingModule public dynamicPricingModule;
     ERC721AuctionFactory public erc721Factory;
-    PasswordTierGatingModule public passwordTierGatingModule;
     QueryAggregator public queryAggregator;
 
     // Real per-instance merkle-allowlist gating module (carries its own wizard metadata).
@@ -482,22 +480,15 @@ contract DeployCore is Script {
         );
         erc1155Factory.setDynamicPricingModule(address(dynamicPricingModule));
 
-        passwordTierGatingModule = new PasswordTierGatingModule(masterRegistry);
-        componentRegistry.approveComponent(
-            address(passwordTierGatingModule), FeatureUtils.GATING, "Password Tier Gating"
-        );
-
         // ── Phase 7b: ComponentRegistry seeding — wizard-facing metadata stubs ─────
         // These MockComponentModules give the frontend creation wizard metadata to
         // display for each selectable component. Users pass these addresses to
         // createInstance; the real functional modules are wired into factory internals.
         // EXCEPTION: gating is a per-instance module the wizard passes through verbatim
-        // (createInstance stores it, mint calls canMint, create/admin call configureFor),
-        // so the REAL PasswordTierGatingModule carries the password-tier metadata directly —
+        // (createInstance attaches it, mint calls canMint, the owner calls configureFor
+        // post-create), so the REAL gating module carries its own metadata directly —
         // there is no mock stand-in for it.
 
-        string memory passwordGatingMeta =
-            "data:application/json,{\"name\":\"Password Tier Gating\",\"subtitle\":\"Password \\u00b7 Tiered Access\",\"description\":\"Set one or more passwords, each unlocking a different tier of access or pricing.\",\"configType\":\"password-tier-gating\"}";
         string memory merkleGatingMeta =
             "data:application/json,{\"name\":\"Merkle Allowlist Gating\",\"subtitle\":\"Allowlist \\u00b7 Merkle Tree\",\"description\":\"Upload a list of wallet addresses to restrict minting to an allowlist.\",\"configType\":\"merkle-allowlist-gating\"}";
         string memory uniV4Meta =
@@ -506,9 +497,6 @@ contract DeployCore is Script {
             "data:application/json,{\"name\":\"ZAMM Deployer\",\"subtitle\":\"ZAMM \\u00b7 Constant Product\",\"description\":\"Deploy liquidity to ZAMM on graduation.\",\"configType\":\"launch-profile\"}";
         string memory cypherMeta =
             "data:application/json,{\"name\":\"Cypher Deployer\",\"subtitle\":\"Cypher \\u00b7 Concentrated Liquidity\",\"description\":\"Deploy liquidity to Cypher on graduation.\",\"configType\":\"launch-profile\"}";
-
-        // Real module carries its own wizard metadata (configType drives the password-tier form).
-        passwordTierGatingModule.setMetadataURI(passwordGatingMeta);
 
         // Real merkle-allowlist gating module: per-instance, per-edition, quantity-capped allowlists.
         // The wizard passes its address to createInstance verbatim; the owner calls configureFor
@@ -653,7 +641,6 @@ contract DeployCore is Script {
         vm.serializeAddress(c, "LaunchManager", address(launchManager));
         vm.serializeAddress(c, "CurveParamsComputer", address(curveParamsComputer));
         vm.serializeAddress(c, "DynamicPricingModule", address(dynamicPricingModule));
-        vm.serializeAddress(c, "PasswordTierGatingModule", address(passwordTierGatingModule));
         vm.serializeAddress(c, "ModuleMerkleGating", address(moduleMerkleGating));
         vm.serializeAddress(c, "ModuleUniV4Deployer", address(moduleUniV4Deployer));
         vm.serializeAddress(c, "ModuleZAMMDeployer", address(moduleZAMMDeployer));

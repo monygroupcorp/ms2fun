@@ -11,7 +11,6 @@ import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry
 import { FeatureUtils } from "../../master/libraries/FeatureUtils.sol";
 import { FreeMintParams } from "../../interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../gating/IGatingModule.sol";
-import { IPasswordTierGatingModule, TierConfig } from "../../gating/IPasswordTierGatingModule.sol";
 import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 
 /**
@@ -64,32 +63,19 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     }
 
     /// @notice Deploy a new ERC1155 instance. Any ETH forwarded directly to treasury.
+    /// @dev The gating module is attached (params.gatingModule; address(0) = open); its config is
+    ///      authored post-create by the owner via the module's own typed setter — the factory does not
+    ///      thread module config at create (the generic gating slot bakes in no module's config shape).
     function createInstance(bytes32 salt, CreateParams calldata params)
         external
         payable
         nonReentrant
         returns (address instance)
     {
-        TierConfig memory empty;
-        return _createInstance(salt, params, empty);
+        return _createInstance(salt, params);
     }
 
-    /// @notice Deploy a new ERC1155 instance and apply tier-gating config in the same tx.
-    /// @param gatingConfig Tier config applied to params.gatingModule at deploy time.
-    ///        Empty (no passwordHashes) leaves the instance open / unconfigured.
-    function createInstance(bytes32 salt, CreateParams calldata params, TierConfig calldata gatingConfig)
-        external
-        payable
-        nonReentrant
-        returns (address instance)
-    {
-        return _createInstance(salt, params, gatingConfig);
-    }
-
-    function _createInstance(bytes32 salt, CreateParams calldata params, TierConfig memory gatingConfig)
-        private
-        returns (address instance)
-    {
+    function _createInstance(bytes32 salt, CreateParams calldata params) private returns (address instance) {
         if (params.gatingModule != address(0)) {
             if (!componentRegistry.isApprovedForTag(params.gatingModule, FeatureUtils.GATING)) {
                 revert UnapprovedComponent();
@@ -117,11 +103,9 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         instance = _deployAndRegister(salt, params, agentCreated);
         ERC1155Instance(instance).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
 
-        // Tier gating configured after registration — factory is a registered configurer.
-        // Empty config (no passwordHashes) leaves the instance open.
-        if (params.gatingModule != address(0) && gatingConfig.passwordHashes.length > 0) {
-            IPasswordTierGatingModule(params.gatingModule).configureFor(instance, gatingConfig);
-        }
+        // Gating module is attached to the instance at deploy (params.gatingModule; address(0) = open).
+        // Its config is authored post-create by the owner via the module's own typed setter — the
+        // factory threads no gating config here (the generic slot bakes in no module's config shape).
 
         emit InstanceCreated(instance, params.creator, params.name, params.vault);
     }

@@ -73,10 +73,10 @@ contract MerkleGatingModule is IGatingModule, IMerkleGatingModule, Ownable {
 
     /// @notice Configure or update the merkle allowlist for ONE edition of `instance`.
     /// @dev Initial configuration (first edition ever configured for the instance) may be authored by
-    ///      the factory that registered this specific instance OR by the instance owner (post-create
-    ///      setup — the expected path, since factories attach this module without a TierConfig). Every
-    ///      subsequent call (further editions, or updates) must come from the instance owner. Mirrors
-    ///      PasswordTierGatingModule's factory-of-instance / owner auth.
+    ///      the factory that registered this specific instance OR by the instance owner. Post-create
+    ///      by the owner is the expected path: factories attach a gating module without threading its
+    ///      config, so the owner configures it in a follow-up tx. Every subsequent call (further
+    ///      editions, or updates) must come from the instance owner.
     function configureFor(address instance, MerkleConfig calldata config) external override {
         if (!configured[instance]) {
             if (

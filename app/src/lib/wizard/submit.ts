@@ -19,8 +19,6 @@ import {
 } from '../../generated/contracts'
 import { parseBps } from '../carve'
 import type { ProjectTypeSchema } from './schema'
-import type { TierConfigValue } from './gatingConfig'
-import { EMPTY_TIER_CONFIG } from './gatingConfig'
 import { hasMetadataConfig, type MetadataConfigValue } from './metadataConfig'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
@@ -49,17 +47,11 @@ export interface CreateContext {
   salt: `0x${string}`
   modules: SelectedModules
   /**
-   * Optional tier-gating config, applied to `modules.gatingModule` in the SAME create tx via the
-   * factory's gated `createInstance` overload. Omitted / empty (no passwordHashes) → the legacy
-   * overload is used and the instance is open/unconfigured.
-   */
-  /**
    * Refundable creator deploy-bond (N12) to escrow at create, in wei. The ERC404 factory requires
    * `msg.value >= bondAmount` when the lever is ON and forwards the excess to the treasury. Omitted /
    * 0 → lever OFF → create sends no bond (today's behavior). Only the ERC404 builder consumes it.
    */
   bondAmount?: bigint
-  gatingConfig?: TierConfigValue
   /**
    * Optional metadata-resolution stack (ADR-0006/0007), applied to the ERC404 instance in the SAME
    * create tx via the factory's 7-arg overload. Omitted / off (resolver == zero) → a non-metadata
@@ -101,16 +93,6 @@ function num(v: string | undefined): number {
 }
 const addr = (a: `0x${string}` | undefined): `0x${string}` => a ?? ZERO_ADDRESS
 
-/**
- * Tier config to thread through the gated overload, or undefined to use the legacy overload.
- * Only threaded when a gating module is selected AND at least one tier was configured.
- */
-function gating(c: CreateContext): TierConfigValue | undefined {
-  if (!c.modules.gatingModule || c.modules.gatingModule === ZERO_ADDRESS) return undefined
-  if (!c.gatingConfig || c.gatingConfig.passwordHashes.length === 0) return undefined
-  return c.gatingConfig
-}
-
 function freeMint(c: CreateContext): { allocation: bigint; scope: number } {
   return {
     allocation: big(c.values['freeMint.allocation']),
@@ -130,9 +112,9 @@ export function buildErc1155Create(c: CreateContext): CreateCall {
     gatingModule: addr(c.modules.gatingModule),
     freeMint: freeMint(c),
   }
-  const cfg = gating(c)
-  // Gated overload threads the tier config; otherwise the 2-arg legacy create.
-  const args: Erc1155Args = cfg ? [c.salt, params, cfg] : [c.salt, params]
+  // The gating module is attached at create (params.gatingModule); its config is authored post-create
+  // by the owner. The factory threads no gating config at create.
+  const args: Erc1155Args = [c.salt, params]
   return { type: 'erc1155', factory: 'ERC1155Factory', args, value: 0n }
 }
 
@@ -172,7 +154,6 @@ export function buildErc404Create(c: CreateContext): CreateCall {
     // displayed default (10000 = full protocol allowance); the field may lower it, down to 0.
     declaredMaxAllowanceBps: parseBps(c.values.declaredMaxAllowanceBps, 10_000),
   }
-  const cfg = gating(c)
   const head = [
     params,
     c.metadataURI,
@@ -180,18 +161,13 @@ export function buildErc404Create(c: CreateContext): CreateCall {
     addr(c.modules.gatingModule),
     freeMint(c),
   ] as const
-  // Overload selection by arity:
-  //   - metadata stack on  → 7-arg overload (gating + metadata). The 7-arg form REQUIRES the gating
-  //     slot too, so an empty TierConfig is passed when no gating is configured.
-  //   - gating only        → 6-arg overload.
-  //   - neither            → 5-arg legacy create.
+  // Overload selection by arity (create-time gating config was removed with PasswordTierGating; the
+  // gating module is attached via the slot above and configured post-create by the owner):
+  //   - metadata stack on → 6-arg overload (adds MetadataConfig).
+  //   - metadata stack off → 5-arg base create.
   const meta = c.metadataConfig
-  let args: Erc404Args
-  if (meta && hasMetadataConfig(meta)) {
-    args = [...head, cfg ?? EMPTY_TIER_CONFIG, meta] as Erc404Args
-  } else {
-    args = (cfg ? [...head, cfg] : [...head]) as Erc404Args
-  }
+  const args: Erc404Args =
+    meta && hasMetadataConfig(meta) ? ([...head, meta] as Erc404Args) : ([...head] as Erc404Args)
   // Lever ON (bondAmount > 0) → send the bond as msg.value; the factory escrows it and forwards any
   // excess to the treasury. Lever OFF → 0n, byte-identical to today's create.
   return { type: 'erc404', factory: 'ERC404Factory', args, value: c.bondAmount ?? 0n }

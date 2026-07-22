@@ -12,7 +12,6 @@ import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol
 import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
-import { IPasswordTierGatingModule, TierConfig, TierType } from "../src/gating/IPasswordTierGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 
@@ -82,7 +81,8 @@ contract SeedRich is Script {
         d.messages = GlobalMessageRegistry(vm.parseJsonAddress(j, ".contracts.GlobalMessageRegistry"));
         d.stakingModule = vm.parseJsonAddress(j, ".contracts.ERC404StakingModule");
         d.zammDeployer = vm.parseJsonAddress(j, ".contracts.ModuleZAMMDeployer");
-        d.gatingModule = vm.parseJsonAddress(j, ".contracts.PasswordTierGatingModule");
+        // Password-tier gating was removed (dead security module); interim gating slot = open.
+        d.gatingModule = address(0);
         string memory vaultsJson = vm.parseJsonString(j, ".vaults");
         d.vault = vm.parseJsonAddress(vaultsJson, "[0].address");
         d.endowmentVault = vm.parseJsonAddress(vaultsJson, "[2].address");
@@ -148,23 +148,17 @@ contract SeedRich is Script {
 
     // ── Phase 3 — gated ERC1155 ───────────────────────────────────────────────
     function _phase3Gated1155(Deployed memory d) internal {
-        bytes32[] memory hashes = new bytes32[](1);
-        hashes[0] = keccak256(bytes("ms2"));
-        uint256[] memory caps = new uint256[](1);
-        caps[0] = 5;
-        TierConfig memory cfg = TierConfig(TierType.VOLUME_CAP, hashes, caps, new uint256[](0));
-
         vm.startBroadcast(deployerKey);
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
             name: "vault-club",
-            metadataURI: _collMeta("Vault Club", "Members-only. Password required.", _svg("K")),
+            metadataURI: _collMeta("Vault Club", "Members-only.", _svg("K")),
             creator: deployer,
             vault: d.vault,
             styleUri: "/seed-art/styles/vault-club.css",
             gatingModule: d.gatingModule,
             freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         });
-        address inst = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, "vault-club")), p, cfg);
+        address inst = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, "vault-club")), p);
         _instances.push(inst);
         ERC1155Instance(inst)
             .addEdition(
@@ -209,14 +203,10 @@ contract SeedRich is Script {
     }
 
     function _phase4Gated(Deployed memory d) internal {
-        // Gated bonding.
-        bytes32[] memory h = new bytes32[](1);
-        h[0] = keccak256(bytes("ms2"));
-        uint256[] memory c = new uint256[](1);
-        c[0] = 5e24;
-        TierConfig memory cfg = TierConfig(TierType.VOLUME_CAP, h, c, new uint256[](0));
+        // Interim: gating slot open (password-tier module removed). Instance attaches d.gatingModule
+        // (address(0) = open) with no create-time config; gating is authored post-create by the owner.
         vm.startBroadcast(deployerKey);
-        address gated = _create404Gated(d, "haze404", "Haze404", "HAZE", cfg);
+        address gated = _create404(d, "haze404", "Haze404", "HAZE", address(0), d.gatingModule);
         ERC404BondingInstance g = ERC404BondingInstance(payable(gated));
         g.setBondingOpenTime(block.timestamp + 1); // must be set before setBondingActive
         g.setBondingActive(true);
@@ -327,38 +317,6 @@ contract SeedRich is Script {
                 d.zammDeployer,
                 gating,
                 FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
-            );
-        _instances.push(inst);
-    }
-
-    function _create404Gated(
-        Deployed memory d,
-        string memory slug,
-        string memory name,
-        string memory sym,
-        TierConfig memory cfg
-    ) internal returns (address inst) {
-        ERC404Factory.CreateParams memory p = ERC404Factory.CreateParams({
-            salt: keccak256(abi.encode(block.timestamp, slug)),
-            name: slug,
-            symbol: sym,
-            styleUri: "",
-            tokenBaseURI: "",
-            owner: deployer,
-            vault: d.vault,
-            nftCount: 10,
-            presetId: 1,
-            stakingModule: address(0),
-            declaredMaxAllowanceBps: 0
-        });
-        inst = d.erc404
-            .createInstance(
-                p,
-                _collMeta(name, "Gated bonding.", _svg(sym)),
-                d.zammDeployer,
-                d.gatingModule,
-                FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
-                cfg
             );
         _instances.push(inst);
     }

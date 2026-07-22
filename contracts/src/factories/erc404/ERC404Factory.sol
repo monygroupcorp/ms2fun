@@ -14,7 +14,6 @@ import { LaunchManager } from "./LaunchManager.sol";
 import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
 import { FreeMintParams } from "../../interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../gating/IGatingModule.sol";
-import { IPasswordTierGatingModule, TierConfig } from "../../gating/IPasswordTierGatingModule.sol";
 import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
 import { MetadataResolverRouter } from "../../metadata/MetadataResolverRouter.sol";
@@ -188,6 +187,8 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
 
     /// @notice Create an instance with a caller-supplied liquidity deployer and optional gating module.
     ///         Any ETH forwarded goes directly to treasury — factory holds no ETH.
+    /// @dev The gating module is attached (address(0) = open); its config is authored post-create by the
+    ///      owner via the module's own typed setter — the factory does not thread module config at create.
     function createInstance(
         CreateParams calldata params,
         string calldata metadataURI,
@@ -195,24 +196,8 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address gatingModule,
         FreeMintParams calldata freeMint
     ) external payable nonReentrant returns (address instance) {
-        TierConfig memory empty;
         MetadataConfig memory emptyMeta;
-        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, empty, emptyMeta);
-    }
-
-    /// @notice Create an instance and apply tier-gating config in the same tx.
-    /// @param gatingConfig Tier config applied to gatingModule at deploy time.
-    ///        Empty (no passwordHashes) leaves the instance open / unconfigured.
-    function createInstance(
-        CreateParams calldata params,
-        string calldata metadataURI,
-        address liquidityDeployer,
-        address gatingModule,
-        FreeMintParams calldata freeMint,
-        TierConfig calldata gatingConfig
-    ) external payable nonReentrant returns (address instance) {
-        MetadataConfig memory emptyMeta;
-        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig, emptyMeta);
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, emptyMeta);
     }
 
     /// @notice Create an instance and wire a metadata-resolution stack (ADR-0006/0007) in the same tx.
@@ -224,12 +209,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address liquidityDeployer,
         address gatingModule,
         FreeMintParams calldata freeMint,
-        TierConfig calldata gatingConfig,
         MetadataConfig calldata metadataConfig
     ) external payable nonReentrant returns (address instance) {
-        return _createInstance(
-            params, metadataURI, liquidityDeployer, gatingModule, freeMint, gatingConfig, metadataConfig
-        );
+        return _createInstance(params, metadataURI, liquidityDeployer, gatingModule, freeMint, metadataConfig);
     }
 
     function _createInstance(
@@ -238,7 +220,6 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address liquidityDeployer,
         address gatingModule,
         FreeMintParams calldata freeMint,
-        TierConfig memory gatingConfig,
         MetadataConfig memory metadataConfig
     ) private returns (address instance) {
         if (gatingModule != address(0)) {
@@ -320,11 +301,9 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         if (params.stakingModule != address(0)) {
             ERC404BondingInstance(payable(instance)).initializeStaking(params.stakingModule);
         }
-        // Tier gating configured after registration — factory is a registered configurer.
-        // Empty config (no passwordHashes) leaves the instance open.
-        if (gatingModule != address(0) && gatingConfig.passwordHashes.length > 0) {
-            IPasswordTierGatingModule(gatingModule).configureFor(instance, gatingConfig);
-        }
+        // Gating module is attached at create (see _deployAndInitialize); its config is authored
+        // post-create by the owner via the module's own typed setter. The factory threads no gating
+        // config at create — the generic gating slot must not bake in any one module's config shape.
         // Metadata-resolution stack — its OWN wiring path (NOT routed through gatingModule).
         // Empty config (resolver == address(0)) = feature off.
         _wireMetadata(instance, metadataConfig);

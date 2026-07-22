@@ -33,7 +33,6 @@ import { parseAmount } from '../../ui/parseAmount'
 import { TxButton } from '../../ui/TxButton'
 import { useTxAction } from '../../ui/useTxAction'
 import { useOwnerGate } from '../../ui/useOwnerGate'
-import { ConfigureGatingRow } from '../ConfigureGatingRow'
 import { useEditions, type EditionView } from '../useEditions'
 import styles from './Erc1155Actions.module.css'
 
@@ -54,7 +53,6 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
       <ClaimAllFeesRow instance={instance} />
       <UpdateMetadataRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetStyleRow instance={instance} />
-      <ConfigureGatingRow instance={instance} />
       <MigrateVaultRow instance={instance} />
       <AgentDelegationRow instance={instance} />
       <RetryVaultRow instance={instance} />
