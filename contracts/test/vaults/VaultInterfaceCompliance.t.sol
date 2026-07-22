@@ -76,6 +76,7 @@ contract VaultInterfaceComplianceTest is Test {
         ultraVaultV2.initialize(
             address(mockZamm),
             address(mockZRouter),
+            MOCK_WETH,
             address(alignmentToken),
             poolKey,
             address(0x99),

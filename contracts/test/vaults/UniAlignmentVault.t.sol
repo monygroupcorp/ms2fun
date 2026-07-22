@@ -6,6 +6,7 @@ import { UniAlignmentVault } from "../../src/vaults/uni/UniAlignmentVault.sol";
 import { TestableUniAlignmentVault } from "../helpers/TestableUniAlignmentVault.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockWETH } from "../mocks/MockWETH.sol";
 import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.sol";
@@ -648,6 +649,51 @@ contract UniAlignmentVaultTest is Test {
 
         assertEq(claimed, 10 ether, "Claimed amount should be 10 ether");
         assertEq(aliceBalanceAfter - aliceBalanceBefore, 10 ether, "Alice should receive 10 ether");
+    }
+
+    // ── WETH fallback (adoption-gap F1) ─────────────────────────────────────
+
+    /// @dev A benefactor that is a smart wallet rejecting plain ETH still receives its yield via the
+    ///      WETH fallback — claimFees must NOT revert, and the WETH balance must rise by the claim.
+    function test_ClaimFees_WethFallback_RejectingBenefactor() public {
+        // Give mockWETH real WETH behavior so the fallback deposit/transfer executes.
+        vm.etch(mockWETH, address(new MockWETH()).code);
+        RejectingBenefactor rejecter = new RejectingBenefactor();
+
+        vm.prank(alice);
+        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, address(rejecter));
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+        vm.prank(owner);
+        vault.depositFees{ value: 10 ether }();
+
+        rejecter.claim(vault); // must NOT revert despite reverting receive()
+
+        assertEq(address(rejecter).balance, 0, "plain ETH must not land");
+        assertEq(MockWETH(payable(mockWETH)).balanceOf(address(rejecter)), 10 ether, "yield delivered as WETH");
+    }
+
+    /// @dev Same for the delegate path: a rejecting delegate still gets its yield as WETH.
+    function test_ClaimFeesAsDelegate_WethFallback_RejectingDelegate() public {
+        vm.etch(mockWETH, address(new MockWETH()).code);
+        RejectingBenefactor rejecter = new RejectingBenefactor();
+
+        vm.prank(alice);
+        vault.receiveContribution{ value: 10 ether }(Currency.wrap(address(0)), 10 ether, alice);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+        vm.prank(owner);
+        vault.depositFees{ value: 10 ether }();
+
+        vm.prank(alice);
+        vault.delegateBenefactor(address(rejecter));
+
+        address[] memory bs = new address[](1);
+        bs[0] = alice;
+        rejecter.claimAsDelegate(vault, bs); // must NOT revert
+
+        assertEq(address(rejecter).balance, 0, "plain ETH must not land");
+        assertEq(MockWETH(payable(mockWETH)).balanceOf(address(rejecter)), 10 ether, "delegate yield delivered as WETH");
     }
 
     function test_ClaimFees_ProportionalClaimWithMultipleBenefactors() public {
@@ -1520,5 +1566,21 @@ contract UniAlignmentVaultTest is Test {
         vm.prank(dave);
         vm.expectRevert(bytes("MockZRouter: insufficient output"));
         vault.convertAndAddLiquidity(1); // caller minOut=1, but the canonical floor governs
+    }
+}
+
+/// @notice A benefactor/delegate that is a smart wallet rejecting plain ETH (reverting receive()).
+///         Exercises the SmartTransferLib WETH fallback on the claim paths (adoption-gap F1).
+contract RejectingBenefactor {
+    receive() external payable {
+        revert("no plain ETH");
+    }
+
+    function claim(UniAlignmentVault vault) external returns (uint256) {
+        return vault.claimFees();
+    }
+
+    function claimAsDelegate(UniAlignmentVault vault, address[] calldata benefactors) external returns (uint256) {
+        return vault.claimFeesAsDelegate(benefactors);
     }
 }
