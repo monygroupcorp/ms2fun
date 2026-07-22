@@ -119,7 +119,7 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
             _params("Agent Created", artist) // creator is artist, not agent
         );
 
-        ERC1155Instance inst = ERC1155Instance(instance);
+        ERC1155Instance inst = ERC1155Instance(payable(instance));
         assertEq(inst.owner(), artist);
         assertTrue(inst.agentDelegationEnabled());
     }
@@ -129,7 +129,7 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
         vm.prank(artist);
         address instance = factory.createInstance{ value: 0 }(_nextSalt(), _params("Self Created", artist));
 
-        ERC1155Instance inst = ERC1155Instance(instance);
+        ERC1155Instance inst = ERC1155Instance(payable(instance));
         assertFalse(inst.agentDelegationEnabled());
     }
 
@@ -149,10 +149,10 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
 
         // agentDelegationEnabled is true because agent created on behalf of artist
         vm.prank(agent);
-        ERC1155Instance(instance)
+        ERC1155Instance(payable(instance))
             .addEdition("Piece 1", 0.1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
 
-        assertEq(ERC1155Instance(instance).nextEditionId(), 2); // edition 1 added
+        assertEq(ERC1155Instance(payable(instance)).nextEditionId(), 2); // edition 1 added
     }
 
     function test_agent_blocked_when_delegation_disabled() public {
@@ -162,12 +162,12 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
 
         // Artist disables delegation
         vm.prank(artist);
-        ERC1155Instance(instance).setAgentDelegation(false);
+        ERC1155Instance(payable(instance)).setAgentDelegation(false);
 
         // Agent tries to add edition directly — should fail at instance level
         vm.prank(agent);
         vm.expectRevert();
-        ERC1155Instance(instance)
+        ERC1155Instance(payable(instance))
             .addEdition("Piece 2", 0.1 ether, 0, "ipfs://piece2", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
     }
 
@@ -182,7 +182,7 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
         // Agent tries to add edition directly — instance checks masterRegistry.isAgent
         vm.prank(agent);
         vm.expectRevert();
-        ERC1155Instance(instance)
+        ERC1155Instance(payable(instance))
             .addEdition("Piece 2", 0.1 ether, 0, "ipfs://piece2", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
     }
 
@@ -194,10 +194,10 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
         address instance = factory.createInstance{ value: 0 }(_nextSalt(), _params("Direct Test", artist));
 
         vm.prank(artist);
-        ERC1155Instance(instance)
+        ERC1155Instance(payable(instance))
             .addEdition("Direct Piece", 0.1 ether, 0, "ipfs://direct", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
 
-        assertEq(ERC1155Instance(instance).nextEditionId(), 2);
+        assertEq(ERC1155Instance(payable(instance)).nextEditionId(), 2);
     }
 
     // ── setAgentDelegation ──
@@ -209,6 +209,6 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
 
         vm.prank(nobody);
         vm.expectRevert();
-        ERC1155Instance(instance).setAgentDelegation(true);
+        ERC1155Instance(payable(instance)).setAgentDelegation(true);
     }
 }
