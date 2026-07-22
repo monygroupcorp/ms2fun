@@ -113,7 +113,7 @@ contract SeedRich is Script {
         vm.startBroadcast(deployerKey);
         address inst = _create1155(d, "spectra", "Spectra", "Edition mechanics showcase.", _svg("S"));
         _spectra = inst;
-        ERC1155Instance r = ERC1155Instance(inst);
+        ERC1155Instance r = ERC1155Instance(payable(inst));
         // id 1 dynamic (price rises), id 2 fixed supply 3 (we sell out), id 3 future-open (stays locked).
         r.addEdition(
             "Rising",
@@ -160,7 +160,7 @@ contract SeedRich is Script {
         });
         address inst = d.erc1155.createInstance(keccak256(abi.encode(block.timestamp, "vault-club")), p);
         _instances.push(inst);
-        ERC1155Instance(inst)
+        ERC1155Instance(payable(inst))
             .addEdition(
                 "Members Pass",
                 0.01 ether,
@@ -262,16 +262,18 @@ contract SeedRich is Script {
     }
 
     function _buyEdition(address inst, uint256 editionId, uint256 amount, uint256 key) internal {
-        uint256 cost = ERC1155Instance(inst).calculateMintCost(editionId, amount);
+        uint256 cost = ERC1155Instance(payable(inst)).calculateMintCost(editionId, amount);
         vm.startBroadcast(key);
-        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, bytes(""), "", cost);
+        ERC1155Instance(payable(inst)).mint{ value: cost }(editionId, amount, bytes(""), "", cost);
         vm.stopBroadcast();
     }
 
     function _buyEditionGated(address inst, uint256 editionId, uint256 amount, uint256 key, string memory pw) internal {
-        uint256 cost = ERC1155Instance(inst).calculateMintCost(editionId, amount);
+        uint256 cost = ERC1155Instance(payable(inst)).calculateMintCost(editionId, amount);
         vm.startBroadcast(key);
-        ERC1155Instance(inst).mint{ value: cost }(editionId, amount, abi.encode(keccak256(bytes(pw))), "", cost);
+        ERC1155Instance(payable(inst)).mint{ value: cost }(
+            editionId, amount, abi.encode(keccak256(bytes(pw))), "", cost
+        );
         vm.stopBroadcast();
     }
 
