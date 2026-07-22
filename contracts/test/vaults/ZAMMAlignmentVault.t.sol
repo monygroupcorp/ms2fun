@@ -6,6 +6,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { ZAMMAlignmentVault, IZAMM } from "../../src/vaults/zamm/ZAMMAlignmentVault.sol";
 import { MockZAMM } from "../mocks/MockZAMM.sol";
 import { MockZRouter } from "../mocks/MockZRouter.sol";
+import { MockWETH } from "../mocks/MockWETH.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { MockVaultPriceValidator } from "../mocks/MockVaultPriceValidator.sol";
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
@@ -22,6 +23,7 @@ contract ZAMMAlignmentVaultTest is Test {
     ZAMMAlignmentVault public impl;
     MockZAMM public mockZamm;
     MockZRouter public mockZRouter;
+    MockWETH public weth;
     MockEXECToken public alignmentToken;
     MockAlignmentRegistry public registry;
     MockVaultPriceValidator public validator;
@@ -41,6 +43,7 @@ contract ZAMMAlignmentVaultTest is Test {
         alignmentToken = new MockEXECToken(1_000_000e18);
         mockZamm = new MockZAMM();
         mockZRouter = new MockZRouter();
+        weth = new MockWETH();
 
         // Fund mocks
         vm.deal(address(mockZamm), 100 ether);
@@ -75,6 +78,7 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.initialize(
             address(mockZamm),
             address(mockZRouter),
+            address(weth),
             address(alignmentToken),
             poolKey,
             treasury,
@@ -110,6 +114,7 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.initialize(
             address(mockZamm),
             address(mockZRouter),
+            address(weth),
             address(alignmentToken),
             poolKey,
             treasury,
@@ -474,6 +479,75 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.claimFeesAsDelegate(benefactors);
     }
 
+    // ── WETH fallback (adoption-gap F1) ─────────────────────────────────────
+
+    /// @dev A benefactor that is a smart wallet rejecting plain ETH still receives its yield via the
+    ///      WETH fallback — claimFees must NOT revert, and the WETH balance must rise by the claim.
+    function test_claimFees_wethFallback_rejectingBenefactor() public {
+        RejectingBenefactor rejecter = new RejectingBenefactor();
+
+        // alice funds a contribution attributed to the rejecting-wallet benefactor
+        vm.prank(alice);
+        vault.receiveContribution{ value: 4 ether }(Currency.wrap(address(0)), 4 ether, address(rejecter));
+        _setupPool(10 ether, 10_000e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+        _triggerHarvestWithFees();
+
+        uint256 pending = vault.calculateClaimableAmount(address(rejecter));
+        assertGt(pending, 0, "rejecter should have claimable yield");
+
+        rejecter.claim(vault); // must NOT revert despite reverting receive()
+
+        assertEq(address(rejecter).balance, 0, "plain ETH must not land");
+        assertEq(weth.balanceOf(address(rejecter)), pending, "yield delivered as WETH");
+        assertEq(vault.calculateClaimableAmount(address(rejecter)), 0, "claim settled");
+    }
+
+    /// @dev Same for the delegate path: a rejecting delegate still gets its yield as WETH.
+    function test_claimFeesAsDelegate_wethFallback_rejectingDelegate() public {
+        RejectingBenefactor rejecter = new RejectingBenefactor();
+
+        vm.prank(alice);
+        vault.receiveContribution{ value: 4 ether }(Currency.wrap(address(0)), 4 ether, alice);
+        _setupPool(10 ether, 10_000e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+
+        vm.prank(alice);
+        vault.delegateBenefactor(address(rejecter));
+
+        _triggerHarvestWithFees();
+
+        uint256 pending = vault.calculateClaimableAmount(alice);
+        assertGt(pending, 0, "alice should have claimable yield");
+
+        address[] memory bs = new address[](1);
+        bs[0] = alice;
+        rejecter.claimAsDelegate(vault, bs); // must NOT revert
+
+        assertEq(address(rejecter).balance, 0, "plain ETH must not land");
+        assertEq(weth.balanceOf(address(rejecter)), pending, "delegate yield delivered as WETH");
+    }
+
+    function test_initialize_revertsOnZeroWeth() public {
+        ZAMMAlignmentVault v = ZAMMAlignmentVault(payable(LibClone.clone(address(impl))));
+        vm.expectRevert(ZAMMAlignmentVault.InvalidAddress.selector);
+        v.initialize(
+            address(mockZamm),
+            address(mockZRouter),
+            address(0), // zero WETH → reject
+            address(alignmentToken),
+            poolKey,
+            treasury,
+            address(validator),
+            IAlignmentRegistry(address(registry)),
+            TARGET_ID
+        );
+    }
+
+    function test_initialize_storesWeth() public view {
+        assertEq(vault.weth(), address(weth));
+    }
+
     // ── Governance ────────────────────────────────────────────────────────
 
     function test_setProtocolYieldCutBps_ownerOnly() public {
@@ -662,5 +736,21 @@ contract ZAMMAlignmentVaultTest is Test {
 
         vm.expectRevert(bytes("MockZRouter: insufficient output"));
         vault.convertAndAddLiquidity(1, 0, 0); // caller minOut=1, but the canonical floor governs
+    }
+}
+
+/// @notice A benefactor/delegate that is a smart wallet rejecting plain ETH (reverting receive()).
+///         Exercises the SmartTransferLib WETH fallback on the claim paths.
+contract RejectingBenefactor {
+    receive() external payable {
+        revert("no plain ETH");
+    }
+
+    function claim(ZAMMAlignmentVault vault) external returns (uint256) {
+        return vault.claimFees();
+    }
+
+    function claimAsDelegate(ZAMMAlignmentVault vault, address[] calldata benefactors) external returns (uint256) {
+        return vault.claimFeesAsDelegate(benefactors);
     }
 }

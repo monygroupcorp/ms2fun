@@ -17,6 +17,7 @@ import {
     IAlgebraSwapRouter
 } from "../../interfaces/algebra/IAlgebra.sol";
 import { BestRouteAcquirer } from "../../shared/libraries/BestRouteAcquirer.sol";
+import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 
 interface IWETH9 {
     function deposit() external payable;
@@ -48,6 +49,8 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error NotDelegate();
     error TransferFailed();
     error ExceedsMaxBps();
+    /// @dev Init: a required address argument (e.g. WETH) was the zero address.
+    error InvalidAddress();
     /// @dev Init: the alignment target is inactive in the registry.
     error TargetNotActive();
     /// @dev Init: the alignment token is not a member of the alignment target.
@@ -132,7 +135,6 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         address _swapRouter,
         // slither-disable-next-line missing-zero-check
         address _algebraFactory,
-        // slither-disable-next-line missing-zero-check
         address _weth,
         // slither-disable-next-line missing-zero-check
         address _alignmentToken,
@@ -155,6 +157,10 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         if (address(_alignmentRegistry) == address(0)) revert TargetNotActive();
         if (!_alignmentRegistry.isAlignmentTargetActive(_alignmentTargetId)) revert TargetNotActive();
         if (!_alignmentRegistry.isTokenInTarget(_alignmentTargetId, _alignmentToken)) revert TokenNotInTarget();
+
+        // WETH must be a real contract: it is the fallback rail for benefactor yield when a smart-wallet
+        // recipient rejects plain ETH (adoption-gap F1). A zero WETH would silently disable the fallback.
+        if (_weth == address(0)) revert InvalidAddress();
 
         positionManager = IAlgebraNFTPositionManager(_positionManager);
         swapRouter = IAlgebraSwapRouter(_swapRouter);
@@ -479,8 +485,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         uint256 pending = contrib * accRewardPerContribution / 1e18 - rewardDebt[benefactor]; // round down: favors vault
         if (pending == 0) return 0;
         rewardDebt[benefactor] = contrib * accRewardPerContribution / 1e18; // round down: benefactor cannot over-claim
-        (bool ok,) = recipient.call{ value: pending }("");
-        if (!ok) revert TransferFailed();
+        // WETH-fallback transfer: a smart-wallet recipient rejecting plain ETH still receives its yield
+        // as WETH instead of bricking the claim (adoption-gap F1). Covers both claimFees and delegate.
+        SmartTransferLib.smartTransferETH(recipient, pending, weth);
         ethClaimed = pending;
         emit FeesClaimed(benefactor, pending);
     }
