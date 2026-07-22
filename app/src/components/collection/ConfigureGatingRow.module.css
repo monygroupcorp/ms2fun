@@ -1,7 +1,0 @@
-/* Full-width vertical stack so the multi-field tier form fits the ActionRow control column. */
-.config {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-}

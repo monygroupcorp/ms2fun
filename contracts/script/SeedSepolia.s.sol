@@ -9,7 +9,6 @@ import { ComponentRegistry } from "../src/registry/ComponentRegistry.sol";
 import { UniAlignmentVaultFactory } from "../src/vaults/uni/UniAlignmentVaultFactory.sol";
 import { IVaultPriceValidator } from "../src/interfaces/IVaultPriceValidator.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
-import { PasswordTierGatingModule } from "../src/gating/PasswordTierGatingModule.sol";
 import { LiquidityDeployerModule } from "../src/factories/erc404/LiquidityDeployerModule.sol";
 import { MockERC20 } from "../test/mocks/MockERC20.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
@@ -22,7 +21,6 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
 ///         - MS2 + CULT test tokens (MockERC20)
 ///         - Alignment targets + UniAlignmentVaults for each (via a NEW factory with setVaultPoolKey)
 ///         - V4 pool initialization + pool key assignment for each vault
-///         - PasswordTierGatingModule (real gating, real on-chain enforcement)
 ///         - LiquidityDeployerModule (real V4 LP deployer, used at ERC404 graduation)
 ///
 ///         Run with:
@@ -63,7 +61,6 @@ contract SeedSepolia is Script {
     uint256 public cultTargetId;
     address public ms2Vault;
     address public cultVault;
-    PasswordTierGatingModule public passwordTierGatingModule;
     LiquidityDeployerModule public liquidityDeployerModule;
 
     function run() public {
@@ -160,15 +157,6 @@ contract SeedSepolia is Script {
 
         // ── Phase 4: ComponentRegistry — real functional contracts ───────────
 
-        // PasswordTierGatingModule — enforces password-based tier gating on-chain
-        passwordTierGatingModule = new PasswordTierGatingModule(MASTER_REGISTRY_ADDR);
-        passwordTierGatingModule.setMetadataURI(
-            "data:application/json,{\"name\":\"Password Tier Gating\",\"subtitle\":\"Password \\u00b7 Tiered Access\",\"description\":\"Set one or more passwords, each unlocking a different tier of access or pricing. Share codes with your community however you like.\",\"configType\":\"password-tier-gating\"}"
-        );
-        COMPONENT_REGISTRY.approveComponent(
-            address(passwordTierGatingModule), FeatureUtils.GATING, "PasswordTierGatingModule"
-        );
-
         // LiquidityDeployerModule — deploys Uniswap V4 LP at ERC404 graduation
         liquidityDeployerModule =
             new LiquidityDeployerModule(V4_POOL_MANAGER, WETH, POOL_FEE, POOL_TICK_SPACING, address(MASTER_REGISTRY));
@@ -193,7 +181,6 @@ contract SeedSepolia is Script {
         vm.serializeUint(s, "cultTargetId", cultTargetId);
         vm.serializeAddress(s, "ms2Vault", ms2Vault);
         vm.serializeAddress(s, "cultVault", cultVault);
-        vm.serializeAddress(s, "passwordTierGatingModule", address(passwordTierGatingModule));
         string memory json = vm.serializeAddress(s, "liquidityDeployerModule", address(liquidityDeployerModule));
         vm.writeJson(json, "./deployments/sepolia-seed.json");
         console.log("Seed JSON written to: ./deployments/sepolia-seed.json");

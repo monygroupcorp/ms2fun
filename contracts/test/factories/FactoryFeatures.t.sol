@@ -14,7 +14,6 @@ import { ERC721AuctionFactory } from "../../src/factories/erc721/ERC721AuctionFa
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
-import { PasswordTierGatingModule } from "../../src/gating/PasswordTierGatingModule.sol";
 import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
 import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";

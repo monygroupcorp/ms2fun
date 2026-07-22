@@ -6,7 +6,6 @@
 export * from './schema'
 export * from './projectTypes'
 export * from './configTypes'
-export * from './gatingConfig'
 export * from './vaultFlavor'
 export * from './metadataConfig'
 export * from './useApprovedModules'

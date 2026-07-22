@@ -30,8 +30,6 @@ import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
-import { PasswordTierGatingModule } from "../../../src/gating/PasswordTierGatingModule.sol";
-import { TierConfig, TierType } from "../../../src/gating/IPasswordTierGatingModule.sol";
 import { MerkleGatingModule } from "../../../src/gating/MerkleGatingModule.sol";
 import { MerkleConfig } from "../../../src/gating/IMerkleGatingModule.sol";
 import { MerkleAllowlistHelper } from "../../gating/MerkleAllowlistHelper.sol";
@@ -1035,40 +1033,10 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(address(ERC1155Instance(instance).gatingModule()), mockModule);
     }
 
-    function test_factory_createInstanceWithGating_threadsTierConfigAtCreate() public {
-        // Real module so we can assert config landed. mockRegistry treats the factory as registered.
-        PasswordTierGatingModule module = new PasswordTierGatingModule(address(mockRegistry));
-        vm.prank(registryOwner);
-        componentRegistry.approveComponent(address(module), keccak256("gating"), "PasswordTierGating");
-
-        bytes32[] memory hashes = new bytes32[](1);
-        hashes[0] = keccak256("alpha");
-        uint256[] memory caps = new uint256[](1);
-        caps[0] = 100e18;
-        TierConfig memory cfg = TierConfig({
-            tierType: TierType.VOLUME_CAP, passwordHashes: hashes, volumeCaps: caps, tierUnlockTimes: new uint256[](0)
-        });
-
-        vm.deal(artist, 1 ether);
-        vm.prank(artist);
-        address instance = factory.createInstance{ value: 0 }(
-            _nextSalt(),
-            ERC1155Factory.CreateParams({
-                name: "GatedWithConfig",
-                metadataURI: "ipfs://Qm",
-                creator: artist,
-                vault: address(vault),
-                styleUri: "",
-                gatingModule: address(module),
-                freeMint: FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
-            }),
-            cfg
-        );
-
-        // Config was applied in the same create tx — no second transaction needed.
-        assertTrue(module.configured(instance));
-        assertEq(module.tierByPasswordHash(instance, keccak256("alpha")), 1);
-    }
+    // NOTE: create-time gating config (the old `createInstance(..., TierConfig)` overload) was removed
+    // with PasswordTierGatingModule — the factory now attaches a gating module but threads no config.
+    // The post-shed model (module attached at create, config authored post-create by the owner) is
+    // exercised end-to-end by the Merkle allowlist tests below (`_createMerkleInstance` + `_configMerkle`).
 
     function test_factory_createInstance_noGating() public {
         vm.deal(artist, 1 ether);
