@@ -75,7 +75,7 @@ contract ERC1155FreeMintTest is Test {
             })
         );
         vm.stopPrank();
-        return ERC1155Instance(inst);
+        return ERC1155Instance(payable(inst));
     }
 
     function _addEdition(ERC1155Instance inst, uint256 supply) internal returns (uint256 editionId) {

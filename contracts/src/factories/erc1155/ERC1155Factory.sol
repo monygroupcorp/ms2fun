@@ -101,7 +101,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         if (masterRegistry.isNameTaken(params.name)) revert NameAlreadyTaken();
 
         instance = _deployAndRegister(salt, params, agentCreated);
-        ERC1155Instance(instance).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
+        ERC1155Instance(payable(instance)).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
 
         // Gating module is attached to the instance at deploy (params.gatingModule; address(0) = open).
         // Its config is authored post-create by the owner via the module's own typed setter — the
