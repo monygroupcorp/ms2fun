@@ -200,8 +200,9 @@ contract DeployCore is Script {
                     address(treasuryImpl), cfg.saltTreasury, abi.encodeWithSignature("initialize(address)", deployer)
                 ))
         );
-        if (cfg.v4PoolManager != address(0)) treasury.setV4PoolManager(cfg.v4PoolManager);
-        if (cfg.weth != address(0)) treasury.setWETH(cfg.weth);
+        // POL/V4 config moved out of the treasury with the POL carve-out (noesis-066): the treasury
+        // no longer exposes setV4PoolManager/setWETH. POL now lives in ProtocolOwnedLiquidityV1, whose
+        // deployment + V4 wiring at graduation is a separate follow-up (relocate-only here).
 
         queueManagerImpl = new FeaturedQueueManager();
         queueManager = FeaturedQueueManager(
