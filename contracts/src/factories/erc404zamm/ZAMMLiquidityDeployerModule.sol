@@ -46,6 +46,17 @@ interface IZAMM {
  * @title ZAMMLiquidityDeployerModule
  * @notice Singleton called by ERC404BondingInstance at graduation.
  *         Receives ETH + tokens, deploys ZAMM liquidity, pays graduation fees.
+ * @dev GRADUATION-LP PERMANENCE INVARIANT (ZAMM venue). The LP shares minted at graduation
+ *      (`_deployPool`, `addLiquidity(... to: p.instance ...)`) are permanently locked: they are held
+ *      by the ERC404 instance, and NO code path in this system can move or remove them. This module
+ *      exposes no removeLiquidity / LP-transfer entry point; the instance is immutable and exposes no
+ *      function that transfers a foreign LP token (`withdrawDust` touches only its own DN404 units +
+ *      bonding reserve). Graduation liquidity is locked by design, not by the mere absence of a caller.
+ *      Do NOT add any path that transfers, burns, or withdraws these LP shares. Pinned by test
+ *      (`test/factories/LpLockInvariant.t.sol`).
+ *      The ZAMM-graduated pool is UNTAXED post-graduation: `feeOrHook` is wired as a plain LP fee with
+ *      no alignment hook. The perpetual swap tithe to the vault exists ONLY on the Uni V4 venue, by
+ *      design (seeding depth off Uniswap is itself the alignment service). See docs/phases/vault-flavors.md.
  */
 contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     error ETHMismatch();
