@@ -30,7 +30,7 @@ contract ProfileRegistryTest is Test {
     }
 
     function test_setProfile_validHttp_storesAndEmits() public {
-        string memory uri = "http://example.com/profile.json";
+        string memory uri = "https://cdn.example.com/profile.json";
 
         vm.expectEmit(true, false, false, true);
         emit IProfileRegistry.ProfileUpdated(alice, uri);

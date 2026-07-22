@@ -8,6 +8,11 @@ pragma solidity ^0.8.20;
 library MetadataUtils {
     /**
      * @notice Validate metadata URI format
+     * @dev Scheme allowlist (rth 2026-07-22): content-addressed `ipfs://`/`ar://` and hosted
+     *      `https://` are accepted. `data:` is accepted ONLY when media-typed as `data:image/` or
+     *      `data:application/json` — on-chain-permanent metadata is kept, but the `data:text/html,`
+     *      / `data:application/javascript,` stored-XSS forms are rejected at the contract boundary.
+     *      `http://` is dropped entirely (browser-mixed-content-blocked, plaintext, mutable).
      * @param uri Metadata URI to validate
      * @return True if URI is valid
      */
@@ -15,11 +20,14 @@ library MetadataUtils {
         bytes memory uriBytes = bytes(uri);
         if (uriBytes.length == 0) return false;
 
-        // Check for common URI schemes
-        if (
-            startsWith(uri, "http://") || startsWith(uri, "https://") || startsWith(uri, "ipfs://")
-                || startsWith(uri, "ar://") || startsWith(uri, "data:")
-        ) {
+        // Content-addressed and hosted schemes.
+        if (startsWith(uri, "https://") || startsWith(uri, "ipfs://") || startsWith(uri, "ar://")) {
+            return true;
+        }
+
+        // `data:` is admitted only for image or JSON media types; `data:text/html`, bare `data:`,
+        // and any other media type are rejected to close the stored-XSS surface on-chain.
+        if (startsWith(uri, "data:image/") || startsWith(uri, "data:application/json")) {
             return true;
         }
 
@@ -51,6 +59,13 @@ library MetadataUtils {
 
     /**
      * @notice Validate name for URL safety (case-insensitive)
+     * @dev COUPLING INVARIANT (paired with {toNameHash} — the two define slug uniqueness together):
+     *      the charset admitted HERE must be fully normalized by {toNameHash} with case-folding as the
+     *      ONLY normalization. Every admitted byte either passes through unchanged or is an ASCII
+     *      `A-Z` that folds to `a-z`; no two distinct admitted names may collide under {toNameHash}
+     *      except by that intended case-fold. Widening this charset (e.g. unicode, extra separators)
+     *      WITHOUT matching {toNameHash} would produce homoglyph collisions or case-variant splits — a
+     *      silent namespace-integrity bug, not a compile error. Edit both functions in lockstep.
      * @param name Name to validate
      * @return True if name is valid
      */
@@ -80,6 +95,12 @@ library MetadataUtils {
 
     /**
      * @notice Convert string to lowercase bytes32 hash
+     * @dev COUPLING INVARIANT (paired with {isValidName} — the two define slug uniqueness together):
+     *      case-folding ASCII `A-Z`→`a-z` is the ONLY normalization applied here; all other admitted
+     *      bytes pass through to keccak unchanged. This must round-trip the exact charset {isValidName}
+     *      admits, so `"Foo"`/`"foo"`/`"FOO"` collide by design while `"foo-bar"`/`"foo_bar"` stay
+     *      distinct. If {isValidName}'s charset is widened, extend this normalization in lockstep or
+     *      slug uniqueness silently breaks (see the invariant note on {isValidName}).
      * @param str String to hash
      * @return Hash of lowercase string
      */
