@@ -2,13 +2,6 @@
 pragma solidity ^0.8.20;
 
 interface IVaultPriceValidator {
-    /// @notice Validate cross-DEX price deviation and pool liquidity depth.
-    /// @dev Reverts if manipulation is detected or liquidity is insufficient.
-    ///      Returns silently if price is healthy.
-    /// @param token Alignment token address to validate price for
-    /// @param pendingETH Total ETH about to be swapped (for liquidity depth check)
-    function validatePrice(address token, uint256 pendingETH) external view;
-
     /// @notice Calculate the proportion of ETH to swap vs. hold for LP.
     /// @dev Returns 5e17 (50%) for full-range positions or when no position exists.
     ///      For concentrated positions, returns tick-weighted ratio.

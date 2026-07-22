@@ -5,14 +5,9 @@ import { IVaultPriceValidator } from "../../src/interfaces/IVaultPriceValidator.
 
 /// @notice Mock price validator for unit tests. Always passes validation.
 contract MockVaultPriceValidator is IVaultPriceValidator {
-    bool public shouldRevert;
     uint256 public fixedProportion = 5e17; // 50% default
     /// @notice ETH returned for 1e18 tokens (TWAP price). 0 = "no reliable source" (default).
     uint256 public ethPer1e18Tokens;
-
-    function setShouldRevert(bool _shouldRevert) external {
-        shouldRevert = _shouldRevert;
-    }
 
     function setFixedProportion(uint256 _proportion) external {
         fixedProportion = _proportion;
@@ -21,10 +16,6 @@ contract MockVaultPriceValidator is IVaultPriceValidator {
     /// @notice Set the TWAP rate as ETH per 1e18 tokens (e.g. 1e15 = 0.001 ETH/token).
     function setEthPer1e18Tokens(uint256 rate) external {
         ethPer1e18Tokens = rate;
-    }
-
-    function validatePrice(address, uint256) external view override {
-        require(!shouldRevert, "MockPriceValidator: forced revert");
     }
 
     function calculateSwapProportion(address, int24, int24, address, bytes32) external view override returns (uint256) {
