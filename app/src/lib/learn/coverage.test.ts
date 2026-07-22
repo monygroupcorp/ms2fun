@@ -79,13 +79,6 @@ const EXEMPT: Record<string, string> = {
   'erc404/slot:stakingModule': 'staking module; no dedicated staking concept exists',
   'erc404/slot:resolver':
     'on/off router for the overlay/tier stack; the concepts live on the overlay (metadata-overlay) and tier (tier-reveal) slots it drives',
-  // Password-tier config sub-knobs — the module concept is linked from the tierType field.
-  'cfg:password-tier-gating.passwords':
-    'sub-knob; password-tier-gating concept linked from the tierType field',
-  'cfg:password-tier-gating.volumeCaps':
-    'sub-knob; password-tier-gating concept linked from the tierType field',
-  'cfg:password-tier-gating.tierUnlockTimes':
-    'sub-knob; password-tier-gating concept linked from the tierType field',
   // Overlay / tier config fields — the module concept is linked from the matching moduleSlot
   // (overlay→metadata-overlay, tier→tier-reveal); per-knob links would just re-point there.
   'cfg:metadata-overlay.overlayAutoLatest':

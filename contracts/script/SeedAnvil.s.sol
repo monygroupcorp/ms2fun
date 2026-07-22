@@ -14,7 +14,6 @@ import { GlobalMessageRegistry } from "../src/registry/GlobalMessageRegistry.sol
 import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
-import { TierConfig } from "../src/gating/IPasswordTierGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
 import { TierRevealModule } from "../src/metadata/TierRevealModule.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
@@ -717,7 +716,6 @@ contract SeedAnvil is Script {
             stakingModule: address(0),
             declaredMaxAllowanceBps: 0 // no carve rights — metadata demo, not an economics one
         });
-        TierConfig memory noGating;
         address inst = d.erc404
             .createInstance(
                 params,
@@ -729,7 +727,6 @@ contract SeedAnvil is Script {
                 d.zammDeployer,
                 address(0),
                 FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
-                noGating,
                 meta
             );
         _instances.push(inst);

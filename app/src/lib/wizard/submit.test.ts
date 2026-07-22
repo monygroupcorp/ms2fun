@@ -13,7 +13,6 @@ import {
   buildErc721Create,
 } from './submit'
 import type { CreateContext } from './submit'
-import { EMPTY_TIER_CONFIG } from './gatingConfig'
 import { EMPTY_METADATA_CONFIG, encodeMetadataConfig } from './metadataConfig'
 
 // ── shared fixtures ───────────────────────────────────────────────────────────
@@ -172,53 +171,32 @@ describe('buildErc404Create', () => {
   })
 })
 
-// ── Tier-gating config threading ──────────────────────────────────────────────
+// ── Gating: no create-time config (shed with PasswordTierGatingModule) ─────────
+// The factory create path no longer takes any gating-module config; a gating module is attached via
+// the module slot (address only) and configured post-create by the owner. So the create call carries
+// only the module address — never a config tuple.
 
-const TIER_CONFIG = {
-  tierType: 0,
-  passwordHashes: ['0x' + 'ab'.repeat(32)] as `0x${string}`[],
-  volumeCaps: [100n],
-  tierUnlockTimes: [],
-}
-
-describe('gating config threading', () => {
-  it('ERC1155: legacy 2-arg create when no config', () => {
+describe('gating: no config threaded at create', () => {
+  it('ERC1155: always the 2-arg create (salt, params) — no config overload', () => {
     const call = buildErc1155Create(baseCtx())
     expect(call.args.length).toBe(2)
   })
 
-  it('ERC1155: 3-arg gated overload when config present', () => {
-    const call = buildErc1155Create(baseCtx({ gatingConfig: TIER_CONFIG }))
-    expect(call.args.length).toBe(3)
-    expect(call.args[2]).toEqual(TIER_CONFIG)
+  it('ERC1155: the selected gating module still lands in params', () => {
+    const call = buildErc1155Create(baseCtx())
+    if (call.type !== 'erc1155') throw new Error('unexpected type')
+    expect(call.args[1].gatingModule).toBe(GATING)
   })
 
-  it('ERC404: 5-arg legacy create when no config', () => {
+  it('ERC404: 5-arg base create — no config appended', () => {
     const call = buildErc404Create(baseCtx())
     expect(call.args.length).toBe(5)
+    if (call.type !== 'erc404') throw new Error('unexpected type')
+    expect(call.args[3]).toBe(GATING) // gating module still attached at the slot
   })
 
-  it('ERC404: 6-arg gated overload appends config', () => {
-    const call = buildErc404Create(baseCtx({ gatingConfig: TIER_CONFIG }))
-    expect(call.args.length).toBe(6)
-    expect(call.args[5]).toEqual(TIER_CONFIG)
-  })
-
-  it('does NOT thread config when no gating module is selected', () => {
-    const call = buildErc1155Create(
-      baseCtx({ gatingConfig: TIER_CONFIG, modules: { vault: VAULT } }),
-    )
-    expect(call.args.length).toBe(2)
-  })
-
-  it('does NOT thread an empty config (no passwordHashes)', () => {
-    const empty = { tierType: 0, passwordHashes: [], volumeCaps: [], tierUnlockTimes: [] }
-    const call = buildErc404Create(baseCtx({ gatingConfig: empty }))
-    expect(call.args.length).toBe(5)
-  })
-
-  it('the gated args still encode against the factory ABI', () => {
-    const call = buildErc404Create(baseCtx({ gatingConfig: TIER_CONFIG }))
+  it('the base args encode against the factory ABI', () => {
+    const call = buildErc404Create(baseCtx())
     if (call.type !== 'erc404') throw new Error('unexpected type')
     expect(() =>
       encodeFunctionData({
@@ -259,28 +237,19 @@ describe('metadata config threading', () => {
     expect(call.args.length).toBe(5)
   })
 
-  it('on, no gating → 7-arg overload with an EMPTY tier config at args[5]', () => {
+  it('on → 6-arg overload appends the metadata config at args[5]', () => {
     const call = buildErc404Create(stackCtx())
     if (call.type !== 'erc404') throw new Error('unexpected type')
-    expect(call.args.length).toBe(7)
-    expect(call.args[5]).toEqual(EMPTY_TIER_CONFIG) // gating slot filled with empty
-    expect(call.args[6]?.resolver).toBe(RESOLVER)
-    expect(call.args[6]?.childResolvers).toEqual([OVERLAY, TIER])
-    expect(call.args[6]?.autoLatest).toBe(true)
-    expect(call.args[6]?.defaultPayout).toBe(1)
-    expect(call.args[6]?.tiers[0]?.baseURI).toBe('rare-')
+    expect(call.args.length).toBe(6)
+    expect(call.args[5]?.resolver).toBe(RESOLVER)
+    expect(call.args[5]?.childResolvers).toEqual([OVERLAY, TIER])
+    expect(call.args[5]?.autoLatest).toBe(true)
+    expect(call.args[5]?.defaultPayout).toBe(1)
+    expect(call.args[5]?.tiers[0]?.baseURI).toBe('rare-')
   })
 
-  it('on, with gating → 7-arg overload carries BOTH the tier config and the metadata config', () => {
-    const call = buildErc404Create(stackCtx({ gatingConfig: TIER_CONFIG }))
-    if (call.type !== 'erc404') throw new Error('unexpected type')
-    expect(call.args.length).toBe(7)
-    expect(call.args[5]).toEqual(TIER_CONFIG)
-    expect(call.args[6]?.resolver).toBe(RESOLVER)
-  })
-
-  it('the 7-arg metadata args encode against the factory ABI', () => {
-    const call = buildErc404Create(stackCtx({ gatingConfig: TIER_CONFIG }))
+  it('the 6-arg metadata args encode against the factory ABI', () => {
+    const call = buildErc404Create(stackCtx())
     if (call.type !== 'erc404') throw new Error('unexpected type')
     expect(() =>
       encodeFunctionData({
@@ -303,9 +272,9 @@ describe('metadata config threading', () => {
     )
     const call = buildErc404Create(baseCtx({ metadataConfig: meta }))
     if (call.type !== 'erc404') throw new Error('unexpected type')
-    expect(call.args.length).toBe(7)
-    expect(call.args[6]?.resolver).toBe(TIER)
-    expect(call.args[6]?.childResolvers).toEqual([])
+    expect(call.args.length).toBe(6)
+    expect(call.args[5]?.resolver).toBe(TIER)
+    expect(call.args[5]?.childResolvers).toEqual([])
   })
 })
 

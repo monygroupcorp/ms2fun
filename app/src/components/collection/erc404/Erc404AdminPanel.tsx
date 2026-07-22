@@ -32,7 +32,6 @@ import { Disclosure } from '../../ui/Disclosure'
 import { TxButton } from '../../ui/TxButton'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
-import { ConfigureGatingRow } from '../ConfigureGatingRow'
 import { MetadataArtistPanel } from './MetadataArtistPanel'
 import styles from './Erc404AdminPanel.module.css'
 
@@ -92,7 +91,6 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
         <ActivateStakingRow instance={instance} />
         <DeployLiquidityRow instance={instance} />
         <BondStatusRow instance={instance} />
-        <ConfigureGatingRow instance={instance} />
         <MetadataArtistPanel instance={instance} />
         <MigrateVaultRow instance={instance} />
         <ClaimAllFeesRow instance={instance} />
