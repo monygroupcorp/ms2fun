@@ -812,6 +812,15 @@ contract ERC721AuctionFactoryTest is Test {
             "same salt must map to different address per creator"
         );
     }
+
+    // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
+
+    function test_constructor_revertsOnZeroWeth() public {
+        GlobalMessageRegistry msgRegistry = new GlobalMessageRegistry();
+        msgRegistry.initialize(owner, address(mockRegistry));
+        vm.expectRevert(ERC721AuctionFactory.InvalidAddress.selector);
+        new ERC721AuctionFactory(address(mockRegistry), address(msgRegistry), address(0));
+    }
 }
 
 /// @dev A contract that can receive ETH but intentionally omits IERC721Receiver.

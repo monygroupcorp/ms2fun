@@ -55,6 +55,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     constructor(address _masterRegistry, address _globalMessageRegistry, address _componentRegistry, address _weth) {
         _initializeOwner(msg.sender);
         if (_globalMessageRegistry == address(0)) revert InvalidAddress();
+        if (_weth == address(0)) revert InvalidAddress();
         masterRegistry = IMasterRegistry(_masterRegistry);
         globalMessageRegistry = _globalMessageRegistry;
         componentRegistry = IComponentRegistry(_componentRegistry);
