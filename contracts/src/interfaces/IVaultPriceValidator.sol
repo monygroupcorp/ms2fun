@@ -52,21 +52,10 @@ interface IVaultPriceValidator {
         bool ethIsCurrency0
     ) external view returns (uint256 proportion);
 
-    /// @notice Quote the expected ETH output for selling `tokenAmount` alignment tokens.
-    /// @dev DEPRECATED — see {quoteEthForTokensVia}. This shotgun path searches a fixed set of Uniswap
-    ///      V3 fee tiers and falls back to a V2 spot price, and it RETURNS 0 (fail-open) when no reliable
-    ///      price source exists. Callers that must not fail open should read a pinned canonical pool via
-    ///      {quoteEthForTokensVia}, which reverts instead. Kept for callers not yet migrated; scheduled
-    ///      for removal once none remain.
-    /// @param token Alignment token address
-    /// @param tokenAmount Amount of tokens to sell
-    /// @return ethAmount Expected ETH output at TWAP price (no slippage deduction applied)
-    function quoteEthForTokens(address token, uint256 tokenAmount) external view returns (uint256 ethAmount);
-
     /// @notice Quote the ETH value of `amount` of `token` from ONE pinned canonical pool's TWAP.
     /// @dev Reads the pinned `pool`'s time-weighted mean tick over `window` seconds and converts it to
-    ///      ETH using the same mean-tick fixed-point math as {quoteEthForTokens}. Unlike that shotgun
-    ///      path, this NEVER returns 0 as a fail-open: if the pinned pool cannot produce a usable TWAP,
+    ///      ETH using canonical mean-tick fixed-point math. This NEVER returns 0 as a fail-open: if the
+    ///      pinned pool cannot produce a usable TWAP,
     ///      it reverts (`ReferenceTwapUnavailable`). Callers are expected to supply a registry-guaranteed
     ///      usable pool (the DoS-vs-fail-open tradeoff is intentional). The validator does not read the
     ///      registry itself — the caller resolves the canonical `ReferencePool` and passes its params in.
