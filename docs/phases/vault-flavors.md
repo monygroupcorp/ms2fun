@@ -189,6 +189,54 @@ archive fork before Phase 4.
   registration events only (no `vaultType()` yet). Reverses the `new-direction` "retire LP for Aave"
   framing — the code never removed them.
 
+## Per-venue economics — what changes by venue (creator-facing disclosure)
+
+> Added by noesis-069 (graduation-venue tithe divergence + LP-lock permanence). Source of truth for
+> the venue tradeoff a creator is choosing. The `/learn` "How it works" page + the wizard family→venue
+> step should surface the one-liner below; the on-chain guarantees are pinned by NatSpec on each
+> deployer module + `contracts/test/factories/LpLockInvariant.t.sol`.
+
+**The perpetual post-graduation tithe exists ONLY on the Uniswap V4 venue — by design, not a bug.**
+
+| Venue | Post-graduation swap tithe to the vault | Mechanism |
+| --- | --- | --- |
+| **Uni V4** (default) | **Yes — perpetual.** Every swap taxes `hookFeeBips` of the ETH leg → alignment vault, forever (with a `queuedFees` retry lane). | `UniAlignmentV4Hook` on the graduated pool. |
+| **ZAMM** (alt) | **No.** `feeOrHook` is wired as a plain LP fee; no alignment hook. | Untaxed pool. |
+| **Cypher** (alt) | **No.** A bare Algebra pool, no plugin/hook. | Untaxed pool. |
+
+On the alt venues the vault receives the **one-time 19% at graduation and nothing after**; only Uni
+carries the ongoing tithe. **Why it is intended:** Uniswap has the deepest liquidity and flow, so the
+perpetual alignment tax sits where fees are highest and the marginal help from adding depth is lowest.
+Seeding depth on ZAMM or Cypher is itself the *greater* alignment service — it decouples the target
+from Uniswap — so taxing it would only disincentivize the more valuable action. Frame the venue choice
+to creators as a deliberate tradeoff, **not** a downgrade. (Adding a tithe to the alt venues was
+explicitly considered and **rejected**.)
+
+### Graduation-LP permanence invariant (all three venues)
+Graduation liquidity is **permanently locked** on every venue — no contract in the system exposes a
+callable path that removes or withdraws it:
+- **Uni V4:** the V4 position accrues to the singleton `LiquidityDeployerModule` (it `modifyLiquidity`s
+  inside its own `unlockCallback`, settling against itself). The module has no removal path → locked on
+  the module by design.
+- **ZAMM:** LP shares are minted to the ERC404 instance (`p.instance`).
+- **Cypher:** the Algebra position NFT is minted to the ERC404 instance (`p.instance`).
+
+For ZAMM/Cypher the depth is locked because the instance is immutable and exposes no function that
+moves a foreign LP token / position NFT (`withdrawDust` touches only its own DN404 units + bonding
+reserve). This is now stated as a NatSpec invariant on each deployer module and pinned by
+`LpLockInvariant.t.sol`. *(Cypher sub-note: Algebra LP swap fees accrue to the position with no
+`collect()` path on the instance — stranded, benign, adds to locked depth; NOT the alignment tithe.)*
+
+### HUMAN GATE (testnet, before ZAMM/Cypher ship) — Mony/ops
+Run **one end-to-end fork graduation on ZAMM and on Cypher** before those venues are offered on
+testnet: confirm the split pays out (1/19/80 + carve), the LP/NFT lands on `p.instance`, and — for
+Cypher — the Algebra `_mint` to the instance does **not** revert (the instance has no
+`onERC721Received`; the graduation is safe only if Algebra's position manager uses a plain `_mint`, as
+a v3-periphery fork does — spike-confirmed 2026-07-21, must still be fork-exercised). Only the Uni
+carved-demo graduation is fork-verified today. This is an ops/human gate, not a code prerequisite —
+fork tests skip without an RPC. *(Also recorded in the local scratch `docs/HUMAN_GATES.md`, which is
+gitignored and does not ship in this PR.)*
+
 ## Open questions
 O1–O5 above. O1/O2/O3 are the load-bearing ones — they gate whether an LP vault is *safe to select*,
 not just *visible*. Resolve O5 (sequencing) with Mony before starting T2.

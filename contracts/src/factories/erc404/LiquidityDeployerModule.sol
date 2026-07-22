@@ -27,6 +27,16 @@ import { Ownable } from "solady/auth/Ownable.sol";
  *         Owns the unlockCallback so V4 bytecode is not embedded in the instance.
  *         Pool fee and tick spacing are fixed at construction time.
  *         Graduated tokens are paired against native ETH (V4 currency address(0)).
+ * @dev GRADUATION-LP PERMANENCE INVARIANT (Uni V4 venue). The V4 liquidity position minted at
+ *      graduation accrues to THIS singleton module (it calls `modifyLiquidity` inside its own
+ *      `unlockCallback`, settling against `address(this)`), and the module exposes NO removeLiquidity /
+ *      decreaseLiquidity / burn / withdrawal entry point — the only `unlock`-driven path is the add in
+ *      `deployLiquidity`. Graduation liquidity is therefore hard-locked by design on the module itself,
+ *      independent of any instance. Do NOT add a path that removes or withdraws this position. Pinned by
+ *      test (`test/factories/LpLockInvariant.t.sol`).
+ *      NOTE: the perpetual post-graduation swap tithe to the alignment vault lives on `UniAlignmentV4Hook`
+ *      wired to this venue's pool — Uni is the ONLY venue that levies it (by design); the ZAMM/Cypher
+ *      graduated pools are untaxed. See docs/phases/vault-flavors.md.
  */
 contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, Ownable {
     using CurrencyLibrary for Currency;
