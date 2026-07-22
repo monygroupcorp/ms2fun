@@ -115,7 +115,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         if (masterRegistry.isNameTaken(params.name)) revert NameAlreadyTaken();
 
         instance = _deployAndRegister(salt, params, agentCreated);
-        ERC1155Instance(instance).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
+        ERC1155Instance(payable(instance)).initializeFreeMint(params.freeMint.allocation, params.freeMint.scope);
 
         // Tier gating configured after registration — factory is a registered configurer.
         // Empty config (no passwordHashes) leaves the instance open.

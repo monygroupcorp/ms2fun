@@ -321,7 +321,7 @@ contract SeedAnvil is Script {
         // zero price; claimFreeMint ignores price — the edition just needs to exist as a target).
         // PricingModel: 0=UNLIMITED (open, fixed price, supply MUST be 0), 1=LIMITED_FIXED,
         // 2=LIMITED_DYNAMIC (needs the dynamic module + a non-zero rate). openTime=0 => open now.
-        ERC1155Instance(c0)
+        ERC1155Instance(payable(c0))
             .addEdition(
                 "Aberration #1",
                 0.01 ether,
@@ -331,7 +331,7 @@ contract SeedAnvil is Script {
                 0,
                 0
             );
-        ERC1155Instance(c0)
+        ERC1155Instance(payable(c0))
             .addEdition(
                 "Drift Open",
                 0.005 ether,
@@ -342,7 +342,7 @@ contract SeedAnvil is Script {
                 0
             );
 
-        ERC1155Instance(c1)
+        ERC1155Instance(payable(c1))
             .addEdition(
                 "Slab",
                 0.002 ether,
@@ -354,7 +354,7 @@ contract SeedAnvil is Script {
             );
 
         // ghost-mint needs at least one edition so claimFreeMint has a target.
-        ERC1155Instance(c2)
+        ERC1155Instance(payable(c2))
             .addEdition(
                 "Ghost",
                 0.001 ether,

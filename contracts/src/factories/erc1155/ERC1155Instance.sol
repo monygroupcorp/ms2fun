@@ -193,6 +193,14 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         agentDelegationEnabled = _agentCreated;
     }
 
+    /// @notice Accept ETH pushed by alignment vaults when fees are claimed.
+    /// @dev Alignment vaults pay the benefactor (this instance) via a raw ETH push
+    ///      (payable(recipient).call{value}("")). Without a receive() that push fails and
+    ///      claimFees()/claimAllFees() revert TransferFailed, stranding the fees as unclaimable.
+    ///      Force-fed ETH is contained: withdraw() is capped at totalProceeds - totalWithdrawn
+    ///      (mint proceeds only), so a direct transfer here cannot inflate creator withdrawals.
+    receive() external payable { }
+
     // ── IInstanceLifecycle ─────────────────────────────────────────────────────
 
     function instanceType() external pure override returns (bytes32) {
@@ -512,8 +520,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @return totalClaimed Amount of ETH claimed from vault
      */
     function claimVaultFees() external onlyOwner nonReentrant returns (uint256 totalClaimed) {
+        // Vaults pay the benefactor by pushing ETH (payable(recipient).call{value}("")); receive()
+        // is what lets that push land here. Measure the amount by balance-delta rather than trusting
+        // the vault's return value — the ETH is custodied here first, then forwarded to the owner.
+        uint256 before = address(this).balance;
         // Call vault's claimFees, which uses msg.sender (this contract) as the benefactor
-        totalClaimed = vault.claimFees();
+        vault.claimFees();
+        totalClaimed = address(this).balance - before;
 
         // Route all claimed fees to the owner
         if (totalClaimed == 0) revert NoFeesToClaim();
@@ -528,12 +541,19 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     }
 
     /// @notice Claim accumulated fees from all vault positions (current and historical).
+    /// @dev Vaults push claimed ETH to this instance (received via receive()); the net amount pushed
+    ///      across every vault is measured by balance-delta and forwarded to the owner. Each
+    ///      claimFees() is wrapped in try/catch so one vault that intentionally reverts (e.g. the
+    ///      AlignmentEndowmentVault's NotSupported()) can't brick fee delivery for the rest.
     // slither-disable-next-line calls-loop,unused-return
-    function claimAllFees() external onlyOwner {
+    function claimAllFees() external onlyOwner nonReentrant {
+        uint256 before = address(this).balance;
         address[] memory allVaults = masterRegistry.getInstanceVaults(address(this));
         for (uint256 i = 0; i < allVaults.length; i++) {
-            IAlignmentVault(payable(allVaults[i])).claimFees();
+            try IAlignmentVault(payable(allVaults[i])).claimFees() { } catch { }
         }
+        uint256 received = address(this).balance - before;
+        if (received > 0) SmartTransferLib.smartTransferETH(owner(), received, weth);
     }
 
     // ┌─────────────────────────┐
