@@ -289,13 +289,14 @@ contract MasterRegistryQueueTest is Test {
         (, uint256 rankDay0,,) = queue.getRentalInfo(inst1);
         assertEq(rankDay0, 1 ether);
 
+        // Proportional decay: dailyDecayRate is bps of raw rankScore per day. 500 bps => 5%/day.
         vm.warp(block.timestamp + 1 days);
         (, uint256 rankDay1,,) = queue.getRentalInfo(inst1);
-        assertEq(rankDay1, 1 ether - queue.dailyDecayRate());
+        assertEq(rankDay1, 1 ether - (1 ether * queue.dailyDecayRate() * 1) / 10000); // 0.95 ether
 
         vm.warp(block.timestamp + 4 days); // 5 days total
         (, uint256 rankDay5,,) = queue.getRentalInfo(inst1);
-        assertEq(rankDay5, 1 ether - queue.dailyDecayRate() * 5);
+        assertEq(rankDay5, 1 ether - (1 ether * queue.dailyDecayRate() * 5) / 10000); // 0.75 ether
     }
 
     function test_rankDecay_floorsAtZero() public {
@@ -311,7 +312,7 @@ contract MasterRegistryQueueTest is Test {
 
         vm.warp(block.timestamp + 3 days);
         (, uint256 rankBeforeBoost,,) = queue.getRentalInfo(inst1);
-        assertEq(rankBeforeBoost, 1 ether - queue.dailyDecayRate() * 3);
+        assertEq(rankBeforeBoost, 1 ether - (1 ether * queue.dailyDecayRate() * 3) / 10000); // 0.85 ether
 
         vm.prank(bob);
         queue.boostRank{ value: 0.5 ether }(inst1);
@@ -319,10 +320,10 @@ contract MasterRegistryQueueTest is Test {
         (, uint256 rankAfterBoost,,) = queue.getRentalInfo(inst1);
         assertEq(rankAfterBoost, rankBeforeBoost + 0.5 ether);
 
-        // Decay clock reset — only 1 day of decay from the boost time
+        // Decay clock reset — only 1 day of proportional decay from the boost time (on the new rank)
         vm.warp(block.timestamp + 1 days);
         (, uint256 rankNextDay,,) = queue.getRentalInfo(inst1);
-        assertEq(rankNextDay, rankAfterBoost - queue.dailyDecayRate());
+        assertEq(rankNextDay, rankAfterBoost - (rankAfterBoost * queue.dailyDecayRate() * 1) / 10000);
     }
 
     // ── Rank carry ────────────────────────────────────────────────────────────
@@ -334,9 +335,9 @@ contract MasterRegistryQueueTest is Test {
         (,, uint256 expiresAt,) = queue.getRentalInfo(inst1);
         vm.warp(expiresAt + 1);
 
-        // Re-rent — carries decayed rank (7 integer days elapsed)
+        // Re-rent — carries proportionally decayed rank (7 integer days elapsed)
         uint256 daysElapsed = (queue.minDuration() + 1) / 1 days; // = 7
-        uint256 expectedRank = 0.5 ether - queue.dailyDecayRate() * daysElapsed;
+        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * daysElapsed) / 10000;
 
         _rentBasic(inst1, alice, 0);
         (, uint256 rankSecond,,) = queue.getRentalInfo(inst1);
@@ -351,12 +352,82 @@ contract MasterRegistryQueueTest is Test {
         vm.warp(expiresAt + 1);
 
         uint256 daysElapsed = (queue.minDuration() + 1) / 1 days;
-        uint256 expectedRank = 0.5 ether - queue.dailyDecayRate() * daysElapsed;
+        uint256 expectedRank = 0.5 ether - (0.5 ether * queue.dailyDecayRate() * daysElapsed) / 10000;
 
         _rentBasic(inst1, bob, 0);
         (address renter, uint256 rankBob,,) = queue.getRentalInfo(inst1);
         assertEq(renter, bob);
         assertEq(rankBob, expectedRank);
+    }
+
+    // ── Proportional decay: the fix's core properties ───────────────────────────
+
+    /// A 10× larger boost decays to the SAME FRACTION in the same time — the whole point of
+    /// switching from absolute to proportional decay.
+    function test_rankDecay_proportional_sameFractionRegardlessOfSize() public {
+        _rentBasic(inst1, alice, 0.1 ether);
+        _rentBasic(inst2, bob, 1 ether); // 10× inst1
+
+        vm.warp(block.timestamp + 5 days); // 25% decay for both
+
+        (, uint256 rank1,,) = queue.getRentalInfo(inst1);
+        (, uint256 rank2,,) = queue.getRentalInfo(inst2);
+
+        // Each decayed to 75% of its raw rank
+        assertEq(rank1, 0.1 ether - (0.1 ether * queue.dailyDecayRate() * 5) / 10000); // 0.075 ether
+        assertEq(rank2, 1 ether - (1 ether * queue.dailyDecayRate() * 5) / 10000); // 0.75 ether
+        // Same fraction: inst2 stays exactly 10× inst1
+        assertEq(rank2, rank1 * 10);
+    }
+
+    /// Anti-permanence: a big initial payer is overtaken by a smaller FRESH bid after the decay
+    /// window. Under the old absolute decay a 1 ETH boost would sit at position 1 for ~years; under
+    /// proportional decay a 0.3 ETH fresh bid overtakes within days.
+    function test_antiPermanence_freshBidderOvertakesBigOldPayer() public {
+        uint256 maxDur = queue.maxDuration();
+        uint256 durationCost = queue.quoteDurationCost(maxDur);
+
+        // inst1: big early payer, 1 ETH rank
+        vm.deal(alice, alice.balance + durationCost + 1 ether);
+        vm.prank(alice);
+        queue.rentFeatured{ value: durationCost + 1 ether }(inst1, maxDur, 1 ether);
+
+        // 15 days pass: inst1 decays to 1e * (1 - 0.05*15) = 0.25 ether
+        vm.warp(block.timestamp + 15 days);
+        (, uint256 inst1Decayed,,) = queue.getRentalInfo(inst1);
+        assertEq(inst1Decayed, 0.25 ether);
+
+        // inst2: a much smaller FRESH bid of 0.3 ETH
+        vm.deal(bob, bob.balance + durationCost + 0.3 ether);
+        vm.prank(bob);
+        queue.rentFeatured{ value: durationCost + 0.3 ether }(inst2, maxDur, 0.3 ether);
+
+        // The smaller fresh bid now outranks the big old payer — permanence is gone.
+        (, uint256 inst2Rank,,) = queue.getRentalInfo(inst2);
+        assertGt(inst2Rank, inst1Decayed);
+
+        (address[] memory result,) = queue.getFeaturedInstances(0, 10);
+        assertEq(result[0], inst2);
+        assertEq(result[1], inst1);
+    }
+
+    /// getEffectiveRank read reflects the proportionally decayed rank.
+    function test_getEffectiveRank_reflectsProportionalDecay() public {
+        _rentBasic(inst1, alice, 0.4 ether);
+        assertEq(queue.getEffectiveRank(inst1), 0.4 ether);
+
+        vm.warp(block.timestamp + 8 days); // 40% decay
+        uint256 expected = 0.4 ether - (0.4 ether * queue.dailyDecayRate() * 8) / 10000; // 0.24 ether
+        assertEq(queue.getEffectiveRank(inst1), expected);
+    }
+
+    /// Very long idle gap floors at 0 (proportional decay exceeds 100%), never underflows.
+    function test_rankDecay_neverNegative_longGap() public {
+        _rentBasic(inst1, alice, 1 ether);
+        vm.warp(block.timestamp + 40 days); // 200% nominal decay → clamped
+        (, uint256 rank,,) = queue.getRentalInfo(inst1);
+        assertEq(rank, 0);
+        assertEq(queue.getEffectiveRank(inst1), 0);
     }
 
     // ── getFeaturedInstances ordering ─────────────────────────────────────────
@@ -431,15 +502,15 @@ contract MasterRegistryQueueTest is Test {
         vm.prank(alice);
         queue.rentFeatured{ value: durationCost + rank }(inst1, maxDur, rank);
 
-        // Advance 30 days — inst1 has been decaying while inst2 hasn't started
-        vm.warp(block.timestamp + 30 days);
+        // Advance 10 days — inst1 has been decaying while inst2 hasn't started
+        vm.warp(block.timestamp + 10 days);
 
-        // Rent inst2 with same rank — fresh decay clock at T0+30d
+        // Rent inst2 with same rank — fresh decay clock at T0+10d
         vm.deal(bob, bob.balance + durationCost + rank);
         vm.prank(bob);
         queue.rentFeatured{ value: durationCost + rank }(inst2, maxDur, rank);
 
-        // inst1 effective = 1e - 30*decayRate; inst2 effective = 1e → inst2 leads
+        // inst1 effective = 1e * (1 - 0.05*10) = 0.5e; inst2 effective = 1e → inst2 leads
         (address[] memory result,) = queue.getFeaturedInstances(0, 10);
         assertEq(result.length, 2);
         assertEq(result[0], inst2);
