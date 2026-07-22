@@ -13,7 +13,6 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary } from "v4-core/types/BeforeSwa
 import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
-import { IERC20 } from "../../../shared/interfaces/IERC20.sol";
 
 /**
  * @title UniAlignmentV4Hook
