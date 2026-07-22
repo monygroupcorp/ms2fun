@@ -258,7 +258,7 @@ contract FullWorkflowIntegrationTest is Test {
         // Test with various valid metadata URIs
         string[4] memory validURIs = [
             "https://example.com/metadata.json",
-            "http://example.com/metadata.json",
+            "https://cdn.example.com/metadata.json",
             "ipfs://QmHash/metadata.json",
             "ar://arweave-hash/metadata.json"
         ];
