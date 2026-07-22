@@ -17,8 +17,40 @@ contract MetadataUtilsTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_isValidURI_WithHTTPScheme() public pure {
+        // http:// is dropped from the allowlist (mixed-content-blocked, plaintext, mutable).
         string memory uri = "http://example.com/metadata.json";
-        assertTrue(MetadataUtils.isValidURI(uri), "HTTP URI should be valid");
+        assertFalse(MetadataUtils.isValidURI(uri), "HTTP URI should be invalid");
+    }
+
+    function test_isValidURI_WithDataImageScheme() public pure {
+        string memory uri =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        assertTrue(MetadataUtils.isValidURI(uri), "data:image/ URI should be valid");
+    }
+
+    function test_isValidURI_WithDataApplicationJsonScheme() public pure {
+        string memory uri = "data:application/json;base64,eyJuYW1lIjoiVG9rZW4ifQ==";
+        assertTrue(MetadataUtils.isValidURI(uri), "data:application/json URI should be valid");
+    }
+
+    function test_isValidURI_WithDataTextHtmlScheme_Rejected() public pure {
+        string memory uri = "data:text/html,<script>alert(1)</script>";
+        assertFalse(MetadataUtils.isValidURI(uri), "data:text/html URI should be invalid (stored-XSS)");
+    }
+
+    function test_isValidURI_WithDataApplicationJavascriptScheme_Rejected() public pure {
+        string memory uri = "data:application/javascript,alert(1)";
+        assertFalse(MetadataUtils.isValidURI(uri), "data:application/javascript URI should be invalid");
+    }
+
+    function test_isValidURI_WithBareDataScheme_Rejected() public pure {
+        string memory uri = "data:text/plain,hello";
+        assertFalse(MetadataUtils.isValidURI(uri), "bare/untyped data: URI should be invalid");
+    }
+
+    function test_isValidURI_WithDataPrefixOnly_Rejected() public pure {
+        string memory uri = "data:";
+        assertFalse(MetadataUtils.isValidURI(uri), "bare data: prefix should be invalid");
     }
 
     function test_isValidURI_WithHTTPSScheme() public pure {
@@ -182,5 +214,51 @@ contract MetadataUtilsTest is Test {
         assertEq(hash1, hash2, "Different cases should produce same hash (1-2)");
         assertEq(hash2, hash3, "Different cases should produce same hash (2-3)");
         assertEq(hash1, hash3, "Different cases should produce same hash (1-3)");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+              isValidName ⇄ toNameHash COUPLING INVARIANT
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev Pins the coupling: the charset isValidName admits must round-trip through toNameHash's
+    ///      normalization, with ASCII case-fold as the ONLY normalization. If a future edit widens
+    ///      isValidName without matching toNameHash, this test breaks before a namespace bug ships.
+    function test_coupling_everyAdmittedCharClassHashesDeterministically() public pure {
+        // One representative per admitted class: digit, upper, lower, hyphen, underscore.
+        string memory name = "aZ0-_";
+        assertTrue(MetadataUtils.isValidName(name), "sample of every admitted class must be valid");
+        assertEq(MetadataUtils.toNameHash(name), MetadataUtils.toNameHash(name), "hash must be deterministic");
+    }
+
+    function test_coupling_caseFoldIsTheOnlyNormalization() public pure {
+        // (b) Case-variants collide BY DESIGN — case-fold is a normalization.
+        assertEq(
+            MetadataUtils.toNameHash("Foo"),
+            MetadataUtils.toNameHash("foo"),
+            "case-variants must collide (case-fold is normalization)"
+        );
+        // ...and it is the ONLY one: distinct separators/digits must NOT collide.
+        assertTrue(
+            MetadataUtils.toNameHash("foo-bar") != MetadataUtils.toNameHash("foo_bar"), "'-' vs '_' must be distinct"
+        );
+        assertTrue(MetadataUtils.toNameHash("foo") != MetadataUtils.toNameHash("fo_o"), "underscore is not folded away");
+        assertTrue(
+            MetadataUtils.toNameHash("foo1") != MetadataUtils.toNameHash("foo2"), "distinct digits must be distinct"
+        );
+    }
+
+    function test_coupling_hyphenUnderscoreNotFolded() public pure {
+        // The non-alnum admitted chars pass through keccak unchanged (no separator normalization).
+        assertEq(MetadataUtils.toNameHash("a-b"), keccak256(bytes("a-b")), "hyphen passes through unchanged");
+        assertEq(MetadataUtils.toNameHash("a_b"), keccak256(bytes("a_b")), "underscore passes through unchanged");
+    }
+
+    function test_coupling_outOfCharsetRejectedBeforeHashing() public pure {
+        // (c) An out-of-charset name is rejected by the gate; it never reaches toNameHash in a caller.
+        assertFalse(MetadataUtils.isValidName("bad name"), "space is out of charset");
+        assertFalse(MetadataUtils.isValidName("bad@name"), "'@' is out of charset");
+        assertFalse(
+            MetadataUtils.isValidName(unicode"café"), "non-ASCII is out of charset (no homoglyph reaches the hash)"
+        );
     }
 }
