@@ -484,6 +484,45 @@ contract CypherAlignmentVaultTest is Test {
         vault.claimFeesAsDelegate(benefactors);
     }
 
+    // ── WETH fallback (adoption-gap F1) ─────────────────────────────────────
+
+    /// @dev A benefactor that is a smart wallet rejecting plain ETH still receives its yield via the
+    ///      WETH fallback — claimFees must NOT revert, and the WETH balance must rise by the claim.
+    function test_claimFees_wethFallback_rejectingBenefactor() public {
+        RejectingBenefactor rejecter = new RejectingBenefactor();
+        _contribute(address(rejecter), 1 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+
+        uint256 pending = vault.calculateClaimableAmount(address(rejecter));
+        assertGt(pending, 0, "rejecter should have claimable yield");
+
+        rejecter.claim(vault); // must NOT revert despite reverting receive()
+
+        assertEq(address(rejecter).balance, 0, "plain ETH must not land");
+        assertEq(weth.balanceOf(address(rejecter)), pending, "yield delivered as WETH");
+    }
+
+    /// @dev Same for the delegate path: a rejecting delegate still gets its yield as WETH.
+    function test_claimFeesAsDelegate_wethFallback_rejectingDelegate() public {
+        RejectingBenefactor rejecter = new RejectingBenefactor();
+        _contribute(alice, 1 ether);
+        vm.prank(alice);
+        vault.delegateBenefactor(address(rejecter));
+        _stageHarvest(0, 0.1 ether, true);
+        vault.harvest(0);
+
+        uint256 pending = vault.calculateClaimableAmount(alice);
+        assertGt(pending, 0, "alice should have claimable yield");
+
+        address[] memory bs = new address[](1);
+        bs[0] = alice;
+        rejecter.claimAsDelegate(vault, bs); // must NOT revert
+
+        assertEq(address(rejecter).balance, 0, "plain ETH must not land");
+        assertEq(weth.balanceOf(address(rejecter)), pending, "delegate yield delivered as WETH");
+    }
+
     // ── Governance / views ───────────────────────────────────────────────────
 
     function test_withdrawProtocolFees_transfersToTreasury() public {
@@ -548,5 +587,21 @@ contract CypherAlignmentVaultTest is Test {
         _fundAcquire(100 ether, 1e18);
         vault.convertAndAddLiquidity(0);
         assertEq(positionManager.ownerOf(vault.lpTokenId()), address(vault));
+    }
+}
+
+/// @notice A benefactor/delegate that is a smart wallet rejecting plain ETH (reverting receive()).
+///         Exercises the SmartTransferLib WETH fallback on the claim paths (adoption-gap F1).
+contract RejectingBenefactor {
+    receive() external payable {
+        revert("no plain ETH");
+    }
+
+    function claim(CypherAlignmentVault vault) external returns (uint256) {
+        return vault.claimFees();
+    }
+
+    function claimAsDelegate(CypherAlignmentVault vault, address[] calldata benefactors) external returns (uint256) {
+        return vault.claimFeesAsDelegate(benefactors);
     }
 }

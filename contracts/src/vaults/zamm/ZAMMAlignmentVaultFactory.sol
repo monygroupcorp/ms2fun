@@ -15,6 +15,9 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     address public immutable vaultImplementation;
     address public immutable zamm;
     address public immutable zRouter;
+    /// @notice Canonical WETH threaded into every deployed vault as the ETH-transfer fallback rail
+    ///         (adoption-gap F1); the same house WETH the other vault factories receive.
+    address public immutable weth;
     address public immutable protocolTreasury;
     /// @notice Oracle/TWAP validator wired into every deployed vault (F5). The vault's swap floor is
     ///         inert when this is address(0), so production must pass the shared validator.
@@ -31,6 +34,7 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     constructor(
         address _zamm,
         address _zRouter,
+        address _weth,
         address _protocolTreasury,
         IVaultPriceValidator _defaultPriceValidator,
         IAlignmentRegistry _alignmentRegistry,
@@ -38,6 +42,7 @@ contract ZAMMAlignmentVaultFactory is Ownable {
     ) {
         zamm = _zamm;
         zRouter = _zRouter;
+        weth = _weth;
         protocolTreasury = _protocolTreasury;
         defaultPriceValidator = _defaultPriceValidator;
         alignmentRegistry = _alignmentRegistry;
@@ -68,6 +73,7 @@ contract ZAMMAlignmentVaultFactory is Ownable {
             .initialize(
                 zamm,
                 zRouter,
+                weth,
                 alignmentToken,
                 poolKey,
                 protocolTreasury,

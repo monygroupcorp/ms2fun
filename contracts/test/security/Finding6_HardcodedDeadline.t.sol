@@ -50,6 +50,7 @@ contract Finding6_HardcodedDeadlineTest is Test {
         vault.initialize(
             address(mockZamm),
             address(mockZRouter),
+            address(0xE7), // WETH fallback rail (nonzero)
             address(token),
             poolKey,
             treasury,

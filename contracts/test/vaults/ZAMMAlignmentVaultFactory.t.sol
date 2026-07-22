@@ -21,6 +21,7 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
     MockAlignmentRegistry public registry;
 
     uint256 internal constant TARGET_ID = 1;
+    address internal constant WETH_STUB = address(0xE7); // house WETH threaded into every deployed vault
 
     address public treasury = address(0x99);
 
@@ -45,6 +46,7 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
         factory = new ZAMMAlignmentVaultFactory(
             address(mockZamm),
             address(mockZRouter),
+            WETH_STUB,
             treasury,
             IVaultPriceValidator(address(0)), // floor-mechanics covered elsewhere; deploy test only
             registry,
@@ -62,6 +64,7 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
         ZAMMAlignmentVault v = ZAMMAlignmentVault(payable(vault));
         assertEq(v.alignmentToken(), address(alignmentToken));
         assertEq(v.zamm(), address(mockZamm));
+        assertEq(v.weth(), WETH_STUB, "factory threads house WETH into the vault");
         assertEq(v.protocolYieldCutBps(), 100);
     }
 
