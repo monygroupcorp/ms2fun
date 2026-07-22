@@ -13,7 +13,7 @@ import { IGlobalMessageRegistry } from "./interfaces/IGlobalMessageRegistry.sol"
  *      - postForAction: called by registered instances to forward user messages atomically with actions
  *      - post: called directly by users, instance acts as channel
  *      All message data is emitted via events for off-chain indexing.
- *      UUPS upgradeable. Owner is the DAO via Timelock.
+ *      UUPS upgradeable. Owner is the Safe multisig via Timelock.
  */
 contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
     // ┌─────────────────────────┐
@@ -101,7 +101,7 @@ contract GlobalMessageRegistry is SafeOwnableUUPS, IGlobalMessageRegistry {
      * @notice Post a message directly as a user — any address acts as channel
      * @dev No auth on `instance` — any address is a valid channel. Indexer decides display.
      * @param instance The channel address (registered instance, EOA, or any address)
-     * @param messageType POST=0, REPLY=1, QUOTE=2, REACT=3
+     * @param messageType Message type tag — see {MessageTypes} (src/libraries/MessageTypes.sol) for the canonical values
      * @param refId Message ID being replied to / quoted / reacted to (0 for POST)
      * @param actionRef Opaque reference for frontend (e.g., trade hash)
      * @param metadata Opaque metadata for frontend
