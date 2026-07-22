@@ -1273,4 +1273,11 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         vm.expectRevert(ERC1155Factory.UnapprovedComponent.selector);
         factory.setDynamicPricingModule(address(wrongTag));
     }
+
+    // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
+
+    function test_constructor_revertsOnZeroWeth() public {
+        vm.expectRevert(ERC1155Factory.InvalidAddress.selector);
+        new ERC1155Factory(address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0));
+    }
 }

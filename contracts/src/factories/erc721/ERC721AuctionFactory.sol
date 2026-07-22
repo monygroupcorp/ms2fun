@@ -48,6 +48,7 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
     constructor(address _masterRegistry, address _globalMessageRegistry, address _weth) {
         _initializeOwner(msg.sender);
         if (_globalMessageRegistry == address(0)) revert InvalidAddress();
+        if (_weth == address(0)) revert InvalidAddress();
         masterRegistry = IMasterRegistry(_masterRegistry);
         globalMessageRegistry = _globalMessageRegistry;
         weth = _weth;

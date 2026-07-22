@@ -153,6 +153,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     constructor(CoreConfig memory core, ModuleConfig memory modules) {
         if (core.implementation == address(0)) revert InvalidImplementation();
         if (core.protocol == address(0)) revert InvalidAddress();
+        if (core.weth == address(0)) revert InvalidAddress();
         if (modules.globalMessageRegistry == address(0)) revert InvalidGlobalMessageRegistry();
         if (modules.launchManager == address(0)) revert InvalidLaunchManager();
         if (modules.componentRegistry == address(0)) revert InvalidComponentRegistry();
