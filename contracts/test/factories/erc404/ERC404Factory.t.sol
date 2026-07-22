@@ -1187,4 +1187,24 @@ contract ERC404FactoryTest is Test {
             FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
         );
     }
+
+    // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
+
+    function test_constructor_revertsOnZeroWeth() public {
+        ERC404BondingInstance impl = new ERC404BondingInstance();
+        vm.expectRevert(ERC404Factory.InvalidAddress.selector);
+        new ERC404Factory(
+            ERC404Factory.CoreConfig({
+                implementation: address(impl),
+                masterRegistry: address(mockRegistry),
+                protocol: protocolAdmin,
+                weth: address(0)
+            }),
+            ERC404Factory.ModuleConfig({
+                globalMessageRegistry: mockGMR,
+                launchManager: address(launchMgr),
+                componentRegistry: address(componentRegistry)
+            })
+        );
+    }
 }
