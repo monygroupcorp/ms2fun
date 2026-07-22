@@ -184,6 +184,14 @@ contract DeployCore is Script {
     address public moduleZAMMDeployer;
     address public moduleCypherDeployer;
 
+    // ── DEFERRAL NOTE: PromotionBadges is intentionally NOT deployed ──────────
+    // `src/promotion/PromotionBadges.sol` is PARKED pre-testnet and has NO slot above and NO
+    // deploy call below on purpose. Its open `purchaseBadge` lets anyone self-assign a `VERIFIED`
+    // badge (an unresolved trust hole), so shipping it would let users mint their own verified
+    // status. Do NOT add it to the deployed set — no state slot, no `new PromotionBadges(...)`, no
+    // funding — without explicit rth sign-off on the trust-architecture decision. The un-deployed
+    // guard in `test/script/PromotionBadgesNotDeployed.t.sol` trips if a future edit wires it in.
+
     // ───────────────────────────── Entry Point ──────────────────────────────
 
     /// @notice Deploy all protocol contracts for the given network config.
