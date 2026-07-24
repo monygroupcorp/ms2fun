@@ -7,14 +7,15 @@
  *                           ABI hook resolves it for any vault.
  *  - `accumulatedFees()`  — fees accrued (all families expose it via IAlignmentVault).
  *  - `totalShares()`      — benefactor shares (all families).
- *  - `totalPrincipal()`   — endowment TVL. Only endowment vaults have it; gated on isEndowment.
+ *  - `totalPrincipalLocked()` — endowment TVL (live escrowed principal). Only endowment vaults have it;
+ *                           gated on isEndowment.
  *  - MasterRegistry `getVaultInfo(vault)` → name / creator / targetId (may revert for an
  *    unregistered vault; tolerated).
  *  - AlignmentRegistry `getAlignmentTarget(targetId)` → the bound community's display metadata.
  */
 import {
   useReadAlignmentEndowmentVaultAccumulatedFees,
-  useReadAlignmentEndowmentVaultTotalPrincipal,
+  useReadAlignmentEndowmentVaultTotalPrincipalLocked,
   useReadAlignmentEndowmentVaultTotalShares,
   useReadAlignmentEndowmentVaultVaultType,
   useReadAlignmentRegistryV1GetAlignmentTarget,
@@ -64,7 +65,7 @@ export function useVaultOverview(vault: `0x${string}` | undefined): VaultOvervie
     chainId: forkChainId,
     query: { enabled },
   })
-  const { data: totalPrincipal } = useReadAlignmentEndowmentVaultTotalPrincipal({
+  const { data: totalPrincipal } = useReadAlignmentEndowmentVaultTotalPrincipalLocked({
     ...at,
     chainId: forkChainId,
     query: { enabled: enabled && isEndowment },

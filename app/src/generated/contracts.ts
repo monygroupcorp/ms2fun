@@ -15,7 +15,14 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'MATURITY_DURATION',
+    name: 'VEST_DURATION',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'accCreatorYieldPerPrincipal',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -63,6 +70,13 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'claimYieldPurse',
+    outputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'communityPayout',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
@@ -86,10 +100,24 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'currentPositionValue',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: '', internalType: 'address', type: 'address' }],
     name: 'delegateBenefactor',
     outputs: [],
     stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'deployableCorpus',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -104,6 +132,24 @@ export const alignmentEndowmentVaultAbi = [
     name: 'description',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
     stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'escrowedPrincipal',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'value', internalType: 'uint256', type: 'uint256' },
+      { name: 'data', internalType: 'bytes', type: 'bytes' },
+    ],
+    name: 'execute',
+    outputs: [{ name: 'result', internalType: 'bytes', type: 'bytes' }],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -142,6 +188,7 @@ export const alignmentEndowmentVaultAbi = [
       { name: '_protocolTreasury', internalType: 'address', type: 'address' },
       { name: '_masterRegistry', internalType: 'address', type: 'address' },
       { name: '_alignmentToken', internalType: 'address', type: 'address' },
+      { name: '_targetId', internalType: 'uint256', type: 'uint256' },
       { name: '_communityPayout', internalType: 'address', type: 'address' },
     ],
     name: 'initialize',
@@ -189,8 +236,15 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
-    name: 'principal',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'pendingYieldOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'principalOf',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -228,6 +282,13 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'rewardDebt',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'payout', internalType: 'address', type: 'address' }],
     name: 'setCommunityPayout',
     outputs: [],
@@ -252,7 +313,42 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
-    name: 'totalPrincipal',
+    name: 'targetId',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalDeployedByTarget',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalEscrowedPrincipal',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalPrincipalCommittedAllTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalPrincipalLocked',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalProtocolFees',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -260,6 +356,34 @@ export const alignmentEndowmentVaultAbi = [
     type: 'function',
     inputs: [],
     name: 'totalShares',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalVested',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalVestedDeployable',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalYieldToCreators',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalYieldToTarget',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -286,6 +410,27 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'vest',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
+    name: 'vestedOf',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'vestedPrincipal',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'weth',
     outputs: [{ name: '', internalType: 'contract IWETH', type: 'address' }],
@@ -293,10 +438,42 @@ export const alignmentEndowmentVaultAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'benefactor', internalType: 'address', type: 'address' }],
-    name: 'withdrawPrincipal',
-    outputs: [],
-    stateMutability: 'nonpayable',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'yieldPurse',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'ambassador',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'value',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'selector',
+        internalType: 'bytes4',
+        type: 'bytes4',
+        indexed: false,
+      },
+      {
+        name: 'timestamp',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'CapitalDeployed',
   },
   {
     type: 'event',
@@ -367,19 +544,19 @@ export const alignmentEndowmentVaultAbi = [
     anonymous: false,
     inputs: [
       {
-        name: 'yield',
+        name: 'shortfallBps',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
       },
       {
-        name: 'community',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
+        name: 'timestamp',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
       },
     ],
-    name: 'Harvested',
+    name: 'ImpairmentRealized',
   },
   {
     type: 'event',
@@ -456,9 +633,45 @@ export const alignmentEndowmentVaultAbi = [
         type: 'uint256',
         indexed: false,
       },
-      { name: 'matured', internalType: 'bool', type: 'bool', indexed: false },
+      {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'timestamp',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
     ],
-    name: 'PrincipalWithdrawn',
+    name: 'PrincipalDeposited',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'benefactor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'timestamp',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'PrincipalVested',
   },
   {
     type: 'event',
@@ -469,11 +682,68 @@ export const alignmentEndowmentVaultAbi = [
     ],
     name: 'VaultPolicyUpdated',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'benefactor',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'recipient',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'YieldClaimed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'creatorLeg',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'targetLeg',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'protocolLeg',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'timestamp',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'YieldDistributed',
+  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmountMismatch' },
   { type: 'error', inputs: [], name: 'AmountMustBePositive' },
   { type: 'error', inputs: [], name: 'BenefactorNotContract' },
   { type: 'error', inputs: [], name: 'CommunityPayoutNotSet' },
+  { type: 'error', inputs: [], name: 'ExceedsDeployableCorpus' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'NativeOnly' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
@@ -481,6 +751,7 @@ export const alignmentEndowmentVaultAbi = [
   { type: 'error', inputs: [], name: 'NoPrincipal' },
   { type: 'error', inputs: [], name: 'NotAuthorized' },
   { type: 'error', inputs: [], name: 'NotSupported' },
+  { type: 'error', inputs: [], name: 'NotVested' },
   { type: 'error', inputs: [], name: 'RedeemShortfall' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
@@ -491,7 +762,11 @@ export const alignmentEndowmentVaultAbi = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const alignmentRegistryV1Abi = [
-  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  {
+    type: 'constructor',
+    inputs: [{ name: '_weth', internalType: 'address', type: 'address' }],
+    stateMutability: 'nonpayable',
+  },
   {
     type: 'function',
     inputs: [
@@ -558,6 +833,32 @@ export const alignmentRegistryV1Abi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'token', internalType: 'address', type: 'address' },
+    ],
+    name: 'getAcquireRoute',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IAlignmentRegistry.AcquireRoute',
+        type: 'tuple',
+        components: [
+          {
+            name: 'venue',
+            internalType: 'enum IAlignmentRegistry.Venue',
+            type: 'uint8',
+          },
+          { name: 'fee', internalType: 'uint24', type: 'uint24' },
+          { name: 'tickSpacing', internalType: 'int24', type: 'int24' },
+          { name: 'feeOrHook', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
     name: 'getAlignmentTarget',
     outputs: [
@@ -608,6 +909,34 @@ export const alignmentRegistryV1Abi = [
     inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
     name: 'getCommunityPayout',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'token', internalType: 'address', type: 'address' },
+    ],
+    name: 'getReferencePool',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IAlignmentRegistry.ReferencePool',
+        type: 'tuple',
+        components: [
+          { name: 'pool', internalType: 'address', type: 'address' },
+          { name: 'kind', internalType: 'uint8', type: 'uint8' },
+          { name: 'twapWindow', internalType: 'uint32', type: 'uint32' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'hasActiveTarget',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
   {
@@ -724,9 +1053,54 @@ export const alignmentRegistryV1Abi = [
     type: 'function',
     inputs: [
       { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'token', internalType: 'address', type: 'address' },
+      {
+        name: 'route',
+        internalType: 'struct IAlignmentRegistry.AcquireRoute',
+        type: 'tuple',
+        components: [
+          {
+            name: 'venue',
+            internalType: 'enum IAlignmentRegistry.Venue',
+            type: 'uint8',
+          },
+          { name: 'fee', internalType: 'uint24', type: 'uint24' },
+          { name: 'tickSpacing', internalType: 'int24', type: 'int24' },
+          { name: 'feeOrHook', internalType: 'uint256', type: 'uint256' },
+        ],
+      },
+    ],
+    name: 'setAcquireRoute',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
       { name: 'payout', internalType: 'address', type: 'address' },
     ],
     name: 'setCommunityPayout',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'targetId', internalType: 'uint256', type: 'uint256' },
+      { name: 'token', internalType: 'address', type: 'address' },
+      {
+        name: 'ref',
+        internalType: 'struct IAlignmentRegistry.ReferencePool',
+        type: 'tuple',
+        components: [
+          { name: 'pool', internalType: 'address', type: 'address' },
+          { name: 'kind', internalType: 'uint8', type: 'uint8' },
+          { name: 'twapWindow', internalType: 'uint32', type: 'uint32' },
+        ],
+      },
+    ],
+    name: 'setReferencePool',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -767,6 +1141,38 @@ export const alignmentRegistryV1Abi = [
     name: 'upgradeToAndCall',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'venue',
+        internalType: 'enum IAlignmentRegistry.Venue',
+        type: 'uint8',
+        indexed: false,
+      },
+    ],
+    name: 'AcquireRouteSet',
   },
   {
     type: 'event',
@@ -915,6 +1321,32 @@ export const alignmentRegistryV1Abi = [
     anonymous: false,
     inputs: [
       {
+        name: 'targetId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'token',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'pool',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+      { name: 'kind', internalType: 'uint8', type: 'uint8', indexed: false },
+    ],
+    name: 'ReferencePoolSet',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'implementation',
         internalType: 'address',
         type: 'address',
@@ -926,13 +1358,18 @@ export const alignmentRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmbassadorAlreadyAssigned' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidReferenceKind' },
+  { type: 'error', inputs: [], name: 'InvalidRoute' },
   { type: 'error', inputs: [], name: 'InvalidTitle' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoAssets' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NotAmbassador' },
+  { type: 'error', inputs: [], name: 'ReferencePoolTokenMismatch' },
+  { type: 'error', inputs: [], name: 'ReferencePoolUnusable' },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
   { type: 'error', inputs: [], name: 'TargetNotFound' },
+  { type: 'error', inputs: [], name: 'TokenNotInTarget' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
@@ -1519,6 +1956,16 @@ export const componentRegistryAbi = [
     type: 'function',
     inputs: [{ name: 'component', internalType: 'address', type: 'address' }],
     name: 'isApprovedComponent',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'component', internalType: 'address', type: 'address' },
+      { name: 'tag', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'isApprovedForTag',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
@@ -3007,6 +3454,7 @@ export const erc1155InstanceAbi = [
     ],
     stateMutability: 'nonpayable',
   },
+  { type: 'receive', stateMutability: 'payable' },
   {
     type: 'function',
     inputs: [
@@ -4451,6 +4899,13 @@ export const erc404BondingInstanceAbi = [
         type: 'address',
       },
     ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'stakingReserve',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -6952,7 +7407,13 @@ export const erc721AuctionInstanceAbi = [
         indexed: true,
       },
       {
-        name: 'forfeitedDeposit',
+        name: 'creatorRefund',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'protocolCut',
         internalType: 'uint256',
         type: 'uint256',
         indexed: false,
@@ -7930,19 +8391,9 @@ export const globalMessageRegistryAbi = [
 export const iAlignmentRegistryDupAbi = [
   {
     type: 'function',
-    inputs: [{ name: 'targetId', internalType: 'uint256', type: 'uint256' }],
-    name: 'isAlignmentTargetActive',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    name: 'hasActiveTarget',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: 'token', internalType: 'address', type: 'address' },
-      { name: 'index', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'tokenToTargetIds',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
 ] as const
@@ -8118,6 +8569,13 @@ export const ierc404BalanceAbi = [
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'unit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8156,8 +8614,8 @@ export const iFeaturedQueueManagerAbi = [
   {
     type: 'function',
     inputs: [
-      { name: 'startIndex', internalType: 'uint256', type: 'uint256' },
-      { name: 'endIndex', internalType: 'uint256', type: 'uint256' },
+      { name: 'offset', internalType: 'uint256', type: 'uint256' },
+      { name: 'limit', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'getFeaturedInstances',
     outputs: [
@@ -8176,20 +8634,6 @@ export const iFeaturedQueueManagerAbi = [
       { name: 'expiresAt', internalType: 'uint256', type: 'uint256' },
       { name: 'isActive', internalType: 'bool', type: 'bool' },
     ],
-    stateMutability: 'view',
-  },
-] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// IGlobalMessageRegistry
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const iGlobalMessageRegistryAbi = [
-  {
-    type: 'function',
-    inputs: [],
-    name: 'messageCount',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
 ] as const
@@ -8329,6 +8773,20 @@ export const iStakedBalanceReaderAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IStakingTotals
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iStakingTotalsAbi = [
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'totalStaked',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IStataToken
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -8400,6 +8858,43 @@ export const iTierInstanceAbi = [
     type: 'function',
     inputs: [],
     name: 'stakingModule',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IUniswapV3Pool
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iUniswapV3PoolAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: 'secondsAgos', internalType: 'uint32[]', type: 'uint32[]' },
+    ],
+    name: 'observe',
+    outputs: [
+      { name: 'tickCumulatives', internalType: 'int56[]', type: 'int56[]' },
+      {
+        name: 'secondsPerLiquidityCumulativeX128s',
+        internalType: 'uint160[]',
+        type: 'uint160[]',
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'token0',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'token1',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
   },
@@ -8981,6 +9476,13 @@ export const masterRegistryV1Abi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    name: 'instanceByNameHash',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: '', internalType: 'address', type: 'address' }],
     name: 'instanceInfo',
     outputs: [
@@ -9092,6 +9594,7 @@ export const masterRegistryV1Abi = [
       { name: 'displayTitle', internalType: 'string', type: 'string' },
       { name: 'metadataURI', internalType: 'string', type: 'string' },
       { name: 'features', internalType: 'bytes32[]', type: 'bytes32[]' },
+      { name: 'creator', internalType: 'address', type: 'address' },
     ],
     name: 'registerFactory',
     outputs: [],
@@ -9151,6 +9654,13 @@ export const masterRegistryV1Abi = [
     name: 'requestOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'name', internalType: 'string', type: 'string' }],
+    name: 'resolveName',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -9582,6 +10092,7 @@ export const masterRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'TokenNotInTarget' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
+  { type: 'error', inputs: [], name: 'UnregisteredVault' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
   { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
   { type: 'error', inputs: [], name: 'VaultAlreadyInArray' },
@@ -10644,16 +11155,6 @@ export const protocolTreasuryV1Abi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
-    name: 'claimPOLFees',
-    outputs: [
-      { name: 'amount0', internalType: 'uint256', type: 'uint256' },
-      { name: 'amount1', internalType: 'uint256', type: 'uint256' },
-    ],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
     inputs: [
       { name: 'pendingOwner', internalType: 'address', type: 'address' },
     ],
@@ -10683,18 +11184,6 @@ export const protocolTreasuryV1Abi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
-    name: 'getPolPosition',
-    outputs: [
-      { name: 'tickLower', internalType: 'int24', type: 'int24' },
-      { name: 'tickUpper', internalType: 'int24', type: 'int24' },
-      { name: 'salt', internalType: 'bytes32', type: 'bytes32' },
-      { name: 'liquidity', internalType: 'uint128', type: 'uint128' },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [
       {
         name: 'source',
@@ -10715,15 +11204,6 @@ export const protocolTreasuryV1Abi = [
     name: 'initialize',
     outputs: [],
     stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'masterRegistry',
-    outputs: [
-      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
-    ],
-    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -10756,47 +11236,9 @@ export const protocolTreasuryV1Abi = [
   {
     type: 'function',
     inputs: [],
-    name: 'polInstanceCount',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    name: 'polInstances',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
     name: 'proxiableUUID',
     outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
     stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [
-      {
-        name: 'poolKey',
-        internalType: 'struct PoolKey',
-        type: 'tuple',
-        components: [
-          { name: 'currency0', internalType: 'Currency', type: 'address' },
-          { name: 'currency1', internalType: 'Currency', type: 'address' },
-          { name: 'fee', internalType: 'uint24', type: 'uint24' },
-          { name: 'tickSpacing', internalType: 'int24', type: 'int24' },
-          { name: 'hooks', internalType: 'contract IHooks', type: 'address' },
-        ],
-      },
-      { name: 'tickLower', internalType: 'int24', type: 'int24' },
-      { name: 'tickUpper', internalType: 'int24', type: 'int24' },
-      { name: 'amount0', internalType: 'uint256', type: 'uint256' },
-      { name: 'amount1', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'receivePOL',
-    outputs: [],
-    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -10814,51 +11256,6 @@ export const protocolTreasuryV1Abi = [
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'revenueConductor',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [
-      { name: 'safe', internalType: 'address', type: 'address' },
-      { name: 'amount', internalType: 'uint256', type: 'uint256' },
-    ],
-    name: 'routeToDAO',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '_registry', internalType: 'address', type: 'address' }],
-    name: 'setMasterRegistry',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '_conductor', internalType: 'address', type: 'address' }],
-    name: 'setRevenueConductor',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '_pm', internalType: 'address', type: 'address' }],
-    name: 'setV4PoolManager',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
-    inputs: [{ name: '_weth', internalType: 'address', type: 'address' }],
-    name: 'setWETH',
-    outputs: [],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
     inputs: [
       {
         name: '',
@@ -10872,13 +11269,7 @@ export const protocolTreasuryV1Abi = [
   },
   {
     type: 'function',
-    inputs: [
-      {
-        name: '',
-        internalType: 'enum ProtocolTreasuryV1.Source',
-        type: 'uint8',
-      },
-    ],
+    inputs: [],
     name: 'totalWithdrawn',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -10892,13 +11283,6 @@ export const protocolTreasuryV1Abi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'data', internalType: 'bytes', type: 'bytes' }],
-    name: 'unlockCallback',
-    outputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'function',
     inputs: [
       { name: 'newImplementation', internalType: 'address', type: 'address' },
       { name: 'data', internalType: 'bytes', type: 'bytes' },
@@ -10906,20 +11290,6 @@ export const protocolTreasuryV1Abi = [
     name: 'upgradeToAndCall',
     outputs: [],
     stateMutability: 'payable',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'v4PoolManager',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    inputs: [],
-    name: 'weth',
-    outputs: [{ name: '', internalType: 'address', type: 'address' }],
-    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -11012,19 +11382,6 @@ export const protocolTreasuryV1Abi = [
     anonymous: false,
     inputs: [
       {
-        name: 'newRegistry',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-    ],
-    name: 'MasterRegistryUpdated',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
         name: 'pendingOwner',
         internalType: 'address',
         type: 'address',
@@ -11070,69 +11427,6 @@ export const protocolTreasuryV1Abi = [
     anonymous: false,
     inputs: [
       {
-        name: 'instance',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-      {
-        name: 'amount0',
-        internalType: 'uint256',
-        type: 'uint256',
-        indexed: false,
-      },
-      {
-        name: 'amount1',
-        internalType: 'uint256',
-        type: 'uint256',
-        indexed: false,
-      },
-    ],
-    name: 'POLFeesCollected',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
-        name: 'instance',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-      {
-        name: 'liquidity',
-        internalType: 'uint128',
-        type: 'uint128',
-        indexed: false,
-      },
-      {
-        name: 'salt',
-        internalType: 'bytes32',
-        type: 'bytes32',
-        indexed: false,
-      },
-    ],
-    name: 'POLPositionDeployed',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
-        name: 'conductor',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-    ],
-    name: 'RevenueConductorUpdated',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
         name: 'source',
         internalType: 'enum ProtocolTreasuryV1.Source',
         type: 'uint8',
@@ -11153,26 +11447,6 @@ export const protocolTreasuryV1Abi = [
     anonymous: false,
     inputs: [
       {
-        name: 'conductor',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-      { name: 'safe', internalType: 'address', type: 'address', indexed: true },
-      {
-        name: 'amount',
-        internalType: 'uint256',
-        type: 'uint256',
-        indexed: false,
-      },
-    ],
-    name: 'RevenueRouted',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
         name: 'implementation',
         internalType: 'address',
         type: 'address',
@@ -11181,51 +11455,19 @@ export const protocolTreasuryV1Abi = [
     ],
     name: 'Upgraded',
   },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
-        name: 'newPoolManager',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-    ],
-    name: 'V4PoolManagerUpdated',
-  },
-  {
-    type: 'event',
-    anonymous: false,
-    inputs: [
-      {
-        name: 'newWETH',
-        internalType: 'address',
-        type: 'address',
-        indexed: true,
-      },
-    ],
-    name: 'WETHUpdated',
-  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'InvalidRecipient' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
-  { type: 'error', inputs: [], name: 'NoPOLPosition' },
   { type: 'error', inputs: [], name: 'NoValue' },
-  { type: 'error', inputs: [], name: 'NotRegisteredInstance' },
-  { type: 'error', inputs: [], name: 'POLAlreadyDeployed' },
-  { type: 'error', inputs: [], name: 'RegistryNotConfigured' },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
   { type: 'error', inputs: [], name: 'TransferFailed' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
   { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
-  { type: 'error', inputs: [], name: 'V4NotConfigured' },
-  { type: 'error', inputs: [], name: 'WETHNotConfigured' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -11427,19 +11669,6 @@ export const queryAggregatorAbi = [
   },
   {
     type: 'function',
-    inputs: [],
-    name: 'globalMessageRegistry',
-    outputs: [
-      {
-        name: '',
-        internalType: 'contract IGlobalMessageRegistry',
-        type: 'address',
-      },
-    ],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
     inputs: [
       { name: '_masterRegistry', internalType: 'address', type: 'address' },
       {
@@ -11447,11 +11676,7 @@ export const queryAggregatorAbi = [
         internalType: 'address',
         type: 'address',
       },
-      {
-        name: '_globalMessageRegistry',
-        internalType: 'address',
-        type: 'address',
-      },
+      { name: '', internalType: 'address', type: 'address' },
       { name: '_owner', internalType: 'address', type: 'address' },
     ],
     name: 'initialize',
@@ -11513,11 +11738,7 @@ export const queryAggregatorAbi = [
         internalType: 'address',
         type: 'address',
       },
-      {
-        name: '_globalMessageRegistry',
-        internalType: 'address',
-        type: 'address',
-      },
+      { name: '', internalType: 'address', type: 'address' },
     ],
     name: 'setRegistries',
     outputs: [],
@@ -11552,12 +11773,6 @@ export const queryAggregatorAbi = [
       },
       {
         name: 'featuredQueueManager',
-        internalType: 'address',
-        type: 'address',
-        indexed: false,
-      },
-      {
-        name: 'globalMessageRegistry',
         internalType: 'address',
         type: 'address',
         indexed: false,
@@ -11609,6 +11824,25 @@ export const queryAggregatorAbi = [
       },
     ],
     name: 'OwnershipTransferred',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'masterRegistry',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+      {
+        name: 'featuredQueueManager',
+        internalType: 'address',
+        type: 'address',
+        indexed: false,
+      },
+    ],
+    name: 'RegistriesUpdated',
   },
   {
     type: 'event',
@@ -12604,12 +12838,21 @@ export const useReadAlignmentEndowmentVault =
   /*#__PURE__*/ createUseReadContract({ abi: alignmentEndowmentVaultAbi })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"MATURITY_DURATION"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"VEST_DURATION"`
  */
-export const useReadAlignmentEndowmentVaultMaturityDuration =
+export const useReadAlignmentEndowmentVaultVestDuration =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'MATURITY_DURATION',
+    functionName: 'VEST_DURATION',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"accCreatorYieldPerPrincipal"`
+ */
+export const useReadAlignmentEndowmentVaultAccCreatorYieldPerPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'accCreatorYieldPerPrincipal',
   })
 
 /**
@@ -12676,12 +12919,30 @@ export const useReadAlignmentEndowmentVaultCurrentPolicy =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"currentPositionValue"`
+ */
+export const useReadAlignmentEndowmentVaultCurrentPositionValue =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'currentPositionValue',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"delegateBenefactor"`
  */
 export const useReadAlignmentEndowmentVaultDelegateBenefactor =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'delegateBenefactor',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"deployableCorpus"`
+ */
+export const useReadAlignmentEndowmentVaultDeployableCorpus =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'deployableCorpus',
   })
 
 /**
@@ -12700,6 +12961,15 @@ export const useReadAlignmentEndowmentVaultDescription =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'description',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"escrowedPrincipal"`
+ */
+export const useReadAlignmentEndowmentVaultEscrowedPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'escrowedPrincipal',
   })
 
 /**
@@ -12766,12 +13036,21 @@ export const useReadAlignmentEndowmentVaultOwnershipHandoverExpiresAt =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"principal"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"pendingYieldOf"`
  */
-export const useReadAlignmentEndowmentVaultPrincipal =
+export const useReadAlignmentEndowmentVaultPendingYieldOf =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'principal',
+    functionName: 'pendingYieldOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"principalOf"`
+ */
+export const useReadAlignmentEndowmentVaultPrincipalOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'principalOf',
   })
 
 /**
@@ -12781,6 +13060,15 @@ export const useReadAlignmentEndowmentVaultProtocolTreasury =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'protocolTreasury',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"rewardDebt"`
+ */
+export const useReadAlignmentEndowmentVaultRewardDebt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'rewardDebt',
   })
 
 /**
@@ -12802,12 +13090,57 @@ export const useReadAlignmentEndowmentVaultSupportsCapability =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalPrincipal"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"targetId"`
  */
-export const useReadAlignmentEndowmentVaultTotalPrincipal =
+export const useReadAlignmentEndowmentVaultTargetId =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'totalPrincipal',
+    functionName: 'targetId',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalDeployedByTarget"`
+ */
+export const useReadAlignmentEndowmentVaultTotalDeployedByTarget =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalDeployedByTarget',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalEscrowedPrincipal"`
+ */
+export const useReadAlignmentEndowmentVaultTotalEscrowedPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalEscrowedPrincipal',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalPrincipalCommittedAllTime"`
+ */
+export const useReadAlignmentEndowmentVaultTotalPrincipalCommittedAllTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalPrincipalCommittedAllTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalPrincipalLocked"`
+ */
+export const useReadAlignmentEndowmentVaultTotalPrincipalLocked =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalPrincipalLocked',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalProtocolFees"`
+ */
+export const useReadAlignmentEndowmentVaultTotalProtocolFees =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalProtocolFees',
   })
 
 /**
@@ -12817,6 +13150,42 @@ export const useReadAlignmentEndowmentVaultTotalShares =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'totalShares',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalVested"`
+ */
+export const useReadAlignmentEndowmentVaultTotalVested =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalVested',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalVestedDeployable"`
+ */
+export const useReadAlignmentEndowmentVaultTotalVestedDeployable =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalVestedDeployable',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalYieldToCreators"`
+ */
+export const useReadAlignmentEndowmentVaultTotalYieldToCreators =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalYieldToCreators',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"totalYieldToTarget"`
+ */
+export const useReadAlignmentEndowmentVaultTotalYieldToTarget =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'totalYieldToTarget',
   })
 
 /**
@@ -12838,12 +13207,39 @@ export const useReadAlignmentEndowmentVaultVaultType =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vestedOf"`
+ */
+export const useReadAlignmentEndowmentVaultVestedOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'vestedOf',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vestedPrincipal"`
+ */
+export const useReadAlignmentEndowmentVaultVestedPrincipal =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'vestedPrincipal',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"weth"`
  */
 export const useReadAlignmentEndowmentVaultWeth =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'weth',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"yieldPurse"`
+ */
+export const useReadAlignmentEndowmentVaultYieldPurse =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'yieldPurse',
   })
 
 /**
@@ -12862,12 +13258,30 @@ export const useWriteAlignmentEndowmentVaultCancelOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"claimYieldPurse"`
+ */
+export const useWriteAlignmentEndowmentVaultClaimYieldPurse =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'claimYieldPurse',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"completeOwnershipHandover"`
  */
 export const useWriteAlignmentEndowmentVaultCompleteOwnershipHandover =
   /*#__PURE__*/ createUseWriteContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"execute"`
+ */
+export const useWriteAlignmentEndowmentVaultExecute =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'execute',
   })
 
 /**
@@ -12943,12 +13357,12 @@ export const useWriteAlignmentEndowmentVaultTransferOwnership =
   })
 
 /**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"withdrawPrincipal"`
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vest"`
  */
-export const useWriteAlignmentEndowmentVaultWithdrawPrincipal =
+export const useWriteAlignmentEndowmentVaultVest =
   /*#__PURE__*/ createUseWriteContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'withdrawPrincipal',
+    functionName: 'vest',
   })
 
 /**
@@ -12967,12 +13381,30 @@ export const useSimulateAlignmentEndowmentVaultCancelOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"claimYieldPurse"`
+ */
+export const useSimulateAlignmentEndowmentVaultClaimYieldPurse =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'claimYieldPurse',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"completeOwnershipHandover"`
  */
 export const useSimulateAlignmentEndowmentVaultCompleteOwnershipHandover =
   /*#__PURE__*/ createUseSimulateContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"execute"`
+ */
+export const useSimulateAlignmentEndowmentVaultExecute =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'execute',
   })
 
 /**
@@ -13048,12 +13480,12 @@ export const useSimulateAlignmentEndowmentVaultTransferOwnership =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"withdrawPrincipal"`
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"vest"`
  */
-export const useSimulateAlignmentEndowmentVaultWithdrawPrincipal =
+export const useSimulateAlignmentEndowmentVaultVest =
   /*#__PURE__*/ createUseSimulateContract({
     abi: alignmentEndowmentVaultAbi,
-    functionName: 'withdrawPrincipal',
+    functionName: 'vest',
   })
 
 /**
@@ -13061,6 +13493,15 @@ export const useSimulateAlignmentEndowmentVaultWithdrawPrincipal =
  */
 export const useWatchAlignmentEndowmentVaultEvent =
   /*#__PURE__*/ createUseWatchContractEvent({ abi: alignmentEndowmentVaultAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"CapitalDeployed"`
+ */
+export const useWatchAlignmentEndowmentVaultCapitalDeployedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'CapitalDeployed',
+  })
 
 /**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"CommunityPayoutUpdated"`
@@ -13099,12 +13540,12 @@ export const useWatchAlignmentEndowmentVaultFeesClaimedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"Harvested"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"ImpairmentRealized"`
  */
-export const useWatchAlignmentEndowmentVaultHarvestedEvent =
+export const useWatchAlignmentEndowmentVaultImpairmentRealizedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
-    eventName: 'Harvested',
+    eventName: 'ImpairmentRealized',
   })
 
 /**
@@ -13144,12 +13585,21 @@ export const useWatchAlignmentEndowmentVaultOwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"PrincipalWithdrawn"`
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"PrincipalDeposited"`
  */
-export const useWatchAlignmentEndowmentVaultPrincipalWithdrawnEvent =
+export const useWatchAlignmentEndowmentVaultPrincipalDepositedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
-    eventName: 'PrincipalWithdrawn',
+    eventName: 'PrincipalDeposited',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"PrincipalVested"`
+ */
+export const useWatchAlignmentEndowmentVaultPrincipalVestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'PrincipalVested',
   })
 
 /**
@@ -13159,6 +13609,24 @@ export const useWatchAlignmentEndowmentVaultVaultPolicyUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentEndowmentVaultAbi,
     eventName: 'VaultPolicyUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"YieldClaimed"`
+ */
+export const useWatchAlignmentEndowmentVaultYieldClaimedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'YieldClaimed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `eventName` set to `"YieldDistributed"`
+ */
+export const useWatchAlignmentEndowmentVaultYieldDistributedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentEndowmentVaultAbi,
+    eventName: 'YieldDistributed',
   })
 
 /**
@@ -13196,6 +13664,15 @@ export const useReadAlignmentRegistryV1CommunityPayout =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"getAcquireRoute"`
+ */
+export const useReadAlignmentRegistryV1GetAcquireRoute =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'getAcquireRoute',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"getAlignmentTarget"`
  */
 export const useReadAlignmentRegistryV1GetAlignmentTarget =
@@ -13229,6 +13706,24 @@ export const useReadAlignmentRegistryV1GetCommunityPayout =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'getCommunityPayout',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"getReferencePool"`
+ */
+export const useReadAlignmentRegistryV1GetReferencePool =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'getReferencePool',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"hasActiveTarget"`
+ */
+export const useReadAlignmentRegistryV1HasActiveTarget =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'hasActiveTarget',
   })
 
 /**
@@ -13301,6 +13796,15 @@ export const useReadAlignmentRegistryV1TokenToTargetIds =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'tokenToTargetIds',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"weth"`
+ */
+export const useReadAlignmentRegistryV1Weth =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'weth',
   })
 
 /**
@@ -13392,12 +13896,30 @@ export const useWriteAlignmentRegistryV1RequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setAcquireRoute"`
+ */
+export const useWriteAlignmentRegistryV1SetAcquireRoute =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'setAcquireRoute',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setCommunityPayout"`
  */
 export const useWriteAlignmentRegistryV1SetCommunityPayout =
   /*#__PURE__*/ createUseWriteContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'setCommunityPayout',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setReferencePool"`
+ */
+export const useWriteAlignmentRegistryV1SetReferencePool =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'setReferencePool',
   })
 
 /**
@@ -13515,12 +14037,30 @@ export const useSimulateAlignmentRegistryV1RequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setAcquireRoute"`
+ */
+export const useSimulateAlignmentRegistryV1SetAcquireRoute =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'setAcquireRoute',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setCommunityPayout"`
  */
 export const useSimulateAlignmentRegistryV1SetCommunityPayout =
   /*#__PURE__*/ createUseSimulateContract({
     abi: alignmentRegistryV1Abi,
     functionName: 'setCommunityPayout',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `functionName` set to `"setReferencePool"`
+ */
+export const useSimulateAlignmentRegistryV1SetReferencePool =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: alignmentRegistryV1Abi,
+    functionName: 'setReferencePool',
   })
 
 /**
@@ -13555,6 +14095,15 @@ export const useSimulateAlignmentRegistryV1UpgradeToAndCall =
  */
 export const useWatchAlignmentRegistryV1Event =
   /*#__PURE__*/ createUseWatchContractEvent({ abi: alignmentRegistryV1Abi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `eventName` set to `"AcquireRouteSet"`
+ */
+export const useWatchAlignmentRegistryV1AcquireRouteSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentRegistryV1Abi,
+    eventName: 'AcquireRouteSet',
+  })
 
 /**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `eventName` set to `"AlignmentTargetDeactivated"`
@@ -13635,6 +14184,15 @@ export const useWatchAlignmentRegistryV1OwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: alignmentRegistryV1Abi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link alignmentRegistryV1Abi}__ and `eventName` set to `"ReferencePoolSet"`
+ */
+export const useWatchAlignmentRegistryV1ReferencePoolSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: alignmentRegistryV1Abi,
+    eventName: 'ReferencePoolSet',
   })
 
 /**
@@ -14223,6 +14781,15 @@ export const useReadComponentRegistryIsApprovedComponent =
   /*#__PURE__*/ createUseReadContract({
     abi: componentRegistryAbi,
     functionName: 'isApprovedComponent',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link componentRegistryAbi}__ and `functionName` set to `"isApprovedForTag"`
+ */
+export const useReadComponentRegistryIsApprovedForTag =
+  /*#__PURE__*/ createUseReadContract({
+    abi: componentRegistryAbi,
+    functionName: 'isApprovedForTag',
   })
 
 /**
@@ -16963,6 +17530,15 @@ export const useReadErc404BondingInstanceStakingModule =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'stakingModule',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"stakingReserve"`
+ */
+export const useReadErc404BondingInstanceStakingReserve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'stakingReserve',
   })
 
 /**
@@ -20800,21 +21376,12 @@ export const useReadIAlignmentRegistryDup = /*#__PURE__*/ createUseReadContract(
 )
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link iAlignmentRegistryDupAbi}__ and `functionName` set to `"isAlignmentTargetActive"`
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iAlignmentRegistryDupAbi}__ and `functionName` set to `"hasActiveTarget"`
  */
-export const useReadIAlignmentRegistryDupIsAlignmentTargetActive =
+export const useReadIAlignmentRegistryDupHasActiveTarget =
   /*#__PURE__*/ createUseReadContract({
     abi: iAlignmentRegistryDupAbi,
-    functionName: 'isAlignmentTargetActive',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link iAlignmentRegistryDupAbi}__ and `functionName` set to `"tokenToTargetIds"`
- */
-export const useReadIAlignmentRegistryDupTokenToTargetIds =
-  /*#__PURE__*/ createUseReadContract({
-    abi: iAlignmentRegistryDupAbi,
-    functionName: 'tokenToTargetIds',
+    functionName: 'hasActiveTarget',
   })
 
 /**
@@ -21014,6 +21581,14 @@ export const useReadIerc404BalanceBalanceOf =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404BalanceAbi}__ and `functionName` set to `"unit"`
+ */
+export const useReadIerc404BalanceUnit = /*#__PURE__*/ createUseReadContract({
+  abi: ierc404BalanceAbi,
+  functionName: 'unit',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404StakingAbi}__
  */
 export const useReadIerc404Staking = /*#__PURE__*/ createUseReadContract({
@@ -21070,21 +21645,6 @@ export const useReadIFeaturedQueueManagerGetRentalInfo =
   /*#__PURE__*/ createUseReadContract({
     abi: iFeaturedQueueManagerAbi,
     functionName: 'getRentalInfo',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link iGlobalMessageRegistryAbi}__
- */
-export const useReadIGlobalMessageRegistry =
-  /*#__PURE__*/ createUseReadContract({ abi: iGlobalMessageRegistryAbi })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link iGlobalMessageRegistryAbi}__ and `functionName` set to `"messageCount"`
- */
-export const useReadIGlobalMessageRegistryMessageCount =
-  /*#__PURE__*/ createUseReadContract({
-    abi: iGlobalMessageRegistryAbi,
-    functionName: 'messageCount',
   })
 
 /**
@@ -21230,6 +21790,22 @@ export const useReadIStakedBalanceReaderStakedBalance =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStakingTotalsAbi}__
+ */
+export const useReadIStakingTotals = /*#__PURE__*/ createUseReadContract({
+  abi: iStakingTotalsAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStakingTotalsAbi}__ and `functionName` set to `"totalStaked"`
+ */
+export const useReadIStakingTotalsTotalStaked =
+  /*#__PURE__*/ createUseReadContract({
+    abi: iStakingTotalsAbi,
+    functionName: 'totalStaked',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStataTokenAbi}__
  */
 export const useReadIStataToken = /*#__PURE__*/ createUseReadContract({
@@ -21341,6 +21917,36 @@ export const useReadITierInstanceStakingModule =
     abi: iTierInstanceAbi,
     functionName: 'stakingModule',
   })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3PoolAbi}__
+ */
+export const useReadIUniswapV3Pool = /*#__PURE__*/ createUseReadContract({
+  abi: iUniswapV3PoolAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3PoolAbi}__ and `functionName` set to `"observe"`
+ */
+export const useReadIUniswapV3PoolObserve = /*#__PURE__*/ createUseReadContract(
+  { abi: iUniswapV3PoolAbi, functionName: 'observe' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3PoolAbi}__ and `functionName` set to `"token0"`
+ */
+export const useReadIUniswapV3PoolToken0 = /*#__PURE__*/ createUseReadContract({
+  abi: iUniswapV3PoolAbi,
+  functionName: 'token0',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link iUniswapV3PoolAbi}__ and `functionName` set to `"token1"`
+ */
+export const useReadIUniswapV3PoolToken1 = /*#__PURE__*/ createUseReadContract({
+  abi: iUniswapV3PoolAbi,
+  functionName: 'token1',
+})
 
 /**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iwethAbi}__
@@ -21840,6 +22446,15 @@ export const useReadMasterRegistryV1GetVaultInfo =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link masterRegistryV1Abi}__ and `functionName` set to `"instanceByNameHash"`
+ */
+export const useReadMasterRegistryV1InstanceByNameHash =
+  /*#__PURE__*/ createUseReadContract({
+    abi: masterRegistryV1Abi,
+    functionName: 'instanceByNameHash',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link masterRegistryV1Abi}__ and `functionName` set to `"instanceInfo"`
  */
 export const useReadMasterRegistryV1InstanceInfo =
@@ -21961,6 +22576,15 @@ export const useReadMasterRegistryV1RegisteredVaults =
   /*#__PURE__*/ createUseReadContract({
     abi: masterRegistryV1Abi,
     functionName: 'registeredVaults',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link masterRegistryV1Abi}__ and `functionName` set to `"resolveName"`
+ */
+export const useReadMasterRegistryV1ResolveName =
+  /*#__PURE__*/ createUseReadContract({
+    abi: masterRegistryV1Abi,
+    functionName: 'resolveName',
   })
 
 /**
@@ -23675,30 +24299,12 @@ export const useReadProtocolTreasuryV1GetBalance =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"getPolPosition"`
- */
-export const useReadProtocolTreasuryV1GetPolPosition =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'getPolPosition',
-  })
-
-/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"getRevenueBySource"`
  */
 export const useReadProtocolTreasuryV1GetRevenueBySource =
   /*#__PURE__*/ createUseReadContract({
     abi: protocolTreasuryV1Abi,
     functionName: 'getRevenueBySource',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"masterRegistry"`
- */
-export const useReadProtocolTreasuryV1MasterRegistry =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'masterRegistry',
   })
 
 /**
@@ -23729,39 +24335,12 @@ export const useReadProtocolTreasuryV1OwnershipHandoverExpiresAt =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"polInstanceCount"`
- */
-export const useReadProtocolTreasuryV1PolInstanceCount =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'polInstanceCount',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"polInstances"`
- */
-export const useReadProtocolTreasuryV1PolInstances =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'polInstances',
-  })
-
-/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"proxiableUUID"`
  */
 export const useReadProtocolTreasuryV1ProxiableUuid =
   /*#__PURE__*/ createUseReadContract({
     abi: protocolTreasuryV1Abi,
     functionName: 'proxiableUUID',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"revenueConductor"`
- */
-export const useReadProtocolTreasuryV1RevenueConductor =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'revenueConductor',
   })
 
 /**
@@ -23783,24 +24362,6 @@ export const useReadProtocolTreasuryV1TotalWithdrawn =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"v4PoolManager"`
- */
-export const useReadProtocolTreasuryV1V4PoolManager =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'v4PoolManager',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"weth"`
- */
-export const useReadProtocolTreasuryV1Weth =
-  /*#__PURE__*/ createUseReadContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'weth',
-  })
-
-/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__
  */
 export const useWriteProtocolTreasuryV1 = /*#__PURE__*/ createUseWriteContract({
@@ -23814,15 +24375,6 @@ export const useWriteProtocolTreasuryV1CancelOwnershipHandover =
   /*#__PURE__*/ createUseWriteContract({
     abi: protocolTreasuryV1Abi,
     functionName: 'cancelOwnershipHandover',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"claimPOLFees"`
- */
-export const useWriteProtocolTreasuryV1ClaimPolFees =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'claimPOLFees',
   })
 
 /**
@@ -23853,15 +24405,6 @@ export const useWriteProtocolTreasuryV1Initialize =
   })
 
 /**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"receivePOL"`
- */
-export const useWriteProtocolTreasuryV1ReceivePol =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'receivePOL',
-  })
-
-/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"renounceOwnership"`
  */
 export const useWriteProtocolTreasuryV1RenounceOwnership =
@@ -23880,66 +24423,12 @@ export const useWriteProtocolTreasuryV1RequestOwnershipHandover =
   })
 
 /**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"routeToDAO"`
- */
-export const useWriteProtocolTreasuryV1RouteToDao =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'routeToDAO',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setMasterRegistry"`
- */
-export const useWriteProtocolTreasuryV1SetMasterRegistry =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setMasterRegistry',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setRevenueConductor"`
- */
-export const useWriteProtocolTreasuryV1SetRevenueConductor =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setRevenueConductor',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setV4PoolManager"`
- */
-export const useWriteProtocolTreasuryV1SetV4PoolManager =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setV4PoolManager',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setWETH"`
- */
-export const useWriteProtocolTreasuryV1SetWeth =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setWETH',
-  })
-
-/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteProtocolTreasuryV1TransferOwnership =
   /*#__PURE__*/ createUseWriteContract({
     abi: protocolTreasuryV1Abi,
     functionName: 'transferOwnership',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"unlockCallback"`
- */
-export const useWriteProtocolTreasuryV1UnlockCallback =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'unlockCallback',
   })
 
 /**
@@ -23994,15 +24483,6 @@ export const useSimulateProtocolTreasuryV1CancelOwnershipHandover =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"claimPOLFees"`
- */
-export const useSimulateProtocolTreasuryV1ClaimPolFees =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'claimPOLFees',
-  })
-
-/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"completeOwnershipHandover"`
  */
 export const useSimulateProtocolTreasuryV1CompleteOwnershipHandover =
@@ -24030,15 +24510,6 @@ export const useSimulateProtocolTreasuryV1Initialize =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"receivePOL"`
- */
-export const useSimulateProtocolTreasuryV1ReceivePol =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'receivePOL',
-  })
-
-/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"renounceOwnership"`
  */
 export const useSimulateProtocolTreasuryV1RenounceOwnership =
@@ -24057,66 +24528,12 @@ export const useSimulateProtocolTreasuryV1RequestOwnershipHandover =
   })
 
 /**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"routeToDAO"`
- */
-export const useSimulateProtocolTreasuryV1RouteToDao =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'routeToDAO',
-  })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setMasterRegistry"`
- */
-export const useSimulateProtocolTreasuryV1SetMasterRegistry =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setMasterRegistry',
-  })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setRevenueConductor"`
- */
-export const useSimulateProtocolTreasuryV1SetRevenueConductor =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setRevenueConductor',
-  })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setV4PoolManager"`
- */
-export const useSimulateProtocolTreasuryV1SetV4PoolManager =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setV4PoolManager',
-  })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"setWETH"`
- */
-export const useSimulateProtocolTreasuryV1SetWeth =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'setWETH',
-  })
-
-/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateProtocolTreasuryV1TransferOwnership =
   /*#__PURE__*/ createUseSimulateContract({
     abi: protocolTreasuryV1Abi,
     functionName: 'transferOwnership',
-  })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `functionName` set to `"unlockCallback"`
- */
-export const useSimulateProtocolTreasuryV1UnlockCallback =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: protocolTreasuryV1Abi,
-    functionName: 'unlockCallback',
   })
 
 /**
@@ -24189,15 +24606,6 @@ export const useWatchProtocolTreasuryV1EthWithdrawnEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"MasterRegistryUpdated"`
- */
-export const useWatchProtocolTreasuryV1MasterRegistryUpdatedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'MasterRegistryUpdated',
-  })
-
-/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
  */
 export const useWatchProtocolTreasuryV1OwnershipHandoverCanceledEvent =
@@ -24225,33 +24633,6 @@ export const useWatchProtocolTreasuryV1OwnershipTransferredEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"POLFeesCollected"`
- */
-export const useWatchProtocolTreasuryV1PolFeesCollectedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'POLFeesCollected',
-  })
-
-/**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"POLPositionDeployed"`
- */
-export const useWatchProtocolTreasuryV1PolPositionDeployedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'POLPositionDeployed',
-  })
-
-/**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"RevenueConductorUpdated"`
- */
-export const useWatchProtocolTreasuryV1RevenueConductorUpdatedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'RevenueConductorUpdated',
-  })
-
-/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"RevenueReceived"`
  */
 export const useWatchProtocolTreasuryV1RevenueReceivedEvent =
@@ -24261,39 +24642,12 @@ export const useWatchProtocolTreasuryV1RevenueReceivedEvent =
   })
 
 /**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"RevenueRouted"`
- */
-export const useWatchProtocolTreasuryV1RevenueRoutedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'RevenueRouted',
-  })
-
-/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"Upgraded"`
  */
 export const useWatchProtocolTreasuryV1UpgradedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: protocolTreasuryV1Abi,
     eventName: 'Upgraded',
-  })
-
-/**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"V4PoolManagerUpdated"`
- */
-export const useWatchProtocolTreasuryV1V4PoolManagerUpdatedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'V4PoolManagerUpdated',
-  })
-
-/**
- * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link protocolTreasuryV1Abi}__ and `eventName` set to `"WETHUpdated"`
- */
-export const useWatchProtocolTreasuryV1WethUpdatedEvent =
-  /*#__PURE__*/ createUseWatchContractEvent({
-    abi: protocolTreasuryV1Abi,
-    eventName: 'WETHUpdated',
   })
 
 /**
@@ -24355,15 +24709,6 @@ export const useReadQueryAggregatorGetProjectCardsBatch =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'getProjectCardsBatch',
-  })
-
-/**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"globalMessageRegistry"`
- */
-export const useReadQueryAggregatorGlobalMessageRegistry =
-  /*#__PURE__*/ createUseReadContract({
-    abi: queryAggregatorAbi,
-    functionName: 'globalMessageRegistry',
   })
 
 /**
@@ -24598,6 +24943,15 @@ export const useWatchQueryAggregatorOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: queryAggregatorAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link queryAggregatorAbi}__ and `eventName` set to `"RegistriesUpdated"`
+ */
+export const useWatchQueryAggregatorRegistriesUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: queryAggregatorAbi,
+    eventName: 'RegistriesUpdated',
   })
 
 /**
