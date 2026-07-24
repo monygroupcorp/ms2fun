@@ -7,7 +7,7 @@
  *
  * Actions (see src/generated/contracts.ts for exact arg shapes — confirmed at build time):
  *   registerFactory(address factoryAddress, string contractType, string title, string displayTitle,
- *                    string metadataURI, bytes32[] features)  + deactivateFactory(address)
+ *                    string metadataURI, bytes32[] features, address creator)  + deactivateFactory(address)
  *   registerVault(address vault, address creator, string name, string metadataURI, uint256 targetId)
  *                    + deactivateVault(address)
  *   revokeInstance(address instance)  (censorship)  + updateInstanceMetadata(address instance, string uri)
@@ -72,14 +72,17 @@ function RegisterFactoryRow() {
   const [displayTitle, setDisplayTitle] = useState('')
   const [metadataURI, setMetadataURI] = useState('')
   const [featuresRaw, setFeaturesRaw] = useState('')
+  const [creator, setCreator] = useState('')
 
   const addr = factory.trim()
+  const creatorAddr = creator.trim()
   const features = parseFeatures(featuresRaw)
   const canSubmit =
     isAddress(addr) &&
     contractType.trim() !== '' &&
     title.trim() !== '' &&
     displayTitle.trim() !== '' &&
+    isAddress(creatorAddr) &&
     features !== undefined &&
     !tx.isBusy
 
@@ -150,10 +153,20 @@ function RegisterFactoryRow() {
           aria-label="features"
           data-testid="admin-register-factory-features"
         />
+        <input
+          className={styles.input}
+          type="text"
+          value={creator}
+          onChange={(e) => setCreator(e.target.value)}
+          placeholder="0x… creator address"
+          disabled={tx.isBusy}
+          aria-label="creator address"
+          data-testid="admin-register-factory-creator"
+        />
         <TxButton
           state={tx.state}
           onClick={() => {
-            if (!isAddress(addr) || features === undefined) return
+            if (!isAddress(addr) || !isAddress(creatorAddr) || features === undefined) return
             tx.send({
               address: REGISTRY,
               abi: masterRegistryV1Abi,
@@ -165,6 +178,7 @@ function RegisterFactoryRow() {
                 displayTitle.trim(),
                 metadataURI.trim(),
                 features,
+                creatorAddr,
               ],
               chainId: forkChainId,
             })
@@ -179,6 +193,7 @@ function RegisterFactoryRow() {
             setDisplayTitle('')
             setMetadataURI('')
             setFeaturesRaw('')
+            setCreator('')
           }}
           disabled={!canSubmit}
           className="btn btn-primary"

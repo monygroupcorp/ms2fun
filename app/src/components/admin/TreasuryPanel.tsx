@@ -1,7 +1,11 @@
 /**
- * TreasuryPanel (W-K) — protocol-admin surface for ProtocolTreasuryV1. Shows the ETH balance,
- * revenue-by-source, POL position count + conductor, and the owner-only treasury actions
- * (withdraw ETH/ERC20/ERC721, set revenue conductor). Gated on the treasury `owner()`.
+ * TreasuryPanel (W-K) — protocol-admin surface for ProtocolTreasuryV1. Shows the ETH balance and
+ * revenue-by-source, plus the owner-only treasury actions (withdraw ETH/ERC20/ERC721). Gated on the
+ * treasury `owner()`.
+ *
+ * The DAO revenue-conductor and POL-instance concepts were retired on-chain (the getters were deleted
+ * and their storage moved to `deprecated_*` slots in ProtocolTreasuryV1), so the conductor/POL reads
+ * and the set-revenue-conductor action were removed here (noesis-083 bindings reconciliation).
  *
  * Built on the Phase-0 primitives (useOwnerGate + AdminSection/ActionRow + useTxAction/TxButton +
  * AmountField/parseAmount), so it matches the other admin panels.
@@ -12,8 +16,6 @@ import { useReadContracts } from 'wagmi'
 import {
   protocolTreasuryV1Abi,
   useReadProtocolTreasuryV1GetBalance,
-  useReadProtocolTreasuryV1PolInstanceCount,
-  useReadProtocolTreasuryV1RevenueConductor,
 } from '../../generated/contracts'
 import { forkAddresses, forkChainId } from '../../lib/addresses'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
@@ -22,7 +24,6 @@ import { parseAmount } from '../ui/parseAmount'
 import { TxButton } from '../ui/TxButton'
 import { useTxAction } from '../ui/useTxAction'
 import { useOwnerGate } from '../ui/useOwnerGate'
-import { truncateAddress } from '../../lib/format'
 import styles from './TreasuryPanel.module.css'
 
 const TREASURY = forkAddresses.ProtocolTreasuryV1
@@ -37,7 +38,6 @@ export function TreasuryPanel() {
       <WithdrawEthRow />
       <WithdrawErc20Row />
       <WithdrawErc721Row />
-      <ConductorRow />
     </AdminSection>
   )
 }
@@ -46,14 +46,6 @@ export function TreasuryPanel() {
 
 function RevenueReadout() {
   const { data: balance } = useReadProtocolTreasuryV1GetBalance({
-    address: TREASURY,
-    chainId: forkChainId,
-  })
-  const { data: polCount } = useReadProtocolTreasuryV1PolInstanceCount({
-    address: TREASURY,
-    chainId: forkChainId,
-  })
-  const { data: conductor } = useReadProtocolTreasuryV1RevenueConductor({
     address: TREASURY,
     chainId: forkChainId,
   })
@@ -75,14 +67,6 @@ function RevenueReadout() {
         <span className={styles.statValue}>
           {balance !== undefined ? `${formatEther(balance)} ETH` : '…'}
         </span>
-      </div>
-      <div className={styles.statRow}>
-        <span className={styles.statLabel}>POL positions</span>
-        <span className={styles.statValue}>{polCount?.toString() ?? '…'}</span>
-      </div>
-      <div className={styles.statRow}>
-        <span className={styles.statLabel}>revenue conductor</span>
-        <span className={styles.statValue}>{conductor ? truncateAddress(conductor) : 'unset'}</span>
       </div>
       <div className={styles.revenueTable}>
         <span className={styles.revenueHead}>revenue by source — received / withdrawn</span>
@@ -281,51 +265,6 @@ function WithdrawErc721Row() {
         disabled={!valid}
         className="btn btn-secondary"
         testId="admin-treasury-withdraw-erc721"
-      />
-    </ActionRow>
-  )
-}
-
-// ── Set revenue conductor ────────────────────────────────────────────────────
-
-function ConductorRow() {
-  const [addr, setAddr] = useState('')
-  const tx = useTxAction()
-  const valid = isAddress(addr.trim())
-
-  return (
-    <ActionRow
-      label="set revenue conductor"
-      hint="the agent allowed to route revenue to the DAO safe"
-    >
-      {tx.state !== 'success' && (
-        <input
-          className={styles.input}
-          value={addr}
-          onChange={(e) => setAddr(e.target.value)}
-          placeholder="0x… conductor"
-          aria-label="revenue conductor"
-          disabled={tx.isBusy}
-        />
-      )}
-      <TxButton
-        state={tx.state}
-        onClick={() =>
-          valid &&
-          tx.send({
-            address: TREASURY,
-            abi: protocolTreasuryV1Abi,
-            functionName: 'setRevenueConductor',
-            args: [addr.trim() as `0x${string}`],
-            chainId: forkChainId,
-          })
-        }
-        label="set conductor"
-        successLabel="conductor set — confirmed."
-        onReset={tx.reset}
-        disabled={!valid}
-        className="btn btn-secondary"
-        testId="admin-treasury-set-conductor"
       />
     </ActionRow>
   )

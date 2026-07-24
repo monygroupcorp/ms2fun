@@ -7,8 +7,38 @@
  */
 import { useMemo } from 'react'
 import { useReadContracts } from 'wagmi'
-import { alignmentEndowmentVaultAbi } from '../../generated/contracts'
 import { forkChainId } from '../addresses'
+
+/**
+ * Minimal ABI slice for the vaults-index multicall. The full `alignmentEndowmentVaultAbi` (now enlarged
+ * with the vest/`execute` surface) trips TS2589 ("type instantiation is excessively deep") when
+ * `useReadContracts` infers per-call return types over hundreds of fragments. We only read three view
+ * functions here, so a three-entry const ABI keeps inference shallow while staying fully typed (no
+ * `@ts-expect-error`, no `any`). Selectors verified against contracts/out/AlignmentEndowmentVault.
+ */
+const vaultSummaryAbi = [
+  {
+    type: 'function',
+    name: 'vaultType',
+    inputs: [],
+    outputs: [{ type: 'string' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    name: 'totalPrincipalLocked',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'accumulatedFees',
+    inputs: [],
+    outputs: [{ type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
 
 export interface VaultSummary {
   vaultType: string | undefined
@@ -30,19 +60,19 @@ export function useVaultsSummary(addresses: readonly `0x${string}`[]): {
           [
             {
               address,
-              abi: alignmentEndowmentVaultAbi,
+              abi: vaultSummaryAbi,
               functionName: 'vaultType',
               chainId: forkChainId,
             },
             {
               address,
-              abi: alignmentEndowmentVaultAbi,
-              functionName: 'totalPrincipal',
+              abi: vaultSummaryAbi,
+              functionName: 'totalPrincipalLocked',
               chainId: forkChainId,
             },
             {
               address,
-              abi: alignmentEndowmentVaultAbi,
+              abi: vaultSummaryAbi,
               functionName: 'accumulatedFees',
               chainId: forkChainId,
             },
