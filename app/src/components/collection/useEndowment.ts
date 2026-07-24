@@ -5,25 +5,26 @@
 import { useCallback } from 'react'
 import {
   useReadAlignmentEndowmentVaultVaultType,
-  useReadAlignmentEndowmentVaultPrincipal,
+  useReadAlignmentEndowmentVaultPrincipalOf,
   useReadAlignmentEndowmentVaultDepositTime,
   useReadAlignmentEndowmentVaultAccumulatedFees,
-  useReadAlignmentEndowmentVaultTotalPrincipal,
+  useReadAlignmentEndowmentVaultTotalPrincipalLocked,
   useReadAlignmentEndowmentVaultCommunityPayout,
-  useReadAlignmentEndowmentVaultMaturityDuration,
-  useReadAlignmentEndowmentVaultCalculateClaimableAmount,
+  useReadAlignmentEndowmentVaultVestDuration,
 } from '../../generated/contracts'
 import { forkChainId } from '../../lib/addresses'
 
 export interface EndowmentState {
   isEndowment: boolean
+  /** This benefactor's live escrowed (pre-vest) principal (`principalOf`); drops to 0 once vested. */
   principal: bigint
   depositTime: bigint
+  /** Vest completion time = `depositTime + VEST_DURATION`; escrowed principal vests to the target then. */
   maturity: bigint
+  /** True once the vest window has elapsed (principal has vested / is vestable to the target). */
   matured: boolean
   yield: bigint
-  /** Gross principal claimable via withdrawPrincipal — 0 while locked, gross at maturity. */
-  claimable: bigint
+  /** Live escrowed principal across all benefactors (`totalPrincipalLocked`). */
   totalPrincipal: bigint
   communityPayout: `0x${string}` | undefined
   isPending: boolean
@@ -50,7 +51,7 @@ export function useEndowment(
     data: principal,
     isPending: principalPending,
     refetch: refetchPrincipal,
-  } = useReadAlignmentEndowmentVaultPrincipal({
+  } = useReadAlignmentEndowmentVaultPrincipalOf({
     ...(vault ? { address: vault } : {}),
     chainId: forkChainId,
     args: [benefactor ?? ZERO_ADDRESS],
@@ -76,7 +77,7 @@ export function useEndowment(
   })
 
   const { data: totalPrincipal, isPending: totalPending } =
-    useReadAlignmentEndowmentVaultTotalPrincipal({
+    useReadAlignmentEndowmentVaultTotalPrincipalLocked({
       ...(vault ? { address: vault } : {}),
       chainId: forkChainId,
       query: { enabled: enabled && isEndowment },
@@ -89,35 +90,23 @@ export function useEndowment(
       query: { enabled: enabled && isEndowment },
     })
 
-  const { data: maturityDuration, isPending: maturityPending } =
-    useReadAlignmentEndowmentVaultMaturityDuration({
+  const { data: vestDuration, isPending: maturityPending } =
+    useReadAlignmentEndowmentVaultVestDuration({
       ...(vault ? { address: vault } : {}),
       chainId: forkChainId,
       query: { enabled: enabled && isEndowment },
     })
 
-  const {
-    data: claimable,
-    isPending: claimablePending,
-    refetch: refetchClaimable,
-  } = useReadAlignmentEndowmentVaultCalculateClaimableAmount({
-    ...(vault ? { address: vault } : {}),
-    chainId: forkChainId,
-    args: [benefactor ?? ZERO_ADDRESS],
-    query: { enabled: enabled && !!benefactor && isEndowment },
-  })
-
   const refetch = useCallback(() => {
     void refetchPrincipal()
     void refetchFees()
-    void refetchClaimable()
-  }, [refetchPrincipal, refetchFees, refetchClaimable])
+  }, [refetchPrincipal, refetchFees])
 
   const resolvedPrincipal = principal ?? 0n
   const resolvedDepositTime = depositTime ?? 0n
-  const resolvedMaturityDuration = maturityDuration ?? 0n
+  const resolvedVestDuration = vestDuration ?? 0n
 
-  const maturity = resolvedDepositTime > 0n ? resolvedDepositTime + resolvedMaturityDuration : 0n
+  const maturity = resolvedDepositTime > 0n ? resolvedDepositTime + resolvedVestDuration : 0n
 
   const nowSeconds = BigInt(Math.floor(Date.now() / 1000))
   const matured = resolvedDepositTime > 0n && nowSeconds >= maturity
@@ -130,8 +119,7 @@ export function useEndowment(
         feesPending ||
         totalPending ||
         communityPending ||
-        maturityPending ||
-        claimablePending))
+        maturityPending))
 
   return {
     isEndowment,
@@ -140,7 +128,6 @@ export function useEndowment(
     maturity,
     matured,
     yield: accumulatedFees ?? 0n,
-    claimable: claimable ?? 0n,
     totalPrincipal: totalPrincipal ?? 0n,
     communityPayout: communityPayout ?? undefined,
     isPending,
