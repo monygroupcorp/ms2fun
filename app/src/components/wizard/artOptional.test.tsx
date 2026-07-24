@@ -11,7 +11,7 @@ afterEach(cleanup)
 // The concepts wired onto the bespoke (non-SchemaForm) surfaces by noesis-044. Each must resolve to a
 // real /learn concept (dead-link guard) and render as an anchor to its doc.
 const WIRED_SLUGS = [
-  'alignment-vault', // AlignmentTargetPicker + vaultSlot
+  'alignment-vault', // AlignmentTargetPicker
   'withholding-art', // CollectionMetaForm cover
   'onchain-image-cost', // CollectionMetaForm cover
   'cover-vs-banner', // CollectionMetaForm banner
