@@ -72,6 +72,11 @@ contract DeployBondEscrowTest is Test {
     }
 
     function _post(address inst, address who, uint256 amount) internal {
+        // Keep bondAmount in lockstep with the posted value so the exact-value guard
+        // (msg.value == bondAmount) is satisfied. Set-in-_post (rather than setUp) preserves
+        // the constructor test's default `bondAmount == 0` assertion.
+        vm.prank(owner);
+        escrow.setBondAmount(amount);
         vm.prank(factory);
         escrow.postBond{ value: amount }(inst, who);
     }
@@ -135,6 +140,33 @@ contract DeployBondEscrowTest is Test {
         vm.prank(factory);
         vm.expectRevert(DeployBondEscrow.BondAlreadyPosted.selector);
         escrow.postBond{ value: BOND }(address(instance), creator);
+    }
+
+    // ── postBond exact-value guard (msg.value == bondAmount) ─────────────────
+
+    function test_postBond_revertsOnOverpay() public {
+        vm.prank(owner);
+        escrow.setBondAmount(BOND);
+        vm.prank(factory);
+        vm.expectRevert(DeployBondEscrow.IncorrectBondValue.selector);
+        escrow.postBond{ value: BOND + 1 }(address(instance), creator);
+    }
+
+    function test_postBond_revertsOnUnderpay() public {
+        vm.prank(owner);
+        escrow.setBondAmount(BOND);
+        vm.prank(factory);
+        vm.expectRevert(DeployBondEscrow.IncorrectBondValue.selector);
+        escrow.postBond{ value: BOND - 1 }(address(instance), creator);
+    }
+
+    function test_postBond_exactValueSucceeds() public {
+        _post(address(instance), creator, BOND);
+        (address c, uint256 amt,, bool settled) = escrow.bonds(address(instance));
+        assertEq(c, creator);
+        assertEq(amt, BOND);
+        assertFalse(settled);
+        assertEq(address(escrow).balance, BOND);
     }
 
     // ── refund ────────────────────────────────────────────────────────────

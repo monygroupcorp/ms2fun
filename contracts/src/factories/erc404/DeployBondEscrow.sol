@@ -30,6 +30,7 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     error InvalidAddress();
     error OnlyFactory();
     error NoBondValue();
+    error IncorrectBondValue();
     error BondAlreadyPosted();
     error NoBond();
     error BondAlreadySettled();
@@ -94,6 +95,7 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         if (msg.sender != factory) revert OnlyFactory();
         if (instance == address(0) || creator == address(0)) revert InvalidAddress();
         if (msg.value == 0) revert NoBondValue();
+        if (msg.value != bondAmount) revert IncorrectBondValue();
         if (bonds[instance].createdAt != 0) revert BondAlreadyPosted();
 
         bonds[instance] =
