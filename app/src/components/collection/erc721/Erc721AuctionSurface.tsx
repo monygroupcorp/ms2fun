@@ -5,19 +5,20 @@
  */
 import { useAccount } from 'wagmi'
 import { useReadErc721AuctionInstanceOwner } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { AuctionCard } from './AuctionCard'
 import { useAuctions } from './useAuctions'
 import { useNowSec } from './useNowSec'
 import styles from './Erc721Auction.module.css'
 
 export function Erc721AuctionSurface({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data, isPending, isError, refetch } = useAuctions(instance)
   const nowSec = useNowSec()
   const { address: connected } = useAccount()
   const { data: owner } = useReadErc721AuctionInstanceOwner({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const isOwner = !!connected && !!owner && connected.toLowerCase() === owner.toLowerCase()
 

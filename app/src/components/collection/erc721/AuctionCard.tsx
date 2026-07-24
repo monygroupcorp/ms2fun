@@ -15,7 +15,7 @@ import {
   useWriteErc721AuctionInstanceReclaimUnsold,
   useWriteErc721AuctionInstanceSettleAuction,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { fetchJson } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
@@ -162,6 +162,7 @@ function BidForm({
   refetch: () => void
 }) {
   const { isConnected } = useAccount()
+  const chainId = useCollectionChainId()
   const min = minNextBid({
     minBid: auction.minBid,
     highBid: auction.highBid,
@@ -198,7 +199,7 @@ function BidForm({
     if (amountWei === undefined || amountWei < min) return
     writeContract({
       address: instance,
-      chainId: forkChainId,
+      chainId,
       args: [Number(auction.tokenId), '0x'],
       value: amountWei,
     })
@@ -275,6 +276,7 @@ function SettleButton({
     error: writeErrObj,
     reset,
   } = useWriteErc721AuctionInstanceSettleAuction()
+  const chainId = useCollectionChainId()
   const {
     isLoading,
     isSuccess,
@@ -306,9 +308,7 @@ function SettleButton({
       <p className={styles.note}>auction ended — ready to settle</p>
       <button
         className="btn btn-primary"
-        onClick={() =>
-          writeContract({ address: instance, chainId: forkChainId, args: [Number(tokenId)] })
-        }
+        onClick={() => writeContract({ address: instance, chainId, args: [Number(tokenId)] })}
         disabled={isBusy}
         data-testid="erc721-settle"
       >
@@ -340,6 +340,7 @@ function ReclaimButton({
     error: writeErrObj,
     reset,
   } = useWriteErc721AuctionInstanceReclaimUnsold()
+  const chainId = useCollectionChainId()
   const {
     isLoading,
     isSuccess,
@@ -371,9 +372,7 @@ function ReclaimButton({
       <p className={styles.note}>ended with no bids — reclaim the piece</p>
       <button
         className="btn btn-secondary"
-        onClick={() =>
-          writeContract({ address: instance, chainId: forkChainId, args: [Number(tokenId)] })
-        }
+        onClick={() => writeContract({ address: instance, chainId, args: [Number(tokenId)] })}
         disabled={isBusy}
         data-testid="erc721-reclaim"
       >

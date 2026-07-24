@@ -12,7 +12,7 @@ import {
   useReadAlignmentEndowmentVaultCommunityPayout,
   useReadAlignmentEndowmentVaultVestDuration,
 } from '../../generated/contracts'
-import { forkChainId } from '../../lib/addresses'
+import { useCollectionChainId } from './useCollectionChain'
 
 export interface EndowmentState {
   isEndowment: boolean
@@ -37,11 +37,12 @@ export function useEndowment(
   vault: `0x${string}` | undefined,
   benefactor: `0x${string}` | undefined,
 ): EndowmentState {
+  const chainId = useCollectionChainId()
   const enabled = !!vault
 
   const { data: vaultType, isPending: typePending } = useReadAlignmentEndowmentVaultVaultType({
     ...(vault ? { address: vault } : {}),
-    chainId: forkChainId,
+    chainId,
     query: { enabled },
   })
 
@@ -53,7 +54,7 @@ export function useEndowment(
     refetch: refetchPrincipal,
   } = useReadAlignmentEndowmentVaultPrincipalOf({
     ...(vault ? { address: vault } : {}),
-    chainId: forkChainId,
+    chainId,
     args: [benefactor ?? ZERO_ADDRESS],
     query: { enabled: enabled && !!benefactor && isEndowment },
   })
@@ -61,7 +62,7 @@ export function useEndowment(
   const { data: depositTime, isPending: depositPending } =
     useReadAlignmentEndowmentVaultDepositTime({
       ...(vault ? { address: vault } : {}),
-      chainId: forkChainId,
+      chainId,
       args: [benefactor ?? ZERO_ADDRESS],
       query: { enabled: enabled && !!benefactor && isEndowment },
     })
@@ -72,28 +73,28 @@ export function useEndowment(
     refetch: refetchFees,
   } = useReadAlignmentEndowmentVaultAccumulatedFees({
     ...(vault ? { address: vault } : {}),
-    chainId: forkChainId,
+    chainId,
     query: { enabled: enabled && isEndowment },
   })
 
   const { data: totalPrincipal, isPending: totalPending } =
     useReadAlignmentEndowmentVaultTotalPrincipalLocked({
       ...(vault ? { address: vault } : {}),
-      chainId: forkChainId,
+      chainId,
       query: { enabled: enabled && isEndowment },
     })
 
   const { data: communityPayout, isPending: communityPending } =
     useReadAlignmentEndowmentVaultCommunityPayout({
       ...(vault ? { address: vault } : {}),
-      chainId: forkChainId,
+      chainId,
       query: { enabled: enabled && isEndowment },
     })
 
   const { data: vestDuration, isPending: maturityPending } =
     useReadAlignmentEndowmentVaultVestDuration({
       ...(vault ? { address: vault } : {}),
-      chainId: forkChainId,
+      chainId,
       query: { enabled: enabled && isEndowment },
     })
 

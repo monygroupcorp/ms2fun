@@ -5,7 +5,7 @@
  * set AND scope != PAID_ONLY) we resolve a password credential; otherwise we pass '0x'.
  *
  * Write idiom matches EditionList.tsx exactly (useWrite + useWaitForTransactionReceipt,
- * forkChainId, chainId on every call, btn classes, txStatus UX).
+ * chainId, chainId on every call, btn classes, txStatus UX).
  */
 import { useState } from 'react'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
@@ -17,7 +17,7 @@ import {
   useReadErc1155InstanceGatingScope,
   useWriteErc1155InstanceClaimFreeMint,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { encodePasswordGatingData, isFreeMintGated } from './gatingMint'
 import styles from './Erc1155Actions.module.css'
@@ -29,30 +29,31 @@ interface FreeMintClaimPanelProps {
 }
 
 export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelProps) {
+  const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
   const [password, setPassword] = useState('')
 
   const { data: allocation } = useReadErc1155InstanceFreeMintAllocation({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const { data: claimedCount } = useReadErc1155InstanceFreeMintsClaimed({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const { data: hasClaimed, refetch: refetchClaimed } = useReadErc1155InstanceFreeMintClaimed({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address ? [address] : undefined,
     query: { enabled: !!address },
   })
   const { data: gatingModule } = useReadErc1155InstanceGatingModule({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const { data: gatingScope } = useReadErc1155InstanceGatingScope({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const {
@@ -87,7 +88,7 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
     const gatingData = gated ? encodePasswordGatingData(password) : '0x'
     writeContract({
       address: instance,
-      chainId: forkChainId,
+      chainId: chainId,
       args: [editionId, gatingData],
     })
   }

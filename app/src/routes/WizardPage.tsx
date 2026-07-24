@@ -156,10 +156,13 @@ export function WizardPage() {
     setValues((v) => (v.name === next.name ? v : { ...v, name: next.name }))
   }
 
-  // Redirect to the new collection once the InstanceCreated event is mined.
+  // Redirect to the new collection once the InstanceCreated event is mined. Slug form — the
+  // just-deployed name is in hand (chain-scoped-slug-routes noesis-079 step 9).
   useEffect(() => {
-    if (submit.isSuccess && submit.instance) setLocation(`/collection/${submit.instance}`)
-  }, [submit.isSuccess, submit.instance, setLocation])
+    if (submit.isSuccess && submit.instance && metadata.name.trim()) {
+      setLocation(`/${forkChainId}/${metadata.name.trim().toLowerCase()}`)
+    }
+  }, [submit.isSuccess, submit.instance, metadata.name, setLocation])
 
   // Reaching Review means the user is trying to finish, so surface field-level errors on every step
   // from here on. Otherwise the deploy button stays disabled while `deployBlockers` is non-empty, so a

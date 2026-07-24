@@ -275,3 +275,46 @@
   letter-spacing: 0.06em;
   margin: var(--space-3) 0 0;
 }
+
+/* Route-scoped wrong-chain prompt (chain-scoped-slug-routes noesis-079) — read-only page still
+   renders normally; this only offers the one-click switch. Mirrors WrongNetworkBanner's inverted
+   bar treatment, scoped to the page instead of the top bar. */
+.wrongChain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  background: var(--color-text);
+  color: var(--color-bg);
+  padding: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-4);
+  font-family: var(--brand-font-body);
+  font-size: var(--font-size-body-sm);
+}
+
+.wrongChain button {
+  flex: 0 0 auto;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-body-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 2px solid var(--color-bg);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.wrongChain button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.wrongChain p {
+  flex-basis: 100%;
+  margin: var(--space-1) 0 0;
+  font-family: var(--brand-font-mono);
+  font-size: var(--font-size-caption);
+  opacity: 0.85;
+}

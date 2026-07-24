@@ -13,7 +13,7 @@ import {
   useReadErc404BondingInstanceStakingModule,
   useReadErc404StakingModuleGetStakingInfo,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 
 /** Placeholder for the module read while `stakingModule` is still resolving (query gated off). */
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
@@ -36,26 +36,27 @@ export interface StakingData {
 }
 
 export function useStaking(instance: `0x${string}`): StakingData {
+  const chainId = useCollectionChainId()
   const { address } = useAccount()
 
   const stakingActive = useReadErc404BondingInstanceStakingActive({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const owner = useReadErc404BondingInstanceOwner({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const stakingModule = useReadErc404BondingInstanceStakingModule({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const balance = useReadErc404BondingInstanceBalanceOf({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   })
@@ -63,7 +64,7 @@ export function useStaking(instance: `0x${string}`): StakingData {
   const moduleAddress = stakingModule.data
   const stakingInfo = useReadErc404StakingModuleGetStakingInfo({
     address: moduleAddress ?? ZERO_ADDRESS,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address && moduleAddress ? [instance, address] : undefined,
     query: { enabled: Boolean(address) && Boolean(moduleAddress) },
   })

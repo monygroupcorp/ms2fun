@@ -19,7 +19,7 @@ import { TxButton } from '../../ui/TxButton'
 import { parseAmount } from '../../ui/parseAmount'
 import { useOwnerGate } from '../../ui/useOwnerGate'
 import { useTxAction } from '../../ui/useTxAction'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { useReadErc721AuctionInstanceAgentDelegationEnabled } from '../../../generated/contracts'
 import formStyles from './Erc721AdminPanel.module.css'
 
@@ -43,6 +43,7 @@ export function Erc721AdminPanel({ instance }: { instance: `0x${string}` }) {
 // ── queuePiece (payable) ───────────────────────────────────────────────────────
 
 function QueuePieceRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const [tokenURI, setTokenURI] = useState('')
   const [minBid, setMinBid] = useState('')
   const tx = useTxAction({
@@ -64,7 +65,7 @@ function QueuePieceRow({ instance }: { instance: `0x${string}` }) {
       functionName: 'queuePiece',
       args: [uri],
       value,
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -111,6 +112,7 @@ function QueuePieceRow({ instance }: { instance: `0x${string}` }) {
 // ── claimVaultFees ──────────────────────────────────────────────────────────────
 
 function ClaimVaultFeesRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction()
   return (
     <ActionRow label="claim vault fees" hint="sweep accrued alignment-vault yield to the creator">
@@ -121,7 +123,7 @@ function ClaimVaultFeesRow({ instance }: { instance: `0x${string}` }) {
             address: instance,
             abi: erc721AuctionInstanceAbi,
             functionName: 'claimVaultFees',
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label="claim fees"
@@ -138,6 +140,7 @@ function ClaimVaultFeesRow({ instance }: { instance: `0x${string}` }) {
 // ── migrateVault(address) ───────────────────────────────────────────────────────
 
 function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const [vault, setVault] = useState('')
   const tx = useTxAction({ onSuccess: () => setVault('') })
   const trimmed = vault.trim()
@@ -164,7 +167,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
               abi: erc721AuctionInstanceAbi,
               functionName: 'migrateVault',
               args: [trimmed as `0x${string}`],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }}
           label="migrate vault"
@@ -183,6 +186,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
 // ── claimAllFees ────────────────────────────────────────────────────────────────
 
 function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction()
   return (
     <ActionRow label="claim all fees" hint="sweep every accrued fee stream to the creator at once">
@@ -193,7 +197,7 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
             address: instance,
             abi: erc721AuctionInstanceAbi,
             functionName: 'claimAllFees',
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label="claim all fees"
@@ -210,9 +214,10 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
 // ── setAgentDelegation(bool) ────────────────────────────────────────────────────
 
 function DelegationRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: enabled, refetch } = useReadErc721AuctionInstanceAgentDelegationEnabled({
     address: instance,
-    chainId: forkChainId,
+    chainId,
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
 
@@ -235,7 +240,7 @@ function DelegationRow({ instance }: { instance: `0x${string}` }) {
             abi: erc721AuctionInstanceAbi,
             functionName: 'setAgentDelegation',
             args: [!enabled],
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label={enabled ? 'disable delegation' : 'enable delegation'}

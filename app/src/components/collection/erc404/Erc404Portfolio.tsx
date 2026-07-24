@@ -16,7 +16,7 @@ import {
   useWriteErc404BondingInstanceRerollSelectedNfTs,
   useWriteErc404BondingInstanceSetSkipNft,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { useErc404OwnedPieces } from './useErc404OwnedPieces'
@@ -25,13 +25,14 @@ import styles from './Erc404Portfolio.module.css'
 const DEFAULT_DECIMALS = 18
 
 export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
   const { pieces, isPending, refetch } = useErc404OwnedPieces(instance, address)
   const [keep, setKeep] = useState<Set<string>>(new Set())
 
   const decimalsRead = useReadErc404BondingInstanceDecimals({
     address: instance,
-    chainId: forkChainId,
+    chainId,
   })
   const decimals = decimalsRead.data ?? DEFAULT_DECIMALS
 
@@ -134,11 +135,12 @@ function RerollDropdown({
   keptIds: bigint[]
   onDone: () => void
 }) {
+  const chainId = useCollectionChainId()
   const [amountStr, setAmountStr] = useState('')
 
   const skipNft = useReadErc404BondingInstanceGetSkipNft({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const setSkip = useWriteErc404BondingInstanceSetSkipNft()
   const reroll = useWriteErc404BondingInstanceRerollSelectedNfTs()
@@ -213,7 +215,7 @@ function RerollDropdown({
             onClick={() =>
               setSkip.writeContract({
                 address: instance,
-                chainId: forkChainId,
+                chainId: chainId,
                 args: [!(skipNft.data ?? false)],
               })
             }
@@ -231,7 +233,7 @@ function RerollDropdown({
             setSkip.reset()
             reroll.writeContract({
               address: instance,
-              chainId: forkChainId,
+              chainId: chainId,
               args: [amount, keptIds],
             })
           }}

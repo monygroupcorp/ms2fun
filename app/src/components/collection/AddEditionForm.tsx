@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { parseEther } from 'viem'
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { erc1155InstanceAbi } from '../../generated/contracts'
-import { forkChainId } from '../../lib/addresses'
+import { useCollectionChainId } from './useCollectionChain'
 import styles from './AddEditionForm.module.css'
 
 export interface AddEditionFormProps {
@@ -52,6 +52,7 @@ function validate(form: FormState): string | null {
 }
 
 export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
+  const chainId = useCollectionChainId()
   const [form, setForm] = useState<FormState>(emptyForm)
   const [clientError, setClientError] = useState<string | null>(null)
 
@@ -126,7 +127,7 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
         rate,
         openTime,
       ],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 

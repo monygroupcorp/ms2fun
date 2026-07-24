@@ -8,7 +8,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { useReadErc404BondingInstanceMirrorErc721 } from '../../../generated/contracts'
-import { deployBlock, forkChainId } from '../../../lib/addresses'
+import { deployBlock } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { exec404MirrorAbi, ownedIdsFromTransfers, type MirrorTransfer } from '../../../lib/exec404'
 import { scanBackward } from '../../../lib/logScan'
 import { fetchJson } from '../../../lib/metadata'
@@ -38,10 +39,11 @@ export function useErc404OwnedPieces(
   isPending: boolean
   refetch: () => void
 } {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const client = usePublicClient({ chainId })
   const { data: mirror } = useReadErc404BondingInstanceMirrorErc721({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const { data, isPending, refetch } = useQuery({
