@@ -567,6 +567,10 @@ contract DeployCore is Script {
         // instances created with staking enabled; ValidateSepolia expects it approved as STAKING.
         erc404StakingModule = new ERC404StakingModule(masterRegistry);
         componentRegistry.approveComponent(address(erc404StakingModule), FeatureUtils.STAKING, "ERC404 Staking");
+        // Configless module (no configType) — the wizard auto-advances on selection.
+        string memory stakingMeta =
+            "data:application/json,{\"name\":\"Staking\",\"subtitle\":\"Stake \\u00b7 Earn Fees\",\"description\":\"Stake your tokens to earn a pro-rata share of trading fees.\"}";
+        erc404StakingModule.setMetadataURI(stakingMeta);
 
         // ── Metadata-resolution stack (ADR-0006/0007) — functional modules, not stubs ─────
         // Router (resolver slot), overlay (augmentation), tier (rarity-by-ownership). Each carries

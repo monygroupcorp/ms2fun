@@ -6,7 +6,7 @@
  * directly onto contract args; `unit` documents ambiguous on-chain units.
  */
 
-import type { FieldSchema, ModuleSlot, ProjectTypeSchema } from './schema'
+import type { FieldSchema, ProjectTypeSchema } from './schema'
 
 // ── Shared sub-schemas ────────────────────────────────────────────────────────
 
@@ -37,16 +37,6 @@ const freeMintGroup: FieldSchema = {
       visibleWhen: { field: 'freeMint.allocation', greaterThan: 0 },
     },
   ],
-}
-
-const vaultSlot: ModuleSlot = {
-  key: 'vault',
-  label: 'Alignment vault',
-  tag: 'vault',
-  required: true,
-  help: 'Aave endowment vault (pending T4)',
-  learnMore: 'alignment-vault',
-  pendingProvider: true,
 }
 
 // ── ERC-404 ───────────────────────────────────────────────────────────────────
@@ -137,7 +127,6 @@ const erc404: ProjectTypeSchema = {
     freeMintGroup,
   ],
   moduleSlots: [
-    vaultSlot,
     {
       key: 'liquidityDeployer',
       label: 'Liquidity deployer',
@@ -215,7 +204,6 @@ const erc1155: ProjectTypeSchema = {
     freeMintGroup,
   ],
   moduleSlots: [
-    vaultSlot,
     {
       key: 'gatingModule',
       label: 'Gating',
@@ -344,7 +332,7 @@ const erc721: ProjectTypeSchema = {
       validation: { required: true },
     },
   ],
-  moduleSlots: [vaultSlot],
+  moduleSlots: [],
   postCreate: {
     title: 'Auction pieces',
     // queuePiece(string _tokenURI) payable — the reserve is sent as msg.value; start/end times are

@@ -3,7 +3,7 @@
  *
  * Driven by `useApprovedModules(slot.tag)` (live on-chain), renders a card per
  * approved module and an optional "None" option for non-required slots. Handles
- * all async states (pending / error / empty / pendingProvider) without crashing.
+ * all async states (pending / error / empty) without crashing.
  */
 
 import { useApprovedModules } from '../../lib/wizard/useApprovedModules'
@@ -74,14 +74,10 @@ export function ModuleSlotPicker({ slot, value, onChange }: ModuleSlotPickerProp
   const resolvedOptions = options ?? []
 
   if (resolvedOptions.length === 0) {
-    const emptyMsg = slot.pendingProvider
-      ? `${slot.label} options are not available yet — check back after the provider is configured.`
-      : `no approved modules for this slot`
-
     return (
       <div className={styles.root}>
         {header}
-        <p className={styles.note}>{emptyMsg}</p>
+        <p className={styles.note}>no approved modules for this slot</p>
       </div>
     )
   }

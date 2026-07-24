@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import { IComponentModule } from "../../interfaces/IComponentModule.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
+
 interface IMasterRegistryMin {
     function isRegisteredInstance(address instance) external view returns (bool);
 }
@@ -21,7 +24,7 @@ interface IMasterRegistryMin {
  *      Each user checkpoint (rewardPerTokenPaid) records the rate at their last
  *      interaction, so late joiners cannot claim retroactive fees.
  */
-contract ERC404StakingModule {
+contract ERC404StakingModule is IComponentModule, Ownable {
     error NotRegisteredInstance();
     error InvalidAddress();
     error AlreadyEnabled();
@@ -43,6 +46,9 @@ contract ERC404StakingModule {
     mapping(address => mapping(address => uint256)) public rewardPerTokenPaid; // instance => user => checkpoint
     mapping(address => mapping(address => uint256)) public rewardsAccrued; // instance => user => unclaimed ETH
 
+    // IComponentModule self-description (wizard metadata; owner-managed)
+    string private _metadataURI;
+
     event StakingEnabled(address indexed instance);
     event Staked(address indexed instance, address indexed user, uint256 amount, uint256 newTotal);
     event Unstaked(address indexed instance, address indexed user, uint256 amount, uint256 newTotal);
@@ -57,6 +63,7 @@ contract ERC404StakingModule {
     constructor(address _masterRegistry) {
         if (_masterRegistry == address(0)) revert InvalidAddress();
         masterRegistry = IMasterRegistryMin(_masterRegistry);
+        _initializeOwner(msg.sender);
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────────
@@ -182,5 +189,16 @@ contract ERC404StakingModule {
             ? (userStaked * 10000) / globalTotalStaked  // round down: view-only, no value transfer
             : 0;
         pendingRewards = _earned(instance, user);
+    }
+
+    // ── IComponentModule self-description (wizard) ──────────────────────────────
+
+    function metadataURI() external view override returns (string memory) {
+        return _metadataURI;
+    }
+
+    function setMetadataURI(string calldata uri) external override onlyOwner {
+        _metadataURI = uri;
+        emit MetadataURIUpdated(uri);
     }
 }
