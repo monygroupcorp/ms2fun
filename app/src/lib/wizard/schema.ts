@@ -97,9 +97,7 @@ export interface FieldSchema {
 
 /**
  * A slot the creator fills by SELECTING an approved component (live, by `tag`) and then configuring
- * it via the `configType` its on-chain metadata names. `pendingProvider` marks a slot whose option
- * list isn't available yet (e.g. `vault` until the Aave vault ships in T4) — the schema is complete;
- * only the option source is deferred.
+ * it via the `configType` its on-chain metadata names.
  */
 export interface ModuleSlot {
   key: string
@@ -109,7 +107,6 @@ export interface ModuleSlot {
   help?: string
   /** A /learn concept slug (lib/learn/concepts). Renders a LearnLink after the slot help. */
   learnMore?: string
-  pendingProvider?: boolean
 }
 
 /** A config form keyed by a module's metadata `configType` (e.g. `password-tier-gating`). */
