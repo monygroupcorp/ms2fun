@@ -13,7 +13,7 @@ import {
   useReadErc404BondingInstanceDeclaredMaxAllowanceBps,
   useReadErc404BondingInstanceGatingActive,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { derivePhase } from './bondingPhase'
 import { formatCountdown, formatOpenTime } from './bondingFormat'
 import { FreeMintPanel } from './FreeMintPanel'
@@ -39,9 +39,10 @@ const DEFAULT_DECIMALS = 18
  * may take at graduation. 0 = the creator waived carve rights.
  */
 function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: declaredMax } = useReadErc404BondingInstanceDeclaredMaxAllowanceBps({
     address: instance,
-    chainId: forkChainId,
+    chainId,
   })
   if (declaredMax === undefined) return null
   const pct = declaredMax / 100
@@ -55,17 +56,18 @@ function CarveDisclosureNote({ instance }: { instance: `0x${string}` }) {
 }
 
 export function BondingSurface({ instance }: BondingSurfaceProps) {
+  const chainId = useCollectionChainId()
   const nowSec = useNowSec()
   const { view, curveParams, unit, feeBps, isPending, isError, refetch } = useBondingData(instance)
   const curveComputer = useCurveComputer()
 
   const decimalsRead = useReadErc404BondingInstanceDecimals({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const gatingRead = useReadErc404BondingInstanceGatingActive({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const decimals = decimalsRead.data ?? DEFAULT_DECIMALS

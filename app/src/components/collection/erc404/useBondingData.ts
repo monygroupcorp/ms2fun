@@ -15,7 +15,7 @@ import {
   useReadErc404BondingInstanceTotalBondingSupply,
   useReadErc404BondingInstanceUnit,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import type { BondingView } from './bondingPhase'
 
 /** The 5-tuple `curveParams()` returns, in the order `CurveParamsComputer.calculateCost` expects. */
@@ -33,7 +33,8 @@ export interface BondingData {
 }
 
 export function useBondingData(instance: `0x${string}`): BondingData {
-  const opts = { address: instance, chainId: forkChainId } as const
+  const chainId = useCollectionChainId()
+  const opts = { address: instance, chainId: chainId } as const
 
   const active = useReadErc404BondingInstanceBondingActive(opts)
   const openTime = useReadErc404BondingInstanceBondingOpenTime(opts)

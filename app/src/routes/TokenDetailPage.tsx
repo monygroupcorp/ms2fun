@@ -10,7 +10,7 @@
  * from useMessageFeed/useAuctions). Art is resolved with fetchJson/resolveUri (lib/metadata).
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useParams } from 'wouter'
+import { Link, Redirect, useParams } from 'wouter'
 import { formatEther } from 'viem'
 import { useAccount, usePublicClient } from 'wagmi'
 import {
@@ -31,6 +31,18 @@ import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
+import {
+  CollectionChainProvider,
+  useCollectionAddresses,
+  useCollectionChainId,
+  useCollectionSlug,
+} from '../components/collection/useCollectionChain'
+import {
+  RouteWrongChainBanner,
+  collectionRoutePath,
+  renderCollectionRouteState,
+  useResolvedCollectionRoute,
+} from './CollectionPage'
 import styles from './TokenDetailPage.module.css'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
@@ -56,24 +68,45 @@ const mirrorErc721Abi = [
   },
 ] as const
 
-export function TokenDetailPage() {
-  const params = useParams<{ instance?: string; id?: string }>()
-  const instance = toAddress(params.instance)
-  const id = params.id !== undefined && /^\d+$/.test(params.id) ? BigInt(params.id) : undefined
-  const { data: card } = useCollection(instance)
+function invalidTokenState() {
+  return (
+    <div className={styles.page}>
+      <nav className={styles.crumb}>
+        <Link href="/" className={styles.back}>
+          ← noesis
+        </Link>
+      </nav>
+      <StateBlock variant="empty">invalid token reference</StateBlock>
+    </div>
+  )
+}
 
-  if (!instance || id === undefined) {
-    return (
-      <div className={styles.page}>
-        <nav className={styles.crumb}>
-          <Link href="/" className={styles.back}>
-            ← noesis
-          </Link>
-        </nav>
-        <StateBlock variant="empty">invalid token reference</StateBlock>
-      </div>
-    )
-  }
+/** Chain-scoped route: `/:chainId/:slug/token/:id`. Resolves the slug, then renders the existing
+ * per-type token body inside a `<CollectionChainProvider>` (chain-scoped-slug-routes noesis-079). */
+export function TokenDetailPage() {
+  const params = useParams<{ chainId?: string; slug?: string; id?: string }>()
+  const resolution = useResolvedCollectionRoute(params.chainId, params.slug)
+  const id = params.id !== undefined && /^\d+$/.test(params.id) ? BigInt(params.id) : undefined
+
+  const state = renderCollectionRouteState(resolution, `/token/${params.id ?? ''}`)
+  if (state !== undefined) return state
+  if (resolution.status !== 'ok') return null // unreachable — narrows the type below
+
+  if (id === undefined) return invalidTokenState()
+
+  return (
+    <CollectionChainProvider chainId={resolution.chainId} slug={resolution.slug}>
+      <RouteWrongChainBanner chainId={resolution.chainId} />
+      <TokenDetail instance={resolution.instance} id={id} />
+    </CollectionChainProvider>
+  )
+}
+
+function TokenDetail({ instance, id }: { instance: `0x${string}`; id: bigint }) {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
+  const slug = useCollectionSlug()
+  const { data: card } = useCollection(instance, { chainId, addresses })
 
   const collectionName = card?.name || truncateAddress(instance)
   const tokenProps: TokenProps = {
@@ -87,7 +120,7 @@ export function TokenDetailPage() {
   return (
     <div className={styles.page} data-testid="token-detail" data-type={card?.contractType}>
       <nav className={styles.crumb}>
-        <Link href={`/collection/${instance}`} className={styles.back}>
+        <Link href={collectionRoutePath(chainId, slug)} className={styles.back}>
           Collections / {collectionName} / #{id.toString()}
         </Link>
       </nav>
@@ -104,6 +137,50 @@ export function TokenDetailPage() {
   )
 }
 
+/** Legacy address-keyed route (`/collection/:instance/token/:id`) — permanently redirects to the
+ * slug URL (chain-scoped-slug-routes noesis-079 step 8). Chain-blind by design; see
+ * `LegacyCollectionRedirect` in `./CollectionPage`. */
+export function LegacyTokenRedirect() {
+  const params = useParams<{ instance?: string; id?: string }>()
+  const instance = toAddress(params.instance)
+  const { data: card, isPending, isError } = useCollection(instance)
+
+  if (!instance || params.id === undefined) return invalidTokenState()
+
+  if (isPending) {
+    return (
+      <div className={styles.page}>
+        <nav className={styles.crumb}>
+          <Link href="/" className={styles.back}>
+            ← noesis
+          </Link>
+        </nav>
+        <StateBlock variant="loading">hanging the work…</StateBlock>
+      </div>
+    )
+  }
+
+  if (isError || !card || card.instance === '0x0000000000000000000000000000000000000000') {
+    return (
+      <div className={styles.page}>
+        <nav className={styles.crumb}>
+          <Link href="/" className={styles.back}>
+            ← noesis
+          </Link>
+        </nav>
+        <StateBlock variant="empty">token not found</StateBlock>
+      </div>
+    )
+  }
+
+  return (
+    <Redirect
+      to={collectionRoutePath(forkChainId, card.name.toLowerCase(), `/token/${params.id}`)}
+      replace
+    />
+  )
+}
+
 interface TokenProps {
   instance: `0x${string}`
   id: bigint
@@ -113,16 +190,17 @@ interface TokenProps {
 }
 
 function CollectionBackLink({
-  instance,
   collectionName,
 }: {
   instance: `0x${string}`
   collectionName: string
 }) {
+  const chainId = useCollectionChainId()
+  const slug = useCollectionSlug()
   return (
     <p className={styles.note}>
       part of{' '}
-      <Link href={`/collection/${instance}`} className={styles.inlineLink}>
+      <Link href={collectionRoutePath(chainId, slug)} className={styles.inlineLink}>
         {collectionName}
       </Link>
     </p>
@@ -245,6 +323,8 @@ function Erc404Token({ instance, id, collectionName, creator, vaultName }: Token
 }
 
 function Erc721Token({ instance, id, collectionName, creator, vaultName }: TokenProps) {
+  const chainId = useCollectionChainId()
+  const slug = useCollectionSlug()
   const client = usePublicClient({ chainId: forkChainId })
   const nowSec = useNowSec()
   const queryClient = useQueryClient()
@@ -377,7 +457,7 @@ function Erc721Token({ instance, id, collectionName, creator, vaultName }: Token
               refetch={refetchAuction}
             />
           )}
-          <Link href={`/collection/${instance}`} className={styles.bidLink}>
+          <Link href={collectionRoutePath(chainId, slug)} className={styles.bidLink}>
             View the collection →
           </Link>
           <AlignmentLine vaultName={vaultName} />

@@ -15,7 +15,7 @@ import {
   useReadLiquidityDeployerModuleTickSpacing,
   useReadZammLiquidityDeployerModuleFeeOrHook,
 } from '../../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../../lib/addresses'
+import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 
 export type GraduatedVenue =
   | { kind: 'uniV4'; deployer: `0x${string}`; poolFee: number; tickSpacing: number }
@@ -40,32 +40,34 @@ function sameAddress(a: string | undefined, b: string | undefined): boolean {
 }
 
 export function useGraduatedVenue(instance: `0x${string}`): UseGraduatedVenueResult {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const deployerRead = useReadErc404BondingInstanceLiquidityDeployer({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const deployer = deployerRead.data
 
-  const isUni = sameAddress(deployer, forkAddresses.ModuleUniV4Deployer)
-  const isZamm = sameAddress(deployer, forkAddresses.ModuleZAMMDeployer)
-  const isCypher = sameAddress(deployer, forkAddresses.ModuleCypherDeployer)
+  const isUni = sameAddress(deployer, addresses.ModuleUniV4Deployer)
+  const isZamm = sameAddress(deployer, addresses.ModuleZAMMDeployer)
+  const isCypher = sameAddress(deployer, addresses.ModuleCypherDeployer)
 
   // Pool params — read off the identified module singleton. Gated so only the matching family's
   // reads fire. (Reading from the deployer address, not the instance: the params are immutable on
   // the module, shared by every instance of that family.)
   const poolFeeRead = useReadLiquidityDeployerModulePoolFee({
     ...(deployer ? { address: deployer } : {}),
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: isUni && Boolean(deployer) },
   })
   const tickSpacingRead = useReadLiquidityDeployerModuleTickSpacing({
     ...(deployer ? { address: deployer } : {}),
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: isUni && Boolean(deployer) },
   })
   const feeOrHookRead = useReadZammLiquidityDeployerModuleFeeOrHook({
     ...(deployer ? { address: deployer } : {}),
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: isZamm && Boolean(deployer) },
   })
 

@@ -6,7 +6,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { erc721AuctionInstanceAbi } from '../../../generated/contracts'
-import { deployBlock, forkChainId } from '../../../lib/addresses'
+import { deployBlock } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { scanBackward } from '../../../lib/logScan'
 
 export interface BidRecord {
@@ -19,7 +20,8 @@ export function useBidHistory(
   instance: `0x${string}`,
   tokenId: bigint | undefined,
 ): { data: BidRecord[]; isPending: boolean } {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const client = usePublicClient({ chainId })
 
   const { data, isPending } = useQuery({
     queryKey: ['erc721-bids', instance, tokenId?.toString() ?? null],

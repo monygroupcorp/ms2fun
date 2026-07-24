@@ -26,7 +26,7 @@ import {
   useWriteZRouterSwapV4,
   useWriteZRouterSwapVz,
 } from '../../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../../lib/addresses'
+import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import type { GraduatedVenue } from './useGraduatedVenue'
 import { SwapQuickFill } from './SwapQuickFill'
@@ -58,15 +58,17 @@ export function GraduatedSwapPanel({
   decimals,
   refetch,
 }: GraduatedSwapPanelProps) {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const { address, isConnected } = useAccount()
   const [direction, setDirection] = useState<Direction>('buy')
   const [amountStr, setAmountStr] = useState('')
   const [slippagePct, setSlippagePct] = useState('1')
 
-  const zRouter = forkAddresses.zRouter
+  const zRouter = addresses.zRouter
   const isBuy = direction === 'buy'
 
-  const symbolRead = useReadErc404BondingInstanceSymbol({ address: instance, chainId: forkChainId })
+  const symbolRead = useReadErc404BondingInstanceSymbol({ address: instance, chainId: chainId })
   const symbol = symbolRead.data ?? 'tokens'
 
   // Parse the input amount in the SPENT asset's units: buy spends ETH (18), sell spends tokens.
@@ -86,7 +88,7 @@ export function GraduatedSwapPanel({
   // real transferFrom), so we gate the quote on a sufficient allowance too.
   const allowanceRead = useReadErc404BondingInstanceAllowance({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address ? [address, zRouter] : undefined,
     query: { enabled: Boolean(address) },
   })
@@ -95,7 +97,7 @@ export function GraduatedSwapPanel({
 
   const balanceRead = useReadErc404BondingInstanceBalanceOf({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   })
@@ -112,7 +114,7 @@ export function GraduatedSwapPanel({
 
   const v4Sim = useSimulateZRouterSwapV4({
     address: zRouter,
-    chainId: forkChainId,
+    chainId: chainId,
     account: address,
     value: buyValue,
     args:
@@ -133,7 +135,7 @@ export function GraduatedSwapPanel({
   })
   const vzSim = useSimulateZRouterSwapVz({
     address: zRouter,
-    chainId: forkChainId,
+    chainId: chainId,
     account: address,
     value: buyValue,
     args:
@@ -180,7 +182,7 @@ export function GraduatedSwapPanel({
   }, [approveConfirmed, refetchAllowance])
 
   function handleApprove(): void {
-    approve.writeContract({ address: instance, chainId: forkChainId, args: [zRouter, maxUint256] })
+    approve.writeContract({ address: instance, chainId: chainId, args: [zRouter, maxUint256] })
   }
 
   function handleSwap(): void {
@@ -188,7 +190,7 @@ export function GraduatedSwapPanel({
     if (venue.kind === 'uniV4') {
       v4Swap.writeContract({
         address: zRouter,
-        chainId: forkChainId,
+        chainId: chainId,
         args: [
           address ?? zeroAddress,
           false,
@@ -205,7 +207,7 @@ export function GraduatedSwapPanel({
     } else {
       vzSwap.writeContract({
         address: zRouter,
-        chainId: forkChainId,
+        chainId: chainId,
         args: [
           address ?? zeroAddress,
           false,

@@ -10,7 +10,7 @@ import {
   useReadErc1155InstanceGetEditionCount,
   useReadQueryAggregatorGetErc1155EditionsBatch,
 } from '../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { useCollectionAddresses, useCollectionChainId } from './useCollectionChain'
 
 /** Derived from the ABI — no hand-written shape, no `any`. */
 export type EditionView = ContractFunctionReturnType<
@@ -27,6 +27,8 @@ export interface UseEditionsResult {
 }
 
 export function useEditions(instance: `0x${string}` | undefined): UseEditionsResult {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const {
     data: countData,
     isPending: countPending,
@@ -34,7 +36,7 @@ export function useEditions(instance: `0x${string}` | undefined): UseEditionsRes
     refetch: refetchCount,
   } = useReadErc1155InstanceGetEditionCount({
     ...(instance ? { address: instance } : {}),
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: !!instance },
   })
 
@@ -47,8 +49,8 @@ export function useEditions(instance: `0x${string}` | undefined): UseEditionsRes
     isError: editionsError,
     refetch: refetchEditions,
   } = useReadQueryAggregatorGetErc1155EditionsBatch({
-    address: forkAddresses.QueryAggregator,
-    chainId: forkChainId,
+    address: addresses.QueryAggregator,
+    chainId: chainId,
     args: instance ? [instance, 1n, count] : undefined,
     query: { enabled: !!instance && hasEditions },
   })
