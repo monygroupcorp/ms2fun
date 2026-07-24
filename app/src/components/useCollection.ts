@@ -1,15 +1,27 @@
 import { useReadQueryAggregatorGetProjectCardsBatch } from '../generated/contracts'
-import { forkAddresses, forkChainId } from '../lib/addresses'
+import { forkAddresses, forkChainId, type Addresses, type SupportedChainId } from '../lib/addresses'
 import type { ProjectCard } from './useCreatorCollections'
 
-export function useCollection(instance: `0x${string}` | undefined): {
+/**
+ * Reads a single project card by instance address. Defaults to the fork chain/addresses (used by
+ * the legacy `/collection/:instance` redirector, which is chain-blind by design — Step 8 of
+ * chain-scoped-slug-routes). Route-scoped callers (inside `CollectionChainProvider`) pass the
+ * route chainId/addresses explicitly so the read targets the resolved chain, not always the fork.
+ */
+export function useCollection(
+  instance: `0x${string}` | undefined,
+  scope: { chainId: SupportedChainId; addresses: Addresses } = {
+    chainId: forkChainId,
+    addresses: forkAddresses,
+  },
+): {
   data: ProjectCard | undefined
   isPending: boolean
   isError: boolean
 } {
   const { data, isPending, isError } = useReadQueryAggregatorGetProjectCardsBatch({
-    address: forkAddresses.QueryAggregator,
-    chainId: forkChainId,
+    address: scope.addresses.QueryAggregator,
+    chainId: scope.chainId,
     args: [instance ? [instance] : []],
     query: { enabled: !!instance },
   })

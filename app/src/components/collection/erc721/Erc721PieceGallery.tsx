@@ -12,7 +12,7 @@ import {
   erc721AuctionInstanceAbi,
   useReadErc721AuctionInstanceNextTokenId,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId, useCollectionSlug } from '../useCollectionChain'
 import { fetchJson } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { deriveAuctionState } from './auctionState'
@@ -33,11 +33,13 @@ interface Piece {
 }
 
 export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const slug = useCollectionSlug()
+  const client = usePublicClient({ chainId })
   const nowSec = useNowSec()
   const { data: next } = useReadErc721AuctionInstanceNextTokenId({
     address: instance,
-    chainId: forkChainId,
+    chainId,
   })
 
   const { data, isPending, isError } = useQuery({
@@ -122,10 +124,7 @@ export function Erc721PieceGallery({ instance }: { instance: `0x${string}` }) {
         const state = deriveAuctionState(piece, nowSec)
         return (
           <li key={piece.id.toString()} className={styles.tile} data-state={state}>
-            <Link
-              href={`/collection/${instance}/token/${piece.id.toString()}`}
-              className={styles.link}
-            >
+            <Link href={`/${chainId}/${slug}/token/${piece.id.toString()}`} className={styles.link}>
               <IpfsImage
                 uri={piece.image ?? ''}
                 alt={`#${piece.id.toString()}`}

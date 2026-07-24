@@ -4,6 +4,7 @@ import { Link } from 'wouter'
 import { queryAggregatorAbi } from '../generated/contracts'
 import { IpfsImage } from './ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
+import { forkChainId } from '../lib/addresses'
 import { useCollectionMetadata } from './useCollectionMetadata'
 import styles from './CollectionCard.module.css'
 
@@ -38,7 +39,7 @@ export function CollectionCard({ card, variant = 'card' }: CollectionCardProps) 
 
   return (
     <Link
-      href={`/collection/${card.instance}`}
+      href={`/${forkChainId}/${card.name.toLowerCase()}`}
       className={variant === 'lead' ? 'noesis-card lead' : 'noesis-card'}
     >
       <div className={`art ${styles.art}`}>

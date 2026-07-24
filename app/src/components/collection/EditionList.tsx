@@ -9,6 +9,7 @@ import { Link } from 'wouter'
 import { FreeMintClaimPanel } from './erc1155/FreeMintClaimPanel'
 import { MintPanel } from './erc1155/MintPanel'
 import { useEditions, type EditionView } from './useEditions'
+import { useCollectionChainId, useCollectionSlug } from './useCollectionChain'
 import { fetchJson, isResolvableUri } from '../../lib/metadata'
 import { IpfsImage } from '../ui/IpfsImage'
 import styles from './EditionList.module.css'
@@ -78,11 +79,13 @@ interface EditionCardProps {
 }
 
 function EditionCard({ edition, instance, refetch }: EditionCardProps) {
+  const chainId = useCollectionChainId()
+  const slug = useCollectionSlug()
   const pricingLabel = PRICING_MODEL_LABELS[edition.pricingModel] ?? `model-${edition.pricingModel}`
   const supplyLabel = edition.supply === 0n ? 'unlimited' : edition.supply.toString()
   const title = edition.pieceTitle || `edition #${edition.id}`
   const image = useEditionArt(edition.metadataURI)
-  const editionHref = `/collection/${instance}/edition/${edition.id}`
+  const editionHref = `/${chainId}/${slug}/edition/${edition.id}`
 
   return (
     <>

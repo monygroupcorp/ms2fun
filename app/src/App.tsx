@@ -25,11 +25,20 @@ const ProfilePage = lazy(() =>
 const CollectionPage = lazy(() =>
   import('./routes/CollectionPage').then((m) => ({ default: m.CollectionPage })),
 )
+const LegacyCollectionRedirect = lazy(() =>
+  import('./routes/CollectionPage').then((m) => ({ default: m.LegacyCollectionRedirect })),
+)
 const EditionDetailPage = lazy(() =>
   import('./routes/EditionDetailPage').then((m) => ({ default: m.EditionDetailPage })),
 )
+const LegacyEditionRedirect = lazy(() =>
+  import('./routes/EditionDetailPage').then((m) => ({ default: m.LegacyEditionRedirect })),
+)
 const TokenDetailPage = lazy(() =>
   import('./routes/TokenDetailPage').then((m) => ({ default: m.TokenDetailPage })),
+)
+const LegacyTokenRedirect = lazy(() =>
+  import('./routes/TokenDetailPage').then((m) => ({ default: m.LegacyTokenRedirect })),
 )
 const WizardPage = lazy(() =>
   import('./routes/WizardPage').then((m) => ({ default: m.WizardPage })),
@@ -202,11 +211,30 @@ export function App() {
                   the connected wallet's own plate. */}
                   <Route path="/portfolio" component={ProfilePage} />
                   <Route path="/admin" component={AdminPage} />
-                  <Route path="/collection/:instance/edition/:id" component={EditionDetailPage} />
-                  <Route path="/collection/:instance/token/:id" component={TokenDetailPage} />
-                  <Route path="/collection/:instance" component={CollectionPage} />
+                  {/* Legacy address-keyed routes — kept PERMANENTLY as 301 redirects to the
+                      slug URL below (every address link in the wild stays alive). Listed BEFORE
+                      the chain-scoped routes: this wouter version's matcher (regexparam@3) does
+                      NOT support the `:param(regex)` inline-constraint syntax the spec assumed —
+                      `:chainId(\d+)` parses the WHOLE `chainId(\d+)` string as one literal param
+                      key, silently breaking `params.chainId` (discovered in test — see
+                      noesis-079). `/:chainId/:slug` below is a plain, unconstrained 2-segment
+                      match, so every OTHER 2-/4-segment literal-prefixed route (this block,
+                      /vault/:address, /learn/:slug, /profile/:address) must come first in the
+                      `Switch` to avoid being shadowed; `useResolvedCollectionRoute` validates
+                      `chainId` is actually numeric at runtime as the real guard. */}
+                  <Route
+                    path="/collection/:instance/edition/:id"
+                    component={LegacyEditionRedirect}
+                  />
+                  <Route path="/collection/:instance/token/:id" component={LegacyTokenRedirect} />
+                  <Route path="/collection/:instance" component={LegacyCollectionRedirect} />
                   <Route path="/profile" component={ProfilePage} />
                   <Route path="/profile/:address" component={ProfilePage} />
+                  {/* Chain-scoped collection routes (chain-scoped-slug-routes noesis-079) — MUST
+                      stay below every other literal-prefixed route above (see comment above). */}
+                  <Route path="/:chainId/:slug/edition/:id" component={EditionDetailPage} />
+                  <Route path="/:chainId/:slug/token/:id" component={TokenDetailPage} />
+                  <Route path="/:chainId/:slug" component={CollectionPage} />
                   <Route>
                     <section className={styles.notFound}>
                       <div className="noesis-404">

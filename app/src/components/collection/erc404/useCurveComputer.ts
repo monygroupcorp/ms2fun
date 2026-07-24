@@ -12,7 +12,7 @@
  * `curveParams()` reproduces the on-chain cost precisely.
  */
 import { useReadComponentRegistryGetApprovedComponentsByTag } from '../../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../../lib/addresses'
+import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { CURVE_COMPUTER_TAG } from './gating'
 
 export interface CurveComputer {
@@ -23,9 +23,11 @@ export interface CurveComputer {
 }
 
 export function useCurveComputer(): CurveComputer {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const { data, isPending, isError } = useReadComponentRegistryGetApprovedComponentsByTag({
-    address: forkAddresses.ComponentRegistry,
-    chainId: forkChainId,
+    address: addresses.ComponentRegistry,
+    chainId: chainId,
     args: [CURVE_COMPUTER_TAG],
   })
 

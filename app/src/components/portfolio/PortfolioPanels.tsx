@@ -8,8 +8,17 @@ import {
 } from './usePortfolio'
 import { fmtEth } from './portfolioFormat'
 import { truncateAddress } from '../../lib/format'
+import { forkChainId } from '../../lib/addresses'
 import { StateBlock } from '../ui/StateBlock'
 import styles from './PortfolioPanels.module.css'
+
+/** Slug link when the holding's name is in hand; else the address link (301s via the legacy
+ * redirect route — chain-scoped-slug-routes noesis-079 step 9). */
+function holdingHref(instance: `0x${string}`, name: string | undefined, suffix = ''): string {
+  return name
+    ? `/${forkChainId}/${name.toLowerCase()}${suffix}`
+    : `/collection/${instance}${suffix}`
+}
 
 /**
  * The Held + Vaults tab bodies of the merged profile plate (NOESIS "the plate" — Surface 6). The
@@ -39,7 +48,7 @@ function Erc404Cards({ holdings }: { holdings: readonly Erc404Holding[] }) {
         {held.map((h) => (
           <li key={h.instance} className={styles.card}>
             <div className={styles.cardHead}>
-              <Link href={`/collection/${h.instance}`} className={styles.cardLink}>
+              <Link href={holdingHref(h.instance, h.name)} className={styles.cardLink}>
                 {h.name || truncateAddress(h.instance)}
               </Link>
               <span className={styles.cardAddr}>{truncateAddress(h.instance)}</span>
@@ -86,7 +95,7 @@ function Erc1155Cards({ holdings }: { holdings: readonly Erc1155Holding[] }) {
         {rows.map((h) => (
           <li key={h.instance} className={styles.card}>
             <div className={styles.cardHead}>
-              <Link href={`/collection/${h.instance}`} className={styles.cardLink}>
+              <Link href={holdingHref(h.instance, h.name)} className={styles.cardLink}>
                 {h.name || truncateAddress(h.instance)}
               </Link>
               <span className={styles.cardAddr}>{truncateAddress(h.instance)}</span>
@@ -95,7 +104,7 @@ function Erc1155Cards({ holdings }: { holdings: readonly Erc1155Holding[] }) {
               {h.editions.map((e) => (
                 <li key={e.id.toString()} className={styles.edition}>
                   <Link
-                    href={`/collection/${h.instance}/edition/${e.id.toString()}`}
+                    href={holdingHref(h.instance, h.name, `/edition/${e.id.toString()}`)}
                     className={styles.editionLink}
                   >
                     #{e.id.toString()}

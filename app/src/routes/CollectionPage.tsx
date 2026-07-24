@@ -1,6 +1,8 @@
-import { Link, useParams } from 'wouter'
+import type { ReactNode } from 'react'
+import { Link, Redirect, useParams } from 'wouter'
 import { formatGwei } from 'viem'
-import { useAccount } from 'wagmi'
+import { useAccount, useSwitchChain } from 'wagmi'
+import { useReadMasterRegistryV1ResolveName } from '../generated/contracts'
 import { useCollection } from '../components/useCollection'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { MessageComposer } from '../components/MessageComposer'
@@ -10,10 +12,19 @@ import { FeaturedPanel } from '../components/featured/FeaturedPanel'
 import { resolveCollectionSurfaces } from '../components/collection/types/collectionSurfaces'
 import { ProjectStyle } from '../components/collection/ProjectStyle'
 import { CollectionHero } from '../components/collection/CollectionHero'
+import {
+  CollectionChainProvider,
+  useCollectionAddresses,
+  useCollectionChainId,
+} from '../components/collection/useCollectionChain'
+import { addressesForChain, forkChainId, type SupportedChainId } from '../lib/addresses'
 import { truncateAddress } from '../lib/format'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
+import { txErrorReason } from '../components/ui/useTxAction'
 import styles from './CollectionPage.module.css'
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 function toAddress(raw: string | undefined): `0x${string}` | undefined {
   if (!raw) return undefined
@@ -21,30 +32,175 @@ function toAddress(raw: string | undefined): `0x${string}` | undefined {
   return undefined
 }
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+function CrumbBack() {
+  return (
+    <nav className={styles.crumb}>
+      <Link href="/" className={styles.back}>
+        ← noesis
+      </Link>
+    </nav>
+  )
+}
+
+/** Discriminated result of resolving a `(chainId, slug)` route param pair to a collection. */
+export type CollectionRouteResolution =
+  | { status: 'unknown-network'; chainId: number }
+  | { status: 'case-redirect'; chainId: number; slug: string }
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'not-found' }
+  | { status: 'ok'; instance: `0x${string}`; chainId: SupportedChainId; slug: string }
+
+/**
+ * Shared resolver for the three chain-scoped collection routes (`/:chainId/:slug[/edition|/token]`,
+ * chain-scoped-slug-routes noesis-079). Always calls `useReadMasterRegistryV1ResolveName`
+ * unconditionally (Rules of Hooks) — invalid states disable the read via `query.enabled` rather
+ * than skipping the hook call.
+ */
+export function useResolvedCollectionRoute(
+  rawChainId: string | undefined,
+  rawSlug: string | undefined,
+): CollectionRouteResolution {
+  const chainId = rawChainId !== undefined && /^\d+$/.test(rawChainId) ? Number(rawChainId) : NaN
+  const slug = rawSlug ?? ''
+  const lower = slug.toLowerCase()
+  const addresses = Number.isNaN(chainId) ? undefined : addressesForChain(chainId)
+  const needsCaseRedirect = addresses !== undefined && slug !== '' && slug !== lower
+
+  const {
+    data: resolved,
+    isPending,
+    isError,
+  } = useReadMasterRegistryV1ResolveName({
+    address: addresses?.MasterRegistryV1 ?? ZERO_ADDRESS,
+    chainId: (addresses ? chainId : forkChainId) as SupportedChainId,
+    args: [lower],
+    query: { enabled: !!addresses && slug !== '' && !needsCaseRedirect },
+  })
+
+  if (!addresses) return { status: 'unknown-network', chainId }
+  if (slug === '') return { status: 'not-found' }
+  if (needsCaseRedirect) return { status: 'case-redirect', chainId, slug: lower }
+  if (isPending) return { status: 'loading' }
+  if (isError) return { status: 'error' }
+  if (!resolved || resolved === ZERO_ADDRESS) return { status: 'not-found' }
+  return { status: 'ok', instance: resolved, chainId: chainId as SupportedChainId, slug: lower }
+}
+
+/** Builds a chain-scoped collection path, appending an optional path suffix (`/edition/:id`,
+ * `/token/:id`) the caller already validated. */
+export function collectionRoutePath(chainId: number, slug: string, suffix = ''): string {
+  return `/${chainId}/${slug}${suffix}`
+}
+
+/**
+ * Renders the unknown-network / case-redirect / loading / error / not-found states shared by all
+ * three chain-scoped collection routes. Returns `undefined` when resolution is `ok` — the caller
+ * then renders its own body inside a `<CollectionChainProvider>`.
+ */
+export function renderCollectionRouteState(
+  resolution: CollectionRouteResolution,
+  suffix = '',
+): ReactNode | undefined {
+  switch (resolution.status) {
+    case 'unknown-network':
+      return (
+        <div className={styles.page}>
+          <CrumbBack />
+          <p className={styles.kicker}>Collections</p>
+          <h1 className={styles.title}>Collection</h1>
+          <StateBlock variant="empty">
+            this app doesn&apos;t serve chain {resolution.chainId}.{' '}
+            <Link href="/collections">back to collections</Link>
+          </StateBlock>
+        </div>
+      )
+    case 'case-redirect':
+      return (
+        <Redirect to={collectionRoutePath(resolution.chainId, resolution.slug, suffix)} replace />
+      )
+    case 'loading':
+      return (
+        <div className={styles.page}>
+          <CrumbBack />
+          <StateBlock variant="loading">hanging the work…</StateBlock>
+        </div>
+      )
+    case 'error':
+      return (
+        <div className={styles.page}>
+          <CrumbBack />
+          <StateBlock variant="error">
+            couldn&apos;t resolve this collection — is the fork up?
+          </StateBlock>
+        </div>
+      )
+    case 'not-found':
+      return (
+        <div className={styles.page}>
+          <CrumbBack />
+          <StateBlock variant="empty">no collection by that name</StateBlock>
+        </div>
+      )
+    case 'ok':
+      return undefined
+  }
+}
+
+/**
+ * Read-only wrong-chain prompt for a chain-scoped route — reads already pass the route chainId
+ * explicitly, so the page stays correct regardless; this only offers a one-click switch (reusing
+ * WrongNetworkBanner's `useSwitchChain` logic, scoped to the route's chain rather than the module
+ * default). Renders nothing when disconnected or already on the route's chain.
+ */
+export function RouteWrongChainBanner({ chainId }: { chainId: SupportedChainId }) {
+  const { isConnected, chainId: connectedChainId } = useAccount()
+  const { switchChain, isPending, error } = useSwitchChain()
+
+  if (!isConnected || connectedChainId === undefined || connectedChainId === chainId) return null
+
+  const switchReason = txErrorReason(error)
+
+  return (
+    <div className={styles.wrongChain} role="alert" data-testid="route-wrong-chain">
+      <span>
+        Your wallet is on chain {connectedChainId}. This collection lives on chain {chainId} —
+        switch to view live balances and act.
+      </span>
+      <button
+        type="button"
+        onClick={() => switchChain({ chainId })}
+        disabled={isPending}
+        data-testid="route-wrong-chain-switch"
+      >
+        {isPending ? 'switching…' : `switch to chain ${chainId}`}
+      </button>
+      {switchReason !== undefined && <p>couldn&apos;t switch automatically ({switchReason}).</p>}
+    </div>
+  )
+}
 
 export function CollectionPage() {
-  const params = useParams<{ instance?: string }>()
-  const instance = toAddress(params.instance)
+  const params = useParams<{ chainId?: string; slug?: string }>()
+  const resolution = useResolvedCollectionRoute(params.chainId, params.slug)
+  const state = renderCollectionRouteState(resolution)
+  if (state !== undefined) return state
+  if (resolution.status !== 'ok') return null // unreachable — narrows the type below
 
-  const { data: card, isPending, isError } = useCollection(instance)
+  return (
+    <CollectionChainProvider chainId={resolution.chainId} slug={resolution.slug}>
+      <RouteWrongChainBanner chainId={resolution.chainId} />
+      <CollectionBody instance={resolution.instance} />
+    </CollectionChainProvider>
+  )
+}
+
+function CollectionBody({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
+  const { data: card, isPending, isError } = useCollection(instance, { chainId, addresses })
   const metadata = useCollectionMetadata(card?.metadataURI)
   const { address: connected } = useAccount()
-
-  if (!instance) {
-    return (
-      <div className={styles.page}>
-        <nav className={styles.crumb}>
-          <Link href="/" className={styles.back}>
-            ← noesis
-          </Link>
-        </nav>
-        <p className={styles.kicker}>Collections</p>
-        <h1 className={styles.title}>Collection</h1>
-        <StateBlock variant="empty">invalid collection address</StateBlock>
-      </div>
-    )
-  }
 
   const isNotFound = !isPending && !isError && (!card || card.instance === ZERO_ADDRESS)
 
@@ -58,11 +214,7 @@ export function CollectionPage() {
 
   return (
     <div className={styles.page} data-testid="collection-detail">
-      <nav className={styles.crumb}>
-        <Link href="/" className={styles.back}>
-          ← noesis
-        </Link>
-      </nav>
+      <CrumbBack />
 
       {isPending && <StateBlock variant="loading">hanging the work…</StateBlock>}
       {isError && (
@@ -108,8 +260,7 @@ export function CollectionPage() {
               so there's no empty spacer; the card owns its own top margin. */}
           {surfaces?.Portfolio && <surfaces.Portfolio instance={instance} creator={card.creator} />}
 
-          {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment).
-              Given generous head/tail space so the work breathes before the secondary panels. */}
+          {/* N10: the pieces as a uniform grid, full-width below the shell (global treatment). */}
           {surfaces?.Gallery && (
             <div className={styles.gallerySlot}>
               <surfaces.Gallery instance={instance} creator={card.creator} />
@@ -159,4 +310,46 @@ export function CollectionPage() {
       )}
     </div>
   )
+}
+
+/**
+ * Legacy address-keyed route (`/collection/:instance[/edition|/token]`) — permanently redirects to
+ * the slug URL (chain-scoped-slug-routes noesis-079 step 8). Chain-blind by design: legacy links
+ * predate multi-chain, so they resolve against the default fork chain via `useCollection`'s
+ * fallback scope. While the card is pending, shows a light loading state; on an unresolvable
+ * instance, falls through to the existing invalid/not-found copy.
+ */
+export function LegacyCollectionRedirect() {
+  const params = useParams<{ instance?: string }>()
+  const instance = toAddress(params.instance)
+  const { data: card, isPending, isError } = useCollection(instance)
+
+  if (!instance) {
+    return (
+      <div className={styles.page}>
+        <CrumbBack />
+        <StateBlock variant="empty">invalid collection address</StateBlock>
+      </div>
+    )
+  }
+
+  if (isPending) {
+    return (
+      <div className={styles.page}>
+        <CrumbBack />
+        <StateBlock variant="loading">hanging the work…</StateBlock>
+      </div>
+    )
+  }
+
+  if (isError || !card || card.instance === ZERO_ADDRESS) {
+    return (
+      <div className={styles.page}>
+        <CrumbBack />
+        <StateBlock variant="empty">collection not found</StateBlock>
+      </div>
+    )
+  }
+
+  return <Redirect to={collectionRoutePath(forkChainId, card.name.toLowerCase())} replace />
 }

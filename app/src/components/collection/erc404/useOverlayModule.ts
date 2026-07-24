@@ -16,7 +16,7 @@ import {
   useReadMetadataResolverRouterResolverCount,
   useReadMetadataResolverRouterResolvers,
 } from '../../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../../lib/addresses'
+import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 
 /** keccak256("metadata.resolver") — the instance's fixed module-slot key (ERC404BondingInstance.sol). */
 const METADATA_RESOLVER =
@@ -41,23 +41,25 @@ export interface OverlayModuleResult {
 }
 
 export function useOverlayModule(instance: `0x${string}` | undefined): OverlayModuleResult {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const resolverRead = useReadErc404BondingInstanceModules({
     ...(instance ? { address: instance } : {}),
     args: [METADATA_RESOLVER],
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: !!instance },
   })
   const resolver = resolverRead.data
 
-  const isDirectOverlay = sameAddress(resolver, forkAddresses.MetadataOverlayModule)
-  const isRouter = sameAddress(resolver, forkAddresses.MetadataResolverRouter)
+  const isDirectOverlay = sameAddress(resolver, addresses.MetadataOverlayModule)
+  const isRouter = sameAddress(resolver, addresses.MetadataResolverRouter)
 
   // Router case: the overlay may be either of its (at most 2, per encodeMetadataConfig) wired
   // children — read both fixed slots, gated so they only fire when `resolver` IS the router.
   const countRead = useReadMetadataResolverRouterResolverCount({
     ...(resolver ? { address: resolver } : {}),
     args: instance ? [instance] : undefined,
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: isRouter && !!instance },
   })
   const count = countRead.data ?? 0n
@@ -65,13 +67,13 @@ export function useOverlayModule(instance: `0x${string}` | undefined): OverlayMo
   const child0Read = useReadMetadataResolverRouterResolvers({
     ...(resolver ? { address: resolver } : {}),
     args: instance ? [instance, 0n] : undefined,
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: isRouter && !!instance && count > 0n },
   })
   const child1Read = useReadMetadataResolverRouterResolvers({
     ...(resolver ? { address: resolver } : {}),
     args: instance ? [instance, 1n] : undefined,
-    chainId: forkChainId,
+    chainId: chainId,
     query: { enabled: isRouter && !!instance && count > 1n },
   })
 
@@ -82,17 +84,17 @@ export function useOverlayModule(instance: `0x${string}` | undefined): OverlayMo
     return { overlay: undefined, isPending: false }
   }
   if (isDirectOverlay) {
-    return { overlay: forkAddresses.MetadataOverlayModule, isPending: false }
+    return { overlay: addresses.MetadataOverlayModule, isPending: false }
   }
   if (isRouter) {
     if (countRead.isPending) return { overlay: undefined, isPending: true }
     if (count > 0n && child0Read.isPending) return { overlay: undefined, isPending: true }
     if (count > 1n && child1Read.isPending) return { overlay: undefined, isPending: true }
-    if (sameAddress(child0Read.data, forkAddresses.MetadataOverlayModule)) {
-      return { overlay: forkAddresses.MetadataOverlayModule, isPending: false }
+    if (sameAddress(child0Read.data, addresses.MetadataOverlayModule)) {
+      return { overlay: addresses.MetadataOverlayModule, isPending: false }
     }
-    if (sameAddress(child1Read.data, forkAddresses.MetadataOverlayModule)) {
-      return { overlay: forkAddresses.MetadataOverlayModule, isPending: false }
+    if (sameAddress(child1Read.data, addresses.MetadataOverlayModule)) {
+      return { overlay: addresses.MetadataOverlayModule, isPending: false }
     }
   }
   // Resolver is set but isn't (directly or via router) the overlay module — e.g. tier-only, or an

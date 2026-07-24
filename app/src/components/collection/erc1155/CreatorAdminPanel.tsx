@@ -26,7 +26,7 @@ import {
   useReadErc1155InstanceTotalProceeds,
   useReadErc1155InstanceTotalWithdrawn,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { AmountField } from '../../ui/AmountField'
 import { parseAmount } from '../../ui/parseAmount'
@@ -63,13 +63,14 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
 // ── Withdraw ─────────────────────────────────────────────────────────────────
 
 function WithdrawRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: totalProceeds, refetch: refetchProceeds } = useReadErc1155InstanceTotalProceeds({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const { data: totalWithdrawn, refetch: refetchWithdrawn } = useReadErc1155InstanceTotalWithdrawn({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
 
   const withdrawable =
@@ -96,7 +97,7 @@ function WithdrawRow({ instance }: { instance: `0x${string}` }) {
       abi: erc1155InstanceAbi,
       functionName: 'withdraw',
       args: [parsed],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -143,6 +144,7 @@ function WithdrawRow({ instance }: { instance: `0x${string}` }) {
 // ── Claim vault fees ─────────────────────────────────────────────────────────
 
 function ClaimFeesRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction()
 
   function handleClaim(): void {
@@ -150,7 +152,7 @@ function ClaimFeesRow({ instance }: { instance: `0x${string}` }) {
       address: instance,
       abi: erc1155InstanceAbi,
       functionName: 'claimVaultFees',
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -173,6 +175,7 @@ function ClaimFeesRow({ instance }: { instance: `0x${string}` }) {
 // ── Claim all fees ───────────────────────────────────────────────────────────
 
 function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction()
 
   function handleClaim(): void {
@@ -180,7 +183,7 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
       address: instance,
       abi: erc1155InstanceAbi,
       functionName: 'claimAllFees',
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -211,6 +214,7 @@ function UpdateMetadataRow({
   editions: readonly EditionView[]
   onUpdated: () => void
 }) {
+  const chainId = useCollectionChainId()
   // Track an explicit selection; fall back to the first edition so the row is usable even when
   // editions finish loading after mount (the useState initializer only runs once).
   const [selectedId, setSelectedId] = useState<string>('')
@@ -230,7 +234,7 @@ function UpdateMetadataRow({
       abi: erc1155InstanceAbi,
       functionName: 'updateEditionMetadata',
       args: [BigInt(editionId), uri.trim()],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -286,6 +290,7 @@ function UpdateMetadataRow({
 // ── Set style ────────────────────────────────────────────────────────────────
 
 function SetStyleRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const [uri, setUri] = useState('')
   const tx = useTxAction()
 
@@ -298,7 +303,7 @@ function SetStyleRow({ instance }: { instance: `0x${string}` }) {
       abi: erc1155InstanceAbi,
       functionName: 'setStyle',
       args: [uri.trim()],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -337,6 +342,7 @@ function SetStyleRow({ instance }: { instance: `0x${string}` }) {
 // ── Migrate vault ────────────────────────────────────────────────────────────
 
 function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const [newVault, setNewVault] = useState('')
   const tx = useTxAction()
 
@@ -350,7 +356,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
       abi: erc1155InstanceAbi,
       functionName: 'migrateVault',
       args: [newVault.trim() as `0x${string}`],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -395,9 +401,10 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
 // ── Agent delegation toggle ──────────────────────────────────────────────────
 
 function AgentDelegationRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: enabled, refetch } = useReadErc1155InstanceAgentDelegationEnabled({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
 
@@ -408,7 +415,7 @@ function AgentDelegationRow({ instance }: { instance: `0x${string}` }) {
       abi: erc1155InstanceAbi,
       functionName: 'setAgentDelegation',
       args: [!enabled],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 
@@ -442,6 +449,7 @@ function AgentDelegationRow({ instance }: { instance: `0x${string}` }) {
 // ── Retry vault contribution (permissionless) ────────────────────────────────
 
 function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction()
 
   function handleRetry(): void {
@@ -449,7 +457,7 @@ function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
       address: instance,
       abi: erc1155InstanceAbi,
       functionName: 'retryVaultContribution',
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 

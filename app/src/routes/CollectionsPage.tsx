@@ -6,6 +6,7 @@ import type { CollectionFilters, ProjectCard } from '../lib/discovery'
 import { useCollectionMetadata } from '../components/useCollectionMetadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { truncateAddress } from '../lib/format'
+import { forkChainId } from '../lib/addresses'
 import { CollectionCard } from '../components/CollectionCard'
 import { StateBlock } from '../components/ui/StateBlock'
 import styles from './CollectionsPage.module.css'
@@ -200,7 +201,7 @@ function RegistryRow({ card }: { card: ProjectCard }) {
       : '')
 
   return (
-    <Link href={`/collection/${card.instance}`} className="row">
+    <Link href={`/${forkChainId}/${card.name.toLowerCase()}`} className="row">
       <span className={styles.regName}>
         <span className="sw">
           {metadata?.image && <IpfsImage uri={metadata.image} alt="" className={styles.regThumb} />}
