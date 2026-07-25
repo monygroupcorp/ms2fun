@@ -6,6 +6,7 @@ import { DeployBondEscrow } from "../../../src/factories/erc404/DeployBondEscrow
 import { ProtocolTreasuryV1 } from "../../../src/treasury/ProtocolTreasuryV1.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
+import { MockWETH } from "../../mocks/MockWETH.sol";
 
 /// @dev Minimal stand-in for a bonding instance — the escrow only reads these two getters.
 contract MockBondInstance {
@@ -47,10 +48,19 @@ contract ReentrantCreator {
     }
 }
 
+/// @dev A creator that is a smart wallet rejecting plain ETH. Its bond must still be deliverable —
+///      the escrow wraps to WETH and sends it to this same address (the WETH-fallback path).
+contract RejectingCreator {
+    receive() external payable {
+        revert("no plain ETH");
+    }
+}
+
 contract DeployBondEscrowTest is Test {
     DeployBondEscrow escrow;
     ProtocolTreasuryV1 treasury;
     MockBondInstance instance;
+    MockWETH weth;
 
     address owner = makeAddr("owner");
     address factory = makeAddr("factory");
@@ -59,13 +69,18 @@ contract DeployBondEscrowTest is Test {
 
     uint256 constant BOND = 0.5 ether;
 
+    /// @dev Mirror of `SmartTransferLib.ETHTransferFallbackToWETH` for `vm.expectEmit` matching
+    ///      (the library emits it from the escrow's context on the plain-ETH-rejected path).
+    event ETHTransferFallbackToWETH(address indexed to, uint256 amount);
+
     function setUp() public {
         ProtocolTreasuryV1 impl = new ProtocolTreasuryV1();
         bytes memory initData = abi.encodeWithSelector(ProtocolTreasuryV1.initialize.selector, owner);
         ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
         treasury = ProtocolTreasuryV1(payable(address(proxy)));
 
-        escrow = new DeployBondEscrow(owner, factory, address(treasury));
+        weth = new MockWETH();
+        escrow = new DeployBondEscrow(owner, factory, address(treasury), address(weth));
         instance = new MockBondInstance();
 
         vm.deal(factory, 100 ether);
@@ -94,11 +109,17 @@ contract DeployBondEscrowTest is Test {
 
     function test_constructor_revertsOnZeroAddress() public {
         vm.expectRevert(DeployBondEscrow.InvalidAddress.selector);
-        new DeployBondEscrow(address(0), factory, address(treasury));
+        new DeployBondEscrow(address(0), factory, address(treasury), address(weth));
         vm.expectRevert(DeployBondEscrow.InvalidAddress.selector);
-        new DeployBondEscrow(owner, address(0), address(treasury));
+        new DeployBondEscrow(owner, address(0), address(treasury), address(weth));
         vm.expectRevert(DeployBondEscrow.InvalidAddress.selector);
-        new DeployBondEscrow(owner, factory, address(0));
+        new DeployBondEscrow(owner, factory, address(0), address(weth));
+        vm.expectRevert(DeployBondEscrow.InvalidAddress.selector);
+        new DeployBondEscrow(owner, factory, address(treasury), address(0));
+    }
+
+    function test_constructor_setsWeth() public view {
+        assertEq(escrow.weth(), address(weth));
     }
 
     // ── postBond ────────────────────────────────────────────────────────────
@@ -302,14 +323,77 @@ contract DeployBondEscrowTest is Test {
         instance.setGraduated(true);
         attacker.arm(address(instance), false);
 
-        // The re-entrant refund() hits the nonReentrant guard → the payout's inner call reverts →
-        // SafeTransferLib bubbles it → the whole refund reverts. No ETH leaves; nothing double-spent.
-        vm.expectRevert();
+        // The re-entrant refund() hits the nonReentrant guard, so the inner ETH transfer reverts.
+        // Under the WETH-fallback delivery, that reverting plain-ETH attempt no longer bricks the
+        // whole refund: SmartTransferLib catches it and wraps the bond to WETH for the SAME creator.
+        // The bond is therefore delivered EXACTLY ONCE (as WETH) — the settled-before-interaction
+        // flag + nonReentrant guard still make a second payout impossible.
         escrow.refund(address(instance));
 
         (,,, bool settled) = escrow.bonds(address(instance));
-        assertFalse(settled);
-        assertEq(address(escrow).balance, BOND);
+        assertTrue(settled);
+        assertEq(address(escrow).balance, 0);
+        assertEq(address(attacker).balance, 0, "no plain ETH lands on the rejecting attacker");
+        assertEq(weth.balanceOf(address(attacker)), BOND, "bond delivered once, as WETH");
+
+        // A follow-up refund must still revert — no double-spend after the WETH delivery.
+        vm.expectRevert(DeployBondEscrow.BondAlreadySettled.selector);
+        escrow.refund(address(instance));
+    }
+
+    // ── WETH fallback on the creator-paying legs (ETH-rejecting creator) ─────
+
+    /// @dev A creator whose `receive()` reverts must still get its bond on `refund` — delivered as
+    ///      WETH to the SAME creator (no revert, no stranded bond, no new recipient).
+    function test_refund_wethFallback_whenCreatorRejectsETH() public {
+        RejectingCreator rejecter = new RejectingCreator();
+        _post(address(instance), address(rejecter), BOND);
+        instance.setGraduated(true);
+
+        vm.expectEmit(true, false, false, true, address(escrow));
+        emit ETHTransferFallbackToWETH(address(rejecter), BOND);
+
+        vm.prank(stranger); // permissionless
+        escrow.refund(address(instance)); // must NOT revert despite the reverting receive()
+
+        assertEq(address(rejecter).balance, 0, "no plain ETH lands on the rejecting creator");
+        assertEq(weth.balanceOf(address(rejecter)), BOND, "bond delivered as WETH to the same creator");
+        assertEq(address(escrow).balance, 0, "escrow fully paid out");
+        (,,, bool settled) = escrow.bonds(address(instance));
+        assertTrue(settled);
+    }
+
+    /// @dev Same rescue via the owner `release` escape hatch.
+    function test_release_wethFallback_whenCreatorRejectsETH() public {
+        RejectingCreator rejecter = new RejectingCreator();
+        _post(address(instance), address(rejecter), BOND);
+
+        vm.expectEmit(true, false, false, true, address(escrow));
+        emit ETHTransferFallbackToWETH(address(rejecter), BOND);
+
+        vm.prank(owner);
+        escrow.release(address(instance)); // must NOT revert
+
+        assertEq(address(rejecter).balance, 0, "no plain ETH lands on the rejecting creator");
+        assertEq(weth.balanceOf(address(rejecter)), BOND, "bond delivered as WETH to the same creator");
+        assertEq(address(escrow).balance, 0, "escrow fully paid out");
+        (,,, bool settled) = escrow.bonds(address(instance));
+        assertTrue(settled);
+    }
+
+    /// @dev The accepting-creator fast path is unchanged: a plain EOA receives REAL ETH, no WETH
+    ///      minted — proving the fallback only engages when the direct transfer fails.
+    function test_refund_acceptingCreator_deliversPlainETH_noWeth() public {
+        _post(address(instance), creator, BOND);
+        instance.setGraduated(true);
+
+        uint256 before = creator.balance;
+        vm.prank(stranger);
+        escrow.refund(address(instance));
+
+        assertEq(creator.balance - before, BOND, "plain ETH delivered on the fast path");
+        assertEq(weth.balanceOf(creator), 0, "no WETH minted for an accepting creator");
+        assertEq(address(escrow).balance, 0);
     }
 
     // ── Owner levers ───────────────────────────────────────────────────────
