@@ -8,6 +8,7 @@ import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404Bondi
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { MockWETH } from "../../mocks/MockWETH.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { FreeMintParams } from "../../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../../src/gating/IGatingModule.sol";
@@ -1043,7 +1044,7 @@ contract ERC404FactoryTest is Test {
     function _wireEscrow(address treasury, uint256 bondAmount) internal returns (DeployBondEscrow escrow) {
         vm.startPrank(protocolAdmin);
         factory.setProtocolTreasury(treasury);
-        escrow = new DeployBondEscrow(protocolAdmin, address(factory), treasury);
+        escrow = new DeployBondEscrow(protocolAdmin, address(factory), treasury, address(new MockWETH()));
         factory.setDeployBondEscrow(address(escrow));
         if (bondAmount > 0) escrow.setBondAmount(bondAmount);
         vm.stopPrank();

@@ -445,7 +445,7 @@ contract DeployCore is Script {
         // Deploy-bond escrow (N12) — standalone, holds the bond ETH so the factory keeps its
         // "holds no ETH" invariant. Owner = deployer (handed to ADMIN via the deploy.ts handover).
         // Lever ships OFF (bondAmount defaults 0) → create is byte-identical to today.
-        deployBondEscrow = new DeployBondEscrow(deployer, address(erc404Factory), address(treasury));
+        deployBondEscrow = new DeployBondEscrow(deployer, address(erc404Factory), address(treasury), cfg.weth);
         erc404Factory.setDeployBondEscrow(address(deployBondEscrow));
 
         // CurveParamsComputer must be approved — _deployAndInitialize checks isApprovedComponent(preset.curveComputer)
