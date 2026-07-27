@@ -4,8 +4,8 @@ pragma solidity ^0.8.20;
 import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 import { IAlignmentVault } from "../interfaces/IAlignmentVault.sol";
-import { IInstance } from "../interfaces/IInstance.sol";
-import { IInstanceLifecycle, TYPE_ERC404, TYPE_ERC1155 } from "../interfaces/IInstanceLifecycle.sol";
+import { IInstanceLifecycle, TYPE_ERC404, TYPE_ERC1155, TYPE_ERC721 } from "../interfaces/IInstanceLifecycle.sol";
+import { BondingCurveMath } from "../factories/erc404/libraries/BondingCurveMath.sol";
 
 /// @notice Interface for FeaturedQueueManager
 /// @dev The real FeaturedQueueManager signature is getFeaturedInstances(offset, limit) — the second
@@ -67,6 +67,39 @@ interface IERC404Staking {
     function calculatePendingRewards(address staker) external view returns (uint256);
 }
 
+/// @notice ERC404 bonding-card reads (existing getters; the lens computes price/active from these,
+///         so no `getCardData()` is needed on the instance — keeps the size-locked ERC404 untouched).
+interface IERC404Card {
+    function totalBondingSupply() external view returns (uint256);
+    function maxSupply() external view returns (uint256);
+    function unit() external view returns (uint256);
+    function bondingActive() external view returns (bool);
+    function bondingOpenTime() external view returns (uint256);
+    function graduated() external view returns (bool);
+    function curveParams()
+        external
+        view
+        returns (uint256 initialPrice, uint256 quarticCoeff, uint256 cubicCoeff, uint256 quadraticCoeff, uint256 normalizationFactor);
+}
+
+/// @notice ERC721 auction-card reads.
+interface IERC721Card {
+    struct Auction {
+        uint24 tokenId;
+        string tokenURI;
+        uint256 minBid;
+        address highBidder;
+        uint256 highBid;
+        uint40 startTime;
+        uint40 endTime;
+        bool settled;
+    }
+    function lines() external view returns (uint8);
+    function nextTokenId() external view returns (uint24);
+    function getActiveAuction(uint8 line) external view returns (uint24 tokenId);
+    function getAuction(uint24 tokenId) external view returns (Auction memory);
+}
+
 /**
  * @title QueryAggregator
  * @notice Read-only aggregator that batches queries across multiple registry contracts
@@ -105,7 +138,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         // From MasterRegistry.VaultInfo
         address vault;
         string vaultName;
-        // From instance.getCardData()
+        // Computed lens-side per instance type (see _hydrateCardData / erc404CardData / erc721CardData)
         uint256 currentPrice;
         uint256 totalSupply;
         uint256 maxSupply;
@@ -167,6 +200,10 @@ contract QueryAggregator is SafeOwnableUUPS {
     address private __deprecated_globalMessageRegistry;
 
     uint256 public constant MAX_QUERY_LIMIT = 50;
+
+    /// @notice Hard cap on editions scanned per ERC1155 card. Bounds the per-card loop so a malicious
+    ///         instance reporting a huge `nextEditionId` cannot OOG-revert the whole batch (spec F-D).
+    uint256 public constant MAX_EDITIONS_PER_CARD = 100;
 
     bool private _initialized;
 
@@ -383,18 +420,82 @@ contract QueryAggregator is SafeOwnableUUPS {
 
     // slither-disable-next-line calls-loop
     function _hydrateCardData(ProjectCard memory card) private view {
-        // ERC404 and future types implement IInstance.getCardData() directly
-        try IInstance(card.instance).getCardData() returns (
-            uint256 price, uint256 supply, uint256 max, bool active, bytes memory extra
-        ) {
-            card.currentPrice = price;
-            card.totalSupply = supply;
-            card.maxSupply = max;
-            card.isActive = active;
-            card.extraData = extra;
+        // Dispatch on the instance's own type discriminator and read its EXISTING public getters.
+        // (The old design called IInstance.getCardData(), which NO instance implements — so ERC404 and
+        //  ERC721 cards silently fell through to the ERC1155 path and rendered as blank/"Ended". Fixed by
+        //  computing each type's card data lens-side, adding no code to the size-locked instances.)
+        bytes32 typeHash;
+        try IInstanceLifecycle(card.instance).instanceType() returns (bytes32 t) {
+            typeHash = t;
         } catch {
-            // ERC1155 instances: compute card data from edition storage directly
+            // No discriminator → fall through to the ERC1155 path below, which is itself fully guarded
+            // (a non-ERC1155 instance yields a zero card there). Preserves the pre-dispatch fallback.
+        }
+
+        if (typeHash == TYPE_ERC404) {
+            // Atomic external self-call: any revert in the underlying reads yields a zero card, not a
+            // batch revert (the batch loops call _hydrateProject unwrapped, so reads MUST be revert-safe).
+            try this.erc404CardData(card.instance) returns (uint256 price, uint256 supply, uint256 max, bool active) {
+                card.currentPrice = price;
+                card.totalSupply = supply;
+                card.maxSupply = max;
+                card.isActive = active;
+            } catch { }
+        } else if (typeHash == TYPE_ERC721) {
+            try this.erc721CardData(card.instance) returns (uint256 price, uint256 supply, uint256 max, bool active) {
+                card.currentPrice = price;
+                card.totalSupply = supply;
+                card.maxSupply = max;
+                card.isActive = active;
+            } catch { }
+        } else {
+            // ERC1155: compute from edition storage directly.
             _hydrateERC1155CardData(card);
+        }
+    }
+
+    /// @notice Atomic ERC404 bonding-card reader. `currentPrice` = cost of the next NFT-unit
+    ///         (`calculateCost(params, supply, unit)`, matching how buys are priced); `isActive` mirrors
+    ///         the frontend phase machine (bonding open AND started AND not graduated). External so the
+    ///         caller can try/catch the whole group as one unit. Not for direct use.
+    function erc404CardData(address instance)
+        external
+        view
+        returns (uint256 price, uint256 supply, uint256 max, bool active)
+    {
+        IERC404Card c = IERC404Card(instance);
+        supply = c.totalBondingSupply();
+        max = c.maxSupply();
+        active = c.bondingActive() && block.timestamp >= c.bondingOpenTime() && !c.graduated();
+        uint256 unit_ = c.unit();
+        if (unit_ > 0) {
+            (uint256 ip, uint256 q4, uint256 c3, uint256 q2, uint256 nf) = c.curveParams();
+            price = BondingCurveMath.calculateCost(BondingCurveMath.Params(ip, q4, c3, q2, nf), supply, unit_);
+        }
+    }
+
+    /// @notice Atomic ERC721 auction-card reader. `currentPrice` = the first LIVE line's current bid
+    ///         (highBid, or minBid if no bids yet); `isActive` = a live auction exists (unsettled AND
+    ///         before endTime). `supply` = pieces minted so far; `maxSupply` = 0 (open queue, unbounded).
+    ///         External so the caller can try/catch the whole group. Not for direct use.
+    function erc721CardData(address instance)
+        external
+        view
+        returns (uint256 price, uint256 supply, uint256 max, bool active)
+    {
+        IERC721Card c = IERC721Card(instance);
+        supply = uint256(c.nextTokenId()) - 1; // nextTokenId is 1-indexed; -1 = pieces minted
+        max = 0; // open queue: no fixed cap (0 = unlimited, same convention as unlimited ERC1155)
+        uint8 lineCount = c.lines();
+        for (uint8 i = 0; i < lineCount; i++) {
+            uint24 tokenId = c.getActiveAuction(i);
+            if (tokenId == 0) continue; // no active auction on this line
+            IERC721Card.Auction memory a = c.getAuction(tokenId);
+            if (!a.settled && block.timestamp < a.endTime) {
+                active = true;
+                price = a.highBid > 0 ? a.highBid : a.minBid;
+                break; // first live line sets the card price
+            }
         }
     }
 
@@ -403,6 +504,7 @@ contract QueryAggregator is SafeOwnableUUPS {
         try IERC1155EditionReader(card.instance).nextEditionId() returns (uint256 nextId) {
             uint256 count = nextId - 1;
             if (count == 0) return;
+            if (count > MAX_EDITIONS_PER_CARD) count = MAX_EDITIONS_PER_CARD; // F-D: bound the loop, never OOG the batch
             uint256 floorPrice = type(uint256).max;
             uint256 totalMinted;
             uint256 maxSupply;
