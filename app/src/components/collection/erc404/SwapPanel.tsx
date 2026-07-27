@@ -28,7 +28,7 @@ import {
   useWriteErc404BondingInstanceBuyBonding,
   useWriteErc404BondingInstanceSellBonding,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
@@ -72,8 +72,9 @@ export function SwapPanel({
   gatingActive,
   refetch,
 }: SwapPanelProps) {
+  const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
-  const publicClient = usePublicClient({ chainId: forkChainId })
+  const publicClient = usePublicClient({ chainId: chainId })
   const [direction, setDirection] = useState<Direction>('buy')
   const [amountStr, setAmountStr] = useState('')
   const [slippagePct, setSlippagePct] = useState('1')
@@ -102,14 +103,14 @@ export function SwapPanel({
   }
 
   // Buyable ceiling for the inverse solve (contract's ExceedsBonding guard).
-  const unit = useReadErc404BondingInstanceUnit({ address: instance, chainId: forkChainId })
+  const unit = useReadErc404BondingInstanceUnit({ address: instance, chainId: chainId })
   const reserveRead = useReadErc404BondingInstanceLiquidityReserve({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const freeMintRead = useReadErc404BondingInstanceFreeMintAllocation({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   let remaining: bigint | undefined
   if (
@@ -206,7 +207,7 @@ export function SwapPanel({
   // ── SELL quote (unchanged): token amount → refund ─────────────────────────────────────────────
   const refundQuote = useReadCurveParamsComputerCalculateRefund({
     address: curveComputer ?? ZERO_ADDRESS,
-    chainId: forkChainId,
+    chainId: chainId,
     args:
       curveParams !== undefined && sellAmount !== undefined
         ? [
@@ -232,7 +233,7 @@ export function SwapPanel({
 
   const balance = useReadErc404BondingInstanceBalanceOf({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   })
@@ -261,7 +262,7 @@ export function SwapPanel({
       const gatingData = gatingActive ? encodeBuyGatingData(passwordHash) : EMPTY_BYTES
       buy.writeContract({
         address: instance,
-        chainId: forkChainId,
+        chainId: chainId,
         args: [resolved.amount, maxCost, mintNFT, gatingData, messageData, deadline],
         value: maxCost,
       })
@@ -270,7 +271,7 @@ export function SwapPanel({
       const minRefund = applySellSlippage(refundQuote.data, slippageBps)
       sell.writeContract({
         address: instance,
-        chainId: forkChainId,
+        chainId: chainId,
         args: [sellAmount, minRefund, passwordHash, EMPTY_BYTES, deadline],
       })
     }

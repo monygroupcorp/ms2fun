@@ -8,7 +8,7 @@
  * you-are-here dot) + candles; graduated → candles only (the pre-graduation history).
  */
 import { useReadErc404BondingInstanceDecimals } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { derivePhase } from './bondingPhase'
 import { BondingChart } from './BondingChart'
 import { useBondingData } from './useBondingData'
@@ -18,11 +18,12 @@ import styles from './BondingSurface.module.css'
 const DEFAULT_DECIMALS = 18
 
 export function Erc404Charts({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const nowSec = useNowSec()
   const { view, curveParams, isPending, isError } = useBondingData(instance)
   const decimalsRead = useReadErc404BondingInstanceDecimals({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const decimals = decimalsRead.data ?? DEFAULT_DECIMALS
 

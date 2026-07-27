@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'wouter'
 import { usePublicClient } from 'wagmi'
 import { useReadErc404BondingInstanceMirrorErc721 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId, useCollectionSlug } from '../useCollectionChain'
 import { fetchJson } from '../../../lib/metadata'
 import { IpfsImage } from '../../ui/IpfsImage'
 import styles from './Erc404NftGallery.module.css'
@@ -52,10 +52,12 @@ interface NftPiece {
 }
 
 export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const slug = useCollectionSlug()
+  const client = usePublicClient({ chainId })
   const { data: mirror } = useReadErc404BondingInstanceMirrorErc721({
     address: instance,
-    chainId: forkChainId,
+    chainId,
   })
 
   const { data, isPending, isError } = useQuery({
@@ -131,10 +133,7 @@ export function Erc404NftGallery({ instance }: { instance: `0x${string}` }) {
     <ul className={styles.grid} data-testid="erc404-nft-gallery">
       {data.map((piece) => (
         <li key={piece.id.toString()} className={styles.tile}>
-          <Link
-            href={`/collection/${instance}/token/${piece.id.toString()}`}
-            className={styles.link}
-          >
+          <Link href={`/${chainId}/${slug}/token/${piece.id.toString()}`} className={styles.link}>
             <IpfsImage
               uri={piece.image ?? ''}
               alt={`#${piece.id.toString()}`}

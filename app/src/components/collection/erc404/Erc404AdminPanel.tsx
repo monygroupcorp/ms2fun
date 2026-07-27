@@ -25,7 +25,7 @@ import {
   useReadErc404BondingInstancePreviewCarve,
   useReadErc404BondingInstanceStakingActive,
 } from '../../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../../lib/addresses'
+import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
 import { parseBps } from '../../../lib/carve'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { Disclosure } from '../../ui/Disclosure'
@@ -103,9 +103,10 @@ export function Erc404AdminPanel({ instance }: Erc404AdminPanelProps) {
 // ── bonding active toggle ──────────────────────────────────────────────────────
 
 function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: active, refetch } = useReadErc404BondingInstanceBondingActive({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
   const next = !active
@@ -123,7 +124,7 @@ function SetBondingActiveRow({ instance }: { instance: `0x${string}` }) {
             abi: erc404BondingInstanceAbi,
             functionName: 'setBondingActive',
             args: [next],
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label={next ? 'activate bonding' : 'deactivate bonding'}
@@ -154,13 +155,14 @@ function SetTimeRow({
   testId: string
   kind: 'open' | 'maturity'
 }) {
+  const chainId = useCollectionChainId()
   const [value, setValue] = useState('')
   const { data: openTime, refetch: refetchOpen } = useReadErc404BondingInstanceBondingOpenTime({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const { data: maturityTime, refetch: refetchMaturity } =
-    useReadErc404BondingInstanceBondingMaturityTime({ address: instance, chainId: forkChainId })
+    useReadErc404BondingInstanceBondingMaturityTime({ address: instance, chainId: chainId })
 
   const tx = useTxAction({
     onSuccess: () => {
@@ -174,7 +176,7 @@ function SetTimeRow({
   // differ — a mainnet-fork's chain time runs hours ahead of the wall clock, and even on live networks
   // the two drift — so validating against `Date.now()` lets a value pass the UI and revert on-chain.
   // Use chain time; fall back to the wall clock only until the first block loads.
-  const { data: block } = useBlock({ chainId: forkChainId, watch: true })
+  const { data: block } = useBlock({ chainId: chainId, watch: true })
   const nowSec = block?.timestamp ?? BigInt(Math.floor(Date.now() / 1000))
 
   // Maturity must be > openTime AND in the future; surface the reason inline.
@@ -214,7 +216,7 @@ function SetTimeRow({
               abi: erc404BondingInstanceAbi,
               functionName,
               args: [seconds],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }}
           label="set time"
@@ -249,6 +251,7 @@ function SetUriRow({
   placeholder: string
   testId: string
 }) {
+  const chainId = useCollectionChainId()
   const [uri, setUri] = useState('')
   const tx = useTxAction()
   const canSubmit = uri.trim() !== '' && !tx.isBusy
@@ -275,7 +278,7 @@ function SetUriRow({
               abi: erc404BondingInstanceAbi,
               functionName,
               args: [uri.trim()],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }}
           label="update uri"
@@ -296,9 +299,10 @@ function SetUriRow({
 // ── activate staking (creator action; onlyOwner on-chain) ──────────────────────
 
 function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: active, refetch } = useReadErc404BondingInstanceStakingActive({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
 
@@ -321,7 +325,7 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
             abi: erc404BondingInstanceAbi,
             functionName: 'activateStaking',
             args: [],
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label="activate staking"
@@ -342,12 +346,13 @@ function ActivateStakingRow({ instance }: { instance: `0x${string}` }) {
 // at the instance's declared max and previews the resolved ETH via the on-chain previewCarve view.
 
 function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const [carveInput, setCarveInput] = useState('0') // bps, default 0 = plain graduation
   const tx = useTxAction()
 
   const { data: declaredMax } = useReadErc404BondingInstanceDeclaredMaxAllowanceBps({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const maxBps = declaredMax ?? 0
   const requestBps = Math.min(parseBps(carveInput, 0), maxBps)
@@ -355,13 +360,13 @@ function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
   // Live-computed effective max (full request) + the resolved carve for the CURRENT request.
   const { data: maxCarveWei } = useReadErc404BondingInstancePreviewCarve({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: [10_000n],
     query: { enabled: maxBps > 0 },
   })
   const { data: carveWei } = useReadErc404BondingInstancePreviewCarve({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: [BigInt(requestBps)],
     query: { enabled: requestBps > 0 },
   })
@@ -400,7 +405,7 @@ function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
               abi: erc404BondingInstanceAbi,
               functionName: 'deployLiquidity',
               args: [BigInt(requestBps)],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }
           label={requestBps > 0 ? `graduate + carve ${requestBps} bps` : 'deploy liquidity'}
@@ -420,14 +425,16 @@ function DeployLiquidityRow({ instance }: { instance: `0x${string}` }) {
 // surface it here in the creator panel. Renders nothing when no bond was posted for this instance.
 
 function BondStatusRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
   const { data: bond, refetch } = useReadDeployBondEscrowBonds({
-    address: forkAddresses.DeployBondEscrow,
-    chainId: forkChainId,
+    address: addresses.DeployBondEscrow,
+    chainId: chainId,
     args: [instance],
   })
   const { data: graduated } = useReadErc404BondingInstanceGraduated({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
 
@@ -456,11 +463,11 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
           state={tx.state}
           onClick={() =>
             tx.send({
-              address: forkAddresses.DeployBondEscrow,
+              address: addresses.DeployBondEscrow,
               abi: deployBondEscrowAbi,
               functionName: 'refund',
               args: [instance],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }
           label="reclaim deposit"
@@ -478,6 +485,7 @@ function BondStatusRow({ instance }: { instance: `0x${string}` }) {
 // ── vault: migrate ─────────────────────────────────────────────────────────────
 
 function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const [addr, setAddr] = useState('')
   const tx = useTxAction()
   const isAddress = /^0x[0-9a-fA-F]{40}$/.test(addr.trim())
@@ -505,7 +513,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
               abi: erc404BondingInstanceAbi,
               functionName: 'migrateVault',
               args: [addr.trim() as `0x${string}`],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }}
           label="migrate vault"
@@ -526,6 +534,7 @@ function MigrateVaultRow({ instance }: { instance: `0x${string}` }) {
 // ── vault: claim all fees ──────────────────────────────────────────────────────
 
 function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction()
 
   return (
@@ -538,7 +547,7 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
             abi: erc404BondingInstanceAbi,
             functionName: 'claimAllFees',
             args: [],
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label="claim all fees"
@@ -554,9 +563,10 @@ function ClaimAllFeesRow({ instance }: { instance: `0x${string}` }) {
 // ── agent delegation toggle ────────────────────────────────────────────────────
 
 function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: enabled, refetch } = useReadErc404BondingInstanceAgentDelegationEnabled({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
   const next = !enabled
@@ -578,7 +588,7 @@ function SetAgentDelegationRow({ instance }: { instance: `0x${string}` }) {
             abi: erc404BondingInstanceAbi,
             functionName: 'setAgentDelegation',
             args: [next],
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label={next ? 'enable delegation' : 'disable delegation'}

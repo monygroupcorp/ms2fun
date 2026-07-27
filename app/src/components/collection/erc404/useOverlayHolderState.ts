@@ -15,7 +15,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { metadataOverlayModuleAbi } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 
 export const SEL_AUTO = 0n
 export const SEL_BASE = 1n
@@ -51,7 +51,8 @@ export function useOverlayHolderState(
   id: bigint | undefined,
   holder: `0x${string}` | undefined,
 ): UseQueryResult<OverlayHolderState> {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const client = usePublicClient({ chainId })
 
   const query = useQuery({
     queryKey: ['overlay-holder-state', overlay, instance, id?.toString(), holder],

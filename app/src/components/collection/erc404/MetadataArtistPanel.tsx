@@ -15,7 +15,7 @@ import {
   useReadMetadataOverlayModuleAutoLatest,
   useReadMetadataOverlayModuleWaveCount,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { parseAmount } from '../../ui/parseAmount'
 import { AmountField } from '../../ui/AmountField'
 import { ActionRow } from '../../ui/AdminSection'
@@ -52,9 +52,10 @@ function PublishWaveRow({
   instance: `0x${string}`
   overlay: `0x${string}`
 }) {
+  const chainId = useCollectionChainId()
   const { data: waveCount, refetch } = useReadMetadataOverlayModuleWaveCount({
     address: overlay,
-    chainId: forkChainId,
+    chainId,
     args: [instance],
   })
 
@@ -171,7 +172,7 @@ function PublishWaveRow({
                 cond === WAVE_COND.PAY ? (parsedPrice ?? 0n) : 0n,
                 payout,
               ],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }}
           label="publish wave"
@@ -196,6 +197,7 @@ function SetCommissionRow({
   instance: `0x${string}`
   overlay: `0x${string}`
 }) {
+  const chainId = useCollectionChainId()
   const [id, setId] = useState('')
   const [uri, setUri] = useState('')
   const [cond, setCond] = useState<number>(COMM_COND.NONE)
@@ -302,7 +304,7 @@ function SetCommissionRow({
                 cond === COMM_COND.PAY ? (parsedPrice ?? 0n) : 0n,
                 payout,
               ],
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }}
           label="set commission"
@@ -327,9 +329,10 @@ function SetAutoLatestRow({
   instance: `0x${string}`
   overlay: `0x${string}`
 }) {
+  const chainId = useCollectionChainId()
   const { data: autoLatest, refetch } = useReadMetadataOverlayModuleAutoLatest({
     address: overlay,
-    chainId: forkChainId,
+    chainId,
     args: [instance],
   })
   const tx = useTxAction({ onSuccess: () => void refetch() })
@@ -352,7 +355,7 @@ function SetAutoLatestRow({
             abi: metadataOverlayModuleAbi,
             functionName: 'setAutoLatest',
             args: [instance, next],
-            chainId: forkChainId,
+            chainId: chainId,
           })
         }
         label={next ? 'enable auto-latest' : 'disable auto-latest'}

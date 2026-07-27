@@ -15,7 +15,7 @@
  */
 import { useEffect } from 'react'
 import { useReadContract } from 'wagmi'
-import { forkChainId } from '../../lib/addresses'
+import { useCollectionChainId } from './useCollectionChain'
 import { resolveUri } from '../../lib/metadata'
 
 const STYLE_ABI = [
@@ -41,11 +41,12 @@ function decodeDataCss(uri: string): string {
 }
 
 export function ProjectStyle({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
   const { data: styleUri } = useReadContract({
     address: instance,
     abi: STYLE_ABI,
     functionName: 'styleUri',
-    chainId: forkChainId,
+    chainId,
   })
 
   useEffect(() => {

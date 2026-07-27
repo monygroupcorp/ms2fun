@@ -7,7 +7,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import { erc721AuctionInstanceAbi } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import type { AuctionView } from './auctionState'
 
 export interface AuctionConfig {
@@ -37,7 +37,8 @@ export function useAuctions(instance: `0x${string}`): {
   isError: boolean
   refetch: () => void
 } {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const client = usePublicClient({ chainId })
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['erc721-auctions', instance],
