@@ -12,9 +12,10 @@
  * does not render an "opens <when>" stat — it works only from the fields the aggregator returns.
  */
 import { useState } from 'react'
-import { Link, useParams } from 'wouter'
+import { Link, Redirect, useParams } from 'wouter'
 import { formatEther } from 'viem'
 import { useQuery } from '@tanstack/react-query'
+import { useCollection } from '../components/useCollection'
 import { useEditions, type EditionView } from '../components/collection/useEditions'
 import { MintPanel } from '../components/collection/erc1155/MintPanel'
 import { editionThemeStyle, type EditionTheme } from '../components/collection/erc1155/editionTheme'
@@ -22,6 +23,18 @@ import { fetchJson, isResolvableUri } from '../lib/metadata'
 import { IpfsImage } from '../components/ui/IpfsImage'
 import { StateBlock } from '../components/ui/StateBlock'
 import { MintBar } from '../components/ui/MintBar'
+import {
+  CollectionChainProvider,
+  useCollectionChainId,
+  useCollectionSlug,
+} from '../components/collection/useCollectionChain'
+import { forkChainId } from '../lib/addresses'
+import {
+  RouteWrongChainBanner,
+  collectionRoutePath,
+  renderCollectionRouteState,
+  useResolvedCollectionRoute,
+} from './CollectionPage'
 import styles from './EditionDetailPage.module.css'
 
 interface EditionMetadata {
@@ -52,12 +65,51 @@ function useEditionMetadata(uri: string | undefined): EditionMetadata | undefine
   return data
 }
 
+function invalidReferenceState() {
+  return (
+    <div className={styles.page}>
+      <nav className={styles.crumb}>
+        <Link href="/" className={styles.back}>
+          ← noesis
+        </Link>
+      </nav>
+      <StateBlock variant="empty">invalid edition reference</StateBlock>
+    </div>
+  )
+}
+
+/** Chain-scoped route: `/:chainId/:slug/edition/:id`. Resolves the slug, then renders the existing
+ * `EditionDetail` body inside a `<CollectionChainProvider>` (chain-scoped-slug-routes noesis-079). */
 export function EditionDetailPage() {
-  const params = useParams<{ instance?: string; id?: string }>()
-  const instance = toAddress(params.instance)
+  const params = useParams<{ chainId?: string; slug?: string; id?: string }>()
+  const resolution = useResolvedCollectionRoute(params.chainId, params.slug)
   const id = params.id !== undefined && /^\d+$/.test(params.id) ? BigInt(params.id) : undefined
 
-  if (!instance || id === undefined) {
+  const state = renderCollectionRouteState(resolution, `/edition/${params.id ?? ''}`)
+  if (state !== undefined) return state
+  if (resolution.status !== 'ok') return null // unreachable — narrows the type below
+
+  if (id === undefined) return invalidReferenceState()
+
+  return (
+    <CollectionChainProvider chainId={resolution.chainId} slug={resolution.slug}>
+      <RouteWrongChainBanner chainId={resolution.chainId} />
+      <EditionDetail instance={resolution.instance} id={id} />
+    </CollectionChainProvider>
+  )
+}
+
+/** Legacy address-keyed route (`/collection/:instance/edition/:id`) — permanently redirects to the
+ * slug URL (chain-scoped-slug-routes noesis-079 step 8). Chain-blind by design; see
+ * `LegacyCollectionRedirect` in `./CollectionPage`. */
+export function LegacyEditionRedirect() {
+  const params = useParams<{ instance?: string; id?: string }>()
+  const instance = toAddress(params.instance)
+  const { data: card, isPending, isError } = useCollection(instance)
+
+  if (!instance || params.id === undefined) return invalidReferenceState()
+
+  if (isPending) {
     return (
       <div className={styles.page}>
         <nav className={styles.crumb}>
@@ -65,12 +117,30 @@ export function EditionDetailPage() {
             ← noesis
           </Link>
         </nav>
-        <StateBlock variant="empty">invalid edition reference</StateBlock>
+        <StateBlock variant="loading">hanging the work…</StateBlock>
       </div>
     )
   }
 
-  return <EditionDetail instance={instance} id={id} />
+  if (isError || !card || card.instance === '0x0000000000000000000000000000000000000000') {
+    return (
+      <div className={styles.page}>
+        <nav className={styles.crumb}>
+          <Link href="/" className={styles.back}>
+            ← noesis
+          </Link>
+        </nav>
+        <StateBlock variant="empty">edition not found</StateBlock>
+      </div>
+    )
+  }
+
+  return (
+    <Redirect
+      to={collectionRoutePath(forkChainId, card.name.toLowerCase(), `/edition/${params.id}`)}
+      replace
+    />
+  )
 }
 
 interface EditionDetailProps {
@@ -79,6 +149,8 @@ interface EditionDetailProps {
 }
 
 function EditionDetail({ instance, id }: EditionDetailProps) {
+  const chainId = useCollectionChainId()
+  const slug = useCollectionSlug()
   const { data: editions, isPending, isError, refetch } = useEditions(instance)
   const edition: EditionView | undefined = editions.find((e) => e.id === id)
 
@@ -98,7 +170,7 @@ function EditionDetail({ instance, id }: EditionDetailProps) {
 
   const crumb = (
     <nav className={styles.crumb}>
-      <Link href={`/collection/${instance}`} className={styles.back}>
+      <Link href={collectionRoutePath(chainId, slug)} className={styles.back}>
         ← collection
       </Link>
     </nav>

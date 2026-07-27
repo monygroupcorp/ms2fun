@@ -48,3 +48,28 @@ export const forkAddresses = {
   ModuleZAMMDeployer: c.ModuleZAMMDeployer as `0x${string}`,
   ModuleCypherDeployer: c.ModuleCypherDeployer as `0x${string}`,
 } as const
+
+/** Shape of a per-chain address bundle. */
+export type Addresses = typeof forkAddresses
+
+/**
+ * Chain ids the app's wagmi `config` actually knows how to talk to (`src/lib/wagmi.ts`:
+ * `[mainnet, anvilFork]`) — the generated read/write hooks type their `chainId` param against this
+ * exact union, so any chain-scoped chainId that reaches them must be narrowed to it (route params
+ * arrive as plain `number`).
+ */
+export type SupportedChainId = 1 | typeof forkChainId
+
+/**
+ * Chain-scoped address map (chain-scoped-slug-routes, noesis-079). Only `forkChainId` (1337, the
+ * sole live deployment; pre-testnet) is populated today — the Record SHAPE is the deliverable,
+ * adding chains later is data, not code.
+ */
+export const addressesByChain: Record<number, Addresses> = {
+  [forkChainId]: forkAddresses,
+}
+
+/** Look up the address bundle for a route-scoped chain id; `undefined` = unknown network. */
+export function addressesForChain(chainId: number): Addresses | undefined {
+  return addressesByChain[chainId]
+}

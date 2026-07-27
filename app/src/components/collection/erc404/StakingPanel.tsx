@@ -9,7 +9,7 @@
  *
  * Amounts are token units (parseUnits/formatUnits with the instance decimals); rewards are ETH/wei.
  * Each write has its own tx-receipt wait and refetches every read on success (write idiom mirrors
- * SwapPanel / EditionList: useWrite + useWaitForTransactionReceipt, forkChainId + chainId on every
+ * SwapPanel / EditionList: useWrite + useWaitForTransactionReceipt, chainId + chainId on every
  * call).
  */
 import { useEffect, useState } from 'react'
@@ -20,7 +20,7 @@ import {
   useWriteErc404BondingInstanceStake,
   useWriteErc404BondingInstanceUnstake,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { useStaking } from './useStaking'
 import bonding from './BondingSurface.module.css'
 import styles from './StakingPanel.module.css'
@@ -44,6 +44,7 @@ function parseAmount(input: string, decimals: number): bigint | undefined {
 }
 
 export function StakingPanel({ instance, decimals }: StakingPanelProps) {
+  const chainId = useCollectionChainId()
   const { stakingActive, tokenBalance, userStaked, globalTotalStaked, pendingRewards, refetch } =
     useStaking(instance)
 
@@ -147,7 +148,7 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
             if (stakeAmount === undefined) return
             stake.writeContract({
               address: instance,
-              chainId: forkChainId,
+              chainId: chainId,
               args: [stakeAmount],
             })
           }}
@@ -191,7 +192,7 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
             if (unstakeAmount === undefined) return
             unstake.writeContract({
               address: instance,
-              chainId: forkChainId,
+              chainId: chainId,
               args: [unstakeAmount],
             })
           }}
@@ -214,7 +215,7 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
       {/* ---- Claim ---- */}
       <button
         className={`btn btn-primary btn-chromatic ${styles.fullWidthBtn}`}
-        onClick={() => claim.writeContract({ address: instance, chainId: forkChainId })}
+        onClick={() => claim.writeContract({ address: instance, chainId: chainId })}
         disabled={claimBusy || !hasRewards}
         data-testid="erc404-claim-rewards"
       >

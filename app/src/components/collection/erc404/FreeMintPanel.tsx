@@ -10,7 +10,7 @@ import {
   useReadErc404BondingInstanceFreeMintClaimed,
   useWriteErc404BondingInstanceClaimFreeMint,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { EMPTY_BYTES, encodeGatingData, resolveBuyPasswordHash } from './gating'
 import styles from './BondingSurface.module.css'
 
@@ -27,16 +27,17 @@ export function FreeMintPanel({
   gatingActive,
   refetch,
 }: FreeMintPanelProps) {
+  const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
   const [password, setPassword] = useState('')
 
   const allocation = useReadErc404BondingInstanceFreeMintAllocation({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const claimed = useReadErc404BondingInstanceFreeMintClaimed({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: address ? [address] : undefined,
     query: { enabled: Boolean(address) },
   })
@@ -56,7 +57,7 @@ export function FreeMintPanel({
     const gatingData = gatingActive
       ? encodeGatingData(resolveBuyPasswordHash(password), bondingOpenTime)
       : EMPTY_BYTES
-    claim.writeContract({ address: instance, chainId: forkChainId, args: [gatingData] })
+    claim.writeContract({ address: instance, chainId: chainId, args: [gatingData] })
   }
 
   function handleReset(): void {

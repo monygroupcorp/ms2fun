@@ -290,6 +290,25 @@ async function main(): Promise<void> {
   }
 
   // 4. Write the slim config the frontend consumes (src/lib/addresses.ts).
+  // The `contracts` field is a name->address map keyed under this deploy's chain id. Map-merge
+  // onto whatever is already on disk (chain-scoped-slug-routes, noesis-079) rather than replacing
+  // wholesale, so a partial/older config's entries for names this deploy doesn't touch survive.
+  // `required()` always supplies every current key, so today (single chain, full redeploy every
+  // run) this is behaviourally a no-op — it only matters once the contract set or chain count
+  // diverges between runs.
+  let existingContracts: Record<string, Address> = {}
+  try {
+    const existing = JSON.parse(readFileSync(configPath, 'utf8')) as {
+      chainId?: number
+      contracts?: Record<string, Address>
+    }
+    if (existing.chainId === undefined || existing.chainId === deployed.chainId) {
+      existingContracts = existing.contracts ?? {}
+    }
+  } catch {
+    // No prior config (first deploy) — nothing to merge onto.
+  }
+
   const config = {
     generatedAt: new Date().toISOString(),
     chainId: deployed.chainId,
@@ -297,6 +316,7 @@ async function main(): Promise<void> {
     deployBlock: Number(deployBlock),
     deployer: deployed.deployer,
     contracts: {
+      ...existingContracts,
       MasterRegistryV1: required(c, 'MasterRegistry'),
       AlignmentRegistryV1: required(c, 'AlignmentRegistry'),
       GlobalMessageRegistry: required(c, 'GlobalMessageRegistry'),

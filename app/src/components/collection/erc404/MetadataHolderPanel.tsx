@@ -9,7 +9,7 @@
  */
 import { formatEther } from 'viem'
 import { metadataOverlayModuleAbi } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { TxButton } from '../../ui/TxButton'
 import { useTxAction } from '../../ui/useTxAction'
@@ -114,6 +114,7 @@ function CommissionRow({
   state: OverlayHolderState
   onDone: () => void
 }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction({ onSuccess: onDone })
   const needsPay = state.commissionCond === 1 && !state.commissionPaid
 
@@ -134,7 +135,7 @@ function CommissionRow({
               functionName: 'unlock',
               args: [instance, id],
               value: state.commissionPrice,
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }
           label={`unlock for ${formatEther(state.commissionPrice)} ETH`}
@@ -168,6 +169,7 @@ function WaveRow({
   currentSelection: bigint
   onDone: () => void
 }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction({ onSuccess: onDone })
   const needsPay = wave.cond === 2 && !wave.paid
   const ptr = WAVE_OFFSET + BigInt(wave.index)
@@ -192,7 +194,7 @@ function WaveRow({
               functionName: 'unlockWave',
               args: [instance, id, BigInt(wave.index)],
               value: wave.price,
-              chainId: forkChainId,
+              chainId: chainId,
             })
           }
           label={`unlock for ${formatEther(wave.price)} ETH`}
@@ -222,6 +224,7 @@ function PinRow({
   currentSelection: bigint
   onDone: () => void
 }) {
+  const chainId = useCollectionChainId()
   const tx = useTxAction({ onSuccess: onDone })
 
   function pin(ptr: bigint): void {
@@ -231,7 +234,7 @@ function PinRow({
       abi: metadataOverlayModuleAbi,
       functionName: 'select',
       args: [instance, id, ptr],
-      chainId: forkChainId,
+      chainId: chainId,
     })
   }
 

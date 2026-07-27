@@ -11,7 +11,8 @@ import { useQuery } from '@tanstack/react-query'
 import { formatEther, formatUnits } from 'viem'
 import { usePublicClient } from 'wagmi'
 import { erc404BondingInstanceAbi } from '../../../generated/contracts'
-import { deployBlock, forkChainId } from '../../../lib/addresses'
+import { deployBlock } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { scanBackward } from '../../../lib/logScan'
 import type { Trade } from './candleAggregator'
 
@@ -28,7 +29,8 @@ export function useBondingTrades(
   instance: `0x${string}`,
   decimals: number,
 ): { data: BondingTrade[]; isPending: boolean; isError: boolean } {
-  const client = usePublicClient({ chainId: forkChainId })
+  const chainId = useCollectionChainId()
+  const client = usePublicClient({ chainId })
 
   const { data, isPending, isError } = useQuery({
     queryKey: ['erc404-trades', instance, decimals],

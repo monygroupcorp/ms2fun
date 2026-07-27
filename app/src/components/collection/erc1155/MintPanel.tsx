@@ -12,7 +12,7 @@ import {
   useReadErc1155InstanceGatingScope,
   useWriteErc1155InstanceMint,
 } from '../../../generated/contracts'
-import { forkChainId } from '../../../lib/addresses'
+import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
 import { encodeMintMessage, encodePasswordGatingData, isPaidMintGated } from './gatingMint'
 import type { EditionView } from '../useEditions'
@@ -25,6 +25,7 @@ export interface MintPanelProps {
 }
 
 export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
+  const chainId = useCollectionChainId()
   const { isConnected } = useAccount()
   const [amount, setAmount] = useState(1)
   const [password, setPassword] = useState('')
@@ -32,7 +33,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
 
   const { data: costData, isPending: costPending } = useReadErc1155InstanceCalculateMintCost({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
     args: [edition.id, BigInt(amount)],
     query: { enabled: amount > 0 },
   })
@@ -42,11 +43,11 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   // (see erc1155/gatingMint.ts for the approach + the merkle seam). Otherwise gatingData = '0x'.
   const { data: gatingModule } = useReadErc1155InstanceGatingModule({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const { data: gatingScope } = useReadErc1155InstanceGatingScope({
     address: instance,
-    chainId: forkChainId,
+    chainId: chainId,
   })
   const gated = isPaidMintGated(gatingModule, gatingScope)
 
@@ -78,7 +79,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     const messageData = encodeMintMessage(message)
     writeContract({
       address: instance,
-      chainId: forkChainId,
+      chainId: chainId,
       args: [edition.id, BigInt(amount), gatingData, messageData, costData],
       value: costData,
     })

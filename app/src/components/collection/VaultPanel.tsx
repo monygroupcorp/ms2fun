@@ -6,7 +6,7 @@
 import { formatEther } from 'viem'
 import { useWaitForTransactionReceipt } from 'wagmi'
 import { useWriteAlignmentEndowmentVaultHarvest } from '../../generated/contracts'
-import { forkChainId } from '../../lib/addresses'
+import { useCollectionChainId } from './useCollectionChain'
 import { truncateAddress } from '../../lib/format'
 import { Disclosure } from '../ui/Disclosure'
 import { useEndowment } from './useEndowment'
@@ -31,6 +31,7 @@ interface VaultPanelInnerProps {
 }
 
 function VaultPanelInner({ vault, state }: VaultPanelInnerProps) {
+  const chainId = useCollectionChainId()
   const {
     writeContract,
     data: txHash,
@@ -42,7 +43,7 @@ function VaultPanelInner({ vault, state }: VaultPanelInnerProps) {
 
   function handleHarvest(): void {
     if (!vault) return
-    writeContract({ address: vault, chainId: forkChainId })
+    writeContract({ address: vault, chainId })
   }
 
   if (isSuccess) {
