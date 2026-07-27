@@ -79,7 +79,13 @@ interface IERC404Card {
     function curveParams()
         external
         view
-        returns (uint256 initialPrice, uint256 quarticCoeff, uint256 cubicCoeff, uint256 quadraticCoeff, uint256 normalizationFactor);
+        returns (
+            uint256 initialPrice,
+            uint256 quarticCoeff,
+            uint256 cubicCoeff,
+            uint256 quadraticCoeff,
+            uint256 normalizationFactor
+        );
 }
 
 /// @notice ERC721 auction-card reads.
