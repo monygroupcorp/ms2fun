@@ -39,7 +39,13 @@ contract MockERC404Card {
     }
 
     function curveParams() external view returns (uint256, uint256, uint256, uint256, uint256) {
-        return (_params.initialPrice, _params.quarticCoeff, _params.cubicCoeff, _params.quadraticCoeff, _params.normalizationFactor);
+        return (
+            _params.initialPrice,
+            _params.quarticCoeff,
+            _params.cubicCoeff,
+            _params.quadraticCoeff,
+            _params.normalizationFactor
+        );
     }
 }
 
@@ -110,11 +116,7 @@ contract QueryAggregatorCardsTest is Test {
         // initialPrice=1e18, normalizationFactor=1e18 → basePart integral = supply/1e18, so a 1e24-token
         // (=1 NFT) buy at supply 500e18 costs ~1e6 wei — small but nonzero and deterministic.
         return BondingCurveMath.Params({
-            initialPrice: 1e18,
-            quarticCoeff: 0,
-            cubicCoeff: 0,
-            quadraticCoeff: 0,
-            normalizationFactor: 1e18
+            initialPrice: 1e18, quarticCoeff: 0, cubicCoeff: 0, quadraticCoeff: 0, normalizationFactor: 1e18
         });
     }
 
@@ -142,17 +144,15 @@ contract QueryAggregatorCardsTest is Test {
     }
 
     function test_erc404_graduated_is_inactive() public {
-        MockERC404Card inst =
-            new MockERC404Card(500e18, 10_000e18, 1_000_000 * 1e18, true, true, 0, _params());
+        MockERC404Card inst = new MockERC404Card(500e18, 10_000e18, 1_000_000 * 1e18, true, true, 0, _params());
         QueryAggregator.ProjectCard memory card = _batch(address(inst));
         assertFalse(card.isActive, "graduated => not active");
     }
 
     function test_erc404_preopen_is_inactive() public {
         // bondingActive true but openTime in the future => preopen => inactive.
-        MockERC404Card inst = new MockERC404Card(
-            0, 10_000e18, 1_000_000 * 1e18, true, false, block.timestamp + 1000, _params()
-        );
+        MockERC404Card inst =
+            new MockERC404Card(0, 10_000e18, 1_000_000 * 1e18, true, false, block.timestamp + 1000, _params());
         QueryAggregator.ProjectCard memory card = _batch(address(inst));
         assertFalse(card.isActive, "open-time in future => not yet active");
     }
