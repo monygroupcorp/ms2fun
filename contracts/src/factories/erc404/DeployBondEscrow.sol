@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 import { ProtocolTreasuryV1 } from "../../treasury/ProtocolTreasuryV1.sol";
 
 /// @dev Minimal read surface the escrow needs from a bonding instance. Both are public state
@@ -50,6 +50,13 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     /// @notice The only address allowed to post bonds — the ERC404 factory choke point.
     address public immutable factory;
 
+    /// @notice Canonical WETH used as the ETH-transfer fallback wrapper on the creator-paying legs
+    ///         (`refund`/`release`). If the recorded creator rejects plain ETH (e.g. a smart-wallet
+    ///         whose `receive()` reverts), the bond is wrapped to WETH and delivered to the SAME
+    ///         creator as an ERC20 — so a rejecting recipient can never strand its bond. Immutable on
+    ///         a non-upgradeable contract → no storage-layout concern.
+    address public immutable weth;
+
     // ── Storage ───────────────────────────────────────────────────────────────
     /// @notice Protocol treasury; forfeited bonds are deposited here tagged `BOND_FORFEIT`.
     address public protocolTreasury;
@@ -76,13 +83,14 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
     event GraceDaysUpdated(uint256 newGraceDays);
     event MaxBondDurationUpdated(uint256 newMaxBondDuration);
 
-    constructor(address _owner, address _factory, address _protocolTreasury) {
-        if (_owner == address(0) || _factory == address(0) || _protocolTreasury == address(0)) {
+    constructor(address _owner, address _factory, address _protocolTreasury, address _weth) {
+        if (_owner == address(0) || _factory == address(0) || _protocolTreasury == address(0) || _weth == address(0)) {
             revert InvalidAddress();
         }
         _initializeOwner(_owner);
         factory = _factory;
         protocolTreasury = _protocolTreasury;
+        weth = _weth;
     }
 
     // ── Escrow lifecycle ──────────────────────────────────────────────────────
@@ -114,7 +122,9 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         b.settled = true; // effects before interaction — blocks re-entrant double-refund
         uint256 amount = b.amount;
         address creator = b.creator;
-        SafeTransferLib.safeTransferETH(creator, amount);
+        // WETH-fallback delivery: attempt plain ETH first, and if the creator rejects it (reverting
+        // `receive()`), wrap to WETH and send it to the SAME creator — the bond is always deliverable.
+        SmartTransferLib.smartTransferETH(creator, amount, weth);
         emit BondRefunded(instance, creator, amount);
     }
 
@@ -151,7 +161,9 @@ contract DeployBondEscrow is Ownable, ReentrancyGuard {
         b.settled = true;
         uint256 amount = b.amount;
         address creator = b.creator;
-        SafeTransferLib.safeTransferETH(creator, amount);
+        // WETH-fallback delivery (same rationale as `refund`) — an ETH-rejecting creator still
+        // receives its bond as WETH via the owner escape hatch, so `release` can always rescue it.
+        SmartTransferLib.smartTransferETH(creator, amount, weth);
         emit BondReleased(instance, creator, amount);
     }
 
