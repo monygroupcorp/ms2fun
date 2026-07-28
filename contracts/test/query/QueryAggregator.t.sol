@@ -94,6 +94,62 @@ contract QueryAggregatorTest is Test {
         assertEq(card.maxSupply, 0, "any unlimited => maxSupply 0");
     }
 
+    // ─────────────────────────── F-F.1: FQM revert must not sink the homepage ───────────────────────────
+
+    /// A broken/upgraded FeaturedQueueManager whose getFeaturedInstances reverts must yield an empty
+    /// homepage (empty projects, totalFeatured 0), NOT revert the whole call. Before the fix the FQM
+    /// call was the one bare entry-path read and would propagate the revert to the caller.
+    function test_FF1_reverting_fqm_yields_empty_homepage() public {
+        fqm.setTotal(100);
+        fqm.setShouldRevert(true);
+
+        (QueryAggregator.ProjectCard[] memory projects, uint256 total) = agg.getHomePageData(0, 24);
+
+        assertEq(projects.length, 0, "reverting FQM => empty grid, not a revert");
+        assertEq(total, 0, "reverting FQM => zero total");
+    }
+
+    // ─────────────────────────── F-F.3: card price = floor of LIVE per-edition prices ───────────────────────────
+
+    /// The card currentPrice must be the min of the LIVE getCurrentPrice per edition, not the min of the
+    /// static basePrice. With a live bump the two diverge; this assertion FAILS against the old basePrice
+    /// floor (which would report min basePrice = 1 ether).
+    function test_FF3_card_price_uses_live_price_floor() public {
+        MockERC1155Editions m = new MockERC1155Editions();
+        m.addEdition({ supply: 10, minted: 5, basePrice: 1 ether }); // min basePrice
+        m.addEdition({ supply: 10, minted: 2, basePrice: 3 ether });
+        m.setLivePriceBump(0.5 ether); // live = basePrice + 0.5 => min live = 1.5 ether
+
+        QueryAggregator.ProjectCard memory card = _card(address(m));
+
+        assertEq(card.currentPrice, 1.5 ether, "card price = floor of LIVE prices (1 + 0.5), not min basePrice");
+    }
+
+    /// If getCurrentPrice reverts, the lens must fall back to basePrice for that edition (failure-tolerance
+    /// doctrine) — no revert, and the floor reflects the static basePrice.
+    function test_FF3_live_price_revert_falls_back_to_baseprice() public {
+        MockERC1155Editions m = new MockERC1155Editions();
+        m.addEdition({ supply: 10, minted: 5, basePrice: 1 ether });
+        m.addEdition({ supply: 10, minted: 2, basePrice: 3 ether });
+        m.setLivePriceBump(0.5 ether);
+        m.setPriceReverts(true); // live read reverts => fall back to basePrice
+
+        QueryAggregator.ProjectCard memory card = _card(address(m));
+
+        assertEq(card.currentPrice, 1 ether, "getCurrentPrice revert => fall back to min basePrice, no revert");
+    }
+
+    // ─────────────────────────── F-F.4: extraData is documented-unused (always empty) ───────────────────────────
+
+    /// No card hydration path assigns extraData; it must always be empty bytes. Pins the documented
+    /// "unused" contract so a future accidental populate is caught.
+    function test_FF4_erc1155_card_extradata_empty() public {
+        MockERC1155Editions m = new MockERC1155Editions();
+        m.addEdition({ supply: 10, minted: 5, basePrice: 1 ether });
+        QueryAggregator.ProjectCard memory card = _card(address(m));
+        assertEq(card.extraData.length, 0, "extraData is unused => always empty bytes");
+    }
+
     // ─────────────────────────── F4: portfolio length guard ───────────────────────────
 
     function test_F4_portfolio_reverts_over_max_instances() public {
@@ -189,6 +245,7 @@ contract Reverter {
 ///      recording the last `limit` it received so the test can assert the corrected pagination arg.
 contract MockFeaturedQueueManager {
     uint256 public total;
+    bool public shouldRevert;
     Reverter internal instance;
 
     constructor() {
@@ -199,6 +256,12 @@ contract MockFeaturedQueueManager {
         total = t;
     }
 
+    /// @dev F-F.1: models a broken/upgraded FQM whose getFeaturedInstances reverts. The lens must catch
+    ///      this and yield an empty homepage, not propagate the revert.
+    function setShouldRevert(bool v) external {
+        shouldRevert = v;
+    }
+
     /// @dev Faithfully models the real FQM: returns a window of AT MOST `limit` instances starting at
     ///      `offset`. Because the returned length is `min(limit, total - offset)`, an aggregator that
     ///      (buggily) passed `offset + limit` would get a wider window — the length assertion catches it.
@@ -207,6 +270,7 @@ contract MockFeaturedQueueManager {
         view
         returns (address[] memory instances, uint256 total_)
     {
+        if (shouldRevert) revert("FQM broken");
         total_ = total;
 
         uint256 n = 0;
@@ -234,6 +298,20 @@ contract MockFeaturedQueueManager {
 contract MockERC1155Editions {
     IERC1155EditionReader.Edition[] private eds;
 
+    // F-F.3: live-price controls. `livePriceBump` is added to basePrice to model a partway-minted
+    // LIMITED_DYNAMIC edition whose live getCurrentPrice exceeds its static basePrice. `priceReverts`
+    // forces getCurrentPrice to revert so the lens's basePrice fallback can be asserted.
+    uint256 public livePriceBump;
+    bool public priceReverts;
+
+    function setLivePriceBump(uint256 bump) external {
+        livePriceBump = bump;
+    }
+
+    function setPriceReverts(bool v) external {
+        priceReverts = v;
+    }
+
     function addEdition(uint256 supply, uint256 minted, uint256 basePrice) external {
         IERC1155EditionReader.Edition memory e;
         e.id = eds.length + 1;
@@ -255,6 +333,7 @@ contract MockERC1155Editions {
     }
 
     function getCurrentPrice(uint256 editionId) external view returns (uint256) {
-        return eds[editionId - 1].basePrice;
+        if (priceReverts) revert("getCurrentPrice broken");
+        return eds[editionId - 1].basePrice + livePriceBump;
     }
 }

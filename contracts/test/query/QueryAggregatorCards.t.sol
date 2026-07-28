@@ -193,6 +193,26 @@ contract QueryAggregatorCardsTest is Test {
         assertFalse(card.isActive, "expired-unsettled => not active (endTime gate)");
     }
 
+    /// F-F.4: no card type populates extraData — it must be empty bytes for ERC404 and ERC721 too
+    /// (the ERC1155 case is covered in QueryAggregator.t.sol). Pins the documented "unused" contract.
+    function test_FF4_erc404_and_erc721_card_extradata_empty() public {
+        MockERC404Card e404 = new MockERC404Card(500e18, 10_000e18, 1_000_000 * 1e18, true, false, 0, _params());
+        assertEq(_batch(address(e404)).extraData.length, 0, "ERC404 card extraData unused => empty");
+
+        MockERC721Card.Auction memory a = MockERC721Card.Auction({
+            tokenId: 1,
+            tokenURI: "",
+            minBid: 1 ether,
+            highBidder: address(0),
+            highBid: 0,
+            startTime: uint40(block.timestamp - 10),
+            endTime: uint40(block.timestamp + 100),
+            settled: false
+        });
+        MockERC721Card e721 = new MockERC721Card(1, a, 1);
+        assertEq(_batch(address(e721)).extraData.length, 0, "ERC721 card extraData unused => empty");
+    }
+
     function test_erc721_no_bids_uses_minbid() public {
         MockERC721Card.Auction memory a = MockERC721Card.Auction({
             tokenId: 1,
