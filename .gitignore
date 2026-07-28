@@ -75,6 +75,7 @@ scripts/debug-*.mjs
 
 # Misc
 .htaccess
+contractHandler.js
 
 # Playwright artifacts (when run from repo root by mistake)
 test-results/
