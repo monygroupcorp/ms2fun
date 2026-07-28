@@ -33,6 +33,9 @@ export const forkAddresses = {
   DeployBondEscrow: c.DeployBondEscrow as `0x${string}`,
   ERC1155Factory: c.ERC1155Factory as `0x${string}`,
   ERC721AuctionFactory: c.ERC721AuctionFactory as `0x${string}`,
+  // Aave endowment vault factory (noesis-077) — permissionless Yield-vault creation. A vault factory,
+  // NOT a wizardable token factory; see VAULT_FACTORY_ADDRESSES below.
+  AaveEndowmentVaultFactory: c.AaveEndowmentVaultFactory as `0x${string}`,
   ComponentRegistry: c.ComponentRegistry as `0x${string}`,
   ProfileRegistry: c.ProfileRegistry as `0x${string}`,
   AlignmentTargetRequestRegistry: c.AlignmentTargetRequestRegistry as `0x${string}`,
@@ -48,6 +51,17 @@ export const forkAddresses = {
   ModuleZAMMDeployer: c.ModuleZAMMDeployer as `0x${string}`,
   ModuleCypherDeployer: c.ModuleCypherDeployer as `0x${string}`,
 } as const
+
+/**
+ * Vault-family factories (noesis-077). These self-register as `IFactory` in the MasterRegistry so any
+ * wallet can permissionlessly create an alignment vault — but they are NOT wizardable token factories.
+ * Any registry-driven factory enumeration filters these out (so the roster promotion stays cosmetic and
+ * a vault factory never appears as a wizard project type). Lowercased for case-insensitive membership;
+ * extend with the LP vault factories when those are promoted (spec §4.2 follow-up).
+ */
+export const VAULT_FACTORY_ADDRESSES: ReadonlySet<string> = new Set(
+  [forkAddresses.AaveEndowmentVaultFactory].map((a) => a.toLowerCase()),
+)
 
 /** Shape of a per-chain address bundle. */
 export type Addresses = typeof forkAddresses
