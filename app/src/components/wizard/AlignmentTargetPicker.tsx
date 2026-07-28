@@ -6,6 +6,7 @@ import { IpfsImage } from '../ui/IpfsImage'
 import { StateBlock } from '../ui/StateBlock'
 import { groupVaultsByFamily, venueLabel, type VaultFamily } from '../../lib/wizard/vaultFlavor'
 import type { RegisteredVault } from './useRegisteredVaults'
+import { YieldVaultCreateCard } from './YieldVaultCreateCard'
 import { truncateAddress } from '../../lib/format'
 import { LearnLink } from './LearnLink'
 import styles from './AlignmentTargetPicker.module.css'
@@ -199,20 +200,30 @@ export function AlignmentTargetPicker({
             </div>
           ))}
 
-          {/* Venues this community doesn't have — the "create it now" affordance. Inline vault
-              deployment (+ gas estimate) is a follow-up; for now it routes to the request flow. */}
+          {/* Venues this community doesn't have — the "create it now" affordance. Yield (Aave endowment)
+              is permissionlessly deployable inline (noesis-077); the LP venues stay static "coming soon"
+              until their priceValidator/pool-config lockdown lands (spec §4.2). */}
           {missingVenues.length > 0 && (
             <div className={styles.familyBlock}>
               <span className={styles.familyTag}>Not deployed</span>
               <div className={styles.venueGrid}>
-                {missingVenues.map((c) => (
-                  <div key={c.venue} className={`${styles.venueCard} ${styles.venueCreate}`}>
-                    <span className={styles.venueName}>{venueLabel(c.venue)}</span>
-                    <span className={styles.venueNote}>
-                      {FAMILY_LABEL[c.family]} · create for {activeTarget.title} — coming soon
-                    </span>
-                  </div>
-                ))}
+                {missingVenues.map((c) =>
+                  c.family === 'yield' ? (
+                    <YieldVaultCreateCard
+                      key={c.venue}
+                      targetId={activeTarget.id}
+                      targetTitle={activeTarget.title}
+                      onCreated={() => {}}
+                    />
+                  ) : (
+                    <div key={c.venue} className={`${styles.venueCard} ${styles.venueCreate}`}>
+                      <span className={styles.venueName}>{venueLabel(c.venue)}</span>
+                      <span className={styles.venueNote}>
+                        {FAMILY_LABEL[c.family]} · create for {activeTarget.title} — coming soon
+                      </span>
+                    </div>
+                  ),
+                )}
               </div>
             </div>
           )}
