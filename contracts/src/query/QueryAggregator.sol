@@ -149,6 +149,9 @@ contract QueryAggregator is SafeOwnableUUPS {
         uint256 totalSupply;
         uint256 maxSupply;
         bool isActive;
+        // F-F.4: currently unused — no card hydration path (ERC404/ERC721/ERC1155) assigns extraData,
+        // so it is always empty bytes. Vestige of the removed getCardData() 5-tuple. The frontend must
+        // NOT decode it. Kept as a reserved forward-compat field; do not populate without a spec update.
         bytes extraData;
         // From FeaturedQueueManager
         uint256 featuredRank;
@@ -281,9 +284,16 @@ contract QueryAggregator is SafeOwnableUUPS {
         // NOTE: the second argument is a COUNT (limit), not an end index. Passing `offset + limit`
         // (the prior bug) made FQM over-fetch by `offset` on page 2+, potentially exceeding
         // MAX_QUERY_LIMIT; pass `limit` so the returned window is exactly `limit` wide.
-        (address[] memory featuredAddresses, uint256 total) = featuredQueueManager.getFeaturedInstances(offset, limit);
-
-        totalFeatured = total;
+        // F-F.1: the FQM call is the one entry-path external read that must not be able to revert the
+        // whole homepage. A broken/upgraded FeaturedQueueManager yields an empty grid, not a revert —
+        // this read lens has no server to paper over a revert, so it degrades to an empty result set.
+        address[] memory featuredAddresses;
+        try featuredQueueManager.getFeaturedInstances(offset, limit) returns (address[] memory addrs, uint256 total_) {
+            featuredAddresses = addrs;
+            totalFeatured = total_;
+        } catch {
+            return (new ProjectCard[](0), 0);
+        }
 
         // Hydrate each into ProjectCard
         projects = new ProjectCard[](featuredAddresses.length);
@@ -520,7 +530,16 @@ contract QueryAggregator is SafeOwnableUUPS {
                 try IERC1155EditionReader(card.instance).getEdition(i) returns (
                     IERC1155EditionReader.Edition memory ed
                 ) {
-                    if (ed.basePrice < floorPrice) floorPrice = ed.basePrice;
+                    // F-F.3: card price is the floor of the LIVE per-edition prices, not the floor of
+                    // static basePrice. A partway-minted LIMITED_DYNAMIC edition's live getCurrentPrice
+                    // exceeds basePrice, so a basePrice floor understated the real buy price. Read the
+                    // live price per edition (own try/catch, falling back to basePrice on revert to
+                    // preserve the failure-tolerance doctrine) and take the min of that.
+                    uint256 edPrice = ed.basePrice; // fallback = static floor if the live read reverts
+                    try IERC1155EditionReader(card.instance).getCurrentPrice(i) returns (uint256 p) {
+                        edPrice = p;
+                    } catch { }
+                    if (edPrice < floorPrice) floorPrice = edPrice;
                     totalMinted += ed.minted;
                     if (ed.supply == 0) {
                         hasUnlimited = true;
