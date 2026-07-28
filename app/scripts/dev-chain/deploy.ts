@@ -328,6 +328,8 @@ async function main(): Promise<void> {
       DeployBondEscrow: required(c, 'DeployBondEscrow'),
       ERC1155Factory: required(f, 'ERC1155'),
       ERC721AuctionFactory: required(f, 'ERC721'),
+      // Aave endowment vault factory (noesis-077) — permissionless Yield-vault creation.
+      AaveEndowmentVaultFactory: required(f, 'AAVE'),
       ComponentRegistry: required(c, 'ComponentRegistry'),
       ProfileRegistry: required(c, 'ProfileRegistry'),
       AlignmentTargetRequestRegistry: required(c, 'AlignmentTargetRequestRegistry'),

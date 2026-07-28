@@ -20,7 +20,7 @@ import {
   masterRegistryV1Abi,
   useReadMasterRegistryV1GetTotalFactories,
 } from '../../generated/contracts'
-import { forkAddresses, forkChainId } from '../../lib/addresses'
+import { forkAddresses, forkChainId, VAULT_FACTORY_ADDRESSES } from '../../lib/addresses'
 import { AdminSection, ActionRow } from '../ui/AdminSection'
 import { TxButton } from '../ui/TxButton'
 import { useOwnerGate } from '../ui/useOwnerGate'
@@ -86,8 +86,19 @@ function RegisterFactoryRow() {
     features !== undefined &&
     !tx.isBusy
 
+  // Vault-family factories (noesis-077) are registered as IFactory to allow permissionless vault
+  // creation, but they are NOT wizardable token factories — subtract them so this roster count reflects
+  // token factories only and the promotion stays cosmetic. Clamp at 0 in case none are registered yet.
+  const tokenFactoryTotal =
+    total === undefined
+      ? undefined
+      : total > BigInt(VAULT_FACTORY_ADDRESSES.size)
+        ? total - BigInt(VAULT_FACTORY_ADDRESSES.size)
+        : 0n
   const totalHint =
-    total === undefined ? 'total factories: …' : `total factories: ${total.toString()}`
+    tokenFactoryTotal === undefined
+      ? 'total factories: …'
+      : `total factories: ${tokenFactoryTotal.toString()}`
   const hint = features === undefined ? 'features: each must be a 32-byte hex (0x…)' : totalHint
 
   return (

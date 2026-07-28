@@ -327,6 +327,21 @@ contract DeployCore is Script {
             aaveVaultFactory = new AlignmentEndowmentVaultFactory(
                 cfg.weth, cfg.aaveStataToken, address(treasury), masterRegistry, alignmentRegistry
             );
+            // Permissionless creation (noesis-077): register + activate the Aave factory as a first-class
+            // IFactory BEFORE the Phase-5 seed loop. The factory self-registers each vault it deploys
+            // (owner-side registerVault is dropped below), so it must be an active registrar at the moment
+            // it deploys the seed vaults. `title` must pass MetadataUtils.isValidName (alphanumeric +
+            // hyphen/underscore, no spaces) → hyphenated, mirroring the token factories.
+            MasterRegistryV1(masterRegistry)
+                .registerFactory(
+                    address(aaveVaultFactory),
+                    "AAVE",
+                    "Aave-Endowment-Vault-Factory",
+                    "Aave Endowment Vault",
+                    "https://ms2.fun",
+                    new bytes32[](0),
+                    deployer
+                );
         }
 
         // ── Phase 5: Alignment targets + vault instances ─────────────────────
@@ -343,8 +358,11 @@ contract DeployCore is Script {
             alignmentTargetIds.push(targetId);
 
             // Aave endowment vault (ADR-0003): set the target's community payout (from config — no
-            // placeholder baked into this cross-network script), then deploy + register a per-target
-            // endowment vault clone. A zero payout is left unset (configured later, off-chain).
+            // placeholder baked into this cross-network script), then deploy a per-target endowment vault
+            // clone. A zero payout is left unset (configured later, off-chain). The factory SELF-REGISTERS
+            // the vault (noesis-077) with an on-chain-derived name + hardcoded metadataURI, crediting the
+            // deployer — so there is no owner-side registerVault here (a duplicate would revert
+            // AlreadyRegistered).
             if (cfg.aaveStataToken != address(0)) {
                 if (t.communityPayout != address(0)) {
                     alignmentRegistry.setCommunityPayout(targetId, t.communityPayout);
@@ -352,14 +370,6 @@ contract DeployCore is Script {
                 address aaveVault = aaveVaultFactory.deployVault(
                     _vaultSalt(cfg.chainId, i, "AAVE", cfg.saltNonce), t.token, targetId
                 );
-                MasterRegistryV1(masterRegistry)
-                    .registerVault(
-                        aaveVault,
-                        deployer,
-                        string.concat(t.symbol, " Aave Endowment Vault"),
-                        "https://ms2.fun",
-                        targetId
-                    );
                 aaveVaults.push(aaveVault);
             }
 
@@ -686,7 +696,10 @@ contract DeployCore is Script {
         string memory f = "factories";
         vm.serializeAddress(f, "ERC404", address(erc404Factory));
         vm.serializeAddress(f, "ERC1155", address(erc1155Factory));
-        string memory factories = vm.serializeAddress(f, "ERC721", address(erc721Factory));
+        vm.serializeAddress(f, "ERC721", address(erc721Factory));
+        // Aave endowment vault factory (noesis-077) — exported so the app can offer permissionless
+        // Yield-vault creation. Zero when this network has no Aave stataToken (factory not deployed).
+        string memory factories = vm.serializeAddress(f, "AAVE", address(aaveVaultFactory));
 
         // uniswap sub-object
         string memory u = "uniswap";
