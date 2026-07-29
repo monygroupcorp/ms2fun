@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { DN404 } from "dn404/src/DN404.sol";
 import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
-import { Ownable } from "solady/auth/Ownable.sol";
-import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
+import { ERC404BondingStorage, RerollFailed } from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
@@ -34,7 +32,6 @@ error CannotActivateAfterLiquidityDeployed();
 error ExceedsBonding();
 error GatingNotAllowed();
 error InsufficientBalance();
-error InsufficientTokenBalance();
 error InvalidGlobalMessageRegistry();
 error InvalidLiquidityDeployer();
 error InvalidMaxSupply();
@@ -48,11 +45,8 @@ error NoReserve();
 error OpenTimeMustBeSetFirst();
 error OpenTimeNotSet();
 error TimeMustBeInFuture();
-error TokenAmountMustBePositive();
-error TokenAmountMustRepresentNFT();
 error TooEarly();
 error TransactionExpired();
-error BalanceMismatchAfterReroll();
 error AmountMustBePositive();
 error FreeMintDisabled();
 error FreeMintAlreadyClaimed();
@@ -92,7 +86,7 @@ interface IStakingTotals {
  * @title ERC404BondingInstance
  * @notice AMM-agnostic ERC404 bonding token. Graduation delegates to an ILiquidityDeployerModule.
  */
-contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLifecycle {
+contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     // ┌─────────────────────────┐
     // │         Types           │
     // └─────────────────────────┘
@@ -120,70 +114,14 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // ┌─────────────────────────┐
     // │      State Variables    │
     // └─────────────────────────┘
+    // ALL instance state lives in the shared `ERC404BondingStorage` base (single source of truth) so
+    // `ERC404BondingOps` inherits a byte-identical layout and executes reroll in this instance's storage
+    // under delegatecall (noesis-091). Never declare a state var here — put it in the base.
 
-    bool private _initialized;
-
-    string private _name;
-    string private _symbol;
-
-    uint256 public maxSupply;
-    uint256 public liquidityReserve;
-    BondingCurveMath.Params public curveParams;
-    uint256 public unit;
-
-    address public factory;
-    IAlignmentVault public vault;
-    IMasterRegistry public masterRegistry;
-    IGlobalMessageRegistry public globalMessageRegistry;
-
-    address public protocolTreasury;
-    address public weth;
-    uint256 public bondingFeeBps;
-
-    string public styleUri;
-    string public metadataURI;
-
-    uint256 public bondingOpenTime;
-    uint256 public bondingMaturityTime;
-    bool public bondingActive;
-    uint256 public totalBondingSupply;
-    uint256 public reserve;
-
-    // Gating module (address(0) = open gating)
-    IGatingModule public gatingModule;
-    bool public agentDelegationEnabled;
-    bool public gatingActive;
-
-    // Liquidity deployer — set once in initialize(), AMM-agnostic
-    ILiquidityDeployerModule public liquidityDeployer;
-
-    // Graduation flag
-    bool public graduated;
-
-    // Creator carve disclosure — set once at initialize, immutable thereafter (public getter).
-    uint16 public declaredMaxAllowanceBps;
-
-    // Free mint tranche
-    uint256 public freeMintAllocation; // NFT count reserved (0 = disabled)
-    uint256 public freeMintsClaimed; // running counter (in NFTs, not tokens)
-    mapping(address => bool) public freeMintClaimed;
-    GatingScope public gatingScope;
-    bool private _freeMintInitialized;
-
-    // Staking module (address(0) = staking not available for this instance)
-    IERC404StakingModule public stakingModule;
-    bool public stakingActive;
-
-    // ETH currently owed to stakers (a liability held in this instance's balance, NOT part of the
-    // bonding `reserve`). Credited when distributable fees arrive (`claimAllFees`, only while
-    // `totalStaked > 0`), debited as stakers are actually paid (`unstake`, `claimStakingRewards`).
-    // `withdrawDust` subtracts this so the owner can never sweep staker-owed ETH (noesis-061 F1).
-    uint256 public stakingReserve;
-
-    // Generic keyed module slots (ADR-0006/0007). One slot for all known + future module pointers
-    // (role => module; 0 = absent). Wired ONCE by the factory at create, then sealed — no owner setter.
-    mapping(bytes32 => address) public modules;
-    bytes32 internal constant METADATA_RESOLVER = keccak256("metadata.resolver");
+    // Delegatecall target for the externalized reroll body (EIP-170 diet). Immutable: set once in the
+    // master constructor, no storage slot, no setter, non-upgradeable (rth 2026-07-22). Because it is
+    // immutable it lives in the master's code, so every EIP-1167 clone reads this same shared Ops.
+    address internal immutable _ops;
 
     // ── Events ────────────────────────────────────────────────────────────────
     event BondingSale(address indexed user, uint256 amount, uint256 cost, bool isBuy);
@@ -191,8 +129,6 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     event BondingMaturityTimeSet(uint256 maturityTime);
     event BondingActiveChanged(bool active);
     event LiquidityDeployed(address indexed deployer, uint256 amountToken, uint256 amountETH);
-    event RerollInitiated(address indexed user, uint256 tokenAmount, uint256[] exemptedNFTIds);
-    event RerollCompleted(address indexed user, uint256 tokensReturned);
     event BondingFeePaid(address indexed buyer, uint256 feeAmount);
     event FreeMintClaimed(address indexed user);
     event AgentDelegationChanged(bool enabled);
@@ -206,8 +142,11 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // │      Constructor        │
     // └─────────────────────────┘
 
-    constructor() {
+    /// @param ops The shared, immutable `ERC404BondingOps` delegatecall target for the externalized
+    ///        reroll body. Deployed BEFORE the master and passed here; non-upgradeable (no setter).
+    constructor(address ops) {
         _initialized = true;
+        _ops = ops;
     }
 
     // ┌─────────────────────────┐
@@ -612,42 +551,20 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
     // │   Reroll Functionality  │
     // └─────────────────────────┘
 
-    function rerollSelectedNFTs(uint256 tokenAmount, uint256[] calldata exemptedNFTIds) external nonReentrant {
-        if (tokenAmount == 0) revert TokenAmountMustBePositive();
-        if (balanceOf(msg.sender) < tokenAmount) revert InsufficientTokenBalance();
-
-        DN404Storage storage $ = _getDN404Storage();
-        AddressData storage addressData = $.addressData[msg.sender];
-
-        uint256 unitSize = _unit();
-        uint256 exemptCount = exemptedNFTIds.length;
-        if (tokenAmount < exemptCount * unitSize) revert TokenAmountMustRepresentNFT();
-
-        uint256 rerollAmount = tokenAmount - (exemptCount * unit);
-        if (rerollAmount / unit == 0) revert TokenAmountMustRepresentNFT(); // round down: standard integer NFT count
-
-        uint256 balanceBefore = addressData.balance;
-
-        emit RerollInitiated(msg.sender, tokenAmount, exemptedNFTIds);
-
-        for (uint256 i = 0; i < exemptCount; i++) {
-            _initiateTransferFromNFT(msg.sender, address(this), exemptedNFTIds[i], msg.sender);
-        }
-
-        _transfer(msg.sender, address(this), rerollAmount);
-
-        bool originalSkipNFT = getSkipNFT(msg.sender);
-        _setSkipNFT(msg.sender, false);
-        _transfer(address(this), msg.sender, rerollAmount);
-        _setSkipNFT(msg.sender, originalSkipNFT);
-
-        for (uint256 i = 0; i < exemptCount; i++) {
-            _initiateTransferFromNFT(address(this), msg.sender, exemptedNFTIds[i], address(this));
-        }
-
-        if (addressData.balance != balanceBefore) revert BalanceMismatchAfterReroll();
-
-        emit RerollCompleted(msg.sender, tokenAmount);
+    /// @notice Reroll selected NFTs. The body is externalized into the immutable `ERC404BondingOps`
+    ///         (EIP-170 diet — noesis-091) and reached by a discard-returndata delegatecall, so it runs
+    ///         in THIS instance's storage context. The selector/param types MUST stay
+    ///         `rerollSelectedNFTs(uint256,uint256[])` so raw `msg.data` forwards verbatim.
+    /// @dev    Returndata is discarded deliberately: bubbling it (via `bytes memory ret` or inline-asm
+    ///         returndatacopy) re-triggers a via_ir size cliff (+~1.5KB) that blows the EIP-170 gate.
+    ///         Consequently Ops's specific reverts (`TokenAmountMustPositive`, ...) surface to the caller
+    ///         as the generic `RerollFailed()`; the specifics remain visible in traces, and every revert
+    ///         still HAPPENS (safety intact). NO `nonReentrant` here — the guard lives on the Ops side and
+    ///         engages via the shared fixed slot under delegatecall; guarding both ends would self-revert.
+    // slither-disable-next-line low-level-calls,unused-return
+    function rerollSelectedNFTs(uint256, uint256[] calldata) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert RerollFailed();
     }
 
     // ┌─────────────────────────┐
@@ -732,9 +649,7 @@ contract ERC404BondingInstance is DN404, Ownable, ReentrancyGuard, IInstanceLife
         return _symbol;
     }
 
-    function _unit() internal view override returns (uint256) {
-        return unit;
-    }
+    // `_unit()` is inherited from ERC404BondingStorage (shared by the instance and Ops).
 
     /// @dev Defensive metadata-resolution seam (ADR-0006/0007): if a resolver is wired and returns
     ///      a non-empty augmentation, it wins; ANY revert/empty falls back to base — tokenURI can
