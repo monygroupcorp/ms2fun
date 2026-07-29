@@ -5,6 +5,7 @@ import { Test, console } from "forge-std/Test.sol";
 import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
 import { DeployBondEscrow } from "../../../src/factories/erc404/DeployBondEscrow.sol";
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
@@ -113,7 +114,7 @@ contract ERC404FactoryTest is Test {
             })
         );
 
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(impl),
@@ -1192,7 +1193,7 @@ contract ERC404FactoryTest is Test {
     // ── noesis-072 — constructor weth zero-check (mirrors setWeth guard) ────────
 
     function test_constructor_revertsOnZeroWeth() public {
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         vm.expectRevert(ERC404Factory.InvalidAddress.selector);
         new ERC404Factory(
             ERC404Factory.CoreConfig({

@@ -11,6 +11,7 @@ import {
     InvalidRefund,
     InvalidDeclaredMaxAllowance
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -110,7 +111,7 @@ contract ERC404BondingInstanceTest is Test {
             normalizationFactor: 1e7
         });
 
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         instance = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
         _initInstance(instance, address(0xBEEF), address(0xFEE), 100);
         instance.initializeMetadata("Test Token", "TEST", "", "");
@@ -335,7 +336,7 @@ contract ERC404BondingInstanceTest is Test {
 
     function test_BuyBondingWithFee_ZeroFee() public {
         vm.startPrank(owner);
-        ERC404BondingInstance zeroFeeImpl = new ERC404BondingInstance();
+        ERC404BondingInstance zeroFeeImpl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance zeroFeeInstance = ERC404BondingInstance(payable(LibClone.clone(address(zeroFeeImpl))));
         _initInstance(zeroFeeInstance, address(0xBEEF), address(0xFEE), 0);
         zeroFeeInstance.initializeMetadata("Zero Fee Token", "ZFT", "", "");
@@ -360,7 +361,7 @@ contract ERC404BondingInstanceTest is Test {
 
     function test_BuyBondingWithFee_NoTreasury() public {
         vm.startPrank(owner);
-        ERC404BondingInstance noTreasuryImplInst = new ERC404BondingInstance();
+        ERC404BondingInstance noTreasuryImplInst = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance noTreasuryInstance =
             ERC404BondingInstance(payable(LibClone.clone(address(noTreasuryImplInst))));
         _initInstance(noTreasuryInstance, address(0xBEEF), address(0), 100);
@@ -453,7 +454,7 @@ contract ERC404BondingInstanceTest is Test {
     /// @dev Zero fee rate ⇒ no skim: the seller receives the full curve refund.
     function test_SellBonding_NoFeeWhenRateZero() public {
         vm.startPrank(owner);
-        ERC404BondingInstance zeroImpl = new ERC404BondingInstance();
+        ERC404BondingInstance zeroImpl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance zeroFeeInstance = ERC404BondingInstance(payable(LibClone.clone(address(zeroImpl))));
         _initInstance(zeroFeeInstance, address(0xBEEF), address(0xFEE), 0); // bondingFeeBps = 0
         zeroFeeInstance.initializeMetadata("Zero Fee Token", "ZFT", "", "");
@@ -587,7 +588,7 @@ contract ERC404BondingInstanceTest is Test {
     function test_deployLiquidity_ownerGraduatesBeforeFullOrMaturity() public {
         MockLiquidityDeployer mockDepl = new MockLiquidityDeployer();
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
         inst2.initializeProtocol(
@@ -639,7 +640,7 @@ contract ERC404BondingInstanceTest is Test {
         returns (ERC404BondingInstance inst)
     {
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         inst = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         ERC404BondingInstance.BondingParams memory bp = _bondingParams();
         bp.declaredMaxAllowanceBps = declaredBps;
@@ -663,7 +664,7 @@ contract ERC404BondingInstanceTest is Test {
 
     function test_initialize_revertsOnDeclaredMaxOver10000() public {
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         ERC404BondingInstance.BondingParams memory bp = _bondingParams();
         bp.declaredMaxAllowanceBps = 10001;
@@ -789,7 +790,7 @@ contract ERC404BondingInstanceTest is Test {
 
     function test_gatingActive_startsTrue_whenGatingModuleSet() public {
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         address mockGating = address(new MockGatingModule());
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating);
@@ -803,7 +804,7 @@ contract ERC404BondingInstanceTest is Test {
 
     function test_gating_selfDeactivates_whenPermanent() public {
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         address mockGating = address(new PermanentGatingModule());
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating);
@@ -838,7 +839,7 @@ contract ERC404BondingInstanceTest is Test {
     function test_deployLiquidity_callsUniformInterface() public {
         MockLiquidityDeployer mockDepl = new MockLiquidityDeployer();
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
         inst2.initializeProtocol(
@@ -872,7 +873,7 @@ contract ERC404BondingInstanceTest is Test {
 
     function test_initialize_noHookParam() public {
         vm.startPrank(owner);
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0));
         vm.stopPrank();

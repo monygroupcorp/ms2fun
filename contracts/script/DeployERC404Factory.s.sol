@@ -5,6 +5,7 @@ import { Script, console } from "forge-std/Script.sol";
 import { MasterRegistryV1 } from "../src/master/MasterRegistryV1.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../src/factories/erc404/ERC404BondingOps.sol";
 
 /// @notice Deploys a new ERC404BondingInstance implementation + ERC404Factory,
 ///         wires protocol treasury, and registers the factory in MasterRegistry.
@@ -29,7 +30,8 @@ contract DeployERC404Factory is Script {
         vm.startBroadcast();
 
         // 1. Deploy new implementation
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingOps ops = new ERC404BondingOps();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(ops));
         console.log("ERC404BondingInstance impl:", address(impl));
 
         // 2. Deploy new factory
