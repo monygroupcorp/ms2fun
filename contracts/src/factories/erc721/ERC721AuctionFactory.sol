@@ -109,6 +109,7 @@ contract ERC721AuctionFactory is Ownable, ReentrancyGuard, IFactory {
                     owner: params.creator,
                     name: params.name,
                     symbol: params.symbol,
+                    metadataURI: params.metadataURI,
                     lines: params.lines,
                     baseDuration: params.baseDuration,
                     timeBuffer: params.timeBuffer,

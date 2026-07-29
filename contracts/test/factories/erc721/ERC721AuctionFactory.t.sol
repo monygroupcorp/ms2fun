@@ -12,7 +12,8 @@ import {
     AuctionExpired,
     AuctionNotEnded,
     NoBids,
-    HasBids
+    HasBids,
+    InvalidSymbol
 } from "../../../src/factories/erc721/ERC721AuctionInstance.sol";
 import { UniAlignmentVault } from "../../../src/vaults/uni/UniAlignmentVault.sol";
 import { MockEXECToken } from "../../mocks/MockEXECToken.sol";
@@ -820,6 +821,56 @@ contract ERC721AuctionFactoryTest is Test {
         msgRegistry.initialize(owner, address(mockRegistry));
         vm.expectRevert(ERC721AuctionFactory.InvalidAddress.selector);
         new ERC721AuctionFactory(address(mockRegistry), address(msgRegistry), address(0));
+    }
+
+    // ── noesis-084 — ERC-7572 collection contractURI ───────────────────────────
+
+    /// @notice contractURI() is populated at create from the collection metadataURI arg.
+    function test_contractURI_setAtCreate() public {
+        ERC721AuctionInstance inst = _createDefaultInstance();
+        assertEq(inst.contractURI(), "ipfs://meta", "contractURI should mirror create-time metadataURI");
+    }
+
+    /// @notice setContractURI is owner-only, mutates the value, and emits ContractURIUpdated.
+    function test_setContractURI_ownerOnly_updatesAndEmits() public {
+        ERC721AuctionInstance inst = _createDefaultInstance();
+
+        vm.prank(bidder1); // non-owner
+        vm.expectRevert();
+        inst.setContractURI("ipfs://hijack");
+
+        vm.expectEmit(true, true, true, true, address(inst));
+        emit ERC721AuctionInstance.ContractURIUpdated();
+        vm.prank(artist); // owner (creator)
+        inst.setContractURI("ipfs://updated");
+        assertEq(inst.contractURI(), "ipfs://updated");
+    }
+
+    /// @notice ERC721 keeps its InvalidSymbol-on-empty guard (unchanged by 084; contrast ERC1155's
+    ///         optional symbol). Asserted on direct construction — the factory path wraps the ctor
+    ///         revert in CreateX's FailedContractCreation, masking the inner selector.
+    function test_erc721_stillRevertsOnEmptySymbol() public {
+        GlobalMessageRegistry gmr = new GlobalMessageRegistry();
+        gmr.initialize(owner, address(mockRegistry));
+        vm.expectRevert(InvalidSymbol.selector);
+        new ERC721AuctionInstance(
+            ERC721AuctionInstance.ConstructorParams({
+                vault: address(vault),
+                protocolTreasury: treasury,
+                owner: artist,
+                name: "Artist Collection",
+                symbol: "", // empty → must revert InvalidSymbol
+                metadataURI: "ipfs://meta",
+                lines: 1,
+                baseDuration: BASE_DURATION,
+                timeBuffer: TIME_BUFFER,
+                bidIncrement: BID_INCREMENT,
+                globalMessageRegistry: address(gmr),
+                masterRegistry: address(mockRegistry),
+                factory: address(factory),
+                weth: address(0xBEEF)
+            })
+        );
     }
 }
 

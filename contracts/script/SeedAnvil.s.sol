@@ -405,6 +405,7 @@ contract SeedAnvil is Script {
     ) internal returns (address instance) {
         ERC1155Factory.CreateParams memory params = ERC1155Factory.CreateParams({
             name: slug,
+            symbol: "", // optional collection symbol (noesis-084)
             metadataURI: _collectionMeta(displayName, description, image),
             creator: deployer,
             vault: vault,

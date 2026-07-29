@@ -5,6 +5,7 @@ import { SafeOwnableUUPS } from "../shared/SafeOwnableUUPS.sol";
 import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 import { IAlignmentVault } from "../interfaces/IAlignmentVault.sol";
 import { IInstanceLifecycle, TYPE_ERC404, TYPE_ERC1155, TYPE_ERC721 } from "../interfaces/IInstanceLifecycle.sol";
+import { IContractURI } from "../interfaces/IContractURI.sol";
 import { BondingCurveMath } from "../factories/erc404/libraries/BondingCurveMath.sol";
 
 /// @notice Interface for FeaturedQueueManager
@@ -410,11 +411,37 @@ contract QueryAggregator is SafeOwnableUUPS {
             card.vault = info.vaults.length > 0 ? info.vaults[info.vaults.length - 1] : address(0);
         } catch { }
 
+        // §6 anti-drift (noesis-084): for the instance types that now expose ERC-7572 contractURI()
+        // (ERC1155/ERC721), the INSTANCE is the single source of truth for the collection metadata URI —
+        // read it through and stop trusting the possibly-drifted registry copy. ERC404 has no contractURI()
+        // until noesis-085, so it keeps reading the registry value populated above.
+        _hydrateContractURI(card);
+
         // 2–5 don't depend on step 1 succeeding — they use card fields or instance directly
         _hydrateFactory(card);
         _hydrateVault(card);
         _hydrateCardData(card);
         _hydrateFeatured(card);
+    }
+
+    /// @dev §6 read-through: override card.metadataURI with the instance's own contractURI() for the
+    ///      types that expose it (ERC1155/ERC721). Defensive try/catch — on any revert (or ERC404, which
+    ///      has no contractURI()) the registry-sourced value is kept, matching this file's never-brick reads.
+    // slither-disable-next-line calls-loop
+    function _hydrateContractURI(ProjectCard memory card) private view {
+        bytes32 typeHash;
+        try IInstanceLifecycle(card.instance).instanceType() returns (bytes32 t) {
+            typeHash = t;
+        } catch {
+            return; // no discriminator → keep the registry value
+        }
+
+        if (typeHash == TYPE_ERC1155 || typeHash == TYPE_ERC721) {
+            try IContractURI(card.instance).contractURI() returns (string memory u) {
+                card.metadataURI = u;
+            } catch { }
+        }
+        // TYPE_ERC404 (and anything else): keep the registry copy (noesis-085 flips ERC404).
     }
 
     // slither-disable-next-line calls-loop

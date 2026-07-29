@@ -97,6 +97,38 @@ contract MockFQM {
     }
 }
 
+/// @notice noesis-084 §6: minimal instance exposing instanceType() + ERC-7572 contractURI().
+contract MockContractURIInstance {
+    bytes32 private immutable _type;
+    string private _cu;
+
+    constructor(bytes32 t, string memory cu) {
+        _type = t;
+        _cu = cu;
+    }
+
+    function instanceType() external view returns (bytes32) {
+        return _type;
+    }
+
+    function contractURI() external view returns (string memory) {
+        return _cu;
+    }
+}
+
+/// @notice noesis-084 §6: instance with a type but NO contractURI() (the ERC404 case pre-085).
+contract MockNoContractURIInstance {
+    bytes32 private immutable _type;
+
+    constructor(bytes32 t) {
+        _type = t;
+    }
+
+    function instanceType() external view returns (bytes32) {
+        return _type;
+    }
+}
+
 /// @notice F-A regression: before the fix, ERC404 and ERC721 cards returned zero-default
 ///         currentPrice/isActive/supply (the getCardData() seam was unimplemented), rendering as
 ///         "0 gwei"/"Ended" on the homepage/grid. The lens now type-dispatches on instanceType() and
@@ -211,6 +243,41 @@ contract QueryAggregatorCardsTest is Test {
         });
         MockERC721Card e721 = new MockERC721Card(1, a, 1);
         assertEq(_batch(address(e721)).extraData.length, 0, "ERC721 card extraData unused => empty");
+    }
+
+    // ── noesis-084 §6 anti-drift: card.metadataURI reads the instance's contractURI() for the
+    //    types that expose it (ERC1155/ERC721), and keeps the registry copy for ERC404. ───────────
+
+    function test_s6_erc1155_card_reads_instance_contractURI() public {
+        MockContractURIInstance inst = new MockContractURIInstance(keccak256("erc1155"), "instance://erc1155");
+        registry.setInstanceMetadataURI(address(inst), "registry://stale");
+        QueryAggregator.ProjectCard memory card = _batch(address(inst));
+        assertEq(
+            card.metadataURI,
+            "instance://erc1155",
+            "ERC1155 card must read the instance contractURI, not the registry copy"
+        );
+    }
+
+    function test_s6_erc721_card_reads_instance_contractURI() public {
+        MockContractURIInstance inst = new MockContractURIInstance(keccak256("erc721"), "instance://erc721");
+        registry.setInstanceMetadataURI(address(inst), "registry://stale");
+        QueryAggregator.ProjectCard memory card = _batch(address(inst));
+        assertEq(
+            card.metadataURI,
+            "instance://erc721",
+            "ERC721 card must read the instance contractURI, not the registry copy"
+        );
+    }
+
+    function test_s6_erc404_card_keeps_registry_metadataURI() public {
+        // ERC404 has no contractURI() until noesis-085 → the registry copy must survive.
+        MockNoContractURIInstance inst = new MockNoContractURIInstance(keccak256("erc404"));
+        registry.setInstanceMetadataURI(address(inst), "registry://erc404");
+        QueryAggregator.ProjectCard memory card = _batch(address(inst));
+        assertEq(
+            card.metadataURI, "registry://erc404", "ERC404 card must keep the registry metadataURI pending noesis-085"
+        );
     }
 
     function test_erc721_no_bids_uses_minbid() public {

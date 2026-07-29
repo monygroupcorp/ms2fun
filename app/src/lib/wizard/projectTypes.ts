@@ -189,6 +189,14 @@ const erc1155: ProjectTypeSchema = {
   coreFields: [
     // `name` + `metadataURI` are authored on the "Collection page" step (CollectionMetaForm) — name is
     // mirrored into the create params, metadataURI is assembled at submit. See the ERC-404 note above.
+    // `symbol` is OPTIONAL for ERC1155 (ERC1155 has no standard symbol) — no `required` validation,
+    // unlike ERC404/ERC721. Empty is accepted end-to-end (noesis-084).
+    {
+      key: 'symbol',
+      label: 'Symbol',
+      kind: 'text',
+      help: 'Optional collection symbol',
+    },
     {
       key: 'creator',
       label: 'Creator',

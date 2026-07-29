@@ -66,6 +66,7 @@ contract ERC1155FreeMintTest is Test {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "FreeMintEdition",
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://meta",
                 creator: creator,
                 vault: address(mockVault),
