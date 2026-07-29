@@ -94,7 +94,7 @@ contract MetadataStackIntegrationTest is Test {
             })
         );
 
-        ERC404BondingInstance instImpl = new ERC404BondingInstance();
+        ERC404BondingInstance instImpl = new ERC404BondingInstance(address(0));
         factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(instImpl),

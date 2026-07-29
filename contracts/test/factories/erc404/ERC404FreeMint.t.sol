@@ -9,6 +9,7 @@ import {
     FreeMintAlreadyClaimed,
     FreeMintExhausted
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
@@ -94,7 +95,7 @@ contract ERC404FreeMintTest is Test {
             })
         );
 
-        ERC404BondingInstance instanceImpl = new ERC404BondingInstance();
+        ERC404BondingInstance instanceImpl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(instanceImpl),

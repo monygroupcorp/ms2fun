@@ -2,12 +2,9 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import {
-    ERC404BondingInstance,
-    InsufficientTokenBalance,
-    TokenAmountMustBePositive,
-    TokenAmountMustRepresentNFT
-} from "src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingInstance } from "src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "src/factories/erc404/ERC404BondingOps.sol";
+import { RerollFailed } from "src/factories/erc404/ERC404BondingStorage.sol";
 import { CurveParamsComputer } from "src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -39,7 +36,11 @@ contract ERC404RerollTest is Test {
         });
 
         // Note: factory = msg.sender (address(this)) is set during initialize()
-        ERC404BondingInstance impl2 = new ERC404BondingInstance();
+        // The externalized reroll body lives in a shared immutable Ops reached by a delegatecall
+        // trampoline (noesis-091). Deploy it and wire it into the master implementation's ctor; every
+        // clone reads this same immutable Ops.
+        ERC404BondingOps ops = new ERC404BondingOps();
+        ERC404BondingInstance impl2 = new ERC404BondingInstance(address(ops));
         token = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
 
         ERC404BondingInstance.BondingParams memory bonding = ERC404BondingInstance.BondingParams({
@@ -126,16 +127,21 @@ contract ERC404RerollTest is Test {
         uint256 rerollAmount = 5 * UNIT; // Try to reroll 5M tokens
         uint256[] memory exemptedIds = new uint256[](0);
 
+        // The reroll body is externalized to Ops via a discard-returndata delegatecall trampoline; Ops
+        // still reverts with the specific InsufficientTokenBalance internally (visible in traces), but the
+        // trampoline surfaces the generic RerollFailed() to the caller (noesis-091). The revert STILL
+        // HAPPENS — safety is preserved, only the reason is generic.
         vm.prank(user1);
-        vm.expectRevert(InsufficientTokenBalance.selector);
+        vm.expectRevert(RerollFailed.selector);
         token.rerollSelectedNFTs(rerollAmount, exemptedIds);
     }
 
     function test_RerollRevert_ZeroTokenAmount() public {
         uint256[] memory exemptedIds = new uint256[](0);
 
+        // Ops reverts TokenAmountMustPositive internally; caller sees generic RerollFailed() (noesis-091).
         vm.prank(user1);
-        vm.expectRevert(TokenAmountMustBePositive.selector);
+        vm.expectRevert(RerollFailed.selector);
         token.rerollSelectedNFTs(0, exemptedIds);
     }
 
@@ -146,8 +152,9 @@ contract ERC404RerollTest is Test {
         uint256 rerollAmount = UNIT / 2; // 500k tokens (less than 1 NFT)
         uint256[] memory exemptedIds = new uint256[](0);
 
+        // Ops reverts TokenAmountMustRepresentNFT internally; caller sees generic RerollFailed() (noesis-091).
         vm.prank(user1);
-        vm.expectRevert(TokenAmountMustRepresentNFT.selector);
+        vm.expectRevert(RerollFailed.selector);
         token.rerollSelectedNFTs(rerollAmount, exemptedIds);
     }
 
@@ -361,7 +368,103 @@ contract ERC404RerollTest is Test {
         assertEq(token.balanceOf(user1), 5 * UNIT);
     }
 
+    /// @notice EXPLICIT proof that the ReentrancyGuard slot is SHARED across the delegatecall boundary
+    ///         (noesis-091). The reroll body now lives in Ops and is reached by a delegatecall trampoline;
+    ///         its `nonReentrant` runs in the instance's storage context via the fixed guard slot. We hold
+    ///         that guard by entering another instance-side `nonReentrant` function (`withdrawDust`, which
+    ///         pushes ETH to the owner), and from the owner's `receive()` we re-enter `rerollSelectedNFTs`.
+    ///         The Ops-side guard MUST see the instance-side lock and revert — otherwise the cross-boundary
+    ///         guard is broken. A control reroll (outside reentrancy) succeeds, isolating the guard as the
+    ///         sole cause of the re-entrant revert.
+    function test_Reroll_ReentrancyThroughTrampoline_Reverts() public {
+        ERC404BondingOps ops = new ERC404BondingOps();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(ops));
+        ERC404BondingInstance t = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
+
+        RerollReentrancyProbe probe = new RerollReentrancyProbe(t);
+
+        BondingCurveMath.Params memory curveParams = BondingCurveMath.Params({
+            initialPrice: 0.0001 ether, quarticCoeff: 1, cubicCoeff: 1, quadraticCoeff: 1, normalizationFactor: 1e18
+        });
+        ERC404BondingInstance.BondingParams memory bonding = ERC404BondingInstance.BondingParams({
+            maxSupply: MAX_SUPPLY,
+            unit: UNIT,
+            liquidityReserveBps: LIQUIDITY_RESERVE_BPS,
+            declaredMaxAllowanceBps: 0,
+            curve: curveParams
+        });
+        // Owner = the probe, so it can trigger the owner-only `withdrawDust`.
+        t.initialize(address(probe), address(0xBEEF), bonding, mockLiquidityDeployer, address(0));
+        t.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: address(0x700),
+                protocolTreasury: address(0xFEE),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
+        t.initializeMetadata("TestToken", "TEST", "", "");
+
+        // Give the probe a rerollable balance (2 NFTs) so a NON-reentrant reroll would SUCCEED.
+        vm.prank(address(t));
+        t.transfer(address(probe), 2 * UNIT);
+
+        // Control: outside reentrancy the probe CAN reroll — proving balance is sufficient.
+        probe.rerollNow(UNIT);
+        assertEq(t.balanceOf(address(probe)), 2 * UNIT, "control reroll must preserve balance");
+
+        // Trigger: withdrawDust holds the instance-side guard, pushes ETH to the owner (probe), whose
+        // receive() re-enters reroll through the trampoline. The shared guard must block it.
+        vm.deal(address(t), 1 ether);
+        probe.arm();
+        probe.triggerWithdrawDust();
+
+        assertTrue(probe.reentered(), "reentrancy path must have executed");
+        assertTrue(probe.rerollReverted(), "re-entrant reroll must revert on the shared guard");
+        // The re-entrant reroll reverted cleanly; balances are untouched by the blocked call.
+        assertEq(t.balanceOf(address(probe)), 2 * UNIT, "blocked reroll must not mutate balance");
+    }
+
     // Events to match contract
     event RerollInitiated(address indexed user, uint256 tokenAmount, uint256[] exemptedNFTIds);
     event RerollCompleted(address indexed user, uint256 tokensReturned);
+}
+
+/// @notice Owner probe for the cross-boundary reentrancy proof. On receiving ETH from `withdrawDust`
+///         (while the instance-side ReentrancyGuard is held) it re-enters `rerollSelectedNFTs` through
+///         the delegatecall trampoline and records whether the Ops-side guard blocked it.
+contract RerollReentrancyProbe {
+    ERC404BondingInstance internal token;
+    bool public armed;
+    bool public reentered;
+    bool public rerollReverted;
+
+    constructor(ERC404BondingInstance t) {
+        token = t;
+    }
+
+    function rerollNow(uint256 amount) external {
+        token.rerollSelectedNFTs(amount, new uint256[](0));
+    }
+
+    function triggerWithdrawDust() external {
+        token.withdrawDust();
+    }
+
+    function arm() external {
+        armed = true;
+    }
+
+    receive() external payable {
+        if (armed) {
+            armed = false;
+            reentered = true;
+            try token.rerollSelectedNFTs(token.unit(), new uint256[](0)) {
+                rerollReverted = false;
+            } catch {
+                rerollReverted = true;
+            }
+        }
+    }
 }

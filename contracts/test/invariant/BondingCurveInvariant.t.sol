@@ -51,7 +51,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
 
         vm.startPrank(owner);
 
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(0));
         instance = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
 
         ERC404BondingInstance.BondingParams memory bp = ERC404BondingInstance.BondingParams({

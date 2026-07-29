@@ -7,6 +7,7 @@ import {
     BondingEnded,
     NothingToWithdraw
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { ERC404StakingModule } from "../../../src/factories/erc404/ERC404StakingModule.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -91,7 +92,7 @@ contract ERC404StakingReserveGuardTest is Test {
     ///      (initializeStaking / initializeFreeMint) are callable from `owner` here.
     function _newInstance() internal returns (ERC404BondingInstance inst) {
         vm.startPrank(owner);
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         inst = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
         inst.initialize(owner, address(0xBEEF), _bondingParams(), address(new MockDeployer()), address(0));
         inst.initializeProtocol(

@@ -149,7 +149,7 @@ contract NamespaceCollisionTest is Test {
         );
 
         // Deploy ERC404Factory
-        ERC404BondingInstance nsImpl = new ERC404BondingInstance();
+        ERC404BondingInstance nsImpl = new ERC404BondingInstance(address(0));
         erc404Factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(nsImpl),
