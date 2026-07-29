@@ -75,7 +75,7 @@ contract ERC1155ClaimFeesTest is Test {
             dynamicPricingModule: address(0),
             weth: address(0)
         });
-        inst = new ERC1155Instance("FeeTest", creator, factory, activeVault, "", init, false);
+        inst = new ERC1155Instance("FeeTest", creator, factory, activeVault, "", init, false, "", "");
     }
 
     // ── claimVaultFees (single-vault path) ────────────────────────────────────

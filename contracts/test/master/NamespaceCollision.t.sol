@@ -83,6 +83,7 @@ contract NamespaceCollisionTest is Test {
     {
         return ERC1155Factory.CreateParams({
             name: _name,
+            symbol: "", // optional collection symbol (noesis-084)
             metadataURI: "ipfs://metadata",
             creator: _creator,
             vault: address(mockVault),

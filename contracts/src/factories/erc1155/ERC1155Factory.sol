@@ -41,6 +41,7 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
     ///         because CreateParams is specific to this factory type.
     struct CreateParams {
         string name;
+        string symbol; // OPTIONAL collection symbol (empty allowed)
         string metadataURI;
         address creator;
         address vault;
@@ -135,7 +136,17 @@ contract ERC1155Factory is Ownable, ReentrancyGuard, IFactory {
         });
         return abi.encodePacked(
             type(ERC1155Instance).creationCode,
-            abi.encode(params.name, params.creator, address(this), params.vault, params.styleUri, init, agentCreated)
+            abi.encode(
+                params.name,
+                params.creator,
+                address(this),
+                params.vault,
+                params.styleUri,
+                init,
+                agentCreated,
+                params.metadataURI,
+                params.symbol
+            )
         );
     }
 
