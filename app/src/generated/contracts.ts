@@ -2717,6 +2717,7 @@ export const deployBondEscrowAbi = [
       { name: '_owner', internalType: 'address', type: 'address' },
       { name: '_factory', internalType: 'address', type: 'address' },
       { name: '_protocolTreasury', internalType: 'address', type: 'address' },
+      { name: '_weth', internalType: 'address', type: 'address' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -2882,6 +2883,13 @@ export const deployBondEscrowAbi = [
     stateMutability: 'payable',
   },
   {
+    type: 'function',
+    inputs: [],
+    name: 'weth',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
     type: 'event',
     anonymous: false,
     inputs: [
@@ -2998,6 +3006,20 @@ export const deployBondEscrowAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      { name: 'to', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'ETHTransferFallbackToWETH',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       {
         name: 'newGraceDays',
         internalType: 'uint256',
@@ -3088,6 +3110,7 @@ export const deployBondEscrowAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'BondAlreadyPosted' },
   { type: 'error', inputs: [], name: 'BondAlreadySettled' },
+  { type: 'error', inputs: [], name: 'IncorrectBondValue' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoBond' },
@@ -3097,6 +3120,14 @@ export const deployBondEscrowAbi = [
   { type: 'error', inputs: [], name: 'NotYetForfeitable' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
+  {
+    type: 'error',
+    inputs: [
+      { name: 'to', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'SmartTransferFailed',
+  },
   { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
@@ -6159,6 +6190,22 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'user', internalType: 'address', type: 'address' }],
     name: 'computeClaim',
     outputs: [
@@ -6204,6 +6251,29 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'delta', internalType: 'uint256', type: 'uint256' }],
     name: 'recordFeesReceived',
     outputs: [],
@@ -6230,6 +6300,20 @@ export const erc404StakingModuleAbi = [
       { name: 'rewardAmount', internalType: 'uint256', type: 'uint256' },
     ],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
   },
   {
     type: 'function',
@@ -6260,6 +6344,13 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: '', internalType: 'address', type: 'address' },
       { name: '', internalType: 'address', type: 'address' },
@@ -6281,6 +6372,13 @@ export const erc404StakingModuleAbi = [
     name: 'totalStaked',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
   },
   {
     type: 'event',
@@ -6306,6 +6404,64 @@ export const erc404StakingModuleAbi = [
       },
     ],
     name: 'FeesReceived',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
   },
   {
     type: 'event',
@@ -6393,13 +6549,17 @@ export const erc404StakingModuleAbi = [
     name: 'Unstaked',
   },
   { type: 'error', inputs: [], name: 'AlreadyEnabled' },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmountMustBePositive' },
   { type: 'error', inputs: [], name: 'InsufficientStakedBalance' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NoPendingRewards' },
   { type: 'error', inputs: [], name: 'NoStakedBalance' },
   { type: 'error', inputs: [], name: 'NotRegisteredInstance' },
   { type: 'error', inputs: [], name: 'StakingNotEnabled' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -8579,6 +8739,68 @@ export const ierc404BalanceAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC404Card
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc404CardAbi = [
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondingActive',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'bondingOpenTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'curveParams',
+    outputs: [
+      { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
+      { name: 'quarticCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'cubicCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'quadraticCoeff', internalType: 'uint256', type: 'uint256' },
+      { name: 'normalizationFactor', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'graduated',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'maxSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalBondingSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'unit',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IERC404Staking
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -8602,6 +8824,57 @@ export const ierc404StakingAbi = [
     inputs: [],
     name: 'stakingEnabled',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// IERC721Card
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const ierc721CardAbi = [
+  {
+    type: 'function',
+    inputs: [{ name: 'line', internalType: 'uint8', type: 'uint8' }],
+    name: 'getActiveAuction',
+    outputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
+    name: 'getAuction',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct IERC721Card.Auction',
+        type: 'tuple',
+        components: [
+          { name: 'tokenId', internalType: 'uint24', type: 'uint24' },
+          { name: 'tokenURI', internalType: 'string', type: 'string' },
+          { name: 'minBid', internalType: 'uint256', type: 'uint256' },
+          { name: 'highBidder', internalType: 'address', type: 'address' },
+          { name: 'highBid', internalType: 'uint256', type: 'uint256' },
+          { name: 'startTime', internalType: 'uint40', type: 'uint40' },
+          { name: 'endTime', internalType: 'uint40', type: 'uint40' },
+          { name: 'settled', internalType: 'bool', type: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'lines',
+    outputs: [{ name: '', internalType: 'uint8', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'nextTokenId',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
     stateMutability: 'view',
   },
 ] as const
@@ -11479,6 +11752,13 @@ export const queryAggregatorAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'MAX_EDITIONS_PER_CARD',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'MAX_QUERY_LIMIT',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -11498,6 +11778,30 @@ export const queryAggregatorAbi = [
     name: 'completeOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'erc404CardData',
+    outputs: [
+      { name: 'price', internalType: 'uint256', type: 'uint256' },
+      { name: 'supply', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+      { name: 'active', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'erc721CardData',
+    outputs: [
+      { name: 'price', internalType: 'uint256', type: 'uint256' },
+      { name: 'supply', internalType: 'uint256', type: 'uint256' },
+      { name: 'max', internalType: 'uint256', type: 'uint256' },
+      { name: 'active', internalType: 'bool', type: 'bool' },
+    ],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -11859,9 +12163,11 @@ export const queryAggregatorAbi = [
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidBounds' },
   { type: 'error', inputs: [], name: 'LimitTooHigh' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
   { type: 'error', inputs: [], name: 'RenounceDisabled' },
   { type: 'error', inputs: [], name: 'TooManyInstances' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
@@ -15699,6 +16005,14 @@ export const useReadDeployBondEscrowProtocolTreasury =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `functionName` set to `"weth"`
+ */
+export const useReadDeployBondEscrowWeth = /*#__PURE__*/ createUseReadContract({
+  abi: deployBondEscrowAbi,
+  functionName: 'weth',
+})
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link deployBondEscrowAbi}__
  */
 export const useWriteDeployBondEscrow = /*#__PURE__*/ createUseWriteContract({
@@ -15994,6 +16308,15 @@ export const useWatchDeployBondEscrowBondReleasedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: deployBondEscrowAbi,
     eventName: 'BondReleased',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link deployBondEscrowAbi}__ and `eventName` set to `"ETHTransferFallbackToWETH"`
+ */
+export const useWatchDeployBondEscrowEthTransferFallbackToWethEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: deployBondEscrowAbi,
+    eventName: 'ETHTransferFallbackToWETH',
   })
 
 /**
@@ -19090,6 +19413,33 @@ export const useReadErc404StakingModuleMasterRegistry =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadErc404StakingModuleMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadErc404StakingModuleOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadErc404StakingModuleOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerTokenPaid"`
  */
 export const useReadErc404StakingModuleRewardPerTokenPaid =
@@ -19151,6 +19501,24 @@ export const useWriteErc404StakingModule = /*#__PURE__*/ createUseWriteContract(
 )
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteErc404StakingModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteErc404StakingModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"computeClaim"`
  */
 export const useWriteErc404StakingModuleComputeClaim =
@@ -19196,10 +19564,64 @@ export const useWriteErc404StakingModuleRecordUnstake =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteErc404StakingModuleRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteErc404StakingModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteErc404StakingModuleSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteErc404StakingModuleTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__
  */
 export const useSimulateErc404StakingModule =
   /*#__PURE__*/ createUseSimulateContract({ abi: erc404StakingModuleAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateErc404StakingModuleCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateErc404StakingModuleCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'completeOwnershipHandover',
+  })
 
 /**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"computeClaim"`
@@ -19247,6 +19669,42 @@ export const useSimulateErc404StakingModuleRecordUnstake =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateErc404StakingModuleRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateErc404StakingModuleRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateErc404StakingModuleSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateErc404StakingModuleTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__
  */
 export const useWatchErc404StakingModuleEvent =
@@ -19259,6 +19717,42 @@ export const useWatchErc404StakingModuleFeesReceivedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404StakingModuleAbi,
     eventName: 'FeesReceived',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchErc404StakingModuleMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchErc404StakingModuleOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchErc404StakingModuleOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchErc404StakingModuleOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'OwnershipTransferred',
   })
 
 /**
@@ -21589,6 +22083,73 @@ export const useReadIerc404BalanceUnit = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__
+ */
+export const useReadIerc404Card = /*#__PURE__*/ createUseReadContract({
+  abi: ierc404CardAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"bondingActive"`
+ */
+export const useReadIerc404CardBondingActive =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404CardAbi,
+    functionName: 'bondingActive',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"bondingOpenTime"`
+ */
+export const useReadIerc404CardBondingOpenTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404CardAbi,
+    functionName: 'bondingOpenTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"curveParams"`
+ */
+export const useReadIerc404CardCurveParams =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404CardAbi,
+    functionName: 'curveParams',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"graduated"`
+ */
+export const useReadIerc404CardGraduated = /*#__PURE__*/ createUseReadContract({
+  abi: ierc404CardAbi,
+  functionName: 'graduated',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"maxSupply"`
+ */
+export const useReadIerc404CardMaxSupply = /*#__PURE__*/ createUseReadContract({
+  abi: ierc404CardAbi,
+  functionName: 'maxSupply',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"totalBondingSupply"`
+ */
+export const useReadIerc404CardTotalBondingSupply =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc404CardAbi,
+    functionName: 'totalBondingSupply',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404CardAbi}__ and `functionName` set to `"unit"`
+ */
+export const useReadIerc404CardUnit = /*#__PURE__*/ createUseReadContract({
+  abi: ierc404CardAbi,
+  functionName: 'unit',
+})
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc404StakingAbi}__
  */
 export const useReadIerc404Staking = /*#__PURE__*/ createUseReadContract({
@@ -21620,6 +22181,46 @@ export const useReadIerc404StakingStakingEnabled =
   /*#__PURE__*/ createUseReadContract({
     abi: ierc404StakingAbi,
     functionName: 'stakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__
+ */
+export const useReadIerc721Card = /*#__PURE__*/ createUseReadContract({
+  abi: ierc721CardAbi,
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__ and `functionName` set to `"getActiveAuction"`
+ */
+export const useReadIerc721CardGetActiveAuction =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc721CardAbi,
+    functionName: 'getActiveAuction',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__ and `functionName` set to `"getAuction"`
+ */
+export const useReadIerc721CardGetAuction = /*#__PURE__*/ createUseReadContract(
+  { abi: ierc721CardAbi, functionName: 'getAuction' },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__ and `functionName` set to `"lines"`
+ */
+export const useReadIerc721CardLines = /*#__PURE__*/ createUseReadContract({
+  abi: ierc721CardAbi,
+  functionName: 'lines',
+})
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link ierc721CardAbi}__ and `functionName` set to `"nextTokenId"`
+ */
+export const useReadIerc721CardNextTokenId =
+  /*#__PURE__*/ createUseReadContract({
+    abi: ierc721CardAbi,
+    functionName: 'nextTokenId',
   })
 
 /**
@@ -24658,12 +25259,39 @@ export const useReadQueryAggregator = /*#__PURE__*/ createUseReadContract({
 })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"MAX_EDITIONS_PER_CARD"`
+ */
+export const useReadQueryAggregatorMaxEditionsPerCard =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'MAX_EDITIONS_PER_CARD',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"MAX_QUERY_LIMIT"`
  */
 export const useReadQueryAggregatorMaxQueryLimit =
   /*#__PURE__*/ createUseReadContract({
     abi: queryAggregatorAbi,
     functionName: 'MAX_QUERY_LIMIT',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"erc404CardData"`
+ */
+export const useReadQueryAggregatorErc404CardData =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'erc404CardData',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link queryAggregatorAbi}__ and `functionName` set to `"erc721CardData"`
+ */
+export const useReadQueryAggregatorErc721CardData =
+  /*#__PURE__*/ createUseReadContract({
+    abi: queryAggregatorAbi,
+    functionName: 'erc721CardData',
   })
 
 /**
