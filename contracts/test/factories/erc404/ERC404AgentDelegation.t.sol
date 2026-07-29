@@ -6,6 +6,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
@@ -96,7 +97,7 @@ contract ERC404AgentDelegationTest is Test {
             })
         );
 
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(impl),

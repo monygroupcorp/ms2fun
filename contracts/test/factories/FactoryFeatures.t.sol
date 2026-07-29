@@ -62,7 +62,7 @@ contract FactoryFeaturesTest is Test {
         LaunchManager launchMgr = new LaunchManager(protocol);
         CurveParamsComputer curveComp = new CurveParamsComputer(protocol);
         ComponentRegistry compReg = _deployComponentRegistry();
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(0));
 
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
@@ -118,7 +118,7 @@ contract FactoryFeaturesTest is Test {
         LaunchManager launchMgr = new LaunchManager(protocol);
         CurveParamsComputer curveComp = new CurveParamsComputer(protocol);
         ComponentRegistry compReg = _deployComponentRegistry();
-        ERC404BondingInstance impl = new ERC404BondingInstance();
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(0));
 
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({

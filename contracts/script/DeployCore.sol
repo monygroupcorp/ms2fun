@@ -27,6 +27,7 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { ERC404Factory } from "../src/factories/erc404/ERC404Factory.sol";
 import { DeployBondEscrow } from "../src/factories/erc404/DeployBondEscrow.sol";
 import { ERC404BondingInstance } from "../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../src/factories/erc404/CurveParamsComputer.sol";
 import { ERC404StakingModule } from "../src/factories/erc404/ERC404StakingModule.sol";
@@ -436,7 +437,8 @@ contract DeployCore is Script {
 
         // ── Phase 6: ERC404Factory ───────────────────────────────────────────
 
-        erc404Impl = new ERC404BondingInstance();
+        ERC404BondingOps erc404Ops = new ERC404BondingOps();
+        erc404Impl = new ERC404BondingInstance(address(erc404Ops));
         launchManager = new LaunchManager(deployer);
         curveParamsComputer = new CurveParamsComputer(deployer);
 
