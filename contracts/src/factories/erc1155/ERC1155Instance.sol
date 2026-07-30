@@ -91,6 +91,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // └─────────────────────────┘
 
     string public name;
+    /// @notice Optional collection symbol (ERC1155 has no standard symbol; empty allowed).
+    string public symbol;
+    /// @notice ERC-7572 collection-level metadata URI. Single source of truth for this instance's
+    ///         collection metadata (name/image/etc.) as read by marketplaces and indexers.
+    string public contractURI;
     // slither-disable-next-line immutable-states
     address public creator;
     // slither-disable-next-line immutable-states
@@ -152,6 +157,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
     event FreeMintClaimed(address indexed user, uint256 indexed editionId);
+    event ContractURIUpdated();
 
     // ┌─────────────────────────┐
     // │      Constructor        │
@@ -164,7 +170,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         address _vault,
         string memory _styleUri,
         InstanceInit memory _init,
-        bool _agentCreated
+        bool _agentCreated,
+        string memory _metadataURI,
+        string memory _symbol
     ) {
         if (bytes(_name).length == 0) revert InvalidName();
         if (_creator == address(0)) revert InvalidAddress();
@@ -174,6 +182,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
         _initializeOwner(_creator);
         name = _name;
+        // symbol is OPTIONAL for ERC1155 (no empty-check, unlike ERC721's InvalidSymbol).
+        symbol = _symbol;
+        contractURI = _metadataURI;
         creator = _creator;
         factory = _factory;
         vault = IAlignmentVault(payable(_vault));
@@ -191,6 +202,12 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         }
         emit StateChanged(STATE_MINTING);
         agentDelegationEnabled = _agentCreated;
+    }
+
+    /// @notice Update the ERC-7572 collection metadata URI. Owner-only.
+    function setContractURI(string calldata uri) external onlyOwner {
+        contractURI = uri;
+        emit ContractURIUpdated();
     }
 
     /// @notice Accept ETH pushed by alignment vaults when fees are claimed.

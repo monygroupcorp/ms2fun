@@ -3199,6 +3199,7 @@ export const erc1155FactoryAbi = [
         type: 'tuple',
         components: [
           { name: 'name', internalType: 'string', type: 'string' },
+          { name: 'symbol', internalType: 'string', type: 'string' },
           { name: 'metadataURI', internalType: 'string', type: 'string' },
           { name: 'creator', internalType: 'address', type: 'address' },
           { name: 'vault', internalType: 'address', type: 'address' },
@@ -3482,6 +3483,8 @@ export const erc1155InstanceAbi = [
         ],
       },
       { name: '_agentCreated', internalType: 'bool', type: 'bool' },
+      { name: '_metadataURI', internalType: 'string', type: 'string' },
+      { name: '_symbol', internalType: 'string', type: 'string' },
     ],
     stateMutability: 'nonpayable',
   },
@@ -3573,6 +3576,13 @@ export const erc1155InstanceAbi = [
     name: 'completeOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'contractURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -3901,6 +3911,13 @@ export const erc1155InstanceAbi = [
   {
     type: 'function',
     inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setContractURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -3909,6 +3926,13 @@ export const erc1155InstanceAbi = [
     type: 'function',
     inputs: [],
     name: 'styleUri',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'symbol',
     outputs: [{ name: '', internalType: 'string', type: 'string' }],
     stateMutability: 'view',
   },
@@ -3986,6 +4010,7 @@ export const erc1155InstanceAbi = [
     ],
     name: 'ApprovalForAll',
   },
+  { type: 'event', anonymous: false, inputs: [], name: 'ContractURIUpdated' },
   {
     type: 'event',
     anonymous: false,
@@ -4323,7 +4348,11 @@ export const erc1155InstanceAbi = [
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const erc404BondingInstanceAbi = [
-  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  {
+    type: 'constructor',
+    inputs: [{ name: 'ops', internalType: 'address', type: 'address' }],
+    stateMutability: 'nonpayable',
+  },
   { type: 'fallback', stateMutability: 'payable' },
   { type: 'receive', stateMutability: 'payable' },
   {
@@ -4822,8 +4851,8 @@ export const erc404BondingInstanceAbi = [
   {
     type: 'function',
     inputs: [
-      { name: 'tokenAmount', internalType: 'uint256', type: 'uint256' },
-      { name: 'exemptedNFTIds', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'uint256[]', type: 'uint256[]' },
     ],
     name: 'rerollSelectedNFTs',
     outputs: [],
@@ -5386,7 +5415,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmountExceedsSupply' },
   { type: 'error', inputs: [], name: 'ApprovalCallerNotOwnerNorApproved' },
-  { type: 'error', inputs: [], name: 'BalanceMismatchAfterReroll' },
   { type: 'error', inputs: [], name: 'BondingEnded' },
   { type: 'error', inputs: [], name: 'BondingNotActive' },
   { type: 'error', inputs: [], name: 'BondingNotConfigured' },
@@ -5401,7 +5429,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'GatingNotAllowed' },
   { type: 'error', inputs: [], name: 'InsufficientAllowance' },
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
-  { type: 'error', inputs: [], name: 'InsufficientTokenBalance' },
   { type: 'error', inputs: [], name: 'InvalidBounds' },
   { type: 'error', inputs: [], name: 'InvalidDeclaredMaxAllowance' },
   { type: 'error', inputs: [], name: 'InvalidGlobalMessageRegistry' },
@@ -5429,6 +5456,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'OpenTimeNotSet' },
   { type: 'error', inputs: [], name: 'PurchaseTooSmall' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
+  { type: 'error', inputs: [], name: 'RerollFailed' },
   { type: 'error', inputs: [], name: 'SenderNotMirror' },
   {
     type: 'error',
@@ -5441,8 +5469,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'StakingAlreadyActive' },
   { type: 'error', inputs: [], name: 'StakingModuleNotSet' },
   { type: 'error', inputs: [], name: 'TimeMustBeInFuture' },
-  { type: 'error', inputs: [], name: 'TokenAmountMustBePositive' },
-  { type: 'error', inputs: [], name: 'TokenAmountMustRepresentNFT' },
   { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
   { type: 'error', inputs: [], name: 'TooEarly' },
   { type: 'error', inputs: [], name: 'TotalSupplyOverflow' },
@@ -6876,6 +6902,7 @@ export const erc721AuctionInstanceAbi = [
           { name: 'owner', internalType: 'address', type: 'address' },
           { name: 'name', internalType: 'string', type: 'string' },
           { name: 'symbol', internalType: 'string', type: 'string' },
+          { name: 'metadataURI', internalType: 'string', type: 'string' },
           { name: 'lines', internalType: 'uint8', type: 'uint8' },
           { name: 'baseDuration', internalType: 'uint40', type: 'uint40' },
           { name: 'timeBuffer', internalType: 'uint40', type: 'uint40' },
@@ -6979,6 +7006,13 @@ export const erc721AuctionInstanceAbi = [
     name: 'completeOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'contractURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -7253,6 +7287,13 @@ export const erc721AuctionInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setContractURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'tokenId', internalType: 'uint24', type: 'uint24' }],
     name: 'settleAuction',
     outputs: [],
@@ -7448,6 +7489,7 @@ export const erc721AuctionInstanceAbi = [
     ],
     name: 'BidPlaced',
   },
+  { type: 'event', anonymous: false, inputs: [], name: 'ContractURIUpdated' },
   {
     type: 'event',
     anonymous: false,
@@ -16747,6 +16789,15 @@ export const useReadErc1155InstanceCalculateMintCost =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"contractURI"`
+ */
+export const useReadErc1155InstanceContractUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'contractURI',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"creator"`
  */
 export const useReadErc1155InstanceCreator =
@@ -16970,6 +17021,13 @@ export const useReadErc1155InstanceStyleUri =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"symbol"`
+ */
+export const useReadErc1155InstanceSymbol = /*#__PURE__*/ createUseReadContract(
+  { abi: erc1155InstanceAbi, functionName: 'symbol' },
+)
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"totalProceeds"`
  */
 export const useReadErc1155InstanceTotalProceeds =
@@ -17150,6 +17208,15 @@ export const useWriteErc1155InstanceSetApprovalForAll =
   /*#__PURE__*/ createUseWriteContract({
     abi: erc1155InstanceAbi,
     functionName: 'setApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setContractURI"`
+ */
+export const useWriteErc1155InstanceSetContractUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setContractURI',
   })
 
 /**
@@ -17339,6 +17406,15 @@ export const useSimulateErc1155InstanceSetApprovalForAll =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setContractURI"`
+ */
+export const useSimulateErc1155InstanceSetContractUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setContractURI',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useSimulateErc1155InstanceSetStyle =
@@ -17387,6 +17463,15 @@ export const useWatchErc1155InstanceApprovalForAllEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
     eventName: 'ApprovalForAll',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"ContractURIUpdated"`
+ */
+export const useWatchErc1155InstanceContractUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'ContractURIUpdated',
   })
 
 /**
@@ -20157,6 +20242,15 @@ export const useReadErc721AuctionInstanceBidIncrement =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"contractURI"`
+ */
+export const useReadErc721AuctionInstanceContractUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'contractURI',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"factory"`
  */
 export const useReadErc721AuctionInstanceFactory =
@@ -20541,6 +20635,15 @@ export const useWriteErc721AuctionInstanceSetApprovalForAll =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setContractURI"`
+ */
+export const useWriteErc721AuctionInstanceSetContractUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setContractURI',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"settleAuction"`
  */
 export const useWriteErc721AuctionInstanceSettleAuction =
@@ -20718,6 +20821,15 @@ export const useSimulateErc721AuctionInstanceSetApprovalForAll =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"setContractURI"`
+ */
+export const useSimulateErc721AuctionInstanceSetContractUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'setContractURI',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"settleAuction"`
  */
 export const useSimulateErc721AuctionInstanceSettleAuction =
@@ -20802,6 +20914,15 @@ export const useWatchErc721AuctionInstanceBidPlacedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionInstanceAbi,
     eventName: 'BidPlaced',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"ContractURIUpdated"`
+ */
+export const useWatchErc721AuctionInstanceContractUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'ContractURIUpdated',
   })
 
 /**

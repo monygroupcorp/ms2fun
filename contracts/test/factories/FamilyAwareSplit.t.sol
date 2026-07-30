@@ -61,7 +61,9 @@ contract FamilyAwareSplitTest is Test {
                 dynamicPricingModule: address(0),
                 weth: weth
             }),
-            false
+            false,
+            "", // metadataURI (contractURI)
+            "" // symbol (optional)
         );
         vm.prank(CREATOR);
         inst.addEdition("Piece", 1 ether, 0, "ipfs://m", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
@@ -136,6 +138,7 @@ contract FamilyAwareSplitTest is Test {
                 owner: CREATOR,
                 name: "Fam",
                 symbol: "FAM",
+                metadataURI: "",
                 lines: 1,
                 baseDuration: 1 hours,
                 timeBuffer: 5 minutes,

@@ -64,6 +64,15 @@ contract MockMasterRegistry is IMasterRegistry {
         _instanceFactory[instance] = factory;
     }
 
+    // Per-instance registry-copy metadataURI, settable so §6 read-through tests can prove the
+    // QueryAggregator reads the INSTANCE's contractURI() over this stored copy. Default "".
+    mapping(address => string) private _instanceMetadataURI;
+
+    /// @dev TEST HELPER: set the registry-stored collection metadataURI for `instance`.
+    function setInstanceMetadataURI(address instance, string calldata uri) external {
+        _instanceMetadataURI[instance] = uri;
+    }
+
     function getInstanceInfo(address instance) external view override returns (InstanceInfo memory) {
         return InstanceInfo({
             instance: instance,
@@ -71,7 +80,7 @@ contract MockMasterRegistry is IMasterRegistry {
             creator: address(0),
             vaults: new address[](0),
             name: "",
-            metadataURI: "",
+            metadataURI: _instanceMetadataURI[instance],
             nameHash: bytes32(0),
             registeredAt: 0
         });

@@ -78,7 +78,9 @@ contract ERC1155HardeningTest is Test {
                 dynamicPricingModule: address(0),
                 weth: address(weth)
             }),
-            false
+            false,
+            "", // metadataURI (contractURI)
+            "" // symbol (optional)
         );
     }
 

@@ -30,7 +30,9 @@ contract Finding4_ERC1155ForceFeedTest is Test {
                 dynamicPricingModule: address(0),
                 weth: weth
             }),
-            false
+            false,
+            "", // metadataURI (contractURI)
+            "" // symbol (optional)
         );
 
         vm.prank(creator);

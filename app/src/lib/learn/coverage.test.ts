@@ -52,6 +52,7 @@ const isDocumented = (u: Unit): boolean =>
 const EXEMPT: Record<string, string> = {
   // Trivial / mechanical inputs.
   'erc404.symbol': 'trivial ticker string',
+  'erc1155.symbol': 'trivial ticker string',
   'erc721.symbol': 'trivial ticker string',
   'erc404.creator':
     'defaults to the connected wallet; the agent-creates-on-your-behalf nuance is the agent-delegation concept, reachable from the /learn index',

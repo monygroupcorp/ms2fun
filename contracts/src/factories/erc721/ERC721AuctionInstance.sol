@@ -82,6 +82,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
 
     string private _name;
     string private _symbol;
+    /// @notice ERC-7572 collection-level metadata URI. Single source of truth for this instance's
+    ///         collection metadata as read by marketplaces and indexers.
+    string public contractURI;
 
     // Next token ID to be assigned when queuing a piece (1-indexed)
     uint24 public nextTokenId;
@@ -112,6 +115,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     event UnsoldReclaimed(uint24 indexed tokenId, uint256 creatorRefund, uint256 protocolCut);
     event AgentDelegationChanged(bool enabled);
     event VaultContributionFailed(address indexed vault, uint256 amount);
+    event ContractURIUpdated();
 
     // ┌─────────────────────────┐
     // │      Constructor        │
@@ -123,6 +127,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         address owner;
         string name;
         string symbol;
+        string metadataURI;
         uint8 lines;
         uint40 baseDuration;
         uint40 timeBuffer;
@@ -151,6 +156,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         protocolTreasury = p.protocolTreasury;
         _name = p.name;
         _symbol = p.symbol;
+        contractURI = p.metadataURI;
         lines = p.lines;
         baseDuration = p.baseDuration;
         timeBuffer = p.timeBuffer;
@@ -159,6 +165,12 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         factory = p.factory;
         weth = p.weth;
         nextTokenId = 1;
+    }
+
+    /// @notice Update the ERC-7572 collection metadata URI. Owner-only.
+    function setContractURI(string calldata uri) external onlyOwner {
+        contractURI = uri;
+        emit ContractURIUpdated();
     }
 
     /// @notice Called by factory to enable delegation for agent-created instances

@@ -151,6 +151,7 @@ contract SeedRich is Script {
         vm.startBroadcast(deployerKey);
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
             name: "vault-club",
+            symbol: "", // optional collection symbol (noesis-084)
             metadataURI: _collMeta("Vault Club", "Members-only.", _svg("K")),
             creator: deployer,
             vault: d.vault,
@@ -250,6 +251,7 @@ contract SeedRich is Script {
     ) internal returns (address inst) {
         ERC1155Factory.CreateParams memory p = ERC1155Factory.CreateParams({
             name: slug,
+            symbol: "", // optional collection symbol (noesis-084)
             metadataURI: _collMeta(name, desc, img),
             creator: deployer,
             vault: d.vault,
