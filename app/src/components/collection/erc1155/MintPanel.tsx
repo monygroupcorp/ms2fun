@@ -14,7 +14,8 @@ import {
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
-import { encodeMintMessage, encodePasswordGatingData, isPaidMintGated } from './gatingMint'
+import { encodeMerkleGatingData, encodeMintMessage, isPaidMintGated } from './gatingMint'
+import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import type { EditionView } from '../useEditions'
 import styles from '../EditionList.module.css'
 
@@ -28,7 +29,6 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   const chainId = useCollectionChainId()
   const { isConnected } = useAccount()
   const [amount, setAmount] = useState(1)
-  const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
 
   const { data: costData, isPending: costPending } = useReadErc1155InstanceCalculateMintCost({
@@ -38,9 +38,9 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     query: { enabled: amount > 0 },
   })
 
-  // Gating config for the paid mint path. When a module is set and scope isn't FREE_MINT_ONLY,
-  // `mint` consults the module — we then encode the user's password credential as `bytes`
-  // (see erc1155/gatingMint.ts for the approach + the merkle seam). Otherwise gatingData = '0x'.
+  // Gating config for the paid mint path. When a module is set and scope isn't FREE_MINT_ONLY, `mint`
+  // consults the module — today the ONLY deployed gating module is MerkleGatingModule (PasswordTier
+  // was dropped, noesis-065), so `gated` means "resolve a merkle proof", not "ask for a password".
   const { data: gatingModule } = useReadErc1155InstanceGatingModule({
     address: instance,
     chainId: chainId,
@@ -50,6 +50,7 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
     chainId: chainId,
   })
   const gated = isPaidMintGated(gatingModule, gatingScope)
+  const allowlist = useMerkleAllowlistProof(instance, edition.id, gated)
 
   const {
     writeContract,
@@ -71,10 +72,15 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
 
   function handleMint(): void {
     if (costData === undefined) return
-    // `bytes` gatingData when the paid path is gated (abi.encode(keccak256(password))); the merged
-    // `mint(bytes gatingData)` forwards it to the module's abi.decode(data,(bytes32)). '0x' when open
-    // (module isn't consulted; an empty blob avoids a spurious abi.decode).
-    const gatingData = gated ? encodePasswordGatingData(password) : '0x'
+    // `bytes` gatingData when the paid path is gated: the merged `mint(bytes gatingData)` forwards it
+    // to MerkleGatingModule's abi.decode(data,(uint256,uint256,bytes32[])). '0x' when open (module
+    // isn't consulted; an empty blob avoids a spurious abi.decode). A gated mint with no resolved proof
+    // must not fire — the button stays disabled until `allowlist.status === 'eligible'`.
+    if (gated && (allowlist.status !== 'eligible' || allowlist.proof === undefined)) return
+    const gatingData =
+      gated && allowlist.proof !== undefined
+        ? encodeMerkleGatingData(0n, allowlist.maxQty ?? 0n, allowlist.proof)
+        : '0x'
     // Optional attached message, ABI-encoded to the registry's 5-field convention (else '0x').
     const messageData = encodeMintMessage(message)
     writeContract({
@@ -88,13 +94,13 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
   function handleSuccess(): void {
     resetWrite()
     setAmount(1)
-    setPassword('')
     setMessage('')
     refetch()
   }
 
   const cost = costData !== undefined ? formatEther(costData) : null
   const isBusy = sigPending || isConfirming
+  const gatingBlocksMint = gated && allowlist.status !== 'eligible'
 
   if (!isConnected) {
     return (
@@ -139,22 +145,19 @@ export function MintPanel({ instance, edition, refetch }: MintPanelProps) {
         <button
           className={styles.mintBtn}
           onClick={handleMint}
-          disabled={isBusy || costData === undefined}
+          disabled={isBusy || costData === undefined || gatingBlocksMint}
         >
           {sigPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'mint'}
         </button>
       </div>
       {gated && (
-        <input
-          className={styles.mintInput}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="access password (gated sale)"
-          disabled={isBusy}
-          aria-label="mint access password"
-          data-testid="erc1155-mint-password"
-        />
+        <p className={styles.mintInput} data-testid="erc1155-mint-allowlist-status">
+          {allowlist.status === 'loading' && 'checking allowlist…'}
+          {allowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
+          {allowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
+          {allowlist.status === 'eligible' &&
+            `allowlisted — up to ${allowlist.maxQty?.toString() ?? '0'} per wallet`}
+        </p>
       )}
       <textarea
         className={styles.mintMessage}

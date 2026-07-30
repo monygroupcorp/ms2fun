@@ -16,3 +16,15 @@
   width: 100%;
   max-width: 22rem;
 }
+
+/* Allowlist config row (noesis-080) — build summary / error text below the listURI/paste input. */
+.hint {
+  margin: 0;
+  font-size: var(--font-size-body-sm);
+  color: var(--text-secondary);
+}
+
+.txError {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+}
