@@ -13,6 +13,9 @@
  *   - migrateVault(newVault)      ✦ point the instance at a new alignment vault
  *   - setAgentDelegation(bool)    ✦ toggle agent delegation (reads agentDelegationEnabled for current)
  *   - retryVaultContribution()    ✦ permissionless — re-attempt a failed vault contribution
+ *   - configure allowlist        ✦ (noesis-080) submit a merkle root on-chain + persist its listURI —
+ *     shown only when the instance's gating module is set (today the only deployed gating module IS
+ *     MerkleGatingModule; PasswordTierGating was dropped in noesis-065).
  * (✦ = added in W-E; all but retry are onlyOwner.)
  *
  * Every write goes through `useTxAction` (one per action) with `erc1155InstanceAbi`, so the
@@ -22,11 +25,26 @@ import { useState } from 'react'
 import { formatEther, isAddress } from 'viem'
 import {
   erc1155InstanceAbi,
+  masterRegistryV1Abi,
+  merkleGatingModuleAbi,
   useReadErc1155InstanceAgentDelegationEnabled,
+  useReadErc1155InstanceGatingModule,
   useReadErc1155InstanceTotalProceeds,
   useReadErc1155InstanceTotalWithdrawn,
 } from '../../../generated/contracts'
-import { useCollectionChainId } from '../useCollectionChain'
+import { useCollection } from '../../useCollection'
+import { useCollectionMetadata } from '../../useCollectionMetadata'
+import { useCollectionAddresses, useCollectionChainId } from '../useCollectionChain'
+import { collectionToDataUri } from '../../../lib/metadata'
+import {
+  buildAllowlistFromPaste,
+  buildAllowlistFromUri,
+  isAllowlistBuildError,
+  patchAllowlistRow,
+  toMerkleConfig,
+  type AllowlistBuildOutcome,
+} from '../../../lib/collection/allowlistConfig'
+import { hasGatingModule } from './gatingMint'
 import { AdminSection, ActionRow } from '../../ui/AdminSection'
 import { AmountField } from '../../ui/AmountField'
 import { parseAmount } from '../../ui/parseAmount'
@@ -56,6 +74,7 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
       <MigrateVaultRow instance={instance} />
       <AgentDelegationRow instance={instance} />
       <RetryVaultRow instance={instance} />
+      <AllowlistConfigRow instance={instance} />
     </AdminSection>
   )
 }
@@ -476,6 +495,185 @@ function RetryVaultRow({ instance }: { instance: `0x${string}` }) {
         errorText="retry failed — try again"
         testId="erc1155-retry-vault"
       />
+    </ActionRow>
+  )
+}
+
+// ── Configure allowlist (noesis-080) ──────────────────────────────────────────
+//
+// Only shown when the instance has a gating module set — today that can only be MerkleGatingModule
+// (PasswordTierGating was dropped in noesis-065). Two independently-retryable transactions:
+//   1. configureFor(instance, {editionId:0, roots:[root], tierOpenTimes:[0]}) on the gating module —
+//      requires Ownable(instance).owner() (the connected wallet, since useOwnerGate already asserted it).
+//   2. updateInstanceMetadata(instance, newMetadataUri) on MasterRegistry — requires the ORIGINAL
+//      `info.creator`, which may differ from the (transferable) instance owner; surfaced below.
+// If (1) lands but (2) fails, the root is set but minters can't find the list; if only (2) lands,
+// `canMint` reverts (no root). Both rows are re-runnable independently.
+
+function AllowlistConfigRow({ instance }: { instance: `0x${string}` }) {
+  const chainId = useCollectionChainId()
+  const addresses = useCollectionAddresses()
+  const { data: gatingModule } = useReadErc1155InstanceGatingModule({
+    address: instance,
+    chainId: chainId,
+  })
+  // `useCollection` doesn't expose a refetch — react-query's own staleTime naturally picks up the
+  // new metadataURI on the collection page's next mount/refetch; nothing to force here.
+  const { data: card } = useCollection(instance, { chainId, addresses })
+  const metadata = useCollectionMetadata(card?.metadataURI)
+
+  const [mode, setMode] = useState<'hosted' | 'paste'>('hosted')
+  const [input, setInput] = useState('')
+  const [build, setBuild] = useState<AllowlistBuildOutcome | undefined>(undefined)
+  const [checking, setChecking] = useState(false)
+
+  const configureTx = useTxAction()
+  const metadataTx = useTxAction()
+
+  if (!hasGatingModule(gatingModule)) return null
+
+  async function handleCheck(): Promise<void> {
+    setChecking(true)
+    try {
+      const result =
+        mode === 'hosted' ? await buildAllowlistFromUri(input) : buildAllowlistFromPaste(input)
+      setBuild(result)
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  function handleSubmitRoot(): void {
+    if (build === undefined || isAllowlistBuildError(build) || gatingModule === undefined) return
+    configureTx.send({
+      address: gatingModule,
+      abi: merkleGatingModuleAbi,
+      functionName: 'configureFor',
+      args: [instance, toMerkleConfig(build.root)],
+      chainId: chainId,
+    })
+  }
+
+  function handlePersistListUri(): void {
+    if (build === undefined || isAllowlistBuildError(build) || metadata === undefined) return
+    const patched = patchAllowlistRow(metadata, {
+      editionId: 0,
+      tierIndex: 0,
+      listURI: build.listURI,
+    })
+    metadataTx.send({
+      address: addresses.MasterRegistryV1,
+      abi: masterRegistryV1Abi,
+      functionName: 'updateInstanceMetadata',
+      args: [instance, collectionToDataUri(patched)],
+      chainId: chainId,
+    })
+  }
+
+  const summary =
+    build !== undefined && !isAllowlistBuildError(build)
+      ? `${build.count} addresses · root ${build.root.slice(0, 10)}… ✓${
+          build.invalid.length > 0 ? ` (${build.invalid.length} invalid rows skipped)` : ''
+        }`
+      : undefined
+  const buildError = build !== undefined && isAllowlistBuildError(build) ? build.error : undefined
+  const canSubmit = build !== undefined && !isAllowlistBuildError(build)
+
+  return (
+    <ActionRow
+      label="configure allowlist"
+      hint="submit a merkle root on-chain and persist the listURI (two transactions)"
+    >
+      <div>
+        <div>
+          <button
+            type="button"
+            className={mode === 'hosted' ? 'btn btn-primary' : 'btn btn-secondary'}
+            onClick={() => {
+              setMode('hosted')
+              setBuild(undefined)
+            }}
+            data-testid="erc1155-allowlist-mode-hosted"
+          >
+            hosted URL
+          </button>
+          <button
+            type="button"
+            className={mode === 'paste' ? 'btn btn-primary' : 'btn btn-secondary'}
+            onClick={() => {
+              setMode('paste')
+              setBuild(undefined)
+            }}
+            data-testid="erc1155-allowlist-mode-paste"
+          >
+            paste addresses
+          </button>
+        </div>
+        {mode === 'hosted' ? (
+          <input
+            className={styles.input}
+            type="text"
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value)
+              setBuild(undefined)
+            }}
+            placeholder="ipfs://, ar://, or https:// listURI"
+            aria-label="allowlist listURI"
+            data-testid="erc1155-allowlist-uri"
+          />
+        ) : (
+          <textarea
+            className={styles.input}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value)
+              setBuild(undefined)
+            }}
+            placeholder={'one per line: 0xADDRESS,maxQty'}
+            rows={4}
+            aria-label="pasted allowlist"
+            data-testid="erc1155-allowlist-paste"
+          />
+        )}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => void handleCheck()}
+          disabled={checking || input.trim() === ''}
+          data-testid="erc1155-allowlist-check"
+        >
+          {checking ? 'checking…' : 'check'}
+        </button>
+        {summary !== undefined && <p className={styles.hint ?? undefined}>{summary}</p>}
+        {buildError !== undefined && (
+          <p className={`${styles.txStatus} ${styles.txError}`}>{buildError}</p>
+        )}
+
+        <TxButton
+          state={configureTx.state}
+          onClick={handleSubmitRoot}
+          onReset={configureTx.reset}
+          label="1. submit root on-chain"
+          successLabel="root submitted — tx confirmed."
+          disabled={!canSubmit}
+          errorText={configureTx.reason ?? 'submit failed — try again'}
+          testId="erc1155-allowlist-configure"
+        />
+        <TxButton
+          state={metadataTx.state}
+          onClick={handlePersistListUri}
+          onReset={metadataTx.reset}
+          label="2. persist listURI"
+          successLabel="listURI persisted — tx confirmed."
+          disabled={!canSubmit || metadata === undefined}
+          errorText={
+            metadataTx.reason ??
+            'persist failed — try again (this write requires the ORIGINAL creator wallet, which may differ from the current owner)'
+          }
+          testId="erc1155-allowlist-persist"
+        />
+      </div>
     </ActionRow>
   )
 }
