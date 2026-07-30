@@ -105,6 +105,7 @@ function freeMint(c: CreateContext): { allocation: bigint; scope: number } {
 export function buildErc1155Create(c: CreateContext): CreateCall {
   const params = {
     name: str(c.values.name),
+    symbol: str(c.values.symbol), // optional ERC1155 collection symbol (empty allowed) — noesis-084
     metadataURI: c.metadataURI,
     creator: c.creator,
     vault: c.modules.vault,

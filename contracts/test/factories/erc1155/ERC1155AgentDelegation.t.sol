@@ -47,6 +47,7 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
     function _params(string memory _name, address _creator) internal view returns (ERC1155Factory.CreateParams memory) {
         return ERC1155Factory.CreateParams({
             name: _name,
+            symbol: "", // optional collection symbol (noesis-084)
             metadataURI: "ipfs://test",
             creator: _creator,
             vault: address(vault),

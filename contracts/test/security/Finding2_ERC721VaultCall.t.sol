@@ -43,6 +43,7 @@ contract Finding2_ERC721VaultCallTest is Test {
                 owner: artist,
                 name: "Test",
                 symbol: "TST",
+                metadataURI: "",
                 lines: 1,
                 baseDuration: 1 hours,
                 timeBuffer: 5 minutes,

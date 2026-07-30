@@ -95,6 +95,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
     {
         return ERC1155Factory.CreateParams({
             name: _name,
+            symbol: "", // optional collection symbol (noesis-084)
             metadataURI: "ipfs://test",
             creator: _creator,
             vault: _vault,
@@ -218,6 +219,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "Test Collection",
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://test",
                 creator: creator,
                 vault: address(vault),
@@ -903,6 +905,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "GatedProject",
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://Qm",
                 creator: artist,
                 vault: address(vault),
@@ -998,6 +1001,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "TestProject",
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://Qm",
                 creator: artist,
                 vault: address(vault),
@@ -1020,6 +1024,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "GatedProject",
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://Qm",
                 creator: artist,
                 vault: address(vault),
@@ -1073,6 +1078,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: "Test",
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://test",
                 creator: creator,
                 vault: address(vault),
@@ -1141,6 +1147,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             _nextSalt(),
             ERC1155Factory.CreateParams({
                 name: string(abi.encodePacked("Merkle", vm.toString(_saltCounter))),
+                symbol: "", // optional collection symbol (noesis-084)
                 metadataURI: "ipfs://m",
                 creator: creator,
                 vault: address(vault),
@@ -1279,5 +1286,45 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
     function test_constructor_revertsOnZeroWeth() public {
         vm.expectRevert(ERC1155Factory.InvalidAddress.selector);
         new ERC1155Factory(address(mockRegistry), address(globalRegistry), address(componentRegistry), address(0));
+    }
+
+    // ── noesis-084 — ERC-7572 collection contractURI + optional symbol ─────────
+
+    function _createWithSymbol(string memory sym) internal returns (ERC1155Instance) {
+        ERC1155Factory.CreateParams memory p = _params("SymCollection", creator, address(vault));
+        p.symbol = sym;
+        p.metadataURI = "ipfs://collection";
+        vm.deal(creator, 1 ether);
+        vm.prank(creator);
+        address instance = factory.createInstance{ value: 0 }(_nextSalt(), p);
+        return ERC1155Instance(payable(instance));
+    }
+
+    /// @notice contractURI() mirrors the create-time collection metadataURI; symbol() the create-time symbol.
+    function test_contractURI_and_symbol_setAtCreate() public {
+        ERC1155Instance inst = _createWithSymbol("SYM");
+        assertEq(inst.contractURI(), "ipfs://collection", "contractURI should mirror create-time metadataURI");
+        assertEq(inst.symbol(), "SYM", "symbol should mirror create-time value");
+    }
+
+    /// @notice symbol is OPTIONAL for ERC1155 — an empty symbol is accepted (no InvalidSymbol guard).
+    function test_emptySymbol_accepted() public {
+        ERC1155Instance inst = _createWithSymbol("");
+        assertEq(inst.symbol(), "", "empty symbol must be accepted for ERC1155");
+    }
+
+    /// @notice setContractURI is owner-only, mutates the value, and emits ContractURIUpdated.
+    function test_setContractURI_ownerOnly_updatesAndEmits() public {
+        ERC1155Instance inst = _createWithSymbol("SYM");
+
+        vm.prank(minter1); // non-owner
+        vm.expectRevert();
+        inst.setContractURI("ipfs://hijack");
+
+        vm.expectEmit(true, true, true, true, address(inst));
+        emit ERC1155Instance.ContractURIUpdated();
+        vm.prank(creator); // owner
+        inst.setContractURI("ipfs://updated");
+        assertEq(inst.contractURI(), "ipfs://updated");
     }
 }

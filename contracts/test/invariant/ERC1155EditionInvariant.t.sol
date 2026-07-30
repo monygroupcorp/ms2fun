@@ -49,7 +49,9 @@ contract ERC1155EditionInvariantTest is StdInvariant, Test {
                 dynamicPricingModule: address(0),
                 weth: address(0xBEEF)
             }),
-            false
+            false,
+            "", // metadataURI (contractURI)
+            "" // symbol (optional)
         );
 
         // Add a limited edition (supply = 100)
