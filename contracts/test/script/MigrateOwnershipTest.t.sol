@@ -67,9 +67,10 @@ contract MigrateOwnershipTest is Test {
     }
 
     function _plainOwnable() internal view returns (address[] memory list) {
-        list = new address[](2);
+        list = new address[](3);
         list[0] = address(s.targetRequestRegistry());
         list[1] = address(s.uniVaultFactory());
+        list[2] = address(s.cypherVaultFactory()); // Ownable as of noesis-094 — deployer-owned, single-step
     }
 
     /// @dev Replicates MigrateOwnership.run(): revoker re-point, two-step completes, single-step transfers.
@@ -164,15 +165,17 @@ contract MigrateOwnershipTest is Test {
         vm.setEnv("MASTER_REGISTRY", vm.toString(s.masterRegistry()));
         vm.setEnv("TARGET_REQUEST_REGISTRY", vm.toString(address(s.targetRequestRegistry())));
         vm.setEnv("UNI_VAULT_FACTORY", vm.toString(address(s.uniVaultFactory())));
+        vm.setEnv("CYPHER_VAULT_FACTORY", vm.toString(address(s.cypherVaultFactory())));
 
         address[] memory safe = h.safeOwnable();
         assertEq(safe.length, 7, "safe len");
         assertEq(safe[6], s.masterRegistry(), "master is the last two-step element");
 
         address[] memory plain = h.plainOwnable();
-        assertEq(plain.length, 2, "plain len (aave/zamm absent this cfg)");
+        assertEq(plain.length, 3, "plain len (uni + cypher present, aave/zamm absent this cfg)");
         assertEq(plain[0], address(s.targetRequestRegistry()), "plain[0]");
         assertEq(plain[1], address(s.uniVaultFactory()), "plain[1]");
+        assertEq(plain[2], address(s.cypherVaultFactory()), "plain[2] cypher");
     }
 
     // ── config ───────────────────────────────────────────────────────────────────────────────────
@@ -195,7 +198,7 @@ contract MigrateOwnershipTest is Test {
         cfg.v4PoolManager = address(1);
         cfg.v3Factory = address(0);
         cfg.v2Factory = address(0);
-        cfg.cypherPositionManager = address(0);
+        cfg.cypherPositionManager = address(1); // nonzero → DeployCore deploys the Ownable CypherAlignmentVaultFactory (noesis-094/112)
         cfg.cypherRouter = address(0);
         cfg.zamm = address(0);
         cfg.zrouter = address(0);
