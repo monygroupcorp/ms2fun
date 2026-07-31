@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { decodeAbiParameters, keccak256, toHex } from 'viem'
 import {
+  encodeMerkleGatingData,
   encodeMintMessage,
   encodePasswordGatingData,
   GatingScope,
@@ -8,7 +9,6 @@ import {
   isFreeMintGated,
   isPaidMintGated,
   passwordToBytes32,
-  resolveMerkleGatingData,
   ZERO_BYTES32,
 } from './gatingMint'
 
@@ -101,8 +101,28 @@ describe('encodeMintMessage', () => {
   })
 })
 
-describe('resolveMerkleGatingData (seam)', () => {
-  it('returns the zero credential for now', () => {
-    expect(resolveMerkleGatingData()).toBe(ZERO_BYTES32)
+describe('encodeMerkleGatingData', () => {
+  // MerkleGatingModule.sol:117 — abi.decode(data, (uint256 tierId, uint256 maxQty, bytes32[] proof)).
+  const decoderShape = [
+    { name: 'tierId', type: 'uint256' },
+    { name: 'maxQty', type: 'uint256' },
+    { name: 'proof', type: 'bytes32[]' },
+  ] as const
+
+  it('round-trips through the module decoder', () => {
+    const proof = [keccak256(toHex('a')), keccak256(toHex('b'))] as const
+    const encoded = encodeMerkleGatingData(0n, 5n, [...proof])
+    const [tierId, maxQty, decodedProof] = decodeAbiParameters(decoderShape, encoded)
+    expect(tierId).toBe(0n)
+    expect(maxQty).toBe(5n)
+    expect(decodedProof).toEqual([...proof])
+  })
+
+  it('handles an empty proof array (single-leaf tree)', () => {
+    const encoded = encodeMerkleGatingData(1n, 1n, [])
+    const [tierId, maxQty, proof] = decodeAbiParameters(decoderShape, encoded)
+    expect(tierId).toBe(1n)
+    expect(maxQty).toBe(1n)
+    expect(proof).toEqual([])
   })
 })

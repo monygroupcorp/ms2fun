@@ -37,6 +37,21 @@ export interface CollectionMetadata {
   banner: string
   category: string
   links: ProfileLink[]
+  /**
+   * Merkle-allowlist listURIs (noesis-080), one row per gated (editionId, tierIndex) — today always a
+   * single `{editionId:0, tierIndex:0}` row (single list, no per-edition/tier authoring UI yet). The
+   * `listURI` points at the off-chain `{address,maxQty}[]` entries the mint page fetches to build a
+   * proof; the ROOT itself lives on-chain in `MerkleGatingModule`, not here. Optional/omitted when no
+   * allowlist has been configured.
+   */
+  allowlists?: AllowlistRow[]
+}
+
+/** One row of `CollectionMetadata.allowlists` — see that field's doc for the (editionId,tierIndex) model. */
+export interface AllowlistRow {
+  editionId: number
+  tierIndex: number
+  listURI: string
 }
 
 // ── lenient coercion helpers ────────────────────────────────────────────────
@@ -82,6 +97,7 @@ export function parseProfile(json: unknown): ProfileMetadata {
 /** Coerce arbitrary JSON into a safe CollectionMetadata. Never throws. */
 export function parseCollection(json: unknown): CollectionMetadata {
   const o = (json ?? {}) as Record<string, unknown>
+  const allowlists = allowlistRows(o.allowlists)
   return {
     schemaVersion: num(o.schemaVersion, 1),
     name: str(o.name),
@@ -94,7 +110,24 @@ export function parseCollection(json: unknown): CollectionMetadata {
     // `external_link` is derived from links[0] on write, so it needs no read-back — but a
     // third-party collection may carry only `external_link`. Surface it as the sole link.
     links: links(o.links).length > 0 ? links(o.links) : externalLink(o.external_link),
+    // `exactOptionalPropertyTypes` forbids assigning `undefined` to an optional field — only include
+    // the key when there's an actual row set.
+    ...(allowlists !== undefined ? { allowlists } : {}),
   }
+}
+
+/** Coerce arbitrary JSON into a list of allowlist rows, dropping any malformed entry. */
+function allowlistRows(v: unknown): AllowlistRow[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const rows: AllowlistRow[] = []
+  for (const raw of v) {
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as { editionId?: unknown; tierIndex?: unknown; listURI?: unknown }
+    const listURI = str(r.listURI)
+    if (listURI === '') continue
+    rows.push({ editionId: num(r.editionId, 0), tierIndex: num(r.tierIndex, 0), listURI })
+  }
+  return rows.length > 0 ? rows : undefined
 }
 
 /** An ERC-7572 `external_link` promoted to our labelled-link shape. */

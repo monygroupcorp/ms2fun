@@ -32,7 +32,8 @@ import { useCollectionChainId } from '../useCollectionChain'
 import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
-import { EMPTY_BYTES, ZERO_BYTES32, encodeBuyGatingData, resolveBuyPasswordHash } from './gating'
+import { EMPTY_BYTES, ZERO_BYTES32, encodeMerkleGatingData, resolveBuyPasswordHash } from './gating'
+import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import { encodeActionMessage } from '../../../lib/actionMessage'
 import { type CostInverse, solveBuyAmount } from './costInverse'
 import { curveParamsFromTuple, curvePriceAt } from './curveSampler'
@@ -84,6 +85,12 @@ export function SwapPanel({
 
   const isBuy = direction === 'buy'
   const slippageBps = Math.round((Number(slippagePct) || 0) * 100)
+
+  // BUY gating (noesis-080): the only deployed gating module is MerkleGatingModule, so `gatingActive`
+  // on the buy side means "resolve a merkle proof", not "ask for a password" — the password field below
+  // stays for SELL, which still takes a raw `bytes32 passwordHash` untouched by the gating module (see
+  // gating.ts's doc comment).
+  const buyAllowlist = useMerkleAllowlistProof(instance, gatingActive && isBuy)
 
   // BUY input = ETH to spend; SELL input = token amount.
   let spendWei: bigint | undefined
@@ -248,18 +255,24 @@ export function SwapPanel({
 
   function handleSubmit(): void {
     const deadline = BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_BUFFER_SEC
-    // `sellBonding` still takes the raw bytes32 passwordHash; `buyBonding` (post-#25) takes `bytes`
-    // gatingData, forwarded to the module's abi.decode(data,(bytes32)). Derive the hash once, then
-    // wrap it for the buy path.
-    const passwordHash = gatingActive ? resolveBuyPasswordHash(password) : ZERO_BYTES32
 
     if (isBuy) {
       if (resolved === undefined) return
+      // A gated buy with no resolved merkle proof must not fire.
+      if (
+        gatingActive &&
+        (buyAllowlist.status !== 'eligible' || buyAllowlist.proof === undefined)
+      ) {
+        return
+      }
       // Optional buy message → posted to the collection channel atomically with the trade (S5).
       const trimmedMsg = message.trim()
       const messageData = trimmedMsg ? encodeActionMessage(trimmedMsg) : EMPTY_BYTES
       const maxCost = applyBuySlippage(resolved.cost, slippageBps)
-      const gatingData = gatingActive ? encodeBuyGatingData(passwordHash) : EMPTY_BYTES
+      const gatingData =
+        gatingActive && buyAllowlist.proof !== undefined
+          ? encodeMerkleGatingData(0n, buyAllowlist.maxQty ?? 0n, buyAllowlist.proof)
+          : EMPTY_BYTES
       buy.writeContract({
         address: instance,
         chainId: chainId,
@@ -269,6 +282,9 @@ export function SwapPanel({
     } else {
       if (sellAmount === undefined || refundQuote.data === undefined) return
       const minRefund = applySellSlippage(refundQuote.data, slippageBps)
+      // `sellBonding` still takes the raw bytes32 passwordHash, unaffected by the merkle module
+      // (gating.ts's doc comment) — vestigial now PasswordTierGating is gone, but left intact.
+      const passwordHash = gatingActive ? resolveBuyPasswordHash(password) : ZERO_BYTES32
       sell.writeContract({
         address: instance,
         chainId: chainId,
@@ -289,9 +305,9 @@ export function SwapPanel({
   const isBusy = activeWrite.isPending || isConfirming
   const hasError = activeWrite.isError
 
-  // Whether the action can fire.
+  // Whether the action can fire. A gated buy additionally needs a resolved merkle proof.
   const canSubmit = isBuy
-    ? resolved !== undefined && !solving
+    ? resolved !== undefined && !solving && (!gatingActive || buyAllowlist.status === 'eligible')
     : sellAmount !== undefined && refundQuote.data !== undefined
 
   if (!isConnected) {
@@ -437,13 +453,23 @@ export function SwapPanel({
         </div>
       )}
 
-      {gatingActive && (
+      {gatingActive && isBuy && (
+        <p className={styles.field} data-testid="erc404-buy-allowlist-status">
+          {buyAllowlist.status === 'loading' && 'checking allowlist…'}
+          {buyAllowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
+          {buyAllowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
+          {buyAllowlist.status === 'eligible' &&
+            `allowlisted — up to ${buyAllowlist.maxQty?.toString() ?? '0'} per wallet`}
+        </p>
+      )}
+
+      {gatingActive && !isBuy && (
         <div className={styles.field}>
           <label className={styles.label} htmlFor="erc404-password">
             access password
           </label>
-          {/* PASSWORD gating path: keccak256(utf8(password)) → bytes32 passwordHash. MERKLE seam:
-              a merkle module would resolve a proof here instead (see gating.ts). */}
+          {/* `sellBonding` still takes a raw bytes32 passwordHash, unaffected by the merkle gating
+              module (see gating.ts's doc comment) — vestigial now PasswordTierGating is gone. */}
           <input
             id="erc404-password"
             className={styles.input}

@@ -64,8 +64,8 @@ export function buildProfileJson(p: ProfileMetadata): string {
  * `links` has no ERC-7572 equivalent (it's a labelled list, `external_link` is one URL), so we keep
  * it as an extension AND derive `external_link` from the first link. Consumers ignore unknown keys.
  *
- * Key order: schemaVersion, name, description, image, banner_image, category, external_link, links.
- * Empty-string / empty-array fields are omitted; schemaVersion is always present.
+ * Key order: schemaVersion, name, description, image, banner_image, category, external_link, links,
+ * allowlists. Empty-string / empty-array fields are omitted; schemaVersion is always present.
  */
 export function buildCollectionJson(c: CollectionMetadata): string {
   const serialized = serializeLinks(c.links)
@@ -78,6 +78,7 @@ export function buildCollectionJson(c: CollectionMetadata): string {
     category: c.category,
     external_link: serialized[0]?.url ?? '',
     links: serialized,
+    allowlists: c.allowlists ?? [],
   }
   return JSON.stringify(omitEmpty(raw))
 }

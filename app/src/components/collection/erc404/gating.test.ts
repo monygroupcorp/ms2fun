@@ -6,6 +6,7 @@ import {
   ZERO_BYTES32,
   encodeBuyGatingData,
   encodeGatingData,
+  encodeMerkleGatingData,
   encodeMessageData,
   resolveBuyPasswordHash,
 } from './gating'
@@ -76,6 +77,23 @@ describe('encodeMessageData', () => {
     expect(messageType).toBe(0)
     expect(refId).toBe(0n)
     expect(content).toBe('gm')
+  })
+})
+
+describe('encodeMerkleGatingData', () => {
+  const decoderShape = [
+    { name: 'tierId', type: 'uint256' },
+    { name: 'maxQty', type: 'uint256' },
+    { name: 'proof', type: 'bytes32[]' },
+  ] as const
+
+  it('round-trips through the MerkleGatingModule decoder', () => {
+    const proof = [keccak256(stringToBytes('a')), keccak256(stringToBytes('b'))]
+    const encoded = encodeMerkleGatingData(0n, 3n, proof)
+    const [tierId, maxQty, decodedProof] = decodeAbiParameters(decoderShape, encoded)
+    expect(tierId).toBe(0n)
+    expect(maxQty).toBe(3n)
+    expect(decodedProof).toEqual(proof)
   })
 })
 

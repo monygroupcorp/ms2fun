@@ -1,9 +1,9 @@
 /**
  * Free-mint claim. Shown only when the instance has a free-mint allocation AND the connected wallet
  * hasn't claimed yet; hidden otherwise. `claimFreeMint(gatingData)` — when gating applies to the free
- * tier we pass the password-encoded gatingData, else `0x`.
+ * tier (noesis-080: the only deployed gating module is MerkleGatingModule) we resolve the connected
+ * wallet's merkle proof and pass the encoded gatingData, else `0x`.
  */
-import { useState } from 'react'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
   useReadErc404BondingInstanceFreeMintAllocation,
@@ -11,7 +11,8 @@ import {
   useWriteErc404BondingInstanceClaimFreeMint,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
-import { EMPTY_BYTES, encodeGatingData, resolveBuyPasswordHash } from './gating'
+import { EMPTY_BYTES, encodeMerkleGatingData } from './gating'
+import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import styles from './BondingSurface.module.css'
 
 interface FreeMintPanelProps {
@@ -21,15 +22,10 @@ interface FreeMintPanelProps {
   refetch: () => void
 }
 
-export function FreeMintPanel({
-  instance,
-  bondingOpenTime,
-  gatingActive,
-  refetch,
-}: FreeMintPanelProps) {
+export function FreeMintPanel({ instance, gatingActive, refetch }: FreeMintPanelProps) {
   const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
-  const [password, setPassword] = useState('')
+  const allowlist = useMerkleAllowlistProof(instance, gatingActive)
 
   const allocation = useReadErc404BondingInstanceFreeMintAllocation({
     address: instance,
@@ -50,13 +46,17 @@ export function FreeMintPanel({
   if (allocation.data === undefined || allocation.data === 0n) return null
   if (claimed.data === true) return null
 
+  const canSubmit = !gatingActive || allowlist.status === 'eligible'
+
   function handleClaim(): void {
-    // PAID_ONLY scope never gates the free tier; password tiers pass encoded gatingData. When the
-    // user supplies no password we still send the open-tier encoding so a time-tier module can read
-    // openTime; if no module is active the contract ignores it.
-    const gatingData = gatingActive
-      ? encodeGatingData(resolveBuyPasswordHash(password), bondingOpenTime)
-      : EMPTY_BYTES
+    // PAID_ONLY scope never gates the free tier. When gated, the module decodes
+    // abi.decode(data,(uint256 tierId, uint256 maxQty, bytes32[] proof)) — a gated claim with no
+    // resolved proof must not fire.
+    if (gatingActive && (allowlist.status !== 'eligible' || allowlist.proof === undefined)) return
+    const gatingData =
+      gatingActive && allowlist.proof !== undefined
+        ? encodeMerkleGatingData(0n, allowlist.maxQty ?? 0n, allowlist.proof)
+        : EMPTY_BYTES
     claim.writeContract({ address: instance, chainId: chainId, args: [gatingData] })
   }
 
@@ -85,25 +85,18 @@ export function FreeMintPanel({
       <p className={styles.panelTitle}>free mint</p>
       <p className={styles.note}>you have an unclaimed free allocation.</p>
       {gatingActive && (
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="erc404-freemint-password">
-            access password
-          </label>
-          <input
-            id="erc404-freemint-password"
-            className={styles.input}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={isBusy}
-            data-testid="erc404-freemint-password-input"
-          />
-        </div>
+        <p className={styles.field} data-testid="erc404-freemint-allowlist-status">
+          {allowlist.status === 'loading' && 'checking allowlist…'}
+          {allowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
+          {allowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
+          {allowlist.status === 'eligible' &&
+            `allowlisted — up to ${allowlist.maxQty?.toString() ?? '0'} per wallet`}
+        </p>
       )}
       <button
         className="btn btn-primary btn-chromatic"
         onClick={handleClaim}
-        disabled={isBusy}
+        disabled={isBusy || !canSubmit}
         data-testid="erc404-freemint-claim"
       >
         {claim.isPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'claim free mint'}
