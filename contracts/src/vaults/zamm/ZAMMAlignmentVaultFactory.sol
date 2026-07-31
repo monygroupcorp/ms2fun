@@ -100,6 +100,24 @@ contract ZAMMAlignmentVaultFactory is Ownable {
         ZAMMAlignmentVault(payable(vault)).setPoolKey(poolKey);
     }
 
+    /// @notice Rotate the price validator on a vault deployed by this factory.
+    /// @dev The factory owns every vault it deploys, so the vault's onlyOwner setPriceValidator is
+    ///      only reachable here. onlyOwner so the anti-manipulation validator can be rotated if it is
+    ///      ever broken. Mirrors setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param validator The price validator to set on the vault
+    function setVaultPriceValidator(address vault, address validator) external onlyOwner {
+        ZAMMAlignmentVault(payable(vault)).setPriceValidator(validator);
+    }
+
+    /// @notice Set the maximum allowed price deviation on a vault deployed by this factory.
+    /// @dev onlyOwner passthrough — the factory owns the vault. Mirrors setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param bps Deviation in basis points
+    function setVaultMaxPriceDeviationBps(address vault, uint256 bps) external onlyOwner {
+        ZAMMAlignmentVault(payable(vault)).setMaxPriceDeviationBps(bps);
+    }
+
     /// @notice Preview the deterministic address for a given salt
     function computeVaultAddress(address creator, bytes32 salt) external view returns (address) {
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(creator, salt));
