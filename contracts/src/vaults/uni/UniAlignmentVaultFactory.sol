@@ -62,6 +62,24 @@ contract UniAlignmentVaultFactory is Ownable {
         UniAlignmentVault(payable(vault)).setV4PoolKey(poolKey);
     }
 
+    /// @notice Rotate the price validator on a vault deployed by this factory.
+    /// @dev The factory owns every vault it deploys, so the vault's onlyOwner setPriceValidator is
+    ///      only reachable here. onlyOwner so the anti-manipulation validator can be rotated if it is
+    ///      ever broken. Mirrors setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param validator The price validator to set on the vault
+    function setVaultPriceValidator(address vault, address validator) external onlyOwner {
+        UniAlignmentVault(payable(vault)).setPriceValidator(validator);
+    }
+
+    /// @notice Set the maximum allowed price deviation on a vault deployed by this factory.
+    /// @dev onlyOwner passthrough — the factory owns the vault. Mirrors setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param bps Deviation in basis points
+    function setVaultMaxPriceDeviationBps(address vault, uint256 bps) external onlyOwner {
+        UniAlignmentVault(payable(vault)).setMaxPriceDeviationBps(bps);
+    }
+
     /// @notice Deploy a new vault clone via CREATE3
     /// @param salt CREATE3 deployment salt for deterministic vanity address
     /// @param alignmentToken The token this vault aligns to
