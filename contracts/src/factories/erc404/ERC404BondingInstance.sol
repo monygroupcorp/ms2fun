@@ -20,7 +20,7 @@ import {
 } from "../../interfaces/IInstanceLifecycle.sol";
 import { IGatingModule, GatingScope } from "../../gating/IGatingModule.sol";
 import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol";
-import { IMetadataResolver } from "../../metadata/IMetadataResolver.sol";
+import { SafeResolverLib } from "../../metadata/SafeResolverLib.sol";
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 error AlreadyInitialized();
@@ -670,18 +670,20 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     // `_unit()` is inherited from ERC404BondingStorage (shared by the instance and Ops).
 
     /// @dev Defensive metadata-resolution seam (ADR-0006/0007): if a resolver is wired and returns
-    ///      a non-empty augmentation, it wins; ANY revert/empty falls back to base — tokenURI can
-    ///      never be bricked by a misbehaving module. Uses _ownerAt (revert-free), NOT _ownerOf.
-    ///      The `m.code.length` guard is load-bearing: a high-level call to a code-less address (a
-    ///      self-destructed resolver) reverts UNCATCHABLY on the extcodesize check, which the
-    ///      try/catch would NOT swallow — so it is checked explicitly to keep the never-brick promise.
+    ///      a non-empty augmentation, it wins; ANY failure (revert / gas-bomb / ABI-undecodable return /
+    ///      code-less address) falls back to base — tokenURI can never be bricked by a misbehaving
+    ///      module, for EVERY resolver-return class. Uses _ownerAt (revert-free), NOT _ownerOf.
+    ///      `SafeResolverLib.tryResolve` does a low-level `staticcall` + guarded decode: a malformed
+    ///      (undecodable) success degrades to base just like a revert (a plain `try…returns(string)`
+    ///      would let that decode failure ESCAPE the `catch` and revert the read — noesis-107). The lib
+    ///      also swallows the code-less-resolver case (staticcall succeeds empty → degrades), so the
+    ///      former explicit `m.code.length` guard is no longer needed.
     function _tokenURI(uint256 tokenId) internal view override returns (string memory) {
         string memory base = string.concat(metadataURI, LibString.toString(tokenId));
         address m = modules[METADATA_RESOLVER];
-        if (m != address(0) && m.code.length != 0) {
-            try IMetadataResolver(m).resolve(address(this), tokenId, _ownerAt(tokenId)) returns (string memory aug) {
-                if (bytes(aug).length != 0) return aug; // augmented wins
-            } catch { } // any revert/gas issue → base, marketplaces safe
+        if (m != address(0)) {
+            (, string memory aug) = SafeResolverLib.tryResolve(m, address(this), tokenId, _ownerAt(tokenId));
+            if (bytes(aug).length != 0) return aug; // augmented wins
         }
         return base;
     }
