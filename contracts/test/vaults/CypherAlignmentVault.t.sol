@@ -137,7 +137,8 @@ contract CypherAlignmentVaultTest is Test {
         assertEq(vault.alignmentToken(), address(alignmentToken));
         assertEq(address(vault.alignmentRegistry()), address(registry));
         assertEq(vault.alignmentTargetId(), TARGET_ID);
-        assertEq(vault.protocolYieldCutBps(), 100);
+        assertEq(vault.PROTOCOL_CUT_BPS(), 100);
+        assertEq(vault.TARGET_CUT_BPS(), 1900);
         assertEq(vault.maxPriceDeviationBps(), 500);
         assertTrue(vault.isLiquidityReady());
     }
@@ -418,7 +419,8 @@ contract CypherAlignmentVaultTest is Test {
 
         vault.harvest(0);
         assertEq(vault.accumulatedProtocolFees(), 0.01 ether);
-        assertEq(vault.calculateClaimableAmount(alice), 0.99 ether);
+        assertEq(vault.accumulatedTargetFees(), 0.19 ether);
+        assertEq(vault.calculateClaimableAmount(alice), 0.8 ether);
     }
 
     // ── harvest oracle-floor (reference-priced, not self-priced) ─────────────
@@ -448,7 +450,7 @@ contract CypherAlignmentVaultTest is Test {
         _stageHarvest(0, 1 ether, true);
         vault.harvest(0);
 
-        uint256 benefactorFees = 1 ether * 9900 / 10000;
+        uint256 benefactorFees = 1 ether * 8000 / 10000;
         vm.prank(alice);
         uint256 aliceClaimed = vault.claimFees();
         vm.prank(bob);
@@ -543,9 +545,49 @@ contract CypherAlignmentVaultTest is Test {
         vault.withdrawProtocolFees();
     }
 
-    function test_setProtocolYieldCutBps_revertsAboveMax() public {
-        vm.expectRevert(CypherAlignmentVault.ExceedsMaxBps.selector);
-        vault.setProtocolYieldCutBps(1001);
+    // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
+
+    function test_harvest_splits_80_19_1() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+        assertEq(vault.accumulatedProtocolFees(), 0.01 ether, "protocol 1%");
+        assertEq(vault.accumulatedTargetFees(), 0.19 ether, "target 19%");
+        assertEq(vault.calculateClaimableAmount(alice), 0.8 ether, "benefactor 80% (remainder)");
+    }
+
+    function test_withdrawTargetFees_pushesToRegistrySink() public {
+        address sink = makeAddr("communitySink");
+        registry.setCommunityPayout(TARGET_ID, sink);
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+
+        uint256 before = sink.balance;
+        vault.withdrawTargetFees();
+        assertEq(sink.balance - before, 0.19 ether, "19% pushed to registry-pinned sink");
+        assertEq(vault.accumulatedTargetFees(), 0, "target bucket cleared");
+    }
+
+    function test_withdrawTargetFees_revertsWhenSinkUnset() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+        vm.expectRevert(CypherAlignmentVault.TargetSinkNotSet.selector);
+        vault.withdrawTargetFees();
+    }
+
+    /// @dev An un-wired sink accrues the 19% but never blocks the creator's 80% claim path.
+    function test_targetSinkUnset_doesNotBlockCreatorClaim() public {
+        _contribute(alice, 1 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+        assertEq(vault.accumulatedTargetFees(), 0.19 ether, "target still accrues when sink unset");
+
+        uint256 balBefore = alice.balance;
+        vm.prank(alice);
+        vault.claimFees();
+        assertEq(alice.balance - balBefore, 0.8 ether, "creator 80% unaffected by unset sink");
     }
 
     function test_setMaxPriceDeviationBps_updates() public {

@@ -102,7 +102,7 @@ This is the core idea of the launchpad: a derivative collection that **materiall
 
 - The binding is **contract-enforced and permanent** — it can't be undone after deploy.
 - The capital is **not custodial to us** — it lives in the vault contract.
-- Benefactor collections earn a proportional share of the vault's LP yield.
+- Ongoing LP yield is split by the same **1% protocol · 19% aligned community · 80% benefactors** law as the graduation carve: the 19% flows to that target's own alignment sink, and benefactor collections earn a proportional share of the remaining 80%.
 
 If the community you want isn't listed, you can request a new alignment target.
 `,

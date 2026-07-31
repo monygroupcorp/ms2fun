@@ -101,6 +101,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error HarvestSameBlock();
     error PoolKeyLocked();
     error NoReferencePool();
+    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned yet
+    ///      (`getCommunityPayout == address(0)`). Accrual still happens; only the push is gated.
+    error TargetSinkNotSet();
 
     // ── Anti-DoS constants ────────────────────────────────────────────────
     uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
@@ -108,14 +111,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Events ────────────────────────────────────────────────────────────
     event LiquidityAdded(uint256 ethSwapped, uint256 tokenReceived, uint256 lpMinted);
-    event Harvested(uint256 totalFees, uint256 benefactorFees);
+    event Harvested(uint256 totalFees, uint256 benefactorFees, uint256 protocolFees, uint256 targetFees);
     event DelegateSet(address indexed benefactor, address indexed delegate);
-    event ProtocolYieldCutUpdated(uint256 newBps);
     event PriceValidatorUpdated(address indexed validator);
     event ZQuoterUpdated(address indexed zQuoter);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
+    event TargetFeesWithdrawn(uint256 amount);
     event PoolKeyUpdated(uint256 indexed poolId);
 
     // ── Core config (locked post-init) ───────────────────────────────────
@@ -129,9 +132,15 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // Wired post-deploy by the factory; the fixed _poolKey.feeOrHook ZAMM pool stays the fallback.
     address public zQuoter;
 
-    // ── Protocol economics ────────────────────────────────────────────────
+    // ── Protocol economics — the 80/19/1 alignment law (hard immutable, noesis-051) ──
     address public protocolTreasury;
-    uint256 public protocolYieldCutBps; // default 100 (1%)
+    /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
+    ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
+    uint256 public constant PROTOCOL_CUT_BPS = 100;
+    /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
+    uint256 public constant TARGET_CUT_BPS = 1900;
+    // Benefactors take the remainder (8000 bps = 80%), computed as fees - protocol - target so the
+    // three legs can never exceed the harvested fees (rounding dust favors benefactors).
 
     // ── Price-manipulation guard (F5) ─────────────────────────────────────
     /// @notice Independent price source (Uniswap TWAP) used to floor swap slippage on the
@@ -171,6 +180,9 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Protocol fee bucket ───────────────────────────────────────────────
     uint256 public accumulatedProtocolFees;
+
+    // ── Target-alignment fee bucket (the accrued 19% awaiting push to the registry-pinned sink) ──
+    uint256 public accumulatedTargetFees;
 
     // ── Flash-loan / same-block harvest guard ────────────────────────────
     uint256 private _lastHarvestBlock;
@@ -213,7 +225,6 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         poolId = uint256(keccak256(abi.encode(key)));
 
         protocolTreasury = _protocolTreasury;
-        protocolYieldCutBps = 100;
         maxPriceDeviationBps = 500;
         // F5: wire the oracle floor at init (mirrors Uni). address(0) → floor inert (back-compat);
         // production deploys pass the shared UniswapVaultPriceValidator so swaps are TWAP-floored.
@@ -408,10 +419,14 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
         uint256 afterReward = feesCollected;
 
-        uint256 protocolCut = afterReward * protocolYieldCutBps / 10000; // round down: favors benefactors
-        uint256 benefactorFees = afterReward - protocolCut;
+        // 80/19/1 split: protocol + target by bps, benefactors take the remainder so the three legs
+        // never exceed the harvested fees (rounding dust favors benefactors).
+        uint256 protocolCut = afterReward * PROTOCOL_CUT_BPS / 10000; // 1% — round down
+        uint256 targetCut = afterReward * TARGET_CUT_BPS / 10000; // 19% — round down
+        uint256 benefactorFees = afterReward - protocolCut - targetCut; // 80% remainder-safe
 
         accumulatedProtocolFees += protocolCut;
+        accumulatedTargetFees += targetCut;
 
         if (benefactorFees > 0 && totalContributions > 0) {
             accRewardPerContribution += benefactorFees * 1e18 / totalContributions; // round down: dust stays in vault
@@ -423,7 +438,7 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         // the very flaw this invariant rework closes. principalETH/principalToken stay as the nominal
         // cumulative-deposit record for reporting.
 
-        emit Harvested(feesCollected, benefactorFees);
+        emit Harvested(feesCollected, benefactorFees, protocolCut, targetCut);
         emit FeesAccumulated(benefactorFees);
     }
 
@@ -503,12 +518,6 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Governance (owner only) ───────────────────────────────────────────
 
-    function setProtocolYieldCutBps(uint256 bps) external onlyOwner {
-        if (bps > 10000) revert ExceedsMaxBps();
-        protocolYieldCutBps = bps;
-        emit ProtocolYieldCutUpdated(bps);
-    }
-
     function setProtocolTreasury(address treasury_) external onlyOwner {
         if (treasury_ == address(0)) revert TreasuryNotSet();
         address old = protocolTreasury;
@@ -578,6 +587,20 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         (bool ok,) = protocolTreasury.call{ value: amount }("");
         if (!ok) revert TransferFailed();
         emit ProtocolFeesWithdrawn(amount);
+    }
+
+    /// @notice Push the accrued 19% target-alignment cut to the registry-pinned per-target sink.
+    /// @dev Permissionless. Pull-to-fixed-registry-sink: the destination is ALWAYS
+    ///      `alignmentRegistry.getCommunityPayout(alignmentTargetId)`, never caller-supplied (no
+    ///      redirect surface). Reverts `TargetSinkNotSet` when the sink is unset — the 19% keeps
+    ///      accruing so an un-wired sink never blocks the benefactors' 80% claim path.
+    function withdrawTargetFees() external {
+        address sink = alignmentRegistry.getCommunityPayout(alignmentTargetId);
+        if (sink == address(0)) revert TargetSinkNotSet();
+        uint256 amount = accumulatedTargetFees;
+        accumulatedTargetFees = 0;
+        SmartTransferLib.smartTransferETH(sink, amount, weth);
+        emit TargetFeesWithdrawn(amount);
     }
 
     // ── View helpers ──────────────────────────────────────────────────────
