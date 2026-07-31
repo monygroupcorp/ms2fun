@@ -5,13 +5,17 @@ import { CypherAlignmentVault } from "./CypherAlignmentVault.sol";
 import { IVaultPriceValidator } from "../../interfaces/IVaultPriceValidator.sol";
 import { IAlignmentRegistry } from "../../master/interfaces/IAlignmentRegistry.sol";
 import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 /// @title CypherAlignmentVaultFactory
 /// @notice Deploys CypherAlignmentVault clones via CREATE3. Shared acquisition/registry config
 ///         (Algebra factory, zRouter/zQuoter best-route surface, alignment registry, price validator)
 ///         is baked at construction and threaded into every vault; per-vault config (the external
 ///         target token and its alignment target id) is supplied per deploy.
-contract CypherAlignmentVaultFactory {
+/// @dev The factory is the owner of every vault it deploys, so the vaults' onlyOwner setters
+///      (setPriceValidator/setMaxPriceDeviationBps) are only reachable through the owner-gated
+///      passthroughs below — mirroring UniAlignmentVaultFactory.setVaultPoolKey.
+contract CypherAlignmentVaultFactory is Ownable {
     address public immutable vaultImplementation;
     /// @notice Oracle/TWAP validator wired into every deployed vault. Reads the canonical reference
     ///         TWAP and floors the vault's swaps; production must pass the shared validator.
@@ -36,12 +40,31 @@ contract CypherAlignmentVaultFactory {
         address _zQuoter,
         IAlignmentRegistry _alignmentRegistry
     ) {
+        _initializeOwner(msg.sender);
         vaultImplementation = _vaultImplementation;
         defaultPriceValidator = _defaultPriceValidator;
         algebraFactory = _algebraFactory;
         zRouter = _zRouter;
         zQuoter = _zQuoter;
         alignmentRegistry = _alignmentRegistry;
+    }
+
+    /// @notice Rotate the price validator on a vault deployed by this factory.
+    /// @dev The factory is the owner of every vault it deploys, so the vault's onlyOwner
+    ///      setPriceValidator is only reachable here. onlyOwner (the deployer/protocol) so the
+    ///      anti-manipulation validator can be rotated if it is ever broken. Mirrors setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param validator The price validator to set on the vault
+    function setVaultPriceValidator(address vault, address validator) external onlyOwner {
+        CypherAlignmentVault(payable(vault)).setPriceValidator(validator);
+    }
+
+    /// @notice Set the maximum allowed price deviation on a vault deployed by this factory.
+    /// @dev onlyOwner passthrough — the factory owns the vault. Mirrors setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param bps Deviation in basis points
+    function setVaultMaxPriceDeviationBps(address vault, uint256 bps) external onlyOwner {
+        CypherAlignmentVault(payable(vault)).setMaxPriceDeviationBps(bps);
     }
 
     // slither-disable-next-line reentrancy-events

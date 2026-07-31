@@ -213,6 +213,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     event AlignmentTokenUpdated(address indexed oldToken, address indexed newToken);
     event V4PoolKeyUpdated(bytes32 indexed poolId);
     event ZQuoterUpdated(address indexed zQuoter);
+    event PriceValidatorUpdated(address indexed validator);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event DustDistributionThresholdUpdated(uint256 newThreshold);
     event BenefactorDelegateSet(address indexed benefactor, address indexed delegate);
@@ -951,6 +952,15 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     function setZQuoter(address newZQuoter) external onlyOwner {
         zQuoter = newZQuoter;
         emit ZQuoterUpdated(newZQuoter);
+    }
+
+    /// @notice Wire the independent price validator used to floor swaps and read the reference TWAP.
+    /// @dev Owner is the deploying factory; rotation routes through the factory passthrough. Mirrors
+    ///      ZAMMAlignmentVault.setPriceValidator so a broken validator can be rotated (previously the
+    ///      field was set only at initialize and could never be changed).
+    function setPriceValidator(address validator) external onlyOwner {
+        priceValidator = IVaultPriceValidator(validator);
+        emit PriceValidatorUpdated(validator);
     }
 
     /// @notice Set maximum allowed price deviation for manipulation protection

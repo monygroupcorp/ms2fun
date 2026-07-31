@@ -11,6 +11,7 @@ import { MockZRouter } from "../mocks/MockZRouter.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract ZAMMAlignmentVaultFactoryTest is Test {
     ZAMMAlignmentVaultFactory public factory;
@@ -86,6 +87,38 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
 
         assertTrue(v1 != v2);
         assertTrue(v1 != impl);
+    }
+
+    /// @dev Governance unbrick: the factory owns every vault, so the vault's onlyOwner
+    ///      setPriceValidator / setMaxPriceDeviationBps are only reachable via the factory
+    ///      passthroughs (the ZAMM vault setters already existed; they were just never exposed).
+    function test_setVaultPriceValidator_ownerCanRotate() public {
+        address vault = factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, poolKey);
+        assertEq(ZAMMAlignmentVault(payable(vault)).owner(), address(factory));
+
+        address newValidator = makeAddr("rotatedValidator");
+        factory.setVaultPriceValidator(vault, newValidator);
+        assertEq(address(ZAMMAlignmentVault(payable(vault)).priceValidator()), newValidator);
+    }
+
+    function test_setVaultMaxPriceDeviationBps_ownerCanRotate() public {
+        address vault = factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, poolKey);
+        factory.setVaultMaxPriceDeviationBps(vault, 250);
+        assertEq(ZAMMAlignmentVault(payable(vault)).maxPriceDeviationBps(), 250);
+    }
+
+    function test_setVaultPriceValidator_nonOwnerReverts() public {
+        address vault = factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, poolKey);
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultPriceValidator(vault, makeAddr("rotatedValidator"));
+    }
+
+    function test_setVaultMaxPriceDeviationBps_nonOwnerReverts() public {
+        address vault = factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, poolKey);
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultMaxPriceDeviationBps(vault, 250);
     }
 
     /// @dev F6: the deployment salt is bound to the caller — the same salt resolves to a different
