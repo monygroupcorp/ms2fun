@@ -137,6 +137,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error UnapprovedStakingModule();
     error UnapprovedCurveComputer();
     error UnapprovedResolver();
+    error InvalidTierMinBalance();
     error MaxBondingFeeExceeded();
     error NotAuthorizedAgent();
     error InvalidDeclaredMaxAllowance();
@@ -335,6 +336,13 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Per-module sealed config.
         if (cfg.tier != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.tier, FeatureUtils.TIER)) revert UnapprovedResolver();
+            // T1: a band with minBalance == 0 makes `eff >= 0` always true → the tier reveals its rare
+            // art to EVERY id in range, holder or not (balanceOf(address(0)) == 0 still clears it),
+            // silently defeating the ownership gate. Reject it at seal — a config footgun, not a runtime.
+            uint256 tierCount = cfg.tiers.length;
+            for (uint256 i = 0; i < tierCount; i++) {
+                if (cfg.tiers[i].minBalance == 0) revert InvalidTierMinBalance();
+            }
             TierRevealModule(cfg.tier).initTiers(instance, cfg.tiers);
         }
         if (cfg.overlay != address(0)) {
