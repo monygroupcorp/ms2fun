@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Ownable } from "solady/auth/Ownable.sol";
 import { IMetadataResolver } from "./IMetadataResolver.sol";
+import { SafeResolverLib } from "./SafeResolverLib.sol";
 import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 
 /// @title MetadataResolverRouter
@@ -53,13 +54,12 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
         address[] storage rs = resolvers[inst];
         uint256 len = rs.length;
         for (uint256 i; i < len; ++i) {
-            // A high-level call to a code-less address reverts UNCATCHABLY on the extcodesize check,
-            // so guard it explicitly — a revoked/self-destructed child must degrade, not brick.
-            if (rs[i].code.length == 0) continue;
-            // slither-disable-next-line calls-loop
-            try IMetadataResolver(rs[i]).resolve(inst, id, holder) returns (string memory u) {
-                if (bytes(u).length != 0) return u; // first non-empty wins
-            } catch { } // defensive at the router too
+            // SafeResolverLib.tryResolve degrades EVERY hostile child class to `""`: a revert, a gas-bomb,
+            // an ABI-undecodable success (the escape a plain try/catch misses — noesis-107), and a
+            // code-less (revoked/self-destructed) child — so a bad child falls through to the next, never
+            // bricks the read.
+            (, string memory u) = SafeResolverLib.tryResolve(rs[i], inst, id, holder);
+            if (bytes(u).length != 0) return u; // first non-empty wins
         }
         return ""; // → instance falls back to base
     }

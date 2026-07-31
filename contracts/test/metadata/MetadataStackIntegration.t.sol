@@ -403,13 +403,12 @@ contract MetadataStackIntegrationTest is Test {
 
     // ── noesis-104 §4.5: a hostile resolver can't brick a DN404 transfer ─────────
     // The `_tokenURI` seam is the ONLY place the instance calls a wired resolver, behind a defensive
-    // try/catch + `m.code.length` guard — the DN404 TRANSFER path never touches it. So a maximally
-    // hostile resolver (revert / gas-bomb / malformed return) wired as the instance's sole resolver
-    // must never block a transfer. That is the load-bearing invariant, and it HOLDS for all three
-    // variants. The metadata READ degrades to base for the revert + gas-bomb variants (the catch
-    // swallows both); the malformed-return variant is the documented exception (see the KNOWN-GAP on
-    // that test) — a successful-but-ABI-undecodable return escapes `_tokenURI`'s try/returns/catch and
-    // reverts the read, so only the transfer invariant is asserted there.
+    // guard (now `SafeResolverLib.tryResolve`, noesis-107) — the DN404 TRANSFER path never touches it. So
+    // a maximally hostile resolver (revert / gas-bomb / malformed return) wired as the instance's sole
+    // resolver must never block a transfer. That is the load-bearing invariant, and it HOLDS for all three
+    // variants. The metadata READ now degrades to base for ALL THREE variants: noesis-107 replaced the
+    // naive try/returns/catch (which let a successful-but-ABI-undecodable return ESCAPE the catch and
+    // revert the read) with a low-level staticcall + guarded decode, closing that former KNOWN-GAP.
 
     /// @dev Create an instance whose sole metadata resolver is `resolver` (single module, no router).
     function _createWithSoleResolver(string memory name, address resolver) internal returns (ERC404BondingInstance b) {
@@ -467,14 +466,14 @@ contract MetadataStackIntegrationTest is Test {
     }
 
     function test_hostileResolver_malformedReturn_cannotBrickTransfer() public {
-        // KNOWN-GAP: malformed-return read-brick tracked in the metadata-seam-hardening item (spec-gated).
-        // A successful-but-ABI-undecodable resolver return escapes `_tokenURI`'s
-        // `try … returns (string){} catch {}` (ERC404BondingInstance:682) and reverts the metadata READ;
-        // the same escape exists at MetadataResolverRouter:60. This VIOLATES the ADR-0006/0007 "tokenURI
-        // can never be bricked" promise and is a REAL money-code seam defect — surfaced under spec-gate
-        // as a SEPARATE seam-hardening item, intentionally NOT fixed here and NOT asserted away. This
-        // test asserts ONLY the transfer invariant (which HOLDS); it deliberately does NOT read metadata,
-        // because the malformed read reverts rather than degrading to base.
-        _wireHostileAndAssertTransferLands(MockHostileResolver.Mode.MALFORMED, "hostileMalformed");
+        // noesis-107: the former KNOWN-GAP is CLOSED. A successful-but-ABI-undecodable resolver return
+        // used to escape `_tokenURI`'s `try … returns (string){} catch {}` and revert the metadata READ;
+        // `SafeResolverLib.tryResolve` now guards the return framing before decoding, so the malformed
+        // success degrades to base identically to a revert/gas-bomb. Assert BOTH invariants: the transfer
+        // lands (as before) AND the read no longer reverts — it degrades to base for every id.
+        ERC404BondingInstance b =
+            _wireHostileAndAssertTransferLands(MockHostileResolver.Mode.MALFORMED, "hostileMalformed");
+        assertEq(_uri(b, 5), "base/5", "malformed-resolver read must degrade to base (noesis-107)");
+        assertEq(_uri(b, 1), "base/1", "post-transfer malformed read still degrades to base");
     }
 }

@@ -6,6 +6,7 @@ import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRoute
 import { IMetadataResolver } from "../../src/metadata/IMetadataResolver.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol";
+import { MockHostileResolver } from "../mocks/MockHostileResolver.sol";
 
 /// @dev Registry mock with a togglable per-address isFactoryRegistered (the real one in the
 ///      shared mock always returns true, which can't exercise the seal-front-run guard).
@@ -137,13 +138,37 @@ contract MetadataResolverRouterTest is Test {
         assertEq(router.resolve(address(0xDEAD), 1, address(0)), "");
     }
 
-    /// @dev A code-less child (e.g. address(0)) makes the high-level resolve call revert on the
-    ///      no-code check; the router's explicit code-length guard skips it and continues.
+    /// @dev A code-less child (e.g. address(0)): `SafeResolverLib.tryResolve` staticcalls it, gets a
+    ///      success with empty returndata (no code = no revert), which fails the decodable-string guard →
+    ///      degrades to "" and the router continues to the next child.
     function test_resolve_codelessChildIsDefensive() public {
         StubResolver good = new StubResolver("GOOD", false);
         vm.prank(factory);
         router.initResolvers(inst, _children(address(0), address(good)));
         assertEq(router.resolve(inst, 1, address(0)), "GOOD");
+    }
+
+    /// @dev noesis-107: a child that SUCCEEDS but returns ABI-undecodable bytes must also degrade, not
+    ///      brick the router read. The old raw `try…returns(string){}catch{}` let that decode failure
+    ///      escape the catch and revert `resolve`; `SafeResolverLib.tryResolve` guards the framing so the
+    ///      malformed child is skipped to the next good child, exactly like a reverting child.
+    function test_resolve_malformedChildIsDefensive() public {
+        MockHostileResolver malformed = new MockHostileResolver(MockHostileResolver.Mode.MALFORMED);
+        StubResolver good = new StubResolver("GOOD", false);
+        vm.prank(factory);
+        router.initResolvers(inst, _children(address(malformed), address(good)));
+        assertEq(router.resolve(inst, 1, address(0)), "GOOD");
+    }
+
+    /// @dev A malformed child as the SOLE resolver degrades the whole router read to "" (→ instance base),
+    ///      never reverts.
+    function test_resolve_soleMalformedChild_returnsEmpty() public {
+        MockHostileResolver malformed = new MockHostileResolver(MockHostileResolver.Mode.MALFORMED);
+        address[] memory rs = new address[](1);
+        rs[0] = address(malformed);
+        vm.prank(factory);
+        router.initResolvers(inst, rs);
+        assertEq(router.resolve(inst, 1, address(0)), "");
     }
 
     /// @dev Sealed with an empty list resolves to "" (feature inert but sealed).
