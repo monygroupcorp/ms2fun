@@ -31,6 +31,24 @@ contract ToggleRegistry {
         info.instance = inst_;
         info.factory = instFactory[inst_];
     }
+
+    // R2: the router self-validates children via masterRegistry.componentRegistry().isApprovedForTag.
+    // This mock plays both roles (returns itself), approving every component by default so the existing
+    // resolve-behavior tests keep passing; a test can mark a specific child unapproved to exercise the
+    // trust-anchor guard.
+    mapping(address => bool) private _unapproved;
+
+    function setResolverApproved(address a, bool approved) external {
+        _unapproved[a] = !approved;
+    }
+
+    function componentRegistry() external view returns (address) {
+        return address(this);
+    }
+
+    function isApprovedForTag(address component, bytes32) external view returns (bool) {
+        return !_unapproved[component];
+    }
 }
 
 /// @dev A child resolver returning a fixed string, or reverting (defensive-path coverage).
@@ -195,5 +213,29 @@ contract MetadataResolverRouterTest is Test {
         vm.prank(otherFactory);
         vm.expectRevert(MetadataResolverRouter.NotRegisteredFactory.selector);
         router.initResolvers(inst, _children(address(0xA1), address(0xA2)));
+    }
+
+    /// @dev R2: the router is the trust anchor — it self-validates each child against the
+    ///      ComponentRegistry (resolver family). An UNapproved child cannot be sealed even by the
+    ///      legit registering factory, so an alternate factory that skips its own pre-check can't seal
+    ///      arbitrary attacker-chosen resolvers.
+    function test_initResolvers_rejectsUnapprovedChild() public {
+        StubResolver bad = new StubResolver("X", false);
+        StubResolver good = new StubResolver("GOOD", false);
+        registry.setResolverApproved(address(bad), false); // not a registered resolver-family component
+        vm.prank(factory);
+        vm.expectRevert(MetadataResolverRouter.UnapprovedResolver.selector);
+        router.initResolvers(inst, _children(address(bad), address(good)));
+        assertFalse(router.sealed_(inst)); // nothing sealed on the revert
+    }
+
+    /// @dev R2 regression: approved children still seal — the happy path is unbroken.
+    function test_initResolvers_acceptsApprovedChildren() public {
+        StubResolver a = new StubResolver("A", false);
+        StubResolver b = new StubResolver("B", false); // both approved by default
+        vm.prank(factory);
+        router.initResolvers(inst, _children(address(a), address(b)));
+        assertTrue(router.sealed_(inst));
+        assertEq(router.resolverCount(inst), 2);
     }
 }
