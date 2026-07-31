@@ -57,7 +57,7 @@ contract CypherAlignmentVaultFactoryTest is Test {
         assertEq(vault.algebraFactory(), algebraFactory);
         assertEq(vault.zRouter(), zRouter);
         assertEq(address(vault.alignmentRegistry()), address(registry));
-        assertEq(vault.protocolYieldCutBps(), 100);
+        assertEq(vault.PROTOCOL_CUT_BPS(), 100);
     }
 
     function test_createVault_multipleVaultsDifferentAddresses() public {
