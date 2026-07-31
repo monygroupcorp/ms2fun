@@ -128,4 +128,22 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
 
         assertLe(refund, cost, "refund exceeds cost at same supply range - rounding arbitrage possible");
     }
+
+    // ── Invariant 4: reserve == calculateCost(0, totalBondingSupply) — the telescoping integral ──
+    // Inv1 (reserve == balance) proves fees left the contract; it does NOT prove the reserve tracks
+    // the curve integral over an op-SEQUENCE. Each buy does `reserve += calculateCost(s, a)` =
+    // F(s+a) - F(s); each sell does `reserve -= calculateRefund(s, a)` = F(s) - F(s-a), where F is
+    // the deterministic pure integral-from-zero. A telescoping sum over any buy/sell interleaving
+    // collapses to F(totalBondingSupply) - F(0) = calculateCost(0, totalBondingSupply), with zero
+    // cumulative rounding drift — because every intermediate F(s) is evaluated identically on the way
+    // up and down. This invariant pins that exact-reserve claim (spec §4.1) that Inv1 leaves untested.
+
+    function invariant_reserveEqualsCurveIntegral() public view {
+        if (instance.graduated()) return;
+        assertEq(
+            instance.reserve(),
+            BondingCurveMath.calculateCost(curveParams, 0, instance.totalBondingSupply()),
+            "reserve != F(totalBondingSupply) - cumulative curve-integral drift"
+        );
+    }
 }
