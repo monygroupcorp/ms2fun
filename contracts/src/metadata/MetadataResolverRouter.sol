@@ -5,6 +5,8 @@ import { Ownable } from "solady/auth/Ownable.sol";
 import { IMetadataResolver } from "./IMetadataResolver.sol";
 import { SafeResolverLib } from "./SafeResolverLib.sol";
 import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
+import { IComponentRegistry } from "../registry/interfaces/IComponentRegistry.sol";
+import { FeatureUtils } from "../master/libraries/FeatureUtils.sol";
 
 /// @title MetadataResolverRouter
 /// @notice Composes an ordered list of child metadata resolvers behind one `IMetadataResolver`
@@ -12,16 +14,21 @@ import { IMasterRegistry } from "../master/interfaces/IMasterRegistry.sol";
 ///         list order), defensively try/catch'ing each child so a misbehaving resolver degrades
 ///         to the next rather than reverting.
 /// @dev Singleton keyed by instance, holds no custody. The per-instance resolver list is SEALED
-///      at construction: a *registered factory* wires it once via `initResolvers`, then it is
-///      frozen — no owner mutation of the mechanism (ADR-0006 mutability principle). Auth is
-///      `masterRegistry.isFactoryRegistered(msg.sender)` (NOT a hardcoded factory) so it survives
-///      factory upgrades/multiple factory types AND blocks the seal-front-run on deterministic
-///      CREATE3 instance addresses. `setMetadataURI` (IComponentModule self-description for the
-///      wizard) is the only owner power and touches no per-instance state.
+///      at construction: the factory that registered THIS instance wires it once via `initResolvers`,
+///      then it is frozen — no owner mutation of the mechanism (ADR-0006 mutability principle). Auth is
+///      `masterRegistry.getInstanceInfo(inst).factory == msg.sender` — ONLY the instance's own
+///      registering factory, not any registered factory (least privilege, D1). This survives factory
+///      upgrades/multiple factory types AND blocks the seal-front-run on deterministic CREATE3 instance
+///      addresses. `initResolvers` additionally self-validates each child against the ComponentRegistry
+///      (resolver-family tag) so the trust invariant — every sealed child is an approved resolver — is
+///      enforced HERE at the trust anchor, not only out-of-band in the caller (R2). `setMetadataURI`
+///      (IComponentModule self-description for the wizard) is the only owner power and touches no
+///      per-instance state.
 contract MetadataResolverRouter is IMetadataResolver, Ownable {
     error NotRegisteredFactory();
     error AlreadySealed();
     error InvalidAddress();
+    error UnapprovedResolver(); // a child is not an approved resolver-family component (R2)
 
     IMasterRegistry public immutable masterRegistry;
 
@@ -44,9 +51,26 @@ contract MetadataResolverRouter is IMetadataResolver, Ownable {
         // list, not any registered factory.
         if (masterRegistry.getInstanceInfo(inst).factory != msg.sender) revert NotRegisteredFactory();
         if (sealed_[inst]) revert AlreadySealed();
+        // R2: enforce the trust invariant at the anchor. Each child must be an approved resolver-family
+        // component in the ComponentRegistry BEFORE it is sealed, so an alternate/future factory that
+        // skips its own pre-check cannot seal arbitrary children whose `resolve` returns attacker-chosen
+        // strings. Defense-in-depth: the honest factory still pre-validates out-of-band.
+        IComponentRegistry cr = masterRegistry.componentRegistry();
+        uint256 len = rs.length;
+        for (uint256 i; i < len; ++i) {
+            if (!_isApprovedResolverFamily(cr, rs[i])) revert UnapprovedResolver();
+        }
         resolvers[inst] = rs;
         sealed_[inst] = true;
         emit ResolversSealed(inst, rs);
+    }
+
+    /// @dev Resolver-family membership: approved under the RESOLVER, OVERLAY, or TIER tag. Mirrors
+    ///      `ERC404Factory._isApprovedResolverFamily` so the router and factory agree on what a valid
+    ///      child is (the registry stays type-agnostic; the family is composed here).
+    function _isApprovedResolverFamily(IComponentRegistry cr, address component) private view returns (bool) {
+        return cr.isApprovedForTag(component, FeatureUtils.RESOLVER)
+            || cr.isApprovedForTag(component, FeatureUtils.OVERLAY) || cr.isApprovedForTag(component, FeatureUtils.TIER);
     }
 
     /// @inheritdoc IMetadataResolver

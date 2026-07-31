@@ -23,11 +23,12 @@ interface IStakedBalanceReader {
 ///         (`balanceOf + stakedBalance`) clear the tier threshold; otherwise the locked art (or ""
 ///         to fall through to collection base) shows. Pure conditional reveal — zero allocation,
 ///         zero custody, DN404-native.
-/// @dev Singleton keyed by instance. Tier config is SEALED at construction: a *registered factory*
-///      wires the full tier table once via `initTiers` (validating non-overlapping ascending ranges),
-///      then it is frozen — no owner add/edit. Mutable rarity = rug. The reveal stays dynamic
-///      (tracks live balances); the rules do not. Auth = `masterRegistry.isFactoryRegistered`
-///      (shared singleton, upgrade-safe, blocks the seal-front-run on deterministic CREATE3 addresses).
+/// @dev Singleton keyed by instance. Tier config is SEALED at construction: the factory that registered
+///      THIS instance wires the full tier table once via `initTiers` (validating non-overlapping
+///      ascending ranges), then it is frozen — no owner add/edit. Mutable rarity = rug. The reveal stays
+///      dynamic (tracks live balances); the rules do not. Auth = `masterRegistry.getInstanceInfo(inst)
+///      .factory == msg.sender` — ONLY the instance's own registering factory, not any registered factory
+///      (least privilege, D1; upgrade-safe, blocks the seal-front-run on deterministic CREATE3 addresses).
 contract TierRevealModule is IMetadataResolver, Ownable {
     error NotRegisteredFactory();
     error AlreadySealed();
