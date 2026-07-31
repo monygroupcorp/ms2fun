@@ -48,6 +48,8 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     error NoPOLPosition();
     error InvalidRecipient();
     error InsufficientBalance();
+    /// @notice `msg.value` did not equal the native-currency leg the caller must escrow for this deploy.
+    error NativeValueMismatch();
 
     // ============ Events ============
 
@@ -146,9 +148,17 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
     // ============ Protocol-Owned Liquidity ============
 
     /// @notice Called by a registered instance during graduation to deploy protocol-owned LP.
+    /// @dev The caller must escrow ALL capital for the position IN THIS CALL: the native-currency leg as
+    ///      `msg.value` (which must equal the native amount exactly) and every ERC20/WETH leg pulled from
+    ///      the caller via `transferFrom`. The V4 position is funded strictly from that escrow — never from
+    ///      this contract's shared balance (pooled fees, treasury seeding, or other instances' funds). Any
+    ///      escrow the position does not consume is refunded to the caller, so a `receivePOL` caller can
+    ///      neither drain the shared balance nor leave dust stranded here. (noesis-111: closes the §2f
+    ///      latent-HIGH where the native leg was settled from `address(this).balance`.)
     // slither-disable-next-line reentrancy-benign,reentrancy-events,reentrancy-no-eth,unused-return
     function receivePOL(PoolKey calldata poolKey, int24 tickLower, int24 tickUpper, uint256 amount0, uint256 amount1)
         external
+        payable
         nonReentrant
     {
         if (address(masterRegistry) == address(0)) revert RegistryNotConfigured();
@@ -160,15 +170,27 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         // Deterministic salt per instance
         bytes32 salt = keccak256(abi.encodePacked("POL", msg.sender));
 
-        // Approve PoolManager for both currencies
         Currency currency0 = poolKey.currency0;
         Currency currency1 = poolKey.currency1;
-        if (!currency0.isAddressZero()) {
+
+        // Escrow the caller's capital for THIS deploy. The native leg (address(0)) must arrive as
+        // `msg.value`; each ERC20/WETH leg is pulled from the caller now (not assumed already pooled
+        // here) and approved to the PoolManager. `msg.value` must equal the native leg exactly — for a
+        // token-only pool the native leg is 0, so any `msg.value` is rejected.
+        uint256 nativeAmount;
+        if (currency0.isAddressZero()) {
+            nativeAmount = amount0;
+        } else {
+            SafeTransferLib.safeTransferFrom(Currency.unwrap(currency0), msg.sender, address(this), amount0);
             SafeTransferLib.safeApproveWithRetry(Currency.unwrap(currency0), v4PoolManager, amount0);
         }
-        if (!currency1.isAddressZero()) {
+        if (currency1.isAddressZero()) {
+            nativeAmount = amount1;
+        } else {
+            SafeTransferLib.safeTransferFrom(Currency.unwrap(currency1), msg.sender, address(this), amount1);
             SafeTransferLib.safeApproveWithRetry(Currency.unwrap(currency1), v4PoolManager, amount1);
         }
+        if (msg.value != nativeAmount) revert NativeValueMismatch();
 
         // Deploy via unlock callback
         CallbackData memory cbData = CallbackData({
@@ -186,7 +208,7 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         });
 
         bytes memory result = IPoolManager(v4PoolManager).unlock(abi.encode(cbData));
-        uint128 liquidity = abi.decode(result, (uint128));
+        (uint128 liquidity, uint256 used0, uint256 used1) = abi.decode(result, (uint128, uint256, uint256));
 
         // Store position
         _polPositions[msg.sender] = POLPosition({
@@ -195,6 +217,28 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         polInstances.push(msg.sender);
 
         emit POLPositionDeployed(msg.sender, liquidity, salt);
+
+        // Refund escrow the position did not consume back to the caller, so nothing the caller sent is
+        // left in the shared balance (and, conversely, the shared balance never subsidised the position).
+        _refundUnusedEscrow(currency0, amount0, used0);
+        _refundUnusedEscrow(currency1, amount1, used1);
+    }
+
+    /// @dev Return `provided - used` of `currency` to the caller (native via ETH transfer, ERC20 via
+    ///      token transfer). `used` is the amount the V4 position actually pulled and is always
+    ///      `<= provided` (liquidity is sized within the provided amounts), so the subtraction is a
+    ///      no-op when the whole escrow was consumed.
+    function _refundUnusedEscrow(Currency currency, uint256 provided, uint256 used) internal {
+        if (provided <= used) return;
+        uint256 refund;
+        unchecked {
+            refund = provided - used;
+        }
+        if (currency.isAddressZero()) {
+            SafeTransferLib.safeTransferETH(msg.sender, refund);
+        } else {
+            SafeTransferLib.safeTransfer(Currency.unwrap(currency), msg.sender, refund);
+        }
     }
 
     /// @notice Permissionless fee collection for a protocol-owned POL position.
@@ -258,7 +302,14 @@ contract ProtocolOwnedLiquidityV1 is SafeOwnableUUPS, ReentrancyGuard, IUnlockCa
         (BalanceDelta delta,) = IPoolManager(v4PoolManager).modifyLiquidity(params.poolKey, modifyParams, "");
         _settleDelta(params.poolKey, delta);
 
-        return abi.encode(liquidity);
+        // Report the amounts the position actually pulled (negative deltas are debts we settled) so
+        // `receivePOL` can refund any unconsumed escrow to the caller.
+        int128 d0 = delta.amount0();
+        int128 d1 = delta.amount1();
+        uint256 used0 = d0 < 0 ? uint256(uint128(-d0)) : 0;
+        uint256 used1 = d1 < 0 ? uint256(uint128(-d1)) : 0;
+
+        return abi.encode(liquidity, used0, used1);
     }
 
     // slither-disable-next-line unused-return
