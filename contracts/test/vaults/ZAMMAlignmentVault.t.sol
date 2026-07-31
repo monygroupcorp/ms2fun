@@ -16,7 +16,7 @@ import { Currency } from "v4-core/types/Currency.sol";
 contract ZAMMAlignmentVaultTest is Test {
     // Mirror events for expectEmit matching
     event ContributionReceived(address indexed benefactor, uint256 amount);
-    event Harvested(uint256 totalFees, uint256 benefactorFees);
+    event Harvested(uint256 totalFees, uint256 benefactorFees, uint256 protocolFees, uint256 targetFees);
     event VaultDeployed(address indexed vault, address indexed alignmentToken);
 
     ZAMMAlignmentVault public vault;
@@ -99,7 +99,8 @@ contract ZAMMAlignmentVaultTest is Test {
         assertEq(vault.zRouter(), address(mockZRouter));
         assertEq(vault.alignmentToken(), address(alignmentToken));
         assertEq(vault.protocolTreasury(), treasury);
-        assertEq(vault.protocolYieldCutBps(), 100);
+        assertEq(vault.PROTOCOL_CUT_BPS(), 100);
+        assertEq(vault.TARGET_CUT_BPS(), 1900);
     }
 
     function test_initialize_locksPoolKey() public view {
@@ -288,7 +289,7 @@ contract ZAMMAlignmentVaultTest is Test {
         alignmentToken.transfer(address(mockZamm), 50_000e18);
 
         vm.expectEmit(false, false, false, false);
-        emit Harvested(0, 0); // values ignored, just check event fires
+        emit Harvested(0, 0, 0, 0); // values ignored, just check event fires
         vault.harvest(0);
     }
 
@@ -550,14 +551,58 @@ contract ZAMMAlignmentVaultTest is Test {
 
     // ── Governance ────────────────────────────────────────────────────────
 
-    function test_setProtocolYieldCutBps_ownerOnly() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.setProtocolYieldCutBps(300);
+    // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
 
-        vm.prank(vault.owner());
-        vault.setProtocolYieldCutBps(300);
-        assertEq(vault.protocolYieldCutBps(), 300);
+    function test_harvest_splits_80_19_1() public {
+        _setupWithLiquidity();
+        uint256 fees = _triggerHarvestReturnFees();
+        assertGt(fees, 0, "harvest should collect nonzero fees");
+        assertEq(vault.accumulatedProtocolFees(), fees * 100 / 10000, "protocol 1%");
+        assertEq(vault.accumulatedTargetFees(), fees * 1900 / 10000, "target 19%");
+    }
+
+    function test_withdrawTargetFees_pushesToRegistrySink() public {
+        address sink = makeAddr("communitySink");
+        registry.setCommunityPayout(TARGET_ID, sink);
+        _setupWithLiquidity();
+        uint256 fees = _triggerHarvestReturnFees();
+        uint256 expected = fees * 1900 / 10000;
+
+        uint256 before = sink.balance;
+        vault.withdrawTargetFees();
+        assertEq(sink.balance - before, expected, "19% pushed to registry-pinned sink");
+        assertEq(vault.accumulatedTargetFees(), 0, "target bucket cleared");
+    }
+
+    function test_withdrawTargetFees_revertsWhenSinkUnset() public {
+        _setupWithLiquidity();
+        _triggerHarvestReturnFees();
+        vm.expectRevert(ZAMMAlignmentVault.TargetSinkNotSet.selector);
+        vault.withdrawTargetFees();
+    }
+
+    /// @dev An un-wired sink accrues the 19% but never blocks the creator's claim path.
+    function test_targetSinkUnset_doesNotBlockCreatorClaim() public {
+        _setupWithLiquidity();
+        uint256 fees = _triggerHarvestReturnFees();
+        assertEq(vault.accumulatedTargetFees(), fees * 1900 / 10000, "target still accrues when sink unset");
+
+        uint256 balBefore = alice.balance;
+        vm.prank(alice);
+        uint256 claimed = vault.claimFees();
+        assertGt(claimed, 0, "creator claim unaffected by unset sink");
+        assertEq(alice.balance - balBefore, claimed);
+    }
+
+    /// @dev Same staging as {_triggerHarvestWithFees} but surfaces the collected fee total for
+    ///      per-leg assertions.
+    function _triggerHarvestReturnFees() internal returns (uint256 fees) {
+        mockZamm.setEthPerLp(0.002 ether);
+        mockZamm.setTokenPerLp(0.002 ether);
+        vm.deal(address(mockZamm), 10 ether);
+        vm.deal(address(mockZRouter), 10 ether);
+        alignmentToken.transfer(address(mockZamm), 50_000e18);
+        fees = vault.harvest(0);
     }
 
     function test_setProtocolTreasury_ownerOnly() public {

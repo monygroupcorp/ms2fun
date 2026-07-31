@@ -1217,12 +1217,14 @@ contract UniAlignmentVaultTest is Test {
     // ========== Protocol Yield Cut Tests ==========
 
     event ProtocolYieldCollected(uint256 amount);
-    event ProtocolYieldCutUpdated(uint256 newBps);
+    event TargetYieldCollected(uint256 amount);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
+    event TargetFeesWithdrawn(uint256 amount);
 
-    function test_YieldCut_DefaultIs100Bps() public view {
-        assertEq(vault.protocolYieldCutBps(), 100, "Default yield cut should be 1%");
+    function test_YieldCut_ConstantsAre1And19Pct() public view {
+        assertEq(vault.PROTOCOL_CUT_BPS(), 100, "protocol cut is 1% (immutable)");
+        assertEq(vault.TARGET_CUT_BPS(), 1900, "target cut is 19% (immutable)");
     }
 
     function test_YieldCut_DepositFeesNotTaxed() public {
@@ -1234,37 +1236,70 @@ contract UniAlignmentVaultTest is Test {
         assertEq(vault.accumulatedProtocolFees(), 0, "No protocol fees from depositFees");
     }
 
-    function test_YieldCut_SetProtocolYieldCutBps() public {
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit ProtocolYieldCutUpdated(1000);
-        vault.setProtocolYieldCutBps(1000);
+    // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
 
-        assertEq(vault.protocolYieldCutBps(), 1000, "Should update to 10%");
-    }
-
-    function test_YieldCut_SetProtocolYieldCutBps_ZeroAllowed() public {
-        vm.prank(owner);
-        vault.setProtocolYieldCutBps(0);
-        assertEq(vault.protocolYieldCutBps(), 0, "Should allow 0%");
-    }
-
-    function test_YieldCut_SetProtocolYieldCutBps_MaxAllowed() public {
-        vm.prank(owner);
-        vault.setProtocolYieldCutBps(1500);
-        assertEq(vault.protocolYieldCutBps(), 1500, "Should allow 15%");
-    }
-
-    function test_YieldCut_SetProtocolYieldCutBps_RevertsAboveMax() public {
-        vm.prank(owner);
-        vm.expectRevert(UniAlignmentVault.ExceedsMaxBps.selector);
-        vault.setProtocolYieldCutBps(1501);
-    }
-
-    function test_YieldCut_SetProtocolYieldCutBps_OnlyOwner() public {
+    function test_FeeSplit_80_19_1() public {
+        // Establish a sole shareholder so the 80% leg is attributable.
         vm.prank(alice);
-        vm.expectRevert();
-        vault.setProtocolYieldCutBps(1000);
+        (bool s,) = address(vault).call{ value: 10 ether }("");
+        assertTrue(s);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        TestableUniAlignmentVault t = TestableUniAlignmentVault(payable(address(vault)));
+        vm.deal(address(this), 1 ether);
+        t.exerciseFeeSplit{ value: 1 ether }(1 ether);
+
+        assertEq(vault.accumulatedProtocolFees(), 0.01 ether, "protocol 1%");
+        assertEq(vault.accumulatedTargetFees(), 0.19 ether, "target 19%");
+
+        uint256 balBefore = alice.balance;
+        vm.prank(alice);
+        vault.claimFees();
+        assertEq(alice.balance - balBefore, 0.8 ether, "benefactor 80% (remainder)");
+    }
+
+    function test_withdrawTargetFees_pushesToRegistrySink() public {
+        address sink = makeAddr("uniCommunitySink");
+        mockAlignmentRegistry.setCommunityPayout(TARGET_ID, sink);
+
+        TestableUniAlignmentVault t = TestableUniAlignmentVault(payable(address(vault)));
+        vm.deal(address(this), 1 ether);
+        t.exerciseFeeSplit{ value: 1 ether }(1 ether);
+
+        uint256 before = sink.balance;
+        vm.prank(alice);
+        vault.withdrawTargetFees();
+        assertEq(sink.balance - before, 0.19 ether, "19% pushed to registry-pinned sink");
+        assertEq(vault.accumulatedTargetFees(), 0, "target bucket cleared");
+    }
+
+    function test_withdrawTargetFees_revertsWhenSinkUnset() public {
+        TestableUniAlignmentVault t = TestableUniAlignmentVault(payable(address(vault)));
+        vm.deal(address(this), 1 ether);
+        t.exerciseFeeSplit{ value: 1 ether }(1 ether);
+
+        vm.expectRevert(UniAlignmentVault.TargetSinkNotSet.selector);
+        vault.withdrawTargetFees();
+    }
+
+    /// @dev An un-wired sink accrues the 19% but never blocks the creator's 80% claim path.
+    function test_targetSinkUnset_doesNotBlockCreatorClaim() public {
+        vm.prank(alice);
+        (bool s,) = address(vault).call{ value: 10 ether }("");
+        assertTrue(s);
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        TestableUniAlignmentVault t = TestableUniAlignmentVault(payable(address(vault)));
+        vm.deal(address(this), 1 ether);
+        t.exerciseFeeSplit{ value: 1 ether }(1 ether);
+        assertEq(vault.accumulatedTargetFees(), 0.19 ether, "target still accrues when sink unset");
+
+        uint256 balBefore = alice.balance;
+        vm.prank(alice);
+        vault.claimFees();
+        assertEq(alice.balance - balBefore, 0.8 ether, "creator 80% unaffected by unset sink");
     }
 
     function test_YieldCut_SetProtocolTreasury() public {
@@ -1386,32 +1421,6 @@ contract UniAlignmentVaultTest is Test {
         vault.withdrawProtocolFees();
     }
 
-    function test_YieldCut_ZeroCut_BackwardCompatible() public {
-        // Set yield cut to 0%
-        vm.prank(owner);
-        vault.setProtocolYieldCutBps(0);
-
-        // Setup benefactor
-        vm.prank(alice);
-        (bool s,) = address(vault).call{ value: 10 ether }("");
-        assertTrue(s);
-        vm.prank(dave);
-        vault.convertAndAddLiquidity(1);
-
-        // Deposit fees (simulating yield)
-        vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
-
-        // Benefactor should get full amount
-        uint256 balanceBefore = alice.balance;
-        vm.prank(alice);
-        vault.claimFees();
-        uint256 balanceAfter = alice.balance;
-
-        assertEq(balanceAfter - balanceBefore, 10 ether, "Full amount with 0% cut");
-        assertEq(vault.accumulatedProtocolFees(), 0, "No protocol fees with 0% cut");
-    }
-
     function test_YieldCut_WithdrawProtocolFees_Permissionless() public {
         // Anyone can call withdrawProtocolFees, not just owner
         address treasury = address(0xFEE);
@@ -1429,7 +1438,7 @@ contract UniAlignmentVaultTest is Test {
         // Protocol treasury not set — fees should still accumulate
         // (withdrawable after treasury is set later)
         assertEq(vault.protocolTreasury(), address(0), "Treasury not set initially");
-        assertEq(vault.protocolYieldCutBps(), 100, "Default 1% cut");
+        assertEq(vault.PROTOCOL_CUT_BPS(), 100, "Immutable 1% protocol cut");
 
         // The yield cut math works regardless of treasury being set.
         // It accumulates in accumulatedProtocolFees and is only sent on withdrawal.
