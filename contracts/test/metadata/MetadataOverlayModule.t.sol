@@ -696,4 +696,80 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(ov.resolve(address(inst), 1, holder), ""); // not visible until paid
         assertFalse(ov.commissionVisible(address(inst), 1));
     }
+
+    // ── noesis-104 §4.6: overlay PAY revenue conserves the 1/19/80 cut ──────────
+    // For the cut-subject overlay PAY paths (Payout.SPLIT), every wei of the payment must leave the
+    // module in exactly three legs — protocol 1% / target(vault) 19% / creator 80% (remainder-safe) —
+    // that sum to the input, across fuzzed amounts. The module holds no custody, so it must strand
+    // nothing. NOTE: the Payout.ARTIST path (100%→artist, P3 O1 — an OPEN product decision) is
+    // deliberately NOT exercised here; its conservation is gated pending that ruling.
+
+    /// @dev Wire a real split-receiving vault (nonzero) alongside the nonzero treasury from setUp, so
+    ///      no leg folds — the three cuts land at three distinct sinks and must conserve exactly.
+    function _wireSplitSinks() internal returns (MockSplitVault v) {
+        v = new MockSplitVault();
+        inst.setVault(address(v));
+        // treasury (nonzero) is already wired in setUp; both sinks nonzero → no fold.
+    }
+
+    /// @dev Commission PAY + SPLIT conserves 1/19/80 across fuzzed amounts (remainder-safe).
+    function testFuzz_unlockSplit_conserves_1_19_80(uint256 amount) public {
+        amount = bound(amount, 1, 1e30);
+        MockSplitVault vault = _wireSplitSinks();
+        inst.setTokenOwner(1, holder);
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst), 1, "c", MetadataOverlayModule.CommCond.PAY, amount, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        vm.deal(holder, amount);
+        uint256 artistBefore = artist.balance;
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(holder);
+        ov.unlock{ value: amount }(address(inst), 1);
+
+        _assertConserved(vault, amount, artistBefore, treasuryBefore);
+    }
+
+    /// @dev Wave PAY + SPLIT conserves 1/19/80 across fuzzed amounts (the other cut-subject PAY path).
+    function testFuzz_unlockWaveSplit_conserves_1_19_80(uint256 amount) public {
+        amount = bound(amount, 1, 1e30);
+        MockSplitVault vault = _wireSplitSinks();
+        inst.setTokenOwner(2, holder);
+        vm.prank(artist);
+        uint256 w = ov.publishWave(
+            address(inst), "pw-", MetadataOverlayModule.WaveCond.PAY, 0, amount, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        vm.deal(holder, amount);
+        uint256 artistBefore = artist.balance;
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(holder);
+        ov.unlockWave{ value: amount }(address(inst), 2, w);
+
+        _assertConserved(vault, amount, artistBefore, treasuryBefore);
+    }
+
+    /// @dev The 1/19/80 conservation invariant, shared by both cut-subject PAY paths. Expected legs use
+    ///      the canonical bps formula (protocol 100bps, target 1900bps, creator = remainder) — exactly
+    ///      what RevenueSplitLib.split produces, remainder-safe so no wei is lost or stranded.
+    function _assertConserved(MockSplitVault vault, uint256 amount, uint256 artistBefore, uint256 treasuryBefore)
+        internal
+        view
+    {
+        uint256 expProtocol = amount * 100 / 10000; // 1%
+        uint256 expTarget = amount * 1900 / 10000; // 19%
+        uint256 expCreator = amount - expProtocol - expTarget; // 80%, absorbs rounding dust
+
+        uint256 gotProtocol = treasury.balance - treasuryBefore;
+        uint256 gotTarget = vault.received();
+        uint256 gotCreator = artist.balance - artistBefore;
+
+        assertEq(gotProtocol, expProtocol, "protocol leg = 1%");
+        assertEq(gotTarget, expTarget, "target(vault) leg = 19%");
+        assertEq(gotCreator, expCreator, "creator leg = 80% remainder-safe");
+        // Conservation: the three legs sum to the input, and the module strands nothing.
+        assertEq(gotProtocol + gotTarget + gotCreator, amount, "legs sum to input");
+        assertEq(address(ov).balance, 0, "module holds no custody");
+    }
 }
