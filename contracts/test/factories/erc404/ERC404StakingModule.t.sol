@@ -115,8 +115,12 @@ contract ERC404StakingModuleTest is Test {
         vm.prank(instance1);
         module.recordFeesReceived(50 ether);
 
-        // rewardPerTokenStored = (50 ETH * 1e18) / 100 ether = 0.5 ETH per token (scaled)
-        assertEq(module.rewardPerTokenStored(instance1), 0.5 ether);
+        // STREAMED, not lump (noesis-098 F6): nothing has accrued at the instant the fee is posted.
+        assertEq(module.rewardPerToken(instance1), 0, "no accrual at t0: stream, not instant lump");
+
+        // After the full window the whole delta has streamed: 50 ETH / 100 tokens = 0.5 ETH/token (scaled).
+        vm.warp(block.timestamp + module.rewardsDuration());
+        assertApproxEqAbs(module.rewardPerToken(instance1), 0.5 ether, 1e7, "full delta streamed by periodFinish");
     }
 
     function test_computeClaim_twoStakers_shareBasedAccounting() public {
@@ -130,28 +134,30 @@ contract ERC404StakingModuleTest is Test {
         vm.prank(instance1);
         module.recordStake(user2, 100 ether);
 
-        // Vault sends 100 ETH in fees
+        // Vault sends 100 ETH in fees; let the full stream window elapse so it all accrues.
         vm.prank(instance1);
         module.recordFeesReceived(100 ether);
+        vm.warp(block.timestamp + module.rewardsDuration());
 
-        // User1 claims — should get 50 ETH
+        // User1 claims — should get 50 ETH (± streaming truncation dust that stays in the pool)
         vm.prank(instance1);
         uint256 user1Payout = module.computeClaim(user1);
-        assertEq(user1Payout, 50 ether);
+        assertApproxEqAbs(user1Payout, 50 ether, 1e10);
 
-        // Vault sends 100 more ETH (200 cumulative)
+        // Vault sends 100 more ETH (200 cumulative); elapse the next window too.
         vm.prank(instance1);
         module.recordFeesReceived(100 ether);
+        vm.warp(block.timestamp + module.rewardsDuration());
 
         // User2 claims — should get 100 ETH (full 50% of 200 total, nothing claimed yet)
         vm.prank(instance1);
         uint256 user2Payout = module.computeClaim(user2);
-        assertEq(user2Payout, 100 ether);
+        assertApproxEqAbs(user2Payout, 100 ether, 1e10);
 
         // User1 claims again — should get 50 ETH (50% of 200 = 100, minus 50 already claimed)
         vm.prank(instance1);
         uint256 user1SecondPayout = module.computeClaim(user1);
-        assertEq(user1SecondPayout, 50 ether);
+        assertApproxEqAbs(user1SecondPayout, 50 ether, 1e10);
     }
 
     function test_recordStake_lateJoiner_doesNotDilutePriorStaker() public {
@@ -162,27 +168,29 @@ contract ERC404StakingModuleTest is Test {
         vm.prank(instance1);
         module.recordStake(user1, 100 ether);
 
-        // Fees arrive while user1 is sole staker — user1 entitled to all of it
+        // Fees arrive while user1 is sole staker; let the whole window stream to user1 alone.
         vm.prank(instance1);
         module.recordFeesReceived(100 ether);
+        vm.warp(block.timestamp + module.rewardsDuration());
 
-        // user2 joins late
+        // user2 joins late — checkpointed at the current rate, no retroactive claim on the first epoch
         vm.prank(instance1);
         module.recordStake(user2, 100 ether);
 
-        // More fees arrive, now 50/50
+        // More fees arrive, now 50/50; elapse this window too.
         vm.prank(instance1);
         module.recordFeesReceived(100 ether);
+        vm.warp(block.timestamp + module.rewardsDuration());
 
         // user1: 100 ETH (sole epoch) + 50 ETH (shared epoch) = 150 ETH
         vm.prank(instance1);
         uint256 user1Payout = module.computeClaim(user1);
-        assertEq(user1Payout, 150 ether);
+        assertApproxEqAbs(user1Payout, 150 ether, 1e10);
 
         // user2: 0 ETH (before stake) + 50 ETH (shared epoch) = 50 ETH
         vm.prank(instance1);
         uint256 user2Payout = module.computeClaim(user2);
-        assertEq(user2Payout, 50 ether);
+        assertApproxEqAbs(user2Payout, 50 ether, 1e10);
     }
 
     function test_computeClaim_noPendingRewards_reverts() public {
@@ -215,12 +223,13 @@ contract ERC404StakingModuleTest is Test {
         module.recordStake(user1, 100 ether);
         vm.prank(instance1);
         module.recordFeesReceived(100 ether);
+        vm.warp(block.timestamp + module.rewardsDuration());
 
-        // View function should return 100 ETH pending without changing state
+        // View function should return ~100 ETH pending (full stream) without changing state
         uint256 pending = module.calculatePendingRewards(instance1, user1);
-        assertEq(pending, 100 ether);
+        assertApproxEqAbs(pending, 100 ether, 1e10);
 
-        // State should be unchanged — calling again returns same value
-        assertEq(module.calculatePendingRewards(instance1, user1), 100 ether);
+        // State should be unchanged — calling again returns the same value
+        assertEq(module.calculatePendingRewards(instance1, user1), pending);
     }
 }

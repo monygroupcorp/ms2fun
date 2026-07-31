@@ -186,12 +186,17 @@ contract ERC404StakingReserveGuardTest is Test {
         assertEq(owner.balance - ownerBefore, 1 ether, "only true surplus is swept");
         assertEq(inst.stakingReserve(), 5 ether, "staking reserve untouched by dust sweep");
 
+        // Rewards now STREAM over the window (noesis-098 F6): let it fully elapse so the staker's
+        // entitlement reaches the full delta. The liability was credited in full at fee-arrival time,
+        // so the 061 guard is unaffected — streaming defers WHEN it's claimable, not the amount owed.
+        vm.warp(block.timestamp + module.rewardsDuration());
+
         // The staker can still claim their full rewards; the reserve drains as they are paid.
         uint256 u1Before = user1.balance;
         vm.prank(user1);
         inst.claimStakingRewards();
-        assertEq(user1.balance - u1Before, 5 ether, "staker paid full rewards after a dust sweep");
-        assertEq(inst.stakingReserve(), 0, "staking reserve drained after payout");
+        assertApproxEqAbs(user1.balance - u1Before, 5 ether, 1e10, "staker paid full rewards after a dust sweep");
+        assertApproxEqAbs(inst.stakingReserve(), 0, 1e10, "staking reserve drained after payout");
         assertEq(inst.reserve(), cost, "bonding reserve intact throughout");
     }
 
@@ -212,11 +217,14 @@ contract ERC404StakingReserveGuardTest is Test {
         _pushFees(inst, 4 ether);
         assertEq(inst.stakingReserve(), 4 ether);
 
+        // Let the streaming window elapse so the auto-claim on unstake pays the full delta (F6).
+        vm.warp(block.timestamp + module.rewardsDuration());
+
         uint256 u1Before = user1.balance;
         vm.prank(user1);
         inst.unstake(buyAmt);
-        assertEq(user1.balance - u1Before, 4 ether, "unstake auto-claims the rewards");
-        assertEq(inst.stakingReserve(), 0, "unstake debits the staking reserve");
+        assertApproxEqAbs(user1.balance - u1Before, 4 ether, 1e10, "unstake auto-claims the rewards");
+        assertApproxEqAbs(inst.stakingReserve(), 0, 1e10, "unstake debits the staking reserve");
     }
 
     /// @notice Regression (the withdrawDust NatSpec case): fees pushed while totalStaked == 0 are
@@ -268,5 +276,46 @@ contract ERC404StakingReserveGuardTest is Test {
         vm.expectRevert(BondingEnded.selector);
         inst.claimFreeMint("");
         assertEq(inst.freeMintsClaimed(), 1, "no post-graduation claim was recorded");
+    }
+
+    // ── F7: instance exit paths survive registry de-listing (noesis-098) ───────
+
+    /// @notice End-to-end: after MasterRegistry de-lists the instance, its staker can still
+    ///         claimStakingRewards() + unstake() (principal + accrued rewards recovered), but a fresh
+    ///         stake() is refused (recordStake stays gated). Proves F7 at the instance boundary.
+    function test_F7_instanceStakerExitsAfterDeregistration() public {
+        ERC404BondingInstance inst = _newInstance();
+        _activateStaking(inst);
+        _openActivate(inst);
+
+        uint256 buyAmt = 2 * UNIT;
+        uint256 cost = _cost(inst, buyAmt);
+        vm.deal(user1, cost);
+        vm.prank(user1);
+        inst.buyBonding{ value: cost }(buyAmt, cost, false, "", "", 0);
+        vm.prank(user1);
+        inst.stake(UNIT); // stake one unit, keep one in the wallet
+
+        _pushFees(inst, 5 ether);
+        vm.warp(block.timestamp + module.rewardsDuration());
+
+        // Registry revokes the instance.
+        registry.setRegisteredInstance(address(inst), false);
+
+        // EXIT still works: the staker claims streamed rewards despite the de-listing.
+        uint256 balBefore = user1.balance;
+        vm.prank(user1);
+        inst.claimStakingRewards();
+        assertApproxEqAbs(user1.balance - balBefore, 5 ether, 1e10, "de-listed instance staker still claims rewards");
+
+        // ...and unstakes principal.
+        vm.prank(user1);
+        inst.unstake(UNIT);
+        assertEq(module.stakedBalance(address(inst), user1), 0, "principal recovered after de-listing");
+
+        // But ACCEPTING a fresh stake is refused — recordStake remains gated.
+        vm.prank(user1);
+        vm.expectRevert(ERC404StakingModule.NotRegisteredInstance.selector);
+        inst.stake(UNIT);
     }
 }
