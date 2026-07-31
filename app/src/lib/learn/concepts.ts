@@ -249,16 +249,16 @@ This is **not** the same as a *tier upgrade*: reveal changes only the **art show
   'agent-delegation': {
     title: 'Agent delegation',
     summary:
-      'An authorized agent can create a collection on your behalf — but what it may do afterward depends on the standard.',
+      'An authorized agent can create AND configure a collection on your behalf, but can never move your money — value-extraction stays owner-only.',
     body: `
 An **agent** is a wallet the protocol has registered as authorized to act for creators. An agent can deploy a collection **on your behalf**: the **creator is set to you**, not the agent, regardless of who sent the transaction — so you are the owner from the start.
 
-What an agent can do **after** create depends on the token standard:
+While **delegation is enabled** (it starts on for an agent-created collection, and you can toggle it **off at any time**), the boundary is the same across every standard — **config, not custody**:
 
-- **ERC-1155 and ERC-721** — if you leave **delegation enabled** (it starts on for an agent-created collection), the agent can also **manage** the collection for you: add editions (ERC-1155) or queue auction pieces (ERC-721). You can toggle delegation **off at any time**, and every action remains available to you as the owner.
-- **ERC-404** — an agent can **create** a bonding collection for you, but **cannot manage it afterward**. Every post-create action — opening the curve, deploying liquidity at graduation, claiming fees, setting metadata — is **owner-only**. This create-but-not-manage asymmetry is deliberate: the agent bootstraps the launch, but the live market is yours alone.
+- **The agent can create and configure.** Non-custodial config and lifecycle actions are delegated: for **ERC-404**, opening the curve, setting the bonding open/maturity times, activating/pausing bonding, setting style and metadata, activating staking, and triggering graduation (**deployLiquidity** moves the raise into the pool at the fixed split — the agent chooses the timing, never the amounts or recipients). For **ERC-1155**, adding editions, updating edition metadata, and setting style. For **ERC-721**, queuing auction pieces.
+- **The agent can never move your money.** Withdrawing funds or dust, claiming fees, migrating the alignment vault, and reclaiming unsold pieces are **owner-only on every standard** — an agent is blocked even with delegation on. It can run the collection end-to-end but never touch the creator's money or re-point where alignment funds go.
 
-In every case the **owner keeps ultimate control**: an agent never becomes the owner, and its authority is a delegation you can withdraw.
+Authority is checked **live**: if the protocol revokes an agent, it is blocked immediately, even before you toggle delegation off. In every case the **owner keeps ultimate control** — an agent never becomes the owner, and its authority is a delegation you can withdraw at any time.
 `,
     related: ['token-standard'],
   },

@@ -25,10 +25,11 @@ import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
  * Uses the real ERC404Factory + ERC404BondingInstance (only the master registry is mocked, to
  * authorize the agent). Mirrors the ERC1155/ERC721 agent-delegation suites.
  *
- * ERC404-specific boundary (asserted below): unlike ERC1155/ERC721 — where the agent keeps managing
- * the instance (addEdition / queuePiece) after creation — the ERC404 instance gates every owner action
- * with bare `onlyOwner` and never reads `agentDelegationEnabled`. So on ERC404 the agent's power is
- * scoped to CREATION: it hands a fully-owned collection to the person, and the person alone manages it.
+ * Config-only boundary (asserted below, noesis-096): when `agentDelegationEnabled` is true the agent may
+ * run every NON-CUSTODIAL config/lifecycle fn (setMetadataURI, setBondingOpenTime, setBondingMaturityTime,
+ * setBondingActive, setStyle, activateStaking, deployLiquidity) via `_requireOwnerOrAgent`, but the
+ * value-extracting fns (withdrawDust, claimAllFees, migrateVault) stay bare `onlyOwner`. Delegation off,
+ * a non-agent, or a revoked agent (live re-check) all revert `Unauthorized` on the config fns.
  */
 contract MockVault {
     function supportsCapability(bytes32) external pure returns (bool) {
@@ -178,21 +179,112 @@ contract ERC404AgentDelegationTest is Test {
         );
     }
 
-    // ── ERC404 boundary: management stays with the person (owner-only) ───────────
+    // ── Config-only delegation boundary (noesis-096) ─────────────────────────────
 
-    function test_erc404_management_stays_owner_only_after_agent_create() public {
-        address instance = _create(agent, "Owner Only", person);
-        ERC404BondingInstance inst = ERC404BondingInstance(payable(instance));
+    /// Calldata for every NON-CUSTODIAL config/lifecycle fn now gated by `_requireOwnerOrAgent`.
+    function _delegableCalls() internal view returns (bytes[] memory calls) {
+        calls = new bytes[](7);
+        calls[0] = abi.encodeWithSelector(ERC404BondingInstance.setMetadataURI.selector, "ipfs://x");
+        calls[1] = abi.encodeWithSelector(ERC404BondingInstance.setBondingOpenTime.selector, block.timestamp + 1 days);
+        calls[2] =
+            abi.encodeWithSelector(ERC404BondingInstance.setBondingMaturityTime.selector, block.timestamp + 2 days);
+        calls[3] = abi.encodeWithSelector(ERC404BondingInstance.setBondingActive.selector, true);
+        calls[4] = abi.encodeWithSelector(ERC404BondingInstance.setStyle.selector, "ipfs://style");
+        calls[5] = abi.encodeWithSelector(ERC404BondingInstance.activateStaking.selector);
+        calls[6] = abi.encodeWithSelector(ERC404BondingInstance.deployLiquidity.selector, uint256(0));
+    }
 
-        // The agent that created it cannot manage it — ERC404 instance actions are bare onlyOwner
-        // (agentDelegationEnabled is a creation flag; the instance never reads it for management).
-        vm.prank(agent);
-        vm.expectRevert(Ownable.Unauthorized.selector);
-        inst.setMetadataURI("ipfs://hijack");
+    /// Calldata for the value-extracting fns that MUST stay owner-only.
+    function _valueCalls() internal pure returns (bytes[] memory calls) {
+        calls = new bytes[](3);
+        calls[0] = abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector);
+        calls[1] = abi.encodeWithSelector(ERC404BondingInstance.claimAllFees.selector);
+        calls[2] = abi.encodeWithSelector(ERC404BondingInstance.migrateVault.selector, address(0xCAFE));
+    }
 
-        // The person (owner) can.
+    function _bytes4(bytes memory b) internal pure returns (bytes4 s) {
+        if (b.length >= 4) s = bytes4(b);
+    }
+
+    /// Assert the call was rejected by the auth gate (Unauthorized), regardless of any later precondition.
+    function _assertUnauthorized(address inst, address caller, bytes memory data) internal {
+        vm.prank(caller);
+        (bool ok, bytes memory ret) = inst.call(data);
+        assertFalse(ok, "expected revert");
+        assertEq(_bytes4(ret), Ownable.Unauthorized.selector, "expected Unauthorized (auth gate)");
+    }
+
+    /// Assert the call CLEARED the auth gate: it either succeeds or reverts with a domain precondition
+    /// error — never `Unauthorized`. Proves the caller is authorized without driving heavy preconditions.
+    function _assertPassesAuth(address inst, address caller, bytes memory data) internal {
+        vm.prank(caller);
+        (bool ok, bytes memory ret) = inst.call(data);
+        if (!ok) {
+            assertTrue(_bytes4(ret) != Ownable.Unauthorized.selector, "cleared gate but got Unauthorized");
+        }
+    }
+
+    function test_owner_can_call_all_config_fns() public {
+        address instance = _create(agent, "Owner Cfg", person);
+        bytes[] memory calls = _delegableCalls();
+        for (uint256 i = 0; i < calls.length; i++) {
+            _assertPassesAuth(instance, person, calls[i]);
+        }
+    }
+
+    function test_delegated_agent_can_call_all_config_fns() public {
+        address instance = _create(agent, "Agent Cfg", person);
+        assertTrue(ERC404BondingInstance(payable(instance)).agentDelegationEnabled());
+        bytes[] memory calls = _delegableCalls();
+        for (uint256 i = 0; i < calls.length; i++) {
+            _assertPassesAuth(instance, agent, calls[i]);
+        }
+    }
+
+    function test_agent_blocked_on_config_fns_when_delegation_off() public {
+        address instance = _create(agent, "Deleg Off", person);
         vm.prank(person);
-        inst.setMetadataURI("ipfs://by-owner");
-        assertEq(inst.metadataURI(), "ipfs://by-owner");
+        ERC404BondingInstance(payable(instance)).setAgentDelegation(false);
+        bytes[] memory calls = _delegableCalls();
+        for (uint256 i = 0; i < calls.length; i++) {
+            _assertUnauthorized(instance, agent, calls[i]);
+        }
+    }
+
+    function test_non_agent_non_owner_always_blocked_on_config_fns() public {
+        address instance = _create(agent, "Nobody", person);
+        bytes[] memory calls = _delegableCalls();
+        for (uint256 i = 0; i < calls.length; i++) {
+            _assertUnauthorized(instance, nobody, calls[i]);
+        }
+    }
+
+    /// Revocation is live: a revoked agent is blocked immediately even with the bool still `true`.
+    function test_revoked_agent_blocked_immediately_despite_stale_bool() public {
+        address instance = _create(agent, "Revoked", person);
+        assertTrue(ERC404BondingInstance(payable(instance)).agentDelegationEnabled(), "bool stays true");
+        vm.prank(protocolAdmin);
+        mockRegistry.setAgent(agent, false);
+        bytes[] memory calls = _delegableCalls();
+        for (uint256 i = 0; i < calls.length; i++) {
+            _assertUnauthorized(instance, agent, calls[i]);
+        }
+    }
+
+    /// Config-only boundary: value-extracting fns stay owner-only — a delegated agent STILL reverts.
+    function test_delegated_agent_cannot_call_value_fns() public {
+        address instance = _create(agent, "No Value", person);
+        assertTrue(ERC404BondingInstance(payable(instance)).agentDelegationEnabled());
+        bytes[] memory calls = _valueCalls();
+        for (uint256 i = 0; i < calls.length; i++) {
+            _assertUnauthorized(instance, agent, calls[i]);
+        }
+    }
+
+    // ── EIP-170 size gate: the ERC404 instance must stay under the 24,576B ceiling ──
+
+    function test_erc404_instance_under_eip170_ceiling() public {
+        bytes memory runtime = vm.getDeployedCode("ERC404BondingInstance.sol:ERC404BondingInstance");
+        assertLt(runtime.length, 24_576, "ERC404BondingInstance runtime exceeds EIP-170 ceiling");
     }
 }
