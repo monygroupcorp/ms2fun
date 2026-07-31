@@ -56,18 +56,21 @@ contract MigrateOwnership is Script {
     /// @dev Plain Solady Ownable contracts — single-step transferOwnership by the deployer.
     ///      Optional vault factories are pulled with `envOr(..., address(0))` and skipped when the
     ///      network did not deploy that AMM's factory.
-    ///      NOTE: CypherAlignmentVaultFactory is intentionally absent — it is not Ownable (no owner
-    ///      to migrate); the Cypher vaults it creates are governed via their own paths.
+    ///      NOTE: CypherAlignmentVaultFactory joins the plain-Ownable set as of noesis-094, which made
+    ///      it `Ownable` (Solady, deployer-owned) with owner-only validator/deviation passthroughs; its
+    ///      admin is migrated to the Timelock here like the other single-step vault factories.
     function _plainOwnableContracts() internal view returns (address[] memory list) {
-        address[] memory tmp = new address[](4);
+        address[] memory tmp = new address[](5);
         uint256 n;
         tmp[n++] = vm.envAddress("TARGET_REQUEST_REGISTRY"); // D2 — AlignmentTargetRequestRegistry
         address uniVaultFactory = vm.envOr("UNI_VAULT_FACTORY", address(0)); // D2
         address aaveVaultFactory = vm.envOr("AAVE_VAULT_FACTORY", address(0)); // D2
         address zammVaultFactory = vm.envOr("ZAMM_VAULT_FACTORY", address(0)); // D2
+        address cypherVaultFactory = vm.envOr("CYPHER_VAULT_FACTORY", address(0)); // D2 — Ownable as of noesis-094
         if (uniVaultFactory != address(0)) tmp[n++] = uniVaultFactory;
         if (aaveVaultFactory != address(0)) tmp[n++] = aaveVaultFactory;
         if (zammVaultFactory != address(0)) tmp[n++] = zammVaultFactory;
+        if (cypherVaultFactory != address(0)) tmp[n++] = cypherVaultFactory;
 
         list = new address[](n);
         for (uint256 i; i < n; i++) {
