@@ -52,6 +52,8 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     error UnauthorizedCaller();
     /// @dev An attacker pre-initialized the graduation pool at a price outside tolerance.
     error PoolPriceMismatch();
+    /// @dev flushPendingVaultCut called for an instance with no stashed cut.
+    error NoPendingVaultCut();
 
     /// @notice Max deviation (bps) tolerated between an already-initialized pool's sqrtPriceX96 and
     ///         the intended graduation price. 100 bps (1%) mirrors the 99/100 LP-min-slippage
@@ -107,10 +109,28 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     CallbackContext private _ctx;
 
+    /// @dev A graduation vault cut that could not be delivered (the vault reverted on receiveContribution).
+    ///      The ETH is retained in this module and re-sendable via flushPendingVaultCut. Keyed by instance
+    ///      because this deployer is a singleton shared across every ERC404 graduation; the bound vault is
+    ///      stored alongside the amount so a retry can only ever re-send to that same vault (no redirect
+    ///      surface). Mirrors the ERC1155/721 pendingVaultCut stash — held here (the module already custodies
+    ///      the graduation ETH) rather than on ERC404BondingInstance, which is near the EIP-170 ceiling.
+    /// @dev INVARIANT: the sum of every pendingVaultCut[*].amount is <= address(this).balance.
+    struct PendingCut {
+        address vault;
+        uint256 amount;
+    }
+
+    mapping(address => PendingCut) public pendingVaultCut;
+
     event LiquidityDeployed(address indexed pool, uint256 amountToken, uint256 amountETH);
     event GraduationFeePaid(address indexed treasury, uint256 amount);
     event GraduationVaultContribution(address indexed vault, uint256 amount);
     event CreatorCarvePaid(address indexed instance, address indexed creator, uint256 requested, uint256 paid);
+    /// @notice A graduation vault cut could not be delivered and was stashed for retry.
+    event VaultContributionFailed(address indexed vault, address indexed instance, uint256 amount);
+    /// @notice A previously-stashed graduation vault cut was successfully re-delivered.
+    event VaultContributionRetried(address indexed vault, address indexed instance, uint256 amount);
 
     /**
      * @notice Deploy V4 liquidity on behalf of an ERC404BondingInstance.
@@ -190,18 +210,28 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
 
     /// @dev Dispatches graduation fees, emits final event.
     // slither-disable-next-line arbitrary-send-eth,reentrancy-events
-    function _postUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r) private {
+    function _postUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r) internal {
         // 1% of raise (+ 1% of carve) → protocol treasury
         if (r.protocolFee > 0 && p.protocolTreasury != address(0)) {
             SafeTransferLib.safeTransferETH(p.protocolTreasury, r.protocolFee);
             emit GraduationFeePaid(p.protocolTreasury, r.protocolFee);
         }
-        // 19% of raise (+ 19% of carve) → alignment vault
+        // 19% of raise (+ 19% of carve) → alignment vault. Isolate the send: a reverting vault (cut below
+        // MIN_CONTRIBUTION, vault at MAX_CONVERSION_PARTICIPANTS, a broken upgrade) must NOT brick
+        // graduation. On failure the r.vaultCut ETH is retained in this module and stashed as
+        // pendingVaultCut[p.instance] for later delivery via flushPendingVaultCut — mirroring the
+        // ERC1155/721 try/catch + pending-cut retry. Graduation completes; the tithe is deferred, not lost.
         if (r.vaultCut > 0 && p.vault != address(0)) {
-            IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
+            try IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
                 Currency.wrap(address(0)), r.vaultCut, p.instance
-            );
-            emit GraduationVaultContribution(p.vault, r.vaultCut);
+            ) {
+                emit GraduationVaultContribution(p.vault, r.vaultCut);
+            } catch {
+                PendingCut storage pc = pendingVaultCut[p.instance];
+                pc.vault = p.vault;
+                pc.amount += r.vaultCut;
+                emit VaultContributionFailed(p.vault, p.instance, r.vaultCut);
+            }
         }
         // 80% of carve → creator
         if (r.creatorCut > 0) {
@@ -326,6 +356,22 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         if (diff * 10_000 > uint256(intendedSqrtPriceX96) * MAX_INIT_PRICE_DEVIATION_BPS) {
             revert PoolPriceMismatch();
         }
+    }
+
+    /// @notice Retry delivering a graduation vault cut that a reverting vault previously rejected.
+    /// @dev Permissionless (mirrors the ERC721 flushPendingVaultCut authority model): the ETH only ever
+    ///      goes to the vault bound at stash time, so there is no redirect surface. The pending amount is
+    ///      zeroed BEFORE the external call (checks-effects-interactions); if the vault still reverts the
+    ///      whole transaction reverts and the stash is restored — idempotent, no ETH is ever lost.
+    /// @param instance The graduated instance whose stashed cut should be flushed.
+    function flushPendingVaultCut(address instance) external {
+        PendingCut memory pc = pendingVaultCut[instance];
+        if (pc.amount == 0) revert NoPendingVaultCut();
+        delete pendingVaultCut[instance];
+        IAlignmentVault(payable(pc.vault)).receiveContribution{ value: pc.amount }(
+            Currency.wrap(address(0)), pc.amount, instance
+        );
+        emit VaultContributionRetried(pc.vault, instance, pc.amount);
     }
 
     /// @notice Accept ETH (needed for WETH deposits returning change, etc.)

@@ -2468,6 +2468,13 @@ export const cypherLiquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'flushPendingVaultCut',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'masterRegistry',
     outputs: [
@@ -2496,6 +2503,16 @@ export const cypherLiquidityDeployerModuleAbi = [
     ],
     name: 'ownershipHandoverExpiresAt',
     outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'pendingVaultCut',
+    outputs: [
+      { name: 'vault', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
     stateMutability: 'view',
   },
   {
@@ -2704,11 +2721,62 @@ export const cypherLiquidityDeployerModuleAbi = [
     ],
     name: 'OwnershipTransferred',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionFailed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionRetried',
+  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'InvalidParams' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCaller' },
@@ -9324,6 +9392,13 @@ export const liquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'flushPendingVaultCut',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'masterRegistry',
     outputs: [
@@ -9352,6 +9427,16 @@ export const liquidityDeployerModuleAbi = [
     ],
     name: 'ownershipHandoverExpiresAt',
     outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'pendingVaultCut',
+    outputs: [
+      { name: 'vault', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
     stateMutability: 'view',
   },
   {
@@ -9566,11 +9651,62 @@ export const liquidityDeployerModuleAbi = [
     ],
     name: 'OwnershipTransferred',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionFailed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionRetried',
+  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoETHForPool' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
   { type: 'error', inputs: [], name: 'NotPoolManager' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
@@ -12539,6 +12675,13 @@ export const zammLiquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'flushPendingVaultCut',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'masterRegistry',
     outputs: [
@@ -12567,6 +12710,16 @@ export const zammLiquidityDeployerModuleAbi = [
     ],
     name: 'ownershipHandoverExpiresAt',
     outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'pendingVaultCut',
+    outputs: [
+      { name: 'vault', internalType: 'address', type: 'address' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
     stateMutability: 'view',
   },
   {
@@ -12757,11 +12910,62 @@ export const zammLiquidityDeployerModuleAbi = [
     ],
     name: 'OwnershipTransferred',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionFailed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultContributionRetried',
+  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoETHForPool' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NoPendingVaultCut' },
   { type: 'error', inputs: [], name: 'NoTokensForPool' },
   { type: 'error', inputs: [], name: 'PoolPriceMismatch' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
@@ -15750,6 +15954,15 @@ export const useReadCypherLiquidityDeployerModuleOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"pendingVaultCut"`
+ */
+export const useReadCypherLiquidityDeployerModulePendingVaultCut =
+  /*#__PURE__*/ createUseReadContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'pendingVaultCut',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"positionManager"`
  */
 export const useReadCypherLiquidityDeployerModulePositionManager =
@@ -15800,6 +16013,15 @@ export const useWriteCypherLiquidityDeployerModuleDeployLiquidity =
   /*#__PURE__*/ createUseWriteContract({
     abi: cypherLiquidityDeployerModuleAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useWriteCypherLiquidityDeployerModuleFlushPendingVaultCut =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'flushPendingVaultCut',
   })
 
 /**
@@ -15871,6 +16093,15 @@ export const useSimulateCypherLiquidityDeployerModuleDeployLiquidity =
   /*#__PURE__*/ createUseSimulateContract({
     abi: cypherLiquidityDeployerModuleAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useSimulateCypherLiquidityDeployerModuleFlushPendingVaultCut =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: cypherLiquidityDeployerModuleAbi,
+    functionName: 'flushPendingVaultCut',
   })
 
 /**
@@ -15987,6 +16218,24 @@ export const useWatchCypherLiquidityDeployerModuleOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionFailed"`
+ */
+export const useWatchCypherLiquidityDeployerModuleVaultContributionFailedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'VaultContributionFailed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionRetried"`
+ */
+export const useWatchCypherLiquidityDeployerModuleVaultContributionRetriedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'VaultContributionRetried',
   })
 
 /**
@@ -22801,6 +23050,15 @@ export const useReadLiquidityDeployerModuleOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"pendingVaultCut"`
+ */
+export const useReadLiquidityDeployerModulePendingVaultCut =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'pendingVaultCut',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"poolFee"`
  */
 export const useReadLiquidityDeployerModulePoolFee =
@@ -22867,6 +23125,15 @@ export const useWriteLiquidityDeployerModuleDeployLiquidity =
   /*#__PURE__*/ createUseWriteContract({
     abi: liquidityDeployerModuleAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useWriteLiquidityDeployerModuleFlushPendingVaultCut =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'flushPendingVaultCut',
   })
 
 /**
@@ -22945,6 +23212,15 @@ export const useSimulateLiquidityDeployerModuleDeployLiquidity =
   /*#__PURE__*/ createUseSimulateContract({
     abi: liquidityDeployerModuleAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useSimulateLiquidityDeployerModuleFlushPendingVaultCut =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'flushPendingVaultCut',
   })
 
 /**
@@ -23068,6 +23344,24 @@ export const useWatchLiquidityDeployerModuleOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionFailed"`
+ */
+export const useWatchLiquidityDeployerModuleVaultContributionFailedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'VaultContributionFailed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionRetried"`
+ */
+export const useWatchLiquidityDeployerModuleVaultContributionRetriedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'VaultContributionRetried',
   })
 
 /**
@@ -26056,6 +26350,15 @@ export const useReadZammLiquidityDeployerModuleOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"pendingVaultCut"`
+ */
+export const useReadZammLiquidityDeployerModulePendingVaultCut =
+  /*#__PURE__*/ createUseReadContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'pendingVaultCut',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"zamm"`
  */
 export const useReadZammLiquidityDeployerModuleZamm =
@@ -26095,6 +26398,15 @@ export const useWriteZammLiquidityDeployerModuleDeployLiquidity =
   /*#__PURE__*/ createUseWriteContract({
     abi: zammLiquidityDeployerModuleAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useWriteZammLiquidityDeployerModuleFlushPendingVaultCut =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'flushPendingVaultCut',
   })
 
 /**
@@ -26166,6 +26478,15 @@ export const useSimulateZammLiquidityDeployerModuleDeployLiquidity =
   /*#__PURE__*/ createUseSimulateContract({
     abi: zammLiquidityDeployerModuleAbi,
     functionName: 'deployLiquidity',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `functionName` set to `"flushPendingVaultCut"`
+ */
+export const useSimulateZammLiquidityDeployerModuleFlushPendingVaultCut =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: zammLiquidityDeployerModuleAbi,
+    functionName: 'flushPendingVaultCut',
   })
 
 /**
@@ -26282,6 +26603,24 @@ export const useWatchZammLiquidityDeployerModuleOwnershipTransferredEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'OwnershipTransferred',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionFailed"`
+ */
+export const useWatchZammLiquidityDeployerModuleVaultContributionFailedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'VaultContributionFailed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultContributionRetried"`
+ */
+export const useWatchZammLiquidityDeployerModuleVaultContributionRetriedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'VaultContributionRetried',
   })
 
 /**
