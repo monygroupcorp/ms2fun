@@ -12,6 +12,7 @@ import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { MockEXECToken } from "../mocks/MockEXECToken.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract UniAlignmentVaultFactoryTest is Test {
     UniAlignmentVaultFactory public factory;
@@ -99,6 +100,43 @@ contract UniAlignmentVaultFactoryTest is Test {
             address(customValidator),
             "Should use custom price validator"
         );
+    }
+
+    /// @dev Governance unbrick: the factory owns every vault, so the vault's onlyOwner
+    ///      setPriceValidator / setMaxPriceDeviationBps are only reachable via the factory
+    ///      passthroughs. Pre-fix the Uni vault had NO setPriceValidator at all (field set only at
+    ///      init) — this proves the added setter + passthrough make the validator rotatable.
+    function test_setVaultPriceValidator_ownerCanRotate() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+        assertEq(UniAlignmentVault(payable(vault)).owner(), address(factory));
+
+        MockVaultPriceValidator newValidator = new MockVaultPriceValidator();
+        factory.setVaultPriceValidator(vault, address(newValidator));
+        assertEq(address(UniAlignmentVault(payable(vault)).priceValidator()), address(newValidator));
+    }
+
+    function test_setVaultMaxPriceDeviationBps_ownerCanRotate() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+        factory.setVaultMaxPriceDeviationBps(vault, 250);
+        assertEq(UniAlignmentVault(payable(vault)).maxPriceDeviationBps(), 250);
+    }
+
+    function test_setVaultPriceValidator_nonOwnerReverts() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultPriceValidator(vault, makeAddr("rotatedValidator"));
+    }
+
+    function test_setVaultMaxPriceDeviationBps_nonOwnerReverts() public {
+        address vault =
+            factory.deployVault(_nextSalt(), address(alignmentToken), TARGET_ID, IVaultPriceValidator(address(0)));
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultMaxPriceDeviationBps(vault, 250);
     }
 
     function test_deployVault_differentInstancesAreIndependent() public {

@@ -10,6 +10,7 @@ import { IAlignmentRegistry } from "../../src/master/interfaces/IAlignmentRegist
 import { MockAlignmentRegistry } from "../mocks/MockAlignmentRegistry.sol";
 import { CREATEX } from "../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 
 contract CypherAlignmentVaultFactoryTest is Test {
     CypherAlignmentVaultFactory factory;
@@ -66,6 +67,47 @@ contract CypherAlignmentVaultFactoryTest is Test {
         CypherAlignmentVault v2 =
             factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
         assertNotEq(address(v1), address(v2));
+    }
+
+    /// @dev Governance unbrick: the Cypher factory is now Ownable and its owner is the deployer.
+    ///      Pre-fix the factory was not Ownable at all, so the vault's onlyOwner setPriceValidator /
+    ///      setMaxPriceDeviationBps (the anti-manipulation levers) were unreachable forever.
+    function test_owner_isDeployer() public view {
+        assertEq(factory.owner(), address(this));
+    }
+
+    function test_setVaultPriceValidator_ownerCanRotate() public {
+        CypherAlignmentVault vault =
+            factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
+        // Vault owner is the factory; the setter is only reachable via the factory passthrough.
+        assertEq(vault.owner(), address(factory));
+
+        address newValidator = makeAddr("rotatedValidator");
+        factory.setVaultPriceValidator(address(vault), newValidator);
+        assertEq(address(vault.priceValidator()), newValidator);
+    }
+
+    function test_setVaultMaxPriceDeviationBps_ownerCanRotate() public {
+        CypherAlignmentVault vault =
+            factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
+        factory.setVaultMaxPriceDeviationBps(address(vault), 250);
+        assertEq(vault.maxPriceDeviationBps(), 250);
+    }
+
+    function test_setVaultPriceValidator_nonOwnerReverts() public {
+        CypherAlignmentVault vault =
+            factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultPriceValidator(address(vault), makeAddr("rotatedValidator"));
+    }
+
+    function test_setVaultMaxPriceDeviationBps_nonOwnerReverts() public {
+        CypherAlignmentVault vault =
+            factory.createVault(_nextSalt(), positionManager, swapRouter, weth, alignmentToken, treasury, TARGET_ID);
+        vm.prank(makeAddr("attacker"));
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        factory.setVaultMaxPriceDeviationBps(address(vault), 250);
     }
 
     /// @dev F6: the deployment salt is bound to the caller — the same salt resolves to a different
