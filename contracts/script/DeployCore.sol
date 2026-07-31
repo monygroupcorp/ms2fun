@@ -198,6 +198,20 @@ contract DeployCore is Script {
     /// @notice Deploy all protocol contracts for the given network config.
     ///         Callable from forge scripts (with broadcast) or tests (without).
     function deploy(address deployer, NetworkConfig memory cfg) public {
+        // ── D4: deploy-time security-param asserts ───────────────────────────
+        // weth==0 silently disables the smartTransferETH WETH fallback system-wide: queueManager.setWeth
+        // is unconditional and every vault/factory below takes cfg.weth raw. Hard-assert non-zero here so
+        // a mis-filled config fails loudly at deploy instead of shipping a broken ETH path.
+        require(cfg.weth != address(0), "DeployCore: cfg.weth unset (disables WETH fallback)");
+        // zQuoter==0 ships every vault factory with best-route acquisition DISABLED (fixed-pool fallback
+        // only) — trading works but at worse prices. No cfg.enableTrading gate exists to hard-assert
+        // against, so warn loudly: the operator MUST wire a chain-specific zQuoter via each factory's
+        // setZQuoter before trading opens. Do NOT bake a zQuoter address here — it is operator input.
+        if (cfg.zQuoter == address(0)) {
+            console.log("WARNING: cfg.zQuoter == address(0) -> best-route acquisition DISABLED on all vault");
+            console.log("         factories. Call setZQuoter on each factory before trading opens.");
+        }
+
         // ── Phase 1: Protocol proxies (CREATE3) ─────────────────────────────
 
         masterRegistryImpl = new MasterRegistryV1();
