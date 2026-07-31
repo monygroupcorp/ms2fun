@@ -15,6 +15,7 @@ import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeploye
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
 import { MetadataOverlayModule } from "../../src/metadata/MetadataOverlayModule.sol";
 import { TierRevealModule } from "../../src/metadata/TierRevealModule.sol";
+import { MockHostileResolver } from "../mocks/MockHostileResolver.sol";
 import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ICreateX, CREATEX } from "../../src/shared/CreateXConstants.sol";
@@ -398,5 +399,82 @@ contract MetadataStackIntegrationTest is Test {
         meta.childResolvers = _children(address(overlay), address(tier));
         address inst = _create("familyChildren", meta);
         assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
+    }
+
+    // ── noesis-104 §4.5: a hostile resolver can't brick a DN404 transfer ─────────
+    // The `_tokenURI` seam is the ONLY place the instance calls a wired resolver, behind a defensive
+    // try/catch + `m.code.length` guard — the DN404 TRANSFER path never touches it. So a maximally
+    // hostile resolver (revert / gas-bomb / malformed return) wired as the instance's sole resolver
+    // must never block a transfer. That is the load-bearing invariant, and it HOLDS for all three
+    // variants. The metadata READ degrades to base for the revert + gas-bomb variants (the catch
+    // swallows both); the malformed-return variant is the documented exception (see the KNOWN-GAP on
+    // that test) — a successful-but-ABI-undecodable return escapes `_tokenURI`'s try/returns/catch and
+    // reverts the read, so only the transfer invariant is asserted there.
+
+    /// @dev Create an instance whose sole metadata resolver is `resolver` (single module, no router).
+    function _createWithSoleResolver(string memory name, address resolver) internal returns (ERC404BondingInstance b) {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = resolver; // slot points straight at it; no router children, no overlay/tier
+        b = ERC404BondingInstance(payable(_create(name, meta)));
+    }
+
+    /// @dev Wire `hostile` as the instance's sole resolver, mint, and drive a whole-unit DN404 transfer;
+    ///      assert the transfer LANDS (the invariant common to all three modes). Reads NO metadata, so it
+    ///      is safe for the malformed variant. Returns the instance for mode-specific read assertions.
+    function _wireHostileAndAssertTransferLands(MockHostileResolver.Mode mode, string memory name)
+        internal
+        returns (ERC404BondingInstance b)
+    {
+        MockHostileResolver hostile = new MockHostileResolver(mode);
+        vm.prank(protocolAdmin);
+        // Approved under the RESOLVER tag so the factory's family check wires it into the slot.
+        componentRegistry.approveComponent(address(hostile), keccak256("resolver"), "Hostile");
+
+        b = _createWithSoleResolver(name, address(hostile));
+        assertEq(b.modules(keccak256("metadata.resolver")), address(hostile));
+
+        // Mint: creator buys 2 whole units.
+        vm.prank(creator);
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        vm.prank(creator);
+        b.setBondingActive(true);
+        _buy(b, 2 * UNIT);
+        assertEq(b.balanceOf(creator), 2 * UNIT);
+
+        // Drive a DN404 token transfer of a whole unit (moves an NFT) with the hostile resolver wired
+        // in — it must LAND. If a hostile resolver could genuinely brick this, that is a real bug.
+        address to = address(0xB0B0);
+        vm.prank(creator);
+        b.transfer(to, UNIT);
+        assertEq(b.balanceOf(to), UNIT, "transfer landed: recipient credited");
+        assertEq(b.balanceOf(creator), UNIT, "transfer landed: sender debited");
+    }
+
+    function test_hostileResolver_reverting_cannotBrickTransfer() public {
+        ERC404BondingInstance b = _wireHostileAndAssertTransferLands(MockHostileResolver.Mode.REVERT, "hostileRevert");
+        // Revert variant: the metadata read degrades gracefully to base — `_tokenURI`'s try/catch
+        // swallows the resolver's revert and falls back to base for every id.
+        assertEq(_uri(b, 5), "base/5", "revert-resolver read must degrade to base");
+        assertEq(_uri(b, 1), "base/1", "post-transfer read still degrades to base");
+    }
+
+    function test_hostileResolver_gasBomb_cannotBrickTransfer() public {
+        ERC404BondingInstance b =
+            _wireHostileAndAssertTransferLands(MockHostileResolver.Mode.GAS_BOMB, "hostileGasBomb");
+        // Gas-bomb variant: the read degrades to base — the child OOGs, the caller survives on the 1/64
+        // gas EIP-150 retains and the catch falls back to base.
+        assertEq(_uri(b, 5), "base/5", "gas-bomb-resolver read must degrade to base");
+    }
+
+    function test_hostileResolver_malformedReturn_cannotBrickTransfer() public {
+        // KNOWN-GAP: malformed-return read-brick tracked in the metadata-seam-hardening item (spec-gated).
+        // A successful-but-ABI-undecodable resolver return escapes `_tokenURI`'s
+        // `try … returns (string){} catch {}` (ERC404BondingInstance:682) and reverts the metadata READ;
+        // the same escape exists at MetadataResolverRouter:60. This VIOLATES the ADR-0006/0007 "tokenURI
+        // can never be bricked" promise and is a REAL money-code seam defect — surfaced under spec-gate
+        // as a SEPARATE seam-hardening item, intentionally NOT fixed here and NOT asserted away. This
+        // test asserts ONLY the transfer invariant (which HOLDS); it deliberately does NOT read metadata,
+        // because the malformed read reverts rather than degrading to base.
+        _wireHostileAndAssertTransferLands(MockHostileResolver.Mode.MALFORMED, "hostileMalformed");
     }
 }
