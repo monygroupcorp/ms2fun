@@ -376,9 +376,21 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         return vaultInfo[vault];
     }
 
+    /// @notice Whether a vault is registered AND its bound alignment target is still active.
+    /// @dev Composite read across two independently-mutated `active` flags: the vault's own
+    ///      (`vaultInfo[vault].active`, toggled by `deactivateVault`) and its bound alignment
+    ///      target's (`AlignmentRegistryV1`, toggled by `deactivateAlignmentTarget`). Registration
+    ///      validates target-active at bind time (`registerVault`), but a target can be revoked
+    ///      LATER (e.g. a rug is discovered). Without re-checking here, a vault bound to a
+    ///      now-revoked target would stay registered — bindable by new ERC404 instances
+    ///      (`ERC404Factory` gates the graduation-tithe vault on this read) and otherwise usable.
+    ///      Gating on the composite read (rather than mutating `vaultInfo[vault].active` on every
+    ///      target deactivation) keeps the two flags independently truthful and covers every vault
+    ///      of a revoked target at once, with no extra write surface.
     // slither-disable-next-line timestamp
     function isVaultRegistered(address vault) external view override returns (bool) {
-        return registeredVaults[vault] && vaultInfo[vault].active;
+        return registeredVaults[vault] && vaultInfo[vault].active
+            && alignmentRegistry.isAlignmentTargetActive(vaultInfo[vault].targetId);
     }
 
     function deactivateVault(address vault) external override onlyOwner {
