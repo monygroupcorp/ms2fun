@@ -30,4 +30,11 @@ contract TestableUniAlignmentVault is UniAlignmentVault {
         require(msg.value == amount, "Must send exact ETH");
         accumulatedProtocolFees += amount;
     }
+
+    /// @notice Drive the real 80/19/1 split path with a known collected total (the live LP-yield
+    ///         collection needs a real V4 PoolManager, so unit tests exercise the split directly).
+    function exerciseFeeSplit(uint256 totalCollected) external payable {
+        require(msg.value == totalCollected, "Must send exact ETH");
+        _splitAndAccrueVaultFees(totalCollected);
+    }
 }

@@ -65,7 +65,7 @@ contract ZAMMAlignmentVaultFactoryTest is Test {
         assertEq(v.alignmentToken(), address(alignmentToken));
         assertEq(v.zamm(), address(mockZamm));
         assertEq(v.weth(), WETH_STUB, "factory threads house WETH into the vault");
-        assertEq(v.protocolYieldCutBps(), 100);
+        assertEq(v.PROTOCOL_CUT_BPS(), 100);
     }
 
     function test_deployVault_emitsEvent() public {

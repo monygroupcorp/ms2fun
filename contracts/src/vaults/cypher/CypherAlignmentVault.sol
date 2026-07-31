@@ -65,13 +65,16 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     error LpPoolPriceDeviation();
     /// @dev Convert: the registry's acquire route for this target is not the Algebra venue.
     error WrongAcquireVenue();
+    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned yet
+    ///      (`getCommunityPayout == address(0)`). Accrual still happens; only the push is gated.
+    error TargetSinkNotSet();
 
     // ── Events ────────────────────────────────────────────────────────────
     event LiquidityAdded(uint256 ethSwapped, uint256 targetReceived, uint256 lpPositionValue, uint256 tokenId);
-    event Harvested(uint256 totalFeesETH, uint256 benefactorFees, uint256 protocolFees);
+    event Harvested(uint256 totalFeesETH, uint256 benefactorFees, uint256 protocolFees, uint256 targetFees);
     event DelegateSet(address indexed benefactor, address indexed delegate);
-    event ProtocolYieldCutUpdated(uint256 newBps);
     event ProtocolFeesWithdrawn(uint256 amount);
+    event TargetFeesWithdrawn(uint256 amount);
     event PriceValidatorUpdated(address indexed validator);
     event MaxPriceDeviationUpdated(uint256 newBps);
     event PoolResolved(address indexed pool, bool tokenIsZero, bool created);
@@ -105,8 +108,14 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── Spendable pending ETH (the accumulated tithe awaiting conversion) ───
     uint256 public totalPendingETH;
 
-    // ── Economics ─────────────────────────────────────────────────────────
-    uint256 public protocolYieldCutBps; // default 100 (1%)
+    // ── Economics — the 80/19/1 alignment law (hard immutable, noesis-051) ──
+    /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
+    ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
+    uint256 public constant PROTOCOL_CUT_BPS = 100;
+    /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
+    uint256 public constant TARGET_CUT_BPS = 1900;
+    // Benefactors take the remainder (8000 bps = 80%), computed as feesETH - protocol - target so the
+    // three legs can never exceed feesETH (rounding dust favors benefactors).
 
     // ── Price-manipulation guard (reference-derived floor + LP-pool deviation) ──
     IVaultPriceValidator public priceValidator;
@@ -114,6 +123,8 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
 
     // ── Fee buckets ───────────────────────────────────────────────────────
     uint256 public accumulatedProtocolFees;
+    /// @notice The accrued 19% target-alignment cut awaiting push to the registry-pinned sink.
+    uint256 public accumulatedTargetFees;
     uint256 public _totalAccumulatedFees;
 
     // ── MasterChef accumulator ────────────────────────────────────────────
@@ -172,7 +183,6 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         zQuoter = _zQuoter;
         alignmentRegistry = _alignmentRegistry;
         alignmentTargetId = _alignmentTargetId;
-        protocolYieldCutBps = 100;
         maxPriceDeviationBps = 500;
         priceValidator = IVaultPriceValidator(_priceValidator);
 
@@ -396,7 +406,9 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── harvest ───────────────────────────────────────────────────────────
 
     /// @notice Collect fees from the vault's alignment LP position, swap the target leg to ETH, and
-    ///         distribute via the MasterChef accumulator.
+    ///         split the proceeds by the 80/19/1 alignment law: 1% to the protocol treasury, 19% to
+    ///         the per-target alignment sink (accrued to `accumulatedTargetFees`, pushed by
+    ///         `withdrawTargetFees`), 80% to benefactors via the MasterChef accumulator.
     /// @param minAmountOut Minimum WETH from the target->WETH swap (floored to the reference).
     // slither-disable-next-line incorrect-equality,reentrancy-benign,timestamp
     function harvest(uint256 minAmountOut) external nonReentrant returns (uint256 feesETH) {
@@ -439,17 +451,21 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         IWETH9(weth).withdraw(totalWETH);
         feesETH = totalWETH;
 
-        uint256 protocolCut = feesETH * protocolYieldCutBps / 10000; // round down: favors benefactors
-        uint256 benefactorFees = feesETH - protocolCut;
+        // 80/19/1 split: protocol + target by bps, benefactors take the remainder so the three legs
+        // never exceed feesETH (rounding dust favors benefactors).
+        uint256 protocolCut = feesETH * PROTOCOL_CUT_BPS / 10000; // 1% — round down
+        uint256 targetCut = feesETH * TARGET_CUT_BPS / 10000; // 19% — round down
+        uint256 benefactorFees = feesETH - protocolCut - targetCut; // 80% remainder-safe
 
         accumulatedProtocolFees += protocolCut;
+        accumulatedTargetFees += targetCut;
         _totalAccumulatedFees += benefactorFees;
 
         if (benefactorFees > 0) {
             accRewardPerContribution += benefactorFees * 1e18 / totalContributions; // round down: dust stays in vault
         }
 
-        emit Harvested(feesETH, benefactorFees, protocolCut);
+        emit Harvested(feesETH, benefactorFees, protocolCut, targetCut);
         emit FeesAccumulated(benefactorFees);
     }
 
@@ -504,10 +520,19 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         emit ProtocolFeesWithdrawn(amount);
     }
 
-    function setProtocolYieldCutBps(uint256 bps) external onlyOwner {
-        if (bps > 1000) revert ExceedsMaxBps();
-        protocolYieldCutBps = bps;
-        emit ProtocolYieldCutUpdated(bps);
+    /// @notice Push the accrued 19% target-alignment cut to the registry-pinned per-target sink.
+    /// @dev Permissionless. Pull-to-fixed-registry-sink: the destination is ALWAYS
+    ///      `alignmentRegistry.getCommunityPayout(alignmentTargetId)`, never caller-supplied (no
+    ///      redirect surface). Reverts `TargetSinkNotSet` when the sink is unset — the 19% keeps
+    ///      accruing so an un-wired sink never blocks the benefactors' 80% claim path.
+    // slither-disable-next-line reentrancy-events
+    function withdrawTargetFees() external {
+        address sink = alignmentRegistry.getCommunityPayout(alignmentTargetId);
+        if (sink == address(0)) revert TargetSinkNotSet();
+        uint256 amount = accumulatedTargetFees;
+        accumulatedTargetFees = 0;
+        SmartTransferLib.smartTransferETH(sink, amount, weth);
+        emit TargetFeesWithdrawn(amount);
     }
 
     /// @notice Wire the independent price validator used to floor swaps and read the reference TWAP.

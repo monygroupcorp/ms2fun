@@ -84,6 +84,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     error ContributionBelowMinimum();
     error TooManyConversionParticipants();
     error NoReferencePool();
+    /// @dev withdrawTargetFees: the registry has no per-target alignment sink pinned yet
+    ///      (`getCommunityPayout == address(0)`). Accrual still happens; only the push is gated.
+    error TargetSinkNotSet();
 
     // ── Anti-DoS constants ────────────────────────────────────────────────
     uint256 public constant MIN_CONTRIBUTION = 0.001 ether;
@@ -140,10 +143,18 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     uint256 public lastVaultFeeCollectionTime;
     uint256 public vaultFeeCollectionInterval = 1 days;
 
-    // Protocol yield cut
-    uint256 public protocolYieldCutBps = 100; // 1% of LP yield
+    // Protocol yield cut — the 80/19/1 alignment law (hard immutable, noesis-051)
+    /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
+    ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
+    uint256 public constant PROTOCOL_CUT_BPS = 100;
+    /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
+    uint256 public constant TARGET_CUT_BPS = 1900;
+    // Benefactors take the remainder (8000 bps = 80%), computed as total - protocol - target so the
+    // three legs can never exceed the collected fees (rounding dust favors benefactors).
     address public protocolTreasury;
     uint256 public accumulatedProtocolFees;
+    /// @notice The accrued 19% target-alignment cut awaiting push to the registry-pinned sink.
+    uint256 public accumulatedTargetFees;
 
     // Dust accumulation
     uint256 public accumulatedDustShares;
@@ -194,9 +205,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     event DustDistributed(address indexed recipient, uint256 dustShares);
 
     event ProtocolYieldCollected(uint256 amount);
-    event ProtocolYieldCutUpdated(uint256 newBps);
+    event TargetYieldCollected(uint256 amount);
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
+    event TargetFeesWithdrawn(uint256 amount);
 
     event AlignmentTokenUpdated(address indexed oldToken, address indexed newToken);
     event V4PoolKeyUpdated(bytes32 indexed poolId);
@@ -255,7 +267,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         alignmentTargetId = _alignmentTargetId;
 
         // Initialize defaults that can't use declaration initializers with clones
-        protocolYieldCutBps = 100;
         v3PreferredFee = 3000;
         maxPriceDeviationBps = 500;
         vaultFeeCollectionInterval = 1 days;
@@ -562,17 +573,28 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
             uint256 totalCollected = ethCollected + ethFromTokens;
             if (totalCollected > 0) {
-                uint256 protocolCut = (totalCollected * protocolYieldCutBps) / 10000; // round down: favors benefactors
-                uint256 benefactorAmount = totalCollected - protocolCut;
-
-                _accrueFees(benefactorAmount);
-                accumulatedProtocolFees += protocolCut;
-
+                _splitAndAccrueVaultFees(totalCollected);
                 lastVaultFeeCollectionTime = block.timestamp;
-                emit FeesAccumulated(benefactorAmount);
-                if (protocolCut > 0) emit ProtocolYieldCollected(protocolCut);
             }
         }
+    }
+
+    /// @dev Apply the 80/19/1 alignment law to a freshly-collected `totalCollected` ETH: 1% to the
+    ///      protocol bucket, 19% to the per-target sink bucket, and the remainder (80%) accrued to
+    ///      benefactors. Protocol + target are computed by bps; benefactors take the remainder so the
+    ///      three legs can never exceed `totalCollected` (rounding dust favors benefactors).
+    function _splitAndAccrueVaultFees(uint256 totalCollected) internal {
+        uint256 protocolCut = (totalCollected * PROTOCOL_CUT_BPS) / 10000; // 1% — round down
+        uint256 targetCut = (totalCollected * TARGET_CUT_BPS) / 10000; // 19% — round down
+        uint256 benefactorAmount = totalCollected - protocolCut - targetCut; // 80% remainder-safe
+
+        _accrueFees(benefactorAmount);
+        accumulatedProtocolFees += protocolCut;
+        accumulatedTargetFees += targetCut;
+
+        emit FeesAccumulated(benefactorAmount);
+        if (protocolCut > 0) emit ProtocolYieldCollected(protocolCut);
+        if (targetCut > 0) emit TargetYieldCollected(targetCut);
     }
 
     /// @notice Claim accumulated LP yield fees for the caller
@@ -955,15 +977,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         emit FeesAccumulated(msg.value);
     }
 
-    // ========== Protocol Yield Cut ==========
-
-    /// @notice Set the protocol's share of LP yield in basis points
-    /// @param _bps Protocol cut in bps (max 1500 = 15%)
-    function setProtocolYieldCutBps(uint256 _bps) external onlyOwner {
-        if (_bps > 1500) revert ExceedsMaxBps();
-        protocolYieldCutBps = _bps;
-        emit ProtocolYieldCutUpdated(_bps);
-    }
+    // ========== Protocol / Target Yield ==========
 
     /// @notice Set the protocol treasury address for yield cut withdrawals
     /// @param _treasury New treasury address (must not be zero)
@@ -985,5 +999,20 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         (bool success,) = payable(protocolTreasury).call{ value: amount }("");
         if (!success) revert TransferFailed();
         emit ProtocolFeesWithdrawn(amount);
+    }
+
+    /// @notice Push the accrued 19% target-alignment cut to the registry-pinned per-target sink.
+    /// @dev Permissionless. Pull-to-fixed-registry-sink: the destination is ALWAYS
+    ///      `alignmentRegistry.getCommunityPayout(alignmentTargetId)`, never caller-supplied (no
+    ///      redirect surface). Reverts `TargetSinkNotSet` when the sink is unset — the 19% keeps
+    ///      accruing so an un-wired sink never blocks the benefactors' 80% claim path.
+    // slither-disable-next-line reentrancy-events
+    function withdrawTargetFees() external {
+        address sink = alignmentRegistry.getCommunityPayout(alignmentTargetId);
+        if (sink == address(0)) revert TargetSinkNotSet();
+        uint256 amount = accumulatedTargetFees;
+        accumulatedTargetFees = 0;
+        SafeTransferLib.forceSafeTransferETH(sink, amount);
+        emit TargetFeesWithdrawn(amount);
     }
 }
