@@ -221,6 +221,13 @@ export const alignmentEndowmentVaultAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'migrated',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'owner',
     outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
@@ -744,6 +751,7 @@ export const alignmentEndowmentVaultAbi = [
   { type: 'error', inputs: [], name: 'BenefactorNotContract' },
   { type: 'error', inputs: [], name: 'CommunityPayoutNotSet' },
   { type: 'error', inputs: [], name: 'ExceedsDeployableCorpus' },
+  { type: 'error', inputs: [], name: 'ForbiddenExecuteTarget' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
   { type: 'error', inputs: [], name: 'NativeOnly' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
@@ -755,6 +763,7 @@ export const alignmentEndowmentVaultAbi = [
   { type: 'error', inputs: [], name: 'RedeemShortfall' },
   { type: 'error', inputs: [], name: 'Reentrancy' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+  { type: 'error', inputs: [], name: 'VaultMigrated' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -13363,6 +13372,15 @@ export const useReadAlignmentEndowmentVaultMasterRegistry =
   /*#__PURE__*/ createUseReadContract({
     abi: alignmentEndowmentVaultAbi,
     functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link alignmentEndowmentVaultAbi}__ and `functionName` set to `"migrated"`
+ */
+export const useReadAlignmentEndowmentVaultMigrated =
+  /*#__PURE__*/ createUseReadContract({
+    abi: alignmentEndowmentVaultAbi,
+    functionName: 'migrated',
   })
 
 /**
