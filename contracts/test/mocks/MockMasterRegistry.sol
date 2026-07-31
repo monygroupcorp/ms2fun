@@ -156,11 +156,17 @@ contract MockMasterRegistry is IMasterRegistry {
         return IAlignmentRegistry(address(0));
     }
 
+    // Settable ComponentRegistry (default address(0) preserves the historic no-op behavior other suites
+    // rely on). Metadata tests wire a real registry so the router's R2 child-validation resolves.
+    IComponentRegistry private _componentRegistry;
+
     function componentRegistry() external view override returns (IComponentRegistry) {
-        return IComponentRegistry(address(0));
+        return _componentRegistry;
     }
 
-    function setComponentRegistry(address) external override { }
+    function setComponentRegistry(address registry) external override {
+        _componentRegistry = IComponentRegistry(registry);
+    }
 
     function updateInstanceMetadata(address, string calldata) external override { }
 

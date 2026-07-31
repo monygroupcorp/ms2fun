@@ -6251,6 +6251,7 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'InvalidNftCount' },
   { type: 'error', inputs: [], name: 'InvalidOwner' },
   { type: 'error', inputs: [], name: 'InvalidSymbol' },
+  { type: 'error', inputs: [], name: 'InvalidTierMinBalance' },
   { type: 'error', inputs: [], name: 'MaxBondingFeeExceeded' },
   { type: 'error', inputs: [], name: 'NameAlreadyTaken' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
@@ -11596,6 +11597,7 @@ export const metadataResolverRouterAbi = [
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
   { type: 'error', inputs: [], name: 'NotRegisteredFactory' },
+  { type: 'error', inputs: [], name: 'UnapprovedResolver' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
 ] as const
 

@@ -117,6 +117,10 @@ contract MetadataStackIntegrationTest is Test {
         componentRegistry.approveComponent(address(router), keccak256("resolver"), "Router");
         componentRegistry.approveComponent(address(overlay), keccak256("overlay"), "Overlay");
         componentRegistry.approveComponent(address(tier), keccak256("tier"), "Tier");
+        // R2: the router self-validates its children against the ComponentRegistry via
+        // masterRegistry.componentRegistry(), so the mock must return the real registry (else the
+        // stacked-router seal reverts on a call to address(0)).
+        registry.setComponentRegistry(address(componentRegistry));
 
         vm.stopPrank();
     }
@@ -399,6 +403,36 @@ contract MetadataStackIntegrationTest is Test {
         meta.childResolvers = _children(address(overlay), address(tier));
         address inst = _create("familyChildren", meta);
         assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
+    }
+
+    // ── noesis-110 T1: factory rejects a tier band with minBalance == 0 ─────────
+    // A minBalance == 0 band makes `eff >= 0` always true → the tier reveals its rare art to every id in
+    // range regardless of holdings (defeating the ownership gate). The factory rejects it at seal.
+
+    function test_wireMetadata_tierMinBalanceZero_reverts() public {
+        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
+        tiers[0] =
+            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: 0, baseURI: "rare-", lockedURI: "locked-" });
+
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.tiers = tiers;
+        vm.expectRevert(ERC404Factory.InvalidTierMinBalance.selector);
+        _create("zeroMinBalance", meta);
+    }
+
+    function test_wireMetadata_tierMinBalancePositive_succeeds() public {
+        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
+        tiers[0] =
+            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: UNIT, baseURI: "rare-", lockedURI: "locked-" });
+
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.tiers = tiers;
+        address inst = _create("positiveMinBalance", meta);
+        assertTrue(tier.sealed_(inst), "tier seals with a positive minBalance");
     }
 
     // ── noesis-104 §4.5: a hostile resolver can't brick a DN404 transfer ─────────
