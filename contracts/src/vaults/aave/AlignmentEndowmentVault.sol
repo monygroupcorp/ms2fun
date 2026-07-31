@@ -86,6 +86,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     error RedeemShortfall();
     error NotVested();
     error ExceedsDeployableCorpus();
+    /// @dev `execute` may not target the vault's own principal-bearing assets (the stataToken position or
+    ///      its WETH) nor itself — that would let an ambassador route past the `deployableCorpus` bound and
+    ///      reach ESCROWED principal via calldata (RE-B1). The value-bound alone does not bind the corpus.
+    error ForbiddenExecuteTarget();
+    /// @dev The vault has been escrow-migrated (decommissioned): intake and vesting are permanently closed.
+    error VaultMigrated();
 
     // ┌─────────────────────────┐
     // │       Constants         │
@@ -124,6 +130,22 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     uint256 public targetId; // the alignment target this clone serves (for the stat surface / events)
 
     // ── Per-benefactor accounting ─────────────────────────────────────────────
+    /// @notice One escrowed deposit and the timestamp it was made (its own vesting clock). A benefactor's
+    ///         escrow is a LIST of these — each deposit vests independently at `depositTs + VEST_DURATION`
+    ///         (RE-B3). `escrowedPrincipal[b]` stays the sum of a benefactor's live (unvested) tranches.
+    struct DepositTranche {
+        uint256 amount;
+        uint256 depositTs;
+    }
+
+    /// @notice A benefactor's live escrow tranches (per-deposit vesting clocks). Vested tranches are removed.
+    mapping(address => DepositTranche[]) internal _escrowTranches;
+
+    /// @notice Set once by `migratePosition`: the vault is escrow-decommissioned. Intake and vesting close
+    ///         permanently so a post-migrate deposit cannot re-open a dead position and a stale-basis vest
+    ///         cannot desync harvest/execute into RedeemShortfall (RE-B2).
+    bool public migrated;
+
     /// @notice A benefactor's live ESCROWED (pre-vest) principal — the accumulator weight.
     mapping(address => uint256) public escrowedPrincipal;
     /// @notice A benefactor's principal that has VESTED (now the target's deployable corpus).
@@ -218,6 +240,7 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         override
         nonReentrant
     {
+        if (migrated) revert VaultMigrated(); // no intake into a decommissioned vault (RE-B2)
         if (Currency.unwrap(currency) != address(0)) revert NativeOnly();
         if (amount == 0) revert AmountMustBePositive();
         if (msg.value != amount) revert AmountMismatch();
@@ -236,6 +259,12 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         stataToken.deposit(amount, address(this));
 
         if (depositTime[benefactor] == 0) depositTime[benefactor] = block.timestamp;
+
+        // RE-B3: each deposit gets its OWN vesting clock. A later top-up starts a fresh 26-week window and
+        // does NOT ride the first deposit's clock (which would let a month-5 top-up vest in ~1 month, or a
+        // post-vest top-up vest instantly, skipping the creator-earning window). Recording the tranche does
+        // not regress any existing tranche's clock: earlier tranches keep their original `depositTs`.
+        _escrowTranches[benefactor].push(DepositTranche({ amount: amount, depositTs: block.timestamp }));
 
         // Settle the benefactor's accrued creator yield at their OLD escrow weight, then grow the
         // weight and re-baseline `rewardDebt` so the new principal earns only future yield.
@@ -260,22 +289,39 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         deployable class. Mechanic (b): the principal STAYS in the Aave position (no redeem) and
     ///         from here earns 0 creator / 99 target / 1 protocol until the target deploys it.
     function vest(address benefactor) external nonReentrant {
-        uint256 e = escrowedPrincipal[benefactor];
-        if (e == 0) revert NoPrincipal();
-        if (block.timestamp < depositTime[benefactor] + VEST_DURATION) revert NotVested();
+        if (migrated) revert VaultMigrated(); // escrow is decommissioned post-migrate (RE-B2)
+        if (escrowedPrincipal[benefactor] == 0) revert NoPrincipal();
 
-        // Settle at the current escrow weight (their creator purse is already-earned ETH; untouched here),
-        // then remove them from the accumulator weight — from now they accrue nothing on this principal.
+        // RE-B3: vest only the tranches whose OWN clock has elapsed. Each deposit vests independently at
+        // `depositTs + VEST_DURATION`; a not-yet-matured top-up stays escrowed with its clock intact. Matured
+        // tranches are removed (swap-and-pop — order is irrelevant, only the maturity of each amount matters).
+        DepositTranche[] storage tranches = _escrowTranches[benefactor];
+        uint256 matured;
+        uint256 i;
+        while (i < tranches.length) {
+            if (block.timestamp >= tranches[i].depositTs + VEST_DURATION) {
+                matured += tranches[i].amount;
+                tranches[i] = tranches[tranches.length - 1];
+                tranches.pop();
+            } else {
+                i++;
+            }
+        }
+        if (matured == 0) revert NotVested();
+
+        // Settle at the current (full) escrow weight — the creator purse is already-earned ETH, untouched
+        // here — then shrink the accumulator weight by the matured amount and re-baseline `rewardDebt` so the
+        // still-escrowed remainder keeps accruing and the vested portion accrues nothing from here.
         _settle(benefactor);
-        escrowedPrincipal[benefactor] = 0;
-        rewardDebt[benefactor] = 0;
-        totalEscrowedPrincipal -= e;
+        escrowedPrincipal[benefactor] -= matured;
+        rewardDebt[benefactor] = (escrowedPrincipal[benefactor] * accCreatorYieldPerPrincipal) / ACC_PRECISION;
+        totalEscrowedPrincipal -= matured;
 
-        vestedPrincipal[benefactor] += e;
-        totalVestedDeployable += e;
-        _totalVested += e;
+        vestedPrincipal[benefactor] += matured;
+        totalVestedDeployable += matured;
+        _totalVested += matured;
 
-        emit PrincipalVested(benefactor, e, block.timestamp);
+        emit PrincipalVested(benefactor, matured, block.timestamp);
     }
 
     // ┌─────────────────────────┐
@@ -441,9 +487,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         uint256 got = _redeem(escrowValue);
         if (got + REDEEM_DUST < escrowValue) revert RedeemShortfall();
 
-        // Per-benefactor escrow accounting is intentionally PRESERVED (not zeroed): the value is
-        // relocated to `to`/the new venue, and the on-chain ledger remains the source of truth for
-        // reconstructing each benefactor's stake there.
+        // RE-B2: zero the escrow BASIS and decommission the vault. The escrow tranche has left the Aave
+        // position (relocated to `to`/the new venue), so leaving `totalEscrowedPrincipal` as a live basis
+        // would (a) make `_pendingYield` see basis > position value and return ~0 forever (harvest bricks),
+        // and (b) let a later `vest()` grow `totalVestedDeployable` against principal that is no longer
+        // here, desyncing `execute` into `RedeemShortfall`. Zeroing the basis + closing intake/vesting via
+        // the `migrated` flag keeps harvest/vest/execute self-consistent. Per-benefactor escrow entries are
+        // frozen-inert (a mapping cannot be iterated to zero each); the on-chain ledger + the `Migrated`
+        // event remain the record for reconstructing each benefactor's stake at the new venue.
+        totalEscrowedPrincipal = 0;
+        migrated = true;
+
         if (got > 0) SafeTransferLib.forceSafeTransferETH(to, got);
         emit Migrated(to, got);
     }
@@ -489,6 +543,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     {
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (!ar.isAmbassador(targetId, msg.sender)) revert NotAuthorized();
+
+        // RE-B1: the `value` bound alone does NOT bind the corpus — an ambassador could pass `value = 0`
+        // (trivially ≤ corpus) and route through `data` to make the vault call `transfer`/`withdraw`/
+        // `approve` on its OWN principal-bearing tokens, draining ESCROWED (permanent) principal to an
+        // arbitrary address. Deny the vault's principal-bearing targets (its stataToken position and the
+        // WETH it holds an unbounded approval on) and itself, so the arbitrary call can never reach the
+        // corpus. Legit value-only deployment to any OTHER `to` (incl. an EOA) is unaffected.
+        if (to == address(stataToken) || to == address(weth) || to == address(this)) {
+            revert ForbiddenExecuteTarget();
+        }
+
         if (value > deployableCorpus()) revert ExceedsDeployableCorpus();
 
         // ── Effects (before the arbitrary external call) ──

@@ -773,9 +773,13 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.migratePosition(recovery);
 
         assertApproxEqAbs(recovery.balance, 10 ether, 1e9, "escrow tranche (impaired) moved to recovery");
-        // Per-benefactor accounting PRESERVED on-chain (no zero-and-forget).
-        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 10 ether, "ledger preserved");
-        assertEq(vault.totalEscrowedPrincipal(), 20 ether, "ledger preserved");
+        // RE-B2: the escrow BASIS is zeroed and the vault is decommissioned (migrated) — the escrow tranche
+        // has left the position, so keeping a live basis would brick harvest/vest/execute. Per-benefactor
+        // escrow entries are frozen-inert (a mapping cannot be iterated); the on-chain ledger + `Migrated`
+        // event remain the record for reconstructing each benefactor's stake at the new venue.
+        assertEq(vault.totalEscrowedPrincipal(), 0, "escrow basis zeroed on migrate");
+        assertTrue(vault.migrated(), "vault decommissioned");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 10 ether, "per-benefactor entry frozen-inert");
     }
 
     /// @dev migrate moves only the escrowed tranche; the vested tranche stays in the position.
@@ -1087,5 +1091,168 @@ contract AlignmentEndowmentVaultTest is Test {
         // Effects rolled back with the revert.
         assertEq(vault.totalVestedDeployable(), 1 ether, "corpus intact after failed deploy");
         assertEq(vault.totalDeployedByTarget(), 0, "counter intact after failed deploy");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 13. RE-B1 — execute cannot reach ESCROWED principal via calldata
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Set up a mixed position: A vested (1 ETH deployable corpus), B escrowed (1 ETH permanent), so
+    ///      the shared stataToken position holds 2 ETH and the escrowed tranche is the drain target.
+    function _mixedPosition() internal returns (MockOwnable b) {
+        _contributeBenefactor(1 ether); // A → will vest
+        b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → stays escrowed (permanent)
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract)); // A vested; B escrowed
+    }
+
+    /// @dev THE RE-B1 drain: an authorized ambassador passes `value = 0` (trivially ≤ corpus) and routes an
+    ///      ERC-20 `transfer` of the vault's ENTIRE stataToken share balance through `data`. Pre-fix this
+    ///      moved all shares (escrowed + vested) to an attacker in one tx. It must now revert and leave the
+    ///      position — and B's escrowed principal — completely intact.
+    function test_execute_revertsDrainViaStataTokenCalldata() public {
+        _mixedPosition();
+        uint256 sharesBefore = stata.balanceOf(address(vault));
+        assertGt(sharesBefore, 0, "vault holds the position shares");
+
+        address attacker = makeAddr("attacker");
+        bytes memory drain = abi.encodeWithSignature("transfer(address,uint256)", attacker, sharesBefore);
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
+        vault.execute(address(stata), 0, drain);
+
+        // No shares moved; escrowed (permanent) principal untouched.
+        assertEq(stata.balanceOf(address(vault)), sharesBefore, "position shares unchanged after attempted drain");
+        assertEq(stata.balanceOf(attacker), 0, "attacker received nothing");
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed principal intact");
+    }
+
+    /// @dev The WETH the vault holds an unbounded approval on is also a forbidden target (approve/transfer
+    ///      route to principal), as is the vault itself (self-call). Both revert ForbiddenExecuteTarget.
+    function test_execute_revertsForbiddenWethAndSelfTargets() public {
+        _mixedPosition();
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
+        vault.execute(
+            address(weth), 0, abi.encodeWithSignature("approve(address,uint256)", stranger, type(uint256).max)
+        );
+
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ForbiddenExecuteTarget.selector);
+        vault.execute(address(vault), 0, "");
+    }
+
+    /// @dev The denylist is additive: legit value-only deployment of the vested corpus to an arbitrary `to`
+    ///      (an EOA here) still succeeds and the escrowed tranche is untouched.
+    function test_execute_legitValueDeployStillWorksAfterDenylist() public {
+        MockOwnable b = _mixedPosition();
+        address eoa = makeAddr("legit_sink");
+
+        vm.prank(ambassador);
+        vault.execute(eoa, 1 ether, ""); // full vested corpus, value-only
+
+        assertEq(eoa.balance, 1 ether, "legit value-only deploy to EOA still works");
+        assertEq(vault.totalVestedDeployable(), 0, "corpus deployed");
+        assertEq(vault.escrowedPrincipal(address(b)), 1 ether, "escrowed principal untouched");
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether, "escrowed total untouched");
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 14. RE-B2 — migrate zeroes escrow basis + decommissions (no brick / no re-open)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev After an escrow migrate the basis is zeroed so harvest/execute stay self-consistent on the vested
+    ///      tranche (no stale-basis brick), and intake + vesting are permanently closed.
+    function test_migrate_zeroesBasisAndDecommissions() public {
+        _contributeBenefactor(1 ether); // A → will vest
+        MockOwnable b = _contributeNewBenefactor(address(0xCAFE), 1 ether); // B → escrowed
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract)); // A vested (corpus 1 ETH); B escrowed (1 ETH)
+        assertEq(vault.totalEscrowedPrincipal(), 1 ether);
+        assertEq(vault.totalVestedDeployable(), 1 ether);
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(makeAddr("recovery"));
+
+        assertEq(vault.totalEscrowedPrincipal(), 0, "escrow basis zeroed");
+        assertTrue(vault.migrated(), "vault decommissioned");
+        assertEq(vault.totalVestedDeployable(), 1 ether, "vested corpus retained");
+
+        // harvest does NOT brick: yield on the retained vested tranche still distributes (basis is sane).
+        _simulateYield(1 ether);
+        uint256 communityBefore = communityPayout.balance;
+        vault.harvest();
+        assertGt(communityPayout.balance - communityBefore, 0, "harvest still distributes (not bricked)");
+
+        // execute still works on the retained vested corpus (no RedeemShortfall from a phantom basis).
+        address sink = makeAddr("sink");
+        vm.prank(ambassador);
+        vault.execute(sink, 1 ether, "");
+        assertEq(sink.balance, 1 ether, "vested corpus still deployable post-migrate");
+
+        // Intake is closed: a post-migrate deposit cannot re-open the dead position.
+        vm.deal(alice, alice.balance + 1 ether);
+        vm.prank(alice);
+        vm.expectRevert(AlignmentEndowmentVault.VaultMigrated.selector);
+        vault.receiveContribution{ value: 1 ether }(nativeCurrency, 1 ether, address(b));
+
+        // Vesting is closed: the stale escrow tranche cannot vest into a phantom deployable corpus.
+        vm.expectRevert(AlignmentEndowmentVault.VaultMigrated.selector);
+        vault.vest(address(b));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 15. RE-B3 — per-deposit vesting clocks (a late top-up is not vested early)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev A second deposit made when the FIRST tranche has already matured is NOT instantly vestable: only
+    ///      the first tranche vests, the fresh amount keeps its own 26-week clock. Pre-fix (single depositTime,
+    ///      never reset) the whole escrow vested at once, robbing the top-up of its creator-earning window.
+    function test_vest_perDepositClock_lateTopUpNotVestedEarly() public {
+        uint256 t0 = block.timestamp;
+        _contributeBenefactor(1 ether); // tranche A @ t0
+
+        vm.warp(t0 + VEST); // A matured
+        _contributeBenefactor(1 ether); // tranche B @ t0 + VEST (fresh clock)
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 2 ether);
+
+        // Only A vests; B stays escrowed with its own clock.
+        vault.vest(address(benefactorContract));
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), 1 ether, "only the matured tranche vested");
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 1 ether, "fresh top-up still escrowed");
+        assertEq(vault.totalVested(), 1 ether);
+
+        // Poking vest again now reverts — B is not yet mature (would have been instantly vestable pre-fix).
+        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
+        vault.vest(address(benefactorContract));
+
+        // B vests only after its OWN 26 weeks elapse.
+        vm.warp(t0 + 2 * VEST);
+        vault.vest(address(benefactorContract));
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0, "B vested on its own clock");
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), 2 ether);
+    }
+
+    /// @dev A brand-new deposit made AFTER a full vest starts a fresh window — it is not instantly vestable
+    ///      just because an earlier tranche's clock (the never-reset `depositTime`) already elapsed.
+    function test_vest_postFullVestDepositIsNotInstant() public {
+        uint256 t0 = block.timestamp;
+        _contributeBenefactor(1 ether); // A @ t0
+        vm.warp(t0 + VEST);
+        vault.vest(address(benefactorContract)); // A fully vested; escrow empty
+        assertEq(vault.escrowedPrincipal(address(benefactorContract)), 0);
+
+        // New deposit at t0 + VEST. depositTime is still t0, so the OLD code would treat this as already
+        // past `depositTime + VEST` and vest it in the same block. The per-tranche clock forbids that.
+        _contributeBenefactor(1 ether); // B @ t0 + VEST
+        vm.expectRevert(AlignmentEndowmentVault.NotVested.selector);
+        vault.vest(address(benefactorContract));
+
+        // B matures only at t0 + 2*VEST.
+        vm.warp(t0 + 2 * VEST);
+        vault.vest(address(benefactorContract));
+        assertEq(vault.vestedPrincipal(address(benefactorContract)), 2 ether, "B vested on its own fresh clock");
     }
 }
