@@ -225,7 +225,8 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         metadataURI = tokenBaseURI_;
     }
 
-    function setMetadataURI(string calldata uri) external onlyOwner {
+    function setMetadataURI(string calldata uri) external {
+        _requireOwnerOrAgent();
         metadataURI = uri;
     }
 
@@ -310,15 +311,28 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     // │    Owner Functions      │
     // └─────────────────────────┘
 
+    /// @notice Authorize the caller for a non-custodial config/lifecycle action: the owner always,
+    ///         or a platform-vetted agent when this instance has agent delegation enabled. Value-
+    ///         extracting fns (withdrawDust/claimAllFees/migrateVault) do NOT use this — they stay
+    ///         bare `onlyOwner`. Revocation is live: `isAgent` is re-read at call time, so a revoked
+    ///         agent is blocked immediately even with a stale `agentDelegationEnabled == true`.
+    function _requireOwnerOrAgent() internal view {
+        if (msg.sender == owner()) return;
+        if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) return;
+        revert Unauthorized();
+    }
+
     // slither-disable-next-line timestamp
-    function setBondingOpenTime(uint256 timestamp) external onlyOwner {
+    function setBondingOpenTime(uint256 timestamp) external {
+        _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
         bondingOpenTime = timestamp;
         emit BondingOpenTimeSet(timestamp);
     }
 
     // slither-disable-next-line timestamp
-    function setBondingMaturityTime(uint256 timestamp) external onlyOwner {
+    function setBondingMaturityTime(uint256 timestamp) external {
+        _requireOwnerOrAgent();
         if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
         if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
         if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
@@ -326,7 +340,8 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         emit BondingMaturityTimeSet(timestamp);
     }
 
-    function setBondingActive(bool _active) external onlyOwner {
+    function setBondingActive(bool _active) external {
+        _requireOwnerOrAgent();
         if (bondingOpenTime == 0) revert OpenTimeNotSet();
         if (_active && graduated) revert CannotActivateAfterLiquidityDeployed();
         bondingActive = _active;
@@ -334,7 +349,8 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         emit StateChanged(_active ? STATE_BONDING : STATE_PAUSED);
     }
 
-    function setStyle(string memory uri) external onlyOwner {
+    function setStyle(string memory uri) external {
+        _requireOwnerOrAgent();
         styleUri = uri;
     }
 
@@ -344,7 +360,8 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     }
 
     /// @notice Activate staking for this instance. Irreversible. Requires stakingModule to be set.
-    function activateStaking() external onlyOwner {
+    function activateStaking() external {
+        _requireOwnerOrAgent();
         if (address(stakingModule) == address(0)) revert StakingModuleNotSet();
         if (stakingActive) revert StakingAlreadyActive();
         stakingActive = true;
@@ -583,7 +600,8 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
      *        pool floor). Passing 0 reproduces the historic no-carve graduation exactly.
      */
     // slither-disable-next-line reentrancy-eth,timestamp
-    function deployLiquidity(uint256 carveRequestBps) external onlyOwner nonReentrant {
+    function deployLiquidity(uint256 carveRequestBps) external nonReentrant {
+        _requireOwnerOrAgent();
         if (bondingOpenTime == 0) revert BondingNotConfigured();
         if (block.timestamp < bondingOpenTime) revert TooEarly();
         if (graduated) revert AlreadyDeployed();

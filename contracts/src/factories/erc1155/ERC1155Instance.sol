@@ -339,7 +339,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @param metadataURI New metadata URI
      */
     function updateEditionMetadata(uint256 editionId, string memory metadataURI) external {
-        if (msg.sender != owner()) revert Unauthorized();
+        if (msg.sender == owner()) {
+            // Owner always allowed
+        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
+            // Direct agent call when delegation is on (non-custodial config)
+        } else {
+            revert Unauthorized();
+        }
         if (editions[editionId].id == 0) revert EditionNotFound();
 
         editions[editionId].metadataURI = metadataURI;
@@ -669,7 +675,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     /// @notice Set project-level style URI (creator only)
     function setStyle(string memory uri) external {
-        if (msg.sender != owner()) revert Unauthorized();
+        if (msg.sender == owner()) {
+            // Owner always allowed
+        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
+            // Direct agent call when delegation is on (non-custodial config)
+        } else {
+            revert Unauthorized();
+        }
         styleUri = uri;
     }
 

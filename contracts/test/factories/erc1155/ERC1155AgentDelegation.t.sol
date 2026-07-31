@@ -11,6 +11,7 @@ import { MockZRouter } from "../../mocks/MockZRouter.sol";
 import { MockVaultPriceValidator } from "../../mocks/MockVaultPriceValidator.sol";
 import { IVaultPriceValidator } from "../../../src/interfaces/IVaultPriceValidator.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { Ownable } from "solady/auth/Ownable.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
@@ -211,5 +212,94 @@ contract ERC1155AgentDelegationTest is GlobalMessagingTestBase {
         vm.prank(nobody);
         vm.expectRevert();
         ERC1155Instance(payable(instance)).setAgentDelegation(true);
+    }
+
+    // ── Config-fn delegation (noesis-096): non-custodial config extends to agents ──
+
+    /// Agent-created instance (delegation on) with one edition already added by the agent.
+    function _agentInstanceWithEdition() internal returns (ERC1155Instance inst) {
+        vm.deal(agent, 1 ether);
+        vm.prank(agent);
+        address instance = factory.createInstance{ value: 0 }(_nextSalt(), _params("Cfg", artist));
+        inst = ERC1155Instance(payable(instance));
+        vm.prank(agent);
+        inst.addEdition("Piece", 0.1 ether, 0, "ipfs://piece", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+    }
+
+    function test_agent_can_update_edition_metadata_and_style() public {
+        ERC1155Instance inst = _agentInstanceWithEdition();
+
+        vm.prank(agent);
+        inst.updateEditionMetadata(1, "ipfs://updated");
+        assertEq(inst.getEdition(1).metadataURI, "ipfs://updated");
+
+        vm.prank(agent);
+        inst.setStyle("ipfs://newstyle");
+        assertEq(inst.styleUri(), "ipfs://newstyle");
+    }
+
+    function test_owner_can_update_edition_metadata_and_style() public {
+        ERC1155Instance inst = _agentInstanceWithEdition();
+
+        vm.prank(artist);
+        inst.updateEditionMetadata(1, "ipfs://owner");
+        assertEq(inst.getEdition(1).metadataURI, "ipfs://owner");
+
+        vm.prank(artist);
+        inst.setStyle("ipfs://ownerstyle");
+        assertEq(inst.styleUri(), "ipfs://ownerstyle");
+    }
+
+    function test_agent_blocked_on_config_fns_when_delegation_off() public {
+        ERC1155Instance inst = _agentInstanceWithEdition();
+        vm.prank(artist);
+        inst.setAgentDelegation(false);
+
+        vm.prank(agent);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.updateEditionMetadata(1, "ipfs://nope");
+
+        vm.prank(agent);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.setStyle("ipfs://nope");
+    }
+
+    function test_agent_blocked_on_config_fns_after_revocation() public {
+        ERC1155Instance inst = _agentInstanceWithEdition();
+        mockRegistry.setAgent(agent, false); // bool stays true; live isAgent re-check blocks
+
+        vm.prank(agent);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.updateEditionMetadata(1, "ipfs://nope");
+
+        vm.prank(agent);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.setStyle("ipfs://nope");
+    }
+
+    function test_non_agent_non_owner_blocked_on_config_fns() public {
+        ERC1155Instance inst = _agentInstanceWithEdition();
+
+        vm.prank(nobody);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.updateEditionMetadata(1, "ipfs://nope");
+
+        vm.prank(nobody);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.setStyle("ipfs://nope");
+    }
+
+    /// Config-only boundary: value-extracting fns stay owner-only — a delegated agent STILL reverts.
+    function test_delegated_agent_cannot_withdraw_or_migrate() public {
+        ERC1155Instance inst = _agentInstanceWithEdition();
+        assertTrue(inst.agentDelegationEnabled());
+
+        vm.prank(agent);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        inst.withdraw(1);
+
+        vm.prank(agent);
+        vm.expectRevert(); // Ownable.Unauthorized (onlyOwner modifier)
+        inst.migrateVault(address(0xCAFE));
     }
 }
