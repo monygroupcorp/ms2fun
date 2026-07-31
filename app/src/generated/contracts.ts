@@ -6341,6 +6341,20 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'lastTimeRewardApplicable',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'lastUpdateTime',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'masterRegistry',
     outputs: [
@@ -6373,6 +6387,13 @@ export const erc404StakingModuleAbi = [
     ],
     name: 'ownershipHandoverExpiresAt',
     outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'periodFinish',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -6420,6 +6441,13 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'rewardPerToken',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: '', internalType: 'address', type: 'address' },
       { name: '', internalType: 'address', type: 'address' },
@@ -6437,11 +6465,25 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'rewardRate',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: '', internalType: 'address', type: 'address' },
       { name: '', internalType: 'address', type: 'address' },
     ],
     name: 'rewardsAccrued',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'rewardsDuration',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -19756,6 +19798,24 @@ export const useReadErc404StakingModuleGetStakingInfo =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"lastTimeRewardApplicable"`
+ */
+export const useReadErc404StakingModuleLastTimeRewardApplicable =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'lastTimeRewardApplicable',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"lastUpdateTime"`
+ */
+export const useReadErc404StakingModuleLastUpdateTime =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'lastUpdateTime',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"masterRegistry"`
  */
 export const useReadErc404StakingModuleMasterRegistry =
@@ -19792,6 +19852,24 @@ export const useReadErc404StakingModuleOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"periodFinish"`
+ */
+export const useReadErc404StakingModulePeriodFinish =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'periodFinish',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerToken"`
+ */
+export const useReadErc404StakingModuleRewardPerToken =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardPerToken',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardPerTokenPaid"`
  */
 export const useReadErc404StakingModuleRewardPerTokenPaid =
@@ -19810,12 +19888,30 @@ export const useReadErc404StakingModuleRewardPerTokenStored =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardRate"`
+ */
+export const useReadErc404StakingModuleRewardRate =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardRate',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardsAccrued"`
  */
 export const useReadErc404StakingModuleRewardsAccrued =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404StakingModuleAbi,
     functionName: 'rewardsAccrued',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"rewardsDuration"`
+ */
+export const useReadErc404StakingModuleRewardsDuration =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'rewardsDuration',
   })
 
 /**
