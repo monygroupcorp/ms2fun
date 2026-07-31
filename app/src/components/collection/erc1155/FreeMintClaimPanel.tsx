@@ -1,13 +1,13 @@
 /**
  * FreeMintClaimPanel — lets an eligible wallet claim its zero-cost free-mint allocation.
- * Renders nothing unless the instance has a free-mint allocation, the connected wallet has not
- * already claimed, and the allocation is not exhausted. When the free-mint path is gated (module
- * set AND scope != PAID_ONLY) we resolve a password credential; otherwise we pass '0x'.
+ * Renders nothing unless the instance has a free-mint allocation and the connected wallet has not
+ * already claimed. When the free-mint path is gated (module set AND scope != PAID_ONLY, noesis-080) we
+ * resolve the connected wallet's merkle proof against the owner-configured allowlist and encode it;
+ * otherwise we pass '0x'.
  *
  * Write idiom matches EditionList.tsx exactly (useWrite + useWaitForTransactionReceipt,
  * chainId, chainId on every call, btn classes, txStatus UX).
  */
-import { useState } from 'react'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
   useReadErc1155InstanceFreeMintAllocation,
@@ -19,7 +19,8 @@ import {
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
-import { encodePasswordGatingData, isFreeMintGated } from './gatingMint'
+import { encodeMerkleGatingData, isFreeMintGated } from './gatingMint'
+import { useMerkleAllowlistProof } from './useMerkleAllowlist'
 import styles from './Erc1155Actions.module.css'
 
 interface FreeMintClaimPanelProps {
@@ -31,7 +32,6 @@ interface FreeMintClaimPanelProps {
 export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelProps) {
   const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
-  const [password, setPassword] = useState('')
 
   const { data: allocation } = useReadErc1155InstanceFreeMintAllocation({
     address: instance,
@@ -75,17 +75,24 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
   const failureReason = txErrorReason(writeErrObj ?? waitErrObj)
 
   const gated = isFreeMintGated(gatingModule, gatingScope)
+  const allowlist = useMerkleAllowlistProof(instance, editionId, gated)
   const allocationOpen = allocation !== undefined && allocation > 0n
   const exhausted = allocationOpen && claimedCount !== undefined && claimedCount >= allocation
-  // Eligible: connected, allocation exists, not exhausted, and this wallet hasn't claimed.
-  const eligible = isConnected && allocationOpen && !exhausted && hasClaimed === false
+  // Base eligibility (ignoring the merkle proof) — controls whether the panel renders at all, so a
+  // gated pool with an unclaimed allocation still shows (with a not-allowlisted state) rather than
+  // vanishing. `canSubmit` additionally requires a resolved proof when gated.
+  const baseEligible = isConnected && allocationOpen && !exhausted && hasClaimed === false
+  const canSubmit = baseEligible && (!gated || allowlist.status === 'eligible')
 
   function handleClaim(): void {
-    // Free-mint gating ('bytes' arg): post-#25 the module decodes abi.decode(data,(bytes32
-    // passwordHash)) — openTime is now an authoritative canMint param (edition.openTime), not part of
-    // data. So encode just the hash when gated; pass '0x' when open (module isn't consulted).
-    // Merkle resolution is a documented seam in gatingMint.ts.
-    const gatingData = gated ? encodePasswordGatingData(password) : '0x'
+    // Free-mint gating ('bytes' arg): the module decodes
+    // abi.decode(data,(uint256 tierId, uint256 maxQty, bytes32[] proof)); pass '0x' when open (module
+    // isn't consulted). A gated claim with no resolved proof must not fire.
+    if (gated && (allowlist.status !== 'eligible' || allowlist.proof === undefined)) return
+    const gatingData =
+      gated && allowlist.proof !== undefined
+        ? encodeMerkleGatingData(0n, allowlist.maxQty ?? 0n, allowlist.proof)
+        : '0x'
     writeContract({
       address: instance,
       chainId: chainId,
@@ -95,12 +102,11 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
 
   function handleReset(): void {
     resetWrite()
-    setPassword('')
     void refetchClaimed()
   }
 
   // Hide entirely when not eligible (and not mid/post a successful claim of our own).
-  if (!eligible && !isSuccess) return null
+  if (!baseEligible && !isSuccess) return null
 
   if (isSuccess) {
     return (
@@ -126,20 +132,18 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
           ` · ${claimedCount.toString()}/${allocation.toString()} claimed`}
       </p>
       {gated && (
-        <input
-          className={styles.input}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="access password"
-          disabled={isBusy}
-          aria-label="free mint access password"
-        />
+        <p className={styles.context} data-testid="erc1155-freemint-allowlist-status">
+          {allowlist.status === 'loading' && 'checking allowlist…'}
+          {allowlist.status === 'no-list' && 'allowlist not yet configured by the creator'}
+          {allowlist.status === 'not-eligible' && 'this wallet is not on the allowlist'}
+          {allowlist.status === 'eligible' &&
+            `allowlisted — up to ${allowlist.maxQty?.toString() ?? '0'} per wallet`}
+        </p>
       )}
       <button
         className="btn btn-primary btn-chromatic"
         onClick={handleClaim}
-        disabled={isBusy}
+        disabled={isBusy || !canSubmit}
         data-testid="erc1155-freemint-claim"
       >
         {sigPending ? 'confirm in wallet…' : isConfirming ? 'confirming…' : 'claim free mint'}

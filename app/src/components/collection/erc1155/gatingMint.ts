@@ -112,11 +112,23 @@ export function encodeMintMessage(message: string): Hex {
 }
 
 /**
- * MERKLE SEAM — not yet implemented. An allowlist module expects an ABI-encoded merkle proof
- * (`bytes32[]`) for the connected wallet. Computing it requires the full leaf set or a proof
- * service, neither of which is wired in this slice. Returns the zero credential so the call
- * reaches the module and reverts visibly rather than fabricating a proof.
+ * Encode the `bytes gatingData` credential for a MerkleGatingModule-gated paid `mint`/`claimFreeMint`
+ * call (noesis-080). Matches `MerkleGatingModule.sol:117`'s decode shape EXACTLY —
+ * `abi.decode(data, (uint256 tierId, uint256 maxQty, bytes32[] proof))` — `tierId`/`maxQty`/`proof`
+ * come from `app/src/lib/collection/allowlistConfig.ts`'s `resolveMemberProof` (which wraps
+ * `app/src/lib/merkle.ts`'s `getProof`); `tierId` is `0n` for the single-list authoring this slice
+ * ships. Call sites resolve the proof for the connected wallet BEFORE calling this — a wallet with no
+ * proof (not on the list) must not reach here; surface a "not allowlisted" state instead of fabricating
+ * a credential (mirrors the password path's ZERO_BYTES32-for-open convention, but merkle has no open
+ * tier: an absent proof always reverts on-chain).
  */
-export function resolveMerkleGatingData(): Hex {
-  return ZERO_BYTES32
+export function encodeMerkleGatingData(tierId: bigint, maxQty: bigint, proof: Hex[]): Hex {
+  return encodeAbiParameters(
+    [
+      { name: 'tierId', type: 'uint256' },
+      { name: 'maxQty', type: 'uint256' },
+      { name: 'proof', type: 'bytes32[]' },
+    ],
+    [tierId, maxQty, proof],
+  )
 }

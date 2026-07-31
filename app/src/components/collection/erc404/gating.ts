@@ -12,10 +12,12 @@
  *  - `claimFreeMint(bytes gatingData)` likewise forwards the blob to the same decoder; `encodeGatingData`
  *    still carries the hash in the first word (the trailing openTime word it appends is now ignored).
  *
- * MERKLE SEAM: a merkle-allowlist gating module would instead want
- * `abi.encode(bytes32[] proof)` (or similar) here. When that module ships, branch on `gatingScope` /
- * the resolved module type and build the proof bytes instead of the password tuple — see
- * `resolveBuyPasswordHash` / `encodeGatingData` call sites in the panels.
+ * MERKLE (noesis-080): `buyBonding`/`claimFreeMint`'s gatingData instead carries
+ * `abi.encode(uint256 tierId, uint256 maxQty, bytes32[] proof)` — matching
+ * `MerkleGatingModule.sol:117`'s decode shape exactly (NOT the `abi.encode(bytes32[] proof)` this
+ * comment used to say). `SwapPanel`/`FreeMintPanel` resolve the connected wallet's proof via
+ * `app/src/lib/collection/allowlistConfig.ts`'s `resolveMemberProof` and pass it to
+ * `encodeMerkleGatingData` below.
  */
 import { type Hex, encodeAbiParameters, keccak256, stringToBytes, toHex } from 'viem'
 
@@ -25,6 +27,13 @@ export const ZERO_BYTES32 =
 
 /** Empty bytes — used as `messageData` for buy/sell when the user posts no comment. */
 export const EMPTY_BYTES = '0x' as const
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
+
+/** True when `module` is a real (non-zero) gating module address. Mirrors erc1155/gatingMint.ts. */
+export function hasGatingModule(module: `0x${string}` | undefined): boolean {
+  return !!module && module.toLowerCase() !== ZERO_ADDRESS
+}
 
 /**
  * Resolve a user-typed password into the bytes32 `passwordHash` that `buyBonding`/`sellBonding` expect.
@@ -84,3 +93,22 @@ export function encodeMessageData(content: string): Hex {
 
 /** The ComponentRegistry tag under which CurveParamsComputer singletons are approved. */
 export const CURVE_COMPUTER_TAG: Hex = toHex('curve_computer', { size: 32 })
+
+/**
+ * Encode the `bytes gatingData` credential for a MerkleGatingModule-gated `buyBonding`/`claimFreeMint`
+ * call (noesis-080). Matches `MerkleGatingModule.sol:117`'s decode shape EXACTLY —
+ * `abi.decode(data, (uint256 tierId, uint256 maxQty, bytes32[] proof))`. `tierId`/`maxQty`/`proof` come
+ * from `allowlistConfig.ts`'s `resolveMemberProof`; `tierId` is `0n` (single list, single curve — ERC404
+ * has no per-edition concept, so `editionId`/`tierId` are always 0). A wallet with no proof (not on the
+ * list) must not reach here — surface a "not allowlisted" state instead of fabricating a credential.
+ */
+export function encodeMerkleGatingData(tierId: bigint, maxQty: bigint, proof: Hex[]): Hex {
+  return encodeAbiParameters(
+    [
+      { name: 'tierId', type: 'uint256' },
+      { name: 'maxQty', type: 'uint256' },
+      { name: 'proof', type: 'bytes32[]' },
+    ],
+    [tierId, maxQty, proof],
+  )
+}
