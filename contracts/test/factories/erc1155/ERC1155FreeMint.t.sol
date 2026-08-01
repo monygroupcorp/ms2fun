@@ -10,7 +10,8 @@ import { GatingScope } from "../../../src/gating/IGatingModule.sol";
 import {
     FreeMintDisabled,
     FreeMintAlreadyClaimed,
-    FreeMintExhausted
+    FreeMintExhausted,
+    EditionNotOpen
 } from "../../../src/factories/erc1155/ERC1155Instance.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -136,5 +137,67 @@ contract ERC1155FreeMintTest is Test {
         vm.prank(user2);
         vm.expectRevert(FreeMintExhausted.selector);
         inst.claimFreeMint(editionId, "");
+    }
+
+    // ── openTime gate on the free path (noesis-115 finding #3) ──────────────────
+
+    function _addEditionAt(ERC1155Instance inst, uint256 supply, uint256 openTime)
+        internal
+        returns (uint256 editionId)
+    {
+        vm.prank(creator);
+        inst.addEdition(
+            "Piece 1", 0.01 ether, supply, "ipfs://edition", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, openTime
+        );
+        return inst.nextEditionId() - 1;
+    }
+
+    /// Free claim before the scheduled open must revert even on the ungated path
+    /// (gatingModule == address(0), so the gating block is skipped) — no bot pre-drain.
+    function test_erc1155_freeMint_revertsBeforeOpenTime_ungated() public {
+        ERC1155Instance inst = _deploy(FREE_ALLOC, GatingScope.BOTH);
+        uint256 openTime = block.timestamp + 1 days;
+        uint256 editionId = _addEditionAt(inst, 100, openTime);
+
+        vm.prank(user1);
+        vm.expectRevert(EditionNotOpen.selector);
+        inst.claimFreeMint(editionId, "");
+    }
+
+    /// PAID_ONLY scope also skips the gating block; openTime is still enforced.
+    function test_erc1155_freeMint_revertsBeforeOpenTime_paidOnlyScope() public {
+        ERC1155Instance inst = _deploy(FREE_ALLOC, GatingScope.PAID_ONLY);
+        uint256 openTime = block.timestamp + 1 days;
+        uint256 editionId = _addEditionAt(inst, 100, openTime);
+
+        vm.prank(user1);
+        vm.expectRevert(EditionNotOpen.selector);
+        inst.claimFreeMint(editionId, "");
+    }
+
+    /// At or after openTime the free claim succeeds.
+    function test_erc1155_freeMint_succeedsAtOpenTime() public {
+        ERC1155Instance inst = _deploy(FREE_ALLOC, GatingScope.BOTH);
+        uint256 openTime = block.timestamp + 1 days;
+        uint256 editionId = _addEditionAt(inst, 100, openTime);
+
+        vm.warp(openTime);
+        vm.prank(user1);
+        inst.claimFreeMint(editionId, "");
+        assertEq(inst.balanceOf(user1, editionId), 1);
+
+        vm.warp(openTime + 3 days);
+        vm.prank(user2);
+        inst.claimFreeMint(editionId, "");
+        assertEq(inst.balanceOf(user2, editionId), 1);
+    }
+
+    /// openTime == 0 means open immediately (no regression).
+    function test_erc1155_freeMint_openTimeZeroOpensImmediately() public {
+        ERC1155Instance inst = _deploy(FREE_ALLOC, GatingScope.BOTH);
+        uint256 editionId = _addEditionAt(inst, 100, 0);
+        vm.prank(user1);
+        inst.claimFreeMint(editionId, "");
+        assertEq(inst.balanceOf(user1, editionId), 1);
     }
 }

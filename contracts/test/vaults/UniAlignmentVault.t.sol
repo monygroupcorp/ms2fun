@@ -934,6 +934,58 @@ contract UniAlignmentVaultTest is Test {
         assertEq(unclaimed, 0, "Unclaimed should be 0 after full claim");
     }
 
+    /// @dev noesis-115 finding: calculateClaimableAmount must net the reward-debt watermark, matching
+    ///      getUnclaimedFees and the claimFees write path. Previously it returned lifetime-gross, so a
+    ///      benefactor who had already claimed showed an inflated "claimable" to integrators.
+    function test_CalculateClaimableAmount_NetsPastClaims_MatchesUnclaimed() public {
+        vm.prank(alice);
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
+        assertTrue(s1);
+
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        // First deposit, then a partial claim consumes the watermark.
+        vm.prank(owner);
+        vault.depositFees{ value: 5 ether }();
+
+        vm.prank(alice);
+        vault.claimFees();
+
+        // Second deposit — only this delta should be claimable, not the lifetime gross of 8 ether.
+        vm.prank(owner);
+        vault.depositFees{ value: 3 ether }();
+
+        assertEq(
+            vault.calculateClaimableAmount(alice),
+            vault.getUnclaimedFees(alice),
+            "calculateClaimableAmount must equal getUnclaimedFees (net view)"
+        );
+        assertEq(vault.calculateClaimableAmount(alice), 3 ether, "only the post-claim delta is claimable");
+    }
+
+    /// @dev After a full claim, the net claimable view must read 0 — matching the write path (which would
+    ///      revert NoFeesToClaim) — rather than the stale lifetime-gross figure.
+    function test_CalculateClaimableAmount_ZeroAfterFullClaim() public {
+        vm.prank(alice);
+        (bool s1,) = address(vault).call{ value: 10 ether }("");
+        assertTrue(s1);
+
+        vm.prank(dave);
+        vault.convertAndAddLiquidity(1);
+
+        vm.prank(owner);
+        vault.depositFees{ value: 10 ether }();
+
+        vm.prank(alice);
+        vault.claimFees();
+
+        assertEq(vault.calculateClaimableAmount(alice), 0, "net claimable is 0 after a full claim");
+        assertEq(
+            vault.calculateClaimableAmount(alice), vault.getUnclaimedFees(alice), "view parity with getUnclaimedFees"
+        );
+    }
+
     // ========== Configuration Tests ==========
 
     function test_SetAlignmentToken_OwnerCanUpdate() public {
