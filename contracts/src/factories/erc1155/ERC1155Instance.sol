@@ -154,6 +154,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     event VaultContributionFailed(address indexed vault, uint256 amount);
     event VaultContributionRetried(address indexed vault, uint256 amount);
+    /// @dev Emitted when the vault's alignment target has been revoked (`isVaultRegistered` false) and the
+    ///      19% tithe is routed to `protocolTreasury` instead of the de-curated vault. Mint still succeeds.
+    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
     event FreeMintClaimed(address indexed user, uint256 indexed editionId);
@@ -499,16 +502,29 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             SmartTransferLib.smartTransferETH(protocolTreasury, s.protocolCut, weth);
         }
 
-        // Vault cut — tracks this instance as benefactor
-        // If the vault reverts (e.g. broken upgrade), accumulate for retry rather than
-        // blocking creator proceeds permanently.
+        // Vault cut — tracks this instance as benefactor.
+        // Target-revocation gate (noesis-113): if the vault's alignment target was revoked AFTER this
+        // instance bound (a rug discovered post-hoc), `isVaultRegistered` now reads false. Route the tithe
+        // to `protocolTreasury` instead of feeding the de-curated vault — the community 19% is preserved at
+        // the safe protocol sink, not stranded and not lost. The mint/withdraw still succeeds either way
+        // (never freeze the creator for the DAO's revocation). For an active target, keep the existing
+        // try/catch + pendingVaultCut retry path (a vault revert is a transient upgrade issue, not curation).
         uint256 vaultCutSent;
         if (s.vaultCut > 0) {
-            try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) {
-                vaultCutSent = s.vaultCut;
-            } catch {
-                pendingVaultCut += s.vaultCut;
-                emit VaultContributionFailed(address(vault), s.vaultCut);
+            if (!masterRegistry.isVaultRegistered(address(vault))) {
+                SmartTransferLib.smartTransferETH(protocolTreasury, s.vaultCut, weth);
+                emit VaultCutRedirected(address(vault), protocolTreasury, s.vaultCut);
+            } else {
+                // If the vault reverts (e.g. broken upgrade), accumulate for retry rather than
+                // blocking creator proceeds permanently.
+                try vault.receiveContribution{ value: s.vaultCut }(
+                    Currency.wrap(address(0)), s.vaultCut, address(this)
+                ) {
+                    vaultCutSent = s.vaultCut;
+                } catch {
+                    pendingVaultCut += s.vaultCut;
+                    emit VaultContributionFailed(address(vault), s.vaultCut);
+                }
             }
         }
 

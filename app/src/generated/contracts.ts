@@ -4348,6 +4348,31 @@ export const erc1155InstanceAbi = [
     anonymous: false,
     inputs: [
       {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultCutRedirected',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
         name: 'creator',
         internalType: 'address',
         type: 'address',
@@ -7761,6 +7786,31 @@ export const erc721AuctionInstanceAbi = [
       },
     ],
     name: 'VaultContributionFailed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultCutRedirected',
   },
   { type: 'error', inputs: [], name: 'AccountBalanceOverflow' },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
@@ -17903,6 +17953,15 @@ export const useWatchErc1155InstanceVaultContributionRetriedEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ */
+export const useWatchErc1155InstanceVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'VaultCutRedirected',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"Withdrawn"`
  */
 export const useWatchErc1155InstanceWithdrawnEvent =
@@ -21369,6 +21428,15 @@ export const useWatchErc721AuctionInstanceVaultContributionFailedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc721AuctionInstanceAbi,
     eventName: 'VaultContributionFailed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ */
+export const useWatchErc721AuctionInstanceVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc721AuctionInstanceAbi,
+    eventName: 'VaultCutRedirected',
   })
 
 /**
