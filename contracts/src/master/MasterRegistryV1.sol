@@ -9,6 +9,8 @@ import { MetadataUtils } from "../shared/libraries/MetadataUtils.sol";
 import { IFactoryInstance } from "../interfaces/IFactoryInstance.sol";
 import { IFactory } from "../interfaces/IFactory.sol";
 import { IInstanceLifecycle } from "../interfaces/IInstanceLifecycle.sol";
+import { IAlignmentVault } from "../interfaces/IAlignmentVault.sol";
+import { RevenueSplitLib } from "../shared/libraries/RevenueSplitLib.sol";
 
 /**
  * @title MasterRegistryV1
@@ -38,6 +40,7 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     error VaultMustBeContract();
     error UnregisteredVault();
     error VaultAlreadyInArray();
+    error VaultFamilyMismatch();
     error NoVaults();
     error NoAlignmentToken();
     error NotEmergencyRevoker();
@@ -427,6 +430,17 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         uint256 genesisTargetId = vaultInfo[vaults[0]].targetId;
         if (vaultInfo[newVault].targetId != genesisTargetId) revert VaultMismatch();
 
+        // Revenue-split family choke-point (audit finding #2): the settlement split (1/80/19 for a
+        // yield/endowment collection vs 1/19/80 for a liquidity collection) is chosen by the vault's
+        // family. A cross-family migration would let a creator flip an endowment collection's split to
+        // the liquidity weights AFTER buyers paid in under the endowment promise — diverting 61% of the
+        // proceeds owed to the permanent community endowment to themselves. It also misroutes the vault
+        // tithe leg. Cross-family migration is economically nonsensical, so forbid it outright: the new
+        // vault must share the genesis vault's family.
+        if (_isVaultLiquidityFamily(newVault) != _isVaultLiquidityFamily(vaults[0])) {
+            revert VaultFamilyMismatch();
+        }
+
         for (uint256 i = 0; i < vaults.length; i++) {
             if (vaults[i] == newVault) revert VaultAlreadyInArray();
         }
@@ -451,5 +465,13 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         (bool success, bytes memory data) = vault.staticcall(abi.encodeWithSignature("alignmentToken()"));
         if (!success || data.length < 32) revert NoAlignmentToken();
         return abi.decode(data, (address));
+    }
+
+    /// @dev Resolve a vault's revenue-split family from its self-reported `vaultType()`, exactly as the
+    ///      settlement instances do (`ERC1155Instance.withdraw` / `ERC721AuctionInstance.settleAuction`).
+    ///      An unrecognized family reverts `UnknownVaultFamily` — consistent with the loud-fail policy in
+    ///      `RevenueSplitLib`; a registered vault always reports a known family in production.
+    function _isVaultLiquidityFamily(address vault) internal view returns (bool) {
+        return RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(vault)).vaultType());
     }
 }
