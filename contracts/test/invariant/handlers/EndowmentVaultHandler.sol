@@ -206,9 +206,14 @@ contract EndowmentVaultHandler is Test {
         if (corpus == 0) return;
         amount = bound(amount, 1, corpus);
         uint256 poolBefore = _yieldPoolValue();
+        uint256 sinkBefore = deploySink.balance;
         vm.prank(ambassador);
         try vault.execute(deploySink, amount, "") returns (bytes memory) {
-            sumDeployedViaExecute += amount;
+            // Count the ACTUAL ETH that left the vault (`got`), not the requested `amount`: on a
+            // liquidity-capped redeem `execute` forwards `got = amount − dust` and RETAINS the dust as still-
+            // deployable corpus (debits the basis by `got`, not `amount`). Counting `amount` would over-report
+            // principal-out by the retained-and-redeployable dust and spuriously trip `invariant_neverOverRedeem`.
+            sumDeployedViaExecute += deploySink.balance - sinkBefore;
             executeCount++;
             // A dust-tolerated partial redeem (got < value, within REDEEM_DUST) strands the un-redeemed
             // principal in the position with its basis already debited → it surfaces as realized yield.

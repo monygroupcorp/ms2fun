@@ -1255,4 +1255,129 @@ contract AlignmentEndowmentVaultTest is Test {
         vault.vest(address(benefactorContract));
         assertEq(vault.vestedPrincipal(address(benefactorContract)), 2 ether, "B vested on its own fresh clock");
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 16. noesis-118 — migrate harvest-first + impairment socialization; execute forwards `got`
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// @dev Fix 1 (yield-misdirection): `migratePosition` crystallizes the escrow class's pending Aave yield
+    ///      (split 80/19/1 into the accumulator legs) BEFORE redeeming escrow principal to `to`. The recovery
+    ///      address must receive PRINCIPAL only — the yield stays in the legs, not swept out. Pre-fix, the
+    ///      pro-rata `escrowValue` was computed off the yield-inflated position value and force-sent to `to`.
+    function test_migrate_harvestsEscrowYieldFirst_noSweepToRecovery() public {
+        _contributeBenefactor(10 ether); // escrowed only
+        _simulateYield(1 ether); // position 11, basis 10 → 1 ETH pending escrow-class yield
+
+        uint256 communityBefore = communityPayout.balance;
+        uint256 treasuryBefore = treasury.balance;
+
+        address recovery = makeAddr("recovery");
+        vm.deal(recovery, 0);
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(recovery);
+
+        // Escrow yield split 80/19/1 into the legs — NOT swept to the recovery address.
+        assertEq(vault.pendingYieldOf(address(benefactorContract)), 0.8 ether, "creator leg booked (not swept)");
+        assertEq(vault.totalYieldToCreators(), 0.8 ether);
+        assertEq(communityPayout.balance - communityBefore, 0.19 ether, "target leg 19% routed to community");
+        assertEq(treasury.balance - treasuryBefore, 0.01 ether, "protocol leg 1% routed to treasury");
+        assertEq(vault.totalYieldToTarget(), 0.19 ether);
+        assertEq(vault.totalProtocolFees(), 0.01 ether);
+
+        // recovery receives the escrow PRINCIPAL (10 ETH), NOT principal + yield (11 ETH).
+        assertApproxEqAbs(recovery.balance, 10 ether, 2, "recovery gets escrow principal only, not the yield");
+    }
+
+    /// @dev Fix 2 (stale-vested-basis): on an IMPAIRED migrate the vested tranche now backs only its
+    ///      `value·vested/basis` realizable WETH, so `deployableCorpus()` must be scaled down to match —
+    ///      otherwise a later `execute(corpus)` reverts `RedeemShortfall` and strands the residual. After the
+    ///      socialization a full-corpus `execute` settles cleanly with nothing stuck.
+    function test_migrate_impaired_socializesOntoVestedTranche_executeNoShortfall() public {
+        _contributeBenefactor(10 ether); // A → will vest
+        _contributeNewBenefactor(address(0xCAFE), 10 ether); // B → stays escrowed
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract)); // A vested (corpus 10); B escrowed (10)
+        assertEq(vault.totalVestedDeployable(), 10 ether);
+        assertEq(vault.totalEscrowedPrincipal(), 10 ether);
+
+        // 50% solvency impairment: position value 20 → 10.
+        stata.simulateLoss(10 ether);
+        vm.deal(address(weth), 100 ether); // ensure redemptions settle in ETH
+
+        address recovery = makeAddr("recovery");
+        vm.deal(recovery, 0);
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(recovery);
+
+        // Escrow pro-rata: value(10)·escrowed(10)/basis(20) = 5 ETH redeemed to recovery.
+        assertApproxEqAbs(recovery.balance, 5 ether, 2, "escrow pro-rata redeemed to recovery");
+        // Fix 2: vested tranche scaled to realizable value(10)·vested(10)/basis(20) = 5 ETH.
+        assertEq(vault.totalVestedDeployable(), 5 ether, "vested scaled to realizable on impairment");
+        assertEq(vault.deployableCorpus(), 5 ether, "corpus reflects realizable, not stale full vested");
+        assertTrue(vault.migrated(), "vault decommissioned");
+
+        // The full (scaled) corpus deploys WITHOUT RedeemShortfall, and nothing is stranded.
+        address sink = makeAddr("sink");
+        uint256 corpus = vault.deployableCorpus(); // cache: a call in the arg would consume the prank
+        vm.prank(ambassador);
+        vault.execute(sink, corpus, "");
+
+        assertApproxEqAbs(sink.balance, 5 ether, 2, "full realizable corpus deployed, no shortfall");
+        assertEq(vault.totalVestedDeployable(), 0, "corpus emptied - no residual stuck");
+        assertApproxEqAbs(vault.currentPositionValue(), 0, 2, "position fully drained, nothing stranded");
+    }
+
+    /// @dev Pre-fix guard: without the socialization the stale full corpus would revert the same execute with
+    ///      `RedeemShortfall`. This asserts the post-fix corpus (5 ETH) is exactly the realizable value and a
+    ///      request for the OLD full 10 ETH is now correctly rejected as exceeding the corpus.
+    function test_migrate_impaired_oldFullCorpusNowExceedsScaledCorpus() public {
+        _contributeBenefactor(10 ether);
+        _contributeNewBenefactor(address(0xCAFE), 10 ether);
+        vm.warp(block.timestamp + VEST);
+        vault.vest(address(benefactorContract));
+
+        stata.simulateLoss(10 ether); // 50% impairment
+        vm.deal(address(weth), 100 ether);
+
+        vm.prank(vaultOwner);
+        vault.migratePosition(makeAddr("recovery"));
+
+        // The pre-fix stale corpus (10 ETH) is no longer deployable — it now exceeds the socialized corpus.
+        vm.prank(ambassador);
+        vm.expectRevert(AlignmentEndowmentVault.ExceedsDeployableCorpus.selector);
+        vault.execute(makeAddr("sink"), 10 ether, "");
+    }
+
+    /// @dev Fix 3 (execute redeem-dust): on a dusty redeem (`got = value − dust`, within `REDEEM_DUST`)
+    ///      `execute` forwards `got`, NOT `value` — so the ~dust shortfall is never covered from the vault's
+    ///      OTHER native ETH (a creator `yieldPurse`). The un-redeemed dust stays as deployable corpus.
+    function test_execute_dustyRedeem_forwardsGot_noYieldPurseDip() public {
+        _vest(1 ether); // vested-only corpus = 1 ETH
+        assertEq(vault.deployableCorpus(), 1 ether);
+
+        // The vault holds OTHER native ETH (a creator yieldPurse / stray ETH) that execute must not dip.
+        uint256 otherEth = 5 ether;
+        vm.deal(address(vault), otherEth);
+
+        // Force a dusty redeem: maxWithdraw returns value − dust, so `_redeem(1 ETH)` yields got = 1 ETH − dust.
+        uint256 dust = 1e6; // == REDEEM_DUST — tolerated (no RedeemShortfall)
+        stata.setMaxWithdrawCap(1 ether - dust);
+
+        address sink = makeAddr("dust_sink");
+        vm.expectEmit(true, true, false, true);
+        emit CapitalDeployed(ambassador, sink, 1 ether - dust, bytes4(0), block.timestamp);
+        vm.prank(ambassador);
+        vault.execute(sink, 1 ether, "");
+
+        // `to` receives what was ACTUALLY redeemed (got), not the requested value.
+        assertEq(sink.balance, 1 ether - dust, "sink receives got, not value");
+        // The vault's other native ETH is UNTOUCHED — no dust dip from the yieldPurse.
+        assertEq(address(vault).balance, otherEth, "yieldPurse / other native ETH untouched");
+        // The un-redeemed dust stays as still-deployable vested corpus (debited by got, not value).
+        assertEq(vault.totalVestedDeployable(), dust, "dust retained as corpus (debited by got)");
+        assertEq(vault.deployableCorpus(), dust);
+        assertEq(vault.totalDeployedByTarget(), 1 ether - dust, "deploy counter tracks got");
+    }
 }
