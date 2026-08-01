@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import { Test, console2 } from "forge-std/Test.sol";
-import { HookAddressMiner } from "../fork/helpers/HookAddressMiner.sol";
+import { HookAddressMiner } from "../../src/factories/erc404/hooks/HookAddressMiner.sol";
 import { Hooks } from "v4-core/libraries/Hooks.sol";
 
 /**
