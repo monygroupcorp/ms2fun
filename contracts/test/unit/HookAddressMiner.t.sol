@@ -18,8 +18,12 @@ contract HookAddressMinerTest is Test {
     bytes32 constant MOCK_INIT_CODE_HASH = keccak256("mock init code");
 
     // Required flags for UniAlignmentV4Hook
-    uint160 constant REQUIRED_FLAGS =
-        uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG); // = 0xC4
+    // beforeSwap + afterSwap + beforeSwapReturnDelta + afterSwapReturnDelta (the ETH-input fee added in
+    // noesis-116 needs beforeSwapReturnDelta so the tithe settles on every swap shape).
+    uint160 constant REQUIRED_FLAGS = uint160(
+        Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG
+            | Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG
+    ); // = 0xCC
 
     // All hook flags
     uint160 constant ALL_HOOK_FLAGS = uint160(
@@ -39,26 +43,27 @@ contract HookAddressMinerTest is Test {
         assertEq(uint160(Hooks.BEFORE_SWAP_FLAG), 1 << 7, "BEFORE_SWAP_FLAG should be 1<<7");
         assertEq(uint160(Hooks.AFTER_SWAP_FLAG), 1 << 6, "AFTER_SWAP_FLAG should be 1<<6");
         assertEq(uint160(Hooks.AFTER_SWAP_RETURNS_DELTA_FLAG), 1 << 2, "AFTER_SWAP_RETURNS_DELTA_FLAG should be 1<<2");
+        assertEq(uint160(Hooks.BEFORE_SWAP_RETURNS_DELTA_FLAG), 1 << 3, "BEFORE_SWAP_RETURNS_DELTA_FLAG should be 1<<3");
 
         // Combined required flags
-        assertEq(REQUIRED_FLAGS, 0xC4, "Required flags should be 0xC4");
+        assertEq(REQUIRED_FLAGS, 0xCC, "Required flags should be 0xCC");
 
         // All flags should cover bits 0-13
         assertEq(ALL_HOOK_FLAGS, 0x3FFF, "All flags should be 0x3FFF");
 
         // Forbidden flags
-        assertEq(FORBIDDEN_FLAGS, 0x3F3B, "Forbidden flags should be 0x3F3B");
+        assertEq(FORBIDDEN_FLAGS, 0x3F33, "Forbidden flags should be 0x3F33");
     }
 
     // ========== Address Validation Tests ==========
 
     function test_hasExactFlags_validAddress() public pure {
-        // An address ending in 0xC4 has exactly the right flags
-        address validAddr = address(uint160(0x12345678901234567890123456789012345600C4));
+        // An address ending in 0xCC has exactly the right flags
+        address validAddr = address(uint160(0x12345678901234567890123456789012345600CC));
 
         assertTrue(
             HookAddressMiner.hasExactFlags(validAddr, REQUIRED_FLAGS, FORBIDDEN_FLAGS),
-            "Address ending in 0xC4 should be valid"
+            "Address ending in 0xCC should be valid"
         );
     }
 
@@ -94,12 +99,12 @@ contract HookAddressMinerTest is Test {
     }
 
     function test_isValidUniAlignmentHookAddress_valid() public pure {
-        // Test addresses that end in exactly 0xC4 (bits 0-13 = 0x00C4)
-        // Generate addresses with various upper bits but last 14 bits exactly 0xC4
+        // Test addresses that end in exactly 0xCC (bits 0-13 = 0x00CC)
+        // Generate addresses with various upper bits but last 14 bits exactly 0xCC
         address[] memory validAddrs = new address[](3);
 
-        // Clear last 14 bits and set to exactly 0xC4
-        validAddrs[0] = address(uint160(0xC4)); // Simple case
+        // Clear last 14 bits and set to exactly 0xCC
+        validAddrs[0] = address(uint160(0xCC)); // Simple case
         validAddrs[1] = address(uint160((uint256(keccak256("test1")) & ~uint256(ALL_HOOK_FLAGS)) | REQUIRED_FLAGS));
         validAddrs[2] = address(uint160((uint256(keccak256("test2")) & ~uint256(ALL_HOOK_FLAGS)) | REQUIRED_FLAGS));
 
@@ -114,7 +119,7 @@ contract HookAddressMinerTest is Test {
         invalidAddrs[0] = address(uint160(0x0000)); // No flags
         invalidAddrs[1] = address(uint160(0x0044)); // Only afterSwap + afterSwapReturnDelta (missing beforeSwap)
         invalidAddrs[2] = address(uint160(0x0004)); // Only afterSwapReturnDelta
-        invalidAddrs[3] = address(uint160(0x01C4)); // Extra beforeDonate flag + required flags
+        invalidAddrs[3] = address(uint160(0x01CC)); // Required flags (0xCC) + an extra forbidden flag
         invalidAddrs[4] = address(uint160(0x3FFF)); // All flags set
 
         for (uint256 i = 0; i < invalidAddrs.length; i++) {
