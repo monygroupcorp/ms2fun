@@ -9457,6 +9457,13 @@ export const liquidityDeployerModuleAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'alignmentHookFactory',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'cancelOwnershipHandover',
     outputs: [],
     stateMutability: 'payable',
@@ -9503,6 +9510,20 @@ export const liquidityDeployerModuleAbi = [
     name: 'flushPendingVaultCut',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'hookFeeBips',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'lpFeeRate',
+    outputs: [{ name: '', internalType: 'uint24', type: 'uint24' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -9569,6 +9590,27 @@ export const liquidityDeployerModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'factory', internalType: 'address', type: 'address' }],
+    name: 'setAlignmentHookFactory',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'bips', internalType: 'uint256', type: 'uint256' }],
+    name: 'setHookFeeBips',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'rate', internalType: 'uint24', type: 'uint24' }],
+    name: 'setLpFeeRate',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
     name: 'setMetadataURI',
     outputs: [],
@@ -9610,6 +9652,19 @@ export const liquidityDeployerModuleAbi = [
     name: 'weth',
     outputs: [{ name: '', internalType: 'address', type: 'address' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'factory',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'AlignmentHookFactoryUpdated',
   },
   {
     type: 'event',
@@ -9684,6 +9739,19 @@ export const liquidityDeployerModuleAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      {
+        name: 'hookFeeBips',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'HookFeeBipsUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       { name: 'pool', internalType: 'address', type: 'address', indexed: true },
       {
         name: 'amountToken',
@@ -9699,6 +9767,19 @@ export const liquidityDeployerModuleAbi = [
       },
     ],
     name: 'LiquidityDeployed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'lpFeeRate',
+        internalType: 'uint24',
+        type: 'uint24',
+        indexed: false,
+      },
+    ],
+    name: 'LpFeeRateUpdated',
   },
   {
     type: 'event',
@@ -9810,6 +9891,8 @@ export const liquidityDeployerModuleAbi = [
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
+  { type: 'error', inputs: [], name: 'HookFeeTooHigh' },
+  { type: 'error', inputs: [], name: 'LpFeeRateTooHigh' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
   { type: 'error', inputs: [], name: 'NoETHForPool' },
   { type: 'error', inputs: [], name: 'NoHandoverRequest' },
@@ -23218,6 +23301,33 @@ export const useReadLiquidityDeployerModuleMaxInitPriceDeviationBps =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"alignmentHookFactory"`
+ */
+export const useReadLiquidityDeployerModuleAlignmentHookFactory =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'alignmentHookFactory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"hookFeeBips"`
+ */
+export const useReadLiquidityDeployerModuleHookFeeBips =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'hookFeeBips',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"lpFeeRate"`
+ */
+export const useReadLiquidityDeployerModuleLpFeeRate =
+  /*#__PURE__*/ createUseReadContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'lpFeeRate',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"masterRegistry"`
  */
 export const useReadLiquidityDeployerModuleMasterRegistry =
@@ -23359,6 +23469,33 @@ export const useWriteLiquidityDeployerModuleRequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setAlignmentHookFactory"`
+ */
+export const useWriteLiquidityDeployerModuleSetAlignmentHookFactory =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setAlignmentHookFactory',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setHookFeeBips"`
+ */
+export const useWriteLiquidityDeployerModuleSetHookFeeBips =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setHookFeeBips',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setLpFeeRate"`
+ */
+export const useWriteLiquidityDeployerModuleSetLpFeeRate =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setLpFeeRate',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
  */
 export const useWriteLiquidityDeployerModuleSetMetadataUri =
@@ -23446,6 +23583,33 @@ export const useSimulateLiquidityDeployerModuleRequestOwnershipHandover =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setAlignmentHookFactory"`
+ */
+export const useSimulateLiquidityDeployerModuleSetAlignmentHookFactory =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setAlignmentHookFactory',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setHookFeeBips"`
+ */
+export const useSimulateLiquidityDeployerModuleSetHookFeeBips =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setHookFeeBips',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setLpFeeRate"`
+ */
+export const useSimulateLiquidityDeployerModuleSetLpFeeRate =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: liquidityDeployerModuleAbi,
+    functionName: 'setLpFeeRate',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `functionName` set to `"setMetadataURI"`
  */
 export const useSimulateLiquidityDeployerModuleSetMetadataUri =
@@ -23479,6 +23643,15 @@ export const useWatchLiquidityDeployerModuleEvent =
   /*#__PURE__*/ createUseWatchContractEvent({ abi: liquidityDeployerModuleAbi })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"AlignmentHookFactoryUpdated"`
+ */
+export const useWatchLiquidityDeployerModuleAlignmentHookFactoryUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'AlignmentHookFactoryUpdated',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"CreatorCarvePaid"`
  */
 export const useWatchLiquidityDeployerModuleCreatorCarvePaidEvent =
@@ -23506,12 +23679,30 @@ export const useWatchLiquidityDeployerModuleGraduationVaultContributionEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"HookFeeBipsUpdated"`
+ */
+export const useWatchLiquidityDeployerModuleHookFeeBipsUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'HookFeeBipsUpdated',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"LiquidityDeployed"`
  */
 export const useWatchLiquidityDeployerModuleLiquidityDeployedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: liquidityDeployerModuleAbi,
     eventName: 'LiquidityDeployed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"LpFeeRateUpdated"`
+ */
+export const useWatchLiquidityDeployerModuleLpFeeRateUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'LpFeeRateUpdated',
   })
 
 /**

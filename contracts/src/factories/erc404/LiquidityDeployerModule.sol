@@ -19,6 +19,8 @@ import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
+import { IAlignmentHookFactory } from "./hooks/IAlignmentHookFactory.sol";
+import { LPFeeLibrary } from "v4-core/libraries/LPFeeLibrary.sol";
 
 /**
  * @title LiquidityDeployerModule
@@ -69,6 +71,39 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     IMasterRegistry public immutable masterRegistry;
 
     string private _metadataURI;
+
+    // ── Alignment-hook TYPE selection (117b) ─────────────────────────────────
+    /// @notice The alignment-hook TYPE factory selected for graduation pools. `address(0)` (the default)
+    ///         means NO hook: graduation uses the static `poolFee` with `hooks: address(0)` — byte-identical
+    ///         to the pre-117b untaxed pool. When set to a factory (a deliberate governed op, NOT set at
+    ///         deploy), each graduation calls `deployHook` on it to mint that pool's alignment hook and the
+    ///         `PoolKey` switches to a DYNAMIC-fee pool so the hook's `beforeSwap` LP-fee override is honored.
+    /// @dev GLOBAL selection — one factory for every graduation on this venue (117 spike; rth: default OFF,
+    ///      global selection). Enabling the tithe = owner calls `setAlignmentHookFactory` with a factory
+    ///      registered under `FeatureUtils.ALIGNMENT_HOOK`.
+    address public alignmentHookFactory;
+
+    /// @notice Hook fee in basis points forwarded to `deployHook` when a hook is wired — the immutable
+    ///         ETH-side tithe baked into each graduation hook. Owner-set; inert while `alignmentHookFactory`
+    ///         is `address(0)`. The production value is a HUMAN_GATE seeded from `NetworkConfig` at deploy.
+    uint256 public hookFeeBips;
+
+    /// @notice Initial dynamic LP-fee rate forwarded to `deployHook` when a hook is wired (the hook then
+    ///         overrides the pool's LP fee with this via `beforeSwap`). Owner-set; inert while
+    ///         `alignmentHookFactory` is `address(0)`.
+    uint24 public lpFeeRate;
+
+    /// @dev hookFeeBips exceeds 100% (mirrors UniAlignmentV4Hook's own ctor guard).
+    error HookFeeTooHigh();
+    /// @dev lpFeeRate exceeds LPFeeLibrary.MAX_LP_FEE (the v4 dynamic-fee ceiling).
+    error LpFeeRateTooHigh();
+
+    /// @notice The alignment-hook TYPE factory selected for graduation pools changed (address(0) = OFF).
+    event AlignmentHookFactoryUpdated(address indexed factory);
+    /// @notice The hook fee (bips) forwarded to newly-deployed graduation hooks changed.
+    event HookFeeBipsUpdated(uint256 hookFeeBips);
+    /// @notice The initial dynamic LP-fee rate forwarded to newly-deployed graduation hooks changed.
+    event LpFeeRateUpdated(uint24 lpFeeRate);
 
     // slither-disable-next-line missing-zero-check
     constructor(address _v4PoolManager, address _weth, uint24 _poolFee, int24 _tickSpacing, address _masterRegistry) {
@@ -174,13 +209,24 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
         setup.tickLower = TickMath.minUsableTick(tickSpacing);
         setup.tickUpper = TickMath.maxUsableTick(tickSpacing);
 
-        setup.poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: poolFee,
-            tickSpacing: tickSpacing,
-            hooks: IHooks(address(0))
-        });
+        // Alignment-hook TYPE selection (117b). DEFAULT (`alignmentHookFactory == address(0)`): NO hook and
+        // the static `poolFee` — byte-identical to the pre-117b untaxed graduation pool. When a factory IS
+        // set: deploy this graduation's alignment hook and switch the pool to a DYNAMIC fee, because the
+        // hook's `beforeSwap` returns `lpFeeRate | OVERRIDE_FEE_FLAG`, which v4 only honors on a dynamic-fee
+        // pool (`LPFeeLibrary`). A static-fee pool would silently ignore the override. The hook carries only
+        // 0xCC swap-side permission bits (no liquidity hooks), so the `modifyLiquidity` add below is
+        // unaffected.
+        IHooks hooks = IHooks(address(0));
+        uint24 fee = poolFee;
+        if (alignmentHookFactory != address(0)) {
+            address hookAddr = IAlignmentHookFactory(alignmentHookFactory)
+                .deployHook(IAlignmentVault(payable(p.vault)), p.instance, hookFeeBips, lpFeeRate);
+            hooks = IHooks(hookAddr);
+            fee = LPFeeLibrary.DYNAMIC_FEE_FLAG;
+        }
+
+        setup.poolKey =
+            PoolKey({ currency0: currency0, currency1: currency1, fee: fee, tickSpacing: tickSpacing, hooks: hooks });
 
         // No WETH wrap/approve: the module holds native ETH (from msg.value) and settles the ETH leg
         // natively (CurrencySettler routes isAddressZero() → manager.settle{value: amount}()).
@@ -386,5 +432,33 @@ contract LiquidityDeployerModule is IUnlockCallback, ILiquidityDeployerModule, O
     function setMetadataURI(string calldata uri) external override onlyOwner {
         _metadataURI = uri;
         emit MetadataURIUpdated(uri);
+    }
+
+    // ── Alignment-hook TYPE selection setters (owner-only) ───────────────────
+
+    /// @notice Select the alignment-hook TYPE factory used at graduation. `address(0)` = OFF (the default:
+    ///         an untaxed static-fee pool). Setting a non-zero factory turns every SUBSEQUENT graduation
+    ///         into a dynamic-fee pool carrying that type's freshly-deployed hook — a deliberate governed op
+    ///         (enabling the perpetual swap tithe), never done at deploy.
+    /// @param factory A factory registered under `FeatureUtils.ALIGNMENT_HOOK`, or `address(0)` to disable.
+    function setAlignmentHookFactory(address factory) external onlyOwner {
+        alignmentHookFactory = factory;
+        emit AlignmentHookFactoryUpdated(factory);
+    }
+
+    /// @notice Set the hook fee (bips) forwarded to newly-deployed graduation hooks. Does not affect hooks
+    ///         already deployed (each hook's fee is immutable at deploy). Max 10000 (100%).
+    function setHookFeeBips(uint256 bips) external onlyOwner {
+        if (bips > 10_000) revert HookFeeTooHigh();
+        hookFeeBips = bips;
+        emit HookFeeBipsUpdated(bips);
+    }
+
+    /// @notice Set the initial dynamic LP-fee rate forwarded to newly-deployed graduation hooks. Bounded by
+    ///         the v4 dynamic-fee ceiling `LPFeeLibrary.MAX_LP_FEE`.
+    function setLpFeeRate(uint24 rate) external onlyOwner {
+        if (rate > LPFeeLibrary.MAX_LP_FEE) revert LpFeeRateTooHigh();
+        lpFeeRate = rate;
+        emit LpFeeRateUpdated(rate);
     }
 }
