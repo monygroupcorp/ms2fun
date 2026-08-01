@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { IERC20 } from "../../shared/interfaces/IERC20.sol";
 import { IAlgebraFactory, IAlgebraPool, IAlgebraNFTPositionManager } from "../../interfaces/algebra/IAlgebra.sol";
 import { CypherAlignmentVault } from "../../vaults/cypher/CypherAlignmentVault.sol";
@@ -138,7 +139,14 @@ contract CypherLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         bool tokenIsZero = p.token < weth;
         uint256 amount0 = tokenIsZero ? p.tokenReserve : r.ethToLP;
         uint256 amount1 = tokenIsZero ? r.ethToLP : p.tokenReserve;
-        uint160 sqrtPriceX96 = uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0)));
+        // Clamp the derived sqrtPrice to the valid tick range (mirrors the Uni LiquidityDeployerModule).
+        // An extreme reserve ratio can push the raw sqrt above uint160.max (wrapping on the cast) or below
+        // MIN_SQRT_PRICE, which would corrupt the pool init price; cap then clamp to [MIN+1, MAX-1].
+        uint256 sqrtRaw = FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0));
+        if (sqrtRaw > type(uint160).max) sqrtRaw = type(uint160).max;
+        uint160 sqrtPriceX96 = uint160(sqrtRaw);
+        if (sqrtPriceX96 < TickMath.MIN_SQRT_PRICE + 1) sqrtPriceX96 = TickMath.MIN_SQRT_PRICE + 1;
+        if (sqrtPriceX96 > TickMath.MAX_SQRT_PRICE - 1) sqrtPriceX96 = TickMath.MAX_SQRT_PRICE - 1;
 
         // ── Wrap ETH to WETH for LP ──
         IWETH(weth).deposit{ value: r.ethToLP }();

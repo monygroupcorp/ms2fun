@@ -43,6 +43,8 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── Errors ────────────────────────────────────────────────────────────
     error VaultAlreadyInitialized();
     error ETHOnly();
+    /// @dev receiveContribution: the declared `amount` does not match the ETH actually sent.
+    error AmountMismatch();
     error NoPosition();
     error ZeroContributions();
     error NoPendingETH();
@@ -195,8 +197,16 @@ contract CypherAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     ///      without crediting them as contributions (contributions arrive only via receiveContribution).
     receive() external payable { }
 
-    function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable override {
+    function receiveContribution(Currency currency, uint256 amount, address benefactor)
+        external
+        payable
+        override
+        nonReentrant
+    {
         if (Currency.unwrap(currency) != address(0)) revert ETHOnly();
+        // Defense-in-depth (Uni parity): enforce the declared amount equals the ETH sent so no caller
+        // can under/over-declare its contribution vs the value transferred.
+        if (msg.value != amount) revert AmountMismatch();
         if (benefactor == address(0) || msg.value == 0) return;
         // Credit MasterChef fee weight AND accumulate spendable pending ETH so the tithe is convertible
         // into the alignment LP (the corrected D1 invariant: no tithe ETH is left unspendable).
