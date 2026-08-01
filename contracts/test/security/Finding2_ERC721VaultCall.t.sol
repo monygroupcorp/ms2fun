@@ -13,6 +13,12 @@ contract MockMRStub2 {
     function isAgent(address) external pure returns (bool) {
         return false;
     }
+
+    // noesis-113: settle now reads `isVaultRegistered(vault)` before the tithe. This test exercises the
+    // vault-revert (broken-vault) path on an ACTIVE target, so the registry answers true — unchanged path.
+    function isVaultRegistered(address) external pure returns (bool) {
+        return true;
+    }
     function migrateVault(address, address) external { }
 
     function getInstanceVaults(address) external pure returns (address[] memory) {
