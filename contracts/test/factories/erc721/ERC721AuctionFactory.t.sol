@@ -368,6 +368,53 @@ contract ERC721AuctionFactoryTest is Test {
         assertTrue(auction.settled);
     }
 
+    /// noesis-113 Part 2: if the vault's alignment target is revoked AFTER the instance bound it, the 19%
+    /// tithe at auction settle must be redirected to `protocolTreasury` (not fed to the de-curated vault,
+    /// not stranded), `VaultCutRedirected` emitted, and the auction must still SETTLE (line liveness and the
+    /// winner's token are never held hostage to the DAO's revocation).
+    function test_SettleAuction_RevokedTarget_RedirectsVaultCutToTreasury() public {
+        ERC721AuctionInstance inst = _createDefaultInstance();
+
+        vm.prank(artist);
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+
+        vm.deal(bidder1, 1 ether);
+        vm.prank(bidder1);
+        inst.createBid{ value: 1 ether }(1, bytes(""));
+
+        ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
+        vm.warp(auction.endTime);
+
+        // DAO revokes the vault's alignment target AFTER the instance already bound it.
+        mockRegistry.setVaultRegistered(address(vault), false);
+        assertFalse(mockRegistry.isVaultRegistered(address(vault)), "precondition: vault now unregistered");
+
+        uint256 vaultBalBefore = address(vault).balance;
+        uint256 treasuryBalBefore = treasury.balance;
+
+        uint256 protocolCut = 1 ether / 100; // 1%
+        uint256 expectedVaultCut = (1 ether * 19) / 100; // 19% — redirected
+
+        vm.expectEmit(true, true, false, true, address(inst));
+        emit ERC721AuctionInstance.VaultCutRedirected(address(vault), treasury, expectedVaultCut);
+
+        inst.settleAuction(1); // must NOT revert — line not frozen
+
+        // Winner still got the token; auction settled.
+        assertEq(inst.ownerOf(1), bidder1);
+        auction = inst.getAuction(1);
+        assertTrue(auction.settled, "auction settled despite revocation");
+
+        // Vault got nothing; treasury absorbed both the protocol cut and the redirected tithe.
+        assertEq(address(vault).balance - vaultBalBefore, 0, "revoked vault must receive nothing");
+        assertEq(
+            treasury.balance - treasuryBalBefore,
+            protocolCut + expectedVaultCut,
+            "treasury got protocol + redirected tithe"
+        );
+        assertEq(inst.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
+    }
+
     function test_SettleAuction_BeforeEnd() public {
         ERC721AuctionInstance inst = _createDefaultInstance();
 

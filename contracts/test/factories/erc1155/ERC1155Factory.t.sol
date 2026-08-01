@@ -544,6 +544,61 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         assertEq(creator.balance - creatorBefore, expectedCreator, "creator cut should be ~80%");
     }
 
+    /// noesis-113 Part 2: an already-created instance whose alignment target is revoked AFTER bind must
+    /// NOT feed the 19% tithe to the de-curated vault at settle. It is redirected to `protocolTreasury`
+    /// (preserved at the safe sink, not stranded), `VaultCutRedirected` is emitted, and — critically —
+    /// the withdraw still SUCCEEDS (the creator is never frozen for the DAO's revocation).
+    function test_Withdraw_RevokedTarget_RedirectsVaultCutToTreasury() public {
+        address treasury = address(0xF00D);
+        vm.prank(owner);
+        factory.setProtocolTreasury(treasury);
+
+        vm.deal(creator, 1 ether);
+        vm.deal(minter1, 10 ether);
+
+        vm.startPrank(creator);
+        address instance =
+            factory.createInstance{ value: 0 }(_nextSalt(), _params("Revoked Collection", creator, address(vault)));
+        ERC1155Instance(payable(instance)).setAgentDelegation(true);
+        ERC1155Instance(payable(instance))
+            .addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        vm.stopPrank();
+
+        vm.startPrank(minter1);
+        ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
+        instanceContract.mint{ value: 1 ether }(1, 1, bytes(""), bytes(""), 0);
+        vm.stopPrank();
+
+        // DAO revokes the vault's alignment target AFTER the instance already bound it.
+        mockRegistry.setVaultRegistered(address(vault), false);
+        assertFalse(mockRegistry.isVaultRegistered(address(vault)), "precondition: vault now unregistered");
+
+        uint256 treasuryBefore = treasury.balance;
+        uint256 vaultBefore = address(vault).balance;
+        uint256 creatorBefore = creator.balance;
+
+        uint256 amount = 1 ether;
+        uint256 expectedProtocol = amount / 100; // 1%
+        uint256 expectedVault = (amount * 19) / 100; // 19% — redirected, not sent to vault
+        uint256 expectedCreator = amount - expectedProtocol - expectedVault; // 80%
+
+        vm.expectEmit(true, true, false, true, address(instanceContract));
+        emit ERC1155Instance.VaultCutRedirected(address(vault), treasury, expectedVault);
+
+        vm.prank(creator);
+        instanceContract.withdraw(amount); // must NOT revert — creator not frozen
+
+        // Vault got nothing; treasury absorbed BOTH the protocol cut and the redirected tithe.
+        assertEq(address(vault).balance - vaultBefore, 0, "revoked vault must receive nothing");
+        assertEq(
+            treasury.balance - treasuryBefore,
+            expectedProtocol + expectedVault,
+            "treasury got protocol + redirected tithe"
+        );
+        assertEq(creator.balance - creatorBefore, expectedCreator, "creator still gets 80%");
+        assertEq(instanceContract.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
+    }
+
     function test_GetMessagesBatch() public {
         vm.deal(creator, 1 ether);
         vm.deal(minter1, 10 ether);

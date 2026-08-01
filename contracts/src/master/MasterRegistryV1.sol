@@ -239,8 +239,11 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
         // Vault-registry gate (choke-point): the alignment tithe must only ever route to a vault the
         // registry has registered + alignment-validated. A code.length check alone lets a creator bind
         // an instance to any contract exposing the vault surface and redirect the tithe off-curation.
-        // Mirrors the migrateVault predicate (registeredVaults && active) so no factory can repeat the hole.
-        if (!registeredVaults[vault] || !vaultInfo[vault].active) revert UnregisteredVault();
+        // Gates on the FULL tri-composite (registered && active && target-active) via the shared
+        // `_vaultRegistered` predicate — the raw two-flag subset let a NEW ERC1155/721 collection bind a
+        // de-curated (revoked-target) vault, since `:243` is the sole vault-legitimacy gate for those
+        // families (MRV1-01). `_vaultRegistered` is the same predicate `isVaultRegistered` exposes.
+        if (!_vaultRegistered(vault)) revert UnregisteredVault();
 
         address instanceTreasury = IFactoryInstance(instance).protocolTreasury();
         if (instanceTreasury == address(0)) revert InstanceHasNoTreasury();
@@ -389,6 +392,16 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     ///      of a revoked target at once, with no extra write surface.
     // slither-disable-next-line timestamp
     function isVaultRegistered(address vault) external view override returns (bool) {
+        return _vaultRegistered(vault);
+    }
+
+    /// @dev The tri-composite vault-legitimacy predicate: registered, flag-active, AND its
+    ///      alignment target still active. The single source of truth for every vault gate —
+    ///      the external `isVaultRegistered` read AND the internal write-path gates
+    ///      (`registerInstance`, `migrateVault`) all route through here so no path can drift to
+    ///      the raw two-flag subset and re-open the revoked-target hole (MRV1-01).
+    // slither-disable-next-line timestamp
+    function _vaultRegistered(address vault) internal view returns (bool) {
         return registeredVaults[vault] && vaultInfo[vault].active
             && alignmentRegistry.isAlignmentTargetActive(vaultInfo[vault].targetId);
     }
@@ -405,7 +418,10 @@ contract MasterRegistryV1 is SafeOwnableUUPS, IMasterRegistry {
     function migrateVault(address instance, address newVault) external override {
         if (msg.sender != instance) revert Unauthorized();
         if (instanceInfo[instance].instance == address(0)) revert NotRegistered();
-        if (!registeredVaults[newVault] || !vaultInfo[newVault].active) revert FactoryNotActive();
+        // Full tri-composite gate (MRV1-02): mirror the `registerInstance` predicate so the migrate
+        // write-path cannot bind a revoked-target vault either. Inconsequential today (the genesis-targetId
+        // match below already pins the target), but kept consistent so no path repeats the raw-subset hole.
+        if (!_vaultRegistered(newVault)) revert FactoryNotActive();
 
         address[] storage vaults = instanceInfo[instance].vaults;
         uint256 genesisTargetId = vaultInfo[vaults[0]].targetId;

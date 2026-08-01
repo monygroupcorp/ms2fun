@@ -115,6 +115,9 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     event UnsoldReclaimed(uint24 indexed tokenId, uint256 creatorRefund, uint256 protocolCut);
     event AgentDelegationChanged(bool enabled);
     event VaultContributionFailed(address indexed vault, uint256 amount);
+    /// @dev Emitted when the vault's alignment target has been revoked (`isVaultRegistered` false) and the
+    ///      19% tithe is routed to `protocolTreasury` instead of the de-curated vault. Settle still succeeds.
+    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
     event ContractURIUpdated();
 
     // ┌─────────────────────────┐
@@ -353,10 +356,21 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
             SafeTransferLib.forceSafeTransferETH(protocolTreasury, s.protocolCut);
         }
 
-        try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) { }
-        catch {
-            pendingVaultCut += s.vaultCut;
-            emit VaultContributionFailed(address(vault), s.vaultCut);
+        // Target-revocation gate (noesis-113): if the vault's alignment target was revoked AFTER this
+        // instance bound, `isVaultRegistered` reads false — route the 19% tithe to `protocolTreasury`
+        // (force-transfer, matching the protocolCut egress above) instead of feeding the de-curated vault.
+        // The community cut is preserved at the safe protocol sink, not stranded; the auction settle still
+        // succeeds either way (never freeze the line for the DAO's revocation). For an active target, keep
+        // the existing try/catch + pendingVaultCut retry (a vault revert is a transient upgrade issue).
+        if (s.vaultCut > 0 && !masterRegistry.isVaultRegistered(address(vault))) {
+            SafeTransferLib.forceSafeTransferETH(protocolTreasury, s.vaultCut);
+            emit VaultCutRedirected(address(vault), protocolTreasury, s.vaultCut);
+        } else {
+            try vault.receiveContribution{ value: s.vaultCut }(Currency.wrap(address(0)), s.vaultCut, address(this)) { }
+            catch {
+                pendingVaultCut += s.vaultCut;
+                emit VaultContributionFailed(address(vault), s.vaultCut);
+            }
         }
         SmartTransferLib.smartTransferETH(owner(), s.remainder, weth);
 
