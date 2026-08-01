@@ -11,6 +11,7 @@ library FeatureUtils {
     bytes32 public constant LIQUIDITY_DEPLOYER = keccak256("liquidity");
     bytes32 public constant DYNAMIC_PRICING = keccak256("dynamic_pricing");
     bytes32 public constant STAKING = keccak256("staking");
+    bytes32 public constant ALIGNMENT_HOOK = keccak256("alignment_hook");
 
     // Metadata-resolution component tags (ADR-0006 / ADR-0007)
     bytes32 public constant RESOLVER = keccak256("resolver");
