@@ -20,9 +20,20 @@ contract MockFactory {
 
 contract MockVaultSimple {
     address public alignmentToken;
+    // Default to a yield-family (endowment) vaultType so same-family migrations pass the
+    // MasterRegistryV1 cross-family choke-point; tests flip this to drive the mismatch branch.
+    string private _vaultType = "AaveEndowment";
 
     constructor(address _token) {
         alignmentToken = _token;
+    }
+
+    function vaultType() external view returns (string memory) {
+        return _vaultType;
+    }
+
+    function setVaultType(string calldata vt) external {
+        _vaultType = vt;
     }
 }
 
@@ -345,6 +356,48 @@ contract MasterRegistryReworkTest is Test {
         vm.prank(instance);
         vm.expectRevert(MasterRegistryV1.FactoryNotActive.selector);
         registry.migrateVault(instance, vault2);
+    }
+
+    // ── Cross-family migration choke-point (audit finding #2) ─────────────────
+
+    /// @notice A same-target vault of a DIFFERENT revenue-split family is rejected: this is the
+    ///         choke-point that stops a creator from flipping an endowment collection's 1/80/19 split
+    ///         to the liquidity 1/19/80 after buyers paid in under the endowment promise.
+    function test_MigrateVault_RevertIfCrossFamily() public {
+        (uint256 targetId, address vault1) = _setupTargetAndVault(dummyToken);
+        // Genesis vault1 is yield-family (AaveEndowment, the MockVaultSimple default).
+        address factory = _registerFactory();
+        address instance = _registerInstance(factory, vault1);
+
+        // Register a same-target vault but flip it to the liquidity family.
+        MockVaultSimple lpVault = new MockVaultSimple(dummyToken);
+        lpVault.setVaultType("UniswapV4LP");
+        vm.prank(daoOwner);
+        registry.registerVault(address(lpVault), alice, "LP Vault", "ipfs://lp", targetId);
+
+        vm.prank(instance);
+        vm.expectRevert(MasterRegistryV1.VaultFamilyMismatch.selector);
+        registry.migrateVault(instance, address(lpVault));
+    }
+
+    /// @notice Same-family migration (endowment → another endowment of the same target) still succeeds —
+    ///         the choke-point must not over-block legitimate vault upgrades.
+    function test_MigrateVault_SameFamilySucceeds() public {
+        (uint256 targetId, address vault1) = _setupTargetAndVault(dummyToken);
+        address factory = _registerFactory();
+        address instance = _registerInstance(factory, vault1);
+
+        MockVaultSimple vault2 = new MockVaultSimple(dummyToken);
+        vault2.setVaultType("AaveEndowment"); // same yield family as genesis
+        vm.prank(daoOwner);
+        registry.registerVault(address(vault2), alice, "Vault Two", "ipfs://v2", targetId);
+
+        vm.prank(instance);
+        registry.migrateVault(instance, address(vault2));
+
+        address[] memory vaults = registry.getInstanceVaults(instance);
+        assertEq(vaults.length, 2);
+        assertEq(vaults[1], address(vault2));
     }
 
     // ── ComponentRegistry wiring ──────────────────────────────────────────────

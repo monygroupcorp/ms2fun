@@ -101,6 +101,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // slither-disable-next-line immutable-states
     address public factory;
     IAlignmentVault public vault;
+    /// @notice The genesis vault (the one bound at construction — what buyers pay in against). Pinned
+    ///         immutably so the revenue-split family used at settlement can never diverge from what
+    ///         buyers paid into, even if `vault` is later migrated (audit finding #2, defense-in-depth).
+    address public immutable genesisVault;
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
     IGlobalMessageRegistry public immutable globalMessageRegistry;
@@ -191,6 +195,7 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         creator = _creator;
         factory = _factory;
         vault = IAlignmentVault(payable(_vault));
+        genesisVault = _vault;
         masterRegistry = IMasterRegistry(_init.masterRegistry);
         globalMessageRegistry = IGlobalMessageRegistry(_init.globalMessageRegistry);
         protocolTreasury = _init.protocolTreasury;
@@ -492,7 +497,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         // Family-aware mint split (ADR-0003): liquidity-family → 1% protocol / 19% vault / 80%
         // creator; yield-family (endowment) → 1% protocol / 80% vault / 19% creator. Unknown
         // vaultType reverts (UnknownVaultFamily).
-        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(vault.vaultType());
+        // The family is read from the PINNED genesis vault, never the live `vault` (audit finding #2):
+        // a migration swaps `vault`, but the split must stay keyed to what buyers paid in against, so a
+        // vault change can never flip an endowment collection's 1/80/19 to 1/19/80.
+        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(amount, liquidityFamily);
 
         // Protocol cut to treasury. Use smartTransferETH (WETH fallback) so a reverting/non-receiving

@@ -66,6 +66,10 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     // └─────────────────────────┘
 
     IAlignmentVault public vault;
+    /// @notice The genesis vault (bound at construction — what buyers pay in against). Pinned immutably
+    ///         so the revenue-split family used at settlement can never diverge from what buyers paid
+    ///         into, even if `vault` is later migrated (audit finding #2, defense-in-depth).
+    address public immutable genesisVault;
     // slither-disable-next-line immutable-states
     IMasterRegistry public masterRegistry;
     address public immutable protocolTreasury;
@@ -155,6 +159,7 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
 
         _initializeOwner(p.owner);
         vault = IAlignmentVault(payable(p.vault));
+        genesisVault = p.vault;
         masterRegistry = IMasterRegistry(p.masterRegistry);
         protocolTreasury = p.protocolTreasury;
         _name = p.name;
@@ -348,7 +353,10 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         // Split winning bid by the collection's vault family (ADR-0003, family-aware):
         // liquidity-family → 1% protocol / 19% vault / 80% creator; yield-family (endowment) →
         // 1% protocol / 80% vault / 19% creator. Unknown vaultType reverts (UnknownVaultFamily).
-        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(vault.vaultType());
+        // The family is read from the PINNED genesis vault, never the live `vault` (audit finding #2):
+        // a migration swaps `vault`, but the split must stay keyed to what buyers paid in against, so a
+        // vault change can never flip an endowment collection's 1/80/19 to 1/19/80.
+        bool liquidityFamily = RevenueSplitLib.isLiquidityFamily(IAlignmentVault(payable(genesisVault)).vaultType());
         RevenueSplitLib.Split memory s = RevenueSplitLib.splitMintFor(auction.highBid, liquidityFamily);
 
         if (s.protocolCut > 0 && protocolTreasury != address(0)) {

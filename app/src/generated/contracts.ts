@@ -3749,6 +3749,13 @@ export const erc1155InstanceAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'genesisVault',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'getAllEditionIds',
     outputs: [
       { name: 'editionIds', internalType: 'uint256[]', type: 'uint256[]' },
@@ -7182,6 +7189,13 @@ export const erc721AuctionInstanceAbi = [
     name: 'flushPendingVaultCut',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'genesisVault',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -10645,10 +10659,16 @@ export const masterRegistryV1Abi = [
   { type: 'error', inputs: [], name: 'TokenNotInTarget' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
   { type: 'error', inputs: [], name: 'UnauthorizedCallContext' },
+  {
+    type: 'error',
+    inputs: [{ name: 'vaultType', internalType: 'string', type: 'string' }],
+    name: 'UnknownVaultFamily',
+  },
   { type: 'error', inputs: [], name: 'UnregisteredVault' },
   { type: 'error', inputs: [], name: 'UpgradeFailed' },
   { type: 'error', inputs: [], name: 'UseRequestOwnershipHandover' },
   { type: 'error', inputs: [], name: 'VaultAlreadyInArray' },
+  { type: 'error', inputs: [], name: 'VaultFamilyMismatch' },
   { type: 'error', inputs: [], name: 'VaultMismatch' },
   { type: 'error', inputs: [], name: 'VaultMustBeContract' },
   { type: 'error', inputs: [], name: 'VaultNotDeployed' },
@@ -17240,6 +17260,15 @@ export const useReadErc1155InstanceGatingScope =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"genesisVault"`
+ */
+export const useReadErc1155InstanceGenesisVault =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'genesisVault',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"getAllEditionIds"`
  */
 export const useReadErc1155InstanceGetAllEditionIds =
@@ -20681,6 +20710,15 @@ export const useReadErc721AuctionInstanceFactory =
   /*#__PURE__*/ createUseReadContract({
     abi: erc721AuctionInstanceAbi,
     functionName: 'factory',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc721AuctionInstanceAbi}__ and `functionName` set to `"genesisVault"`
+ */
+export const useReadErc721AuctionInstanceGenesisVault =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc721AuctionInstanceAbi,
+    functionName: 'genesisVault',
   })
 
 /**
