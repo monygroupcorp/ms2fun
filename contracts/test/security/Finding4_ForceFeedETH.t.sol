@@ -6,6 +6,20 @@ import { ERC1155Instance } from "../../src/factories/erc1155/ERC1155Instance.sol
 import { InsufficientBalance } from "../../src/factories/erc1155/ERC1155Instance.sol";
 import { MockRevertingVault } from "../mocks/MockRevertingVault.sol";
 
+/// @notice Minimal master-registry stub. noesis-113 made the ERC1155 settle path read
+///         `masterRegistry.isVaultRegistered(vault)` before the tithe; a zero `masterRegistry` reverts
+///         that read. These force-fed-ETH tests exercise the NORMAL (active-target) settle, so the stub
+///         answers `isVaultRegistered`→true (unchanged behavior — they do not test revocation).
+contract MockMRFeed {
+    function isAgent(address) external pure returns (bool) {
+        return false;
+    }
+
+    function isVaultRegistered(address) external pure returns (bool) {
+        return true;
+    }
+}
+
 contract Finding4_ERC1155ForceFeedTest is Test {
     ERC1155Instance public instance;
 
@@ -25,7 +39,7 @@ contract Finding4_ERC1155ForceFeedTest is Test {
             ERC1155Instance.InstanceInit({
                 globalMessageRegistry: gmr,
                 protocolTreasury: treasury,
-                masterRegistry: address(0),
+                masterRegistry: address(new MockMRFeed()),
                 gatingModule: address(0),
                 dynamicPricingModule: address(0),
                 weth: weth

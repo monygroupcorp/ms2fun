@@ -48,15 +48,31 @@ contract MockWETH {
     }
 }
 
+/// @notice Minimal master-registry stub. noesis-113 made the ERC1155 settle path read
+///         `masterRegistry.isVaultRegistered(vault)` before the tithe; a zero `masterRegistry` reverts
+///         that read at withdraw. These hardening tests exercise the NORMAL (active-target) settle, so the
+///         stub answers `isVaultRegistered`→true (unchanged behavior — they do not test target revocation).
+contract MockMRHard {
+    function isAgent(address) external pure returns (bool) {
+        return false;
+    }
+
+    function isVaultRegistered(address) external pure returns (bool) {
+        return true;
+    }
+}
+
 contract ERC1155HardeningTest is Test {
     address creator = makeAddr("creator");
     address user1 = makeAddr("user1");
     address gmr = makeAddr("gmr");
 
     MockWETH weth;
+    MockMRHard mr;
 
     function setUp() public {
         weth = new MockWETH();
+        mr = new MockMRHard();
     }
 
     // Deploy an instance with `this` as the factory so the test can call initializeFreeMint to set scope.
@@ -94,7 +110,7 @@ contract ERC1155HardeningTest is Test {
 
     function test_F1_freeMintOnly_paidMintOpen_evenWhenModuleDenies() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
-        ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(0), address(0xFEE));
+        ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(mr), address(0xFEE));
         inst.initializeFreeMint(0, GatingScope.FREE_MINT_ONLY);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
@@ -107,7 +123,7 @@ contract ERC1155HardeningTest is Test {
 
     function test_F1_bothScope_paidMintGated_bypassClosed() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
-        ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(0), address(0xFEE));
+        ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(mr), address(0xFEE));
         inst.initializeFreeMint(0, GatingScope.BOTH);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
@@ -119,7 +135,7 @@ contract ERC1155HardeningTest is Test {
 
     function test_F1_paidOnlyScope_paidMintGated() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
-        ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(0), address(0xFEE));
+        ERC1155Instance inst = _deploy(address(new DenyGatingModule()), address(vault), address(mr), address(0xFEE));
         inst.initializeFreeMint(0, GatingScope.PAID_ONLY);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
@@ -133,7 +149,7 @@ contract ERC1155HardeningTest is Test {
 
     function test_transfer_toZeroAddress_reverts() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
-        ERC1155Instance inst = _deploy(address(0), address(vault), address(0), address(0xFEE));
+        ERC1155Instance inst = _deploy(address(0), address(vault), address(mr), address(0xFEE));
         inst.initializeFreeMint(0, GatingScope.BOTH);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
@@ -155,7 +171,7 @@ contract ERC1155HardeningTest is Test {
 
     function test_transfer_toNonZero_stillSucceeds() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
-        ERC1155Instance inst = _deploy(address(0), address(vault), address(0), address(0xFEE));
+        ERC1155Instance inst = _deploy(address(0), address(vault), address(mr), address(0xFEE));
         inst.initializeFreeMint(0, GatingScope.BOTH);
         uint256 ed = _addEdition(inst, 0.01 ether, 100);
 
@@ -172,7 +188,7 @@ contract ERC1155HardeningTest is Test {
     function test_protocolCut_revertingTreasury_doesNotBrickWithdraw() public {
         MockFamilyVault vault = new MockFamilyVault("UniswapV4LP");
         RevertingTreasury treasury = new RevertingTreasury();
-        ERC1155Instance inst = _deploy(address(0), address(vault), address(0), address(treasury));
+        ERC1155Instance inst = _deploy(address(0), address(vault), address(mr), address(treasury));
         uint256 ed = _addEdition(inst, 1 ether, 100);
 
         vm.deal(user1, 1 ether);
