@@ -15,6 +15,12 @@ import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmen
 import { UniTitheHookFactory } from "../../src/factories/erc404/hooks/UniTitheHookFactory.sol";
 import { HookAddressMiner } from "../../src/factories/erc404/hooks/HookAddressMiner.sol";
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
+import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
+import { PoolId, PoolIdLibrary } from "v4-core/types/PoolId.sol";
+import { LiquidityDeployerModule } from "../../src/factories/erc404/LiquidityDeployerModule.sol";
+import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
+import { MockMasterRegistry } from "../mocks/MockMasterRegistry.sol";
+import { Vm } from "forge-std/Vm.sol";
 
 /**
  * @title UniAlignmentV4Hook_RealSettlement
@@ -334,6 +340,207 @@ contract UniTitheHookFactory_RealSettlement is Test {
 
         uint256 expectedFee = (1 ether * HOOK_FEE_BIPS) / 10000; // 1% of 1 ETH = 0.01 ETH
         assertEq(vault.totalReceived() - beforeBal, expectedFee, "factory hook must tithe 1% of ETH input to vault");
+    }
+
+    receive() external payable { }
+}
+
+/**
+ * @title LiquidityDeployerModuleGraduation_RealSettlement
+ * @notice noesis-117b DECISIVE end-to-end proof of the alignment-hook wiring on the graduation path,
+ *         driven THROUGH the real `LiquidityDeployerModule.deployLiquidity` against a real in-memory
+ *         v4-core PoolManager (no fork). Two paths:
+ *
+ *           (a) ENABLED: with `setAlignmentHookFactory(uniTitheFactory)` set, a graduation stands up a
+ *               pool whose `hooks` is a valid factory-deployed tithe hook AND whose `fee` is
+ *               `DYNAMIC_FEE_FLAG` (proven by the pool being initialized at exactly that PoolKey's id),
+ *               and every one of the 4 swap shapes routes the ETH-leg tithe to the vault (shape 4 untaxed
+ *               by design). Reuses the RealSettlement swap-shape proof through a real graduation.
+ *
+ *           (b) DEFAULT (OFF): with `alignmentHookFactory == address(0)` (untouched), the graduation pool
+ *               is `hooks: address(0)` + the static `poolFee` — byte-identical to the pre-117b untaxed
+ *               pool; no hook is deployed and no dynamic-fee pool exists (regression guard).
+ *
+ *         Runs ONLY under `FOUNDRY_CONFIG=foundry.v4.toml` (co-located in this already-skip-excluded file
+ *         so the pinned-0.8.28 default profile never compiles the real PoolManager import).
+ */
+contract LiquidityDeployerModuleGraduation_RealSettlement is Test {
+    using StateLibrary for IPoolManager;
+    using PoolIdLibrary for PoolKey;
+
+    PoolManager internal manager;
+    PoolSwapTest internal swapRouter;
+
+    UniTitheHookFactory internal factory;
+    LiquidityDeployerModule internal module;
+    MockMasterRegistry internal registry;
+    MockVault internal vault;
+    TestToken internal token;
+
+    Currency internal ethCurrency;
+    Currency internal tokenCurrency;
+
+    address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address internal owner = address(0xB055);
+    uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
+    uint24 internal constant LP_FEE_RATE = 3000; // 0.3% dynamic LP fee (hook override)
+    uint24 internal constant POOL_FEE = 3000; // static fee on the untaxed default path
+    int24 internal constant TICK_SPACING = 60;
+
+    bytes internal constant ZERO_BYTES = "";
+    uint160 internal MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
+    uint160 internal MAX_PRICE_LIMIT = TickMath.MAX_SQRT_PRICE - 1;
+
+    // keccak256("AlignmentHookDeployed(address,address,address,uint256,uint24)")
+    bytes32 internal constant ALIGNMENT_HOOK_DEPLOYED =
+        keccak256("AlignmentHookDeployed(address,address,address,uint256,uint24)");
+
+    function setUp() public {
+        manager = new PoolManager(address(this));
+        swapRouter = new PoolSwapTest(manager);
+
+        token = new TestToken();
+        tokenCurrency = Currency.wrap(address(token));
+        ethCurrency = CurrencyLibrary.ADDRESS_ZERO;
+
+        vault = new MockVault();
+        registry = new MockMasterRegistry(); // isRegisteredInstance() defaults true
+        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner);
+        // poolManager = the real in-memory manager; static poolFee + tickSpacing are the module immutables.
+        module = new LiquidityDeployerModule(address(manager), WETH, POOL_FEE, TICK_SPACING, address(registry));
+    }
+
+    // ── (a) ENABLED: hooked, dynamic-fee pool that tithes all 4 shapes ───────
+
+    function test_graduation_withHook_dynamicFee_and_tithesAllShapes() public {
+        module.setAlignmentHookFactory(address(factory));
+        module.setHookFeeBips(HOOK_FEE_BIPS);
+        module.setLpFeeRate(LP_FEE_RATE);
+
+        vm.recordLogs();
+        _graduate(100 ether, 1_000_000 ether);
+        address hookAddr = _capturedHook();
+
+        assertTrue(hookAddr != address(0), "a hook must be deployed at graduation");
+        assertTrue(HookAddressMiner.isValidUniAlignmentHookAddress(hookAddr), "hook carries exactly 0xCC bits");
+        UniAlignmentV4Hook hook = UniAlignmentV4Hook(payable(hookAddr));
+        assertEq(hook.hookFeeBips(), HOOK_FEE_BIPS, "hook fee wired from module config");
+        assertEq(hook.benefactor(), address(this), "benefactor == graduating instance");
+
+        // The pool exists at EXACTLY the DYNAMIC-fee + this-hook key: proves fee == DYNAMIC_FEE_FLAG and
+        // hooks == the deployed hook (a different fee/hook would yield a different, uninitialized poolId).
+        PoolKey memory hookedKey = _key(LPFeeLibrary.DYNAMIC_FEE_FLAG, IHooks(hookAddr));
+        (uint160 sqrtHooked,,,) = StateLibrary.getSlot0(IPoolManager(address(manager)), hookedKey.toId());
+        assertTrue(sqrtHooked != 0, "graduation pool is the DYNAMIC-fee hooked pool");
+
+        // And the untaxed static pool today's code would create was NOT created.
+        PoolKey memory staticKey = _key(POOL_FEE, IHooks(address(0)));
+        (uint160 sqrtStatic,,,) = StateLibrary.getSlot0(IPoolManager(address(manager)), staticKey.toId());
+        assertEq(sqrtStatic, 0, "no untaxed static pool created when the hook is enabled");
+
+        // ---- the tithe settles on every real swap shape through the graduated hooked pool ----
+        _prepSwapper();
+
+        // shape 1: exact-input ETH buy — ETH specified input, taxed exactly 1% in beforeSwap, once.
+        uint256 b1 = vault.totalReceived();
+        swapRouter.swap{ value: 1 ether }(hookedKey, _sp(true, -1 ether, MIN_PRICE_LIMIT), _settings(), ZERO_BYTES);
+        assertEq(vault.totalReceived() - b1, (1 ether * HOOK_FEE_BIPS) / 10000, "shape1 tithes 1% of ETH input once");
+
+        // shape 2: exact-output ETH buy — ETH unspecified, taxed in afterSwap.
+        uint256 b2 = vault.totalReceived();
+        swapRouter.swap{ value: 100 ether }(hookedKey, _sp(true, 1e18, MIN_PRICE_LIMIT), _settings(), ZERO_BYTES);
+        assertGt(vault.totalReceived() - b2, 0, "shape2 tithes ETH to vault");
+
+        // shape 3: exact-input token sell — ETH unspecified, taxed in afterSwap.
+        uint256 b3 = vault.totalReceived();
+        swapRouter.swap(hookedKey, _sp(false, -1e18, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
+        assertGt(vault.totalReceived() - b3, 0, "shape3 tithes ETH to vault");
+
+        // shape 4: exact-output token->ETH sell — ETH specified output, untaxed BY DESIGN, must not revert.
+        uint256 b4 = vault.totalReceived();
+        swapRouter.swap(hookedKey, _sp(false, 0.5 ether, MAX_PRICE_LIMIT), _settings(), ZERO_BYTES);
+        assertEq(vault.totalReceived() - b4, 0, "shape4 is untaxed by design");
+    }
+
+    // ── (b) DEFAULT OFF: untaxed static pool, byte-identical to today ────────
+
+    function test_graduation_default_off_untaxedStaticPool_byteIdentical() public {
+        // module left at its default: alignmentHookFactory == address(0), no setters called.
+        assertEq(module.alignmentHookFactory(), address(0), "module ships OFF");
+
+        vm.recordLogs();
+        _graduate(100 ether, 1_000_000 ether);
+
+        assertEq(_capturedHook(), address(0), "no hook deployed on the default path");
+
+        // The graduation pool is the static-fee, no-hook pool — byte-identical to the pre-117b behavior.
+        PoolKey memory staticKey = _key(POOL_FEE, IHooks(address(0)));
+        (uint160 sqrtStatic,,,) = StateLibrary.getSlot0(IPoolManager(address(manager)), staticKey.toId());
+        assertTrue(sqrtStatic != 0, "default graduation is the static-fee, no-hook untaxed pool");
+
+        // No dynamic-fee pool exists on the default path.
+        PoolKey memory dynKey = _key(LPFeeLibrary.DYNAMIC_FEE_FLAG, IHooks(address(0)));
+        (uint160 sqrtDyn,,,) = StateLibrary.getSlot0(IPoolManager(address(manager)), dynKey.toId());
+        assertEq(sqrtDyn, 0, "no dynamic-fee pool created on the default path");
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    function _graduate(uint256 ethReserve, uint256 tokenReserve) internal {
+        // Mirror ERC404BondingInstance.deployLiquidity: LP tokens pre-transferred to the module, ETH sent
+        // as msg.value, the instance itself is the caller (== p.instance, registered).
+        token.mint(address(module), tokenReserve);
+        vm.deal(address(this), ethReserve);
+        module.deployLiquidity{ value: ethReserve }(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: tokenReserve,
+                protocolTreasury: address(0), // skip protocol send
+                vault: address(vault),
+                token: address(token),
+                instance: address(this),
+                creator: address(0),
+                carveEth: 0
+            })
+        );
+    }
+
+    /// @dev The hook address the factory emitted at graduation (address(0) if none deployed).
+    function _capturedHook() internal returns (address) {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            if (logs[i].topics.length > 0 && logs[i].topics[0] == ALIGNMENT_HOOK_DEPLOYED) {
+                return address(uint160(uint256(logs[i].topics[1])));
+            }
+        }
+        return address(0);
+    }
+
+    function _key(uint24 fee, IHooks hooks) internal view returns (PoolKey memory) {
+        return PoolKey({
+            currency0: ethCurrency, currency1: tokenCurrency, fee: fee, tickSpacing: TICK_SPACING, hooks: hooks
+        });
+    }
+
+    /// @dev Fund + approve this contract so it can run the sell shapes through the swap router.
+    function _prepSwapper() internal {
+        token.mint(address(this), 1_000_000 ether);
+        token.approve(address(swapRouter), type(uint256).max);
+        vm.deal(address(this), 10_000 ether);
+    }
+
+    function _sp(bool zeroForOne, int256 amountSpecified, uint160 limit)
+        internal
+        pure
+        returns (IPoolManager.SwapParams memory)
+    {
+        return IPoolManager.SwapParams({
+            zeroForOne: zeroForOne, amountSpecified: amountSpecified, sqrtPriceLimitX96: limit
+        });
+    }
+
+    function _settings() internal pure returns (PoolSwapTest.TestSettings memory) {
+        return PoolSwapTest.TestSettings({ takeClaims: false, settleUsingBurn: false });
     }
 
     receive() external payable { }

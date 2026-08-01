@@ -43,6 +43,8 @@ import { MerkleGatingModule } from "../src/gating/MerkleGatingModule.sol";
 import { FeatureUtils } from "../src/master/libraries/FeatureUtils.sol";
 import { MockComponentModule } from "../test/mocks/MockComponentModule.sol";
 import { LiquidityDeployerModule } from "../src/factories/erc404/LiquidityDeployerModule.sol";
+import { UniTitheHookFactory } from "../src/factories/erc404/hooks/UniTitheHookFactory.sol";
+import { IPoolManager } from "v4-core/interfaces/IPoolManager.sol";
 import { ZAMMLiquidityDeployerModule } from "../src/factories/erc404zamm/ZAMMLiquidityDeployerModule.sol";
 import { CypherLiquidityDeployerModule } from "../src/factories/erc404cypher/CypherLiquidityDeployerModule.sol";
 import { MockSafe } from "../test/mocks/MockSafe.sol";
@@ -119,6 +121,16 @@ contract DeployCore is Script {
         // ETH/alignmentToken ZAMM pool is wired (matches the feeOrHook the vault swaps/LPs against).
         uint256 zammFeeOrHook;
 
+        // Uni-V4 alignment-tithe hook parameters (117b). Seeded onto the singleton LiquidityDeployerModule
+        // at deploy but INERT until a governed op turns the hook ON (setAlignmentHookFactory) — the module
+        // ships with `alignmentHookFactory == address(0)` (no hook, untaxed pool). When later enabled, every
+        // graduation Uni pool bakes in a hook taking `hookFeeBips` of the ETH swap leg as the perpetual
+        // alignment tithe, with `lpFeeRate` as the dynamic LP fee. `hookFeeBips` is the IMMUTABLE tithe rate
+        // per deployed hook. Leave 0 to defer (the safe inert default, mirroring `zQuoter`); set the real
+        // rate before enabling the tithe. OPERATOR INPUT / HUMAN_GATE — see docs/HUMAN_GATES.md.
+        uint256 hookFeeBips;
+        uint24 lpFeeRate;
+
         // One or more alignment targets — each can have 1-3 vault types
         AlignmentTargetConfig[] alignmentTargets;
 
@@ -184,6 +196,9 @@ contract DeployCore is Script {
     address public moduleUniV4Deployer;
     address public moduleZAMMDeployer;
     address public moduleCypherDeployer;
+    /// @notice The Uni-V4 alignment-tithe hook factory (117a), registered under ALIGNMENT_HOOK but NOT
+    ///         selected on the module (default OFF). address(0) where Uni isn't configured on this network.
+    address public uniTitheHookFactory;
 
     // ── DEFERRAL NOTE: PromotionBadges is intentionally NOT deployed ──────────
     // `src/promotion/PromotionBadges.sol` is PARKED pre-testnet and has NO slot above and NO
@@ -558,7 +573,25 @@ contract DeployCore is Script {
                 cfg.v4PoolManager, cfg.weth, cfg.zrouterFee, cfg.zrouterTickSpacing, masterRegistry
             );
             uniMod.setMetadataURI(uniV4Meta);
+            // 117b: seed the module's alignment-hook fee config from the (HUMAN_GATE) NetworkConfig values,
+            // but LEAVE the hook selection OFF — `alignmentHookFactory` stays address(0). Turning the tithe
+            // on is a later deliberate governed `setAlignmentHookFactory` call, NOT part of this deploy
+            // (rth: default OFF, register-only). With the default cfg values (0) these setters are no-ops.
+            uniMod.setHookFeeBips(cfg.hookFeeBips);
+            uniMod.setLpFeeRate(cfg.lpFeeRate);
             moduleUniV4Deployer = address(uniMod);
+
+            // Register alignment-hook TYPE #1 — the Uni-V4 swap-tithe hook (117a's UniTitheHookFactory) —
+            // under the ALIGNMENT_HOOK component tag so a future governed op can point the module's
+            // alignmentHookFactory at it. Registered, NOT selected (module stays OFF). PoolManager/WETH/owner
+            // are the factory's immutables; the per-graduation fee data comes from the module at
+            // deployHook time. Mirrors the moduleUniV4Deployer approveComponent registration.
+            UniTitheHookFactory titheFactory =
+                new UniTitheHookFactory(IPoolManager(cfg.v4PoolManager), cfg.weth, deployer);
+            uniTitheHookFactory = address(titheFactory);
+            componentRegistry.approveComponent(
+                uniTitheHookFactory, FeatureUtils.ALIGNMENT_HOOK, "Uniswap V4 Alignment Tithe Hook"
+            );
         } else {
             moduleUniV4Deployer = address(new MockComponentModule(deployer, uniV4Meta));
         }
