@@ -14,10 +14,13 @@ import { MockWETH } from "../../mocks/MockWETH.sol";
 import {
     MockAlgebraFactory,
     MockAlgebraPositionManager,
-    MockAlgebraSwapRouter
+    MockAlgebraSwapRouter,
+    MockAlgebraPool
 } from "../../mocks/MockCypherAlgebra.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockAlignmentRegistry } from "../../mocks/MockAlignmentRegistry.sol";
+import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 
 contract CypherLiquidityDeployerModuleTest is Test {
     CypherLiquidityDeployerModule deployer;
@@ -99,6 +102,84 @@ contract CypherLiquidityDeployerModuleTest is Test {
         assertEq(vault.lpTokenId(), 0, "vault holds no launch position (registerPosition dropped)");
         // The 19% tithe still lands on the vault via receiveContribution, crediting the instance.
         assertGt(vault.benefactorContribution(instance), 0);
+    }
+
+    /// @dev noesis-119 sqrtPrice clamp (Uni parity): an extreme reserve ratio drives the derived
+    ///      sqrtPriceX96 below MIN_SQRT_PRICE. Pre-fix that sub-range value is fed straight to
+    ///      `IAlgebraPool.initialize`, which on a real Algebra pool reverts (price below the valid tick
+    ///      range) — a graduation DoS. The clamp pins it to MIN_SQRT_PRICE+1 so init is always valid.
+    ///      Uses a token that sorts below WETH (token0), so a tiny ETH-LP leg over a huge token reserve
+    ///      makes amount1/amount0 ≈ 0 and the sqrt underflow the MIN bound.
+    function test_setupPool_clampsExtremeReserveRatio() public {
+        // Deploy a token deterministically ordered below WETH so token == token0 (tokenIsZero).
+        MockERC20 lowTok = new MockERC20("Low", "LOW");
+        uint256 salt;
+        while (address(lowTok) >= address(weth)) {
+            lowTok = new MockERC20(string(abi.encodePacked("Low", salt)), "LOW");
+            salt++;
+            require(salt < 256, "could not sort token below weth");
+        }
+
+        uint256 ethReserve = 1000; // wei — ethForPool (80%) = 800 wei, a near-zero LP-eth leg
+        uint256 tokenReserve = 1e48; // huge token side → amount1/amount0 underflows MIN_SQRT_PRICE
+
+        lowTok.mint(address(deployer), tokenReserve);
+        vm.deal(address(this), ethReserve);
+        deployer.deployLiquidity{ value: ethReserve }(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: tokenReserve,
+                protocolTreasury: protocolTreasury,
+                token: address(lowTok),
+                vault: address(vault),
+                instance: instance,
+                creator: address(0),
+                carveEth: 0
+            })
+        );
+
+        address pool = algebraFactory.poolByPair(address(lowTok), address(weth));
+        assertNotEq(pool, address(0), "pool created");
+        uint160 seeded = MockAlgebraPool(pool).sqrtPriceX96();
+
+        assertEq(seeded, TickMath.MIN_SQRT_PRICE + 1, "extreme-ratio sqrtPrice clamped up to MIN bound");
+        // A valid (clamped) init price sits within the inclusive tick range.
+        assertGe(seeded, TickMath.MIN_SQRT_PRICE);
+        assertLe(seeded, TickMath.MAX_SQRT_PRICE);
+    }
+
+    /// @dev The clamp is inert for a normal reserve ratio: the seeded price equals the exact derived
+    ///      sqrtPriceX96 and is strictly inside the tick bounds (no clamp applied).
+    function test_setupPool_normalRatioUnclamped() public {
+        uint256 ethReserve = 1 ether;
+        uint256 tokenReserve = 1000e18;
+
+        token.mint(address(deployer), tokenReserve);
+        vm.deal(address(this), ethReserve);
+        deployer.deployLiquidity{ value: ethReserve }(
+            ILiquidityDeployerModule.DeployParams({
+                ethReserve: ethReserve,
+                tokenReserve: tokenReserve,
+                protocolTreasury: protocolTreasury,
+                token: address(token),
+                vault: address(vault),
+                instance: instance,
+                creator: address(0),
+                carveEth: 0
+            })
+        );
+
+        address pool = algebraFactory.poolByPair(address(token), address(weth));
+        uint160 seeded = MockAlgebraPool(pool).sqrtPriceX96();
+
+        uint256 ethForPool = 0.8 ether; // 80% LP leg, no carve
+        (uint256 amount0, uint256 amount1) =
+            address(token) < address(weth) ? (tokenReserve, ethForPool) : (ethForPool, tokenReserve);
+        uint160 expected = uint160(FixedPointMathLib.sqrt(FixedPointMathLib.fullMulDiv(amount1, 1 << 192, amount0)));
+
+        assertEq(seeded, expected, "normal ratio: seeded price equals the exact derived sqrtPrice");
+        assertGt(seeded, TickMath.MIN_SQRT_PRICE + 1, "strictly above MIN bound (not clamped)");
+        assertLt(seeded, TickMath.MAX_SQRT_PRICE - 1, "strictly below MAX bound (not clamped)");
     }
 
     function test_implementsUniformInterface() public view {

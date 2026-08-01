@@ -217,6 +217,32 @@ contract CypherAlignmentVaultTest is Test {
         assertEq(vault.totalPendingETH(), 0);
     }
 
+    /// @dev Uni-parity hardening (noesis-119): the declared `amount` must equal the ETH sent.
+    function test_receiveContribution_revertsOnAmountMismatch() public {
+        vm.deal(address(this), 2 ether);
+        vm.expectRevert(CypherAlignmentVault.AmountMismatch.selector);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 2 ether, alice);
+    }
+
+    /// @dev Uni-parity hardening (noesis-119): receiveContribution is `nonReentrant`. A benefactor that
+    ///      re-enters it from its claim-payout callback is blocked by the guard; without it the reentrant
+    ///      call would register a phantom pending contribution mid-claim.
+    function test_receiveContribution_reentrancyBlocked() public {
+        ReentrantContributor attacker = new ReentrantContributor(vault);
+        vm.deal(address(attacker), 1 ether);
+
+        _contribute(address(attacker), 10 ether);
+        _stageHarvest(0, 1 ether, true);
+        vault.harvest(0);
+
+        assertGt(vault.calculateClaimableAmount(address(attacker)), 0, "attacker has claimable yield");
+
+        attacker.claim(); // claim payout hits attacker.receive() → reentry attempt
+
+        assertTrue(attacker.reentryAttempted(), "attacker attempted reentry");
+        assertFalse(attacker.reentrySucceeded(), "reentrant receiveContribution must be guard-blocked");
+    }
+
     function test_receiveContribution_revertsOnNonEthCurrency() public {
         vm.deal(address(this), 1 ether);
         vm.expectRevert(CypherAlignmentVault.ETHOnly.selector);
@@ -645,5 +671,32 @@ contract RejectingBenefactor {
 
     function claimAsDelegate(CypherAlignmentVault vault, address[] calldata benefactors) external returns (uint256) {
         return vault.claimFeesAsDelegate(benefactors);
+    }
+}
+
+/// @notice A benefactor that, on receiving its claim payout, attempts to re-enter receiveContribution.
+///         The vault's `nonReentrant` guard must revert that inner call (captured via try/catch).
+contract ReentrantContributor {
+    CypherAlignmentVault public vault;
+    bool public reentryAttempted;
+    bool public reentrySucceeded;
+
+    constructor(CypherAlignmentVault _vault) {
+        vault = _vault;
+    }
+
+    receive() external payable {
+        if (!reentryAttempted && msg.value > 0) {
+            reentryAttempted = true;
+            try vault.receiveContribution{ value: 0.001 ether }(Currency.wrap(address(0)), 0.001 ether, address(this)) {
+                reentrySucceeded = true;
+            } catch {
+                reentrySucceeded = false;
+            }
+        }
+    }
+
+    function claim() external returns (uint256) {
+        return vault.claimFees();
     }
 }
