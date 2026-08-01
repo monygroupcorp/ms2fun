@@ -261,6 +261,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
         Edition storage edition = editions[editionId];
         if (bytes(edition.pieceTitle).length == 0) revert EditionNotFound();
+        // Enforce the scheduled open time on the free path too. Without this a bot could drain the
+        // free allocation before the public open — the gating block below is skipped entirely when
+        // there is no gating module or the scope is PAID_ONLY, so openTime is the only fair-launch
+        // guard on this path. Mirrors the paid mint() gate.
+        if (edition.openTime != 0 && block.timestamp < edition.openTime) revert EditionNotOpen();
         if (edition.supply > 0) {
             if (edition.minted >= edition.supply) revert EditionSoldOut();
         }

@@ -812,8 +812,12 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     function calculateClaimableAmount(address benefactor) external view override returns (uint256) {
-        if (totalShares == 0 || accumulatedFees == 0) return 0;
-        return (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
+        // Net out the reward-debt watermark, matching getUnclaimedFees and the claimFees write path.
+        // Returning the lifetime-gross value here inflated integrator portfolios by every past claim.
+        uint256 currentShareValue = (benefactorShares[benefactor] * accFeesPerShare) / 1e18; // round down: favors vault (MasterChef accumulator)
+        return currentShareValue > shareValueAtLastClaim[benefactor]
+            ? currentShareValue - shareValueAtLastClaim[benefactor]
+            : 0;
     }
 
     /// @notice Get the unclaimed fee delta for a benefactor since their last claim
