@@ -332,6 +332,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     ///         it only moves the fixed split to fixed destinations.
     ///         escrowed class → 80 creator / 19 target / 1 protocol; vested class → 0 / 99 / 1.
     function harvest() external nonReentrant {
+        _crystallizeYield();
+    }
+
+    /// @dev The harvest body, factored out so an internal caller (`migratePosition`) can crystallize pending
+    ///      yield WITHOUT the external re-entry that `this.harvest()` would incur — both `harvest` and
+    ///      `migratePosition` are `nonReentrant`, so a self-external call would trip the guard and revert.
+    ///      This books the escrow class's not-yet-harvested yield into the 80/19/1 legs BEFORE a migrate
+    ///      redeems escrow principal, so that yield is split (not swept to the recovery address). Only the
+    ///      `nonReentrant`-guarded external entrypoints call this; it performs external ETH sends itself and
+    ///      MUST NOT be invoked from an unguarded path.
+    function _crystallizeYield() internal {
         uint256 y = _pendingYield();
         if (y == 0) return;
 
@@ -474,7 +485,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         uint256 escrowed = totalEscrowedPrincipal;
         if (escrowed == 0) revert NoPrincipal();
 
-        uint256 basis = escrowed + totalVestedDeployable;
+        // Harvest-first: crystallize any not-yet-harvested Aave yield into the 80/19/1 (escrowed) and
+        // 0/99/1 (vested) legs BEFORE redeeming escrow principal. Otherwise the escrow class's pending yield
+        // — which the split law routes 80% creator / 19% target / 1% protocol — would be embedded in the
+        // pro-rata `escrowValue` below (computed off the yield-inflated position value) and force-sent to the
+        // recovery address `to`, misdirecting it out of the accumulator legs. After this call the position
+        // value reflects the principal basis, so `escrowValue` is principal-only. Inlined (not `this.harvest`)
+        // because both functions are `nonReentrant`.
+        _crystallizeYield();
+
+        uint256 vested = totalVestedDeployable;
+        uint256 basis = escrowed + vested;
         uint256 value = _stataValue();
 
         // Escrowed tranche's pro-rata claim on the (possibly impaired) position value.
@@ -482,6 +503,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         if (value < basis) {
             uint256 shortfallBps = ((basis - value) * BPS) / basis;
             emit ImpairmentRealized(shortfallBps, block.timestamp);
+
+            // Socialize the impairment onto the vested tranche too. On an impaired position the vested tranche
+            // now backs only `value·vested/basis` realizable WETH, but `deployableCorpus()` still reports the
+            // full `vested`; a later `execute(vested)` would then hit `RedeemShortfall` and strand the residual
+            // permanently. Scale `totalVestedDeployable` down to the vested tranche's actual realizable value so
+            // `deployableCorpus()` never exceeds redeemable WETH. `min(...)` keeps it a no-op on a healthy
+            // position (this branch only runs when `value < basis`, but the floor keeps it monotonic).
+            uint256 realizableVested = (value * vested) / basis;
+            if (realizableVested < totalVestedDeployable) {
+                totalVestedDeployable = realizableVested;
+            }
         }
 
         uint256 got = _redeem(escrowValue);
@@ -556,23 +588,34 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
 
         if (value > deployableCorpus()) revert ExceedsDeployableCorpus();
 
-        // ── Effects (before the arbitrary external call) ──
-        totalVestedDeployable -= value; // ≤ deployableCorpus(), so no underflow
-        _totalDeployedByTarget += value;
-
-        // Redeem the deployed value from the Aave vested tranche to native ETH. `value ≤ vested basis ≤
-        // position value`, so `maxWithdraw` covers it and the escrowed tranche is never drawn upon. A
-        // shortfall beyond dust rounding is an Aave liquidity event → revert (do not partial-deploy).
+        // Redeem the requested value from the Aave vested tranche to native ETH. `value ≤ vested basis ≤
+        // position value`, so `maxWithdraw` covers it and the escrowed tranche is never drawn upon. ERC-4626
+        // floor-rounding can leave the redeem short by up to `REDEEM_DUST` (`got = value − dust`); a larger
+        // shortfall is an Aave liquidity event → revert (do not partial-deploy). This is a redeem from the
+        // TRUSTED stataToken/WETH (which `receive()` handles inertly), not the arbitrary `to` — so it runs
+        // before the effects without CEI risk; the arbitrary external call remains strictly last.
         uint256 got = _redeem(value);
         if (got + REDEEM_DUST < value) revert RedeemShortfall();
 
+        // ── Effects (before the arbitrary external call) ──
+        // Debit the corpus by `got` — what ACTUALLY left the position — not the requested `value`. The dust
+        // (`value − got`) stays in the vested tranche as still-deployable principal; debiting `value` would
+        // instead orphan it into position-value-above-basis, leaking that sliver of vested principal into the
+        // next harvest's 99/1 yield legs. `got ≤ value ≤ deployableCorpus() == totalVestedDeployable`, so no
+        // underflow.
+        totalVestedDeployable -= got;
+        _totalDeployedByTarget += got;
+
         bytes4 selector;
         if (data.length >= 4) selector = bytes4(data[:4]);
-        emit CapitalDeployed(msg.sender, to, value, selector, block.timestamp);
+        emit CapitalDeployed(msg.sender, to, got, selector, block.timestamp);
 
         // ── Interaction: the arbitrary external call ──
+        // Forward `got` (what was actually redeemed), NOT `value`: on a dusty redeem forwarding the full
+        // `value` would cover the ~dust shortfall from the vault's OTHER native ETH (a creator `yieldPurse`),
+        // dipping funds that are not the deployable corpus.
         bool ok;
-        (ok, result) = to.call{ value: value }(data);
+        (ok, result) = to.call{ value: got }(data);
         if (!ok) {
             // Bubble the callee's revert reason verbatim.
             assembly {
