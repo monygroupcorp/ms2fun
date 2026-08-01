@@ -13,6 +13,7 @@ import { BeforeSwapDelta, BeforeSwapDeltaLibrary, toBeforeSwapDelta } from "v4-c
 import { Currency, CurrencyLibrary } from "v4-core/types/Currency.sol";
 import { PoolKey } from "v4-core/types/PoolKey.sol";
 import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
+import { IAlignmentHook } from "./IAlignmentHook.sol";
 
 /**
  * @title UniAlignmentV4Hook
@@ -24,7 +25,7 @@ import { IAlignmentVault } from "../../../interfaces/IAlignmentVault.sol";
  *      Hook fee (hookFeeBips) is immutable — set once at deploy, no governance risk.
  *      LP fee (lpFeeRate) is owner-adjustable via setLpFeeRate().
  */
-contract UniAlignmentV4Hook is IHooks, ReentrancyGuard, Ownable {
+contract UniAlignmentV4Hook is IAlignmentHook, ReentrancyGuard, Ownable {
     using Hooks for IHooks;
     using SafeCast for uint256;
     using SafeCast for int128;

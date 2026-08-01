@@ -12,6 +12,8 @@ import { TickMath } from "v4-core/libraries/TickMath.sol";
 import { PoolSwapTest } from "../../lib/v4-core/src/test/PoolSwapTest.sol";
 import { PoolModifyLiquidityTest } from "../../lib/v4-core/src/test/PoolModifyLiquidityTest.sol";
 import { UniAlignmentV4Hook } from "../../src/factories/erc404/hooks/UniAlignmentV4Hook.sol";
+import { UniTitheHookFactory } from "../../src/factories/erc404/hooks/UniTitheHookFactory.sol";
+import { HookAddressMiner } from "../../src/factories/erc404/hooks/HookAddressMiner.sol";
 import { IAlignmentVault } from "../../src/interfaces/IAlignmentVault.sol";
 
 /**
@@ -228,4 +230,111 @@ contract TestToken {
         balanceOf[to] += amount;
         return true;
     }
+}
+
+/**
+ * @title UniTitheHookFactory_RealSettlement
+ * @notice DECISIVE proof that a hook DEPLOYED BY THE FACTORY (on-chain salt-mine + CREATE2), not
+ *         hand-placed via deployCodeTo, passes Uniswap v4's `validateHookPermissions` when wired into a
+ *         REAL in-memory v4-core PoolManager: the pool initializes without reverting and taxes a live
+ *         swap. Runs ONLY under `FOUNDRY_CONFIG=foundry.v4.toml` (co-located in this already-skipped
+ *         file so the pinned-0.8.28 default profile never compiles the real PoolManager import).
+ */
+contract UniTitheHookFactory_RealSettlement is Test {
+    PoolManager internal manager;
+    PoolSwapTest internal swapRouter;
+    PoolModifyLiquidityTest internal modifyLiquidityRouter;
+
+    UniTitheHookFactory internal factory;
+    address internal hookAddr;
+    MockVault internal vault;
+    TestToken internal token;
+
+    Currency internal ethCurrency;
+    Currency internal tokenCurrency;
+    PoolKey internal poolKey;
+
+    address internal constant WETH = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address internal owner = address(0xB055);
+    address internal benefactor = address(0x7777777777777777777777777777777777777777);
+    uint256 internal constant HOOK_FEE_BIPS = 100; // 1%
+    uint24 internal constant LP_FEE_RATE = 3000; // 0.3%
+
+    bytes internal constant ZERO_BYTES = "";
+    uint160 internal constant SQRT_PRICE_1_1 = 79228162514264337593543950336;
+    uint160 internal MIN_PRICE_LIMIT = TickMath.MIN_SQRT_PRICE + 1;
+
+    function setUp() public {
+        manager = new PoolManager(address(this));
+        swapRouter = new PoolSwapTest(manager);
+        modifyLiquidityRouter = new PoolModifyLiquidityTest(manager);
+
+        token = new TestToken();
+        token.mint(address(this), 1_000_000 ether);
+        token.approve(address(swapRouter), type(uint256).max);
+        token.approve(address(modifyLiquidityRouter), type(uint256).max);
+        tokenCurrency = Currency.wrap(address(token));
+        ethCurrency = CurrencyLibrary.ADDRESS_ZERO;
+
+        vault = new MockVault();
+
+        // The factory mines a salt on-chain and CREATE2-deploys the hook at a 0xCC-valid address.
+        factory = new UniTitheHookFactory(IPoolManager(address(manager)), WETH, owner);
+        hookAddr = factory.deployHook(IAlignmentVault(payable(address(vault))), benefactor, HOOK_FEE_BIPS, LP_FEE_RATE);
+    }
+
+    /// @notice The factory-mined address carries exactly 0xCC and a real pool initializes with it — no revert.
+    function test_factory_hook_initializes_real_pool() public {
+        assertTrue(
+            HookAddressMiner.isValidUniAlignmentHookAddress(hookAddr), "factory hook must carry exactly 0xCC bits"
+        );
+
+        UniAlignmentV4Hook hook = UniAlignmentV4Hook(payable(hookAddr));
+        assertEq(address(hook.poolManager()), address(manager), "poolManager wired");
+        assertEq(address(hook.vault()), address(vault), "vault wired");
+        assertEq(hook.benefactor(), benefactor, "benefactor wired");
+        assertEq(hook.hookFeeBips(), HOOK_FEE_BIPS, "fee wired");
+
+        poolKey = PoolKey({
+            currency0: ethCurrency,
+            currency1: tokenCurrency,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(hookAddr)
+        });
+        // The decisive assertion: real v4-core validates the hook's permission bits at initialize().
+        manager.initialize(poolKey, SQRT_PRICE_1_1);
+    }
+
+    /// @notice A live swap through the factory-deployed hook taxes the ETH side to the vault (end-to-end).
+    function test_factory_hook_taxes_real_swap() public {
+        poolKey = PoolKey({
+            currency0: ethCurrency,
+            currency1: tokenCurrency,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(hookAddr)
+        });
+        manager.initialize(poolKey, SQRT_PRICE_1_1);
+
+        vm.deal(address(this), 10_000 ether);
+        IPoolManager.ModifyLiquidityParams memory lp =
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
+        modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(poolKey, lp, ZERO_BYTES);
+
+        uint256 beforeBal = vault.totalReceived();
+        IPoolManager.SwapParams memory p = IPoolManager.SwapParams({
+            zeroForOne: true,
+            amountSpecified: -1 ether, // exact-input ETH buy
+            sqrtPriceLimitX96: MIN_PRICE_LIMIT
+        });
+        swapRouter.swap{ value: 1 ether }(
+            poolKey, p, PoolSwapTest.TestSettings({ takeClaims: false, settleUsingBurn: false }), ZERO_BYTES
+        );
+
+        uint256 expectedFee = (1 ether * HOOK_FEE_BIPS) / 10000; // 1% of 1 ETH = 0.01 ETH
+        assertEq(vault.totalReceived() - beforeBal, expectedFee, "factory hook must tithe 1% of ETH input to vault");
+    }
+
+    receive() external payable { }
 }
