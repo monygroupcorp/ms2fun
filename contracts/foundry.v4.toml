@@ -1,0 +1,51 @@
+# Companion Foundry config for the real-v4 end-to-end regression (noesis-116 audit #1 guard).
+#
+# WHY A SEPARATE FILE (not an in-toml `[profile.v4]`): Foundry merges `[profile.default]`
+# into every named profile in the SAME config, so a `[profile.v4]` in `foundry.toml` would
+# inherit the deploy profile's `solc = "0.8.28"` pin. The RealSettlement test imports
+# v4-core's real `PoolManager`, whose pragma is EXACTLY `0.8.26`; under the inherited 0.8.28
+# pin it hard-errors on version validation (and `skip=` only drops a file from the compile
+# set — it does not exempt an imported dependency from the solc-version check). Keeping the
+# main `foundry.toml` default deterministically pinned to 0.8.28 (deploy-determinism) is the
+# whole point of noesis-120, so we cannot reopen auto-detect there.
+#
+# This standalone config's own `[profile.default]` sets `auto_detect_solc = true`, so forge
+# independently selects 0.8.26 for the RealSettlement test + its v4-core/forge-std graph.
+# Invoke it explicitly (it never participates in the default build/deploy):
+#
+#   FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
+#
+# Remappings mirror foundry.toml so the shared source graph resolves identically.
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+auto_detect_solc = true
+optimizer = true
+optimizer_runs = 100
+via_ir = true
+evm_version = "cancun"
+test = "test"
+script = "script"
+broadcast = "broadcast"
+fs_permissions = [{ access = "read-write", path = "./deployments/" }]
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
+    "v4-core/=lib/v4-core/src/",
+    "v4-core/test/=lib/v4-core/test/",
+    "dn404/=lib/dn404/",
+    "@uniswap/v3-core/=lib/v3-core/contracts/",
+    "@uniswap/v3-periphery/=lib/v3-periphery/contracts/",
+    "@uniswap/v2-core/=lib/v2-core/contracts/",
+    "zamm/=lib/zamm/src/",
+    "zRouter/=lib/zRouter/src/",
+    "createx-forge/=lib/createx-forge/",
+    "aave-address-book/=lib/aave-address-book/src/"
+]
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true
