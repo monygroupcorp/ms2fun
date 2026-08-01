@@ -10,9 +10,20 @@ import { IMasterRegistry } from "../../src/master/interfaces/IMasterRegistry.sol
 /// Minimal vault double exposing the `alignmentToken()` the registry static-calls at registration.
 contract MockVaultSimple {
     address public alignmentToken;
+    // Yield-family (endowment) by default so same-family migrations pass the MasterRegistryV1
+    // cross-family choke-point; these gate tests all migrate within one family.
+    string private _vaultType = "AaveEndowment";
 
     constructor(address _token) {
         alignmentToken = _token;
+    }
+
+    function vaultType() external view returns (string memory) {
+        return _vaultType;
+    }
+
+    function setVaultType(string calldata vt) external {
+        _vaultType = vt;
     }
 }
 
