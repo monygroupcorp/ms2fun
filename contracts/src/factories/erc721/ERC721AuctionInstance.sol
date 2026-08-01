@@ -464,12 +464,20 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
     }
 
     /// @notice Claim accumulated fees from all vault positions (current and historical).
+    /// @dev Tolerant sweep: some vaults (e.g. AlignmentEndowmentVault) intentionally revert
+    ///      NotSupported() on claimFees() — they have no pull-claim model. A bare loop would let one
+    ///      such vault in the history brick fee delivery for the whole instance, and any ETH the other
+    ///      vaults DID push would strand here (no generic withdraw). So we swallow per-vault reverts and
+    ///      forward the net balance delta to the owner, matching claimVaultFees.
     // slither-disable-next-line calls-loop,unused-return
-    function claimAllFees() external onlyOwner {
+    function claimAllFees() external onlyOwner nonReentrant {
+        uint256 before = address(this).balance;
         address[] memory allVaults = masterRegistry.getInstanceVaults(address(this));
         for (uint256 i = 0; i < allVaults.length; i++) {
-            IAlignmentVault(payable(allVaults[i])).claimFees();
+            try IAlignmentVault(payable(allVaults[i])).claimFees() { } catch { }
         }
+        uint256 delta = address(this).balance - before;
+        if (delta > 0) SmartTransferLib.smartTransferETH(owner(), delta, weth);
     }
 
     // ┌─────────────────────────┐
