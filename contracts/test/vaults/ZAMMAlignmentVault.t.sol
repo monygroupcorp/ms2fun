@@ -161,6 +161,35 @@ contract ZAMMAlignmentVaultTest is Test {
         vault.receiveContribution{ value: 0 }(Currency.wrap(address(alignmentToken)), 1 ether, alice);
     }
 
+    /// @dev Uni-parity hardening (noesis-119): the declared `amount` must equal the ETH sent.
+    function test_receiveContribution_revertsOnAmountMismatch() public {
+        vm.prank(alice);
+        vm.expectRevert(ZAMMAlignmentVault.AmountMismatch.selector);
+        vault.receiveContribution{ value: 1 ether }(Currency.wrap(address(0)), 2 ether, alice);
+    }
+
+    /// @dev Uni-parity hardening (noesis-119): receiveContribution is `nonReentrant`. A benefactor that
+    ///      re-enters it from its claim-payout callback is blocked by the guard, so no phantom pending
+    ///      contribution is registered mid-claim. Without the guard the reentrant call would succeed.
+    function test_receiveContribution_reentrancyBlocked() public {
+        ReentrantContributor attacker = new ReentrantContributor(vault);
+        vm.deal(address(attacker), 1 ether);
+
+        vm.prank(alice);
+        vault.receiveContribution{ value: 4 ether }(Currency.wrap(address(0)), 4 ether, address(attacker));
+        _setupPool(10 ether, 10_000e18);
+        vault.convertAndAddLiquidity(0, 0, 0);
+        _triggerHarvestWithFees();
+
+        assertGt(vault.calculateClaimableAmount(address(attacker)), 0, "attacker has claimable yield");
+
+        attacker.claim(); // claim payout hits attacker.receive() → reentry attempt
+
+        assertTrue(attacker.reentryAttempted(), "attacker attempted reentry");
+        assertFalse(attacker.reentrySucceeded(), "reentrant receiveContribution must be guard-blocked");
+        assertEq(vault.pendingContribution(address(attacker)), 0, "no reentrant contribution registered");
+    }
+
     function test_receive_tracksSenderAsBenefactor() public {
         vm.prank(alice);
         (bool ok,) = address(vault).call{ value: 0.5 ether }("");
@@ -797,5 +826,33 @@ contract RejectingBenefactor {
 
     function claimAsDelegate(ZAMMAlignmentVault vault, address[] calldata benefactors) external returns (uint256) {
         return vault.claimFeesAsDelegate(benefactors);
+    }
+}
+
+/// @notice A benefactor that, on receiving its claim payout, attempts to re-enter receiveContribution.
+///         The vault's `nonReentrant` guard must revert that inner call (captured via try/catch) so the
+///         reentry cannot register a fresh pending contribution mid-claim.
+contract ReentrantContributor {
+    ZAMMAlignmentVault public vault;
+    bool public reentryAttempted;
+    bool public reentrySucceeded;
+
+    constructor(ZAMMAlignmentVault _vault) {
+        vault = _vault;
+    }
+
+    receive() external payable {
+        if (!reentryAttempted && msg.value > 0) {
+            reentryAttempted = true;
+            try vault.receiveContribution{ value: 0.001 ether }(Currency.wrap(address(0)), 0.001 ether, address(this)) {
+                reentrySucceeded = true;
+            } catch {
+                reentrySucceeded = false;
+            }
+        }
+    }
+
+    function claim() external returns (uint256) {
+        return vault.claimFees();
     }
 }
