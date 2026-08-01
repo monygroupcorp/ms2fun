@@ -87,6 +87,8 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
     // ── Errors ────────────────────────────────────────────────────────────
     error VaultAlreadyInitialized();
     error ETHOnly();
+    /// @dev receiveContribution: the declared `amount` does not match the ETH actually sent.
+    error AmountMismatch();
     error NoPendingETH();
     error NotDelegate();
     error ZeroContributions();
@@ -251,17 +253,16 @@ contract ZAMMAlignmentVault is IAlignmentVault, Ownable, ReentrancyGuard {
         assembly { locked := eq(sload(_RG_SLOT), address()) }
     }
 
-    function receiveContribution(
-        Currency currency,
-        uint256,
-        /*amount*/
-        address benefactor
-    )
+    function receiveContribution(Currency currency, uint256 amount, address benefactor)
         external
         payable
         override
+        nonReentrant
     {
         if (Currency.unwrap(currency) != address(0)) revert ETHOnly();
+        // Defense-in-depth (Uni parity): enforce the declared amount equals the ETH sent so no caller
+        // can under/over-declare its contribution vs the value transferred.
+        if (msg.value != amount) revert AmountMismatch();
         _trackPending(benefactor, msg.value);
     }
 
