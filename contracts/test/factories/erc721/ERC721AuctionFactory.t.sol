@@ -20,6 +20,7 @@ import { MockEXECToken } from "../../mocks/MockEXECToken.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockZRouter } from "../../mocks/MockZRouter.sol";
 import { MockVaultPriceValidator } from "../../mocks/MockVaultPriceValidator.sol";
+import { MockToggleVault } from "../../mocks/MockToggleVault.sol";
 import { IVaultPriceValidator } from "../../../src/interfaces/IVaultPriceValidator.sol";
 import { GlobalMessageRegistry } from "../../../src/registry/GlobalMessageRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -413,6 +414,56 @@ contract ERC721AuctionFactoryTest is Test {
             "treasury got protocol + redirected tithe"
         );
         assertEq(inst.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
+    }
+
+    /// noesis-126: a vault cut STASHED at settle (the vault reverted) while the target was live must NOT be
+    /// force-fed to the vault on `flushPendingVaultCut` once the target has since been revoked — it is
+    /// redirected to `protocolTreasury`, mirroring the `settleAuction` primary path.
+    function test_FlushPendingVaultCut_RevokedTarget_RedirectsToTreasury() public {
+        // Broken vault: receiveContribution reverts, so the settle tithe is stashed as pendingVaultCut.
+        MockToggleVault brokenVault = new MockToggleVault();
+
+        ERC721AuctionFactory.CreateParams memory p = ERC721AuctionFactory.CreateParams({
+            name: "Stashed Collection",
+            metadataURI: "ipfs://meta",
+            creator: artist,
+            vault: address(brokenVault),
+            symbol: "ART",
+            lines: 1,
+            baseDuration: BASE_DURATION,
+            timeBuffer: TIME_BUFFER,
+            bidIncrement: BID_INCREMENT
+        });
+        vm.deal(artist, 100 ether);
+        vm.prank(artist);
+        ERC721AuctionInstance inst = ERC721AuctionInstance(payable(factory.createInstance{ value: 0 }(_nextSalt(), p)));
+
+        vm.prank(artist);
+        inst.queuePiece{ value: 0.1 ether }("ipfs://piece1");
+
+        vm.deal(bidder1, 1 ether);
+        vm.prank(bidder1);
+        inst.createBid{ value: 1 ether }(1, bytes(""));
+
+        ERC721AuctionInstance.Auction memory auction = inst.getAuction(1);
+        vm.warp(auction.endTime);
+
+        // Target still live + vault broken → settle stashes the tithe (does not redirect yet).
+        inst.settleAuction(1);
+        uint256 expectedVaultCut = (1 ether * 19) / 100; // 19%
+        assertEq(inst.pendingVaultCut(), expectedVaultCut, "precondition: cut stashed while target live");
+
+        // DAO revokes the target after the stash.
+        mockRegistry.setVaultRegistered(address(brokenVault), false);
+
+        uint256 treasuryBefore = treasury.balance;
+        vm.expectEmit(true, true, false, true, address(inst));
+        emit ERC721AuctionInstance.VaultCutRedirected(address(brokenVault), treasury, expectedVaultCut);
+        inst.flushPendingVaultCut(); // permissionless
+
+        assertEq(treasury.balance - treasuryBefore, expectedVaultCut, "flush redirected the tithe to treasury");
+        assertEq(address(brokenVault).balance, 0, "de-curated vault received nothing");
+        assertEq(inst.pendingVaultCut(), 0, "stash cleared");
     }
 
     function test_SettleAuction_BeforeEnd() public {
