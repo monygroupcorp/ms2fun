@@ -255,6 +255,15 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     receive() external payable override { }
 
     function _deposit(address benefactor, uint256 amount) internal {
+        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this deposit grows the escrow
+        // weight / inflates the position. Otherwise the next harvest apportions yield the existing
+        // benefactors earned during their exclusive window at the POST-join weight, letting the new
+        // depositor capture a share of pre-join yield (dilution). Must run before `weth.deposit`/
+        // `stataToken.deposit` so `_pendingYield` reads the pre-deposit position value against the
+        // pre-deposit basis. `receiveContribution` (the only caller) is `nonReentrant`, so the external
+        // `_redeem` + force-sends here cannot be re-entered.
+        _crystallizeYield();
+
         weth.deposit{ value: amount }(); // approval is set once in initialize
         stataToken.deposit(amount, address(this));
 
@@ -291,6 +300,14 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
     function vest(address benefactor) external nonReentrant {
         if (migrated) revert VaultMigrated(); // escrow is decommissioned post-migrate (RE-B2)
         if (escrowedPrincipal[benefactor] == 0) revert NoPrincipal();
+
+        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this benefactor's principal is
+        // reclassified escrowed→vested. Otherwise the yield that accrued while the principal was escrowed —
+        // which the split law routes 80 creator / 19 target / 1 protocol — would be apportioned by the NEXT
+        // harvest at the post-vest weight (0 creator / 99 target / 1 protocol), stripping the creator leg to
+        // `communityPayout` and diluting every still-escrowed benefactor. Mirrors `migratePosition`'s
+        // guards→crystallize→mutate order; inlined (not `this.harvest()`) because both are `nonReentrant`.
+        _crystallizeYield();
 
         // RE-B3: vest only the tranches whose OWN clock has elapsed. Each deposit vests independently at
         // `depositTs + VEST_DURATION`; a not-yet-matured top-up stays escrowed with its clock intact. Matured
@@ -573,6 +590,17 @@ contract AlignmentEndowmentVault is ReentrancyGuard, Ownable, IAlignmentVault {
         nonReentrant
         returns (bytes memory result)
     {
+        // Harvest-first: crystallize any not-yet-harvested Aave yield BEFORE this deploy redeems vested
+        // principal / shrinks the corpus. Two defects this closes: (1) split-misattribution — an ambassador
+        // timing `execute` before a harvest would reweight the vested class's yield into the escrowed
+        // 80/19/1 split (or vice-versa) at the post-deploy weight; crystallizing first fixes the apportion
+        // at the pre-deploy weights. (2) permanent strand — draining the LAST principal (`totalInAave→0`)
+        // would trap all pending yield behind `_crystallizeYield`'s `if (totalInAave == 0) return;` guard
+        // with no reopen once `migrated`; crystallizing while `totalInAave > 0` still holds realizes it
+        // first. Runs before the auth read; its force-sends precede the arbitrary external call, so CEI
+        // holds. Inlined (not `this.harvest()`) because both are `nonReentrant`.
+        _crystallizeYield();
+
         IAlignmentRegistry ar = masterRegistry.alignmentRegistry();
         if (!ar.isAmbassador(targetId, msg.sender)) revert NotAuthorized();
 
