@@ -1,0 +1,69 @@
+name: contracts-ci
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    working-directory: contracts
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Foundry PINNED to v1.5.1 to match app-ci.yml's G7: `--skip` glob semantics
+      # differ across releases, and nightly reds where v1.5.1 is green. Keep the pin
+      # identical so this job and G7 agree on the same toolchain behavior.
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      # contracts/lib is gitignored with NO committed submodule gitlinks
+      # (contracts/.gitmodules is an orphaned manifest of URLs with no commit pins),
+      # so actions/checkout fetches nothing — we clone each dep by hand. This mirrors
+      # G7's 11-dep block VERBATIM, plus the two deps that `forge test` needs which a
+      # src-only build does not: forge-std and aave-address-book (G7's src/ build imports
+      # neither; test/ does). Result: all 13 lib dirs match the primary checkout.
+      # NOTE (known follow-up): deps are unpinned — forge install pulls default-branch
+      # HEAD, so an upstream breaking change could red this gate with no local repro.
+      # Proper fix = pin deps (foundry.lock / real gitlinks); tracked separately.
+      - name: Install contracts/lib deps
+        run: |
+          forge install \
+            OpenZeppelin/openzeppelin-contracts \
+            transmissions11/solmate \
+            vectorized/solady \
+            Uniswap/v4-core \
+            vectorized/dn404 \
+            Uniswap/v3-core \
+            Uniswap/v3-periphery \
+            Uniswap/v2-core \
+            z-fi/zamm \
+            z-fi/zRouter \
+            radeksvarz/createx-forge \
+            foundry-rs/forge-std \
+            bgd-labs/aave-address-book
+
+      - name: Format check
+        run: forge fmt --check
+
+      - name: Build contracts
+        run: forge build
+
+      # Default profile. foundry.toml `skip=[…RealSettlement…]` keeps the exact-0.8.26
+      # v4 test out of this pinned-0.8.28 compile; the test/fork/** suites self-skip at
+      # runtime (vm.skip(true) when no fork URL), so no RPC secret is needed.
+      - name: Run tests
+        run: forge test
+
+      # Audit-#1 guard: the real-v4 RealSettlement regression. foundry.v4.toml enables
+      # auto_detect_solc so forge selects 0.8.26 for v4-core's real PoolManager. It uses
+      # an in-memory real PoolManager (not a fork), so it needs no RPC.
+      - name: RealSettlement regression (real v4)
+        run: FOUNDRY_CONFIG=foundry.v4.toml forge test --match-path test/hooks/UniAlignmentV4Hook_RealSettlement.t.sol
