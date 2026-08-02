@@ -187,6 +187,95 @@ contract UniAlignmentV4Hook_RealSettlement is Test {
         assertEq(hook.queuedFees(), 0, "shape4 queues nothing");
     }
 
+    // ---- Queue fallback: a reverting vault must NOT brick the swap — the ETH fee is queued instead. ----
+    // Unit-level behavior migrated out of the old TestableHook mirror and proven here against the REAL
+    // hook + REAL PoolManager: a shape-3 (ETH-unspecified, afterSwap-taxed) sell whose vault reverts on
+    // receiveContribution settles cleanly and parks the fee in `queuedFees`, crediting the fixed benefactor.
+    function test_vaultRevert_queuesFee_creditsBenefactor() public {
+        MockRevertingVault revertingVault = new MockRevertingVault();
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPool(0x5353, address(revertingVault));
+
+        // Shape 3: exact-input token->ETH sell — afterSwap taxes the ETH output; the vault reverts.
+        IPoolManager.SwapParams memory p =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1e18, sqrtPriceLimitX96: MAX_PRICE_LIMIT });
+
+        // The fee is queued (not lost), attributed to the fixed benefactor — swap does NOT revert.
+        vm.expectEmit(true, false, false, false, address(h));
+        emit UniAlignmentV4Hook.AlignmentFeeQueued(0, benefactor);
+        swapRouter.swap(k, p, _settings(), ZERO_BYTES);
+
+        assertGt(h.queuedFees(), 0, "fee must be queued when the vault reverts");
+        // The hook physically holds the queued ETH (taken from the PoolManager) awaiting flush.
+        assertEq(address(h).balance, h.queuedFees(), "queued ETH is held by the hook");
+    }
+
+    // ---- flushQueuedFees forwards the parked ETH to the vault, crediting the same fixed benefactor. ----
+    function test_flushQueuedFees_creditsBenefactor() public {
+        MockRevertingVault revertingVault = new MockRevertingVault();
+        (UniAlignmentV4Hook h, PoolKey memory k) = _deployHookedPool(0x5454, address(revertingVault));
+
+        // Queue a fee via a shape-3 sell into the reverting vault.
+        IPoolManager.SwapParams memory p =
+            IPoolManager.SwapParams({ zeroForOne: false, amountSpecified: -1e18, sqrtPriceLimitX96: MAX_PRICE_LIMIT });
+        swapRouter.swap(k, p, _settings(), ZERO_BYTES);
+        uint256 queued = h.queuedFees();
+        assertGt(queued, 0, "precondition: a fee is queued");
+
+        // Swap the reverting vault for a recording one at the SAME address so the retry succeeds.
+        MockVault recorder = new MockVault();
+        vm.etch(address(revertingVault), address(recorder).code);
+
+        // The flush forwards the exact queued amount to the vault, crediting the fixed benefactor.
+        vm.expectEmit(false, false, false, true, address(revertingVault));
+        emit MockVault.Received(Currency.wrap(address(0)), queued, benefactor);
+        vm.expectEmit(false, false, false, true, address(h));
+        emit UniAlignmentV4Hook.QueuedFeesForwarded(queued);
+        h.flushQueuedFees();
+
+        assertEq(h.queuedFees(), 0, "queue is drained after flush");
+        assertEq(MockVault(payable(address(revertingVault))).totalReceived(), queued, "vault received the flushed ETH");
+    }
+
+    // ---- helpers for the queue/flush paths ----
+
+    /// @dev Deploy the REAL hook at a fresh 0xCC-permission address wired to `vaultAddr`, initialize its
+    ///      native/token dynamic-fee pool, and seed wide-range liquidity — the same shape setUp builds for
+    ///      the primary hook, so the afterSwap-taxed shapes produce a real fee.
+    function _deployHookedPool(uint160 seed, address vaultAddr)
+        internal
+        returns (UniAlignmentV4Hook h, PoolKey memory k)
+    {
+        address addr = address((seed << 14) | uint160(0x00CC));
+        deployCodeTo(
+            "UniAlignmentV4Hook.sol:UniAlignmentV4Hook",
+            abi.encode(
+                IPoolManager(address(manager)),
+                IAlignmentVault(payable(vaultAddr)),
+                WETH,
+                owner,
+                benefactor,
+                HOOK_FEE_BIPS,
+                LP_FEE_RATE
+            ),
+            addr
+        );
+        h = UniAlignmentV4Hook(payable(addr));
+
+        k = PoolKey({
+            currency0: ethCurrency,
+            currency1: tokenCurrency,
+            fee: LPFeeLibrary.DYNAMIC_FEE_FLAG,
+            tickSpacing: 60,
+            hooks: IHooks(addr)
+        });
+        manager.initialize(k, SQRT_PRICE_1_1);
+
+        vm.deal(address(this), 10_000 ether);
+        IPoolManager.ModifyLiquidityParams memory lp =
+            IPoolManager.ModifyLiquidityParams({ tickLower: -6000, tickUpper: 6000, liquidityDelta: 100e18, salt: 0 });
+        modifyLiquidityRouter.modifyLiquidity{ value: 500 ether }(k, lp, ZERO_BYTES);
+    }
+
     receive() external payable { }
 }
 
@@ -201,6 +290,15 @@ contract MockVault {
     function receiveContribution(Currency currency, uint256 amount, address benefactor) external payable {
         totalReceived += msg.value;
         emit Received(currency, amount, benefactor);
+    }
+}
+
+/// @notice Vault stub that always reverts on receiveContribution — drives the hook's queue fallback.
+contract MockRevertingVault {
+    receive() external payable { }
+
+    function receiveContribution(Currency, uint256, address) external payable {
+        revert("Vault revert");
     }
 }
 
