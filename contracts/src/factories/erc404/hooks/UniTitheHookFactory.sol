@@ -64,14 +64,19 @@ contract UniTitheHookFactory is IAlignmentHookFactory {
         returns (address hook)
     {
         // Init code exactly as `new UniAlignmentV4Hook{salt}(...)` below assembles it: creation code ++
-        // abi.encode(ALL seven constructor args, in order). Computed here (not via the miner's stale
-        // computeInitCodeHash helper, which predates the `benefactor` ctor arg) so the mined address
-        // matches the deployed one.
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
-                type(UniAlignmentV4Hook).creationCode,
-                abi.encode(poolManager, vault, weth, hookOwner, benefactor, hookFeeBips, lpFeeRate)
-            )
+        // abi.encode(ALL seven constructor args, in order). Both the mine and the deploy derive their
+        // address from THIS hash, and it is computed by the shared HookAddressMiner.computeInitCodeHash
+        // helper — the single source of truth for the init-code hash, so factory and helper can never
+        // disagree about the deployed address.
+        bytes32 initCodeHash = HookAddressMiner.computeInitCodeHash(
+            type(UniAlignmentV4Hook).creationCode,
+            address(poolManager),
+            address(vault),
+            weth,
+            hookOwner,
+            benefactor,
+            hookFeeBips,
+            lpFeeRate
         );
 
         // On-chain mine a salt so the CREATE2 address carries EXACTLY the 0xCC permission bits. Capped at

@@ -164,6 +164,7 @@ library HookAddressMiner {
      * @param vault The UniAlignmentVault address
      * @param weth The WETH address
      * @param owner The hook owner address
+     * @param benefactor The fixed project instance the hook credits (7th ctor arg, added in #115)
      * @param hookFeeBips The hook fee in basis points
      * @param initialLpFeeRate The initial LP fee rate
      * @return The keccak256 hash of the full init code
@@ -174,11 +175,14 @@ library HookAddressMiner {
         address vault,
         address weth,
         address owner,
+        address benefactor,
         uint256 hookFeeBips,
         uint24 initialLpFeeRate
     ) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(creationCode, abi.encode(poolManager, vault, weth, owner, hookFeeBips, initialLpFeeRate))
+            abi.encodePacked(
+                creationCode, abi.encode(poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate)
+            )
         );
     }
 
