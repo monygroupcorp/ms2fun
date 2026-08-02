@@ -207,6 +207,50 @@ contract HookAddressMinerTest is Test {
         assertTrue(addr1 != addr2, "Different init codes should produce different addresses");
     }
 
+    // ========== Init Code Hash Tests ==========
+
+    /// @notice computeInitCodeHash must hash the FULL 7-arg constructor tail (poolManager, vault, weth,
+    ///         owner, benefactor, hookFeeBips, initialLpFeeRate) in that exact order — the `benefactor`
+    ///         arg added in #115. The factory relies on this being byte-identical to what
+    ///         `new UniAlignmentV4Hook{salt}(...)` assembles, so the mined address matches the deployed one.
+    function test_computeInitCodeHash_matches7ArgConstructorTail() public pure {
+        bytes memory creationCode = hex"60806040523480156100"; // arbitrary creation-code stand-in
+        address poolManager = address(0xA1);
+        address vault = address(0xA2);
+        address weth = address(0xA3);
+        address owner = address(0xA4);
+        address benefactor = address(0xA5);
+        uint256 hookFeeBips = 100;
+        uint24 initialLpFeeRate = 3000;
+
+        bytes32 expected = keccak256(
+            abi.encodePacked(
+                creationCode, abi.encode(poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate)
+            )
+        );
+
+        assertEq(
+            HookAddressMiner.computeInitCodeHash(
+                creationCode, poolManager, vault, weth, owner, benefactor, hookFeeBips, initialLpFeeRate
+            ),
+            expected,
+            "init-code hash must cover the 7-arg ctor tail including benefactor"
+        );
+    }
+
+    /// @notice A different benefactor must change the init-code hash (proves benefactor is actually hashed,
+    ///         not silently dropped — the stale 6-arg helper would have collided here).
+    function test_computeInitCodeHash_benefactorAffectsHash() public pure {
+        bytes memory creationCode = hex"60806040523480156100";
+        bytes32 hashA = HookAddressMiner.computeInitCodeHash(
+            creationCode, address(0xA1), address(0xA2), address(0xA3), address(0xA4), address(0xA5), 100, 3000
+        );
+        bytes32 hashB = HookAddressMiner.computeInitCodeHash(
+            creationCode, address(0xA1), address(0xA2), address(0xA3), address(0xA4), address(0xB5), 100, 3000
+        );
+        assertTrue(hashA != hashB, "changing benefactor must change the init-code hash");
+    }
+
     // ========== Flag Decoding Tests ==========
 
     function test_decodeFlags_correctlyIdentifiesFlags() public pure {
