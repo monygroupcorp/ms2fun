@@ -27,11 +27,16 @@ export interface ModuleSlotPickerProps {
   slot: ModuleSlot
   value: `0x${string}` | undefined
   onChange: (selection: ModuleSelection) => void
+  /** Unresolved validation errors owned by this slot's module. When > 0 the header shows an error
+   *  badge, so a slot that blocks deploy is visibly flagged even when its config form is off-screen
+   *  (a different step / collapsed). Caller gates this on the "user tried to finish" flag so a
+   *  pristine form never reds. */
+  errorCount?: number
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ModuleSlotPicker({ slot, value, onChange }: ModuleSlotPickerProps) {
+export function ModuleSlotPicker({ slot, value, onChange, errorCount = 0 }: ModuleSlotPickerProps) {
   const { data: options, isPending, isError } = useApprovedModules(slot.tag)
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -41,6 +46,11 @@ export function ModuleSlotPicker({ slot, value, onChange }: ModuleSlotPickerProp
       <span className={styles.label}>
         {slot.label}
         {slot.required && <span className={styles.required}>*</span>}
+        {errorCount > 0 && (
+          <span className={styles.errorBadge} role="status">
+            {errorCount} {errorCount === 1 ? 'issue' : 'issues'}
+          </span>
+        )}
       </span>
       {slot.help && <p className={styles.help}>{slot.help}</p>}
       {slot.learnMore && <LearnLink slug={slot.learnMore} />}

@@ -33,6 +33,22 @@
   color: var(--text-primary);
 }
 
+/* Error badge — a filled, inverted block flagging a slot whose module has unresolved validation
+   errors (monochrome, per the Gallery-Brutalism system: emphasis via inversion, not colour). */
+.errorBadge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-wide);
+  background-color: var(--semantic-error);
+  color: var(--bg-primary);
+  vertical-align: middle;
+}
+
 .help {
   font-family: var(--font-mono);
   font-size: var(--font-size-caption);
