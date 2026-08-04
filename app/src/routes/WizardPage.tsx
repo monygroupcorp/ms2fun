@@ -94,6 +94,83 @@ const TYPE_LABEL: Record<string, string> = {
   erc721: 'ERC-721',
 }
 
+const STEP_LABEL: Record<StepKey, string> = Object.fromEntries(
+  STEP_DEFS.map((s) => [s.key, s.label]),
+) as Record<StepKey, string>
+
+/** One actionable deploy-blocker: a specific message + the step that owns the fix (for jump-to). */
+export interface DeployBlocker {
+  message: string
+  step: StepKey
+}
+
+/** Which step owns a given core field's input, so a core-field blocker deep-links to the right step.
+ *  `styleUri` lives on the Collection-page step and `freeMint` on the Gating step; everything else is
+ *  on the Contract step (see the per-step SchemaForm slices in `stepBody`). */
+function coreFieldStep(fieldKey: string): StepKey {
+  if (fieldKey === 'styleUri') return 'page'
+  if (fieldKey === 'freeMint') return 'gating'
+  return 'contract'
+}
+
+export interface DeployBlockerInput {
+  /** Trimmed-or-not collection name (raw metadata.name). */
+  metadataName: string
+  /** `validateCollectionName(name)` result — a reason string when malformed, else null. */
+  nameError: string | null
+  /** Registry availability says the name is already claimed. */
+  nameTaken: boolean
+  walletConnected: boolean
+  ownerNeedsAgent: boolean
+  vaultSelected: boolean
+  /** `validateFields(coreFields, values)` — ungated (deploy stays blocked regardless of `attempted`). */
+  coreErrors: Record<string, string>
+  /** `validateMetadataConfig(...)` — ungated; empty when no metadata module is selected. */
+  metaErrors: Record<string, string>
+}
+
+/**
+ * Everything that would make `handleSubmit` bail before it ever sends the create tx, expanded into
+ * SPECIFIC, actionable lines (naming the missing field/row) — each carrying the step that owns the fix
+ * so the Review summary can deep-link straight to it. Pure (no React/hooks) so it's unit-testable and
+ * the single source of truth for both the deploy-disabled gate and the surfaced list.
+ */
+export function buildDeployBlockers(input: DeployBlockerInput): DeployBlocker[] {
+  const out: DeployBlocker[] = []
+  const name = input.metadataName.trim()
+  if (!name) out.push({ message: 'Set a collection name.', step: 'page' })
+  else if (input.nameError)
+    out.push({ message: `Collection name: ${input.nameError.toLowerCase()}`, step: 'page' })
+  else if (input.nameTaken)
+    out.push({ message: `Collection name “${name}” is already taken.`, step: 'page' })
+
+  if (!input.walletConnected) out.push({ message: 'Connect your wallet.', step: 'review' })
+  if (input.ownerNeedsAgent)
+    out.push({
+      message:
+        'Creator is a different address and your wallet isn’t a registered agent — clear it or use your own wallet.',
+      step: 'contract',
+    })
+  if (!input.vaultSelected) out.push({ message: 'Select an alignment vault.', step: 'alignment' })
+
+  // Expand each failing core field into its own line (naming the field via the validator message),
+  // routed to the step that renders it.
+  for (const [key, message] of Object.entries(input.coreErrors)) {
+    out.push({ message, step: coreFieldStep(key) })
+  }
+  // Expand each metadata-stack error (tier rows, router wiring…) — all owned by the Modules step.
+  for (const message of Object.values(input.metaErrors)) {
+    out.push({ message, step: 'modules' })
+  }
+  return out
+}
+
+/** Count of unresolved validation errors that belong to one module slot, for its header badge. Keys
+ *  are prefixed by slot (`tier…`, `overlay…`, `resolver`), so a prefix match buckets them per slot. */
+export function slotErrorCount(slotKey: string, errors: Record<string, string>): number {
+  return Object.keys(errors).filter((k) => k === slotKey || k.startsWith(slotKey)).length
+}
+
 /**
  * Launch wizard (Phase 3 / T2). Drives the ADR-0005 option schema → a real `createInstance`:
  * project type → core fields (generic `SchemaForm`) → module slots → alignment vault → collection
@@ -206,35 +283,25 @@ export function WizardPage() {
   const nameStatus = useNameAvailability(metadata.name)
 
   // Everything that would make handleSubmit bail before it ever sends the create tx — surfaced on the
-  // Review step so "Deploy" never silently no-ops. Each line points at the step to fix.
-  const deployBlockers: string[] = (() => {
-    const out: string[] = []
-    if (!metadata.name.trim()) out.push('Set a collection name — Collection page step.')
-    else {
-      // The registry claims names globally and case-insensitively; both of these revert
-      // `createInstance` if we let them through. Same query key as the form's — wagmi dedupes.
-      const bad = validateCollectionName(metadata.name)
-      if (bad) out.push(`Collection name: ${bad.toLowerCase()} — Collection page step.`)
-      else if (nameStatus.state === 'taken')
-        out.push(
-          `Collection name “${metadata.name.trim()}” is already taken — Collection page step.`,
-        )
-    }
-    if (!wallet) out.push('Connect your wallet.')
-    if (ownerNeedsAgent)
-      out.push(
-        'Creator is a different address and your wallet isn’t a registered agent — clear it or use your own wallet (Contract step).',
-      )
-    if (!vault) out.push('Select an alignment vault — Alignment step.')
-    if (Object.keys(validateFields(projectType?.coreFields ?? [], values)).length > 0)
-      out.push('Complete the contract details — Contract step.')
-    if (
-      anyMetaModule &&
-      Object.keys(validateMetadataConfig(metaSelection, metaValues, coreNftCount)).length > 0
-    )
-      out.push('Fix the metadata module config — Modules step.')
-    return out
-  })()
+  // Review step so "Deploy" never silently no-ops. Ungated (independent of `attempted`): the deploy
+  // button must stay disabled while any of these hold. Each line names the specific missing input and
+  // carries the step that owns it (jump-to). Same validators the forms use — no new rules here.
+  const deployCoreErrors = validateFields(projectType?.coreFields ?? [], values)
+  const deployMetaErrors = anyMetaModule
+    ? validateMetadataConfig(metaSelection, metaValues, coreNftCount)
+    : {}
+  const deployBlockers: DeployBlocker[] = buildDeployBlockers({
+    metadataName: metadata.name,
+    // The registry claims names globally + case-insensitively; both revert `createInstance` if let
+    // through. Same query key as the form's — wagmi dedupes.
+    nameError: metadata.name.trim() ? validateCollectionName(metadata.name) : null,
+    nameTaken: nameStatus.state === 'taken',
+    walletConnected: Boolean(wallet),
+    ownerNeedsAgent,
+    vaultSelected: Boolean(vault),
+    coreErrors: deployCoreErrors,
+    metaErrors: deployMetaErrors,
+  })
 
   // Assemble the exact `createInstance` call from current wizard state. Shared by the deploy submit
   // (handleSubmit) and the Review-step gas estimate, so the tx we price is the tx we send.
@@ -384,6 +451,10 @@ export function WizardPage() {
         <ModuleSlotPicker
           slot={slot}
           value={modules[slot.key]}
+          // Flag a slot whose module has unresolved validation errors, so a COLLAPSED/off-step slot
+          // isn't silently blocking deploy. `metaErrors` is gated on `attempted`, so a pristine form
+          // never reds. Only meta slots (overlay/tier/resolver) can carry config errors today.
+          errorCount={slotErrorCount(slot.key, metaErrors)}
           onChange={(sel) => {
             setModules((m) => ({ ...m, [slot.key]: sel.address }))
             if ((META_CONFIG_SLOTS as readonly string[]).includes(slot.key)) {
@@ -770,7 +841,16 @@ export function WizardPage() {
               <p className={styles.blockersHead}>Before you can deploy:</p>
               <ul className={styles.blockersList}>
                 {deployBlockers.map((b) => (
-                  <li key={b}>{b}</li>
+                  <li key={`${b.step}:${b.message}`}>
+                    <button
+                      type="button"
+                      className={styles.blockerJump}
+                      onClick={() => setStepKey(b.step)}
+                    >
+                      <span>{b.message}</span>
+                      <span className={styles.blockerStep}>Fix in {STEP_LABEL[b.step]} →</span>
+                    </button>
+                  </li>
                 ))}
               </ul>
             </div>

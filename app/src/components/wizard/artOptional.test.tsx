@@ -2,9 +2,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, test } from 'vitest'
 import { getConcept } from '@/lib/learn/concepts'
 import { LearnLink } from './LearnLink'
-// Raw source of WizardPage, via Vite's `?raw` loader — lets us assert an invariant about the
-// component-local `deployBlockers` IIFE without exporting it.
-import wizardPageSource from '../../routes/WizardPage.tsx?raw'
+import { buildDeployBlockers } from '../../routes/WizardPage'
 
 afterEach(cleanup)
 
@@ -32,19 +30,23 @@ describe('bespoke-surface LearnLinks', () => {
   }
 })
 
-// noesis-044 HARD CONSTRAINT (folds 045): art must NEVER gate deploy. `deployBlockers` is the single
-// list that governs whether the Deploy button fires, so proving `image` is absent from it proves an
-// empty cover cannot block deploy. Asserted at source level because the block is a component-local IIFE
-// (not exported) and the plan forbids refactoring it to expose it for a render test.
+// noesis-044 HARD CONSTRAINT (folds 045): art must NEVER gate deploy. `buildDeployBlockers` is the
+// single source of truth for whether the Deploy button fires (noesis-132 lifted it out of the
+// component as a pure, exported function), so proving no blocker ever references the cover image proves
+// an empty cover cannot block deploy — even with everything else broken.
 describe('empty cover image is not a deploy blocker', () => {
-  const src = wizardPageSource
-
-  test('the deployBlockers block never references image', () => {
-    const start = src.indexOf('const deployBlockers')
-    expect(start).toBeGreaterThan(-1)
-    const end = src.indexOf('})()', start)
-    expect(end).toBeGreaterThan(start)
-    const block = src.slice(start, end)
-    expect(block).not.toMatch(/image/i)
+  test('no blocker references the cover image, even in a maximally-invalid state', () => {
+    const blockers = buildDeployBlockers({
+      metadataName: '', // no name/cover set at all
+      nameError: null,
+      nameTaken: false,
+      walletConnected: false,
+      ownerNeedsAgent: true,
+      vaultSelected: false,
+      coreErrors: { nftCount: 'Supply is required' },
+      metaErrors: { tierIdStarts: 'Tier module selected — add at least one tier row' },
+    })
+    expect(blockers.length).toBeGreaterThan(0)
+    for (const b of blockers) expect(b.message).not.toMatch(/image/i)
   })
 })
