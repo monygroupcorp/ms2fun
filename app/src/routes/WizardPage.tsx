@@ -29,6 +29,7 @@ import { validateCollectionName } from '../lib/wizard/collectionName'
 import { useNameAvailability } from '../components/wizard/useNameAvailability'
 import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { BondNotice } from '../components/wizard/BondNotice'
+import { TierSupplyHelper } from '../components/wizard/TierSupplyHelper'
 import { SchemaForm } from '../components/wizard/SchemaForm'
 import { ModuleSlotPicker } from '../components/wizard/ModuleSlotPicker'
 import { CollectionMetaForm } from '../components/wizard/CollectionMetaForm'
@@ -186,8 +187,21 @@ export function WizardPage() {
     ...(modules.tier ? { tier: modules.tier } : {}),
   }
   const anyMetaModule = Boolean(modules.resolver || modules.overlay || modules.tier)
+  // The ERC404 core supply, parsed to a whole-id bigint, threaded into tier validation so a tier
+  // range that ends past the supply (dead ids) is caught. Blank/garbage → 0n (⊆-supply check skipped).
+  const coreNftCount = ((): bigint => {
+    const t = (values['nftCount'] ?? '').trim()
+    if (!/^\d+$/.test(t)) return 0n
+    try {
+      return BigInt(t)
+    } catch {
+      return 0n
+    }
+  })()
   const metaErrors =
-    attempted && anyMetaModule ? validateMetadataConfig(metaSelection, metaValues) : {}
+    attempted && anyMetaModule
+      ? validateMetadataConfig(metaSelection, metaValues, coreNftCount)
+      : {}
 
   const nameStatus = useNameAvailability(metadata.name)
 
@@ -214,7 +228,10 @@ export function WizardPage() {
     if (!vault) out.push('Select an alignment vault — Alignment step.')
     if (Object.keys(validateFields(projectType?.coreFields ?? [], values)).length > 0)
       out.push('Complete the contract details — Contract step.')
-    if (anyMetaModule && Object.keys(validateMetadataConfig(metaSelection, metaValues)).length > 0)
+    if (
+      anyMetaModule &&
+      Object.keys(validateMetadataConfig(metaSelection, metaValues, coreNftCount)).length > 0
+    )
       out.push('Fix the metadata module config — Modules step.')
     return out
   })()
@@ -284,7 +301,10 @@ export function WizardPage() {
     // A non-agent wallet cannot deploy a collection owned by someone else — the factory reverts.
     if (ownerNeedsAgent) return
     // Block on a malformed metadata stack (ranges, missing router, empty tier table…).
-    if (anyMetaModule && Object.keys(validateMetadataConfig(metaSelection, metaValues)).length > 0)
+    if (
+      anyMetaModule &&
+      Object.keys(validateMetadataConfig(metaSelection, metaValues, coreNftCount)).length > 0
+    )
       return
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(32)))
@@ -382,6 +402,9 @@ export function WizardPage() {
               onChange={(key, value) => setMetaValues((v) => ({ ...v, [key]: value }))}
               errors={metaErrors}
             />
+            {slot.key === 'tier' && (
+              <TierSupplyHelper nftCount={coreNftCount} values={metaValues} />
+            )}
           </div>
         )}
         {slot.key === 'resolver' && metaErrors['resolver'] && (
