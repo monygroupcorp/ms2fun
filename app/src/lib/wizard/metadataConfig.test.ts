@@ -4,6 +4,7 @@ import {
   encodeMetadataConfig,
   encodeTiers,
   hasMetadataConfig,
+  tierSupplySummary,
   validateMetadataConfig,
 } from './metadataConfig'
 import { ZERO_ADDRESS } from './submit'
@@ -199,5 +200,114 @@ describe('validateMetadataConfig', () => {
       },
     )
     expect(errs).toEqual({})
+  })
+
+  // ── supply (nftCount) range validation (noesis-133) ──────────────────────────
+
+  // rth's canonical case: supply 4400, one tier covering 4001–4400 (400 rare ids) → in range.
+  const T4400 = { 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400', 'tierBaseURIs.0': 'rare-' }
+
+  it('passes a tier range that ends exactly at nftCount (4001–4400 ⊆ 4400)', () => {
+    const errs = validateMetadataConfig({ tier: TIER }, T4400, 4400n)
+    expect(errs).toEqual({})
+  })
+
+  it('flags a tier end id past nftCount with the specific supply message', () => {
+    const errs = validateMetadataConfig({ tier: TIER }, T4400, 4000n)
+    expect(errs['tierIdEnds.0']).toBe(
+      'tier 1: end id 4400 exceeds NFT supply 4000 — raise supply or lower the range',
+    )
+  })
+
+  it('flags a start id below 1', () => {
+    const errs = validateMetadataConfig(
+      { tier: TIER },
+      { 'tierIdStarts.0': '0', 'tierIdEnds.0': '5', 'tierBaseURIs.0': 'r-' },
+      4400n,
+    )
+    expect(errs['tierIdStarts.0']).toMatch(/start id must be ≥ 1/)
+  })
+
+  it('skips the ⊆-supply check when nftCount is 0/empty (do not false-error pre-supply)', () => {
+    // Same range that would exceed a 4000 supply, but with supply unknown → no supply error.
+    const errs = validateMetadataConfig({ tier: TIER }, T4400, 0n)
+    expect(errs).toEqual({})
+    // Default arg (no nftCount) behaves the same as 0n.
+    expect(validateMetadataConfig({ tier: TIER }, T4400)).toEqual({})
+  })
+
+  it('flags only the offending row when a later tier exceeds supply', () => {
+    const errs = validateMetadataConfig(
+      { tier: TIER },
+      {
+        'tierIdStarts.0': '1',
+        'tierIdEnds.0': '100',
+        'tierBaseURIs.0': 'a-',
+        'tierIdStarts.1': '101',
+        'tierIdEnds.1': '5000', // past supply
+        'tierBaseURIs.1': 'b-',
+      },
+      4000n,
+    )
+    expect(errs['tierIdEnds.0']).toBeUndefined()
+    expect(errs['tierIdEnds.1']).toMatch(/exceeds NFT supply 4000/)
+  })
+})
+
+// ── tierSupplySummary ────────────────────────────────────────────────────────
+
+describe('tierSupplySummary', () => {
+  it('no tiers → all-untiered, within supply, no coverage', () => {
+    const s = tierSupplySummary({}, 4400n)
+    expect(s).toEqual({
+      nftCount: 4400n,
+      supplyKnown: true,
+      hasTiers: false,
+      minId: 0n,
+      maxId: 0n,
+      tierIdCount: 0n,
+      untieredCount: 4400n,
+      withinSupply: true,
+    })
+  })
+
+  it('4,400 case: 4000 base + 400 tier (4001–4400) → within supply', () => {
+    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 4400n)
+    expect(s.hasTiers).toBe(true)
+    expect(s.minId).toBe(4001n)
+    expect(s.maxId).toBe(4400n)
+    expect(s.tierIdCount).toBe(400n)
+    expect(s.untieredCount).toBe(4000n)
+    expect(s.withinSupply).toBe(true)
+  })
+
+  it('tier 4001–4400 with supply 4000 → exceeds supply (✗)', () => {
+    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 4000n)
+    expect(s.maxId).toBe(4400n)
+    expect(s.withinSupply).toBe(false)
+  })
+
+  it('supply unknown (0) → within supply is not asserted (true, no false ✗)', () => {
+    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 0n)
+    expect(s.supplyKnown).toBe(false)
+    expect(s.withinSupply).toBe(true)
+    expect(s.tierIdCount).toBe(400n)
+  })
+
+  it('sums coverage across multiple rows and tracks the outer bounds', () => {
+    const s = tierSupplySummary(
+      {
+        'tierIdStarts.0': '1',
+        'tierIdEnds.0': '10',
+        'tierIdStarts.1': '20',
+        'tierIdEnds.1': '29',
+      },
+      100n,
+    )
+    expect(s.minId).toBe(1n)
+    expect(s.maxId).toBe(29n)
+    expect(s.tierIdCount).toBe(20n) // 10 + 10
+    expect(s.untieredCount).toBe(80n)
+    expect(s.withinSupply).toBe(true)
   })
 })
