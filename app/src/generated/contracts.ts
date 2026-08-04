@@ -6424,6 +6424,13 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
+    name: 'pendingStreamLeak',
+    outputs: [{ name: 'leaked', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [{ name: '', internalType: 'address', type: 'address' }],
     name: 'periodFinish',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
@@ -6529,6 +6536,16 @@ export const erc404StakingModuleAbi = [
   },
   {
     type: 'function',
+    inputs: [],
+    name: 'settleAndReleaseLeak',
+    outputs: [
+      { name: 'totalStaked_', internalType: 'uint256', type: 'uint256' },
+      { name: 'leaked', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: '', internalType: 'address', type: 'address' },
       { name: '', internalType: 'address', type: 'address' },
@@ -6542,6 +6559,13 @@ export const erc404StakingModuleAbi = [
     inputs: [{ name: '', internalType: 'address', type: 'address' }],
     name: 'stakingEnabled',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'streamLeak',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
@@ -6699,6 +6723,25 @@ export const erc404StakingModuleAbi = [
       },
     ],
     name: 'StakingEnabled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'StreamLeakReleased',
   },
   {
     type: 'event',
@@ -9278,10 +9321,13 @@ export const iStakedBalanceReaderAbi = [
 export const iStakingTotalsAbi = [
   {
     type: 'function',
-    inputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
-    name: 'totalStaked',
-    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
-    stateMutability: 'view',
+    inputs: [],
+    name: 'settleAndReleaseLeak',
+    outputs: [
+      { name: 'totalStaked', internalType: 'uint256', type: 'uint256' },
+      { name: 'leaked', internalType: 'uint256', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
   },
 ] as const
 
@@ -20025,6 +20071,15 @@ export const useReadErc404StakingModuleOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"pendingStreamLeak"`
+ */
+export const useReadErc404StakingModulePendingStreamLeak =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'pendingStreamLeak',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"periodFinish"`
  */
 export const useReadErc404StakingModulePeriodFinish =
@@ -20103,6 +20158,15 @@ export const useReadErc404StakingModuleStakingEnabled =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404StakingModuleAbi,
     functionName: 'stakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"streamLeak"`
+ */
+export const useReadErc404StakingModuleStreamLeak =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'streamLeak',
   })
 
 /**
@@ -20212,6 +20276,15 @@ export const useWriteErc404StakingModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"settleAndReleaseLeak"`
+ */
+export const useWriteErc404StakingModuleSettleAndReleaseLeak =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'settleAndReleaseLeak',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useWriteErc404StakingModuleTransferOwnership =
@@ -20317,6 +20390,15 @@ export const useSimulateErc404StakingModuleSetMetadataUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"settleAndReleaseLeak"`
+ */
+export const useSimulateErc404StakingModuleSettleAndReleaseLeak =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404StakingModuleAbi,
+    functionName: 'settleAndReleaseLeak',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `functionName` set to `"transferOwnership"`
  */
 export const useSimulateErc404StakingModuleTransferOwnership =
@@ -20401,6 +20483,15 @@ export const useWatchErc404StakingModuleStakingEnabledEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404StakingModuleAbi,
     eventName: 'StakingEnabled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404StakingModuleAbi}__ and `eventName` set to `"StreamLeakReleased"`
+ */
+export const useWatchErc404StakingModuleStreamLeakReleasedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404StakingModuleAbi,
+    eventName: 'StreamLeakReleased',
   })
 
 /**
@@ -23066,19 +23157,34 @@ export const useReadIStakedBalanceReaderStakedBalance =
   })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStakingTotalsAbi}__
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStakingTotalsAbi}__
  */
-export const useReadIStakingTotals = /*#__PURE__*/ createUseReadContract({
+export const useWriteIStakingTotals = /*#__PURE__*/ createUseWriteContract({
   abi: iStakingTotalsAbi,
 })
 
 /**
- * Wraps __{@link useReadContract}__ with `abi` set to __{@link iStakingTotalsAbi}__ and `functionName` set to `"totalStaked"`
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStakingTotalsAbi}__ and `functionName` set to `"settleAndReleaseLeak"`
  */
-export const useReadIStakingTotalsTotalStaked =
-  /*#__PURE__*/ createUseReadContract({
+export const useWriteIStakingTotalsSettleAndReleaseLeak =
+  /*#__PURE__*/ createUseWriteContract({
     abi: iStakingTotalsAbi,
-    functionName: 'totalStaked',
+    functionName: 'settleAndReleaseLeak',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStakingTotalsAbi}__
+ */
+export const useSimulateIStakingTotals =
+  /*#__PURE__*/ createUseSimulateContract({ abi: iStakingTotalsAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStakingTotalsAbi}__ and `functionName` set to `"settleAndReleaseLeak"`
+ */
+export const useSimulateIStakingTotalsSettleAndReleaseLeak =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: iStakingTotalsAbi,
+    functionName: 'settleAndReleaseLeak',
   })
 
 /**
