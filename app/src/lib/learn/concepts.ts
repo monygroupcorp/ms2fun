@@ -160,26 +160,11 @@ Bigger targets need more demand to graduate. Size to the audience you actually h
     body: `
 Gating restricts **who** can mint. You can leave the mint **open**, or gate it behind:
 
-- **Password tiers** — buyers present a secret (hashed before it touches the chain), with per-tier volume caps or unlock times.
 - **A merkle allowlist** — only wallets on a list you publish can mint.
 
 Gating is applied at create and stored on the collection. Choose deliberately: a gate that no one can satisfy means **no one can mint**, including you. If you just want an open launch, leave gating off.
 `,
-    related: ['password-tier-gating', 'merkle-allowlist', 'free-mint-reserve'],
-  },
-  'password-tier-gating': {
-    title: 'Password tiers',
-    summary:
-      'Volume-cap or time-based tiers gated by a secret; per-wallet caps are not shared supply.',
-    body: `
-Password-tier gating lets holders of a **secret** mint under rules you set per tier:
-
-- **Volume-cap tiers** — each tier has a per-wallet cap on how much it can mint. Caps are **per wallet**, not a shared pool.
-- **Time-based tiers** — each tier unlocks at a set time, so you can stage access.
-
-Passwords are **keccak-hashed before they reach the chain** — the raw secret is never stored. Distribute the secret to the wallets you want to admit.
-`,
-    related: ['gating-overview'],
+    related: ['merkle-allowlist', 'free-mint-reserve'],
   },
   'merkle-allowlist': {
     title: 'Allowlist minting',
@@ -323,7 +308,7 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
     title: 'ERC-404 mechanics',
     slugs: ['bonding-curve-graduation', 'mint-fee-and-supply', 'free-mint-reserve'],
   },
-  { title: 'Gating', slugs: ['gating-overview', 'password-tier-gating', 'merkle-allowlist'] },
+  { title: 'Gating', slugs: ['gating-overview', 'merkle-allowlist'] },
   {
     title: 'Modules',
     slugs: ['tier-upgrade', 'tier-reveal', 'metadata-overlay', 'agent-delegation'],

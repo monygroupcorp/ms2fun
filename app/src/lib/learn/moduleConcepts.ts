@@ -12,7 +12,6 @@
  */
 
 export const MODULE_CONCEPT_BY_CONFIG_TYPE: Record<string, string> = {
-  'password-tier-gating': 'password-tier-gating',
   'merkle-allowlist-gating': 'merkle-allowlist',
   // Wired once noesis-046 landed the concepts (contract-verified).
   'metadata-overlay': 'metadata-overlay',
