@@ -6,12 +6,14 @@ import { LiquidityDeployerModule } from "../../../src/factories/erc404/Liquidity
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MockToggleVault } from "../../mocks/MockToggleVault.sol";
 import { MockVault } from "../../mocks/MockVault.sol";
+import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
+import { MockInstance } from "../../mocks/MockInstance.sol";
 
 /// @dev Exposes the internal graduation-fee dispatch (`_postUnlock`) so the vaultCut send isolation can be
 ///      unit-tested without a full V4 PoolManager (the surrounding V4 liquidity add is fork-tested; this
 ///      mirrors the existing `_computeAmounts` harness convention in LiquidityDeployerModule.t.sol).
 contract PostUnlockHarness is LiquidityDeployerModule {
-    constructor() LiquidityDeployerModule(address(0), address(0x3), 3000, 60, address(0)) { }
+    constructor(address reg) LiquidityDeployerModule(address(0), address(0x3), 3000, 60, reg) { }
 
     function postUnlock(ILiquidityDeployerModule.DeployParams calldata p, AmountsResult memory r) external {
         _postUnlock(p, r);
@@ -23,12 +25,14 @@ contract PostUnlockHarness is LiquidityDeployerModule {
 ///         module and stashed as pendingVaultCut, recoverable later via flushPendingVaultCut.
 contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
     PostUnlockHarness harness;
+    MockMasterRegistry registry;
 
     address instance = makeAddr("instance");
     uint256 constant VAULT_CUT = 1.9 ether;
 
     function setUp() public {
-        harness = new PostUnlockHarness();
+        registry = new MockMasterRegistry();
+        harness = new PostUnlockHarness(address(registry));
         // The module holds the graduation ETH at fee-dispatch time; fund the harness with the cut so a
         // stashed pendingVaultCut is backed by real ETH.
         vm.deal(address(harness), VAULT_CUT);
@@ -113,5 +117,72 @@ contract LiquidityDeployerGraduationVaultCutDoSTest is Test {
         assertEq(address(harness).balance, 0, "module retains nothing");
         (, uint256 stashedAmount) = harness.pendingVaultCut(instance);
         assertEq(stashedAmount, 0, "no stash on the happy path");
+    }
+
+    // ── noesis-126: target-revocation redirect on the graduation primary send + flush retry ──
+
+    /// @notice If the alignment target is revoked, the graduation vault cut is redirected to
+    ///         `protocolTreasury` instead of being fed to (or stashed for) the de-curated vault.
+    function test_postUnlock_RevokedTarget_RedirectsVaultCutToTreasury() public {
+        MockVault vault = new MockVault(); // healthy — but the redirect must never touch it
+        address treasury = makeAddr("treasury");
+        registry.setVaultRegistered(address(vault), false);
+
+        ILiquidityDeployerModule.DeployParams memory p = ILiquidityDeployerModule.DeployParams({
+            ethReserve: 10 ether,
+            tokenReserve: 100 ether,
+            protocolTreasury: treasury,
+            vault: address(vault),
+            token: address(0x4),
+            instance: instance,
+            creator: address(0),
+            carveEth: 0
+        });
+
+        vm.expectEmit(true, true, false, true);
+        emit LiquidityDeployerModule.VaultCutRedirected(address(vault), treasury, VAULT_CUT);
+        harness.postUnlock(p, _amounts());
+
+        assertEq(treasury.balance, VAULT_CUT, "tithe redirected to treasury");
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        assertEq(address(harness).balance, 0, "no ETH stashed on the redirect path");
+        (, uint256 stashedAmount) = harness.pendingVaultCut(instance);
+        assertEq(stashedAmount, 0, "redirect is not the pending-retry lane");
+    }
+
+    /// @notice A cut stashed while the target was live must NOT be force-fed to the vault on flush once the
+    ///         target has since been revoked — it is redirected to the instance's protocol treasury.
+    function test_flushPendingVaultCut_RevokedTarget_RedirectsToTreasury() public {
+        MockToggleVault vault = new MockToggleVault(); // broken -> forces the stash
+        MockInstance mi = new MockInstance(address(vault)); // exposes protocolTreasury() == 0xFEE
+        address treasury = mi.protocolTreasury();
+
+        ILiquidityDeployerModule.DeployParams memory p = ILiquidityDeployerModule.DeployParams({
+            ethReserve: 10 ether,
+            tokenReserve: 100 ether,
+            protocolTreasury: address(0),
+            vault: address(vault),
+            token: address(0x4),
+            instance: address(mi),
+            creator: address(0),
+            carveEth: 0
+        });
+        // Target still live at stash time: the broken vault reverts, the cut is stashed under the instance.
+        harness.postUnlock(p, _amounts());
+        (, uint256 stashed) = harness.pendingVaultCut(address(mi));
+        assertEq(stashed, VAULT_CUT, "precondition: cut stashed while target live");
+
+        // DAO revokes the target after the stash.
+        registry.setVaultRegistered(address(vault), false);
+
+        vm.expectEmit(true, true, false, true);
+        emit LiquidityDeployerModule.VaultCutRedirected(address(vault), treasury, VAULT_CUT);
+        vm.prank(makeAddr("rando")); // permissionless
+        harness.flushPendingVaultCut(address(mi));
+
+        assertEq(treasury.balance, VAULT_CUT, "flush redirected the tithe to treasury");
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        (, uint256 stashedAfter) = harness.pendingVaultCut(address(mi));
+        assertEq(stashedAfter, 0, "stash cleared");
     }
 }

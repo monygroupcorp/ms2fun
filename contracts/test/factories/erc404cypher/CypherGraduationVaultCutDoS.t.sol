@@ -22,7 +22,9 @@ contract CypherGraduationVaultCutDoSTest is Test {
     MockWETH weth;
     MockMasterRegistry registry;
 
-    address protocolTreasury = makeAddr("treasury");
+    // Public so this test contract satisfies IFactoryInstance.protocolTreasury() — it acts as the
+    // graduating instance (msg.sender), and the module's flush-redirect reads the treasury back from it.
+    address public protocolTreasury = makeAddr("treasury");
     address instance; // graduating instance == msg.sender
 
     uint256 constant ETH_RESERVE = 1 ether;
@@ -123,5 +125,53 @@ contract CypherGraduationVaultCutDoSTest is Test {
         assertEq(address(deployer).balance, 0, "module retains nothing");
         (, uint256 stashedAmount) = deployer.pendingVaultCut(instance);
         assertEq(stashedAmount, 0, "no stash on the happy path");
+    }
+
+    // ── noesis-126: target-revocation redirect on the graduation primary send + flush retry ──
+
+    /// @notice If the alignment target is revoked, the graduation vault cut is redirected to
+    ///         `protocolTreasury` at graduation instead of being fed to (or stashed for) the de-curated vault.
+    function test_graduation_RevokedTarget_RedirectsVaultCutToTreasury() public {
+        MockVault vault = new MockVault(); // healthy — the redirect must never touch it
+        registry.setVaultRegistered(address(vault), false);
+
+        uint256 treasuryBefore = protocolTreasury.balance;
+
+        // Balance assertions below prove the redirect exactly (tithe → treasury, not the vault, not stashed);
+        // the VaultCutRedirected event on this same emit path is asserted by the flush-redirect test. An
+        // expectEmit here would anchor to graduation's first log (an Algebra Transfer), not the later redirect.
+        _graduate(address(vault));
+
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        assertEq(address(deployer).balance, 0, "no ETH stashed on the redirect path");
+        (, uint256 stashedAmount) = deployer.pendingVaultCut(instance);
+        assertEq(stashedAmount, 0, "redirect is not the pending-retry lane");
+        // Treasury absorbed the 1% graduation fee plus the redirected 19% tithe.
+        assertEq(
+            protocolTreasury.balance - treasuryBefore,
+            (ETH_RESERVE / 100) + EXPECTED_VAULT_CUT,
+            "treasury got fee + redirected tithe"
+        );
+    }
+
+    /// @notice A cut stashed while the target was live must NOT be force-fed to the vault on flush once the
+    ///         target has since been revoked — it is redirected to the instance's protocol treasury.
+    function test_flushPendingVaultCut_RevokedTarget_RedirectsToTreasury() public {
+        MockToggleVault vault = new MockToggleVault(); // broken -> forces the stash
+        _graduate(address(vault));
+
+        registry.setVaultRegistered(address(vault), false); // DAO revokes after the stash
+        uint256 treasuryBefore = protocolTreasury.balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit CypherLiquidityDeployerModule.VaultCutRedirected(address(vault), protocolTreasury, EXPECTED_VAULT_CUT);
+        vm.prank(makeAddr("rando")); // permissionless
+        deployer.flushPendingVaultCut(instance);
+
+        assertEq(protocolTreasury.balance - treasuryBefore, EXPECTED_VAULT_CUT, "flush redirected the tithe");
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        assertEq(address(deployer).balance, 0, "module no longer holds the cut");
+        (, uint256 stashedAmount) = deployer.pendingVaultCut(instance);
+        assertEq(stashedAmount, 0, "stash cleared");
     }
 }
