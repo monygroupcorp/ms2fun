@@ -161,6 +161,17 @@ contract TierRevealModuleTest is Test {
         assertEq(tier.resolve(address(inst), 2, holder), ""); // holder under threshold, no teaser
     }
 
+    /// @dev baseURI == "" → in-range holder who CLEARS the threshold falls through to collection base
+    ///      (returns ""), NOT a bare id string. Symmetry with the blank-lockedURI fall-through: revealed
+    ///      is not required if locked isn't. Without the guard, string.concat("", id) would serve "2".
+    function test_resolve_emptyRevealedFallsThrough() public {
+        TierRevealModule.Tier[] memory ts = new TierRevealModule.Tier[](1);
+        ts[0] = TierRevealModule.Tier({ idStart: 1, idEnd: 3, minBalance: UNIT, baseURI: "", lockedURI: "locked-" });
+        _seal(ts);
+        inst.setBalance(holder, 2 * UNIT); // clears threshold → revealed branch
+        assertEq(tier.resolve(address(inst), 2, holder), ""); // falls through to base, not bare "2"
+    }
+
     /// @dev A tiered ladder: ascending thresholds, each range resolves against its own threshold —
     ///      "hold more → reveal rarer."
     function test_resolve_tieredLadder_selectsCorrectTier() public {

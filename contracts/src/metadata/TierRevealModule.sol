@@ -86,6 +86,9 @@ contract TierRevealModule is IMetadataResolver, Ownable {
         // Holder address(0) (unminted): eff = 0 < any positive threshold → lockedURI path. No special-case.
         uint256 eff = ITierInstance(inst).balanceOf(holder) + _stakedOf(inst, holder);
         if (eff >= t.minBalance) {
+            // Blank revealed baseURI → fall through to collection base (symmetry with blank lockedURI).
+            // Without this, string.concat("", id) would serve a bare "123" — a broken non-URI.
+            if (bytes(t.baseURI).length == 0) return "";
             return string.concat(t.baseURI, LibString.toString(id)); // revealed
         }
         return t.lockedURI; // "" => base/common look (teaser if set)
