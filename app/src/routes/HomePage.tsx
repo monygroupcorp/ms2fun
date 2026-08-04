@@ -150,9 +150,12 @@ export function HomePage() {
                   Its full trading + holder surface is the EXEC404 page. */}
               <Link href="/exec404" className="noesis-card" data-testid="exec404-link">
                 <div className={`art ${styles.execArt}`}>
-                  <span className={styles.execGlyph} aria-hidden>
-                    ✕
-                  </span>
+                  <img
+                    src="/exec-executives.png"
+                    alt="CULT EXECUTIVES"
+                    className={styles.execImg}
+                    loading="lazy"
+                  />
                   <span className="st">Genesis</span>
                 </div>
                 <div className="lab">
