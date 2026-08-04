@@ -74,12 +74,16 @@ interface ICarveParamsSource {
         returns (uint256);
 }
 
-/// @notice Read-side of the staking module's per-instance total. The instance credits its own
-///         staking-liability reserve only when the module can actually distribute (`totalStaked > 0`);
-///         this mirrors the module's own guard in `recordFeesReceived`. Declared inline to keep the
-///         change local to this file (the shared `IERC404StakingModule` interface is unchanged).
+/// @notice `claimAllFees`'s single settle round-trip to the staking module. Returns the instance's
+///         current `totalStaked` — the instance credits its staking-liability reserve only when the
+///         module can distribute (`totalStaked > 0`), mirroring `recordFeesReceived`'s own guard — AND
+///         the un-accruable stream leak now released (noesis-127): a stream that outlives its stakers
+///         schedules `rewardRate` wei/sec during the zero-stake gap that no staker can ever accrue; the
+///         module hands that un-owed wei back so the instance can debit its `stakingReserve` and let
+///         `withdrawDust` recover it. Declared inline to keep the change local to this file — the shared
+///         `IERC404StakingModule` interface is unchanged.
 interface IStakingTotals {
-    function totalStaked(address instance) external view returns (uint256);
+    function settleAndReleaseLeak() external returns (uint256 totalStaked, uint256 leaked);
 }
 
 /**
@@ -381,18 +385,28 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
             try IAlignmentVault(payable(allVaults[i])).claimFees() { } catch { }
         }
         if (stakingActive) {
+            address sm = address(stakingModule); // cache: one SLOAD for the module calls below
             uint256 delta = address(this).balance - before;
-            if (delta > 0) {
-                stakingModule.recordFeesReceived(delta);
-                // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
-                // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
-                // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
-                // `delta` is a conservative over-estimate of the true liability (the module truncates
-                // rewardPerToken), which is the safe direction for a sweep guard.
-                if (IStakingTotals(address(stakingModule)).totalStaked(address(this)) > 0) {
-                    stakingReserve += delta;
-                }
+            if (delta != 0) {
+                IERC404StakingModule(sm).recordFeesReceived(delta);
             }
+            // Single round-trip (noesis-127): settle the stream, read totalStaked for the noesis-061
+            // credit guard, and release any un-accruable stream leak (ETH a prior stream scheduled during
+            // a zero-stake gap that no staker can ever accrue). Folding the guard-read and the release
+            // into one call keeps the instance under EIP-170.
+            (uint256 totalStaked, uint256 leaked) = IStakingTotals(sm).settleAndReleaseLeak();
+            // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
+            // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
+            // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
+            // `delta` is a conservative over-estimate of the true liability (the module truncates
+            // rewardPerToken), the safe direction for a sweep guard.
+            if (delta != 0 && totalStaked != 0) {
+                stakingReserve += delta;
+            }
+            // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it
+            // (a grief-locked remainder is thus always clearable by the owner). `_debitStakingReserve`
+            // clamps, so a 0 leak — the case while a live staker is still accruing — is a safe no-op.
+            _debitStakingReserve(leaked);
         }
     }
 
@@ -409,6 +423,9 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     ///      instance balance). Only the balance ABOVE the tracked `reserve` AND the tracked
     ///      `stakingReserve` is withdrawable; `reserve` backs sellBonding refunds and
     ///      `stakingReserve` is ETH owed to stakers — neither is ever sweepable (noesis-061 F1).
+    /// @dev `claimAllFees` first releases any un-accruable stream leak out of `stakingReserve`
+    ///      (noesis-127), so by the time this runs `stakingReserve` holds only genuinely-owed ETH and
+    ///      the previously-locked gap remainder has become recoverable surplus here.
     function withdrawDust() external onlyOwner nonReentrant {
         uint256 bal = address(this).balance;
         uint256 locked = reserve + stakingReserve;
