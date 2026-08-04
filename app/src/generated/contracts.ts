@@ -2771,6 +2771,31 @@ export const cypherLiquidityDeployerModuleAbi = [
     ],
     name: 'VaultContributionRetried',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultCutRedirected',
+  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'InvalidParams' },
@@ -9889,6 +9914,31 @@ export const liquidityDeployerModuleAbi = [
     ],
     name: 'VaultContributionRetried',
   },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultCutRedirected',
+  },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
   { type: 'error', inputs: [], name: 'HookFeeTooHigh' },
@@ -11493,6 +11543,31 @@ export const metadataOverlayModuleAbi = [
       { name: 'kind', internalType: 'uint8', type: 'uint8', indexed: false },
     ],
     name: 'Unlocked',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultCutRedirected',
   },
   {
     type: 'event',
@@ -13156,6 +13231,31 @@ export const zammLiquidityDeployerModuleAbi = [
       },
     ],
     name: 'VaultContributionRetried',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'vault',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'treasury',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'VaultCutRedirected',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'ETHMismatch' },
@@ -16433,6 +16533,15 @@ export const useWatchCypherLiquidityDeployerModuleVaultContributionRetriedEvent 
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: cypherLiquidityDeployerModuleAbi,
     eventName: 'VaultContributionRetried',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link cypherLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ */
+export const useWatchCypherLiquidityDeployerModuleVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: cypherLiquidityDeployerModuleAbi,
+    eventName: 'VaultCutRedirected',
   })
 
 /**
@@ -23760,6 +23869,15 @@ export const useWatchLiquidityDeployerModuleVaultContributionRetriedEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link liquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ */
+export const useWatchLiquidityDeployerModuleVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: liquidityDeployerModuleAbi,
+    eventName: 'VaultCutRedirected',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link masterRegistryV1Abi}__
  */
 export const useReadMasterRegistryV1 = /*#__PURE__*/ createUseReadContract({
@@ -25353,6 +25471,15 @@ export const useWatchMetadataOverlayModuleUnlockedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: metadataOverlayModuleAbi,
     eventName: 'Unlocked',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link metadataOverlayModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ */
+export const useWatchMetadataOverlayModuleVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: metadataOverlayModuleAbi,
+    eventName: 'VaultCutRedirected',
   })
 
 /**
@@ -27016,6 +27143,15 @@ export const useWatchZammLiquidityDeployerModuleVaultContributionRetriedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: zammLiquidityDeployerModuleAbi,
     eventName: 'VaultContributionRetried',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link zammLiquidityDeployerModuleAbi}__ and `eventName` set to `"VaultCutRedirected"`
+ */
+export const useWatchZammLiquidityDeployerModuleVaultCutRedirectedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: zammLiquidityDeployerModuleAbi,
+    eventName: 'VaultCutRedirected',
   })
 
 /**
