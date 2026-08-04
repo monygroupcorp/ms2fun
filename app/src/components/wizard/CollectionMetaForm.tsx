@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { collectionToDataUri, type CollectionMetadata, type ProfileLink } from '../../lib/metadata'
+import { type CollectionMetadata, type ProfileLink } from '../../lib/metadata'
 import { NAME_MAX, toSlug } from '../../lib/wizard/collectionName'
 import styles from './CollectionMetaForm.module.css'
 import { ImageSourceInput } from './ImageSourceInput'
@@ -89,20 +89,6 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
   function handleCategory(v: string) {
     setCategory(v)
     emit({ category: v })
-  }
-
-  const utf8Len = (s: string) => new TextEncoder().encode(s).length
-
-  /**
-   * The bytes an image *adds* to the on-chain `metadataURI` — the serialized-with minus the
-   * serialized-without. Charging the bare data URI under-counts: `toJsonDataUri` URL-encodes the
-   * whole JSON, tripling every `"`, `+`, `/`, and `=`. Measured on a real deploy: ~1.14x.
-   */
-  function marginalBytes(field: 'image' | 'banner', uri: string): number {
-    const base = assemble(schemaVersion, name, description, image, banner, category, links)
-    const withUri = collectionToDataUri({ ...base, [field]: uri.trim() })
-    const without = collectionToDataUri({ ...base, [field]: '' })
-    return Math.max(0, utf8Len(withUri) - utf8Len(without))
   }
 
   function addLink() {
@@ -210,9 +196,7 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
           value={image}
           onChange={handleImage}
           aspect="square"
-          maxEdge={512}
-          marginalBytes={(uri) => marginalBytes('image', uri)}
-          help="You can launch without a cover and add or reveal art anytime after. A ready collection tends to do better — but that's your call. Host it anywhere permanent (IPFS, Arweave, or any HTTPS link you control) and paste the URL, or embed a small copy on-chain."
+          help="You can launch without a cover and add or reveal art anytime after. A ready collection tends to do better — but that's your call. Host it on IPFS, Arweave, or any HTTPS link you control, and paste the URL."
         />
         <p className={styles.help}>
           <LearnLink slug="withholding-art" /> · <LearnLink slug="onchain-image-cost" />
@@ -226,9 +210,7 @@ export function CollectionMetaForm({ initial, onChange }: CollectionMetaFormProp
           value={banner}
           onChange={handleBanner}
           aspect="wide"
-          maxEdge={1200}
-          marginalBytes={(uri) => marginalBytes('banner', uri)}
-          help="Optional wide banner. Its main job is to populate the on-chain metadata that DEX charts (DEXScreener / DEXtools) read — so your chart shows a banner without paying for a listing upgrade. Paste a hosted link, or embed a small copy on-chain."
+          help="Optional wide banner. Its main job is to populate the on-chain metadata that DEX charts (DEXScreener / DEXtools) read — so your chart shows a banner without paying for a listing upgrade. Host it on IPFS, Arweave, or any HTTPS link you control, and paste the URL."
         />
         <p className={styles.help}>
           <LearnLink slug="cover-vs-banner" />
