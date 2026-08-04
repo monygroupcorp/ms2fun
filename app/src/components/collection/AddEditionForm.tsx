@@ -25,6 +25,7 @@ function emptyForm() {
     pricingModel: 0 as 0 | 1 | 2,
     priceIncreaseRate: '',
     openTime: '0',
+    freeMintAllocation: '',
   }
 }
 
@@ -47,6 +48,19 @@ function validate(form: FormState): string | null {
     const rate = parseInt(form.priceIncreaseRate, 10)
     if (!form.priceIncreaseRate || isNaN(rate) || rate <= 0)
       return 'Dynamic pricing requires price increase rate > 0 basis points'
+  }
+  const allocRaw = form.freeMintAllocation.trim()
+  if (allocRaw !== '') {
+    const alloc = parseInt(allocRaw, 10)
+    if (isNaN(alloc) || alloc < 0 || String(alloc) !== allocRaw)
+      return 'Free-mint allocation must be a whole number ≥ 0'
+    // Reserve-from-supply cap (noesis-135): for a limited edition the free allocation is drawn from
+    // supply, so it cannot exceed it. Unlimited editions (supply 0) accept any allocation.
+    if (form.pricingModel !== 0) {
+      const sup = parseInt(form.supply, 10)
+      if (!isNaN(sup) && sup > 0 && alloc > sup)
+        return 'Free-mint allocation cannot exceed the edition supply'
+    }
   }
   return null
 }
@@ -110,6 +124,7 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
     const supply = form.pricingModel === 0 ? BigInt(0) : BigInt(form.supply)
     const rate = form.pricingModel === 2 ? BigInt(form.priceIncreaseRate) : BigInt(0)
     const openTime = BigInt(form.openTime.trim() || '0')
+    const freeMintAllocation = BigInt(form.freeMintAllocation.trim() || '0')
 
     resetWrite()
     setNotified(false)
@@ -126,6 +141,7 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
         form.pricingModel,
         rate,
         openTime,
+        freeMintAllocation,
       ],
       chainId: chainId,
     })
@@ -263,6 +279,27 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
           placeholder="0"
           disabled={isBusy}
         />
+      </div>
+
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="aef-freemint">
+          Free-mint allocation (count; 0 = none)
+        </label>
+        <input
+          id="aef-freemint"
+          className={styles.input}
+          type="number"
+          min="0"
+          step="1"
+          value={form.freeMintAllocation}
+          onChange={(e) => set('freeMintAllocation', e.target.value)}
+          placeholder="0"
+          disabled={isBusy}
+        />
+        <span className={styles.hint}>
+          Number of zero-cost mints reserved for this edition. For a limited edition it is drawn
+          from supply, so it cannot exceed it. Each wallet may claim one free mint per edition.
+        </span>
       </div>
 
       {clientError !== null && (

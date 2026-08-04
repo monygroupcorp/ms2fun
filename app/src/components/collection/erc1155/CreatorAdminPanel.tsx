@@ -70,6 +70,7 @@ export function CreatorAdminPanel({ instance }: CreatorAdminPanelProps) {
       <ClaimFeesRow instance={instance} />
       <ClaimAllFeesRow instance={instance} />
       <UpdateMetadataRow instance={instance} editions={editions} onUpdated={refetchEditions} />
+      <SetEditionFreeMintRow instance={instance} editions={editions} onUpdated={refetchEditions} />
       <SetStyleRow instance={instance} />
       <MigrateVaultRow instance={instance} />
       <AgentDelegationRow instance={instance} />
@@ -301,6 +302,99 @@ function UpdateMetadataRow({
         disabled={!canSubmit}
         errorText="update failed — try again"
         testId="erc1155-edit-metadata"
+      />
+    </ActionRow>
+  )
+}
+
+// ── Set edition free-mint allocation (noesis-135) ─────────────────────────────
+//
+// Per-edition free-mint: the owner (or a delegated agent) can adjust an edition's zero-cost
+// allocation at any time via `setEditionFreeMintAllocation(editionId, allocation)`. The reserve cap
+// (allocation <= supply for a limited edition) is enforced on-chain; the tx simply reverts if exceeded.
+
+function SetEditionFreeMintRow({
+  instance,
+  editions,
+  onUpdated,
+}: {
+  instance: `0x${string}`
+  editions: readonly EditionView[]
+  onUpdated: () => void
+}) {
+  const chainId = useCollectionChainId()
+  const [selectedId, setSelectedId] = useState<string>('')
+  const firstEdition = editions[0]
+  const editionId =
+    selectedId !== '' ? selectedId : firstEdition !== undefined ? firstEdition.id.toString() : ''
+  const [allocation, setAllocation] = useState('')
+  const tx = useTxAction({ onSuccess: onUpdated })
+
+  // Whole non-negative integer required.
+  const trimmed = allocation.trim()
+  const allocValid = trimmed !== '' && /^\d+$/.test(trimmed)
+  const canSubmit = editionId.trim() !== '' && allocValid && !tx.isBusy
+
+  function handleSet(): void {
+    if (!canSubmit) return
+    tx.send({
+      address: instance,
+      abi: erc1155InstanceAbi,
+      functionName: 'setEditionFreeMintAllocation',
+      args: [BigInt(editionId), BigInt(trimmed)],
+      chainId: chainId,
+    })
+  }
+
+  function handleReset(): void {
+    tx.reset()
+    setAllocation('')
+  }
+
+  if (editions.length === 0) return null
+
+  return (
+    <ActionRow
+      label="set edition free-mint allocation"
+      hint="reserve zero-cost mints for an edition (drawn from supply; one free mint per wallet per edition)"
+    >
+      {tx.state !== 'success' && (
+        <>
+          <select
+            className={styles.input}
+            value={editionId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            disabled={tx.isBusy}
+            aria-label="edition to set free-mint allocation"
+          >
+            {editions.map((ed) => (
+              <option key={ed.id.toString()} value={ed.id.toString()}>
+                {ed.pieceTitle || `edition #${ed.id}`}
+              </option>
+            ))}
+          </select>
+          <input
+            className={styles.input}
+            type="number"
+            min="0"
+            step="1"
+            value={allocation}
+            onChange={(e) => setAllocation(e.target.value)}
+            placeholder="free-mint allocation (count)"
+            disabled={tx.isBusy}
+            aria-label="free-mint allocation"
+          />
+        </>
+      )}
+      <TxButton
+        state={tx.state}
+        onClick={handleSet}
+        onReset={handleReset}
+        label="set allocation"
+        successLabel="allocation updated — tx confirmed."
+        disabled={!canSubmit}
+        errorText={tx.reason ?? 'set allocation failed — try again'}
+        testId="erc1155-set-freemint"
       />
     </ActionRow>
   )
