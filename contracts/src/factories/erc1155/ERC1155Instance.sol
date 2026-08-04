@@ -15,6 +15,7 @@ import { IGatingModule, GatingScope } from "../../gating/IGatingModule.sol";
 error FreeMintDisabled();
 error FreeMintAlreadyClaimed();
 error FreeMintExhausted();
+error FreeMintExceedsSupply();
 
 // ── ERC1155Instance errors ───────────────────────────────────────────────────
 error InvalidName();
@@ -123,10 +124,13 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // slither-disable-next-line immutable-states
     IDynamicPricingModule public dynamicPricingModule;
 
-    // Free mint
-    uint256 public freeMintAllocation;
-    uint256 public freeMintsClaimed;
-    mapping(address => bool) public freeMintClaimed;
+    // Free mint (per-edition; noesis-135). Each edition carries its own allocation, running claim
+    // counter, and per-user claimed flag — a wallet may claim one free token PER edition, and each
+    // edition's allocation is independent (draining edition A never consumes edition B). The retired
+    // collection-wide scalars are gone; `gatingScope` stays collection-level (sub-decision 2, v1).
+    mapping(uint256 => uint256) public freeMintAllocation;
+    mapping(uint256 => uint256) public freeMintsClaimed;
+    mapping(uint256 => mapping(address => bool)) public freeMintClaimed;
     GatingScope public gatingScope;
     bool private _freeMintInitialized;
     bool public agentDelegationEnabled;
@@ -164,6 +168,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
 
     event EditionMetadataUpdated(uint256 indexed editionId, string metadataURI);
     event FreeMintClaimed(address indexed user, uint256 indexed editionId);
+    /// @dev Emitted when an edition's free-mint allocation is set (at creation) or later adjusted.
+    event FreeMintAllocationSet(uint256 indexed editionId, uint256 allocation);
     event ContractURIUpdated();
 
     // ┌─────────────────────────┐
@@ -235,12 +241,15 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     // ── Free mint ─────────────────────────────────────────────────────────────
 
     /// @notice Set free mint params. Called by factory once after construction.
-    // slither-disable-next-line events-maths
-    function initializeFreeMint(uint256 allocation, GatingScope scope) external {
+    /// @dev Signature preserved for the shared factory path (`FreeMintParams` is shared with
+    ///      ERC404Factory, do-not-change). Free-mint allocation is now PER EDITION (noesis-135), set at
+    ///      edition creation via `addEdition` or adjusted via `setEditionFreeMintAllocation`, so the
+    ///      collection-wide `allocation` arg is intentionally UNUSED here; only the gating `scope`
+    ///      (collection-level, sub-decision 2) is stored.
+    function initializeFreeMint(uint256, GatingScope scope) external {
         if (msg.sender != factory) revert OnlyFactory();
         if (_freeMintInitialized) revert AlreadyInitialized();
         _freeMintInitialized = true;
-        freeMintAllocation = allocation;
         gatingScope = scope;
     }
 
@@ -255,9 +264,10 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
     /// @param gatingData Passed to gatingModule.canMint if scope requires it.
     // slither-disable-next-line reentrancy-benign,reentrancy-no-eth,unused-return
     function claimFreeMint(uint256 editionId, bytes calldata gatingData) external nonReentrant {
-        if (freeMintAllocation == 0) revert FreeMintDisabled();
-        if (freeMintClaimed[msg.sender]) revert FreeMintAlreadyClaimed();
-        if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
+        uint256 alloc = freeMintAllocation[editionId];
+        if (alloc == 0) revert FreeMintDisabled();
+        if (freeMintClaimed[editionId][msg.sender]) revert FreeMintAlreadyClaimed();
+        if (freeMintsClaimed[editionId] >= alloc) revert FreeMintExhausted();
 
         Edition storage edition = editions[editionId];
         if (bytes(edition.pieceTitle).length == 0) revert EditionNotFound();
@@ -276,8 +286,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             gatingModule.onMint(msg.sender, editionId, 1);
         }
 
-        freeMintClaimed[msg.sender] = true;
-        freeMintsClaimed++;
+        freeMintClaimed[editionId][msg.sender] = true;
+        freeMintsClaimed[editionId]++;
         edition.minted++;
         balanceOf[msg.sender][editionId]++;
 
@@ -297,6 +307,11 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
      * @param metadataURI Metadata URI for the edition
      * @param pricingModel Pricing model (UNLIMITED, LIMITED_FIXED, LIMITED_DYNAMIC)
      * @param priceIncreaseRate Price increase rate in basis points (for dynamic pricing)
+     * @param openTime Unix timestamp; 0 = open immediately
+     * @param freeMintAlloc Per-edition free-mint allocation (0 = no free mints). RESERVE-from-supply
+     *        (noesis-135 sub-decision 1): for a limited edition (supply > 0) it must be <= supply, so
+     *        free claims come OUT of the edition's supply and never inflate it; an unlimited edition
+     *        (supply == 0) accepts any allocation.
      */
     function addEdition(
         string memory pieceTitle,
@@ -305,7 +320,8 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         string memory metadataURI,
         PricingModel pricingModel,
         uint256 priceIncreaseRate,
-        uint256 openTime // NEW: Unix timestamp; 0 = open immediately
+        uint256 openTime,
+        uint256 freeMintAlloc
     ) external {
         if (msg.sender == owner()) {
             // Owner always allowed
@@ -328,6 +344,9 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             if (priceIncreaseRate == 0) revert DynamicPricingRequiresIncreaseRate();
         }
 
+        // Reserve-from-supply cap: free allocation is drawn from a limited edition's supply.
+        if (supply > 0 && freeMintAlloc > supply) revert FreeMintExceedsSupply();
+
         if (nextEditionId > type(uint32).max) revert EditionLimitReached();
 
         uint256 editionId = nextEditionId++;
@@ -340,10 +359,41 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
             metadataURI: metadataURI,
             pricingModel: pricingModel,
             priceIncreaseRate: priceIncreaseRate,
-            openTime: openTime // NEW
+            openTime: openTime
         });
 
+        if (freeMintAlloc > 0) {
+            freeMintAllocation[editionId] = freeMintAlloc;
+            emit FreeMintAllocationSet(editionId, freeMintAlloc);
+        }
+
         emit EditionAdded(editionId, pieceTitle, basePrice, supply, pricingModel);
+    }
+
+    /**
+     * @notice Adjust an edition's free-mint allocation at any time (owner or delegated agent).
+     * @dev Same auth branch as `addEdition`. No lock-at-first-mint — the owner can raise or lower an
+     *      edition's allocation whenever they like (rth 2026-08-04). The RESERVE-from-supply cap still
+     *      holds: for a limited edition the new allocation must be <= supply; an unlimited edition
+     *      (supply == 0) accepts any value. Lowering below `freeMintsClaimed[editionId]` is permitted —
+     *      already-claimed mints stand, and `claimFreeMint` simply stays exhausted until/unless raised.
+     * @param editionId The edition to adjust. Must exist.
+     * @param allocation The new free-mint allocation.
+     */
+    function setEditionFreeMintAllocation(uint256 editionId, uint256 allocation) external {
+        if (msg.sender == owner()) {
+            // Owner always allowed
+        } else if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) {
+            // Direct agent call when delegation is on
+        } else {
+            revert Unauthorized();
+        }
+        Edition storage edition = editions[editionId];
+        if (edition.id == 0) revert EditionNotFound();
+        if (edition.supply > 0 && allocation > edition.supply) revert FreeMintExceedsSupply();
+
+        freeMintAllocation[editionId] = allocation;
+        emit FreeMintAllocationSet(editionId, allocation);
     }
 
     /**
