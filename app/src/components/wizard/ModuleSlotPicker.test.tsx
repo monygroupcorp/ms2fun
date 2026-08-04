@@ -71,3 +71,21 @@ test('clicking the card body still selects the module', () => {
     configType: 'metadata-overlay',
   })
 })
+
+test('a slot with unresolved errors shows an error badge on its header', () => {
+  mockUseApprovedModules.mockReturnValue({ data: [MAPPED], isPending: false, isError: false })
+  render(<ModuleSlotPicker slot={slot} value={MAPPED.address} onChange={vi.fn()} errorCount={2} />)
+  expect(screen.getByText('2 issues')).toBeInTheDocument()
+})
+
+test('a single error is singular ("1 issue")', () => {
+  mockUseApprovedModules.mockReturnValue({ data: [MAPPED], isPending: false, isError: false })
+  render(<ModuleSlotPicker slot={slot} value={MAPPED.address} onChange={vi.fn()} errorCount={1} />)
+  expect(screen.getByText('1 issue')).toBeInTheDocument()
+})
+
+test('a pristine slot (no errors) shows no badge', () => {
+  mockUseApprovedModules.mockReturnValue({ data: [MAPPED], isPending: false, isError: false })
+  render(<ModuleSlotPicker slot={slot} value={undefined} onChange={vi.fn()} />)
+  expect(screen.queryByText(/issue/)).not.toBeInTheDocument()
+})
