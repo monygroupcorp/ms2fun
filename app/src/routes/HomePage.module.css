@@ -198,17 +198,28 @@
 /* Match the seeded featured cards (black tile + light monogram) so the fossil reads as a first-class
    featured entry, not a light-tile sore thumb. The ✕ + "Fossil" chip keep its specimen identity. */
 .execArt {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-text);
+  background: var(--color-text); /* fallback while the flagship image loads */
 }
 
-.execGlyph {
-  font-family: var(--brand-font-display);
-  font-size: var(--font-size-display);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-bg);
+/* CULT EXECUTIVES flagship banner — the koala-knight, proudly shown as the genesis card art. */
+.execImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Keep the "Genesis" badge above the flagship image. */
+.execArt .st {
+  position: relative;
+  z-index: 1;
 }
 
 .execLabMain {
