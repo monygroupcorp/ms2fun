@@ -6,6 +6,7 @@ import { IERC20 } from "../../shared/interfaces/IERC20.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 import { ILiquidityDeployerModule } from "../../interfaces/ILiquidityDeployerModule.sol";
+import { IFactoryInstance } from "../../interfaces/IFactoryInstance.sol";
 import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
@@ -123,6 +124,9 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     event VaultContributionFailed(address indexed vault, address indexed instance, uint256 amount);
     /// @notice A previously-stashed graduation vault cut was successfully re-delivered.
     event VaultContributionRetried(address indexed vault, address indexed instance, uint256 amount);
+    /// @notice The vault's alignment target was revoked (`isVaultRegistered` false); the graduation tithe was
+    ///         routed to `protocolTreasury` instead of the de-curated vault (noesis-126).
+    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
 
     /**
      * @notice Deploy ZAMM liquidity on behalf of an ERC404BondingInstance.
@@ -193,15 +197,24 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
         // delivery via flushPendingVaultCut — mirroring the ERC1155/721 try/catch + pending-cut retry.
         // Graduation completes; the tithe is deferred, not lost.
         if (r.vaultCut > 0 && p.vault != address(0)) {
-            try IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
-                Currency.wrap(address(0)), r.vaultCut, p.instance
-            ) {
-                emit GraduationVaultContribution(p.vault, r.vaultCut);
-            } catch {
-                PendingCut storage pc = pendingVaultCut[p.instance];
-                pc.vault = p.vault;
-                pc.amount += r.vaultCut;
-                emit VaultContributionFailed(p.vault, p.instance, r.vaultCut);
+            // Target-revocation gate (noesis-126): if the alignment target was revoked (`isVaultRegistered`
+            // false), route the tithe to `protocolTreasury` instead of feeding the de-curated vault —
+            // mirroring the ERC1155/721 primary paths. forceSafeTransferETH is brick-proof (a treasury that
+            // rejects ETH cannot brick graduation). For an active target, keep the try/catch + stash retry.
+            if (!masterRegistry.isVaultRegistered(p.vault)) {
+                SafeTransferLib.forceSafeTransferETH(p.protocolTreasury, r.vaultCut);
+                emit VaultCutRedirected(p.vault, p.protocolTreasury, r.vaultCut);
+            } else {
+                try IAlignmentVault(payable(p.vault)).receiveContribution{ value: r.vaultCut }(
+                    Currency.wrap(address(0)), r.vaultCut, p.instance
+                ) {
+                    emit GraduationVaultContribution(p.vault, r.vaultCut);
+                } catch {
+                    PendingCut storage pc = pendingVaultCut[p.instance];
+                    pc.vault = p.vault;
+                    pc.amount += r.vaultCut;
+                    emit VaultContributionFailed(p.vault, p.instance, r.vaultCut);
+                }
             }
         }
         // 80% of carve → creator
@@ -228,19 +241,33 @@ contract ZAMMLiquidityDeployerModule is ILiquidityDeployerModule, Ownable {
     }
 
     /// @notice Retry delivering a graduation vault cut that a reverting vault previously rejected.
-    /// @dev Permissionless (mirrors the ERC721 flushPendingVaultCut authority model): the ETH only ever
-    ///      goes to the vault bound at stash time, so there is no redirect surface. The pending amount is
-    ///      zeroed BEFORE the external call (checks-effects-interactions); if the vault still reverts the
-    ///      whole transaction reverts and the stash is restored — idempotent, no ETH is ever lost.
+    /// @dev Permissionless (mirrors the ERC721 flushPendingVaultCut authority model): the ETH goes to the
+    ///      vault bound at stash time UNLESS that target has since been revoked, in which case the
+    ///      target-revocation gate (noesis-126) redirects the tithe to `protocolTreasury` — the retry is not
+    ///      a redirect-free surface, it faces the same de-curation risk as the primary graduation send. The
+    ///      pending amount is zeroed BEFORE the external call (checks-effects-interactions); if the active
+    ///      vault still reverts the whole transaction reverts and the stash is restored — idempotent, no ETH
+    ///      is ever lost.
     /// @param instance The graduated instance whose stashed cut should be flushed.
     function flushPendingVaultCut(address instance) external {
         PendingCut memory pc = pendingVaultCut[instance];
         if (pc.amount == 0) revert NoPendingVaultCut();
         delete pendingVaultCut[instance];
-        IAlignmentVault(payable(pc.vault)).receiveContribution{ value: pc.amount }(
-            Currency.wrap(address(0)), pc.amount, instance
-        );
-        emit VaultContributionRetried(pc.vault, instance, pc.amount);
+        if (!masterRegistry.isVaultRegistered(pc.vault)) {
+            // Target revoked while stashed: redirect the tithe to the instance's protocol treasury rather
+            // than force-feed the de-curated vault. The instance's `protocolTreasury()` is the same address
+            // it passed as DeployParams.protocolTreasury at graduation (MasterRegistry verifies it non-zero
+            // at registration), so no per-cut treasury needs to be stashed. forceSafeTransferETH is
+            // brick-proof so a non-receiving treasury cannot strand the retry.
+            address treasury = IFactoryInstance(instance).protocolTreasury();
+            SafeTransferLib.forceSafeTransferETH(treasury, pc.amount);
+            emit VaultCutRedirected(pc.vault, treasury, pc.amount);
+        } else {
+            IAlignmentVault(payable(pc.vault)).receiveContribution{ value: pc.amount }(
+                Currency.wrap(address(0)), pc.amount, instance
+            );
+            emit VaultContributionRetried(pc.vault, instance, pc.amount);
+        }
     }
 
     receive() external payable { }

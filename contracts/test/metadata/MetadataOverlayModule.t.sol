@@ -28,6 +28,21 @@ contract ToggleRegistry {
         info.instance = inst_;
         info.factory = instFactory[inst_];
     }
+
+    // noesis-126: the SPLIT route now re-checks the vault's alignment target. Default true so the pre-existing
+    // SPLIT tests are unaffected; a test flips a specific vault to false to drive the revocation redirect.
+    bool public defaultVaultRegistered = true;
+    mapping(address => bool) internal _vaultRegOverride;
+    mapping(address => bool) internal _vaultReg;
+
+    function setVaultRegistered(address v, bool r) external {
+        _vaultRegOverride[v] = true;
+        _vaultReg[v] = r;
+    }
+
+    function isVaultRegistered(address v) external view returns (bool) {
+        return _vaultRegOverride[v] ? _vaultReg[v] : defaultVaultRegistered;
+    }
 }
 
 contract MockOverlayInstance {
@@ -364,6 +379,56 @@ contract MetadataOverlayModuleTest is Test {
         assertEq(vault.received(), 19);
         assertEq(vault.benefactor(), address(inst));
         assertEq(artist.balance, artistBefore + 80);
+    }
+
+    /// noesis-126 (site 6): if the instance's alignment target is revoked, the SPLIT vault tithe must be
+    /// redirected to `protocolTreasury` — NOT fed to the de-curated vault.
+    function test_unlock_splitRevokedTarget_RedirectsVaultCutToTreasury() public {
+        MockSplitVault vault = new MockSplitVault();
+        inst.setVault(address(vault));
+        inst.setTokenOwner(1, holder);
+        registry.setVaultRegistered(address(vault), false); // DAO revoked the target
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        vm.deal(holder, 100);
+        uint256 artistBefore = artist.balance;
+        uint256 treasuryBefore = treasury.balance;
+        vm.prank(holder);
+        vm.expectEmit(true, true, false, true, address(ov));
+        emit MetadataOverlayModule.VaultCutRedirected(address(vault), treasury, 19);
+        ov.unlock{ value: 100 }(address(inst), 1);
+
+        // 1% protocol + 19% redirected tithe both land at treasury; the vault gets nothing.
+        assertEq(treasury.balance, treasuryBefore + 20, "treasury got protocol cut + redirected tithe");
+        assertEq(vault.received(), 0, "de-curated vault received nothing");
+        assertEq(address(vault).balance, 0, "de-curated vault holds no ETH");
+        assertEq(artist.balance, artistBefore + 80, "artist share unchanged");
+    }
+
+    /// noesis-126 (site 6): a revoked target whose instance also has a zero treasury must fold the vault cut
+    /// into the artist payout rather than force it to address(0) and strand the wei.
+    function test_unlock_splitRevokedTarget_ZeroTreasury_FoldsToArtist() public {
+        MockSplitVault vault = new MockSplitVault();
+        inst.setVault(address(vault));
+        inst.setTreasury(address(0)); // codebase-tolerated zero treasury
+        inst.setTokenOwner(1, holder);
+        registry.setVaultRegistered(address(vault), false);
+        vm.prank(artist);
+        ov.setCommission(
+            address(inst), 1, "c-1", MetadataOverlayModule.CommCond.PAY, 100, MetadataOverlayModule.Payout.SPLIT
+        );
+
+        vm.deal(holder, 100);
+        uint256 artistBefore = artist.balance;
+        vm.prank(holder);
+        ov.unlock{ value: 100 }(address(inst), 1);
+
+        // protocol cut (zero treasury) + vault cut (revoked, zero treasury) both fold to the artist: full 100.
+        assertEq(artist.balance, artistBefore + 100, "all legs folded to artist");
+        assertEq(vault.received(), 0, "de-curated vault received nothing");
     }
 
     /// @dev H5: unlock is nonReentrant + CEI — a reentering artist payout cannot drain.

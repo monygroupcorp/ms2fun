@@ -555,8 +555,16 @@ contract ERC1155Instance is Ownable, ReentrancyGuard, IInstanceLifecycle {
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoPendingVaultCut();
         pendingVaultCut = 0;
-        vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
-        emit VaultContributionRetried(address(vault), pending);
+        // Target-revocation gate (noesis-126): if the vault's alignment target was revoked while this cut was
+        // stashed, do not force-feed the de-curated vault on retry — route the tithe to `protocolTreasury`,
+        // mirroring the `withdraw` primary path. For an active target, re-send to the vault as before.
+        if (!masterRegistry.isVaultRegistered(address(vault))) {
+            SmartTransferLib.smartTransferETH(protocolTreasury, pending, weth);
+            emit VaultCutRedirected(address(vault), protocolTreasury, pending);
+        } else {
+            vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
+            emit VaultContributionRetried(address(vault), pending);
+        }
     }
 
     /**
