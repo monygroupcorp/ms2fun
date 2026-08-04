@@ -232,8 +232,9 @@ const erc1155: ProjectTypeSchema = {
       {
         key: 'basePrice',
         label: 'Base price',
-        kind: 'bigint',
-        unit: 'wei',
+        kind: 'number',
+        unit: 'eth',
+        help: 'Mint price per edition, in ETH (e.g. 0.05)',
         validation: { required: true },
       },
       {
@@ -334,9 +335,9 @@ const erc721: ProjectTypeSchema = {
     {
       key: 'bidIncrement',
       label: 'Min bid increment',
-      kind: 'bigint',
-      unit: 'wei',
-      help: 'Absolute amount added to the current high bid (immutable)',
+      kind: 'number',
+      unit: 'eth',
+      help: 'Amount in ETH added to the current high bid for each raise (immutable, e.g. 0.001)',
       validation: { required: true },
     },
   ],
@@ -355,9 +356,9 @@ const erc721: ProjectTypeSchema = {
       {
         key: 'minBid',
         label: 'Reserve / min bid',
-        kind: 'bigint',
-        unit: 'wei',
-        help: 'Sent as msg.value when queuing the piece',
+        kind: 'number',
+        unit: 'eth',
+        help: 'Reserve price in ETH, sent as msg.value when queuing the piece (e.g. 0.1)',
         validation: { required: true },
       },
     ],

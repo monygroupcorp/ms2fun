@@ -11,7 +11,7 @@
  *
  * Integer coercion matches viem's ABI inference: uint8/uint40 → `number`, uint256 → `bigint`.
  */
-import type { ContractFunctionArgs } from 'viem'
+import { parseUnits, type ContractFunctionArgs } from 'viem'
 import {
   erc1155FactoryAbi,
   erc404FactoryAbi,
@@ -91,6 +91,23 @@ function num(v: string | undefined): number {
   const n = Number(v ?? '')
   return Number.isFinite(n) ? n : 0
 }
+/**
+ * Human amount (ETH / whole tokens) → exact on-chain wei bigint. The creator types a HUMAN value
+ * (e.g. "0.001" ETH) and we scale it by `decimals` to the exact uint256 the contract stores — never a
+ * float. Empty/garbage/negative → 0n (mirrors `big()`: the form's own validation blocks a real submit,
+ * and the factory re-checks; here we only guarantee no throw). `decimals` is 18 for ETH and for the
+ * 18-decimal ERC-token amounts these factories use.
+ */
+function human(v: string | undefined, decimals = 18): bigint {
+  const t = (v ?? '').trim()
+  if (t === '' || !/^\d*\.?\d*$/.test(t) || t === '.') return 0n
+  try {
+    const wei = parseUnits(t, decimals)
+    return wei < 0n ? 0n : wei
+  } catch {
+    return 0n
+  }
+}
 const addr = (a: `0x${string}` | undefined): `0x${string}` => a ?? ZERO_ADDRESS
 
 function freeMint(c: CreateContext): { allocation: bigint; scope: number } {
@@ -131,7 +148,7 @@ export function buildErc721Create(c: CreateContext): CreateCall {
       lines: num(c.values.lines), // uint8
       baseDuration: num(c.values.baseDuration), // uint40
       timeBuffer: num(c.values.timeBuffer), // uint40
-      bidIncrement: big(c.values.bidIncrement), // uint256
+      bidIncrement: human(c.values.bidIncrement), // uint256 — creator types ETH; scaled to wei here
     },
   ]
   return { type: 'erc721', factory: 'ERC721AuctionFactory', args, value: 0n }

@@ -133,8 +133,8 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         key: 'tierMinBalances',
         label: 'Min holdings to reveal',
         kind: 'list',
-        help: 'Effective holdings (wallet + staked), in token base units (wei-scale)',
-        item: { key: 'tierMinBalance', label: 'Min balance', kind: 'bigint', unit: 'tokens' },
+        help: 'Effective holdings (wallet + staked), in whole tokens (e.g. 1000)',
+        item: { key: 'tierMinBalance', label: 'Min balance', kind: 'number', unit: 'tokens' },
       },
       {
         key: 'tierBaseURIs',
