@@ -105,16 +105,35 @@ test('bool field checkbox toggles between true and false strings', () => {
   expect(onChange).toHaveBeenCalledWith('active', 'true')
 })
 
-test('number field renders with inputMode numeric', () => {
+test('amount-unit number field accepts decimals (inputMode decimal, step any)', () => {
+  // `tokens` (like `eth`) is a human amount entered as a decimal and scaled to wei at encode.
   render(<SchemaForm fields={[numberField]} values={{}} onChange={vi.fn()} />)
   const input = screen.getByRole('spinbutton')
   expect(input).toBeInTheDocument()
-  expect(input).toHaveAttribute('inputMode', 'numeric')
+  expect(input).toHaveAttribute('inputMode', 'decimal')
+  expect(input).toHaveAttribute('step', 'any')
+})
+
+test('integer-unit number field keeps a numeric keypad', () => {
+  const secondsField: FieldSchema = {
+    key: 'openTime',
+    label: 'Open time',
+    kind: 'number',
+    unit: 'seconds',
+  }
+  render(<SchemaForm fields={[secondsField]} values={{}} onChange={vi.fn()} />)
+  expect(screen.getByRole('spinbutton')).toHaveAttribute('inputMode', 'numeric')
 })
 
 test('unit chip is shown in label', () => {
   render(<SchemaForm fields={[numberField]} values={{}} onChange={vi.fn()} />)
   expect(screen.getByText('tokens')).toBeInTheDocument()
+})
+
+test('eth unit renders as an ETH chip', () => {
+  const ethField: FieldSchema = { key: 'price', label: 'Base price', kind: 'number', unit: 'eth' }
+  render(<SchemaForm fields={[ethField]} values={{}} onChange={vi.fn()} />)
+  expect(screen.getByText('ETH')).toBeInTheDocument()
 })
 
 test('group field renders as fieldset with children', () => {

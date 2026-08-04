@@ -46,7 +46,8 @@ function baseCtx(overrides: Partial<CreateContext> = {}): CreateContext {
       lines: '4',
       baseDuration: '86400',
       timeBuffer: '300',
-      bidIncrement: '1000000000000000',
+      bidIncrement: '0.001', // human ETH → 1e15 wei
+
       nftCount: '1000000000',
       presetId: '3',
     },
@@ -122,11 +123,23 @@ describe('buildErc721Create', () => {
     expect(typeof call.args[1].timeBuffer).toBe('number')
   })
 
-  it('maps bidIncrement as bigint', () => {
-    const call = buildErc721Create(baseCtx())
+  it('scales human-ETH bidIncrement to exact wei bigint', () => {
+    const call = buildErc721Create(baseCtx()) // '0.001' ETH
     if (call.type !== 'erc721') throw new Error('unexpected type')
-    expect(call.args[1].bidIncrement).toBe(1000000000000000n)
+    expect(call.args[1].bidIncrement).toBe(1000000000000000n) // 0.001 * 1e18
     expect(typeof call.args[1].bidIncrement).toBe('bigint')
+  })
+
+  it('round-trips whole + fractional ETH bidIncrement to exact wei', () => {
+    const at = (v: string): bigint => {
+      const ctx = baseCtx({ values: { ...baseCtx().values, bidIncrement: v } })
+      const call = buildErc721Create(ctx)
+      if (call.type !== 'erc721') throw new Error('unexpected type')
+      return call.args[1].bidIncrement
+    }
+    expect(at('1')).toBe(10n ** 18n) // 1 ETH
+    expect(at('0.05')).toBe(50000000000000000n) // 0.05 ETH
+    expect(at('2.5')).toBe(2500000000000000000n) // 2.5 ETH
   })
 })
 
@@ -224,7 +237,7 @@ describe('metadata config threading', () => {
         overlayDefaultPayout: '1',
         'tierIdStarts.0': '1',
         'tierIdEnds.0': '3',
-        'tierMinBalances.0': '1000000000000000000000000',
+        'tierMinBalances.0': '1000000', // human whole tokens
         'tierBaseURIs.0': 'rare-',
         'tierLockedURIs.0': 'locked-',
       },

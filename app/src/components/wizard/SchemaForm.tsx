@@ -31,6 +31,22 @@ export function SchemaForm({ fields, values, onChange, errors = {} }: SchemaForm
   )
 }
 
+// ── Unit display ──────────────────────────────────────────────────────────────
+
+/** Human-facing suffix for a field `unit`. Amount units render an entered-in-ETH/tokens hint. */
+const UNIT_LABELS: Record<NonNullable<FieldSchema['unit']>, string> = {
+  wei: 'wei',
+  eth: 'ETH',
+  gwei: 'gwei',
+  bps: 'bps',
+  seconds: 'seconds',
+  tokens: 'tokens',
+  count: '',
+}
+
+/** Units whose input accepts a fractional (decimal) human value. */
+const DECIMAL_UNITS = new Set<FieldSchema['unit']>(['eth', 'gwei', 'tokens'])
+
 // ── Internal rendering ────────────────────────────────────────────────────────
 
 interface FieldRendererProps {
@@ -230,7 +246,9 @@ function LeafField({ field, values, onChange, errors }: FieldRendererProps) {
     <div className={styles.field}>
       <label htmlFor={inputId} className={styles.label}>
         {field.label}
-        {field.unit && <span className={styles.unit}>{field.unit}</span>}
+        {field.unit && UNIT_LABELS[field.unit] && (
+          <span className={styles.unit}>{UNIT_LABELS[field.unit]}</span>
+        )}
         {field.validation?.required && (
           <span className={styles.required} aria-hidden="true">
             {' *'}
@@ -315,17 +333,23 @@ function InputForKind({
       )
 
     case 'number':
-    case 'bigint':
+    case 'bigint': {
+      // Amount units (ETH / tokens) are entered as HUMAN decimals and scaled to exact wei at encode;
+      // integer units (bps / seconds / count) keep a whole-number step + keypad.
+      const decimal = DECIMAL_UNITS.has(field.unit)
       return (
         <input
           {...sharedProps}
           type="number"
-          inputMode="numeric"
+          inputMode={decimal ? 'decimal' : 'numeric'}
+          step={decimal ? 'any' : undefined}
+          min={0}
           className={`${styles.input}${hasError ? ` ${styles.inputError}` : ''}`}
           value={value}
           onChange={(e) => onChange(field.key, e.target.value)}
         />
       )
+    }
 
     case 'bool': {
       const checked = value === 'true'
