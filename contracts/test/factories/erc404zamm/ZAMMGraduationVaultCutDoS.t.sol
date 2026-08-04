@@ -22,6 +22,12 @@ contract ZAMMGraduationVaultCutDoSTest is Test {
     address treasury = address(0xBEEF);
     address instance; // the graduating instance == msg.sender
 
+    /// @dev This test contract acts as the graduating instance (msg.sender); the module's flush-redirect
+    ///      reads the treasury back via IFactoryInstance.protocolTreasury().
+    function protocolTreasury() external view returns (address) {
+        return treasury;
+    }
+
     uint256 constant ETH_RESERVE = 10 ether;
     uint256 constant TOKEN_RESERVE = 1000 ether;
     uint256 constant EXPECTED_VAULT_CUT = 1.9 ether; // 19% of 10 ETH
@@ -118,5 +124,53 @@ contract ZAMMGraduationVaultCutDoSTest is Test {
         assertEq(address(module).balance, 0, "module retains nothing");
         (, uint256 stashedAmount) = module.pendingVaultCut(instance);
         assertEq(stashedAmount, 0, "no stash on the happy path");
+    }
+
+    // ── noesis-126: target-revocation redirect on the graduation primary send + flush retry ──
+
+    /// @notice If the alignment target is revoked, the graduation vault cut is redirected to
+    ///         `protocolTreasury` at graduation instead of being fed to (or stashed for) the de-curated vault.
+    function test_graduation_RevokedTarget_RedirectsVaultCutToTreasury() public {
+        MockVault vault = new MockVault(); // healthy — the redirect must never touch it
+        registry.setVaultRegistered(address(vault), false);
+
+        uint256 treasuryBefore = treasury.balance;
+
+        // Balance assertions below prove the redirect exactly (tithe → treasury, not the vault, not stashed);
+        // the VaultCutRedirected event on this same emit path is asserted by the flush-redirect test. An
+        // expectEmit here would anchor to graduation's first log (a ZAMM Transfer), not the later redirect.
+        _graduate(address(vault));
+
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        assertEq(address(module).balance, 0, "no ETH stashed on the redirect path");
+        (, uint256 stashedAmount) = module.pendingVaultCut(instance);
+        assertEq(stashedAmount, 0, "redirect is not the pending-retry lane");
+        // Treasury absorbed the 1% graduation fee plus the redirected 19% tithe.
+        assertEq(
+            treasury.balance - treasuryBefore,
+            (ETH_RESERVE / 100) + EXPECTED_VAULT_CUT,
+            "treasury got fee + redirected tithe"
+        );
+    }
+
+    /// @notice A cut stashed while the target was live must NOT be force-fed to the vault on flush once the
+    ///         target has since been revoked — it is redirected to the instance's protocol treasury.
+    function test_flushPendingVaultCut_RevokedTarget_RedirectsToTreasury() public {
+        MockToggleVault vault = new MockToggleVault(); // broken -> forces the stash
+        _graduate(address(vault));
+
+        registry.setVaultRegistered(address(vault), false); // DAO revokes after the stash
+        uint256 treasuryBefore = treasury.balance;
+
+        vm.expectEmit(true, true, false, true);
+        emit ZAMMLiquidityDeployerModule.VaultCutRedirected(address(vault), treasury, EXPECTED_VAULT_CUT);
+        vm.prank(makeAddr("rando")); // permissionless
+        module.flushPendingVaultCut(instance);
+
+        assertEq(treasury.balance - treasuryBefore, EXPECTED_VAULT_CUT, "flush redirected the tithe");
+        assertEq(address(vault).balance, 0, "de-curated vault received nothing");
+        assertEq(address(module).balance, 0, "module no longer holds the cut");
+        (, uint256 stashedAmount) = module.pendingVaultCut(instance);
+        assertEq(stashedAmount, 0, "stash cleared");
     }
 }

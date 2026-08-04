@@ -112,6 +112,9 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
     event SelectionChanged(address indexed instance, uint256 indexed id, uint256 ptr);
     event AutoLatestSet(address indexed instance, bool autoLatest);
     event OverlayConfigured(address indexed instance, bool autoLatest, Payout defaultPayout);
+    /// @notice The instance's alignment target was revoked (`isVaultRegistered` false); the SPLIT vault tithe
+    ///         was routed to `protocolTreasury` instead of the de-curated vault (noesis-126).
+    event VaultCutRedirected(address indexed vault, address indexed treasury, uint256 amount);
 
     constructor(address _masterRegistry) {
         if (_masterRegistry == address(0)) revert InvalidAddress();
@@ -253,10 +256,24 @@ contract MetadataOverlayModule is IMetadataResolver, Ownable, ReentrancyGuard {
         }
         if (s.vaultCut > 0) {
             if (vault != address(0)) {
-                // credit the contribution to the instance as benefactor (graduation path)
-                IAlignmentVault(payable(vault)).receiveContribution{ value: s.vaultCut }(
-                    Currency.wrap(address(0)), s.vaultCut, inst
-                );
+                // Target-revocation gate (noesis-126): if the instance's alignment target was revoked
+                // (`isVaultRegistered` false), route the tithe to `protocolTreasury` instead of feeding the
+                // de-curated vault — mirroring the graduation primary paths. forceSafeTransferETH is
+                // brick-proof. If the treasury is itself zero (only reachable for an unregistered instance),
+                // fold into the artist payout rather than sending to address(0) and stranding the wei.
+                if (!masterRegistry.isVaultRegistered(vault)) {
+                    if (treasury != address(0)) {
+                        SafeTransferLib.forceSafeTransferETH(treasury, s.vaultCut);
+                        emit VaultCutRedirected(vault, treasury, s.vaultCut);
+                    } else {
+                        toArtist += s.vaultCut;
+                    }
+                } else {
+                    // credit the contribution to the instance as benefactor (graduation path)
+                    IAlignmentVault(payable(vault)).receiveContribution{ value: s.vaultCut }(
+                        Currency.wrap(address(0)), s.vaultCut, inst
+                    );
+                }
             } else {
                 toArtist += s.vaultCut;
             }
