@@ -175,6 +175,7 @@ contract StakingInvariantHandler is Test {
 
     uint256 public totalFeesStreamed; // fees that actually started a stream (totalStaked > 0)
     uint256 public totalClaimed; // ETH the module told the instance to pay out
+    uint256 public totalLeakReleased; // un-accruable stream leak the module authorized for recovery (127)
 
     constructor(ERC404StakingModule _module, address _instance) {
         module = _module;
@@ -219,6 +220,15 @@ contract StakingInvariantHandler is Test {
     function warp(uint256 secs) external {
         vm.warp(block.timestamp + bound(secs, 0, 14 days));
     }
+
+    /// @dev Drives the F6 stream-leak release path (127): folds any leak accrued during zero-stake gaps
+    ///      and reports the wei the module authorized as recoverable. No external transfer in this
+    ///      module-only harness, so `totalLeakReleased` just tracks the authorized amount.
+    function releaseLeak() external {
+        vm.prank(instance);
+        (, uint256 leaked) = module.settleAndReleaseLeak();
+        totalLeakReleased += leaked;
+    }
 }
 
 /// @notice The load-bearing invariant: across any ordering of stakes, unstakes, fee-posts, claims and
@@ -241,5 +251,10 @@ contract ERC404StakingInvariantTest is Test {
 
     function invariant_claimsNeverExceedFees() public view {
         assertLe(handler.totalClaimed(), handler.totalFeesStreamed(), "over-claim: Sum(claims) > Sum(fees)");
+        assertLe(
+            handler.totalClaimed() + handler.totalLeakReleased(),
+            handler.totalFeesStreamed(),
+            "over-release: claims + released leak > fees streamed"
+        );
     }
 }
