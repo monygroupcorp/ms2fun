@@ -248,17 +248,16 @@ Authority is checked **live**: if the protocol revokes an agent, it is blocked i
     related: ['token-standard'],
   },
   'onchain-image-cost': {
-    title: 'Embedding art on-chain',
-    summary:
-      'What it really costs to store a cover on-chain, and when to host it externally instead.',
+    title: 'Hosting your art',
+    summary: 'Where to put your cover and banner art, and how to get a link the wizard can use.',
     body: `
-You can either **paste a link** to art you host (IPFS, Arweave, or any HTTPS URL) or **embed a small copy on-chain**. Embedding writes the image bytes into your deploy transaction:
+The wizard's image fields take a **link**, not a file — host the art somewhere permanent, then paste the URL:
 
-- It costs **real gas**, proportional to the byte size — a large image can be a meaningful fraction of a block.
-- Embedded bytes are **permanent** — they live in the collection forever, with no host to disappear.
-- The wizard shows the live gas cost as you crop and compress, and offers "fit to" targets.
+- **IPFS** — pin the file with a pinning service (e.g. Pinata, nft.storage, web3.storage) and copy the \`ipfs://CID\` it gives you. Content-addressed, so the link never breaks as long as it stays pinned.
+- **Arweave** — upload once and pay for permanent storage; copy the \`ar://\` link.
+- **Any HTTPS link you control** — a link to a file you host yourself works too, as long as it stays up.
 
-Rule of thumb: **host it and paste a link** for anything but a tiny thumbnail. Embed only when permanence matters more than the gas.
+Paste whichever link you end up with into the field — the wizard shows a live preview so you can confirm it resolves before you deploy.
 `,
     related: ['cover-vs-banner', 'withholding-art'],
   },
@@ -271,7 +270,7 @@ Two images, two jobs:
 - **Cover** — the square-ish image shown on cards and the collection header. This is your collection's face.
 - **Banner** — a wide image whose main purpose is to populate the on-chain metadata that **DEX charts** (DEXScreener, DEXtools) read. A banner there means your chart shows artwork without paying for a listing upgrade.
 
-Both are optional, and both can be hosted or embedded.
+Both are optional, and both are hosted links you paste in — see "Hosting your art" for how to get one.
 `,
     related: ['onchain-image-cost', 'withholding-art'],
   },
