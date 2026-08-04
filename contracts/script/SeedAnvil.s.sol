@@ -328,6 +328,7 @@ contract SeedAnvil is Script {
                 _pieceMeta("Aberration #1", ART_ABERRATION, "neon-drift"),
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
+                0,
                 0
             );
         ERC1155Instance(payable(c0))
@@ -337,6 +338,7 @@ contract SeedAnvil is Script {
                 0,
                 _pieceMeta("Drift Open", ART_DRIFT_OPEN, "neon-drift"),
                 ERC1155Instance.PricingModel.UNLIMITED,
+                0,
                 0,
                 0
             );
@@ -349,6 +351,7 @@ contract SeedAnvil is Script {
                 _pieceMeta("Slab", ART_SLAB, "monolith"),
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
+                0,
                 0
             );
 
@@ -360,6 +363,7 @@ contract SeedAnvil is Script {
                 100,
                 _pieceMeta("Ghost", ART_GHOST, "ghost-mint"),
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
+                0,
                 0,
                 0
             );

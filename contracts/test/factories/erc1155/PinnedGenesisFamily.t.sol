@@ -70,7 +70,7 @@ contract PinnedGenesisFamily1155Test is Test {
             "" // symbol (optional)
         );
         vm.prank(CREATOR);
-        inst.addEdition("Piece", 1 ether, 0, "ipfs://m", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        inst.addEdition("Piece", 1 ether, 0, "ipfs://m", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         vm.prank(BUYER);
         inst.mint{ value: 1 ether }(1, 1, bytes(""), "", 0);
     }

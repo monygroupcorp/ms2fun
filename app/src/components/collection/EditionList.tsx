@@ -58,9 +58,6 @@ export function EditionList({ instance }: EditionListProps) {
 
   return (
     <div className={styles.editions}>
-      {/* Free-mint claim is per-instance (allocation is a single tranche); target the first
-          edition. The panel renders nothing unless the connected wallet is eligible. */}
-      <FreeMintClaimPanel instance={instance} editionId={firstEdition.id} />
       <ul className={styles.list} data-testid="editions">
         {data.map((edition) => (
           <li key={edition.id.toString()} className={styles.card}>
@@ -122,6 +119,9 @@ function EditionCard({ edition, instance, refetch }: EditionCardProps) {
           <span className={styles.statValue}>{supplyLabel}</span>
         </div>
       </div>
+      {/* Free-mint is per edition (noesis-135) — each edition renders its own claim panel, which
+          shows nothing unless this edition has a free allocation the connected wallet can still claim. */}
+      <FreeMintClaimPanel instance={instance} editionId={edition.id} />
       <MintPanel instance={instance} edition={edition} refetch={refetch} />
     </>
   )

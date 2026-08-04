@@ -62,11 +62,14 @@ contract ERC1155EditionInvariantTest is StdInvariant, Test {
             "ipfs://limited",
             ERC1155Instance.PricingModel.LIMITED_FIXED,
             0,
+            0,
             0
         );
 
         // Add an unlimited edition
-        instance.addEdition("Open Piece", 0.005 ether, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        instance.addEdition(
+            "Open Piece", 0.005 ether, 0, "ipfs://open", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0
+        );
 
         vm.stopPrank();
 

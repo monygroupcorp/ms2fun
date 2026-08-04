@@ -284,7 +284,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -314,7 +315,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece2",
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -341,7 +343,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece3",
                 ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
                 100, // 1% increase per mint
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -368,7 +371,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -401,7 +405,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece2",
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -442,7 +447,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece3",
                 ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
                 100, // 1% increase per mint
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -479,7 +485,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -516,7 +523,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -562,7 +570,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             factory.createInstance{ value: 0 }(_nextSalt(), _params("Revoked Collection", creator, address(vault)));
         ERC1155Instance(payable(instance)).setAgentDelegation(true);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+            .addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         vm.stopPrank();
 
         vm.startPrank(minter1);
@@ -621,7 +629,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         );
         ERC1155Instance(payable(instance)).setAgentDelegation(true);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+            .addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         vm.stopPrank();
 
         vm.startPrank(minter1);
@@ -666,7 +674,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -698,7 +707,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.UNLIMITED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -725,7 +735,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece3",
                 ERC1155Instance.PricingModel.LIMITED_DYNAMIC,
                 100, // 1% increase
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -752,7 +763,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://test-piece",
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -781,11 +793,11 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             factory.createInstance{ value: 0 }(_nextSalt(), _params("Test Collection", creator, address(vault)));
         ERC1155Instance(payable(instance)).setAgentDelegation(true);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 1", 0.1 ether, 0, "ipfs://1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+            .addEdition("Piece 1", 0.1 ether, 0, "ipfs://1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 2", 0.2 ether, 100, "ipfs://2", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
+            .addEdition("Piece 2", 0.2 ether, 100, "ipfs://2", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 3", 0.3 ether, 50, "ipfs://3", ERC1155Instance.PricingModel.LIMITED_DYNAMIC, 100, 0);
+            .addEdition("Piece 3", 0.3 ether, 50, "ipfs://3", ERC1155Instance.PricingModel.LIMITED_DYNAMIC, 100, 0, 0);
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
 
@@ -808,9 +820,9 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
             factory.createInstance{ value: 0 }(_nextSalt(), _params("Test Collection", creator, address(vault)));
         ERC1155Instance(payable(instance)).setAgentDelegation(true);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 1", 0.1 ether, 0, "ipfs://1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+            .addEdition("Piece 1", 0.1 ether, 0, "ipfs://1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece 2", 0.2 ether, 100, "ipfs://2", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
+            .addEdition("Piece 2", 0.2 ether, 100, "ipfs://2", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0);
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
 
@@ -861,7 +873,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -896,7 +909,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
         vm.stopPrank();
 
@@ -972,7 +986,8 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 "ipfs://piece1",
                 ERC1155Instance.PricingModel.LIMITED_FIXED,
                 0,
-                0 // openTime
+                0, // openTime
+                0
             );
 
         ERC1155Instance instanceContract = ERC1155Instance(payable(instance));
@@ -1028,7 +1043,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         // Add edition with openTime 1 hour from now
         uint256 openTime = block.timestamp + 1 hours;
         vm.prank(artist);
-        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, openTime);
+        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, openTime, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
         // Attempt to mint before openTime
@@ -1042,7 +1057,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         uint256 openTime = block.timestamp + 1 hours;
         vm.prank(artist);
-        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, openTime);
+        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, openTime, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
         // Warp past openTime
@@ -1059,7 +1074,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
 
         // openTime = 0 → no time gate
         vm.prank(artist);
-        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
         inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
@@ -1073,7 +1088,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         ERC1155Instance inst = ERC1155Instance(payable(instance));
 
         vm.prank(artist);
-        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
         vm.expectRevert(GatingCheckFailed.selector);
@@ -1087,7 +1102,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         ERC1155Instance inst = ERC1155Instance(payable(instance));
 
         vm.prank(artist);
-        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        inst.addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
         uint256 editionId = inst.nextEditionId() - 1;
 
         inst.mint{ value: 0.01 ether }(editionId, 1, bytes(""), "", 0);
@@ -1165,7 +1180,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         uint256 futureOpen = block.timestamp + 1 days;
         vm.prank(artist);
         ERC1155Instance(payable(instance))
-            .addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, futureOpen);
+            .addEdition("Art 1", 0.01 ether, 0, "ipfs://art1", ERC1155Instance.PricingModel.UNLIMITED, 0, futureOpen, 0);
 
         // Verify openTime stored on edition
         ERC1155Instance.Edition memory ed = ERC1155Instance(payable(instance)).getEdition(1);
@@ -1196,7 +1211,7 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         vm.expectRevert(NoDynamicPricingModule.selector);
         ERC1155Instance(payable(instance))
             .addEdition(
-                "Dynamic Piece", 0.1 ether, 100, "ipfs://piece", ERC1155Instance.PricingModel.LIMITED_DYNAMIC, 100, 0
+                "Dynamic Piece", 0.1 ether, 100, "ipfs://piece", ERC1155Instance.PricingModel.LIMITED_DYNAMIC, 100, 0, 0
             );
         vm.stopPrank();
     }
@@ -1261,10 +1276,12 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
                 freeMint: FreeMintParams({ allocation: allocation, scope: scope })
             })
         );
-        // Edition 1: unlimited, fixed price 0.01 ETH, open immediately.
+        // Edition 1: unlimited, fixed price 0.01 ETH, open immediately. Free-mint is per edition now
+        // (noesis-135) — thread the requested allocation into this edition (unlimited supply, so any
+        // allocation is permitted).
         vm.prank(creator);
         ERC1155Instance(payable(instance))
-            .addEdition("Piece", 0.01 ether, 0, "ipfs://p", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+            .addEdition("Piece", 0.01 ether, 0, "ipfs://p", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, allocation);
     }
 
     function _configMerkle(MerkleGatingModule merkle, address instance, uint256 editionId, bytes32 root) internal {

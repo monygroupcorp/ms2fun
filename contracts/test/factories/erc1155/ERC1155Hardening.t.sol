@@ -102,7 +102,7 @@ contract ERC1155HardeningTest is Test {
 
     function _addEdition(ERC1155Instance inst, uint256 price, uint256 supply) internal returns (uint256) {
         vm.prank(creator);
-        inst.addEdition("Piece", price, supply, "ipfs://ed", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0);
+        inst.addEdition("Piece", price, supply, "ipfs://ed", ERC1155Instance.PricingModel.LIMITED_FIXED, 0, 0, 0);
         return inst.nextEditionId() - 1;
     }
 
