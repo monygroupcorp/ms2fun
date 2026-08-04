@@ -16,6 +16,7 @@ import { MockEXECToken } from "../../mocks/MockEXECToken.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { MockZRouter } from "../../mocks/MockZRouter.sol";
 import { MockVaultPriceValidator } from "../../mocks/MockVaultPriceValidator.sol";
+import { MockToggleVault } from "../../mocks/MockToggleVault.sol";
 import { IVaultPriceValidator } from "../../../src/interfaces/IVaultPriceValidator.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
@@ -597,6 +598,55 @@ contract ERC1155FactoryTest is GlobalMessagingTestBase {
         );
         assertEq(creator.balance - creatorBefore, expectedCreator, "creator still gets 80%");
         assertEq(instanceContract.pendingVaultCut(), 0, "redirect is not the pending-retry lane");
+    }
+
+    /// noesis-126: a vault cut STASHED at withdraw (the vault reverted) while the target was live must NOT be
+    /// force-fed to the vault on `retryVaultContribution` once the target has since been revoked — it is
+    /// redirected to `protocolTreasury`, mirroring the `withdraw` primary path.
+    function test_RetryVaultContribution_RevokedTarget_RedirectsToTreasury() public {
+        address treasury = address(0xF00D);
+        vm.prank(owner);
+        factory.setProtocolTreasury(treasury);
+
+        // Broken vault: receiveContribution reverts, so the withdraw tithe is stashed as pendingVaultCut
+        // (the "cut < MIN_CONTRIBUTION / participant-cap revert" scenario from the item).
+        MockToggleVault brokenVault = new MockToggleVault();
+
+        vm.deal(creator, 1 ether);
+        vm.deal(minter1, 10 ether);
+
+        vm.startPrank(creator);
+        address instance = factory.createInstance{ value: 0 }(
+            _nextSalt(), _params("Stashed Collection", creator, address(brokenVault))
+        );
+        ERC1155Instance(payable(instance)).setAgentDelegation(true);
+        ERC1155Instance(payable(instance))
+            .addEdition("Piece 1", 1 ether, 0, "ipfs://piece1", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        vm.stopPrank();
+
+        vm.startPrank(minter1);
+        ERC1155Instance inst = ERC1155Instance(payable(instance));
+        inst.mint{ value: 1 ether }(1, 1, bytes(""), bytes(""), 0);
+        vm.stopPrank();
+
+        uint256 expectedVault = (1 ether * 19) / 100; // 19% (liquidity-family split)
+
+        // Target still live + vault broken → withdraw stashes the tithe (does not redirect yet).
+        vm.prank(creator);
+        inst.withdraw(1 ether);
+        assertEq(inst.pendingVaultCut(), expectedVault, "precondition: cut stashed while target live");
+
+        // DAO revokes the target after the stash.
+        mockRegistry.setVaultRegistered(address(brokenVault), false);
+
+        uint256 treasuryBefore = treasury.balance;
+        vm.expectEmit(true, true, false, true, address(inst));
+        emit ERC1155Instance.VaultCutRedirected(address(brokenVault), treasury, expectedVault);
+        inst.retryVaultContribution(); // permissionless
+
+        assertEq(treasury.balance - treasuryBefore, expectedVault, "retry redirected the tithe to treasury");
+        assertEq(address(brokenVault).balance, 0, "de-curated vault received nothing");
+        assertEq(inst.pendingVaultCut(), 0, "stash cleared");
     }
 
     function test_GetMessagesBatch() public {

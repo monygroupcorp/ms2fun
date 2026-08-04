@@ -453,7 +453,15 @@ contract ERC721AuctionInstance is ERC721, Ownable, ReentrancyGuard, IInstanceLif
         uint256 pending = pendingVaultCut;
         if (pending == 0) revert NoFeesToClaim();
         pendingVaultCut = 0;
-        vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
+        // Target-revocation gate (noesis-126): if the vault's alignment target was revoked while this cut was
+        // stashed, route the tithe to `protocolTreasury` (force-transfer, matching settleAuction) instead of
+        // force-feeding the de-curated vault on retry. For an active target, re-send to the vault as before.
+        if (!masterRegistry.isVaultRegistered(address(vault))) {
+            SafeTransferLib.forceSafeTransferETH(protocolTreasury, pending);
+            emit VaultCutRedirected(address(vault), protocolTreasury, pending);
+        } else {
+            vault.receiveContribution{ value: pending }(Currency.wrap(address(0)), pending, address(this));
+        }
     }
 
     /// @notice Migrate to a new vault. New vault must share this instance's alignment target.
