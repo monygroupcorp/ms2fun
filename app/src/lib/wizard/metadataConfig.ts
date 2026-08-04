@@ -138,6 +138,74 @@ export function encodeTiers(values: Record<string, string>): MetadataTier[] {
   return tiers
 }
 
+// ── supply summary (live "total IDs" helper math) ─────────────────────────────
+
+/** The running base + tiers → total-ids math the wizard shows beside the tier table. */
+export interface TierSupplySummary {
+  /** The ERC404 core supply the creator entered (0 when not yet set). */
+  nftCount: bigint
+  /** Whether the supply is known (> 0) — gates the ⊆-supply verdict. */
+  supplyKnown: boolean
+  /** At least one tier row is present. */
+  hasTiers: boolean
+  /** Lowest tier start id (0 when no tiers). */
+  minId: bigint
+  /** Highest tier end id (0 when no tiers). */
+  maxId: bigint
+  /** Total ids the tier ranges cover — Σ (idEnd − idStart + 1) over well-formed rows. */
+  tierIdCount: bigint
+  /** Untiered base ids — `nftCount − tierIdCount`, clamped ≥ 0. Meaningful only when within supply. */
+  untieredCount: bigint
+  /** Every tier range fits within `[1, nftCount]`. True (vacuously) when supply unknown or no tiers. */
+  withinSupply: boolean
+}
+
+/**
+ * Compute the base + tiers → total-ids breakdown from the current tier form + core supply. Pure (no
+ * React) so it's unit-testable and shared by the helper component. Malformed rows (idEnd < idStart)
+ * contribute 0 to the covered count rather than a negative — the validator surfaces the error
+ * separately; this summary just avoids lying about coverage.
+ */
+export function tierSupplySummary(
+  values: Record<string, string>,
+  nftCount: bigint,
+): TierSupplySummary {
+  const tiers = encodeTiers(values)
+  const supplyKnown = nftCount > 0n
+  if (tiers.length === 0) {
+    return {
+      nftCount,
+      supplyKnown,
+      hasTiers: false,
+      minId: 0n,
+      maxId: 0n,
+      tierIdCount: 0n,
+      untieredCount: nftCount,
+      withinSupply: true,
+    }
+  }
+  let minId = tiers[0]!.idStart
+  let maxId = tiers[0]!.idEnd
+  let tierIdCount = 0n
+  for (const t of tiers) {
+    if (t.idStart < minId) minId = t.idStart
+    if (t.idEnd > maxId) maxId = t.idEnd
+    if (t.idEnd >= t.idStart) tierIdCount += t.idEnd - t.idStart + 1n
+  }
+  const withinSupply = supplyKnown ? minId >= 1n && maxId <= nftCount : true
+  const untieredCount = nftCount > tierIdCount ? nftCount - tierIdCount : 0n
+  return {
+    nftCount,
+    supplyKnown,
+    hasTiers: true,
+    minId,
+    maxId,
+    tierIdCount,
+    untieredCount,
+    withinSupply,
+  }
+}
+
 // ── encode ────────────────────────────────────────────────────────────────────
 
 /**
@@ -195,10 +263,17 @@ export function hasMetadataConfig(cfg: MetadataConfigValue): boolean {
  * Validate the metadata-stack selection + tier table before submit. Returns field.key → error (only
  * failures). Mirrors the on-chain reverts (`InvalidRange`, `RangesNotAscending`) and the wiring
  * invariants so the user gets a message instead of a reverted tx.
+ *
+ * `nftCount` is the ERC404 core supply (whole-id count). When > 0 each tier range is additionally
+ * asserted ⊆ `[1, nftCount]` — a tier ending past the supply mints DEAD ids (never reachable), a
+ * silently broken collection the ascending/non-overlap checks alone don't catch. When 0/empty
+ * (supply not yet entered) the ⊆-supply check is skipped so the table doesn't false-error before the
+ * creator has typed a supply; the start/end sanity checks still run.
  */
 export function validateMetadataConfig(
   sel: MetadataModuleSelection,
   values: Record<string, string>,
+  nftCount: bigint = 0n,
 ): Record<string, string> {
   const errors: Record<string, string> = {}
   const overlaySel = nonZero(sel.overlay)
@@ -222,11 +297,19 @@ export function validateMetadataConfig(
     }
     let prevEnd = 0n
     tiers.forEach((t, i) => {
+      // Start id must be a real token id (1-based). Catches an explicit 0/blank-coerced start.
+      if (t.idStart < 1n) {
+        errors[`tierIdStarts.${i}`] = `tier ${i + 1}: start id must be ≥ 1`
+      } else if (t.idStart <= prevEnd) {
+        errors[`tierIdStarts.${i}`] = `tier ${i + 1}: ranges must be ascending + non-overlapping`
+      }
       if (t.idEnd < t.idStart) {
         errors[`tierIdEnds.${i}`] = `tier ${i + 1}: end id must be ≥ start id`
-      }
-      if (t.idStart <= prevEnd) {
-        errors[`tierIdStarts.${i}`] = `tier ${i + 1}: ranges must be ascending + non-overlapping`
+      } else if (nftCount > 0n && t.idEnd > nftCount) {
+        // Range extends past the minted set → those ids never exist (dead tier). Only checked once a
+        // supply is known; the specific number lets the creator raise supply or lower the range.
+        errors[`tierIdEnds.${i}`] =
+          `tier ${i + 1}: end id ${t.idEnd} exceeds NFT supply ${nftCount} — raise supply or lower the range`
       }
       // Tier URIs are intentionally NOT required — the main collection URI is optional (art-optional),
       // so blocking deploy on a per-tier URI is inconsistent. A blank URI encodes as an empty string.
