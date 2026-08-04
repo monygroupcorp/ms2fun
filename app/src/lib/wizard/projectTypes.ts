@@ -149,15 +149,16 @@ const erc404: ProjectTypeSchema = {
       required: false,
     },
     // ── Metadata-resolution stack (ADR-0006/0007) ──────────────────────────────
-    // All optional. The resolver (router) is the instance's METADATA_RESOLVER target; overlay/tier
-    // are its children, wired + frozen at create. Selecting the resolver turns the feature on; the
-    // overlay/tier slots supply the concrete modules the router stacks (precedence: overlay→tier).
+    // All optional. The resolver (router) is the instance's METADATA_RESOLVER target; overlay is its
+    // child, wired + frozen at create. Selecting the resolver turns the feature on; the overlay slot
+    // supplies the concrete module the router stacks. (Tier reveal is retired from the wizard —
+    // noesis-138 — Token Tiers replaces it; see tier-denominations-productdef.md.)
     {
       key: 'resolver',
       label: 'Metadata resolver',
       tag: 'resolver',
       required: false,
-      help: 'Router that stacks dynamic-metadata modules (overlay/tier). Off when unset.',
+      help: 'Router that stacks dynamic-metadata modules (overlay). Off when unset.',
     },
     {
       key: 'overlay',
@@ -166,14 +167,6 @@ const erc404: ProjectTypeSchema = {
       required: false,
       help: 'Augmentation layer: event waves + paid commissions (configured post-create)',
       learnMore: 'metadata-overlay',
-    },
-    {
-      key: 'tier',
-      label: 'Tier reveal',
-      tag: 'tier',
-      required: false,
-      help: 'Rarity-by-ownership reveal; tier table is set at create (immutable)',
-      learnMore: 'tier-reveal',
     },
   ],
 }
