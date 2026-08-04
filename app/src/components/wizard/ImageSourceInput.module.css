@@ -54,24 +54,6 @@
   color: var(--text-tertiary);
 }
 
-.or {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.hiddenFile {
-  display: none;
-}
-
-.error {
-  margin: var(--space-1) 0 0;
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-error);
-}
-
 .previewWrap {
   display: flex;
   align-items: flex-start;
@@ -116,55 +98,4 @@
 
 .ok {
   color: var(--text-tertiary);
-}
-
-.caution {
-  color: var(--text-primary);
-}
-
-.warn {
-  color: var(--color-danger);
-  line-height: var(--line-height-relaxed);
-}
-
-.scale {
-  color: var(--text-tertiary);
-  line-height: var(--line-height-relaxed);
-}
-
-/* ── Bitcrush controls ── */
-.crush {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding: var(--space-3);
-  border: 1px dashed var(--border-secondary);
-}
-
-.crushRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.crushLabel {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-body-sm);
-  color: var(--text-secondary);
-  flex: 0 0 auto;
-  min-width: 11rem;
-}
-
-.slider {
-  flex: 1 1 8rem;
-  min-width: 8rem;
-  accent-color: var(--text-primary);
-}
-
-.fitBtns {
-  display: flex;
-  gap: var(--gap-sm);
-  flex-wrap: wrap;
 }
