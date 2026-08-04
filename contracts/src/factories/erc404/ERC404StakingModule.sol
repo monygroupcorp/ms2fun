@@ -59,6 +59,14 @@ contract ERC404StakingModule is IComponentModule, Ownable {
     mapping(address => uint256) public periodFinish; // instance => timestamp the current stream ends
     mapping(address => uint256) public lastUpdateTime; // instance => last accrual checkpoint timestamp
 
+    // Un-accruable stream leak (noesis-127). Wei that an active stream scheduled during an interval in
+    // which `totalStaked == 0` — `rewardPerToken` skips it (0 divisor) and `_updateReward` jumps
+    // `lastUpdateTime` past it, so no staker can ever accrue it. Tracked here as cumulative un-owed wei
+    // and released to the instance (which debits its `stakingReserve`, un-locking it for `withdrawDust`)
+    // exactly once via `settleAndReleaseLeak`. This is the ONLY ETH the F1 sweep guard may release: it is
+    // provably un-owed, unlike genuinely-owed streamed rewards.
+    mapping(address => uint256) public streamLeak; // instance => cumulative un-accruable wei, pending release
+
     // IComponentModule self-description (wizard metadata; owner-managed)
     string private _metadataURI;
 
@@ -67,6 +75,7 @@ contract ERC404StakingModule is IComponentModule, Ownable {
     event Unstaked(address indexed instance, address indexed user, uint256 amount, uint256 newTotal);
     event FeesReceived(address indexed instance, uint256 delta, uint256 newCumulative);
     event RewardsClaimed(address indexed instance, address indexed user, uint256 amount);
+    event StreamLeakReleased(address indexed instance, uint256 amount);
 
     modifier onlyRegisteredInstance() {
         if (!masterRegistry.isRegisteredInstance(msg.sender)) revert NotRegisteredInstance();
@@ -109,6 +118,18 @@ contract ERC404StakingModule is IComponentModule, Ownable {
     ///      `rewardPerTokenStored`/`lastUpdateTime` to now, then freezes `user`'s entitlement at the
     ///      new rate before their balance changes. Pass `address(0)` to settle only the global stream.
     function _updateReward(address instance, address user) private {
+        // Capture un-accruable leak BEFORE the checkpoint jumps `lastUpdateTime` (noesis-127). When
+        // `totalStaked == 0`, `rewardPerToken` returns the stored value unchanged (0 divisor) yet the
+        // stream kept scheduling `rewardRate` wei/sec over `(lastUpdateTime, lastTimeRewardApplicable]`.
+        // That scheduled ETH can never accrue to a staker — record it as un-owed so the instance can
+        // release it from its `stakingReserve`. Round down (favor the pool): bounded by scheduled wei.
+        if (totalStaked[instance] == 0) {
+            uint256 applicable = lastTimeRewardApplicable(instance);
+            uint256 last = lastUpdateTime[instance];
+            if (applicable > last) {
+                streamLeak[instance] += (applicable - last) * rewardRate[instance];
+            }
+        }
         rewardPerTokenStored[instance] = rewardPerToken(instance);
         lastUpdateTime[instance] = lastTimeRewardApplicable(instance);
         if (user != address(0)) {
@@ -220,7 +241,42 @@ contract ERC404StakingModule is IComponentModule, Ownable {
         emit RewardsClaimed(instance, user, rewardAmount);
     }
 
+    /// @notice One-round-trip settle for `claimAllFees` (noesis-127): checkpoints the stream, then
+    ///         reports the caller-instance's current `totalStaked` (for the noesis-061 credit guard) AND
+    ///         releases its accumulated un-accruable stream leak — the wei a stream scheduled while
+    ///         nothing was staked that `rewardPerToken` skipped and no staker can ever accrue. Zeroes the
+    ///         leak counter so each wei is released exactly once; the instance debits `stakingReserve` by
+    ///         `leaked` so `withdrawDust` can recover the otherwise permanently-locked funds. Folding both
+    ///         reads into one call keeps the instance under the EIP-170 ceiling.
+    /// @dev EXIT PATH — deliberately NOT `onlyRegisteredInstance` (mirrors recordUnstake/computeClaim,
+    ///      noesis-098 F7): touches only the caller's own namespace and never pays a staker, so a registry
+    ///      de-listing cannot strand the owner's un-owed ETH. Genuinely-owed streamed rewards are
+    ///      untouched — only the provably un-accruable gap remainder is released.
+    function settleAndReleaseLeak() external returns (uint256 totalStaked_, uint256 leaked) {
+        if (!stakingEnabled[msg.sender]) revert StakingNotEnabled();
+        address instance = msg.sender;
+        _updateReward(instance, address(0)); // fold any leak accrued up to now into streamLeak
+        totalStaked_ = totalStaked[instance];
+        leaked = streamLeak[instance];
+        if (leaked != 0) {
+            streamLeak[instance] = 0;
+            emit StreamLeakReleased(instance, leaked);
+        }
+    }
+
     // ── View functions (public) ───────────────────────────────────────────────
+
+    /// @notice Un-accruable stream leak currently pending release for `instance` (noesis-127): the
+    ///         tracked counter PLUS any leak that has accrued live since the last checkpoint while
+    ///         `totalStaked == 0`. This is exactly the `leaked` that `settleAndReleaseLeak` would return now.
+    function pendingStreamLeak(address instance) external view returns (uint256 leaked) {
+        leaked = streamLeak[instance];
+        if (totalStaked[instance] == 0) {
+            uint256 applicable = lastTimeRewardApplicable(instance);
+            uint256 last = lastUpdateTime[instance];
+            if (applicable > last) leaked += (applicable - last) * rewardRate[instance];
+        }
+    }
 
     /// @notice Estimate pending rewards for a user without changing state
     function calculatePendingRewards(address instance, address user) external view returns (uint256) {
