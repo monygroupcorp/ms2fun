@@ -3605,6 +3605,7 @@ export const erc1155InstanceAbi = [
       },
       { name: 'priceIncreaseRate', internalType: 'uint256', type: 'uint256' },
       { name: 'openTime', internalType: 'uint256', type: 'uint256' },
+      { name: 'freeMintAlloc', internalType: 'uint256', type: 'uint256' },
     ],
     name: 'addEdition',
     outputs: [],
@@ -3736,21 +3737,24 @@ export const erc1155InstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [],
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'freeMintAllocation',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    inputs: [
+      { name: '', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
     name: 'freeMintClaimed',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    inputs: [],
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'freeMintsClaimed',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
@@ -3856,7 +3860,7 @@ export const erc1155InstanceAbi = [
   {
     type: 'function',
     inputs: [
-      { name: 'allocation', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
       { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
     ],
     name: 'initializeFreeMint',
@@ -4026,6 +4030,16 @@ export const erc1155InstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [
+      { name: 'editionId', internalType: 'uint256', type: 'uint256' },
+      { name: 'allocation', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'setEditionFreeMintAllocation',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
     name: 'setStyle',
     outputs: [],
@@ -4189,6 +4203,25 @@ export const erc1155InstanceAbi = [
       },
     ],
     name: 'EditionMetadataUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'editionId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'allocation',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'FreeMintAllocationSet',
   },
   {
     type: 'event',
@@ -4443,6 +4476,7 @@ export const erc1155InstanceAbi = [
   { type: 'error', inputs: [], name: 'ExceedsSupply' },
   { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
   { type: 'error', inputs: [], name: 'FreeMintDisabled' },
+  { type: 'error', inputs: [], name: 'FreeMintExceedsSupply' },
   { type: 'error', inputs: [], name: 'FreeMintExhausted' },
   { type: 'error', inputs: [], name: 'GatingCheckFailed' },
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
@@ -17848,6 +17882,15 @@ export const useWriteErc1155InstanceSetContractUri =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setEditionFreeMintAllocation"`
+ */
+export const useWriteErc1155InstanceSetEditionFreeMintAllocation =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setEditionFreeMintAllocation',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useWriteErc1155InstanceSetStyle =
@@ -18043,6 +18086,15 @@ export const useSimulateErc1155InstanceSetContractUri =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setEditionFreeMintAllocation"`
+ */
+export const useSimulateErc1155InstanceSetEditionFreeMintAllocation =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc1155InstanceAbi,
+    functionName: 'setEditionFreeMintAllocation',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `functionName` set to `"setStyle"`
  */
 export const useSimulateErc1155InstanceSetStyle =
@@ -18127,6 +18179,15 @@ export const useWatchErc1155InstanceEditionMetadataUpdatedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc1155InstanceAbi,
     eventName: 'EditionMetadataUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc1155InstanceAbi}__ and `eventName` set to `"FreeMintAllocationSet"`
+ */
+export const useWatchErc1155InstanceFreeMintAllocationSetEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc1155InstanceAbi,
+    eventName: 'FreeMintAllocationSet',
   })
 
 /**

@@ -25,7 +25,8 @@ import styles from './Erc1155Actions.module.css'
 
 interface FreeMintClaimPanelProps {
   instance: `0x${string}`
-  /** A free mint is per-edition; claim targets the first edition by convention. */
+  /** A free mint is PER edition (noesis-135) — allocation, claim counter, and the per-user claimed
+   *  flag are all keyed by this editionId. */
   editionId: bigint
 }
 
@@ -36,15 +37,17 @@ export function FreeMintClaimPanel({ instance, editionId }: FreeMintClaimPanelPr
   const { data: allocation } = useReadErc1155InstanceFreeMintAllocation({
     address: instance,
     chainId: chainId,
+    args: [editionId],
   })
   const { data: claimedCount } = useReadErc1155InstanceFreeMintsClaimed({
     address: instance,
     chainId: chainId,
+    args: [editionId],
   })
   const { data: hasClaimed, refetch: refetchClaimed } = useReadErc1155InstanceFreeMintClaimed({
     address: instance,
     chainId: chainId,
-    args: address ? [address] : undefined,
+    args: address ? [editionId, address] : undefined,
     query: { enabled: !!address },
   })
   const { data: gatingModule } = useReadErc1155InstanceGatingModule({

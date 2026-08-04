@@ -50,7 +50,7 @@ contract Finding4_ERC1155ForceFeedTest is Test {
         );
 
         vm.prank(creator);
-        instance.addEdition("Piece 1", 1 ether, 0, "ipfs://meta", ERC1155Instance.PricingModel.UNLIMITED, 0, 0);
+        instance.addEdition("Piece 1", 1 ether, 0, "ipfs://meta", ERC1155Instance.PricingModel.UNLIMITED, 0, 0, 0);
 
         vm.deal(buyer, 100 ether);
         vm.deal(treasury, 10 ether);
