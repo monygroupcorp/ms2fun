@@ -16,12 +16,12 @@ const TIER = '0x3333333333333333333333333333333333333333' as const
 const TWO_ROWS = {
   'tierIdStarts.0': '1',
   'tierIdEnds.0': '5',
-  'tierMinBalances.0': '1000000000000000000',
+  'tierMinBalances.0': '1', // 1 whole token → 1e18 wei
   'tierBaseURIs.0': 'rare-',
   'tierLockedURIs.0': 'locked-',
   'tierIdStarts.1': '6',
   'tierIdEnds.1': '10',
-  'tierMinBalances.1': '5000000000000000000',
+  'tierMinBalances.1': '5', // 5 whole tokens → 5e18 wei
   'tierBaseURIs.1': 'legend-',
   'tierLockedURIs.1': '',
 }
@@ -58,6 +58,15 @@ describe('encodeTiers', () => {
   it('coerces garbage numerics to 0n rather than throwing', () => {
     const tiers = encodeTiers({ 'tierIdStarts.0': '1', 'tierMinBalances.0': 'NaN' })
     expect(tiers[0]?.minBalance).toBe(0n)
+  })
+
+  it('scales human whole-token min balances to exact 18-decimal wei', () => {
+    const min = (v: string): bigint =>
+      encodeTiers({ 'tierIdStarts.0': '1', 'tierMinBalances.0': v })[0]!.minBalance
+    expect(min('1')).toBe(10n ** 18n) // 1 token
+    expect(min('1000')).toBe(1000n * 10n ** 18n) // 1000 tokens
+    expect(min('0.5')).toBe(500000000000000000n) // fractional token
+    expect(min('')).toBe(0n) // blank → 0
   })
 })
 

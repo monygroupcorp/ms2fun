@@ -20,9 +20,14 @@
  * `gatingConfig.ts` pattern.
  */
 
+import { parseUnits } from 'viem'
+
 // Local copy (NOT imported from ./submit) — submit.ts imports this module, so importing back would
 // create a cycle that leaves the const undefined during init. Same literal as submit's ZERO_ADDRESS.
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
+
+/** Whole-token count decimals for these ERC-404/1155/721 amounts (all 18-decimal). */
+const TOKEN_DECIMALS = 18
 
 // ── On-chain shapes (viem-inferred) ───────────────────────────────────────────
 
@@ -88,6 +93,21 @@ function bigOrZero(v: string | undefined): bigint {
   }
 }
 
+/**
+ * Human whole-token count → exact on-chain wei bigint (× 10**18). The creator enters "1000" tokens;
+ * the tier threshold is stored as the 18-decimal token amount. Empty/garbage/negative → 0n (no throw).
+ */
+function tokensToWei(v: string | undefined): bigint {
+  const t = (v ?? '').trim()
+  if (t === '' || !/^\d*\.?\d*$/.test(t) || t === '.') return 0n
+  try {
+    const wei = parseUnits(t, TOKEN_DECIMALS)
+    return wei < 0n ? 0n : wei
+  } catch {
+    return 0n
+  }
+}
+
 const nonZero = (a: `0x${string}` | undefined): a is `0x${string}` =>
   a !== undefined && a !== ZERO_ADDRESS
 
@@ -110,7 +130,7 @@ export function encodeTiers(values: Record<string, string>): MetadataTier[] {
     tiers.push({
       idStart: bigOrZero(s),
       idEnd: bigOrZero(ends[i]),
-      minBalance: bigOrZero(mins[i]),
+      minBalance: tokensToWei(mins[i]), // creator enters whole tokens; scaled to 18-decimal wei here
       baseURI: (bases[i] ?? '').trim(),
       lockedURI: (lockeds[i] ?? '').trim(),
     })
