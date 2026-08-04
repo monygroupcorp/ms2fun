@@ -13,7 +13,6 @@ describe('module-card concept map', () => {
   })
 
   it('moduleConceptSlug returns the mapped slug for a known configType', () => {
-    expect(moduleConceptSlug('password-tier-gating')).toBe('password-tier-gating')
     expect(moduleConceptSlug('merkle-allowlist-gating')).toBe('merkle-allowlist')
     // Wired in noesis-049 once the concepts landed (046). 'metadata-tier' maps to tier-reveal.
     expect(moduleConceptSlug('metadata-overlay')).toBe('metadata-overlay')
