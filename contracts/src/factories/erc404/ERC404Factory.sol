@@ -18,7 +18,7 @@ import { GatingScope } from "../../gating/IGatingModule.sol";
 import { ICreateX, CREATEX } from "../../shared/CreateXConstants.sol";
 import { RevenueSplitLib } from "../../shared/libraries/RevenueSplitLib.sol";
 import { MetadataResolverRouter } from "../../metadata/MetadataResolverRouter.sol";
-import { TierRevealModule } from "../../metadata/TierRevealModule.sol";
+import { TokenTierBandResolver } from "../../metadata/TokenTierBandResolver.sol";
 import { MetadataOverlayModule } from "../../metadata/MetadataOverlayModule.sol";
 
 /// @dev Minimal surface of the deploy-bond escrow the factory drives at create. The escrow is a
@@ -79,8 +79,8 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         address resolver; // instance modules[METADATA_RESOLVER] target
         address[] childResolvers; // router's ordered children (empty if no router)
         address overlay; // overlay module to initConfig (address(0) = skip)
-        address tier; // tier module to initTiers (address(0) = skip)
-        TierRevealModule.Tier[] tiers; // tier table (sealed at create)
+        address tier; // tier module to initBands (address(0) = skip)
+        TokenTierBandResolver.Band[] bands; // static band→art table (sealed at create)
         bool autoLatest; // overlay initial policy
         MetadataOverlayModule.Payout defaultPayout;
     }
@@ -138,7 +138,6 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error UnapprovedStakingModule();
     error UnapprovedCurveComputer();
     error UnapprovedResolver();
-    error InvalidTierMinBalance();
     error MaxBondingFeeExceeded();
     error NotAuthorizedAgent();
     error InvalidDeclaredMaxAllowance();
@@ -204,7 +203,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     }
 
     /// @notice Create an instance and wire a metadata-resolution stack (ADR-0006/0007) in the same tx.
-    /// @param metadataConfig Resolver pointer + router children + sealed tier/overlay config.
+    /// @param metadataConfig Resolver pointer + router children + sealed band/overlay config.
     ///        Empty (resolver == address(0)) leaves the instance with no metadata augmentation.
     function createInstance(
         CreateParams calldata params,
@@ -315,7 +314,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     }
 
     /// @dev Validate (registry) and seal the metadata-resolution stack onto `instance`. All pointers
-    ///      are registry-validated; the instance slot + router list + tier table + overlay config are
+    ///      are registry-validated; the instance slot + router list + band table + overlay config are
     ///      each wired exactly once here, then frozen (sealed mechanism — no owner setter).
     function _wireMetadata(address instance, MetadataConfig memory cfg) private {
         if (cfg.resolver == address(0)) return; // feature off
@@ -337,14 +336,10 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Per-module sealed config.
         if (cfg.tier != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.tier, FeatureUtils.TIER)) revert UnapprovedResolver();
-            // T1: a band with minBalance == 0 makes `eff >= 0` always true → the tier reveals its rare
-            // art to EVERY id in range, holder or not (balanceOf(address(0)) == 0 still clears it),
-            // silently defeating the ownership gate. Reject it at seal — a config footgun, not a runtime.
-            uint256 tierCount = cfg.tiers.length;
-            for (uint256 i = 0; i < tierCount; i++) {
-                if (cfg.tiers[i].minBalance == 0) revert InvalidTierMinBalance();
-            }
-            TierRevealModule(cfg.tier).initTiers(instance, cfg.tiers);
+            // No minBalance guard here any more: Token Tiers art is static and unconditional, so
+            // there is no threshold that a zero value could defeat. Range sanity (ascending,
+            // non-overlapping, idEnd >= idStart) is validated by the resolver at seal.
+            TokenTierBandResolver(cfg.tier).initBands(instance, cfg.bands);
         }
         if (cfg.overlay != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.overlay, FeatureUtils.OVERLAY)) revert UnapprovedResolver();

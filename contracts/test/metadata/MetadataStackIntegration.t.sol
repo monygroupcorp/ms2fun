@@ -14,7 +14,7 @@ import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
 import { MetadataOverlayModule } from "../../src/metadata/MetadataOverlayModule.sol";
-import { TierRevealModule } from "../../src/metadata/TierRevealModule.sol";
+import { TokenTierBandResolver } from "../../src/metadata/TokenTierBandResolver.sol";
 import { MockHostileResolver } from "../mocks/MockHostileResolver.sol";
 import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -58,7 +58,7 @@ contract MetadataStackIntegrationTest is Test {
 
     MetadataResolverRouter router;
     MetadataOverlayModule overlay;
-    TierRevealModule tier;
+    TokenTierBandResolver tier;
 
     address protocolAdmin = address(0x9);
     address creator = address(0x2);
@@ -113,7 +113,7 @@ contract MetadataStackIntegrationTest is Test {
         // Metadata stack (modules read isFactoryRegistered off the mock registry → factory may seal).
         router = new MetadataResolverRouter(address(registry));
         overlay = new MetadataOverlayModule(address(registry));
-        tier = new TierRevealModule(address(registry));
+        tier = new TokenTierBandResolver(address(registry));
         componentRegistry.approveComponent(address(router), keccak256("resolver"), "Router");
         componentRegistry.approveComponent(address(overlay), keccak256("overlay"), "Overlay");
         componentRegistry.approveComponent(address(tier), keccak256("tier"), "Tier");
@@ -126,21 +126,23 @@ contract MetadataStackIntegrationTest is Test {
     }
 
     function _createStacked() internal returns (ERC404BondingInstance b, DN404Mirror mirror) {
-        // Tier: ids 1-2 reveal "rare-" once the holder clears 1 unit; teaser "locked-" otherwise.
-        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] =
-            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: UNIT, baseURI: "rare-", lockedURI: "locked-" });
+        // Band: ids 1-2 serve "rare-<id>", unconditionally. The band sits on MINTABLE ids here on
+        // purpose — the resolver does not (and must not) enforce the above-the-ceiling convention,
+        // that is a wizard rule — so the precedence assertions below can go through the REAL ERC721
+        // entrypoint (the mirror's tokenURI), which requires the id to exist.
+        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
+        bands[0] = TokenTierBandResolver.Band({ idStart: 1, idEnd: 2, baseURI: "rare-" });
 
         address[] memory children = new address[](2);
         children[0] = address(overlay); // explicit pins/events win over...
-        children[1] = address(tier); // ...ambient rarity
+        children[1] = address(tier); // ...static band art
 
         ERC404Factory.MetadataConfig memory meta = ERC404Factory.MetadataConfig({
             resolver: address(router),
             childResolvers: children,
             overlay: address(overlay),
             tier: address(tier),
-            tiers: tiers,
+            bands: bands,
             autoLatest: false,
             defaultPayout: MetadataOverlayModule.Payout.ARTIST
         });
@@ -233,11 +235,11 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(router.resolverCount(address(b)), 2);
         assertTrue(tier.sealed_(address(b)));
 
-        // ── Pre-mint: tier teaser for in-range unsold ids; base for everything else ──
-        assertEq(_uri(b, 1), "locked-"); // overlay "" → tier teaser
-        assertEq(_uri(b, 5), "base/5"); // overlay "" → tier "" → collection base
+        // ── Pre-mint: band art already resolves for in-band ids; base for everything else ──
+        assertEq(_uri(b, 1), "rare-1"); // overlay "" → band art, holder is address(0) and it does not matter
+        assertEq(_uri(b, 5), "base/5"); // overlay "" → band "" → collection base
 
-        // ── Mint: creator buys 2 whole units → owns ids 1,2, balance clears the tier threshold ──
+        // ── Mint: creator buys 2 whole units → owns ids 1,2 ──
         vm.prank(creator);
         b.setBondingOpenTime(block.timestamp + 1 hours);
         vm.prank(creator);
@@ -246,9 +248,10 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(b.ownerOf(1), creator);
         assertEq(b.balanceOf(creator), 2 * UNIT);
 
-        // Tier now reveals the rare ids the holder backs. The minted id goes through the REAL ERC721
-        // entrypoint (the mirror's tokenURI) to prove the seam end-to-end.
-        assertEq(mirror.tokenURI(1), "rare-1"); // overlay "" → tier reveal, via the mirror
+        // Band art is UNCHANGED by the mint — the same URI before and after ownership moved. The
+        // minted id goes through the REAL ERC721 entrypoint (the mirror's tokenURI) to prove the
+        // seam end-to-end.
+        assertEq(mirror.tokenURI(1), "rare-1"); // overlay "" → band art, via the mirror
         assertEq(_uri(b, 2), "rare-2");
 
         // ── Overlay event wins over tier when the holder pins it ──
@@ -258,7 +261,7 @@ contract MetadataStackIntegrationTest is Test {
         );
         vm.prank(creator);
         overlay.select(address(b), 1, w + 3); // pin the wave on id 1
-        assertEq(mirror.tokenURI(1), "evt-1"); // overlay precedence over tier reveal
+        assertEq(mirror.tokenURI(1), "evt-1"); // overlay precedence over band art
 
         // ── Paid commission wins over tier too ──
         vm.prank(creator);
@@ -268,7 +271,7 @@ contract MetadataStackIntegrationTest is Test {
         vm.deal(creator, 0.5 ether);
         vm.prank(creator);
         overlay.unlock{ value: 0.5 ether }(address(b), 2);
-        assertEq(mirror.tokenURI(2), "comm-2"); // overlay commission over tier "rare-2"
+        assertEq(mirror.tokenURI(2), "comm-2"); // overlay commission over band art "rare-2"
 
         // id 5 is still pure base — the stack is fully transparent where no module claims it.
         assertEq(_uri(b, 5), "base/5");
@@ -277,7 +280,7 @@ contract MetadataStackIntegrationTest is Test {
     /// @dev A reverting/again-misbehaving resolver can never brick tokenURI — it degrades to base.
     function test_tokenURI_defensiveFallbackToBase() public {
         (ERC404BondingInstance b,) = _createStacked();
-        // id 9 is outside the tier range and has no overlay content → base.
+        // id 9 is outside the band range and has no overlay content → base.
         assertEq(_uri(b, 9), "base/9");
     }
 
@@ -404,34 +407,48 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
     }
 
-    // ── noesis-110 T1: factory rejects a tier band with minBalance == 0 ─────────
-    // A minBalance == 0 band makes `eff >= 0` always true → the tier reveals its rare art to every id in
-    // range regardless of holdings (defeating the ownership gate). The factory rejects it at seal.
+    // ── noesis-141 T1: the factory seals BANDS, and range sanity bubbles from the resolver ─────
+    // There is no minBalance any more (the old zero-threshold guard went with it — static art has no
+    // threshold to defeat). What the create path must still enforce is range sanity, which the
+    // resolver owns; the factory just has to let it revert the create.
 
-    function test_wireMetadata_tierMinBalanceZero_reverts() public {
-        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] =
-            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: 0, baseURI: "rare-", lockedURI: "locked-" });
+    function test_wireMetadata_bandSeals() public {
+        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](2);
+        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 12, baseURI: "tier2-" });
+        bands[1] = TokenTierBandResolver.Band({ idStart: 13, idEnd: 13, baseURI: "tier3-" });
 
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
-        meta.tiers = tiers;
-        vm.expectRevert(ERC404Factory.InvalidTierMinBalance.selector);
-        _create("zeroMinBalance", meta);
+        meta.bands = bands;
+        address inst = _create("bandSeal", meta);
+        assertTrue(tier.sealed_(inst), "band table seals at create");
+        assertEq(tier.bandCount(inst), 2);
     }
 
-    function test_wireMetadata_tierMinBalancePositive_succeeds() public {
-        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] =
-            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: UNIT, baseURI: "rare-", lockedURI: "locked-" });
+    function test_wireMetadata_bandRangesNotAscending_reverts() public {
+        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](2);
+        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 14, baseURI: "tier2-" });
+        bands[1] = TokenTierBandResolver.Band({ idStart: 13, idEnd: 15, baseURI: "tier3-" }); // overlaps
 
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
-        meta.tiers = tiers;
-        address inst = _create("positiveMinBalance", meta);
-        assertTrue(tier.sealed_(inst), "tier seals with a positive minBalance");
+        meta.bands = bands;
+        vm.expectRevert(TokenTierBandResolver.RangesNotAscending.selector);
+        _create("overlappingBands", meta);
+    }
+
+    function test_wireMetadata_bandInvalidRange_reverts() public {
+        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
+        bands[0] = TokenTierBandResolver.Band({ idStart: 14, idEnd: 11, baseURI: "tier2-" });
+
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.bands = bands;
+        vm.expectRevert(TokenTierBandResolver.InvalidRange.selector);
+        _create("invalidBandRange", meta);
     }
 
     // ── noesis-104 §4.5: a hostile resolver can't brick a DN404 transfer ─────────
