@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { ERC404BondingStorage, RerollFailed } from "./ERC404BondingStorage.sol";
+import {
+    ERC404BondingStorage,
+    RerollFailed,
+    TierOpFailed,
+    InvalidBand,
+    BandIdOverflow
+} from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
@@ -258,6 +264,47 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         _freeMintInitialized = true;
         freeMintAllocation = allocation;
         gatingScope = scope;
+    }
+
+    /// @notice Seal this instance's Token Tiers ladder. Factory-only, set-once — mutable weights would
+    ///         retroactively reprice every outstanding band NFT, so there is no owner setter.
+    /// @dev    `bands[i]` describes tier `i + 1`; tier 0 is the implicit ordinary id space `[1..idLimit]`
+    ///         with `w_0 = 1` and is never stored. Every band must sit ABOVE `idLimit` — that is what
+    ///         makes band ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
+    ///         `_wrapNFTId(.., idLimit)` where `idLimit = totalSupply / unit`, fixed for this instance's
+    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is the
+    ///         product's `band_N = S / w_N` (S = the tier-0 id count), rounded DOWN — with a 10-to-1
+    ///         ladder on S = 4000 that is 400 ids for tier 1 and 40 for tier 2, each band able to hold
+    ///         the entire supply if it all concentrated there.
+    /// @param  bands Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
+    function initTierBands(TierBand[] calldata bands) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        if (_tiersSealed) revert AlreadyInitialized();
+        if (unit == 0) revert NotInitialized();
+        _tiersSealed = true;
+
+        uint256 n = bands.length;
+        if (n == 0) revert InvalidBand();
+        uint256 idLimit = maxSupply / unit; // == DN404's idLimit: totalSupply is fixed at maxSupply
+        uint256 prevEnd = idLimit; // bands start strictly above the ordinary id space
+        uint256 prevWeight = 1; // w_0
+        for (uint256 i = 0; i < n; i++) {
+            uint256 idStart = bands[i].idStart;
+            uint256 weight = bands[i].weight;
+            if (idStart <= prevEnd) revert InvalidBand();
+            if (weight <= prevWeight) revert InvalidBand();
+            uint256 size = idLimit / weight; // round down: a band never over-promises ids
+            if (size == 0) revert InvalidBand();
+            uint256 idEnd = idStart + size - 1;
+            // DN404's `_restrictNFTId` bounds ids to uint32 — an id above that is unownable.
+            if (idEnd > type(uint32).max) revert BandIdOverflow();
+            if (bands[i].idEnd != idEnd) revert InvalidBand();
+            tierBands.push(bands[i]);
+            bandNextFree[i] = idStart;
+            prevEnd = idEnd;
+            prevWeight = weight;
+        }
+        emit TierBandsSealed(n);
     }
 
     /// @notice Wire in a staking module. Called by factory after masterRegistry.registerInstance.
@@ -614,6 +661,65 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     function rerollSelectedNFTs(uint256, uint256[] calldata) external {
         (bool ok,) = _ops.delegatecall(msg.data);
         if (!ok) revert RerollFailed();
+    }
+
+    // ┌─────────────────────────┐
+    // │   Token Tiers           │
+    // └─────────────────────────┘
+
+    /// @notice Mint up: convert `w_N` units' worth of holdings into one tier-N band NFT.
+    /// @dev Same shape as the reroll trampoline (noesis-091): the body lives in the immutable
+    ///      `ERC404BondingOps` and is reached by a discard-returndata delegatecall, so it runs in THIS
+    ///      instance's storage. The selector/param types MUST stay `mintUp(uint8,uint256)` so raw
+    ///      `msg.data` forwards verbatim. Returndata is discarded (bubbling trips the via_ir size
+    ///      cliff), so Ops's specific reverts surface as the generic `TierOpFailed()` — the specifics
+    ///      remain visible in traces and every revert still HAPPENS. NO `nonReentrant` here: the guard
+    ///      lives on the Ops side and engages via the shared fixed slot; guarding both self-reverts.
+    // slither-disable-next-line low-level-calls,unused-return
+    function mintUp(uint8, uint256) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert TierOpFailed();
+    }
+
+    /// @notice Mint down: the exact inverse of `mintUp` — the band NFT becomes an ordinary NFT again
+    ///         and its escrow returns to the caller's liquid balance. See `mintUp` for the trampoline
+    ///         contract; the selector must stay `mintDown(uint256)`.
+    // slither-disable-next-line low-level-calls,unused-return
+    function mintDown(uint256) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert TierOpFailed();
+    }
+
+    /// @notice A holder's TRUE coin holdings: liquid ERC20 balance plus the coin escrowed behind every
+    ///         band NFT they own (`(w_N - 1) * unit` per band id, derived from the id — never stored).
+    /// @dev ERC20 `balanceOf` is deliberately UNCHANGED (locked decision): it stays the transferable
+    ///      amount, exactly as DN404 defines it. This is the aggregate view for UI/indexers, mirroring
+    ///      the staking module's effective-holdings precedent.
+    /// @dev O(ownedLength × bandCount). A VIEW ONLY — never call it on a write path.
+    function coinBalanceOf(address holder) external view returns (uint256 total) {
+        total = balanceOf(holder);
+        uint256 n = tierBands.length;
+        if (n == 0) return total;
+        uint256[] memory ids = _ownedIds(holder, 0, type(uint256).max);
+        uint256 u = unit;
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            for (uint256 j = 0; j < n; j++) {
+                TierBand storage b = tierBands[j];
+                if (id >= b.idStart && id <= b.idEnd) {
+                    total += (uint256(b.weight) - 1) * u;
+                    break;
+                }
+            }
+        }
+    }
+
+    /// @notice Band ids currently outstanding for tier `tierN` (1-based). Derived, never stored: the
+    ///         high-water cursor minus the returned-id stack is the single source of truth.
+    function bandOutstanding(uint8 tierN) external view returns (uint256) {
+        if (tierN == 0 || tierN > tierBands.length) revert InvalidBand();
+        uint256 idx = uint256(tierN) - 1;
+        return (bandNextFree[idx] - tierBands[idx].idStart) - bandFreed[idx].length;
     }
 
     // ┌─────────────────────────┐

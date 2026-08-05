@@ -23,6 +23,19 @@ error TokenAmountMustRepresentNFT();
 error BalanceMismatchAfterReroll();
 error RerollFailed();
 
+// ── Token Tiers errors (shared by the instance seal/trampolines + the delegatecall Ops) ─────────
+// Same split as reroll: the tier bodies (`mintUp` / `mintDown`) live in ERC404BondingOps and revert
+// with these specific errors INTERNALLY; the instance's discard-returndata trampoline surfaces the
+// generic `TierOpFailed()` to the caller (the specifics stay visible in traces). `InvalidBand` and
+// `BandIdOverflow` are raised by the instance's OWN `initTierBands` seal, so those two surface verbatim.
+error TiersNotConfigured();
+error InvalidBand();
+error BandExhausted();
+error NotBandId();
+error NotTierZeroId();
+error TierOpFailed();
+error BandIdOverflow();
+
 /**
  * @title ERC404BondingStorage
  * @notice Single source of truth for the ERC404 bonding instance's storage layout. Both the deployable
@@ -103,9 +116,51 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     mapping(bytes32 => address) public modules;
     bytes32 internal constant METADATA_RESOLVER = keccak256("metadata.resolver");
 
+    // ── Token Tiers (noesis-142) ────────────────────────────────────────────────────────────────
+    // Tiers are coin DENOMINATIONS: a tier-N NFT is still exactly ONE DN404 unit of balance (DN404's
+    // `ownedLength == balance / unit` invariant is absolute) PLUS `(w_N - 1) * unit` of the holder's own
+    // coin escrowed in this instance. The escrow is DERIVED from the id's band — never stored per holder.
+
+    /// @dev One reserved band of ids, all carrying denomination `weight` (in units, `w_0 = 1`).
+    ///      `idStart`/`idEnd` are inclusive and live ABOVE `idLimit = totalSupply / unit`, which is what
+    ///      makes them unreachable by ordinary minting (DN404 bounds every auto-minted id with
+    ///      `_wrapNFTId(.., idLimit)`). uint32 because DN404's `_restrictNFTId` bounds ids to uint32.
+    struct TierBand {
+        uint32 idStart;
+        uint32 idEnd;
+        uint32 weight;
+    }
+
+    /// @dev The sealed ladder. `tierBands[i]` describes tier `i + 1`: tier 0 is the IMPLICIT ordinary id
+    ///      space `[1..idLimit]` with `w_0 = 1` and is never stored (it needs no band and no escrow).
+    ///      Sealed once by the factory at create — mutable weights would retroactively reprice every
+    ///      outstanding band NFT.
+    TierBand[] public tierBands;
+
+    /// @dev Per-band high-water cursor: the next never-issued id in `tierBands[i]`. Initialized to
+    ///      `idStart` at seal time.
+    mapping(uint256 => uint256) public bandNextFree;
+
+    /// @dev Per-band LIFO stack of ids returned by `mintDown`. Popped before the high-water cursor, so
+    ///      id reuse is deterministic and O(1) — no scanning.
+    mapping(uint256 => uint32[]) internal bandFreed;
+
+    /// @dev Running sum of coin escrowed behind outstanding band NFTs. Part of this instance's own
+    ///      `balanceOf(address(this))`, but NOT part of the curve: the buy cap is counter-based
+    ///      (`totalBondingSupply`), so escrow can never inflate the buyable pool.
+    uint256 public totalTierEscrow;
+
+    /// @dev Set-once seal flag for `initTierBands`.
+    bool internal _tiersSealed;
+
     // ── Reroll events (emitted by Ops in the instance's context under delegatecall) ─────────────
     event RerollInitiated(address indexed user, uint256 tokenAmount, uint256[] exemptedNFTIds);
     event RerollCompleted(address indexed user, uint256 tokensReturned);
+
+    // ── Token Tiers events (emitted by Ops in the instance's context under delegatecall) ─────────
+    event MintedUp(address indexed holder, uint8 indexed tierN, uint256 tierZeroId, uint256 bandId);
+    event MintedDown(address indexed holder, uint8 indexed tierN, uint256 bandId, uint256 tierZeroId);
+    event TierBandsSealed(uint256 bandCount);
 
     // ── DN404 unit override (shared: DN404 internals in both the instance and Ops read this) ────
     function _unit() internal view override returns (uint256) {
