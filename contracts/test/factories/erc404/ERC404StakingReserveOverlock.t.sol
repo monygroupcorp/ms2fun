@@ -11,6 +11,7 @@ import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDepl
 import { IMasterRegistry } from "../../../src/master/interfaces/IMasterRegistry.sol";
 import { MockMasterRegistry } from "../../mocks/MockMasterRegistry.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -89,7 +90,14 @@ contract ERC404StakingReserveOverlockTest is Test {
         vm.startPrank(owner);
         ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         inst = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
-        inst.initialize(owner, address(0xBEEF), _bondingParams(), address(new MockDeployer()), address(0));
+        inst.initialize(
+            owner,
+            address(0xBEEF),
+            _bondingParams(),
+            address(new MockDeployer()),
+            address(0),
+            address(new DN404Mirror(owner))
+        );
         inst.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
                 globalMessageRegistry: mockGMR,

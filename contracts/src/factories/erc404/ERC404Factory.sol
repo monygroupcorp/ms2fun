@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { OwnableRoles } from "solady/auth/OwnableRoles.sol";
 import { ReentrancyGuard } from "solady/utils/ReentrancyGuard.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
@@ -396,8 +397,21 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         bytes32 senderBoundSalt = keccak256(abi.encodePacked(msg.sender, params.salt));
         instance = ICreateX(CREATEX).deployCreate3(senderBoundSalt, proxyCreationCode);
 
+        // The DN404 mirror is deployed HERE, not inside the instance: `new` is a CREATE, so the
+        // mirror's ~3.1KB of creation code would otherwise have to live inline in the instance's
+        // runtime bytecode — and the instance is the contract fighting the EIP-170 limit. Deployer
+        // is `address(this)`, which is exactly what `_initializeDN404` links with (`caller()`).
+        // Constructed inline at the call site on purpose: clone + initialize are atomic within this
+        // function, so no external caller can ever supply a clone's mirror. Do not hoist.
         ERC404BondingInstance(payable(instance))
-            .initialize(params.owner, params.vault, bonding, liquidityDeployer, gatingModule);
+            .initialize(
+                params.owner,
+                params.vault,
+                bonding,
+                liquidityDeployer,
+                gatingModule,
+                address(new DN404Mirror(address(this)))
+            );
         ERC404BondingInstance(payable(instance))
             .initializeProtocol(
                 ERC404BondingInstance.ProtocolParams({

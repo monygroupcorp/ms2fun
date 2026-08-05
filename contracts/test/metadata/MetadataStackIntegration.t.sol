@@ -169,8 +169,7 @@ contract MetadataStackIntegrationTest is Test {
             meta
         );
         b = ERC404BondingInstance(payable(inst));
-        // The instance deploys its DN404Mirror as its first (and only) CREATE during initialize → nonce 1.
-        mirror = DN404Mirror(payable(vm.computeCreateAddress(inst, 1)));
+        mirror = DN404Mirror(payable(b.mirrorERC721()));
     }
 
     function _uri(ERC404BondingInstance b, uint256 id) internal view returns (string memory) {
