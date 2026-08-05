@@ -5800,6 +5800,37 @@ export const erc404FactoryAbi = [
           { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
         ],
       },
+      {
+        name: 'metadataConfig',
+        internalType: 'struct ERC404Factory.MetadataConfig',
+        type: 'tuple',
+        components: [
+          { name: 'resolver', internalType: 'address', type: 'address' },
+          {
+            name: 'childResolvers',
+            internalType: 'address[]',
+            type: 'address[]',
+          },
+          { name: 'overlay', internalType: 'address', type: 'address' },
+          { name: 'tier', internalType: 'address', type: 'address' },
+          {
+            name: 'bands',
+            internalType: 'struct TokenTierBandResolver.Band[]',
+            type: 'tuple[]',
+            components: [
+              { name: 'idStart', internalType: 'uint256', type: 'uint256' },
+              { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
+              { name: 'baseURI', internalType: 'string', type: 'string' },
+            ],
+          },
+          { name: 'autoLatest', internalType: 'bool', type: 'bool' },
+          {
+            name: 'defaultPayout',
+            internalType: 'enum MetadataOverlayModule.Payout',
+            type: 'uint8',
+          },
+        ],
+      },
     ],
     name: 'createInstance',
     outputs: [{ name: 'instance', internalType: 'address', type: 'address' }],
@@ -5840,39 +5871,6 @@ export const erc404FactoryAbi = [
         components: [
           { name: 'allocation', internalType: 'uint256', type: 'uint256' },
           { name: 'scope', internalType: 'enum GatingScope', type: 'uint8' },
-        ],
-      },
-      {
-        name: 'metadataConfig',
-        internalType: 'struct ERC404Factory.MetadataConfig',
-        type: 'tuple',
-        components: [
-          { name: 'resolver', internalType: 'address', type: 'address' },
-          {
-            name: 'childResolvers',
-            internalType: 'address[]',
-            type: 'address[]',
-          },
-          { name: 'overlay', internalType: 'address', type: 'address' },
-          { name: 'tier', internalType: 'address', type: 'address' },
-          {
-            name: 'tiers',
-            internalType: 'struct TierRevealModule.Tier[]',
-            type: 'tuple[]',
-            components: [
-              { name: 'idStart', internalType: 'uint256', type: 'uint256' },
-              { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
-              { name: 'minBalance', internalType: 'uint256', type: 'uint256' },
-              { name: 'baseURI', internalType: 'string', type: 'string' },
-              { name: 'lockedURI', internalType: 'string', type: 'string' },
-            ],
-          },
-          { name: 'autoLatest', internalType: 'bool', type: 'bool' },
-          {
-            name: 'defaultPayout',
-            internalType: 'enum MetadataOverlayModule.Payout',
-            type: 'uint8',
-          },
         ],
       },
     ],
@@ -6344,7 +6342,6 @@ export const erc404FactoryAbi = [
   { type: 'error', inputs: [], name: 'InvalidNftCount' },
   { type: 'error', inputs: [], name: 'InvalidOwner' },
   { type: 'error', inputs: [], name: 'InvalidSymbol' },
-  { type: 'error', inputs: [], name: 'InvalidTierMinBalance' },
   { type: 'error', inputs: [], name: 'MaxBondingFeeExceeded' },
   { type: 'error', inputs: [], name: 'NameAlreadyTaken' },
   { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
@@ -12943,6 +12940,240 @@ export const tierRevealModuleAbi = [
       },
     ],
     name: 'TiersSealed',
+  },
+  { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'AlreadySealed' },
+  { type: 'error', inputs: [], name: 'InvalidAddress' },
+  { type: 'error', inputs: [], name: 'InvalidRange' },
+  { type: 'error', inputs: [], name: 'NewOwnerIsZeroAddress' },
+  { type: 'error', inputs: [], name: 'NoHandoverRequest' },
+  { type: 'error', inputs: [], name: 'NotRegisteredFactory' },
+  { type: 'error', inputs: [], name: 'RangesNotAscending' },
+  { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// TokenTierBandResolver
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const tokenTierBandResolverAbi = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_masterRegistry', internalType: 'address', type: 'address' },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'inst', internalType: 'address', type: 'address' }],
+    name: 'bandCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'address', type: 'address' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'bands',
+    outputs: [
+      { name: 'idStart', internalType: 'uint256', type: 'uint256' },
+      { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
+      { name: 'baseURI', internalType: 'string', type: 'string' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'cancelOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'completeOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      {
+        name: 'bs',
+        internalType: 'struct TokenTierBandResolver.Band[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'idStart', internalType: 'uint256', type: 'uint256' },
+          { name: 'idEnd', internalType: 'uint256', type: 'uint256' },
+          { name: 'baseURI', internalType: 'string', type: 'string' },
+        ],
+      },
+    ],
+    name: 'initBands',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'masterRegistry',
+    outputs: [
+      { name: '', internalType: 'contract IMasterRegistry', type: 'address' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'metadataURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: 'result', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'pendingOwner', internalType: 'address', type: 'address' },
+    ],
+    name: 'ownershipHandoverExpiresAt',
+    outputs: [{ name: 'result', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'renounceOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'requestOwnershipHandover',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'inst', internalType: 'address', type: 'address' },
+      { name: 'id', internalType: 'uint256', type: 'uint256' },
+      { name: '', internalType: 'address', type: 'address' },
+    ],
+    name: 'resolve',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'sealed_',
+    outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'uri', internalType: 'string', type: 'string' }],
+    name: 'setMetadataURI',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'instance',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'count',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'BandsSealed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'newURI',
+        internalType: 'string',
+        type: 'string',
+        indexed: false,
+      },
+    ],
+    name: 'MetadataURIUpdated',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverCanceled',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'pendingOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipHandoverRequested',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'oldOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AlreadySealed' },
@@ -26978,6 +27209,274 @@ export const useWatchTierRevealModuleTiersSealedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: tierRevealModuleAbi,
     eventName: 'TiersSealed',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__
+ */
+export const useReadTokenTierBandResolver = /*#__PURE__*/ createUseReadContract(
+  { abi: tokenTierBandResolverAbi },
+)
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"bandCount"`
+ */
+export const useReadTokenTierBandResolverBandCount =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'bandCount',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"bands"`
+ */
+export const useReadTokenTierBandResolverBands =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'bands',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"masterRegistry"`
+ */
+export const useReadTokenTierBandResolverMasterRegistry =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'masterRegistry',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"metadataURI"`
+ */
+export const useReadTokenTierBandResolverMetadataUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'metadataURI',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"owner"`
+ */
+export const useReadTokenTierBandResolverOwner =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'owner',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"ownershipHandoverExpiresAt"`
+ */
+export const useReadTokenTierBandResolverOwnershipHandoverExpiresAt =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'ownershipHandoverExpiresAt',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"resolve"`
+ */
+export const useReadTokenTierBandResolverResolve =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'resolve',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"sealed_"`
+ */
+export const useReadTokenTierBandResolverSealed =
+  /*#__PURE__*/ createUseReadContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'sealed_',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__
+ */
+export const useWriteTokenTierBandResolver =
+  /*#__PURE__*/ createUseWriteContract({ abi: tokenTierBandResolverAbi })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useWriteTokenTierBandResolverCancelOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useWriteTokenTierBandResolverCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"initBands"`
+ */
+export const useWriteTokenTierBandResolverInitBands =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'initBands',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useWriteTokenTierBandResolverRenounceOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useWriteTokenTierBandResolverRequestOwnershipHandover =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useWriteTokenTierBandResolverSetMetadataUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useWriteTokenTierBandResolverTransferOwnership =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__
+ */
+export const useSimulateTokenTierBandResolver =
+  /*#__PURE__*/ createUseSimulateContract({ abi: tokenTierBandResolverAbi })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"cancelOwnershipHandover"`
+ */
+export const useSimulateTokenTierBandResolverCancelOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'cancelOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"completeOwnershipHandover"`
+ */
+export const useSimulateTokenTierBandResolverCompleteOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'completeOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"initBands"`
+ */
+export const useSimulateTokenTierBandResolverInitBands =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'initBands',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"renounceOwnership"`
+ */
+export const useSimulateTokenTierBandResolverRenounceOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'renounceOwnership',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"requestOwnershipHandover"`
+ */
+export const useSimulateTokenTierBandResolverRequestOwnershipHandover =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'requestOwnershipHandover',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"setMetadataURI"`
+ */
+export const useSimulateTokenTierBandResolverSetMetadataUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'setMetadataURI',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `functionName` set to `"transferOwnership"`
+ */
+export const useSimulateTokenTierBandResolverTransferOwnership =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: tokenTierBandResolverAbi,
+    functionName: 'transferOwnership',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tokenTierBandResolverAbi}__
+ */
+export const useWatchTokenTierBandResolverEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({ abi: tokenTierBandResolverAbi })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `eventName` set to `"BandsSealed"`
+ */
+export const useWatchTokenTierBandResolverBandsSealedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tokenTierBandResolverAbi,
+    eventName: 'BandsSealed',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `eventName` set to `"MetadataURIUpdated"`
+ */
+export const useWatchTokenTierBandResolverMetadataUriUpdatedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tokenTierBandResolverAbi,
+    eventName: 'MetadataURIUpdated',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `eventName` set to `"OwnershipHandoverCanceled"`
+ */
+export const useWatchTokenTierBandResolverOwnershipHandoverCanceledEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tokenTierBandResolverAbi,
+    eventName: 'OwnershipHandoverCanceled',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `eventName` set to `"OwnershipHandoverRequested"`
+ */
+export const useWatchTokenTierBandResolverOwnershipHandoverRequestedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tokenTierBandResolverAbi,
+    eventName: 'OwnershipHandoverRequested',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link tokenTierBandResolverAbi}__ and `eventName` set to `"OwnershipTransferred"`
+ */
+export const useWatchTokenTierBandResolverOwnershipTransferredEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: tokenTierBandResolverAbi,
+    eventName: 'OwnershipTransferred',
   })
 
 /**

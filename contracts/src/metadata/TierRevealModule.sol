@@ -18,6 +18,14 @@ interface IStakedBalanceReader {
 }
 
 /// @title TierRevealModule
+/// @custom:deprecated RETIRED (noesis-141). This module is the WRONG product: it reveals rare art
+///          *conditionally* on a holder's live effective balance, so art flickers as balances move.
+///          The shipped product is Token Tiers — tier NFTs are coin DENOMINATIONS and their art is
+///          static and unconditional. `TokenTierBandResolver` replaces it in the ERC404 create path;
+///          `DeployCore` no longer deploys or approves this module, and an unapproved component cannot
+///          be selected (the factory gates on `isApprovedForTag`), so retirement is complete for
+///          anything newly created. The file stays in-tree only so existing deployments remain
+///          readable and verifiable — do not wire it into any new path. Deletion is a separate cleanup.
 /// @notice Rarity-by-ownership metadata resolver (ADR-0007, Reading B). An id in a configured tier
 ///         range reveals its rare art only while the holder's *effective holdings*
 ///         (`balanceOf + stakedBalance`) clear the tier threshold; otherwise the locked art (or ""
