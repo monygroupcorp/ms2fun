@@ -46,7 +46,9 @@ export default defineConfig({
         'MerkleGatingModule.sol/**',
         'IMerkleGatingModule.sol/**',
         'MetadataResolverRouter.sol/**',
+        // Retired (noesis-141) but still in-tree so existing deployments stay readable.
         'TierRevealModule.sol/**',
+        'TokenTierBandResolver.sol/**',
         'MetadataOverlayModule.sol/**',
       ],
     }),

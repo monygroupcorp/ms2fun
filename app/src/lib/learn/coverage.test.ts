@@ -88,9 +88,7 @@ const EXEMPT: Record<string, string> = {
     'concept linked from the overlay slot (metadata-overlay)',
   'cfg:metadata-tier.tierIdStarts': 'concept linked from the tier slot (tier-reveal)',
   'cfg:metadata-tier.tierIdEnds': 'concept linked from the tier slot (tier-reveal)',
-  'cfg:metadata-tier.tierMinBalances': 'concept linked from the tier slot (tier-reveal)',
   'cfg:metadata-tier.tierBaseURIs': 'concept linked from the tier slot (tier-reveal)',
-  'cfg:metadata-tier.tierLockedURIs': 'concept linked from the tier slot (tier-reveal)',
 }
 
 describe('wizard doc-coverage', () => {

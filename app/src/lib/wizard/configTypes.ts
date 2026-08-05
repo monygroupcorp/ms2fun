@@ -107,48 +107,37 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
   },
   {
     configType: 'metadata-tier',
-    // On-chain shape: initTiers(instance, Tier[]) where Tier{ idStart, idEnd, minBalance, baseURI,
-    // lockedURI }. The renderer has no list-of-group, so the table is captured as PARALLEL lists
-    // zipped by row index at submit (mirrors password-tier-gating). Ranges must be ascending and
-    // non-overlapping; the encoder/validator enforces it before submit. Frozen at create — no
-    // post-create authoring (mutable rarity = rug).
-    title: 'Tier reveal table',
+    // Token Tiers. A tier NFT is a coin DENOMINATION and its art is STATIC: an id in band N shows
+    // band N's art, unconditionally — no holdings threshold, no locked/teaser art.
+    // On-chain shape: initBands(instance, Band[]) where Band{ idStart, idEnd, baseURI }. The renderer
+    // has no list-of-group, so the table is captured as PARALLEL lists zipped by row index at submit
+    // (mirrors password-tier-gating). Ranges must be ascending and non-overlapping, and must start
+    // ABOVE the NFT supply — the auto-mint never emits an id past the id ceiling, which is what keeps
+    // band ids reserved and unbuyable. The encoder/validator enforces all of it before submit.
+    // Frozen at create — no post-create authoring (mutable rarity = rug).
+    title: 'Tier bands',
     fields: [
       {
         key: 'tierIdStarts',
-        label: 'Range start (token id)',
+        label: 'Band start (token id)',
         kind: 'list',
-        help: 'One row per tier; ranges ascending + non-overlapping',
+        help: 'One row per band; ascending, non-overlapping, and above the NFT supply',
         item: { key: 'tierIdStart', label: 'Start id', kind: 'number' },
         validation: { min: 1 },
       },
       {
         key: 'tierIdEnds',
-        label: 'Range end (token id)',
+        label: 'Band end (token id)',
         kind: 'list',
         help: 'Inclusive end id, paired with each start row',
         item: { key: 'tierIdEnd', label: 'End id', kind: 'number' },
       },
       {
-        key: 'tierMinBalances',
-        label: 'Min holdings to reveal',
-        kind: 'list',
-        help: 'Effective holdings (wallet + staked), in whole tokens (e.g. 1000)',
-        item: { key: 'tierMinBalance', label: 'Min balance', kind: 'number', unit: 'tokens' },
-      },
-      {
         key: 'tierBaseURIs',
-        label: 'Revealed base URI',
+        label: 'Band base URI',
         kind: 'list',
-        help: 'Token id is appended to this prefix when the holder clears the threshold',
-        item: { key: 'tierBaseURI', label: 'Revealed URI', kind: 'text' },
-      },
-      {
-        key: 'tierLockedURIs',
-        label: 'Locked URI',
-        kind: 'list',
-        help: 'Teaser shown below the threshold; leave blank to fall through to the collection base',
-        item: { key: 'tierLockedURI', label: 'Locked URI', kind: 'text' },
+        help: 'Token id is appended to this prefix for every id in the band; blank falls through to the collection base',
+        item: { key: 'tierBaseURI', label: 'Band URI', kind: 'text' },
       },
     ],
   },

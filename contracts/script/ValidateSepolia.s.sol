@@ -101,6 +101,14 @@ contract ValidateSepolia is Script {
         return abi.decode(ret, (bool));
     }
 
+    /// @dev True when `target` exposes `bandCount(address)` returning a uint256 — the
+    ///      TokenTierBandResolver fingerprint. Guarded decode (not try/catch): a return-data decode
+    ///      failure is NOT catchable by try/catch, so check the length before decoding.
+    function _isBandResolver(address target) internal view returns (bool) {
+        (bool ok, bytes memory ret) = target.staticcall(abi.encodeWithSignature("bandCount(address)", address(0)));
+        return ok && ret.length == 32;
+    }
+
     function _checkFactory() internal view {
         console.log("-- ERC404Factory --");
         bool registered = mr.isFactoryRegistered(ERC404_FACTORY);
@@ -144,7 +152,7 @@ contract ValidateSepolia is Script {
             console.log("    ", stakingModules[i]);
         }
 
-        // Metadata-resolution stack (ADR-0006/0007) — resolver router + overlay + tier
+        // Metadata-resolution stack (ADR-0006/0007) — resolver router + overlay + tier bands
         address[] memory resolvers = cr.getApprovedComponentsByTag(FeatureUtils.RESOLVER);
         console.log("  metadata resolvers:", resolvers.length);
         for (uint256 i = 0; i < resolvers.length; i++) {
@@ -155,10 +163,14 @@ contract ValidateSepolia is Script {
         for (uint256 i = 0; i < overlays.length; i++) {
             console.log("    ", overlays[i]);
         }
+        // The TIER tag must carry the STATIC band resolver (TokenTierBandResolver), never the
+        // retired TierRevealModule — a balance-conditional reveal is the wrong product. Probe for
+        // `bandCount(address)`: TierRevealModule has no such selector, so this discriminates them.
         address[] memory tiers = cr.getApprovedComponentsByTag(FeatureUtils.TIER);
         console.log("  tier modules:", tiers.length);
         for (uint256 i = 0; i < tiers.length; i++) {
             console.log("    ", tiers[i]);
+            require(_isBandResolver(tiers[i]), "approved TIER module is not a band resolver");
         }
         require(resolvers.length > 0, "no metadata resolver approved");
         require(overlays.length > 0, "no overlay module approved");

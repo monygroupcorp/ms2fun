@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   EMPTY_METADATA_CONFIG,
+  encodeBands,
   encodeMetadataConfig,
-  encodeTiers,
   hasMetadataConfig,
   tierSupplySummary,
   validateMetadataConfig,
@@ -13,61 +13,51 @@ const RESOLVER = '0x1111111111111111111111111111111111111111' as const
 const OVERLAY = '0x2222222222222222222222222222222222222222' as const
 const TIER = '0x3333333333333333333333333333333333333333' as const
 
-// A two-row, ascending, non-overlapping tier table.
+// A two-row, ascending, non-overlapping band table sitting ABOVE a 10-id supply.
 const TWO_ROWS = {
-  'tierIdStarts.0': '1',
-  'tierIdEnds.0': '5',
-  'tierMinBalances.0': '1', // 1 whole token → 1e18 wei
-  'tierBaseURIs.0': 'rare-',
-  'tierLockedURIs.0': 'locked-',
-  'tierIdStarts.1': '6',
-  'tierIdEnds.1': '10',
-  'tierMinBalances.1': '5', // 5 whole tokens → 5e18 wei
-  'tierBaseURIs.1': 'legend-',
-  'tierLockedURIs.1': '',
+  'tierIdStarts.0': '11',
+  'tierIdEnds.0': '15',
+  'tierBaseURIs.0': 'ten-',
+  'tierIdStarts.1': '16',
+  'tierIdEnds.1': '20',
+  'tierBaseURIs.1': 'hundred-',
 }
 
-// ── encodeTiers ────────────────────────────────────────────────────────────────
+// ── encodeBands ──────────────────────────────────────────────────────────────
 
-describe('encodeTiers', () => {
-  it('zips the parallel lists into Tier rows in order', () => {
-    const tiers = encodeTiers(TWO_ROWS)
-    expect(tiers).toHaveLength(2)
-    expect(tiers[0]).toEqual({
-      idStart: 1n,
-      idEnd: 5n,
-      minBalance: 1000000000000000000n,
-      baseURI: 'rare-',
-      lockedURI: 'locked-',
-    })
-    expect(tiers[1]?.baseURI).toBe('legend-')
-    expect(tiers[1]?.lockedURI).toBe('') // empty locked URI is allowed (falls through to base)
+describe('encodeBands', () => {
+  it('zips the parallel lists into Band rows in order', () => {
+    const bands = encodeBands(TWO_ROWS)
+    expect(bands).toHaveLength(2)
+    expect(bands[0]).toEqual({ idStart: 11n, idEnd: 15n, baseURI: 'ten-' })
+    expect(bands[1]).toEqual({ idStart: 16n, idEnd: 20n, baseURI: 'hundred-' })
+  })
+
+  it('carries no threshold or locked-art field — band art is unconditional', () => {
+    const band = encodeBands(TWO_ROWS)[0]!
+    expect(Object.keys(band).sort()).toEqual(['baseURI', 'idEnd', 'idStart'])
   })
 
   it('drops rows whose start id is blank (half-filled trailing row)', () => {
-    const tiers = encodeTiers({
-      'tierIdStarts.0': '1',
-      'tierIdEnds.0': '5',
+    const bands = encodeBands({
+      'tierIdStarts.0': '11',
+      'tierIdEnds.0': '15',
       'tierBaseURIs.0': 'a-',
       'tierIdStarts.1': '', // blank start → whole row dropped
       'tierBaseURIs.1': 'orphan',
     })
-    expect(tiers).toHaveLength(1)
-    expect(tiers[0]?.baseURI).toBe('a-')
+    expect(bands).toHaveLength(1)
+    expect(bands[0]?.baseURI).toBe('a-')
   })
 
   it('coerces garbage numerics to 0n rather than throwing', () => {
-    const tiers = encodeTiers({ 'tierIdStarts.0': '1', 'tierMinBalances.0': 'NaN' })
-    expect(tiers[0]?.minBalance).toBe(0n)
+    const bands = encodeBands({ 'tierIdStarts.0': '11', 'tierIdEnds.0': 'NaN' })
+    expect(bands[0]?.idEnd).toBe(0n)
   })
 
-  it('scales human whole-token min balances to exact 18-decimal wei', () => {
-    const min = (v: string): bigint =>
-      encodeTiers({ 'tierIdStarts.0': '1', 'tierMinBalances.0': v })[0]!.minBalance
-    expect(min('1')).toBe(10n ** 18n) // 1 token
-    expect(min('1000')).toBe(1000n * 10n ** 18n) // 1000 tokens
-    expect(min('0.5')).toBe(500000000000000000n) // fractional token
-    expect(min('')).toBe(0n) // blank → 0
+  it('allows a blank base URI (falls through to the collection base on-chain)', () => {
+    const bands = encodeBands({ 'tierIdStarts.0': '11', 'tierIdEnds.0': '12' })
+    expect(bands[0]?.baseURI).toBe('')
   })
 })
 
@@ -80,7 +70,7 @@ describe('encodeMetadataConfig', () => {
     expect(cfg.childResolvers).toEqual([OVERLAY, TIER])
     expect(cfg.overlay).toBe(OVERLAY)
     expect(cfg.tier).toBe(TIER)
-    expect(cfg.tiers).toHaveLength(2)
+    expect(cfg.bands).toHaveLength(2)
     expect(hasMetadataConfig(cfg)).toBe(true)
   })
 
@@ -119,9 +109,9 @@ describe('encodeMetadataConfig', () => {
     expect(cfg.defaultPayout).toBe(0)
   })
 
-  it('tiers are only encoded when the tier module is selected', () => {
+  it('bands are only encoded when the tier module is selected', () => {
     const cfg = encodeMetadataConfig({ overlay: OVERLAY }, TWO_ROWS)
-    expect(cfg.tiers).toEqual([]) // no tier module → table ignored
+    expect(cfg.bands).toEqual([]) // no tier module → table ignored
   })
 
   it('treats an explicit ZERO_ADDRESS selection as not selected', () => {
@@ -159,7 +149,7 @@ describe('validateMetadataConfig', () => {
   it('flags end id below start id', () => {
     const errs = validateMetadataConfig(
       { tier: TIER },
-      { 'tierIdStarts.0': '5', 'tierIdEnds.0': '2', 'tierBaseURIs.0': 'r-' },
+      { 'tierIdStarts.0': '15', 'tierIdEnds.0': '12', 'tierBaseURIs.0': 'r-' },
     )
     expect(errs['tierIdEnds.0']).toMatch(/≥ start id/)
   })
@@ -168,21 +158,21 @@ describe('validateMetadataConfig', () => {
     const errs = validateMetadataConfig(
       { tier: TIER },
       {
-        'tierIdStarts.0': '1',
-        'tierIdEnds.0': '5',
+        'tierIdStarts.0': '11',
+        'tierIdEnds.0': '15',
         'tierBaseURIs.0': 'a-',
-        'tierIdStarts.1': '5', // overlaps prev end
-        'tierIdEnds.1': '9',
+        'tierIdStarts.1': '15', // overlaps prev end
+        'tierIdEnds.1': '19',
         'tierBaseURIs.1': 'b-',
       },
     )
     expect(errs['tierIdStarts.1']).toMatch(/ascending/i)
   })
 
-  it('does NOT require a revealed (base) URI — consistent with the optional main collection URI', () => {
+  it('does NOT require a band URI — consistent with the optional main collection URI', () => {
     const errs = validateMetadataConfig(
       { tier: TIER },
-      { 'tierIdStarts.0': '1', 'tierIdEnds.0': '3' },
+      { 'tierIdStarts.0': '11', 'tierIdEnds.0': '13' },
     )
     expect(errs['tierBaseURIs.0']).toBeUndefined()
   })
@@ -191,32 +181,48 @@ describe('validateMetadataConfig', () => {
     const errs = validateMetadataConfig(
       { tier: TIER },
       {
-        'tierIdStarts.0': '1',
-        'tierIdEnds.0': '5',
+        'tierIdStarts.0': '11',
+        'tierIdEnds.0': '15',
         'tierBaseURIs.0': 'a-',
-        'tierIdStarts.1': '6',
-        'tierIdEnds.1': '9',
+        'tierIdStarts.1': '16',
+        'tierIdEnds.1': '19',
         'tierBaseURIs.1': 'b-',
       },
     )
     expect(errs).toEqual({})
   })
 
-  // ── supply (nftCount) range validation (noesis-133) ──────────────────────────
+  // ── supply (nftCount) placement rule (noesis-133, flipped by noesis-141) ─────
+  // Band ids are RESERVED above the mintable supply — the auto-mint can never emit them. A band
+  // that overlaps `[1, nftCount]` would collide with ordinary ids, which is the opposite of intent.
 
-  // rth's canonical case: supply 4400, one tier covering 4001–4400 (400 rare ids) → in range.
-  const T4400 = { 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400', 'tierBaseURIs.0': 'rare-' }
+  // rth's canonical case, re-read: supply 4000, one band reserving 4001–4400 above it.
+  const BAND_4001 = { 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400', 'tierBaseURIs.0': 'tier-' }
 
-  it('passes a tier range that ends exactly at nftCount (4001–4400 ⊆ 4400)', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, T4400, 4400n)
+  it('passes a band that starts one past nftCount (4001 > 4000)', () => {
+    const errs = validateMetadataConfig({ tier: TIER }, BAND_4001, 4000n)
     expect(errs).toEqual({})
   })
 
-  it('flags a tier end id past nftCount with the specific supply message', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, T4400, 4000n)
-    expect(errs['tierIdEnds.0']).toBe(
-      'tier 1: end id 4400 exceeds NFT supply 4000 — raise supply or lower the range',
+  it('flags a band that starts inside the supply, with the specific supply message', () => {
+    const errs = validateMetadataConfig({ tier: TIER }, BAND_4001, 4400n)
+    expect(errs['tierIdStarts.0']).toBe(
+      'tier 1: start id 4001 must be above the 4400 NFT supply — tier ids are reserved above the mintable range',
     )
+  })
+
+  it('flags a band starting exactly AT nftCount (boundary is inclusive)', () => {
+    const errs = validateMetadataConfig(
+      { tier: TIER },
+      { 'tierIdStarts.0': '4000', 'tierIdEnds.0': '4400', 'tierBaseURIs.0': 'tier-' },
+      4000n,
+    )
+    expect(errs['tierIdStarts.0']).toMatch(/must be above the 4000 NFT supply/)
+  })
+
+  it('no longer flags a band END past nftCount — that is where bands are supposed to be', () => {
+    const errs = validateMetadataConfig({ tier: TIER }, BAND_4001, 4000n)
+    expect(errs['tierIdEnds.0']).toBeUndefined()
   })
 
   it('flags a start id below 1', () => {
@@ -228,86 +234,88 @@ describe('validateMetadataConfig', () => {
     expect(errs['tierIdStarts.0']).toMatch(/start id must be ≥ 1/)
   })
 
-  it('skips the ⊆-supply check when nftCount is 0/empty (do not false-error pre-supply)', () => {
-    // Same range that would exceed a 4000 supply, but with supply unknown → no supply error.
-    const errs = validateMetadataConfig({ tier: TIER }, T4400, 0n)
+  it('skips the above-supply check when nftCount is 0/empty (do not false-error pre-supply)', () => {
+    // A band inside a 4400 supply, but with supply unknown → no placement error.
+    const errs = validateMetadataConfig({ tier: TIER }, BAND_4001, 0n)
     expect(errs).toEqual({})
     // Default arg (no nftCount) behaves the same as 0n.
-    expect(validateMetadataConfig({ tier: TIER }, T4400)).toEqual({})
+    expect(validateMetadataConfig({ tier: TIER }, BAND_4001)).toEqual({})
   })
 
-  it('flags only the offending row when a later tier exceeds supply', () => {
+  it('flags only the offending row when an earlier band sits inside supply', () => {
     const errs = validateMetadataConfig(
       { tier: TIER },
       {
-        'tierIdStarts.0': '1',
-        'tierIdEnds.0': '100',
+        'tierIdStarts.0': '3900', // inside the 4000 supply
+        'tierIdEnds.0': '3950',
         'tierBaseURIs.0': 'a-',
-        'tierIdStarts.1': '101',
-        'tierIdEnds.1': '5000', // past supply
+        'tierIdStarts.1': '4001',
+        'tierIdEnds.1': '4400',
         'tierBaseURIs.1': 'b-',
       },
       4000n,
     )
-    expect(errs['tierIdEnds.0']).toBeUndefined()
-    expect(errs['tierIdEnds.1']).toMatch(/exceeds NFT supply 4000/)
+    expect(errs['tierIdStarts.0']).toMatch(/must be above the 4000 NFT supply/)
+    expect(errs['tierIdStarts.1']).toBeUndefined()
   })
 })
 
 // ── tierSupplySummary ────────────────────────────────────────────────────────
 
 describe('tierSupplySummary', () => {
-  it('no tiers → all-untiered, within supply, no coverage', () => {
+  it('no bands → nothing reserved, verdict vacuously true', () => {
     const s = tierSupplySummary({}, 4400n)
     expect(s).toEqual({
       nftCount: 4400n,
       supplyKnown: true,
-      hasTiers: false,
+      hasBands: false,
       minId: 0n,
       maxId: 0n,
-      tierIdCount: 0n,
-      untieredCount: 4400n,
-      withinSupply: true,
+      bandIdCount: 0n,
+      aboveSupply: true,
     })
   })
 
-  it('4,400 case: 4000 base + 400 tier (4001–4400) → within supply', () => {
-    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 4400n)
-    expect(s.hasTiers).toBe(true)
+  it('4,400 case: 4000 mintable + a 400-id band reserved at 4001–4400 → above supply', () => {
+    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 4000n)
+    expect(s.hasBands).toBe(true)
     expect(s.minId).toBe(4001n)
     expect(s.maxId).toBe(4400n)
-    expect(s.tierIdCount).toBe(400n)
-    expect(s.untieredCount).toBe(4000n)
-    expect(s.withinSupply).toBe(true)
+    expect(s.bandIdCount).toBe(400n)
+    expect(s.aboveSupply).toBe(true)
   })
 
-  it('tier 4001–4400 with supply 4000 → exceeds supply (✗)', () => {
-    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 4000n)
+  it('band 4001–4400 with supply 4400 → overlaps the mintable range (✗)', () => {
+    const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 4400n)
     expect(s.maxId).toBe(4400n)
-    expect(s.withinSupply).toBe(false)
+    expect(s.aboveSupply).toBe(false)
   })
 
-  it('supply unknown (0) → within supply is not asserted (true, no false ✗)', () => {
+  it('supply unknown (0) → placement is not asserted (true, no false ✗)', () => {
     const s = tierSupplySummary({ 'tierIdStarts.0': '4001', 'tierIdEnds.0': '4400' }, 0n)
     expect(s.supplyKnown).toBe(false)
-    expect(s.withinSupply).toBe(true)
-    expect(s.tierIdCount).toBe(400n)
+    expect(s.aboveSupply).toBe(true)
+    expect(s.bandIdCount).toBe(400n)
   })
 
-  it('sums coverage across multiple rows and tracks the outer bounds', () => {
+  it('sums reserved ids across multiple rows and tracks the outer bounds', () => {
     const s = tierSupplySummary(
       {
-        'tierIdStarts.0': '1',
-        'tierIdEnds.0': '10',
-        'tierIdStarts.1': '20',
-        'tierIdEnds.1': '29',
+        'tierIdStarts.0': '101',
+        'tierIdEnds.0': '110',
+        'tierIdStarts.1': '120',
+        'tierIdEnds.1': '129',
       },
       100n,
     )
-    expect(s.minId).toBe(1n)
-    expect(s.maxId).toBe(29n)
-    expect(s.tierIdCount).toBe(20n) // 10 + 10
-    expect(s.untieredCount).toBe(80n)
-    expect(s.withinSupply).toBe(true)
+    expect(s.minId).toBe(101n)
+    expect(s.maxId).toBe(129n)
+    expect(s.bandIdCount).toBe(20n) // 10 + 10
+    expect(s.aboveSupply).toBe(true)
+  })
+
+  it('malformed rows (idEnd < idStart) contribute 0 rather than a negative count', () => {
+    const s = tierSupplySummary({ 'tierIdStarts.0': '120', 'tierIdEnds.0': '110' }, 100n)
+    expect(s.bandIdCount).toBe(0n)
   })
 })
