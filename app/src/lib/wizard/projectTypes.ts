@@ -39,6 +39,24 @@ const freeMintGroup: FieldSchema = {
   ],
 }
 
+// ERC1155-only gating-scope select. `ERC1155Instance.initializeFreeMint` ignores the collection-wide
+// `allocation` argument since noesis-135 (free mint is per-edition); the `scope` argument is still live
+// as collection-level `gatingScope`, so ERC1155 keeps a standalone scope field, always visible (no
+// `freeMint.allocation` sibling gates it here).
+const erc1155FreeMintScope: FieldSchema = {
+  key: 'freeMint.scope',
+  label: 'Gating scope',
+  kind: 'select',
+  default: '0',
+  options: [
+    { value: '0', label: 'Both' },
+    { value: '1', label: 'Free-mint only' },
+    { value: '2', label: 'Paid only' },
+  ],
+  learnMore: 'free-mint-reserve',
+  help: 'Which mint paths the attached gating module applies to. Free-mint allocation for ERC1155 is set per edition when adding an edition (Creator admin → Add edition → "Free mint allocation"), not at create.',
+}
+
 // ── ERC-404 ───────────────────────────────────────────────────────────────────
 
 const erc404: ProjectTypeSchema = {
@@ -202,7 +220,7 @@ const erc1155: ProjectTypeSchema = {
       label: 'Style URI',
       kind: 'text',
     },
-    freeMintGroup,
+    erc1155FreeMintScope,
   ],
   moduleSlots: [
     {
