@@ -237,18 +237,17 @@ describe('metadata config threading', () => {
   const OVERLAY = '0x2222222222222222222222222222222222222222' as const
   const TIER = '0x3333333333333333333333333333333333333333' as const
 
-  // A fully-wired stack: router pointer + [overlay, tier] children + one tier row + overlay flags.
+  // A fully-wired stack: router pointer + [overlay, tier] children + one tier band + overlay flags.
+  // The band sits above the mintable supply, where tier ids actually live.
   function stackCtx(extra: Partial<CreateContext> = {}): CreateContext {
     const meta = encodeMetadataConfig(
       { resolver: RESOLVER, overlay: OVERLAY, tier: TIER },
       {
         overlayAutoLatest: 'true',
         overlayDefaultPayout: '1',
-        'tierIdStarts.0': '1',
-        'tierIdEnds.0': '3',
-        'tierMinBalances.0': '1000000', // human whole tokens
-        'tierBaseURIs.0': 'rare-',
-        'tierLockedURIs.0': 'locked-',
+        'tierIdStarts.0': '101',
+        'tierIdEnds.0': '103',
+        'tierBaseURIs.0': 'tier-',
       },
     )
     return baseCtx({ metadataConfig: meta, ...extra })
@@ -267,7 +266,9 @@ describe('metadata config threading', () => {
     expect(call.args[5]?.childResolvers).toEqual([OVERLAY, TIER])
     expect(call.args[5]?.autoLatest).toBe(true)
     expect(call.args[5]?.defaultPayout).toBe(1)
-    expect(call.args[5]?.tiers[0]?.baseURI).toBe('rare-')
+    expect(call.args[5]?.bands[0]?.baseURI).toBe('tier-')
+    expect(call.args[5]?.bands[0]?.idStart).toBe(101n)
+    expect(call.args[5]?.bands[0]?.idEnd).toBe(103n)
   })
 
   it('the 6-arg metadata args encode against the factory ABI', () => {
@@ -286,9 +287,8 @@ describe('metadata config threading', () => {
     const meta = encodeMetadataConfig(
       { tier: TIER },
       {
-        'tierIdStarts.0': '1',
-        'tierIdEnds.0': '3',
-        'tierMinBalances.0': '1',
+        'tierIdStarts.0': '101',
+        'tierIdEnds.0': '103',
         'tierBaseURIs.0': 'r-',
       },
     )

@@ -40,6 +40,7 @@ describe('humanized amount units (noesis-131)', () => {
     expect(byKey.get('basePrice')?.unit).toBe('eth')
     expect(byKey.get('bidIncrement')?.unit).toBe('eth')
     expect(byKey.get('minBid')?.unit).toBe('eth')
-    expect(byKey.get('tierMinBalance')?.unit).toBe('tokens')
+    // `tierMinBalance` was deleted with the TierReveal min-balance field (noesis-141): Token Tiers
+    // bands are static id ranges, so there is no balance amount left to humanize here.
   })
 })

@@ -15,7 +15,7 @@ import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
-import { TierRevealModule } from "../src/metadata/TierRevealModule.sol";
+import { TokenTierBandResolver } from "../src/metadata/TokenTierBandResolver.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 
@@ -88,7 +88,7 @@ contract SeedAnvil is Script {
         address cypherDeployer; // ModuleCypherDeployer (approved LIQUIDITY_DEPLOYER)
         address resolverRouter; // MetadataResolverRouter (approved RESOLVER)
         address overlay; // MetadataOverlayModule (approved OVERLAY)
-        address tier; // TierRevealModule (approved TIER)
+        address tier; // TokenTierBandResolver (approved TIER)
         address alignmentRegistry; // AlignmentRegistryV1 proxy (target curation)
         address master; // MasterRegistryV1 proxy (agent authorization; deployer-owned pre-handover)
     }
@@ -197,7 +197,7 @@ contract SeedAnvil is Script {
         d.cypherDeployer = vm.parseJsonAddress(json, ".contracts.ModuleCypherDeployer");
         d.resolverRouter = vm.parseJsonAddress(json, ".contracts.MetadataResolverRouter");
         d.overlay = vm.parseJsonAddress(json, ".contracts.MetadataOverlayModule");
-        d.tier = vm.parseJsonAddress(json, ".contracts.TierRevealModule");
+        d.tier = vm.parseJsonAddress(json, ".contracts.TokenTierBandResolver");
         // Resolve the seed's vaults by FAMILY via DeployCore's convenience pointers, not by index
         // into the `vaults` array — that array's ordering shifts as LP families (ZAMM/Cypher) are
         // enabled per network, so a fixed index silently binds to the wrong vault type.
@@ -682,28 +682,31 @@ contract SeedAnvil is Script {
     }
 
     /// @dev STACKED METADATA: an ERC404 created via the factory's metadata overload (NOT the gating
-    ///      param), wiring resolver(router) → [overlay, tier]. The tier table is sealed at create
-    ///      (ids 1-2 reveal "rare-" art once the holder clears 1 unit; teaser "locked-" otherwise).
+    ///      param), wiring resolver(router) → [overlay, tier]. The band table is sealed at create.
+    ///      The band sits ABOVE the instance's id ceiling (nftCount = 10, so the band is ids 11-12):
+    ///      DN404's auto-mint bounds emitted ids to [1..idLimit] (`_wrapNFTId`, DN404.sol:531,544), so
+    ///      band ids are never handed out by an ordinary buy — that is exactly what reserves them for
+    ///      the tier mint path. Seeding a band that overlapped ordinary ids would make the demo lie.
     ///      Post-create the deployer (artist) publishes an opt-in event wave and a PAY commission on
     ///      id 3, then — as the holder of id 3 — unlocks + pins it. Token URIs (tokenBaseURI "" → base
-    ///      is the bare id) demonstrate precedence: id1/2 → "rare-N", id3 → "commission-3", else "N".
+    ///      is the bare id) demonstrate precedence: id3 → "commission-3", ids 11-12 → "tier-N", else "N".
     function _seedErc404Stacked(Deployed memory d) internal {
-        // Build the sealed tier table: ids 1-2 are the rare subset, threshold = 1 unit (1e24 for preset 1).
-        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] =
-            TierRevealModule.Tier({ idStart: 1, idEnd: 2, minBalance: 1e24, baseURI: "rare-", lockedURI: "locked-" });
+        // Build the sealed band table: ids 11-12 sit above the 10-id mintable supply — reserved,
+        // unbuyable, and carrying their own static art regardless of who holds them.
+        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
+        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 12, baseURI: "tier-" });
 
         address[] memory children = new address[](2);
         children[0] = d.overlay; // precedence: holder pins/events win over...
-        children[1] = d.tier; // ...ambient rarity reveal
+        children[1] = d.tier; // ...static band art
 
         ERC404Factory.MetadataConfig memory meta = ERC404Factory.MetadataConfig({
             resolver: d.resolverRouter,
             childResolvers: children,
             overlay: d.overlay,
             tier: d.tier,
-            tiers: tiers,
-            autoLatest: false, // opt-in events — keeps tier reveal visible by default
+            bands: bands,
+            autoLatest: false, // opt-in events — keeps band art visible by default
             defaultPayout: MetadataOverlayModule.Payout.ARTIST
         });
 
@@ -726,7 +729,7 @@ contract SeedAnvil is Script {
                 params,
                 _collectionMeta(
                     "Prism",
-                    "Prism refracts: a rarity-tiered ERC404 where holding enough unlocks the rare face. Overlay + tier metadata, resolved on-chain.",
+                    "Prism refracts: a tiered ERC404 whose reserved id bands carry their own static art. Overlay + tier metadata, resolved on-chain.",
                     ART_PRISM
                 ),
                 d.zammDeployer,
@@ -742,7 +745,7 @@ contract SeedAnvil is Script {
         d.queue.rentFeatured{ value: 1 ether }(inst, 30 days, 0.035 ether);
         vm.stopBroadcast();
 
-        // Deployer buys 3 whole units WITH NFTs minted → owns ids 1,2,3 (balance 3e24 clears the tier).
+        // Deployer buys 3 whole units WITH NFTs minted → owns ids 1,2,3 (all below the band, as intended).
         _buyBondingMint(b, deployerKey, 3e24);
 
         // Artist (deployer) authoring + holder unlock — all owner/holder writes before _transferAdmin.
@@ -750,7 +753,7 @@ contract SeedAnvil is Script {
         MetadataOverlayModule ov = MetadataOverlayModule(d.overlay);
         // An opt-in open event wave (holders select it; not auto because autoLatest=false).
         ov.publishWave(inst, "event-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST);
-        // A paid commission on id 3 (outside the tier range), then unlock+pin it as the holder.
+        // A paid commission on id 3 (outside the band range), then unlock+pin it as the holder.
         ov.setCommission(
             inst, 3, "commission-3", MetadataOverlayModule.CommCond.PAY, 0.01 ether, MetadataOverlayModule.Payout.ARTIST
         );

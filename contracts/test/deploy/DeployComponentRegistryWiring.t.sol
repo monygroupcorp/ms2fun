@@ -9,7 +9,7 @@ import { MasterRegistryV1 } from "../../src/master/MasterRegistryV1.sol";
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { MetadataResolverRouter } from "../../src/metadata/MetadataResolverRouter.sol";
 import { MetadataOverlayModule } from "../../src/metadata/MetadataOverlayModule.sol";
-import { TierRevealModule } from "../../src/metadata/TierRevealModule.sol";
+import { TokenTierBandResolver } from "../../src/metadata/TokenTierBandResolver.sol";
 import { FreeMintParams } from "../../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../../src/gating/IGatingModule.sol";
 
@@ -95,16 +95,11 @@ contract DeployComponentRegistryWiringTest is Test {
         ERC404Factory factory = s.erc404Factory();
         MetadataResolverRouter router = s.metadataResolverRouter();
         MetadataOverlayModule overlay = s.metadataOverlayModule();
-        TierRevealModule tier = s.tierRevealModule();
+        TokenTierBandResolver tier = s.tokenTierBandResolver();
 
-        TierRevealModule.Tier[] memory tiers = new TierRevealModule.Tier[](1);
-        tiers[0] = TierRevealModule.Tier({
-            idStart: 1,
-            idEnd: 2,
-            minBalance: 1e24, // positive → passes the T1 minBalance>0 seal check
-            baseURI: "rare-",
-            lockedURI: "locked-"
-        });
+        // Band above the 10-id mintable supply — where tier ids actually live.
+        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
+        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 12, baseURI: "tier-" });
 
         address[] memory children = new address[](2);
         children[0] = address(overlay);
@@ -115,7 +110,7 @@ contract DeployComponentRegistryWiringTest is Test {
             childResolvers: children,
             overlay: address(overlay),
             tier: address(tier),
-            tiers: tiers,
+            bands: bands,
             autoLatest: false,
             defaultPayout: MetadataOverlayModule.Payout.ARTIST
         });
@@ -145,6 +140,6 @@ contract DeployComponentRegistryWiringTest is Test {
         );
 
         assertEq(router.resolverCount(inst), 2, "overlay+tier children sealed via DeployCore-wired pointer");
-        assertTrue(tier.sealed_(inst), "tier config sealed end-to-end after a plain DeployCore");
+        assertTrue(tier.sealed_(inst), "band config sealed end-to-end after a plain DeployCore");
     }
 }
