@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import {
     ERC404BondingInstance,
     ICarveParamsSource,
@@ -9,7 +10,8 @@ import {
     BondingNotConfigured,
     NoReserve,
     InvalidRefund,
-    InvalidDeclaredMaxAllowance
+    InvalidDeclaredMaxAllowance,
+    InvalidMirror
 } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
@@ -18,6 +20,8 @@ import { BondingCurveMath } from "../../../src/factories/erc404/libraries/Bondin
 import { ILiquidityDeployerModule } from "../../../src/interfaces/ILiquidityDeployerModule.sol";
 import { IGatingModule } from "../../../src/gating/IGatingModule.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { DN404 } from "dn404/src/DN404.sol";
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 
 // ── Mock contracts ────────────────────────────────────────────────────────────
 
@@ -138,7 +142,9 @@ contract ERC404BondingInstanceTest is Test {
     function _initInstance(ERC404BondingInstance inst, address vault_, address treasury_, uint256 bondingFeeBps_)
         internal
     {
-        inst.initialize(owner, vault_, _bondingParams(), mockLiquidityDeployer, address(0));
+        inst.initialize(
+            owner, vault_, _bondingParams(), mockLiquidityDeployer, address(0), address(new DN404Mirror(owner))
+        );
 
         ERC404BondingInstance.ProtocolParams memory proto = ERC404BondingInstance.ProtocolParams({
             globalMessageRegistry: mockGlobalMsgRegistry,
@@ -590,7 +596,9 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(owner);
         ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
-        inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
+        inst2.initialize(
+            owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0), address(new DN404Mirror(owner))
+        );
         inst2.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
                 globalMessageRegistry: mockGlobalMsgRegistry,
@@ -644,7 +652,7 @@ contract ERC404BondingInstanceTest is Test {
         inst = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         ERC404BondingInstance.BondingParams memory bp = _bondingParams();
         bp.declaredMaxAllowanceBps = declaredBps;
-        inst.initialize(owner, address(0xBEEF), bp, address(depl), address(0));
+        inst.initialize(owner, address(0xBEEF), bp, address(depl), address(0), address(new DN404Mirror(owner)));
         inst.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
                 globalMessageRegistry: mockGlobalMsgRegistry,
@@ -668,8 +676,11 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         ERC404BondingInstance.BondingParams memory bp = _bondingParams();
         bp.declaredMaxAllowanceBps = 10001;
+        // Deploy the mirror BEFORE arming expectRevert: an inline `new` is a CREATE, and expectRevert
+        // would latch onto that instead of the `initialize` call.
+        address mirror = address(new DN404Mirror(owner));
         vm.expectRevert(InvalidDeclaredMaxAllowance.selector);
-        inst2.initialize(owner, address(0xBEEF), bp, mockLiquidityDeployer, address(0));
+        inst2.initialize(owner, address(0xBEEF), bp, mockLiquidityDeployer, address(0), mirror);
         vm.stopPrank();
     }
 
@@ -793,7 +804,9 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         address mockGating = address(new MockGatingModule());
-        inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating);
+        inst2.initialize(
+            owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating, address(new DN404Mirror(owner))
+        );
         vm.stopPrank();
         assertTrue(inst2.gatingActive());
     }
@@ -807,7 +820,9 @@ contract ERC404BondingInstanceTest is Test {
         ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
         address mockGating = address(new PermanentGatingModule());
-        inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating);
+        inst2.initialize(
+            owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, mockGating, address(new DN404Mirror(owner))
+        );
         inst2.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
                 globalMessageRegistry: mockGlobalMsgRegistry,
@@ -841,7 +856,9 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(owner);
         ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
-        inst2.initialize(owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0));
+        inst2.initialize(
+            owner, address(0xBEEF), _bondingParams(), address(mockDepl), address(0), address(new DN404Mirror(owner))
+        );
         inst2.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
                 globalMessageRegistry: mockGlobalMsgRegistry,
@@ -875,7 +892,9 @@ contract ERC404BondingInstanceTest is Test {
         vm.startPrank(owner);
         ERC404BondingInstance impl2 = new ERC404BondingInstance(address(new ERC404BondingOps()));
         ERC404BondingInstance inst2 = ERC404BondingInstance(payable(LibClone.clone(address(impl2))));
-        inst2.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0));
+        inst2.initialize(
+            owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(new DN404Mirror(owner))
+        );
         vm.stopPrank();
     }
 
@@ -895,5 +914,126 @@ contract ERC404BondingInstanceTest is Test {
         instance.buyBonding{ value: cost + fee }(buyAmount, cost + fee, false, bytes(""), bytes(""), 0);
         vm.stopPrank();
         assertGt(instance.balanceOf(user1), 0);
+    }
+
+    // ── DN404 mirror supplied by the factory (noesis-140) ─────────────────────
+    //
+    // The mirror used to be built inside `initialize` (`new DN404Mirror(msg.sender)`), which forced
+    // DN404Mirror's ~3.1KB of creation code to live inline in the instance's runtime bytecode. It is
+    // now deployed by the caller — `ERC404Factory.createInstance` in production, the test contract
+    // acting as the factory here (initialize captures `msg.sender` as `factory`, so `owner` IS the
+    // factory in this harness) — and passed in as the last argument. These tests pin the link
+    // semantics that move with it.
+
+    /// @dev A fresh, uninitialized clone behind its own master implementation.
+    function _freshClone() internal returns (ERC404BondingInstance inst) {
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
+        inst = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
+    }
+
+    /// @notice The instance links exactly the mirror the caller deployed: `mirrorERC721()` matches,
+    ///         the mirror points back at the instance, and `_initializeDN404`'s `pullOwner()` leg
+    ///         carried the instance owner onto the mirror.
+    function test_initialize_linksFactorySuppliedMirror() public {
+        vm.startPrank(owner);
+        ERC404BondingInstance inst = _freshClone();
+        DN404Mirror mirror = new DN404Mirror(owner);
+        inst.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(mirror));
+        vm.stopPrank();
+
+        assertEq(inst.mirrorERC721(), address(mirror), "instance must link the mirror the factory deployed");
+        assertEq(mirror.baseERC20(), address(inst), "mirror must point back at the instance");
+        assertEq(inst.owner(), owner);
+        assertEq(mirror.owner(), owner, "pullOwner() must carry the instance owner onto the mirror");
+    }
+
+    /// @notice The ERC721 face still works end to end through the factory-supplied mirror: a buy that
+    ///         crosses whole units emits ERC721 `Transfer` on the mirror, and the mirror's
+    ///         `balanceOf`/`ownerOf` agree with the ERC20 side.
+    function test_initialize_factorySuppliedMirror_erc721FaceWorks() public {
+        vm.startPrank(owner);
+        ERC404BondingInstance inst = _freshClone();
+        DN404Mirror mirror = new DN404Mirror(owner);
+        inst.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(mirror));
+        inst.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGlobalMsgRegistry,
+                protocolTreasury: address(0xFEE),
+                masterRegistry: mockMasterRegistry,
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
+        inst.initializeMetadata("Mirror Token", "MIRROR", "", "");
+        uint256 openTime = block.timestamp + 1 days;
+        inst.setBondingOpenTime(openTime);
+        inst.setBondingActive(true);
+        vm.stopPrank();
+        vm.warp(openTime);
+
+        uint256 amount = 2 * inst.unit(); // exactly two whole NFTs
+        uint256 cost = _getCost(inst, amount);
+        uint256 fee = (cost * inst.bondingFeeBps()) / 10000;
+        vm.deal(user1, cost + fee);
+
+        vm.recordLogs();
+        vm.prank(user1);
+        inst.buyBonding{ value: cost + fee }(amount, cost + fee, false, bytes(""), "", 0);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        uint256 erc721Transfers;
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter == address(mirror) && logs[i].topics.length == 4
+                    && logs[i].topics[0] == keccak256("Transfer(address,address,uint256)")
+            ) {
+                ++erc721Transfers;
+            }
+        }
+        assertEq(erc721Transfers, 2, "NFT mints must emit ERC721 Transfer on the mirror");
+
+        assertEq(mirror.balanceOf(user1), 2, "mirror must report the minted NFTs");
+        assertEq(mirror.balanceOf(user1), inst.balanceOf(user1) / inst.unit(), "ERC721 and ERC20 sides must agree");
+        assertEq(mirror.ownerOf(1), user1);
+        assertEq(mirror.ownerOf(2), user1);
+    }
+
+    /// @notice A zero mirror is rejected by the instance's own guard, before DN404 is reached.
+    function test_initialize_revertsOnZeroMirror() public {
+        vm.startPrank(owner);
+        ERC404BondingInstance inst = _freshClone();
+        vm.expectRevert(InvalidMirror.selector);
+        inst.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(0));
+        vm.stopPrank();
+    }
+
+    /// @notice A mirror already linked to another instance cannot be reused: DN404Mirror answers the
+    ///         second link with `AlreadyLinked`, which the base surfaces as `LinkMirrorContractFailed`.
+    function test_initialize_revertsOnAlreadyLinkedMirror() public {
+        vm.startPrank(owner);
+        ERC404BondingInstance instA = _freshClone();
+        ERC404BondingInstance instB = _freshClone();
+        DN404Mirror mirror = new DN404Mirror(owner);
+
+        instA.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(mirror));
+        assertEq(instA.mirrorERC721(), address(mirror));
+
+        vm.expectRevert(DN404.LinkMirrorContractFailed.selector);
+        instB.initialize(owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(mirror));
+        vm.stopPrank();
+    }
+
+    /// @notice A mirror whose recorded deployer is not the caller of `initialize` cannot be linked:
+    ///         the mirror answers `SenderNotDeployer`, surfaced as `LinkMirrorContractFailed`.
+    function test_initialize_revertsOnWrongDeployerMirror() public {
+        DN404Mirror strayMirror = new DN404Mirror(address(0xDEAD)); // deployer != the initialize caller
+
+        vm.startPrank(owner);
+        ERC404BondingInstance inst = _freshClone();
+        vm.expectRevert(DN404.LinkMirrorContractFailed.selector);
+        inst.initialize(
+            owner, address(0xBEEF), _bondingParams(), mockLiquidityDeployer, address(0), address(strayMirror)
+        );
+        vm.stopPrank();
     }
 }
