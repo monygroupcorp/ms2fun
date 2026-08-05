@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
 import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
@@ -62,7 +63,7 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
             curve: curveParams
         });
 
-        instance.initialize(owner, mockVault, bp, mockLiquidityDeployer, address(0));
+        instance.initialize(owner, mockVault, bp, mockLiquidityDeployer, address(0), address(new DN404Mirror(owner)));
 
         ERC404BondingInstance.ProtocolParams memory pp = ERC404BondingInstance.ProtocolParams({
             globalMessageRegistry: mockGlobalMsgRegistry,

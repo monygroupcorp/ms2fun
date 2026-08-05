@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { ERC404BondingStorage, RerollFailed } from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
@@ -35,6 +34,7 @@ error InsufficientBalance();
 error InvalidGlobalMessageRegistry();
 error InvalidLiquidityDeployer();
 error InvalidMaxSupply();
+error InvalidMirror();
 error InvalidOwner();
 error InvalidRefund();
 error InvalidVault();
@@ -159,13 +159,28 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
 
     /**
      * @notice Initialize a clone instance. Called by factory immediately after cloning.
+     * @dev The DN404 mirror is deployed by the CALLER (the factory) and passed in. It used to be
+     *      constructed here with `new DN404Mirror(msg.sender)`, but `new` is a CREATE: the whole
+     *      3,100B of `DN404Mirror` creation code had to sit inline in THIS contract's runtime
+     *      bytecode, and this contract is the EIP-170 subject (every clone is an EIP-1167 proxy in
+     *      front of it). Moving the `new` to `ERC404Factory` relocates that blob to a contract with
+     *      room to spare and changes nothing semantically: `_initializeDN404` still links with
+     *      `caller()`, and the mirror's constructor still records that same address as its
+     *      `deployer`.
+     * @dev Safety of the `mirror` parameter rests on ATOMICITY, not on DN404's own guards
+     *      (`SenderNotDeployer` / `AlreadyLinked` protect the mirror, not this instance — a mirror
+     *      built with a zero deployer passes both). `ERC404Factory.createInstance` clones and
+     *      initializes in one call, so the mirror is always factory-supplied and no external caller
+     *      can ever hand a fresh clone a mirror of its own.
+     * @param mirror The DN404Mirror the caller just deployed for this instance.
      */
     function initialize(
         address owner,
         address vault_,
         BondingParams calldata bonding,
         address _liquidityDeployer,
-        address _gatingModule
+        address _gatingModule,
+        address mirror
     ) external {
         if (_initialized) revert AlreadyInitialized();
         _initialized = true;
@@ -174,6 +189,7 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         if (owner == address(0)) revert InvalidOwner();
         if (vault_ == address(0)) revert InvalidVault();
         if (_liquidityDeployer == address(0)) revert InvalidLiquidityDeployer();
+        if (mirror == address(0)) revert InvalidMirror();
 
         _initializeOwner(owner);
 
@@ -192,7 +208,6 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         gatingModule = IGatingModule(_gatingModule);
         gatingActive = _gatingModule != address(0);
 
-        address mirror = address(new DN404Mirror(msg.sender));
         _initializeDN404(bonding.maxSupply, address(this), mirror);
     }
 
