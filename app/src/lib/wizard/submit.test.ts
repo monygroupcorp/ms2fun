@@ -85,10 +85,19 @@ describe('buildErc1155Create', () => {
   it('coerces freeMint.allocation to bigint and scope to number', () => {
     const call = buildErc1155Create(baseCtx())
     if (call.type !== 'erc1155') throw new Error('unexpected type')
-    expect(call.args[1].freeMint.allocation).toBe(500n)
+    // ERC1155 allocation is hard-zeroed: `initializeFreeMint` ignores it since noesis-135
+    // (free mint moved to per-edition allocation), so the app never sends a form value here.
+    expect(call.args[1].freeMint.allocation).toBe(0n)
     expect(typeof call.args[1].freeMint.allocation).toBe('bigint')
     expect(call.args[1].freeMint.scope).toBe(2)
     expect(typeof call.args[1].freeMint.scope).toBe('number')
+  })
+
+  it('never forwards a stale freeMint.allocation form value for ERC1155', () => {
+    const ctx = baseCtx({ values: { ...baseCtx().values, 'freeMint.allocation': '500' } })
+    const call = buildErc1155Create(ctx)
+    if (call.type !== 'erc1155') throw new Error('unexpected type')
+    expect(call.args[1].freeMint.allocation).toBe(0n)
   })
 })
 
