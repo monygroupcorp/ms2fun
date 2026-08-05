@@ -8,6 +8,7 @@ import { RerollFailed } from "src/factories/erc404/ERC404BondingStorage.sol";
 import { CurveParamsComputer } from "src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 
 /**
  * @title ERC404Reroll Tests
@@ -50,7 +51,9 @@ contract ERC404RerollTest is Test {
             declaredMaxAllowanceBps: 0,
             curve: curveParams
         });
-        token.initialize(owner, address(0xBEEF), bonding, mockLiquidityDeployer, address(0));
+        token.initialize(
+            owner, address(0xBEEF), bonding, mockLiquidityDeployer, address(0), address(new DN404Mirror(address(this)))
+        );
 
         token.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
@@ -394,7 +397,14 @@ contract ERC404RerollTest is Test {
             curve: curveParams
         });
         // Owner = the probe, so it can trigger the owner-only `withdrawDust`.
-        t.initialize(address(probe), address(0xBEEF), bonding, mockLiquidityDeployer, address(0));
+        t.initialize(
+            address(probe),
+            address(0xBEEF),
+            bonding,
+            mockLiquidityDeployer,
+            address(0),
+            address(new DN404Mirror(address(this)))
+        );
         t.initializeProtocol(
             ERC404BondingInstance.ProtocolParams({
                 globalMessageRegistry: address(0x700),
