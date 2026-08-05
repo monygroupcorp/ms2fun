@@ -286,6 +286,7 @@ contract DeployCore is Script {
         );
 
         MasterRegistryV1(masterRegistry).setAlignmentRegistry(address(alignmentRegistry));
+        MasterRegistryV1(masterRegistry).setComponentRegistry(address(componentRegistry));
 
         // Ownerless, non-upgradeable account profile registry (ADR-0004) — no proxy, no init.
         profileRegistry = new ProfileRegistry();
