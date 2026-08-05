@@ -4566,6 +4566,20 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'bandNextFree',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'tierN', internalType: 'uint8', type: 'uint8' }],
+    name: 'bandOutstanding',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'bondingActive',
     outputs: [{ name: '', internalType: 'bool', type: 'bool' }],
@@ -4633,6 +4647,13 @@ export const erc404BondingInstanceAbi = [
     name: 'claimStakingRewards',
     outputs: [],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'coinBalanceOf',
+    outputs: [{ name: 'total', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
   },
   {
     type: 'function',
@@ -4764,6 +4785,24 @@ export const erc404BondingInstanceAbi = [
       { name: 'm', internalType: 'address', type: 'address' },
     ],
     name: 'initModule',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'bands',
+        internalType: 'struct ERC404BondingStorage.TierBand[]',
+        type: 'tuple[]',
+        components: [
+          { name: 'idStart', internalType: 'uint32', type: 'uint32' },
+          { name: 'idEnd', internalType: 'uint32', type: 'uint32' },
+          { name: 'weight', internalType: 'uint32', type: 'uint32' },
+        ],
+      },
+    ],
+    name: 'initTierBands',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -4940,6 +4979,23 @@ export const erc404BondingInstanceAbi = [
     type: 'function',
     inputs: [{ name: 'newVault', internalType: 'address', type: 'address' }],
     name: 'migrateVault',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'mintDown',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '', internalType: 'uint8', type: 'uint8' },
+      { name: '', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'mintUp',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -5153,6 +5209,17 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    name: 'tierBands',
+    outputs: [
+      { name: 'idStart', internalType: 'uint32', type: 'uint32' },
+      { name: 'idEnd', internalType: 'uint32', type: 'uint32' },
+      { name: 'weight', internalType: 'uint32', type: 'uint32' },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [],
     name: 'totalBondingSupply',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
@@ -5162,6 +5229,13 @@ export const erc404BondingInstanceAbi = [
     type: 'function',
     inputs: [],
     name: 'totalSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalTierEscrow',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -5388,6 +5462,58 @@ export const erc404BondingInstanceAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      {
+        name: 'holder',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'tierN', internalType: 'uint8', type: 'uint8', indexed: true },
+      {
+        name: 'bandId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'tierZeroId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'MintedDown',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'holder',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      { name: 'tierN', internalType: 'uint8', type: 'uint8', indexed: true },
+      {
+        name: 'tierZeroId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+      {
+        name: 'bandId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'MintedUp',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       { name: 'role', internalType: 'bytes32', type: 'bytes32', indexed: true },
       {
         name: 'module',
@@ -5549,6 +5675,19 @@ export const erc404BondingInstanceAbi = [
     type: 'event',
     anonymous: false,
     inputs: [
+      {
+        name: 'bandCount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'TierBandsSealed',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
       { name: 'from', internalType: 'address', type: 'address', indexed: true },
       { name: 'to', internalType: 'address', type: 'address', indexed: true },
       {
@@ -5584,6 +5723,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
   { type: 'error', inputs: [], name: 'AmountExceedsSupply' },
   { type: 'error', inputs: [], name: 'ApprovalCallerNotOwnerNorApproved' },
+  { type: 'error', inputs: [], name: 'BandIdOverflow' },
   { type: 'error', inputs: [], name: 'BondingEnded' },
   { type: 'error', inputs: [], name: 'BondingNotActive' },
   { type: 'error', inputs: [], name: 'BondingNotConfigured' },
@@ -5598,6 +5738,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'GatingNotAllowed' },
   { type: 'error', inputs: [], name: 'InsufficientAllowance' },
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
+  { type: 'error', inputs: [], name: 'InvalidBand' },
   { type: 'error', inputs: [], name: 'InvalidBounds' },
   { type: 'error', inputs: [], name: 'InvalidDeclaredMaxAllowance' },
   { type: 'error', inputs: [], name: 'InvalidGlobalMessageRegistry' },
@@ -5638,6 +5779,7 @@ export const erc404BondingInstanceAbi = [
   },
   { type: 'error', inputs: [], name: 'StakingAlreadyActive' },
   { type: 'error', inputs: [], name: 'StakingModuleNotSet' },
+  { type: 'error', inputs: [], name: 'TierOpFailed' },
   { type: 'error', inputs: [], name: 'TimeMustBeInFuture' },
   { type: 'error', inputs: [], name: 'TokenDoesNotExist' },
   { type: 'error', inputs: [], name: 'TooEarly' },
@@ -18335,6 +18477,24 @@ export const useReadErc404BondingInstanceBalanceOf =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bandNextFree"`
+ */
+export const useReadErc404BondingInstanceBandNextFree =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'bandNextFree',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bandOutstanding"`
+ */
+export const useReadErc404BondingInstanceBandOutstanding =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'bandOutstanding',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"bondingActive"`
  */
 export const useReadErc404BondingInstanceBondingActive =
@@ -18368,6 +18528,15 @@ export const useReadErc404BondingInstanceBondingOpenTime =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'bondingOpenTime',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"coinBalanceOf"`
+ */
+export const useReadErc404BondingInstanceCoinBalanceOf =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'coinBalanceOf',
   })
 
 /**
@@ -18668,6 +18837,15 @@ export const useReadErc404BondingInstanceSymbol =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"tierBands"`
+ */
+export const useReadErc404BondingInstanceTierBands =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'tierBands',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"totalBondingSupply"`
  */
 export const useReadErc404BondingInstanceTotalBondingSupply =
@@ -18683,6 +18861,15 @@ export const useReadErc404BondingInstanceTotalSupply =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'totalSupply',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"totalTierEscrow"`
+ */
+export const useReadErc404BondingInstanceTotalTierEscrow =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'totalTierEscrow',
   })
 
 /**
@@ -18809,6 +18996,15 @@ export const useWriteErc404BondingInstanceInitModule =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initTierBands"`
+ */
+export const useWriteErc404BondingInstanceInitTierBands =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initTierBands',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initialize"`
  */
 export const useWriteErc404BondingInstanceInitialize =
@@ -18860,6 +19056,24 @@ export const useWriteErc404BondingInstanceMigrateVault =
   /*#__PURE__*/ createUseWriteContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"mintDown"`
+ */
+export const useWriteErc404BondingInstanceMintDown =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'mintDown',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"mintUp"`
+ */
+export const useWriteErc404BondingInstanceMintUp =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'mintUp',
   })
 
 /**
@@ -19121,6 +19335,15 @@ export const useSimulateErc404BondingInstanceInitModule =
   })
 
 /**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initTierBands"`
+ */
+export const useSimulateErc404BondingInstanceInitTierBands =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'initTierBands',
+  })
+
+/**
  * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"initialize"`
  */
 export const useSimulateErc404BondingInstanceInitialize =
@@ -19172,6 +19395,24 @@ export const useSimulateErc404BondingInstanceMigrateVault =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'migrateVault',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"mintDown"`
+ */
+export const useSimulateErc404BondingInstanceMintDown =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'mintDown',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"mintUp"`
+ */
+export const useSimulateErc404BondingInstanceMintUp =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'mintUp',
   })
 
 /**
@@ -19433,6 +19674,24 @@ export const useWatchErc404BondingInstanceLiquidityDeployedEvent =
   })
 
 /**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"MintedDown"`
+ */
+export const useWatchErc404BondingInstanceMintedDownEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'MintedDown',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"MintedUp"`
+ */
+export const useWatchErc404BondingInstanceMintedUpEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'MintedUp',
+  })
+
+/**
  * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"ModuleSet"`
  */
 export const useWatchErc404BondingInstanceModuleSetEvent =
@@ -19529,6 +19788,15 @@ export const useWatchErc404BondingInstanceStateChangedEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404BondingInstanceAbi,
     eventName: 'StateChanged',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"TierBandsSealed"`
+ */
+export const useWatchErc404BondingInstanceTierBandsSealedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'TierBandsSealed',
   })
 
 /**
