@@ -32,7 +32,7 @@ export interface SelectedModules {
   // ── Metadata-resolution stack (ERC404 only, ADR-0006/0007) — all optional ──
   resolver?: `0x${string}` // MetadataResolverRouter
   overlay?: `0x${string}` // MetadataOverlayModule
-  tier?: `0x${string}` // TierRevealModule
+  tier?: `0x${string}` // tier metadata module (resolved from the on-chain 'tier' tag)
 }
 
 /** Everything the builder needs beyond the raw form values. */

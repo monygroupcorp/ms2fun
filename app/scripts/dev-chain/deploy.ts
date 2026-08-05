@@ -337,7 +337,7 @@ async function main(): Promise<void> {
       // ComponentRegistry, but surfacing the addresses here lets e2e/tests reach them directly.
       MetadataResolverRouter: required(c, 'MetadataResolverRouter'),
       MetadataOverlayModule: required(c, 'MetadataOverlayModule'),
-      TierRevealModule: required(c, 'TierRevealModule'),
+      TokenTierBandResolver: required(c, 'TokenTierBandResolver'),
       // Graduated-swap (B19): the zRouter singleton drives the embedded post-graduation swaps, and
       // the per-family LP deployer modules identify a graduated instance's venue + carry its pool
       // params (Uni-V4 poolFee/tickSpacing, ZAMM feeOrHook).

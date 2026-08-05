@@ -11,7 +11,7 @@
  *   'vault'          → keccak256('vault')   ← returns [] until Aave vault ships (expected)
  *   'resolver'       → keccak256('resolver') ← MetadataResolverRouter (ADR-0006/0007)
  *   'overlay'        → keccak256('overlay')  ← MetadataOverlayModule
- *   'tier'           → keccak256('tier')     ← TierRevealModule
+ *   'tier'           → keccak256('tier')     ← tier metadata module (resolved from the on-chain 'tier' tag)
  */
 
 import { useQuery } from '@tanstack/react-query'
