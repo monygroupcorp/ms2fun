@@ -6,7 +6,9 @@ import {
     RerollFailed,
     TierOpFailed,
     InvalidBand,
-    BandIdOverflow
+    BandIdOverflow,
+    NothingToClaim,
+    EscrowReleaseFailed
 } from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
@@ -703,15 +705,33 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         uint256[] memory ids = _ownedIds(holder, 0, type(uint256).max);
         uint256 u = unit;
         for (uint256 i = 0; i < ids.length; i++) {
-            uint256 id = ids[i];
-            for (uint256 j = 0; j < n; j++) {
-                TierBand storage b = tierBands[j];
-                if (id >= b.idStart && id <= b.idEnd) {
-                    total += (uint256(b.weight) - 1) * u;
-                    break;
-                }
-            }
+            // Shared band walk (noesis-143) — the same code the burn-safety hook uses to size a release,
+            // so this view and the escrow accounting can never disagree about what an id is worth.
+            (bool isBand,, uint256 weight) = _bandOf(ids[i]);
+            if (isBand) total += (weight - 1) * u;
         }
+    }
+
+    /// @notice Claim coin released by DN404 burning a band NFT you owned.
+    /// @dev The counterpart to the `_afterNFTTransfers` burn-safety hook (noesis-143). The hook fires in
+    ///      the middle of DN404's own accounting and therefore must never move value — it only records
+    ///      `pendingEscrowRelease`. This is the PULL leg, and the only place that coin moves.
+    ///      Checks-effects-interactions: the credit is zeroed BEFORE the transfer, and `nonReentrant`
+    ///      holds on top of that, so a receiver hook that calls back in finds nothing left to claim.
+    /// @dev The returned coin re-materializes the holder's tier-0 NFTs through DN404's own mint loop
+    ///      (subject to their skipNFT setting) — nothing is hand-minted here.
+    function claimReleasedEscrow() external nonReentrant {
+        uint256 amount = pendingEscrowRelease[msg.sender];
+        if (amount == 0) revert NothingToClaim();
+        // Solvency assert, not a trust boundary: the coin has sat in this instance's own balance since
+        // `mintUp` escrowed it. If it is somehow not here, the tier accounting is broken and paying out
+        // would raid the curve's own tokens — revert instead.
+        if (balanceOf(address(this)) < amount) revert EscrowReleaseFailed();
+
+        pendingEscrowRelease[msg.sender] = 0;
+        totalPendingEscrowRelease -= amount;
+
+        _transfer(address(this), msg.sender, amount);
     }
 
     /// @notice Band ids currently outstanding for tier `tierN` (1-based). Derived, never stored: the

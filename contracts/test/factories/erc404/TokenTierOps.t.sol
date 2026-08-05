@@ -64,6 +64,10 @@ contract TierOpsPolicyProbe is ERC404BondingOps {
         return _useExistsLookup();
     }
 
+    function probeUseAfterNFTTransfers() external returns (bool) {
+        return _useAfterNFTTransfers();
+    }
+
     function probeSkipNFTDefault(address a) external view returns (bool) {
         return _skipNFTDefault(a);
     }
@@ -649,9 +653,13 @@ contract TokenTierOpsTest is Test {
     }
 
     function _assertCoinConserved() internal view {
-        uint256 instanceUnescrowed = token.balanceOf(address(token)) - token.totalTierEscrow();
-        uint256 sum = token.coinBalanceOf(user1) + token.coinBalanceOf(user2) + instanceUnescrowed
-            + token.balanceOf(address(liquidityDeployer));
+        // T3 (noesis-143) split a third bucket out of the instance's balance: coin owed to a holder
+        // whose band NFT was burned. It is zero in this suite (nothing here burns a band), but the sum
+        // accounts for it so the invariant stays exact if a future T2-side change ever triggers one.
+        uint256 instanceUnescrowed =
+            token.balanceOf(address(token)) - token.totalTierEscrow() - token.totalPendingEscrowRelease();
+        uint256 sum = token.coinBalanceOf(user1) + token.pendingEscrowRelease(user1) + token.coinBalanceOf(user2)
+            + token.pendingEscrowRelease(user2) + instanceUnescrowed + token.balanceOf(address(liquidityDeployer));
         assertEq(sum, token.totalSupply(), "coin conservation broken");
     }
 
@@ -706,11 +714,21 @@ contract TokenTierOpsTest is Test {
         assertFalse(probe.probeAddToBurnedPool(0, 0), "burn pool must stay INACTIVE");
         assertFalse(probe.probeAddToBurnedPool(type(uint96).max, type(uint96).max), "burn pool must stay INACTIVE");
         assertTrue(probe.probeUseExistsLookup(), "exists lookup must stay ON");
-        assertFalse(probe.probeUseAfterNFTTransfers(), "the after-transfer hook is T3 (noesis-143), not T2");
+        // T3 (noesis-143) turned the after-transfer hook ON — it is what keeps a LIFO-burned band NFT
+        // from stranding its escrow. Turning it back off silently re-opens that orphan.
+        assertTrue(probe.probeUseAfterNFTTransfers(), "the burn-safety hook must stay ON (T3, noesis-143)");
 
         // Ops executes in the instance's storage — its policy hooks must agree with the instance's.
         assertEq(opsProbe.probeAddToBurnedPool(0, 0), probe.probeAddToBurnedPool(0, 0), "burn pool parity");
         assertEq(opsProbe.probeUseExistsLookup(), probe.probeUseExistsLookup(), "exists lookup parity");
+        // The hook is an INTERNAL DN404 jump, so under delegatecall it is OPS's compiled body that runs.
+        // A divergence here would mean the hook fires in one context and not the other — the exact
+        // failure the shared-base placement exists to make impossible.
+        assertEq(
+            opsProbe.probeUseAfterNFTTransfers(),
+            probe.probeUseAfterNFTTransfers(),
+            "after-transfer hook parity across the delegatecall boundary"
+        );
         assertEq(
             opsProbe.probeSkipNFTDefault(address(this)), probe.probeSkipNFTDefault(address(this)), "skipNFT parity"
         );
@@ -828,13 +846,14 @@ contract TokenTierOpsTest is Test {
         assertEq(token.balanceOf(user2), 10 * UNIT, "redeemed by the new owner");
     }
 
-    /// @notice KNOWN T2 GAP — T3 (noesis-143) closes it. When the balance-losing leg is NOT matched by
+    /// @notice The T2 GAP, now CLOSED by T3 (noesis-143). When the balance-losing leg is not matched by
     ///         an NFT-taking recipient (recipient skips NFTs: a sell back to the curve, `stake`, or any
-    ///         skipNFT holder), DN404 BURNS the band NFT to reconcile `ownedLength == balance / unit`
-    ///         and its escrow is ORPHANED — still counted in `totalTierEscrow`, no longer redeemable by
-    ///         anyone. Pinned so the gap is visible and cannot be mistaken for a regression:
-    ///         **T2 MUST NOT reach a live deployment without T3.**
-    function test_KNOWN_GAP_bandNftBurnedWhenRecipientSkipsNfts_untilT3() public {
+    ///         skipNFT holder), DN404 BURNS the band NFT to reconcile `ownedLength == balance / unit`.
+    ///         Under T2 alone the escrow was then ORPHANED — still counted in `totalTierEscrow`, no
+    ///         longer redeemable by anyone. The `_afterNFTTransfers` hook turns that burn into a credit.
+    ///         Kept here, at the T2 site, so the gap can never silently REOPEN: the full behaviour is
+    ///         exercised in `TierBurnSafety.t.sol`.
+    function test_bandNftBurnedWhenRecipientSkipsNfts_releasesEscrow() public {
         _seal();
         _fund(user1, 10);
         uint256 tierZeroId = _ownedIdsOf(user1)[0];
@@ -848,10 +867,16 @@ contract TokenTierOpsTest is Test {
         token.transfer(user2, UNIT);
 
         assertEq(_ownerOrZero(T1_START), address(0), "the band NFT was burned by DN404 reconciliation");
-        assertEq(token.totalTierEscrow(), 9 * UNIT, "escrow is ORPHANED until T3 releases it");
+        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "and became a claim for the burned holder");
         vm.prank(user1);
-        vm.expectRevert(TierOpFailed.selector); // NotBandId — nobody owns it now
+        vm.expectRevert(TierOpFailed.selector); // NotBandId — the id no longer exists
         token.mintDown(T1_START);
+
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        assertEq(token.balanceOf(user1), 9 * UNIT, "the holder is made whole");
+        _assertCoinConserved();
     }
 
     function test_coinBalanceOfIsPlainBalanceWithoutTiers() public {
