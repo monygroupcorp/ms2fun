@@ -143,6 +143,11 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     error InvalidDeclaredMaxAllowance();
     error InvalidBracketParams();
     error InsufficientBond();
+    /// @notice ERC404 + endowment is not a selectable pairing (rth ruling 2026-08-05). ERC404
+    ///         graduation splits with `RevenueSplitLib.split` (flat 1/19/80) and is family-blind, so
+    ///         an endowment vault's yield leg would bypass the stakers the endowment exists to fund.
+    ///         Refused at create-time rather than made family-aware downstream.
+    error EndowmentVaultNotSupported();
 
     event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event DeployBondEscrowUpdated(address indexed oldEscrow, address indexed newEscrow);
@@ -266,6 +271,7 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // to an unregistered contract. Vaults are NOT componentRegistry components; the authority
         // is masterRegistry.isVaultRegistered (mirrors migrateVault's registry gate).
         if (!masterRegistry.isVaultRegistered(params.vault)) revert UnapprovedVault();
+        _rejectEndowmentVault(params.vault);
         if (params.declaredMaxAllowanceBps > 10000) revert InvalidDeclaredMaxAllowance();
 
         // Agent-on-behalf-of check
@@ -355,6 +361,53 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         return componentRegistry.isApprovedForTag(component, FeatureUtils.RESOLVER)
             || componentRegistry.isApprovedForTag(component, FeatureUtils.OVERLAY)
             || componentRegistry.isApprovedForTag(component, FeatureUtils.TIER);
+    }
+
+    /// @dev Create-time family gate: refuse an endowment-family alignment vault for an ERC404.
+    ///      ERC404 graduation uses the family-BLIND `RevenueSplitLib.split` (1/19/80), so an
+    ///      `AaveEndowment` vault paired here would route today's yield down a path that bypasses
+    ///      the stakers the endowment is meant to fund. rth's ruling (2026-08-05): refuse the
+    ///      pairing at create rather than make the graduation split family-aware.
+    ///
+    ///      FAILS OPEN on anything that is not a positively-decoded endowment string: an unknown
+    ///      `vaultType()`, a reverting one, or one returning undecodable data all CREATE FINE.
+    ///      Only the master registry curates which vaults may be used at all; this gate exists to
+    ///      exclude one known-bad family, never to brick a future, legitimately-registered type.
+    ///
+    ///      Hence a raw `staticcall` + a fully guarded decode rather than the `try
+    ///      IAlignmentVault(...).vaultType() returns (string memory)` shape used by the capability
+    ///      probe below: `try…returns` catches a REVERT but NOT a return-data DECODE failure — the
+    ///      decode happens in the caller's frame, so malformed return data bubbles out of the
+    ///      `catch` and would brick the create. Decoding by hand behind explicit bounds is the only
+    ///      way to honour "fail open" against a hostile/buggy vault.
+    function _rejectEndowmentVault(address vault) private view {
+        (bool ok, bytes memory ret) = vault.staticcall(abi.encodeCall(IAlignmentVault.vaultType, ()));
+        // A single dynamic return value is ABI-encoded as: [0x00..0x1f] head offset,
+        // [offset..offset+0x1f] byte length, then `length` bytes of payload right-padded to a
+        // 32-byte multiple. So the shortest well-formed encoding (an empty string) is 64 bytes.
+        if (!ok || ret.length < 64) return;
+
+        uint256 head;
+        uint256 len;
+        assembly ("memory-safe") {
+            head := mload(add(ret, 0x20)) // the head word: offset to the string's length word
+            len := mload(add(ret, 0x40)) // the word at offset 0x20 — the length, if canonical
+        }
+        uint256 payload = ret.length - 64; // safe: `ret.length >= 64` checked above
+
+        // Each bound rules out a distinct way `abi.decode` could revert (an unavoidable revert,
+        // since it happens in THIS frame — see the fail-open contract above):
+        //   head == 0x20  — the offset is the canonical one for a lone dynamic return. Rules out a
+        //                   dangling/oversized offset pointing past the buffer, and pins that `len`
+        //                   was read from the right word.
+        //   len <= payload — the declared length fits in the bytes actually returned. Rules out a
+        //                   huge/adversarial length, and (evaluated first, short-circuiting) keeps
+        //                   `len + 31` below from overflowing.
+        //   payload >= padded(len) — the payload word-count is present in full. Rules out a
+        //                   truncated final word.
+        if (head != 0x20 || len > payload || payload < ((len + 31) / 32) * 32) return;
+
+        if (RevenueSplitLib.isEndowmentFamily(abi.decode(ret, (string)))) revert EndowmentVaultNotSupported();
     }
 
     function _deployAndInitialize(

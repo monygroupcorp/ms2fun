@@ -20,6 +20,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { ICreateX, CREATEX } from "../../../src/shared/CreateXConstants.sol";
 import { CREATEX_BYTECODE } from "createx-forge/script/CreateX.d.sol";
 import { RevenueSplitLib } from "../../../src/shared/libraries/RevenueSplitLib.sol";
+import { IAlignmentVault } from "../../../src/interfaces/IAlignmentVault.sol";
 
 contract MockVault {
     function supportsCapability(bytes32) external pure returns (bool) {
@@ -34,6 +35,75 @@ contract PlainVault {
         return true;
     }
     receive() external payable { }
+}
+
+/// @dev Vault that self-reports an arbitrary `vaultType()` — drives the create-time family gate.
+contract TypedVault {
+    string internal _vaultType;
+
+    constructor(string memory vaultType_) {
+        _vaultType = vaultType_;
+    }
+
+    function vaultType() external view returns (string memory) {
+        return _vaultType;
+    }
+
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
+}
+
+/// @dev Vault whose `vaultType()` REVERTS. Pins never-brick: the probe must not propagate.
+contract RevertingTypeVault {
+    error VaultTypeUnavailable();
+
+    function vaultType() external pure returns (string memory) {
+        revert VaultTypeUnavailable();
+    }
+
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+    receive() external payable { }
+}
+
+/// @dev Vault whose `vaultType()` succeeds but returns raw, UNDECODABLE bytes. `try…returns (string)`
+///      would NOT save the caller here — the decode happens in the caller's frame and bubbles past the
+///      `catch` — which is exactly why the factory uses a staticcall + guarded decode.
+contract UndecodableTypeVault {
+    bytes internal _raw;
+
+    constructor(bytes memory raw) {
+        _raw = raw;
+    }
+
+    function supportsCapability(bytes32) external pure returns (bool) {
+        return true;
+    }
+
+    fallback() external {
+        bytes memory r = _raw;
+        assembly {
+            return(add(r, 0x20), mload(r))
+        }
+    }
+
+    receive() external payable { }
+}
+
+/// @dev The `try…returns (string memory)` shape the factory deliberately does NOT use, isolated so a
+///      test can demonstrate why: the return-data decode runs in THIS frame, after the call returns,
+///      so a decode failure escapes the `catch` and takes the whole caller down with it.
+contract TryTypeProbe {
+    function probe(address vault) external view returns (bool ok) {
+        try IAlignmentVault(payable(vault)).vaultType() returns (string memory) {
+            return true;
+        } catch {
+            return false;
+        }
+    }
 }
 
 /// @dev Minimal mock liquidity deployer — accepts the call and records the params it received.
@@ -1208,5 +1278,110 @@ contract ERC404FactoryTest is Test {
                 componentRegistry: address(componentRegistry)
             })
         );
+    }
+
+    // ── Endowment-family create gate (noesis-145) ──────────────────────────────
+    // ERC404 graduation splits with the family-BLIND `RevenueSplitLib.split` (1/19/80), so pairing an
+    // ERC404 with an endowment vault would route yield past the stakers it exists to fund. rth's ruling
+    // (2026-08-05): refuse the pairing at create. The gate rejects the endowment family ONLY and FAILS
+    // OPEN on everything else, so a future/unknown/hostile vault type can never brick ERC404 creation.
+
+    /// @dev Create against `v` under a distinct name; returns the new instance.
+    function _createWithVault(string memory name_, address v) internal returns (address) {
+        ERC404Factory.CreateParams memory p = _identity(name_, "GATE", creator1);
+        p.vault = v;
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        return factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            p,
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
+    }
+
+    /// @notice An `AaveEndowment`-family vault is REFUSED at create-time.
+    function test_createInstance_rejectsEndowmentFamilyVault() public {
+        TypedVault endowment = new TypedVault("AaveEndowment");
+
+        ERC404Factory.CreateParams memory p = _identity("EndowToken", "ENDW", creator1);
+        p.vault = address(endowment);
+
+        vm.deal(creator1, 1 ether);
+        vm.prank(creator1);
+        vm.expectRevert(ERC404Factory.EndowmentVaultNotSupported.selector);
+        factory.createInstance{ value: INSTANCE_CREATION_FEE }(
+            p,
+            "ipfs://metadata",
+            address(mockDeployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH })
+        );
+    }
+
+    /// @notice Every liquidity-family vault type still creates — the gate is endowment-only.
+    function test_createInstance_acceptsLiquidityFamilyVaults() public {
+        string[3] memory types = ["UniswapV4LP", "ZAMMLP", "CypherLP"];
+        string[3] memory names = ["UniLpToken", "ZammLpToken", "CypherLpToken"];
+        for (uint256 i; i < types.length; ++i) {
+            address instance = _createWithVault(names[i], address(new TypedVault(types[i])));
+            assertTrue(instance != address(0), "LP-family vault must still create");
+        }
+    }
+
+    /// @notice An UNKNOWN `vaultType()` still creates — pins the fail-open decision. `isLiquidityFamily`
+    ///         would have reverted `UnknownVaultFamily` here; the create gate deliberately does not.
+    function test_createInstance_acceptsUnknownVaultType() public {
+        address instance = _createWithVault("FutureVaultToken", address(new TypedVault("SomeFutureVenueLP")));
+        assertTrue(instance != address(0), "unknown vaultType must not block create");
+    }
+
+    /// @notice A vault whose `vaultType()` REVERTS still creates — the probe never bricks a create.
+    function test_createInstance_acceptsRevertingVaultType() public {
+        address instance = _createWithVault("RevertTypeToken", address(new RevertingTypeVault()));
+        assertTrue(instance != address(0), "reverting vaultType must not block create");
+    }
+
+    /// @notice A vault whose `vaultType()` returns UNDECODABLE data still creates. This is the whole
+    ///         reason the factory uses staticcall + a guarded decode instead of `try…returns (string)`:
+    ///         a decode failure happens in the FACTORY's frame and would escape a `catch`.
+    function test_createInstance_acceptsUndecodableVaultType() public {
+        // Well-formed head offset, but a length word declaring ~2^256 bytes of payload against a
+        // 96-byte buffer. `abi.decode(ret, (string))` on this reverts; the length bound catches it.
+        bytes memory hugeLength = abi.encode(uint256(0x20), type(uint256).max, uint256(0));
+        assertTrue(_createWithVault("HugeLenToken", address(new UndecodableTypeVault(hugeLength))) != address(0));
+
+        // Non-canonical head offset pointing past the buffer — the head bound catches it.
+        bytes memory badOffset = abi.encode(uint256(0x60), uint256(13), uint256(0));
+        assertTrue(_createWithVault("BadOffsetToken", address(new UndecodableTypeVault(badOffset))) != address(0));
+
+        // Truncated final payload word: 13 bytes claimed, but the buffer stops mid-word.
+        bytes memory truncated = abi.encodePacked(uint256(0x20), uint256(13), bytes8("AaveEndo"));
+        assertTrue(_createWithVault("TruncToken", address(new UndecodableTypeVault(truncated))) != address(0));
+
+        // Shorter than the 64-byte minimum encoding of a lone dynamic return.
+        assertTrue(
+            _createWithVault("ShortRetToken", address(new UndecodableTypeVault(abi.encode(uint256(0x20)))))
+                != address(0)
+        );
+
+        // Empty return data (an EOA-like answer from a contract) — `ok` is true, length is 0.
+        assertTrue(_createWithVault("EmptyRetToken", address(new UndecodableTypeVault(""))) != address(0));
+    }
+
+    /// @notice Proves the guard is load-bearing, not decoration: the SAME vault that the factory
+    ///         tolerates takes down a caller using the `try…returns (string memory)` shape. The
+    ///         `catch` is powerless — the decode runs in the caller's frame, after the call returned
+    ///         successfully. This is why `_rejectEndowmentVault` uses staticcall + a guarded decode.
+    function test_tryReturnsShape_wouldBrickWhereStaticcallDoesNot() public {
+        TryTypeProbe probe = new TryTypeProbe();
+        address bad = address(new UndecodableTypeVault(abi.encode(uint256(0x20), type(uint256).max, uint256(0))));
+
+        vm.expectRevert();
+        probe.probe(bad);
+
+        assertTrue(_createWithVault("TryShapeToken", bad) != address(0), "guarded decode must fail open");
     }
 }

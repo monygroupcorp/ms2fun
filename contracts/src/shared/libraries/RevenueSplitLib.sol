@@ -46,7 +46,8 @@ library RevenueSplitLib {
     /// @notice Family-aware mint settlement split.
     /// @dev Liquidity-family collections flip the heavy leg to the creator (1% protocol / 19% vault /
     ///      80% creator — the same weights as `split`); yield-family (endowment) collections keep
-    ///      `splitMint`'s 1/80/19 (the 80% is refundable principal). Delegating to the two existing
+    ///      `splitMint`'s 1/80/19 (the 80% is permanent endowment principal — it is NOT refundable).
+    ///      Delegating to the two existing
     ///      primitives keeps the yield path byte-identical to today and conserves value on both
     ///      branches (each primitive absorbs rounding dust into `remainder`).
     /// @param amount The settlement amount to split.
@@ -71,6 +72,22 @@ library RevenueSplitLib {
             return false;
         }
         revert UnknownVaultFamily(vaultType);
+    }
+
+    /// @notice Is this vaultType in the YIELD (endowment) family? A pure membership test — it NEVER
+    ///         reverts, and every string outside the yield set (including unrecognized ones) is `false`.
+    /// @dev FAIL-OPEN BY CONTRACT, and that is why this exists instead of reusing `isLiquidityFamily`.
+    ///      `isLiquidityFamily` reverts `UnknownVaultFamily` on an unrecognized string, which is right
+    ///      where the family DECIDES a split (ERC1155/ERC721 settlement + withdraw: an unclassifiable
+    ///      vault there is a deploy-config error and must be caught loud). This predicate is for the
+    ///      opposite job — a create-time REFUSAL gate (see `ERC404Factory.createInstance`), where a
+    ///      revert-on-unknown would brick creation against a future, legitimately-registered vault type
+    ///      for an unrelated reason. Only a positively-identified endowment vault answers `true`; the
+    ///      master registry remains the curation control for everything else.
+    /// @param vaultType The vault's self-reported `vaultType()`.
+    /// @return endowmentFamily True only for "AaveEndowment"; false for every other string.
+    function isEndowmentFamily(string memory vaultType) internal pure returns (bool endowmentFamily) {
+        return keccak256(bytes(vaultType)) == _HASH_AAVE_ENDOWMENT;
     }
 
     // ── Graduation carve-out ───────────────────────────────────────────────────
