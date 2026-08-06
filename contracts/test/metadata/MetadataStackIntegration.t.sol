@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import { Test } from "forge-std/Test.sol";
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../src/factories/erc404/ERC404BondingOps.sol";
+import { InitModuleFailed } from "../../src/factories/erc404/ERC404BondingStorage.sol";
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -95,7 +97,10 @@ contract MetadataStackIntegrationTest is Test {
             })
         );
 
-        ERC404BondingInstance instImpl = new ERC404BondingInstance(address(0));
+        // A REAL Ops target, not `address(0)`: `initModule` is a delegatecall trampoline (noesis-149), and
+        // a delegatecall to a code-less address SUCCEEDS while writing nothing — the module slot would
+        // silently stay unwired and every assertion below would read `address(0)`.
+        ERC404BondingInstance instImpl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(instImpl),
@@ -288,7 +293,10 @@ contract MetadataStackIntegrationTest is Test {
     function test_initModule_onlyFactory() public {
         (ERC404BondingInstance b,) = _createStacked();
         vm.prank(address(0xBAD));
-        vm.expectRevert(bytes4(keccak256("OnlyFactory()")));
+        // noesis-149: `initModule` now runs in `ERC404BondingOps` behind the discard-returndata
+        // trampoline, so its `OnlyFactory()` reaches the caller as the entry point's generic error.
+        // The gate itself is unchanged — the call is still REJECTED, which is what this asserts.
+        vm.expectRevert(InitModuleFailed.selector);
         b.initModule(keccak256("metadata.resolver"), address(0x1234));
     }
 
@@ -296,7 +304,8 @@ contract MetadataStackIntegrationTest is Test {
         (ERC404BondingInstance b,) = _createStacked();
         // The factory already wired METADATA_RESOLVER during create → a second wire is rejected.
         vm.prank(address(factory));
-        vm.expectRevert(bytes4(keccak256("ModuleAlreadySet()")));
+        // noesis-149: `ModuleAlreadySet()` collapses into the trampoline's generic error (see above).
+        vm.expectRevert(InitModuleFailed.selector);
         b.initModule(keccak256("metadata.resolver"), address(0x1234));
     }
 
