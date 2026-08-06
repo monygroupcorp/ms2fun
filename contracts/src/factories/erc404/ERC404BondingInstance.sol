@@ -19,7 +19,23 @@ import {
     WithdrawDustFailed,
     StakeFailed,
     UnstakeFailed,
-    ClaimRewardsFailed
+    ClaimRewardsFailed,
+    OnlyFactory,
+    AlreadyInitialized,
+    InvalidOwner,
+    InitProtocolFailed,
+    SetMetadataURIFailed,
+    InitFreeMintFailed,
+    InitTierBandsFailed,
+    InitStakingFailed,
+    InitModuleFailed,
+    SetAgentDelegationFailed,
+    SetAgentDelegationFromFactoryFailed,
+    SetBondingOpenTimeFailed,
+    SetBondingMaturityTimeFailed,
+    SetBondingActiveFailed,
+    SetStyleFailed,
+    ActivateStakingFailed
 } from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
@@ -46,35 +62,30 @@ import { SafeResolverLib } from "../../metadata/SafeResolverLib.sol";
 // `FreeMintAlreadyClaimed`, `FreeMintExhausted`, `StakingModuleNotSet`, `NothingToWithdraw`,
 // `WithdrawFailed` — now live in `ERC404BondingStorage.sol` so BOTH sides compile them, alongside the
 // generic per-trampoline errors. The ones this contract still raises itself are imported above.
-error AlreadyInitialized();
+// NOTE (noesis-149): the same treatment for the thirteen externalized CONFIG bodies. `NotInitialized`,
+// `InvalidGlobalMessageRegistry`, `ModuleAlreadySet`, `TimeMustBeInFuture`, `OpenTimeMustBeSetFirst`,
+// `MaturityMustBeAfterOpenTime`, `OpenTimeNotSet`, `CannotActivateAfterLiquidityDeployed` and
+// `StakingAlreadyActive` are now raised ONLY on the Ops side and are declared there (in the shared
+// base). `OnlyFactory`, `AlreadyInitialized` and `InvalidOwner` moved to the base too but are STILL
+// raised here — by `initialize` and `initializeMetadata` — so they are imported above and stay
+// importable FROM this file by name, exactly as before.
 error AlreadyDeployed();
 error BondingNotActive();
-error CannotActivateAfterLiquidityDeployed();
 error ExceedsBonding();
 error InsufficientBalance();
-error InvalidGlobalMessageRegistry();
 error InvalidLiquidityDeployer();
 error InvalidMaxSupply();
 error InvalidMirror();
-error InvalidOwner();
 error InvalidRefund();
 error InvalidVault();
 error LowETHValue();
-error MaturityMustBeAfterOpenTime();
 error MaxCostExceeded();
 error NoReserve();
-error OpenTimeMustBeSetFirst();
-error OpenTimeNotSet();
-error TimeMustBeInFuture();
 error TransactionExpired();
 error AmountMustBePositive();
 error FreeMintNotInitialized();
-error StakingAlreadyActive();
 error PurchaseTooSmall();
-error OnlyFactory();
-error NotInitialized();
 error MetadataAlreadySet();
-error ModuleAlreadySet();
 error InvalidDeclaredMaxAllowance();
 
 /// @notice Read-side of the ERC404Factory's graduation-carve math. The instance reads it LIVE at
@@ -131,18 +142,14 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
 
     // ── Events ────────────────────────────────────────────────────────────────
     event BondingSale(address indexed user, uint256 amount, uint256 cost, bool isBuy);
-    event BondingOpenTimeSet(uint256 openTime);
-    event BondingMaturityTimeSet(uint256 maturityTime);
-    event BondingActiveChanged(bool active);
     event LiquidityDeployed(address indexed deployer, uint256 amountToken, uint256 amountETH);
     event BondingFeePaid(address indexed buyer, uint256 feeAmount);
-    event AgentDelegationChanged(bool enabled);
-    event StakingActivated(address indexed stakingModule);
-    event ModuleSet(bytes32 indexed role, address module);
 
     // `FreeMintClaimed` / `Staked` / `Unstaked` / `StakingRewardsClaimed` moved to
-    // `ERC404BondingStorage` (noesis-148): their emitters now run on the Ops side. Same signatures,
-    // same topic0 — they are still emitted from THIS instance's address under delegatecall.
+    // `ERC404BondingStorage` (noesis-148), and `BondingOpenTimeSet` / `BondingMaturityTimeSet` /
+    // `BondingActiveChanged` / `AgentDelegationChanged` / `StakingActivated` / `ModuleSet` moved there
+    // by noesis-149: their emitters now run on the Ops side. Same signatures, same topic0 — they are
+    // still emitted from THIS instance's address under delegatecall.
 
     // ┌─────────────────────────┐
     // │      Constructor        │
@@ -213,20 +220,34 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         _initializeDN404(bonding.maxSupply, address(this), mirror);
     }
 
+    // ── Config trampolines (noesis-149 D2 diet) ───────────────────────────────────────────────────
+    // The thirteen init/admin/setter bodies below were externalized into the immutable
+    // `ERC404BondingOps` and are reached by the same discard-returndata `delegatecall` trampoline
+    // noesis-091/-142/-148 established, so each runs in THIS instance's storage context. NO VALUE MOVES
+    // on any of these paths — they configure, they do not transfer — which is why D2 was the lowest-risk
+    // lever left. For every one of them:
+    //   * the selector and parameter types are byte-identical to the pre-move signature, so raw
+    //     `msg.data` forwards verbatim and the ABI is unchanged apart from the new generic errors;
+    //   * NO guard sits on this side — the factory-only check, the `onlyOwner`-equivalent check in
+    //     `setAgentDelegation`, and `_requireOwnerOrAgent` all live on the Ops side ONLY, resolving
+    //     against the same `msg.sender` (preserved under delegatecall), the same Ownable slot and the
+    //     same `masterRegistry`. A caller who could not call one of these before still cannot;
+    //   * returndata is DISCARDED (bubbling re-triggers the via_ir size cliff the diet exists to buy
+    //     back), so Ops's specific revert surfaces as this entry point's generic error. Every revert
+    //     still HAPPENS and the specific error stays visible in traces.
+    // Each entry point gets its OWN generic error — never a shared `ConfigFailed()` — so a failed
+    // `createInstance` still identifies which init step broke (`ERC404Factory` calls
+    // `initializeProtocol`, `initializeFreeMint`, `initializeStaking`, `initModule` and
+    // `setAgentDelegationFromFactory` during create).
+    // `initialize`, `initializeMetadata` and `migrateVault` deliberately KEPT their bodies here.
+
     /**
      * @notice Set protocol params. Called by factory immediately after initialize().
      */
-    function initializeProtocol(ProtocolParams calldata protocol) external {
-        if (msg.sender != factory) revert OnlyFactory();
-        if (!_initialized) revert NotInitialized();
-
-        if (protocol.globalMessageRegistry == address(0)) revert InvalidGlobalMessageRegistry();
-
-        masterRegistry = IMasterRegistry(protocol.masterRegistry);
-        globalMessageRegistry = IGlobalMessageRegistry(protocol.globalMessageRegistry);
-        protocolTreasury = protocol.protocolTreasury;
-        weth = protocol.weth;
-        bondingFeeBps = protocol.bondingFeeBps;
+    // slither-disable-next-line low-level-calls,unused-return
+    function initializeProtocol(ProtocolParams calldata) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert InitProtocolFailed();
     }
 
     /**
@@ -246,20 +267,17 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         metadataURI = tokenBaseURI_;
     }
 
-    function setMetadataURI(string calldata uri) external {
-        _requireOwnerOrAgent();
-        metadataURI = uri;
+    // slither-disable-next-line low-level-calls,unused-return
+    function setMetadataURI(string calldata) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetMetadataURIFailed();
     }
 
     /// @notice Set free mint params. Called by factory once after initialize().
-    /// @param allocation NFT count reserved for free claims (0 = disabled).
-    /// @param scope      Controls which entry points the gating module guards.
-    function initializeFreeMint(uint256 allocation, GatingScope scope) external {
-        if (msg.sender != factory) revert OnlyFactory();
-        if (_freeMintInitialized) revert AlreadyInitialized();
-        _freeMintInitialized = true;
-        freeMintAllocation = allocation;
-        gatingScope = scope;
+    // slither-disable-next-line low-level-calls,unused-return
+    function initializeFreeMint(uint256, GatingScope) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert InitFreeMintFailed();
     }
 
     /// @notice Seal this instance's Token Tiers ladder. Factory-only, set-once — mutable weights would
@@ -272,52 +290,31 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     ///         product's `band_N = S / w_N` (S = the tier-0 id count), rounded DOWN — with a 10-to-1
     ///         ladder on S = 4000 that is 400 ids for tier 1 and 40 for tier 2, each band able to hold
     ///         the entire supply if it all concentrated there.
-    /// @param  bands Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
-    function initTierBands(TierBand[] calldata bands) external {
-        if (msg.sender != factory) revert OnlyFactory();
-        if (_tiersSealed) revert AlreadyInitialized();
-        if (unit == 0) revert NotInitialized();
-        _tiersSealed = true;
-
-        uint256 n = bands.length;
-        if (n == 0) revert InvalidBand();
-        uint256 idLimit = maxSupply / unit; // == DN404's idLimit: totalSupply is fixed at maxSupply
-        uint256 prevEnd = idLimit; // bands start strictly above the ordinary id space
-        uint256 prevWeight = 1; // w_0
-        for (uint256 i = 0; i < n; i++) {
-            uint256 idStart = bands[i].idStart;
-            uint256 weight = bands[i].weight;
-            if (idStart <= prevEnd) revert InvalidBand();
-            if (weight <= prevWeight) revert InvalidBand();
-            uint256 size = idLimit / weight; // round down: a band never over-promises ids
-            if (size == 0) revert InvalidBand();
-            uint256 idEnd = idStart + size - 1;
-            // DN404's `_restrictNFTId` bounds ids to uint32 — an id above that is unownable.
-            if (idEnd > type(uint32).max) revert BandIdOverflow();
-            if (bands[i].idEnd != idEnd) revert InvalidBand();
-            tierBands.push(bands[i]);
-            bandNextFree[i] = idStart;
-            prevEnd = idEnd;
-            prevWeight = weight;
-        }
-        emit TierBandsSealed(n);
+    /// @dev    The seal's invariants (`_tiersSealed` set-once, ascending bands strictly above `idLimit`,
+    ///         `weight >= 2`, `idEnd` exact, uint32 bound) are load-bearing for the burn-safety hook and
+    ///         were moved BYTE-FOR-BYTE into `ERC404BondingOps.initTierBands`. Nothing was relaxed.
+    /// @dev    Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
+    // slither-disable-next-line low-level-calls,unused-return
+    function initTierBands(TierBand[] calldata) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert InitTierBandsFailed();
     }
 
     /// @notice Wire in a staking module. Called by factory after masterRegistry.registerInstance.
     ///         The module is dormant until the owner calls activateStaking().
-    function initializeStaking(address _stakingModule) external {
-        if (msg.sender != factory) revert OnlyFactory();
-        stakingModule = IERC404StakingModule(_stakingModule);
+    // slither-disable-next-line low-level-calls,unused-return
+    function initializeStaking(address) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert InitStakingFailed();
     }
 
     /// @notice Wire a generic keyed module pointer (e.g. METADATA_RESOLVER). Factory-only, set-once
     ///         per role — the resolution mechanism is sealed at construction (ADR-0006/0007). The
     ///         factory registry-validates `m` before calling; the read path stays defensive (try/catch).
-    function initModule(bytes32 role, address m) external {
-        if (msg.sender != factory) revert OnlyFactory();
-        if (modules[role] != address(0)) revert ModuleAlreadySet();
-        modules[role] = m;
-        emit ModuleSet(role, m);
+    // slither-disable-next-line low-level-calls,unused-return
+    function initModule(bytes32, address) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert InitModuleFailed();
     }
 
     /// @notice Expose the NFT owner so metadata modules can authorize holder writes.
@@ -328,16 +325,17 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     }
 
     /// @notice Toggle agent delegation for this instance
-    function setAgentDelegation(bool enabled) external {
-        if (msg.sender != owner()) revert InvalidOwner();
-        agentDelegationEnabled = enabled;
-        emit AgentDelegationChanged(enabled);
+    // slither-disable-next-line low-level-calls,unused-return
+    function setAgentDelegation(bool) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetAgentDelegationFailed();
     }
 
     /// @notice Called by factory to enable delegation for agent-created instances
+    // slither-disable-next-line low-level-calls,unused-return
     function setAgentDelegationFromFactory() external {
-        if (msg.sender != factory) revert OnlyFactory();
-        agentDelegationEnabled = true;
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetAgentDelegationFromFactoryFailed();
     }
 
     /// @notice Claim one free mint (= 1 NFT worth of tokens) at zero ETH cost.
@@ -359,47 +357,34 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     // │    Owner Functions      │
     // └─────────────────────────┘
 
-    /// @notice Authorize the caller for a non-custodial config/lifecycle action: the owner always,
-    ///         or a platform-vetted agent when this instance has agent delegation enabled. Value-
-    ///         extracting fns (withdrawDust/claimAllFees/migrateVault) do NOT use this — they stay
-    ///         bare `onlyOwner`. Revocation is live: `isAgent` is re-read at call time, so a revoked
-    ///         agent is blocked immediately even with a stale `agentDelegationEnabled == true`.
-    function _requireOwnerOrAgent() internal view {
-        if (msg.sender == owner()) return;
-        if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) return;
-        revert Unauthorized();
+    // `_requireOwnerOrAgent()` moved to the shared `ERC404BondingStorage` base (noesis-149), unchanged:
+    // ten of its callers now execute on the Ops side while `deployLiquidity` still calls it from here,
+    // and the base is the only way to guarantee both contracts compile the IDENTICAL gate.
+
+    // slither-disable-next-line low-level-calls,unused-return
+    function setBondingOpenTime(uint256) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetBondingOpenTimeFailed();
     }
 
-    // slither-disable-next-line timestamp
-    function setBondingOpenTime(uint256 timestamp) external {
-        _requireOwnerOrAgent();
-        if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
-        bondingOpenTime = timestamp;
-        emit BondingOpenTimeSet(timestamp);
+    // slither-disable-next-line low-level-calls,unused-return
+    function setBondingMaturityTime(uint256) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetBondingMaturityTimeFailed();
     }
 
-    // slither-disable-next-line timestamp
-    function setBondingMaturityTime(uint256 timestamp) external {
-        _requireOwnerOrAgent();
-        if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
-        if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
-        if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
-        bondingMaturityTime = timestamp;
-        emit BondingMaturityTimeSet(timestamp);
+    /// @dev `StateChanged` is still emitted, from Ops's qualified `emit IInstanceLifecycle.StateChanged`
+    ///      — same topic0, same emitting address (this instance) under delegatecall.
+    // slither-disable-next-line low-level-calls,unused-return
+    function setBondingActive(bool) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetBondingActiveFailed();
     }
 
-    function setBondingActive(bool _active) external {
-        _requireOwnerOrAgent();
-        if (bondingOpenTime == 0) revert OpenTimeNotSet();
-        if (_active && graduated) revert CannotActivateAfterLiquidityDeployed();
-        bondingActive = _active;
-        emit BondingActiveChanged(_active);
-        emit StateChanged(_active ? STATE_BONDING : STATE_PAUSED);
-    }
-
-    function setStyle(string memory uri) external {
-        _requireOwnerOrAgent();
-        styleUri = uri;
+    // slither-disable-next-line low-level-calls,unused-return
+    function setStyle(string memory) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetStyleFailed();
     }
 
     function migrateVault(address newVault) external onlyOwner {
@@ -408,13 +393,10 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     }
 
     /// @notice Activate staking for this instance. Irreversible. Requires stakingModule to be set.
+    // slither-disable-next-line low-level-calls,unused-return
     function activateStaking() external {
-        _requireOwnerOrAgent();
-        if (address(stakingModule) == address(0)) revert StakingModuleNotSet();
-        if (stakingActive) revert StakingAlreadyActive();
-        stakingActive = true;
-        stakingModule.enableStaking();
-        emit StakingActivated(address(stakingModule));
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert ActivateStakingFailed();
     }
 
     /// @notice Pull fees from every vault registered to this instance and settle the staking stream.

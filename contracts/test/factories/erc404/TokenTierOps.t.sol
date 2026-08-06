@@ -2,13 +2,14 @@
 pragma solidity ^0.8.24;
 
 import { Test, Vm } from "forge-std/Test.sol";
-import { ERC404BondingInstance, OnlyFactory, AlreadyInitialized } from "src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingInstance } from "src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "src/factories/erc404/ERC404BondingOps.sol";
 import {
     ERC404BondingStorage,
     TierOpFailed,
     InvalidBand,
-    BandIdOverflow
+    BandIdOverflow,
+    InitTierBandsFailed
 } from "src/factories/erc404/ERC404BondingStorage.sol";
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
 import { ILiquidityDeployerModule } from "src/interfaces/ILiquidityDeployerModule.sol";
@@ -82,7 +83,8 @@ contract TierOpsPolicyProbe is ERC404BondingOps {
  *          constant total supply, whatever sequence of tier ops runs.
  *      Ops-side reverts reach the caller as the generic `TierOpFailed()` (the trampoline discards
  *      returndata — noesis-091); the specific errors stay visible in traces. Seal-side reverts
- *      (`InvalidBand`, `BandIdOverflow`, `OnlyFactory`, `AlreadyInitialized`) surface verbatim.
+ *      (`InvalidBand`, `BandIdOverflow`, `OnlyFactory`, `AlreadyInitialized`) now do the same: noesis-149
+ *      moved `initTierBands` behind its own trampoline, so they surface as `InitTierBandsFailed()`.
  */
 contract TokenTierOpsTest is Test {
     ERC404BondingInstance token;
@@ -230,6 +232,30 @@ contract TokenTierOpsTest is Test {
     // ┌─────────────────────────┐
     // │   Seal (initTierBands)  │
     // └─────────────────────────┘
+    // noesis-149 moved `initTierBands` into `ERC404BondingOps` behind the discard-returndata
+    // trampoline, so EVERY seal-invariant rejection below — `OnlyFactory`, `AlreadyInitialized`,
+    // `InvalidBand`, `BandIdOverflow` — now reaches the caller as the single generic
+    // `InitTierBandsFailed()`. The checks themselves moved byte-for-byte and still fire; only the
+    // selector the caller sees collapsed. Because that collapse costs the tests their ability to tell
+    // one rejection from another, each rejecting case additionally asserts the ladder is STILL UNSEALED
+    // afterwards (`_assertLadderUnsealed`) — otherwise "reverted" and "half-sealed then reverted" would
+    // be indistinguishable, and a rejection assertion that a gutted `initTierBands` would also satisfy
+    // proves nothing. `test_seal_storesLadderAndCursors` is the positive control on the same seam: a
+    // VALID ladder does seal through the trampoline.
+
+    /// @dev No ladder exists: tier 1 is out of range for `bandOutstanding`, whose body stayed in the
+    ///      instance and therefore still surfaces `InvalidBand` verbatim.
+    function _assertLadderUnsealed() internal {
+        vm.expectRevert(InvalidBand.selector);
+        token.bandOutstanding(1);
+    }
+
+    /// @dev The seal is rejected AND nothing was written.
+    function _expectSealRejected(ERC404BondingStorage.TierBand[] memory bands) internal {
+        vm.expectRevert(InitTierBandsFailed.selector);
+        token.initTierBands(bands);
+        _assertLadderUnsealed();
+    }
 
     function test_seal_storesLadderAndCursors() public {
         _seal();
@@ -258,19 +284,23 @@ contract TokenTierOpsTest is Test {
 
     function test_seal_revertsForNonFactory() public {
         vm.prank(user1);
-        vm.expectRevert(OnlyFactory.selector);
-        token.initTierBands(_defaultBands());
+        _expectSealRejected(_defaultBands());
     }
 
     function test_seal_revertsOnSecondCall() public {
         _seal();
-        vm.expectRevert(AlreadyInitialized.selector);
+        vm.expectRevert(InitTierBandsFailed.selector);
         token.initTierBands(_defaultBands());
+        // Falsifiable: the FIRST ladder is still the one in storage, untouched by the rejected re-seal.
+        (uint32 s0, uint32 e0, uint32 w0) = token.tierBands(0);
+        assertEq(s0, T1_START, "tier1 start survives the rejected re-seal");
+        assertEq(e0, T1_END, "tier1 end survives the rejected re-seal");
+        assertEq(w0, 10, "tier1 weight survives the rejected re-seal");
+        assertEq(token.bandNextFree(0), T1_START, "cursor was not re-initialized");
     }
 
     function test_seal_revertsOnEmptyLadder() public {
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(new ERC404BondingStorage.TierBand[](0));
+        _expectSealRejected(new ERC404BondingStorage.TierBand[](0));
     }
 
     /// @notice A band reaching into the ORDINARY id space is rejected: that is exactly what would make a
@@ -279,39 +309,34 @@ contract TokenTierOpsTest is Test {
         ERC404BondingStorage.TierBand[] memory bands = new ERC404BondingStorage.TierBand[](1);
         bands[0] =
             ERC404BondingStorage.TierBand({ idStart: uint32(ID_LIMIT), idEnd: uint32(ID_LIMIT + 99), weight: 10 });
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     function test_seal_revertsOnOverlappingBands() public {
         ERC404BondingStorage.TierBand[] memory bands = _defaultBands();
         bands[1].idStart = T1_END; // overlaps tier 1
         bands[1].idEnd = T1_END + 9;
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     function test_seal_revertsOnNonIncreasingWeight() public {
         ERC404BondingStorage.TierBand[] memory bands = _defaultBands();
         bands[1].weight = 10; // equal to tier 1
         bands[1].idEnd = T2_START + 99;
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     function test_seal_revertsOnWeightBelowTwo() public {
         ERC404BondingStorage.TierBand[] memory bands = new ERC404BondingStorage.TierBand[](1);
         bands[0] =
             ERC404BondingStorage.TierBand({ idStart: T1_START, idEnd: uint32(T1_START + ID_LIMIT - 1), weight: 1 });
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     function test_seal_revertsOnWrongBandSize() public {
         ERC404BondingStorage.TierBand[] memory bands = _defaultBands();
         bands[0].idEnd = T1_END + 1; // one id too many for w = 10
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     /// @notice DN404's `_restrictNFTId` bounds ids to uint32 — a band running past it would be unownable.
@@ -319,16 +344,14 @@ contract TokenTierOpsTest is Test {
         ERC404BondingStorage.TierBand[] memory bands = new ERC404BondingStorage.TierBand[](1);
         bands[0] =
             ERC404BondingStorage.TierBand({ idStart: type(uint32).max - 50, idEnd: type(uint32).max, weight: 10 });
-        vm.expectRevert(BandIdOverflow.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     /// @notice A weight so large the band would be empty is rejected rather than sealed as a dead tier.
     function test_seal_revertsOnZeroSizedBand() public {
         ERC404BondingStorage.TierBand[] memory bands = new ERC404BondingStorage.TierBand[](1);
         bands[0] = ERC404BondingStorage.TierBand({ idStart: T1_START, idEnd: T1_START, weight: uint32(ID_LIMIT + 1) });
-        vm.expectRevert(InvalidBand.selector);
-        token.initTierBands(bands);
+        _expectSealRejected(bands);
     }
 
     // ┌─────────────────────────┐

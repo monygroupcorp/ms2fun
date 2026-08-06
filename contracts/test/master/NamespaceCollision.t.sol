@@ -12,6 +12,7 @@ import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsCompu
 import { ERC1155Factory } from "../../src/factories/erc1155/ERC1155Factory.sol";
 import { GlobalMessageRegistry } from "../../src/registry/GlobalMessageRegistry.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../src/factories/erc404/ERC404BondingOps.sol";
 import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
@@ -150,7 +151,7 @@ contract NamespaceCollisionTest is Test {
         );
 
         // Deploy ERC404Factory
-        ERC404BondingInstance nsImpl = new ERC404BondingInstance(address(0));
+        ERC404BondingInstance nsImpl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         erc404Factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
                 implementation: address(nsImpl),
