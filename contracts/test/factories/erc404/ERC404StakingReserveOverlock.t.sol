@@ -2,7 +2,10 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { ERC404BondingInstance, NothingToWithdraw } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+// noesis-148: `withdrawDust`'s body moved to ERC404BondingOps behind a discard-returndata trampoline,
+// so its `NothingToWithdraw` guard reaches the caller as the generic `WithdrawDustFailed()`.
+import { WithdrawDustFailed } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { ERC404StakingModule } from "../../../src/factories/erc404/ERC404StakingModule.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
@@ -248,7 +251,7 @@ contract ERC404StakingReserveOverlockTest is Test {
         // balance == reserve + stakingReserve → withdrawDust finds no surplus and must not release
         // any staker-owed ETH.
         vm.prank(owner);
-        vm.expectRevert(NothingToWithdraw.selector);
+        vm.expectRevert(WithdrawDustFailed.selector); // Ops: NothingToWithdraw
         inst.withdrawDust();
         assertEq(inst.stakingReserve(), delta, "reserve untouched: owed ETH stays locked");
 

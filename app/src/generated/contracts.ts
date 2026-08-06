@@ -4636,7 +4636,7 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'gatingData', internalType: 'bytes', type: 'bytes' }],
+    inputs: [{ name: '', internalType: 'bytes', type: 'bytes' }],
     name: 'claimFreeMint',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -5175,7 +5175,7 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'stake',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -5297,7 +5297,7 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
-    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'unstake',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -5774,14 +5774,14 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'BondingNotActive' },
   { type: 'error', inputs: [], name: 'BondingNotConfigured' },
   { type: 'error', inputs: [], name: 'CannotActivateAfterLiquidityDeployed' },
+  { type: 'error', inputs: [], name: 'ClaimFeesFailed' },
+  { type: 'error', inputs: [], name: 'ClaimRewardsFailed' },
   { type: 'error', inputs: [], name: 'DNAlreadyInitialized' },
   { type: 'error', inputs: [], name: 'DNNotInitialized' },
   { type: 'error', inputs: [], name: 'EscrowReleaseFailed' },
   { type: 'error', inputs: [], name: 'ExceedsBonding' },
   { type: 'error', inputs: [], name: 'FnSelectorNotRecognized' },
-  { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
-  { type: 'error', inputs: [], name: 'FreeMintDisabled' },
-  { type: 'error', inputs: [], name: 'FreeMintExhausted' },
+  { type: 'error', inputs: [], name: 'FreeMintFailed' },
   { type: 'error', inputs: [], name: 'GatingNotAllowed' },
   { type: 'error', inputs: [], name: 'InsufficientAllowance' },
   { type: 'error', inputs: [], name: 'InsufficientBalance' },
@@ -5809,7 +5809,6 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
   { type: 'error', inputs: [], name: 'NotInitialized' },
   { type: 'error', inputs: [], name: 'NothingToClaim' },
-  { type: 'error', inputs: [], name: 'NothingToWithdraw' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
   { type: 'error', inputs: [], name: 'OpenTimeMustBeSetFirst' },
   { type: 'error', inputs: [], name: 'OpenTimeNotSet' },
@@ -5825,6 +5824,7 @@ export const erc404BondingInstanceAbi = [
     ],
     name: 'SmartTransferFailed',
   },
+  { type: 'error', inputs: [], name: 'StakeFailed' },
   { type: 'error', inputs: [], name: 'StakingAlreadyActive' },
   { type: 'error', inputs: [], name: 'StakingModuleNotSet' },
   { type: 'error', inputs: [], name: 'TierOpFailed' },
@@ -5837,7 +5837,8 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'TransferFromIncorrectOwner' },
   { type: 'error', inputs: [], name: 'TransferToZeroAddress' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
-  { type: 'error', inputs: [], name: 'WithdrawFailed' },
+  { type: 'error', inputs: [], name: 'UnstakeFailed' },
+  { type: 'error', inputs: [], name: 'WithdrawDustFailed' },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -9560,23 +9561,6 @@ export const iStakedBalanceReaderAbi = [
     name: 'stakedBalance',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
-  },
-] as const
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// IStakingTotals
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-export const iStakingTotalsAbi = [
-  {
-    type: 'function',
-    inputs: [],
-    name: 'settleAndReleaseLeak',
-    outputs: [
-      { name: 'totalStaked', internalType: 'uint256', type: 'uint256' },
-      { name: 'leaked', internalType: 'uint256', type: 'uint256' },
-    ],
-    stateMutability: 'nonpayable',
   },
 ] as const
 
@@ -23919,37 +23903,6 @@ export const useReadIStakedBalanceReaderStakedBalance =
   /*#__PURE__*/ createUseReadContract({
     abi: iStakedBalanceReaderAbi,
     functionName: 'stakedBalance',
-  })
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStakingTotalsAbi}__
- */
-export const useWriteIStakingTotals = /*#__PURE__*/ createUseWriteContract({
-  abi: iStakingTotalsAbi,
-})
-
-/**
- * Wraps __{@link useWriteContract}__ with `abi` set to __{@link iStakingTotalsAbi}__ and `functionName` set to `"settleAndReleaseLeak"`
- */
-export const useWriteIStakingTotalsSettleAndReleaseLeak =
-  /*#__PURE__*/ createUseWriteContract({
-    abi: iStakingTotalsAbi,
-    functionName: 'settleAndReleaseLeak',
-  })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStakingTotalsAbi}__
- */
-export const useSimulateIStakingTotals =
-  /*#__PURE__*/ createUseSimulateContract({ abi: iStakingTotalsAbi })
-
-/**
- * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link iStakingTotalsAbi}__ and `functionName` set to `"settleAndReleaseLeak"`
- */
-export const useSimulateIStakingTotalsSettleAndReleaseLeak =
-  /*#__PURE__*/ createUseSimulateContract({
-    abi: iStakingTotalsAbi,
-    functionName: 'settleAndReleaseLeak',
   })
 
 /**
