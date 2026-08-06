@@ -22,8 +22,8 @@ export function Exec404Page() {
 
       <header className={styles.header}>
         <p className={styles.kicker}>The genesis collection · the origin of noesis</p>
-        <div className={styles.icon} aria-hidden>
-          ✕
+        <div className={styles.icon}>
+          <img src="/exec-executives.png" alt="CULT EXECUTIVES" className={styles.iconImg} />
         </div>
         <h1 className={styles.title}>
           CULT EXECUTIVES <span className={styles.ticker}>EXEC</span>
