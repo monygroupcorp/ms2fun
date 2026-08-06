@@ -5793,6 +5793,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'InvalidLiquidityDeployer' },
   { type: 'error', inputs: [], name: 'InvalidMaxSupply' },
   { type: 'error', inputs: [], name: 'InvalidMirror' },
+  { type: 'error', inputs: [], name: 'InvalidOps' },
   { type: 'error', inputs: [], name: 'InvalidOwner' },
   { type: 'error', inputs: [], name: 'InvalidRefund' },
   { type: 'error', inputs: [], name: 'InvalidUnit' },
