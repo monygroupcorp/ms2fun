@@ -297,8 +297,11 @@ export function AddEditionForm({ instance, onAdded }: AddEditionFormProps) {
           disabled={isBusy}
         />
         <span className={styles.hint}>
-          Number of zero-cost mints reserved for this edition. For a limited edition it is drawn
-          from supply, so it cannot exceed it. Each wallet may claim one free mint per edition.
+          Number of zero-cost mints allowed for this edition — a ceiling, capped at supply, not a
+          reserve. Free claims and paid mints draw from the same supply on a first-come basis, so if
+          paid buyers sell out the edition first, remaining free claims will revert. Each wallet may
+          claim one free mint per edition. On a Limited dynamic edition, each free claim also
+          advances the price curve for later paid buyers.
         </span>
       </div>
 
