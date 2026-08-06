@@ -71,6 +71,52 @@ error StakeFailed();
 error UnstakeFailed();
 error ClaimRewardsFailed();
 
+// ── Config-path errors (shared by the instance + the delegatecall Ops — noesis-149 D2 diet) ─────
+// The thirteen init/admin/setter bodies (`initializeProtocol`, `setMetadataURI`, `initializeFreeMint`,
+// `initTierBands`, `initializeStaking`, `initModule`, `setAgentDelegation`,
+// `setAgentDelegationFromFactory`, `setBondingOpenTime`, `setBondingMaturityTime`, `setBondingActive`,
+// `setStyle`, `activateStaking`) live in ERC404BondingOps and revert with these specific errors
+// INTERNALLY; the instance's discard-returndata trampoline surfaces one generic error per entry point
+// (below). Moved VERBATIM out of `ERC404BondingInstance.sol` so BOTH sides compile them. The three that
+// bodies STILL in the instance raise — `AlreadyInitialized` / `InvalidOwner` in `initialize`,
+// `OnlyFactory` in `initialize` and `initializeMetadata` — surface verbatim from those paths, exactly
+// as before, and stay importable from `ERC404BondingInstance.sol` (it re-exports them by name).
+// `StakingModuleNotSet` is declared above with the value-path errors: `activateStaking` shares it with
+// the staking trampolines.
+error OnlyFactory();
+error NotInitialized();
+error AlreadyInitialized();
+error InvalidOwner();
+error InvalidGlobalMessageRegistry();
+error ModuleAlreadySet();
+error TimeMustBeInFuture();
+error OpenTimeMustBeSetFirst();
+error MaturityMustBeAfterOpenTime();
+error OpenTimeNotSet();
+error CannotActivateAfterLiquidityDeployed();
+error StakingAlreadyActive();
+
+// ── Generic errors surfaced by the thirteen config trampolines (noesis-149) ─────────────────────
+// One per entry point, on the same discard-returndata contract noesis-148 established for the value
+// paths. The four the FACTORY calls during `createInstance` — `InitProtocolFailed`,
+// `InitFreeMintFailed`, `InitModuleFailed`, `InitStakingFailed` — deliberately get their OWN selector
+// rather than one shared `ConfigFailed()`, so a failed launch still identifies WHICH init step broke,
+// for the creator and for us. `InitTierBandsFailed` is on the same footing (the ladder seal is
+// factory-driven in the create path noesis-141 wires).
+error InitProtocolFailed();
+error SetMetadataURIFailed();
+error InitFreeMintFailed();
+error InitTierBandsFailed();
+error InitStakingFailed();
+error InitModuleFailed();
+error SetAgentDelegationFailed();
+error SetAgentDelegationFromFactoryFailed();
+error SetBondingOpenTimeFailed();
+error SetBondingMaturityTimeFailed();
+error SetBondingActiveFailed();
+error SetStyleFailed();
+error ActivateStakingFailed();
+
 /// @notice `claimAllFees`'s single settle round-trip to the staking module. Returns the instance's
 ///         current `totalStaked` — the instance credits its staking-liability reserve only when the
 ///         module can distribute (`totalStaked > 0`), mirroring `recordFeesReceived`'s own guard — AND
@@ -241,6 +287,18 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     event Unstaked(address indexed user, uint256 amount, uint256 rewardPaid);
     event StakingRewardsClaimed(address indexed user, uint256 amount);
 
+    // ── Config-path events (emitted by Ops in the instance's context under delegatecall) ─────────
+    // Moved here from `ERC404BondingInstance` by noesis-149 (D2 diet) so the emitting bodies compile on
+    // the Ops side. Moving an event declaration does NOT change its topic0 — the signature is
+    // byte-identical, so every existing indexer/test filter keeps matching, and the events are still
+    // emitted from THIS instance's address under delegatecall.
+    event BondingOpenTimeSet(uint256 openTime);
+    event BondingMaturityTimeSet(uint256 maturityTime);
+    event BondingActiveChanged(bool active);
+    event AgentDelegationChanged(bool enabled);
+    event StakingActivated(address indexed stakingModule);
+    event ModuleSet(bytes32 indexed role, address module);
+
     // ── DN404 unit override (shared: DN404 internals in both the instance and Ops read this) ────
     function _unit() internal view override returns (uint256) {
         return unit;
@@ -260,6 +318,28 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     ///      noesis-143 / the `_skipNFTDefault` lesson from noesis-142).
     function _debitStakingReserve(uint256 amount) internal {
         stakingReserve = amount >= stakingReserve ? 0 : stakingReserve - amount;
+    }
+
+    // ┌──────────────────────────────────────────────────┐
+    // │  Config auth gate (shared, noesis-149)           │
+    // └──────────────────────────────────────────────────┘
+
+    /// @notice Authorize the caller for a non-custodial config/lifecycle action: the owner always,
+    ///         or a platform-vetted agent when this instance has agent delegation enabled. Value-
+    ///         extracting fns (withdrawDust/claimAllFees/migrateVault) do NOT use this — they stay
+    ///         bare `onlyOwner`. Revocation is live: `isAgent` is re-read at call time, so a revoked
+    ///         agent is blocked immediately even with a stale `agentDelegationEnabled == true`.
+    /// @dev Was `internal view` on `ERC404BondingInstance`; moved to the shared base (logic UNCHANGED)
+    ///      by noesis-149 because most of its callers — the ten owner/agent config setters — now execute
+    ///      on the Ops side, while `deployLiquidity` still calls it from the instance. Declaring it in
+    ///      the base is what guarantees both contracts compile the IDENTICAL gate (the `_skipNFTDefault`
+    ///      lesson from noesis-142, the `_debitStakingReserve` precedent from noesis-148). `msg.sender`
+    ///      is preserved across `delegatecall`, so `owner()` (Ownable's shared fixed slot),
+    ///      `agentDelegationEnabled` and `masterRegistry` all resolve exactly as they did in-instance.
+    function _requireOwnerOrAgent() internal view {
+        if (msg.sender == owner()) return;
+        if (agentDelegationEnabled && masterRegistry.isAgent(msg.sender)) return;
+        revert Unauthorized();
     }
 
     // ┌──────────────────────────────────────┐

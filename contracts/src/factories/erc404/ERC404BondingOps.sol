@@ -23,17 +23,34 @@ import {
     FreeMintExhausted,
     StakingModuleNotSet,
     NothingToWithdraw,
-    WithdrawFailed
+    WithdrawFailed,
+    BandIdOverflow,
+    OnlyFactory,
+    NotInitialized,
+    AlreadyInitialized,
+    InvalidOwner,
+    InvalidGlobalMessageRegistry,
+    ModuleAlreadySet,
+    TimeMustBeInFuture,
+    OpenTimeMustBeSetFirst,
+    MaturityMustBeAfterOpenTime,
+    OpenTimeNotSet,
+    CannotActivateAfterLiquidityDeployed,
+    StakingAlreadyActive
 } from "./ERC404BondingStorage.sol";
 import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
 import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IMasterRegistry } from "../../master/interfaces/IMasterRegistry.sol";
+import { IGlobalMessageRegistry } from "../../registry/interfaces/IGlobalMessageRegistry.sol";
 import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol";
+import { IInstanceLifecycle, STATE_BONDING, STATE_PAUSED } from "../../interfaces/IInstanceLifecycle.sol";
 import { GatingScope } from "../../gating/IGatingModule.sol";
 
 /**
  * @title ERC404BondingOps
  * @notice Externalized bodies for `ERC404BondingInstance` (EIP-170 diet — noesis-091 for reroll,
- *         noesis-142 for the tier ops, noesis-148 for the six value-path functions). This contract is
+ *         noesis-142 for the tier ops, noesis-148 for the six value-path functions, noesis-149 for the
+ *         thirteen init/admin/setter config functions). This contract is
  *         NEVER deployed as a token nor called directly: the master instance reaches every function here
  *         via a discard-returndata `delegatecall`, so each body executes in the instance's own storage
  *         context. It inherits the identical `ERC404BondingStorage` base as the instance, so the
@@ -399,6 +416,193 @@ contract ERC404BondingOps is ERC404BondingStorage {
         _debitStakingReserve(rewardAmount);
         SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
         emit StakingRewardsClaimed(msg.sender, rewardAmount);
+    }
+
+    // ┌────────────────────────────────────────┐
+    // │  Config paths (delegatecall) — 149 D2  │
+    // └────────────────────────────────────────┘
+    // The thirteen init/admin/setter bodies below were MOVED VERBATIM out of `ERC404BondingInstance` by
+    // noesis-149 to buy back EIP-170 headroom. Nothing about them changed: same order, same checks, same
+    // gates. NO VALUE MOVES on any of these paths — no ETH transfer, no coin transfer, no curve
+    // arithmetic, no staking liability — which is exactly why D2 was taken before any further value-path
+    // move. Every dependency is shared STORAGE in the base (`factory`, `masterRegistry`, `modules`, the
+    // tier ladder, the bonding clock), and `msg.sender` is preserved across `delegatecall`, so the
+    // factory-only gates (`msg.sender != factory`), the owner gate in `setAgentDelegation`, and the
+    // shared `_requireOwnerOrAgent` all resolve against exactly the caller they did in-instance.
+    // Guards live HERE ONLY — the instance trampolines carry none.
+    //
+    // `migrateVault` is deliberately NOT here: it is value-extracting (bare `onlyOwner`, alongside
+    // `withdrawDust`/`claimAllFees`) and is noesis-148's CONTROL proving the trampoline error-collapse is
+    // an artifact rather than a weakened gate. `initialize` and `initializeMetadata` also stay.
+
+    /// @dev Structural mirror of `ERC404BondingInstance.ProtocolParams`, field-for-field. Ops needs the
+    ///      identical calldata tuple to decode `initializeProtocol`'s argument, and the ABI selector is
+    ///      STRUCTURAL — `initializeProtocol((address,address,address,uint256,address))` either way — so
+    ///      the two declarations are interchangeable at the wire and the ABI does not change.
+    ///      Deliberately NOT hoisted into the shared `ERC404BondingStorage` base: Solidity does not
+    ///      expose an inherited struct through the derived contract's name, so hoisting would break every
+    ///      `ERC404BondingInstance.ProtocolParams` reference — including `ERC404Factory` and the bonding
+    ///      invariant suite, both outside this item's scope. `ERC404BondingOpsSelectorParity.t.sol`
+    ///      asserts the two selectors stay equal, so the mirror cannot silently drift.
+    struct ProtocolParams {
+        address globalMessageRegistry;
+        address protocolTreasury;
+        address masterRegistry;
+        uint256 bondingFeeBps;
+        address weth;
+    }
+
+    /**
+     * @notice Set protocol params. Called by factory immediately after initialize().
+     */
+    function initializeProtocol(ProtocolParams calldata protocol) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        if (!_initialized) revert NotInitialized();
+
+        if (protocol.globalMessageRegistry == address(0)) revert InvalidGlobalMessageRegistry();
+
+        masterRegistry = IMasterRegistry(protocol.masterRegistry);
+        globalMessageRegistry = IGlobalMessageRegistry(protocol.globalMessageRegistry);
+        protocolTreasury = protocol.protocolTreasury;
+        weth = protocol.weth;
+        bondingFeeBps = protocol.bondingFeeBps;
+    }
+
+    function setMetadataURI(string calldata uri) external {
+        _requireOwnerOrAgent();
+        metadataURI = uri;
+    }
+
+    /// @notice Set free mint params. Called by factory once after initialize().
+    /// @param allocation NFT count reserved for free claims (0 = disabled).
+    /// @param scope      Controls which entry points the gating module guards.
+    function initializeFreeMint(uint256 allocation, GatingScope scope) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        if (_freeMintInitialized) revert AlreadyInitialized();
+        _freeMintInitialized = true;
+        freeMintAllocation = allocation;
+        gatingScope = scope;
+    }
+
+    /// @notice Seal this instance's Token Tiers ladder. Factory-only, set-once — mutable weights would
+    ///         retroactively reprice every outstanding band NFT, so there is no owner setter.
+    /// @dev    `bands[i]` describes tier `i + 1`; tier 0 is the implicit ordinary id space `[1..idLimit]`
+    ///         with `w_0 = 1` and is never stored. Every band must sit ABOVE `idLimit` — that is what
+    ///         makes band ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
+    ///         `_wrapNFTId(.., idLimit)` where `idLimit = totalSupply / unit`, fixed for this instance's
+    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is the
+    ///         product's `band_N = S / w_N` (S = the tier-0 id count), rounded DOWN — with a 10-to-1
+    ///         ladder on S = 4000 that is 400 ids for tier 1 and 40 for tier 2, each band able to hold
+    ///         the entire supply if it all concentrated there.
+    /// @dev    THE LADDER SEAL. Every check below is load-bearing for T2/T3: the burn-safety hook's
+    ///         `id < tierBands[0].idStart` early-out assumes ASCENDING bands strictly above `idLimit`,
+    ///         and its `(weight - 1)` escrow arithmetic assumes `weight >= 2`. Moved byte-for-byte.
+    /// @param  bands Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
+    function initTierBands(TierBand[] calldata bands) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        if (_tiersSealed) revert AlreadyInitialized();
+        if (unit == 0) revert NotInitialized();
+        _tiersSealed = true;
+
+        uint256 n = bands.length;
+        if (n == 0) revert InvalidBand();
+        uint256 idLimit = maxSupply / unit; // == DN404's idLimit: totalSupply is fixed at maxSupply
+        uint256 prevEnd = idLimit; // bands start strictly above the ordinary id space
+        uint256 prevWeight = 1; // w_0
+        for (uint256 i = 0; i < n; i++) {
+            uint256 idStart = bands[i].idStart;
+            uint256 weight = bands[i].weight;
+            if (idStart <= prevEnd) revert InvalidBand();
+            if (weight <= prevWeight) revert InvalidBand();
+            uint256 size = idLimit / weight; // round down: a band never over-promises ids
+            if (size == 0) revert InvalidBand();
+            uint256 idEnd = idStart + size - 1;
+            // DN404's `_restrictNFTId` bounds ids to uint32 — an id above that is unownable.
+            if (idEnd > type(uint32).max) revert BandIdOverflow();
+            if (bands[i].idEnd != idEnd) revert InvalidBand();
+            tierBands.push(bands[i]);
+            bandNextFree[i] = idStart;
+            prevEnd = idEnd;
+            prevWeight = weight;
+        }
+        emit TierBandsSealed(n);
+    }
+
+    /// @notice Wire in a staking module. Called by factory after masterRegistry.registerInstance.
+    ///         The module is dormant until the owner calls activateStaking().
+    function initializeStaking(address _stakingModule) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        stakingModule = IERC404StakingModule(_stakingModule);
+    }
+
+    /// @notice Wire a generic keyed module pointer (e.g. METADATA_RESOLVER). Factory-only, set-once
+    ///         per role — the resolution mechanism is sealed at construction (ADR-0006/0007). The
+    ///         factory registry-validates `m` before calling; the read path stays defensive (try/catch).
+    function initModule(bytes32 role, address m) external {
+        if (msg.sender != factory) revert OnlyFactory();
+        if (modules[role] != address(0)) revert ModuleAlreadySet();
+        modules[role] = m;
+        emit ModuleSet(role, m);
+    }
+
+    /// @notice Toggle agent delegation for this instance
+    function setAgentDelegation(bool enabled) external {
+        if (msg.sender != owner()) revert InvalidOwner();
+        agentDelegationEnabled = enabled;
+        emit AgentDelegationChanged(enabled);
+    }
+
+    /// @notice Called by factory to enable delegation for agent-created instances
+    function setAgentDelegationFromFactory() external {
+        if (msg.sender != factory) revert OnlyFactory();
+        agentDelegationEnabled = true;
+    }
+
+    // slither-disable-next-line timestamp
+    function setBondingOpenTime(uint256 timestamp) external {
+        _requireOwnerOrAgent();
+        if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
+        bondingOpenTime = timestamp;
+        emit BondingOpenTimeSet(timestamp);
+    }
+
+    // slither-disable-next-line timestamp
+    function setBondingMaturityTime(uint256 timestamp) external {
+        _requireOwnerOrAgent();
+        if (timestamp <= block.timestamp) revert TimeMustBeInFuture();
+        if (bondingOpenTime == 0) revert OpenTimeMustBeSetFirst();
+        if (timestamp <= bondingOpenTime) revert MaturityMustBeAfterOpenTime();
+        bondingMaturityTime = timestamp;
+        emit BondingMaturityTimeSet(timestamp);
+    }
+
+    /// @dev `StateChanged` is declared on `IInstanceLifecycle`, which the INSTANCE implements and Ops
+    ///      deliberately does not (inheriting it would drag `instanceType()` onto Ops for no reason).
+    ///      The qualified `emit IInstanceLifecycle.StateChanged(...)` form (legal since solc 0.8.21;
+    ///      this tree is pinned at 0.8.28) emits the byte-identical topic0 from the instance's address
+    ///      under delegatecall — same event, same log, no interface inheritance.
+    function setBondingActive(bool _active) external {
+        _requireOwnerOrAgent();
+        if (bondingOpenTime == 0) revert OpenTimeNotSet();
+        if (_active && graduated) revert CannotActivateAfterLiquidityDeployed();
+        bondingActive = _active;
+        emit BondingActiveChanged(_active);
+        emit IInstanceLifecycle.StateChanged(_active ? STATE_BONDING : STATE_PAUSED);
+    }
+
+    function setStyle(string memory uri) external {
+        _requireOwnerOrAgent();
+        styleUri = uri;
+    }
+
+    /// @notice Activate staking for this instance. Irreversible. Requires stakingModule to be set.
+    function activateStaking() external {
+        _requireOwnerOrAgent();
+        if (address(stakingModule) == address(0)) revert StakingModuleNotSet();
+        if (stakingActive) revert StakingAlreadyActive();
+        stakingActive = true;
+        stakingModule.enableStaking();
+        emit StakingActivated(address(stakingModule));
     }
 
     // ┌─────────────────────────┐
