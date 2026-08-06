@@ -42,7 +42,7 @@ export const forkAddresses = {
   // Metadata-resolution stack singletons (ADR-0006/0007).
   MetadataResolverRouter: c.MetadataResolverRouter as `0x${string}`,
   MetadataOverlayModule: c.MetadataOverlayModule as `0x${string}`,
-  TierRevealModule: c.TierRevealModule as `0x${string}`,
+  TokenTierBandResolver: c.TokenTierBandResolver as `0x${string}`,
   // Graduated-swap (B19): zRouter drives embedded post-graduation swaps; the three LP deployer
   // module singletons let the UI detect which venue an instance graduated to (match against
   // instance.liquidityDeployer()) and read that venue's pool params.
