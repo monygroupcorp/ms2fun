@@ -218,6 +218,34 @@ contract ERC404AgentDelegationTest is Test {
         assertEq(_bytes4(ret), Ownable.Unauthorized.selector, "expected Unauthorized (auth gate)");
     }
 
+    /// Assert `caller` cannot sweep REAL surplus ETH out of `inst` through the `withdrawDust` trampoline.
+    /// @dev Load-bearing: with a zero balance `withdrawDust` reverts `NothingToWithdraw` for EVERY caller
+    ///      (owner included), so a bare rejection assertion on a fresh instance passes even with
+    ///      `onlyOwner` deleted from `ERC404BondingOps.withdrawDust`. Funding the instance first makes the
+    ///      assertion falsifiable: an ungated sweep would SUCCEED here. The owner sweep at the end is the
+    ///      positive control, so this is a full A/B across the noesis-148 delegatecall seam.
+    function _assertCannotSweepSurplus(address inst, address caller) internal {
+        ERC404BondingInstance i = ERC404BondingInstance(payable(inst));
+        assertEq(inst.balance, 0, "fresh instance holds no ETH");
+        assertEq(i.reserve() + i.stakingReserve(), 0, "no locked liability: the full 1 ether is sweepable");
+        vm.deal(inst, 1 ether);
+
+        _assertRejectedWith(
+            inst,
+            caller,
+            abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector),
+            WithdrawDustFailed.selector
+        );
+        assertEq(inst.balance, 1 ether, "a rejected sweep must move nothing");
+
+        address owner_ = i.owner();
+        uint256 ownerBefore = owner_.balance;
+        vm.prank(owner_);
+        i.withdrawDust();
+        assertEq(inst.balance, 0, "the owner CAN sweep the same surplus");
+        assertEq(owner_.balance - ownerBefore, 1 ether, "surplus lands with the owner");
+    }
+
     /// Assert the call CLEARED the auth gate: it either succeeds or reverts with a domain precondition
     /// error — never `Unauthorized`. Proves the caller is authorized without driving heavy preconditions.
     function _assertPassesAuth(address inst, address caller, bytes memory data) internal {
@@ -289,12 +317,7 @@ contract ERC404AgentDelegationTest is Test {
         address instance = _create(agent, "No Value", person);
         assertTrue(ERC404BondingInstance(payable(instance)).agentDelegationEnabled());
 
-        _assertRejectedWith(
-            instance,
-            agent,
-            abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector),
-            WithdrawDustFailed.selector
-        );
+        _assertCannotSweepSurplus(instance, agent);
         _assertRejectedWith(
             instance,
             agent,
@@ -309,12 +332,8 @@ contract ERC404AgentDelegationTest is Test {
     /// @notice Same boundary for a caller with no relationship to the instance at all.
     function test_random_caller_cannot_call_value_fns() public {
         address instance = _create(agent, "No Value Nobody", person);
-        _assertRejectedWith(
-            instance,
-            nobody,
-            abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector),
-            WithdrawDustFailed.selector
-        );
+
+        _assertCannotSweepSurplus(instance, nobody);
         _assertRejectedWith(
             instance,
             nobody,
