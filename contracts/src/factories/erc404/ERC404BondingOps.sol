@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {
     ERC404BondingStorage,
+    IStakingTotals,
     InsufficientTokenBalance,
     TokenAmountMustBePositive,
     TokenAmountMustRepresentNFT,
@@ -12,20 +13,37 @@ import {
     BandExhausted,
     NotBandId,
     NotTierZeroId,
-    TierOpFailed
+    TierOpFailed,
+    BondingEnded,
+    BondingNotConfigured,
+    TooEarly,
+    GatingNotAllowed,
+    FreeMintDisabled,
+    FreeMintAlreadyClaimed,
+    FreeMintExhausted,
+    StakingModuleNotSet,
+    NothingToWithdraw,
+    WithdrawFailed
 } from "./ERC404BondingStorage.sol";
+import { SmartTransferLib } from "../../libraries/SmartTransferLib.sol";
+import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
+import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol";
+import { GatingScope } from "../../gating/IGatingModule.sol";
 
 /**
  * @title ERC404BondingOps
- * @notice Externalized reroll body for `ERC404BondingInstance` (EIP-170 diet — noesis-091). This
- *         contract is NEVER deployed as a token nor called directly: the master instance reaches it via
- *         a discard-returndata `delegatecall`, so `rerollSelectedNFTs` executes in the instance's own
- *         storage context. It inherits the identical `ERC404BondingStorage` base as the instance, so the
+ * @notice Externalized bodies for `ERC404BondingInstance` (EIP-170 diet — noesis-091 for reroll,
+ *         noesis-142 for the tier ops, noesis-148 for the six value-path functions). This contract is
+ *         NEVER deployed as a token nor called directly: the master instance reaches every function here
+ *         via a discard-returndata `delegatecall`, so each body executes in the instance's own storage
+ *         context. It inherits the identical `ERC404BondingStorage` base as the instance, so the
  *         storage layout is byte-identical (CI-gated) and the shared DN404 `$` / Ownable owner /
  *         ReentrancyGuard slots resolve to the same fixed hashed slots across the delegatecall boundary.
  * @dev    HARD CONSTRAINT: Ops declares ZERO storage of its own outside the inherited base. Adding any
  *         state variable here is a storage-collision bug — put new state in `ERC404BondingStorage`.
  *         `_ops` immutable is deliberately NOT here: immutables live in code, not storage.
+ * @dev    `msg.sender` and `msg.value` are preserved across `delegatecall`, so `onlyOwner` (Ownable's
+ *         shared slot) and every staker-keyed module call resolve exactly as they did in the instance.
  */
 contract ERC404BondingOps is ERC404BondingStorage {
     // ┌─────────────────────────┐
@@ -256,6 +274,131 @@ contract ERC404BondingOps is ERC404BondingStorage {
         ids[0] = id;
         (bool ok, bytes memory ret) = $.mirrorERC721.call(abi.encodeWithSelector(0x144027d3, from, to, ids));
         if (!ok || ret.length != 32 || abi.decode(ret, (uint256)) != 1) revert TierOpFailed();
+    }
+
+    // ┌────────────────────────────────────────┐
+    // │  Value paths (delegatecall) — 148 D3   │
+    // └────────────────────────────────────────┘
+    // The six bodies below were MOVED VERBATIM out of `ERC404BondingInstance` by noesis-148 to buy back
+    // EIP-170 headroom. Nothing about them changed: same order, same checks, same guards. Every
+    // dependency they have is shared STORAGE in the base (`masterRegistry`, `stakingModule`,
+    // `stakingActive`, `reserve`, `stakingReserve`, `weth`, the free-mint counters) — Ops has no
+    // constructor and no immutables, so there is nothing that could read differently on this side.
+    // `nonReentrant` and `onlyOwner` live HERE ONLY: the reentrancy guard engages through the shared
+    // fixed slot under delegatecall, and guarding both ends would self-revert.
+
+    /// @notice Claim one free mint (= 1 NFT worth of tokens) at zero ETH cost.
+    /// @param gatingData Passed to gatingModule.canMint if scope requires it.
+    // slither-disable-next-line reentrancy-no-eth
+    function claimFreeMint(bytes calldata gatingData) external nonReentrant {
+        if (freeMintAllocation == 0) revert FreeMintDisabled();
+        // Free mints are part of the bonding curve: once graduated the curve is closed, so a late
+        // claim would mint tokens against a drained curve / already-deployed pool (noesis-061 F2).
+        if (graduated) revert BondingEnded();
+        // Free mints are part of the curve, not a pre-sale — they cannot be claimed before it opens
+        // (same open reference the buy/graduation paths use).
+        if (bondingOpenTime == 0) revert BondingNotConfigured();
+        if (block.timestamp < bondingOpenTime) revert TooEarly();
+        if (freeMintClaimed[msg.sender]) revert FreeMintAlreadyClaimed();
+        if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
+
+        if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.PAID_ONLY) {
+            // Single curve → editionId 0; bondingOpenTime is the authoritative open reference.
+            (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, 0, unit, bondingOpenTime, gatingData);
+            if (!allowed) revert GatingNotAllowed();
+            if (permanent) gatingActive = false;
+            gatingModule.onMint(msg.sender, 0, unit);
+        }
+
+        freeMintClaimed[msg.sender] = true;
+        freeMintsClaimed++;
+        _transfer(address(this), msg.sender, unit);
+        emit FreeMintClaimed(msg.sender);
+    }
+
+    // slither-disable-next-line calls-loop,unused-return
+    function claimAllFees() external onlyOwner nonReentrant {
+        uint256 before = address(this).balance;
+        address[] memory allVaults = masterRegistry.getInstanceVaults(address(this));
+        for (uint256 i = 0; i < allVaults.length; i++) {
+            // Some vaults (e.g. AlignmentEndowmentVault) intentionally revert NotSupported() on
+            // claimFees() — they have no pull-claim model. Skip those silently so one such vault
+            // can't brick fee delivery for the whole instance; the balance-delta below still
+            // credits whatever the supporting vaults DID push.
+            try IAlignmentVault(payable(allVaults[i])).claimFees() { } catch { }
+        }
+        if (stakingActive) {
+            address sm = address(stakingModule); // cache: one SLOAD for the module calls below
+            uint256 delta = address(this).balance - before;
+            if (delta != 0) {
+                IERC404StakingModule(sm).recordFeesReceived(delta);
+            }
+            // Single round-trip (noesis-127): settle the stream, read totalStaked for the noesis-061
+            // credit guard, and release any un-accruable stream leak (ETH a prior stream scheduled during
+            // a zero-stake gap that no staker can ever accrue). Folding the guard-read and the release
+            // into one call keeps the instance under EIP-170.
+            (uint256 totalStaked, uint256 leaked) = IStakingTotals(sm).settleAndReleaseLeak();
+            // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
+            // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
+            // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
+            // `delta` is a conservative over-estimate of the true liability (the module truncates
+            // rewardPerToken), the safe direction for a sweep guard.
+            if (delta != 0 && totalStaked != 0) {
+                stakingReserve += delta;
+            }
+            // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it
+            // (a grief-locked remainder is thus always clearable by the owner). `_debitStakingReserve`
+            // clamps, so a 0 leak — the case while a live staker is still accruing — is a safe no-op.
+            _debitStakingReserve(leaked);
+        }
+    }
+
+    /// @notice Recover ETH held by the instance that is NOT part of the bonding `reserve`.
+    /// @dev Surplus ETH can accumulate here — e.g. staking fees pushed by a vault while
+    ///      totalStaked == 0 (the staking module can't distribute them, so they sit in the
+    ///      instance balance). Only the balance ABOVE the tracked `reserve` AND the tracked
+    ///      `stakingReserve` is withdrawable; `reserve` backs sellBonding refunds and
+    ///      `stakingReserve` is ETH owed to stakers — neither is ever sweepable (noesis-061 F1).
+    /// @dev `claimAllFees` first releases any un-accruable stream leak out of `stakingReserve`
+    ///      (noesis-127), so by the time this runs `stakingReserve` holds only genuinely-owed ETH and
+    ///      the previously-locked gap remainder has become recoverable surplus here.
+    function withdrawDust() external onlyOwner nonReentrant {
+        uint256 bal = address(this).balance;
+        uint256 locked = reserve + stakingReserve;
+        // Guard against underflow: never withdraw if balance is at/below the locked liabilities.
+        if (bal <= locked) revert NothingToWithdraw();
+        uint256 surplus = bal - locked;
+        (bool ok,) = payable(owner()).call{ value: surplus }("");
+        if (!ok) revert WithdrawFailed();
+    }
+
+    /// @notice Stake `amount` tokens. Tokens are held by this contract while staked.
+    function stake(uint256 amount) external nonReentrant {
+        if (!stakingActive) revert StakingModuleNotSet();
+        _transfer(msg.sender, address(this), amount);
+        stakingModule.recordStake(msg.sender, amount);
+        emit Staked(msg.sender, amount);
+    }
+
+    /// @notice Unstake `amount` tokens and auto-claim any pending ETH rewards.
+    function unstake(uint256 amount) external nonReentrant {
+        if (!stakingActive) revert StakingModuleNotSet();
+        uint256 rewardAmount = stakingModule.recordUnstake(msg.sender, amount);
+        _transfer(address(this), msg.sender, amount);
+        if (rewardAmount > 0) {
+            _debitStakingReserve(rewardAmount);
+            SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
+        }
+        emit Unstaked(msg.sender, amount, rewardAmount);
+    }
+
+    /// @notice Claim pending ETH staking rewards without unstaking.
+    function claimStakingRewards() external nonReentrant {
+        if (!stakingActive) revert StakingModuleNotSet();
+        uint256 rewardAmount = stakingModule.computeClaim(msg.sender);
+        _debitStakingReserve(rewardAmount);
+        SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
+        emit StakingRewardsClaimed(msg.sender, rewardAmount);
     }
 
     // ┌─────────────────────────┐

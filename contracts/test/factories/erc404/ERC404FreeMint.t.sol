@@ -3,12 +3,12 @@ pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
-import {
-    ERC404BondingInstance,
-    FreeMintDisabled,
-    FreeMintAlreadyClaimed,
-    FreeMintExhausted
-} from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+// noesis-148: the `claimFreeMint` body moved into ERC404BondingOps behind a discard-returndata
+// trampoline, so Ops's specific reverts (FreeMintDisabled / FreeMintAlreadyClaimed / FreeMintExhausted)
+// reach the caller as the generic `FreeMintFailed()` — the same collapse `rerollSelectedNFTs` has had
+// since noesis-091. The revert STILL happens; only its name at the boundary changed.
+import { FreeMintFailed } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
@@ -194,7 +194,7 @@ contract ERC404FreeMintTest is Test {
     function test_freeMint_revertsWhenDisabled() public {
         ERC404BondingInstance inst = _deploy(0, GatingScope.BOTH, address(0));
         vm.prank(user1);
-        vm.expectRevert(FreeMintDisabled.selector);
+        vm.expectRevert(FreeMintFailed.selector); // Ops: FreeMintDisabled
         inst.claimFreeMint("");
     }
 
@@ -204,7 +204,7 @@ contract ERC404FreeMintTest is Test {
         vm.prank(user1);
         inst.claimFreeMint("");
         vm.prank(user1);
-        vm.expectRevert(FreeMintAlreadyClaimed.selector);
+        vm.expectRevert(FreeMintFailed.selector); // Ops: FreeMintAlreadyClaimed
         inst.claimFreeMint("");
     }
 
@@ -215,7 +215,7 @@ contract ERC404FreeMintTest is Test {
         vm.prank(user1);
         inst.claimFreeMint("");
         vm.prank(user2);
-        vm.expectRevert(FreeMintExhausted.selector);
+        vm.expectRevert(FreeMintFailed.selector); // Ops: FreeMintExhausted
         inst.claimFreeMint("");
     }
 
@@ -250,8 +250,11 @@ contract ERC404FreeMintTest is Test {
         assertEq(instance.freeMintsClaimed(), 1);
 
         // A non-allowlisted claimer is rejected — proving the free path is gated under BOTH.
+        // The gating module's `InvalidProof` reaches the caller as the generic `FreeMintFailed()`:
+        // `claimFreeMint` runs in ERC404BondingOps behind a discard-returndata trampoline (noesis-148).
+        // The gate still fires and the claim still reverts — only the boundary error name changed.
         vm.prank(makeAddr("nonlistedFree"));
-        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        vm.expectRevert(FreeMintFailed.selector); // gating module: InvalidProof
         instance.claimFreeMint(data);
     }
 
@@ -352,9 +355,11 @@ contract ERC404FreeMintTest is Test {
         assertEq(inst.freeMintsClaimed(), 1);
         assertEq(merkle.claimed(address(inst), 0, user1), inst.unit());
 
-        // Non-allowlisted intruder replaying user1's proof → rejected.
+        // Non-allowlisted intruder replaying user1's proof → rejected. Surfaces as the generic
+        // `FreeMintFailed()` (noesis-148 trampoline); the module's `InvalidProof` is what actually
+        // reverted, and stays visible in the trace.
         vm.prank(makeAddr("intruder404"));
-        vm.expectRevert(MerkleGatingModule.InvalidProof.selector);
+        vm.expectRevert(FreeMintFailed.selector); // gating module: InvalidProof
         inst.claimFreeMint(data);
     }
 
