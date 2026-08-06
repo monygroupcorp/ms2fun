@@ -27,6 +27,24 @@ export interface AlignmentTargetPickerProps {
   isError: boolean
   selectedVault: `0x${string}` | undefined
   onSelectVault: (address: `0x${string}` | undefined) => void
+  /**
+   * Opt-in family filter — vault families this project type cannot pair with. Omitted (the default)
+   * means every family is offered, so existing call sites are unchanged.
+   *
+   * Used by the ERC404 path, where `ERC404Factory.createInstance` hard-reverts
+   * `EndowmentVaultNotSupported` against a yield/endowment vault (its graduation split is
+   * family-blind). Hiding those venues here keeps the wizard from offering a pairing the chain will
+   * refuse.
+   *
+   * Note this is deliberately STRICTER than the contract: `deriveVaultFlavor` buckets an UNKNOWN
+   * vaultType as `'yield'`, so excluding `'yield'` also hides unknown types, while the contract gate
+   * fails OPEN on them and would let one through. That asymmetry is safe in this direction — hiding a
+   * venue is not reverting, and a genuinely new venue reaches the picker by teaching
+   * `deriveVaultFlavor` about it, not by leaking through the yield bucket.
+   */
+  // `| undefined` is explicit for `exactOptionalPropertyTypes` — call sites pass the prop
+  // unconditionally and switch it off with `undefined` on the non-ERC404 paths.
+  excludeFamilies?: readonly VaultFamily[] | undefined
 }
 
 /** One selectable target card — logo (from metadataURI) + title + description + vault count. */
@@ -83,25 +101,42 @@ export function AlignmentTargetPicker({
   isError,
   selectedVault,
   onSelectVault,
+  excludeFamilies,
 }: AlignmentTargetPickerProps) {
   const { targets, isPending: targetsPending } = useAlignmentTargets()
   const [targetId, setTargetId] = useState<bigint | undefined>(undefined)
 
+  // Excluded families, keyed as a stable string so an inline `excludeFamilies={['yield']}` prop (a
+  // fresh array identity every render) doesn't invalidate the memos below on every render.
+  const excludeKey = (excludeFamilies ?? []).join(',')
+  const isExcluded = (family: VaultFamily) => excludeKey.split(',').includes(family)
+
+  // Everything downstream — groups, venue affordances, per-target counts — reads this, so an excluded
+  // family is unreachable in the picker rather than merely unrendered in one place.
+  const offeredVaults = useMemo(() => {
+    const excluded = new Set(excludeKey.split(','))
+    return (vaults ?? []).filter((v) => !excluded.has(v.family))
+  }, [vaults, excludeKey])
+
   // Vaults for the chosen target, grouped family → venue.
   const targetVaults = useMemo(
-    () => (vaults ?? []).filter((v) => targetId !== undefined && v.targetId === targetId),
-    [vaults, targetId],
+    () => offeredVaults.filter((v) => targetId !== undefined && v.targetId === targetId),
+    [offeredVaults, targetId],
   )
   const groups = useMemo(() => groupVaultsByFamily(targetVaults), [targetVaults])
   const presentVenues = useMemo(() => new Set(targetVaults.map((v) => v.venue)), [targetVaults])
-  const missingVenues = ALL_VENUES.filter((c) => !presentVenues.has(c.venue))
+  // Excluded families drop out of the "create it now" affordance too — offering to deploy a vault the
+  // create call would then refuse is worse than not offering it.
+  const missingVenues = ALL_VENUES.filter(
+    (c) => !isExcluded(c.family) && !presentVenues.has(c.venue),
+  )
 
-  // A vault count per target for the roster cards.
+  // A vault count per target for the roster cards — counts only what this project type can pick.
   const countByTarget = useMemo(() => {
     const m = new Map<bigint, number>()
-    for (const v of vaults ?? []) m.set(v.targetId, (m.get(v.targetId) ?? 0) + 1)
+    for (const v of offeredVaults) m.set(v.targetId, (m.get(v.targetId) ?? 0) + 1)
     return m
-  }, [vaults])
+  }, [offeredVaults])
 
   // Rehydrate the chosen community from the lifted vault selection. `targetId` is local, so a step
   // re-entry remounts this blank while `selectedVault` still holds — without this the community grid
