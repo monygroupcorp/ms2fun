@@ -34,17 +34,36 @@ fi
 # Storage-layout equality. `forge inspect ... storageLayout --json` labels each entry with the QUERIED
 # contract and embeds compiler AST node-ids in type identifiers; those are not layout. We compare only
 # the slot/offset/type/label structure with astId/contract dropped and the numeric AST-id suffixes stripped.
+#
+# `forge inspect` reads the CACHED artifact, and a plain `forge build` — or a `forge test` run after
+# one — can leave that artifact without a `storageLayout` field, at which point the inspect errors.
+# This used to pass VACUOUSLY: `norm` ran inside process substitution, so the error went to stderr and
+# `diff` compared two EMPTY outputs, which are equal. The gate reported PASS on exactly the item class
+# it exists to guard (noesis-143, which adds two state variables). Two fixes below: drop the artifact
+# first so `forge inspect` regenerates just that contract (sub-second), and capture into variables so a
+# failure is a hard non-zero exit instead of a silent match.
 norm() {
-  forge inspect "$1" storageLayout --json \
+  local artifact out
+  artifact="out/$(basename "${1%%:*}")/${1##*:}.json"
+  rm -f "$artifact"
+  out="$(forge inspect "$1" storageLayout --json \
     | jq -S 'walk(if type == "object" then del(.astId, .contract) else . end) | {storage: [.storage[] | {label, offset, slot, type}], types}' \
-    | sed -E 's/\)[0-9]+/)/g'
+    | sed -E 's/\)[0-9]+/)/g')"
+  if [ -z "$out" ] || [ "$out" = "null" ]; then
+    echo "FAIL: could not read a storage layout for $1 (try 'forge clean')" >&2
+    return 1
+  fi
+  printf '%s\n' "$out"
 }
 
-if diff -q <(norm "$INST") <(norm "$OPS") >/dev/null; then
+instLayout="$(norm "$INST")"
+opsLayout="$(norm "$OPS")"
+
+if [ "$instLayout" = "$opsLayout" ]; then
   echo "PASS: ERC404BondingInstance and ERC404BondingOps storage layouts are identical (Ops adds zero storage outside the shared base)."
 else
   echo "FAIL: storage layouts DIFFER — Ops declared storage outside ERC404BondingStorage (collision risk):" >&2
-  diff <(norm "$INST") <(norm "$OPS") >&2 || true
+  diff <(printf '%s\n' "$instLayout") <(printf '%s\n' "$opsLayout") >&2 || true
   exit 1
 fi
 
