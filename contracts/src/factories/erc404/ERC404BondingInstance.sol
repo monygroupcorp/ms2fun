@@ -76,6 +76,12 @@ error InsufficientBalance();
 error InvalidLiquidityDeployer();
 error InvalidMaxSupply();
 error InvalidMirror();
+/// @dev The `ops` delegatecall target has no code. `delegatecall` to a code-less address returns
+///      SUCCESS and writes nothing, so every trampoline on this contract would become a silent
+///      no-op — including `initializeProtocol`/`initModule` (called by the factory during
+///      `createInstance`) and `initTierBands` (the ladder SEAL). `address(0)` is a subset of this
+///      check; a non-zero EOA is exactly as broken. Constructor-only, so it costs no runtime bytes.
+error InvalidOps();
 error InvalidRefund();
 error InvalidVault();
 error LowETHValue();
@@ -157,7 +163,14 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
 
     /// @param ops The shared, immutable `ERC404BondingOps` delegatecall target for the externalized
     ///        reroll body. Deployed BEFORE the master and passed here; non-upgradeable (no setter).
+    /// @dev Reverts `InvalidOps` if `ops` carries no code (noesis-150). Every externalized entry point
+    ///      is a `delegatecall` trampoline whose only failure check is the returned boolean, and a
+    ///      `delegatecall` to a code-less address returns `true` having written nothing — so a master
+    ///      built with a bad `ops` would produce launches that report success and are silently broken.
+    ///      Deploy-time misconfiguration guard: it runs in creation code, so the EIP-170 subject
+    ///      (`deployedBytecode`) is unchanged.
     constructor(address ops) {
+        if (ops.code.length == 0) revert InvalidOps();
         _initialized = true;
         _ops = ops;
     }
