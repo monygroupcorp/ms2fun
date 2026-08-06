@@ -614,6 +614,10 @@ export function WizardPage() {
                 isError={vaults.isError}
                 selectedVault={vault}
                 onSelectVault={setVault}
+                // ERC404 + endowment is not a selectable pairing: `ERC404Factory.createInstance`
+                // hard-reverts `EndowmentVaultNotSupported` against a yield-family vault. Don't
+                // offer what the chain will refuse. ERC1155/ERC721 keep every family.
+                excludeFamilies={typeKey === 'erc404' ? ['yield'] : undefined}
               />
               {vault && (
                 <>
