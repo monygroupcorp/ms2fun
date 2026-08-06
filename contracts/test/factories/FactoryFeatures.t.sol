@@ -12,6 +12,7 @@ import { ERC721AuctionFactory } from "../../src/factories/erc721/ERC721AuctionFa
 
 // Supporting contracts needed to construct factories
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../src/factories/erc404/ERC404BondingOps.sol";
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
 import { ComponentRegistry } from "../../src/registry/ComponentRegistry.sol";
@@ -62,7 +63,7 @@ contract FactoryFeaturesTest is Test {
         LaunchManager launchMgr = new LaunchManager(protocol);
         CurveParamsComputer curveComp = new CurveParamsComputer(protocol);
         ComponentRegistry compReg = _deployComponentRegistry();
-        ERC404BondingInstance impl = new ERC404BondingInstance(address(0));
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
 
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
@@ -118,7 +119,7 @@ contract FactoryFeaturesTest is Test {
         LaunchManager launchMgr = new LaunchManager(protocol);
         CurveParamsComputer curveComp = new CurveParamsComputer(protocol);
         ComponentRegistry compReg = _deployComponentRegistry();
-        ERC404BondingInstance impl = new ERC404BondingInstance(address(0));
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
 
         ERC404Factory factory = new ERC404Factory(
             ERC404Factory.CoreConfig({
