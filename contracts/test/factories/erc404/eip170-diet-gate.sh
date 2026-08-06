@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# EIP-170 + storage-layout gate for the reroll externalization diet (noesis-091).
+# EIP-170 + headroom-floor + storage-layout gate for the externalization diet (noesis-091, -142, -148).
 #
-# Two hard assertions, both must pass:
+# Three hard assertions, all must pass:
 #   1. The master ERC404BondingInstance runtime bytecode is < 24,576 (EIP-170). It is the deployable
 #      implementation behind every EIP-1167 clone, so its runtime is the EIP-170 subject.
-#   2. ERC404BondingInstance and ERC404BondingOps have an IDENTICAL storage layout — i.e. Ops declares
+#   2. It keeps at least MIN_HEADROOM bytes of EIP-170 headroom. This is a FLOOR, not a line-ball:
+#      the pattern in this contract is silent re-accumulation between audits (24,902B pre-091 ->
+#      24,511B -> 21,386B after 140 -> back to 24,317B / 259B of headroom by 143). noesis-148's D3
+#      move bought the instance back to 22,426B (2,150B of headroom), and rth's D-3 ruling
+#      (2026-08-06) hard-codes a 2,000B floor here so the next three items cannot quietly eat it.
+#      Tripping this floor is a BLOCK: re-spec against the remaining budget, or take the next diet
+#      lever (D2, the 14 init/admin setters). It is NOT to be lowered to make a diff pass.
+#   3. ERC404BondingInstance and ERC404BondingOps have an IDENTICAL storage layout — i.e. Ops declares
 #      ZERO storage outside the shared ERC404BondingStorage base. A var added to Ops (or the instance)
 #      outside the base is a storage-collision bug across the delegatecall boundary; this catches it.
 #
@@ -12,6 +19,7 @@
 set -euo pipefail
 
 LIMIT=24576
+MIN_HEADROOM=2000
 INST="src/factories/erc404/ERC404BondingInstance.sol:ERC404BondingInstance"
 OPS="src/factories/erc404/ERC404BondingOps.sol:ERC404BondingOps"
 
@@ -19,11 +27,18 @@ hexbytes() { local hx; hx="$(forge inspect "$1" deployedBytecode | tr -d '\n')";
 
 isize="$(hexbytes "$INST")"
 osize="$(hexbytes "$OPS")"
-echo "ERC404BondingInstance runtime: ${isize}B (limit ${LIMIT}, headroom $(( LIMIT - isize ))B)"
+headroom=$(( LIMIT - isize ))
+echo "ERC404BondingInstance runtime: ${isize}B (limit ${LIMIT}, headroom ${headroom}B, floor ${MIN_HEADROOM}B)"
 echo "ERC404BondingOps          runtime: ${osize}B"
 
 if [ "$isize" -ge "$LIMIT" ]; then
   echo "FAIL: ERC404BondingInstance ${isize}B >= EIP-170 limit ${LIMIT}B" >&2
+  exit 1
+fi
+if [ "$headroom" -lt "$MIN_HEADROOM" ]; then
+  echo "FAIL: ERC404BondingInstance headroom ${headroom}B < floor ${MIN_HEADROOM}B (noesis-148 D-3 ruling)." >&2
+  echo "      Do NOT lower this floor. Re-spec against the remaining budget, or take the next diet" >&2
+  echo "      lever (D2: externalize the 14 init/admin setters, measured -3,298B)." >&2
   exit 1
 fi
 if [ "$osize" -ge "$LIMIT" ]; then

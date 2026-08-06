@@ -7,6 +7,7 @@ import { LibClone } from "solady/utils/LibClone.sol";
 import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
+import { WithdrawDustFailed, ClaimFeesFailed } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
 import { ComponentRegistry } from "../../../src/registry/ComponentRegistry.sol";
@@ -195,15 +196,18 @@ contract ERC404AgentDelegationTest is Test {
     }
 
     /// Calldata for the value-extracting fns that MUST stay owner-only.
-    function _valueCalls() internal pure returns (bytes[] memory calls) {
-        calls = new bytes[](3);
-        calls[0] = abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector);
-        calls[1] = abi.encodeWithSelector(ERC404BondingInstance.claimAllFees.selector);
-        calls[2] = abi.encodeWithSelector(ERC404BondingInstance.migrateVault.selector, address(0xCAFE));
-    }
-
     function _bytes4(bytes memory b) internal pure returns (bytes4 s) {
         if (b.length >= 4) s = bytes4(b);
+    }
+
+    /// Assert the call reverted with EXACTLY `expected`. Used for the value paths whose bodies moved
+    /// to `ERC404BondingOps` (noesis-148): the owner gate lives on the Ops side and its `Unauthorized`
+    /// is collapsed by the instance trampoline into that entry point's generic error.
+    function _assertRejectedWith(address inst, address caller, bytes memory data, bytes4 expected) internal {
+        vm.prank(caller);
+        (bool ok, bytes memory ret) = inst.call(data);
+        assertFalse(ok, "expected revert");
+        assertEq(_bytes4(ret), expected, "expected the owner gate's rejection");
     }
 
     /// Assert the call was rejected by the auth gate (Unauthorized), regardless of any later precondition.
@@ -272,13 +276,54 @@ contract ERC404AgentDelegationTest is Test {
     }
 
     /// Config-only boundary: value-extracting fns stay owner-only — a delegated agent STILL reverts.
+    /// @dev noesis-148 moved `withdrawDust` / `claimAllFees` into `ERC404BondingOps`. The `onlyOwner`
+    ///      gate moved WITH them and still resolves against the same caller and the same Ownable slot
+    ///      (`msg.sender` is preserved under `delegatecall`) — but the instance's discard-returndata
+    ///      trampoline collapses Ownable's `Unauthorized` into that entry point's generic error. So the
+    ///      assertion is per-selector rather than blanket-`Unauthorized`: what matters is that the
+    ///      delegated agent is REJECTED on every value path, which is asserted exactly here.
+    ///      `migrateVault` kept its body (and its bare `onlyOwner`) in the instance, so it still
+    ///      surfaces `Unauthorized` verbatim — proof the collapse is a trampoline artifact, not a
+    ///      weakened gate.
     function test_delegated_agent_cannot_call_value_fns() public {
         address instance = _create(agent, "No Value", person);
         assertTrue(ERC404BondingInstance(payable(instance)).agentDelegationEnabled());
-        bytes[] memory calls = _valueCalls();
-        for (uint256 i = 0; i < calls.length; i++) {
-            _assertUnauthorized(instance, agent, calls[i]);
-        }
+
+        _assertRejectedWith(
+            instance,
+            agent,
+            abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector),
+            WithdrawDustFailed.selector
+        );
+        _assertRejectedWith(
+            instance,
+            agent,
+            abi.encodeWithSelector(ERC404BondingInstance.claimAllFees.selector),
+            ClaimFeesFailed.selector
+        );
+        _assertUnauthorized(
+            instance, agent, abi.encodeWithSelector(ERC404BondingInstance.migrateVault.selector, address(0xCAFE))
+        );
+    }
+
+    /// @notice Same boundary for a caller with no relationship to the instance at all.
+    function test_random_caller_cannot_call_value_fns() public {
+        address instance = _create(agent, "No Value Nobody", person);
+        _assertRejectedWith(
+            instance,
+            nobody,
+            abi.encodeWithSelector(ERC404BondingInstance.withdrawDust.selector),
+            WithdrawDustFailed.selector
+        );
+        _assertRejectedWith(
+            instance,
+            nobody,
+            abi.encodeWithSelector(ERC404BondingInstance.claimAllFees.selector),
+            ClaimFeesFailed.selector
+        );
+        _assertUnauthorized(
+            instance, nobody, abi.encodeWithSelector(ERC404BondingInstance.migrateVault.selector, address(0xCAFE))
+        );
     }
 
     // ── EIP-170 size gate: the ERC404 instance must stay under the 24,576B ceiling ──
