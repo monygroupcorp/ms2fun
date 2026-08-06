@@ -6,6 +6,7 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingOps } from "../../src/factories/erc404/ERC404BondingOps.sol";
 import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
 import { ILiquidityDeployerModule } from "../../src/interfaces/ILiquidityDeployerModule.sol";
@@ -52,7 +53,14 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
 
         vm.startPrank(owner);
 
-        ERC404BondingInstance impl = new ERC404BondingInstance(address(0));
+        // A REAL Ops address is load-bearing here. `initializeProtocol`, `setBondingOpenTime` and
+        // `setBondingActive` are `_ops.delegatecall(msg.data)` trampolines (noesis-149), and a
+        // delegatecall to a CODE-LESS address returns SUCCESS while writing nothing. With `address(0)`
+        // this whole setUp silently no-ops: `bondingActive` stays false, every handler `buy` reverts
+        // `BondingNotActive`, `totalBondingSupply` never leaves 0, and all four money-code invariants
+        // below hold VACUOUSLY on a permanently empty curve while the suite still prints PASS. The
+        // non-vacuity assertions at the end of setUp pin that so it can never go silent again.
+        ERC404BondingInstance impl = new ERC404BondingInstance(address(new ERC404BondingOps()));
         instance = ERC404BondingInstance(payable(LibClone.clone(address(impl))));
 
         ERC404BondingInstance.BondingParams memory bp = ERC404BondingInstance.BondingParams({
@@ -80,6 +88,14 @@ contract BondingCurveInvariantTest is StdInvariant, Test {
         instance.setBondingActive(true);
 
         vm.stopPrank();
+
+        // Non-vacuity gate: every invariant below is conditional on the curve actually being buyable.
+        // If configuration silently no-ops (see the Ops note above), `buy` reverts on every handler
+        // call, supply stays 0 and the invariants pass without testing anything. Assert the config
+        // landed so a vacuous run fails LOUDLY in setUp instead of printing a green PASS.
+        assertTrue(instance.bondingActive(), "setUp is vacuous: bonding never went active");
+        assertEq(instance.bondingFeeBps(), BONDING_FEE_BPS, "setUp is vacuous: protocol params never landed");
+        assertEq(instance.protocolTreasury(), protocolTreasury, "setUp is vacuous: no treasury to take fees");
 
         actors.push(address(0xA11CE));
         actors.push(address(0xB0B));
