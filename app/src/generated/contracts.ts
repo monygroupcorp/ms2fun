@@ -6519,6 +6519,7 @@ export const erc404FactoryAbi = [
     name: 'VaultCapabilityWarning',
   },
   { type: 'error', inputs: [], name: 'AlreadyInitialized' },
+  { type: 'error', inputs: [], name: 'EndowmentVaultNotSupported' },
   { type: 'error', inputs: [], name: 'FreeMintAllocationExceedsNftCount' },
   { type: 'error', inputs: [], name: 'InsufficientBond' },
   { type: 'error', inputs: [], name: 'InvalidAddress' },
