@@ -286,15 +286,28 @@ contract ERC404AgentDelegationTest is Test {
     ///      module wired — and then asserts the observable state is untouched afterwards.
     ///      `test_owner_can_call_all_config_fns` is the positive control on the same states: the owner
     ///      running the identical calldata DOES change all of it.
+    /// @dev SEEDING THE CLOCK IS LOAD-BEARING. With `bondingOpenTime == 0`, calls[2]
+    ///      (`setBondingMaturityTime`) reverts `OpenTimeMustBeSetFirst` and calls[3]
+    ///      (`setBondingActive`) reverts `OpenTimeNotSet` for EVERY caller — both collapse through the
+    ///      trampoline into the exact generic selectors asserted below, so those two legs would pass
+    ///      with `_requireOwnerOrAgent` DELETED and prove nothing. The owner seeds the open time first
+    ///      so both preconditions are satisfied and an ungated caller would visibly move
+    ///      `bondingMaturityTime` and `bondingActive`. The seed is `+12 hours`: distinct from calls[1]'s
+    ///      `+1 days` (so that leg stays observable) and BELOW calls[2]'s `+2 days` (so maturity clears
+    ///      `MaturityMustBeAfterOpenTime` rather than swapping one unfalsifiable precondition for another).
     function _assertAllConfigFnsRejected(address inst, address caller) internal {
         ERC404BondingInstance i = ERC404BondingInstance(payable(inst));
         bytes[] memory calls = _delegableCalls();
         bytes4[] memory sels = _delegableRejections();
 
+        uint256 seededOpenAt = block.timestamp + 12 hours;
+        vm.prank(i.owner());
+        i.setBondingOpenTime(seededOpenAt);
+
         // Pre-state: everything an ungated call would move is at a value the calls below would CHANGE.
         assertEq(i.metadataURI(), "", "pre: metadataURI");
         assertEq(i.styleUri(), "", "pre: styleUri");
-        assertEq(i.bondingOpenTime(), 0, "pre: bondingOpenTime unset");
+        assertEq(i.bondingOpenTime(), seededOpenAt, "pre: bondingOpenTime seeded (calls[1] would move it)");
         assertEq(i.bondingMaturityTime(), 0, "pre: bondingMaturityTime unset");
         assertFalse(i.bondingActive(), "pre: bonding inactive");
         assertFalse(i.stakingActive(), "pre: staking inactive");
@@ -308,7 +321,7 @@ contract ERC404AgentDelegationTest is Test {
         // Post-state: identical. An ungated caller would have moved every one of these.
         assertEq(i.metadataURI(), "", "post: metadataURI untouched");
         assertEq(i.styleUri(), "", "post: styleUri untouched");
-        assertEq(i.bondingOpenTime(), 0, "post: bondingOpenTime untouched");
+        assertEq(i.bondingOpenTime(), seededOpenAt, "post: bondingOpenTime untouched");
         assertEq(i.bondingMaturityTime(), 0, "post: bondingMaturityTime untouched");
         assertFalse(i.bondingActive(), "post: bonding still inactive");
         assertFalse(i.stakingActive(), "post: staking still inactive");
