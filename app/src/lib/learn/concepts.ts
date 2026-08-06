@@ -126,17 +126,23 @@ Before the curve opens, nothing can be minted or claimed — including free mint
     related: ['alignment-vault', 'free-mint-reserve'],
   },
   'free-mint-reserve': {
-    title: 'Free-mint reserve',
+    title: 'Free-mint allocation',
     summary:
-      'Reserve a slice of supply to hand out at zero cost — claimable once the mint opens, never before.',
+      'Hand out a slice of supply at zero cost — claimable once the mint opens, never before. How it interacts with paid supply differs by token type.',
     body: `
-A free-mint reserve sets aside part of your supply to be claimed at **zero ETH cost**. Set the allocation to **0 to disable** it.
+A free-mint allocation sets aside part of your supply to be claimed at **zero ETH cost**. Set the allocation to **0 to disable** it.
 
-- Reserved pieces come **out of the sellable supply** — they don't inflate it.
 - Free mints are part of the launch, not a pre-sale: they are **claimable only once the mint opens**, never before.
+- Each wallet may claim once per edition/collection.
 - The gating **scope** decides whether your allowlist applies to free claims, paid buys, or both.
 
-Use it for a community round, contributors, or a giveaway — but remember every reserved piece is one fewer sold on the curve.
+**How the allocation is protected differs by token type:**
+
+- **ERC-404** — the allocation is genuinely **held back**. The buyable ceiling on the curve is *max supply − liquidity reserve − free-mint allocation*, so paid buyers cannot eat into the free allocation.
+- **ERC-1155 (per edition)** — the allocation is a **cap, not a hold-back**. Free claims and paid mints draw from the **same shared supply**, first-come: if paid buyers take an edition to its supply limit first, remaining free claims will revert as sold out.
+- **ERC-1155 Limited dynamic pricing** — each free claim advances the price curve exactly like a paid mint. Free claims **raise the price** later paid buyers pay.
+
+Use it for a community round, contributors, or a giveaway — but on ERC-1155 editions, size it with the shared-supply and price-curve effects in mind.
 `,
     related: ['gating-overview', 'bonding-curve-graduation'],
   },
