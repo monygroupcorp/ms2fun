@@ -17,8 +17,13 @@ import {
     SetStyleFailed,
     ActivateStakingFailed,
     SetAgentDelegationFailed,
-    SetAgentDelegationFromFactoryFailed
+    SetAgentDelegationFromFactoryFailed,
+    InitProtocolFailed,
+    InitStakingFailed,
+    InitFreeMintFailed
 } from "../../../src/factories/erc404/ERC404BondingStorage.sol";
+import { BondingCurveMath } from "../../../src/factories/erc404/libraries/BondingCurveMath.sol";
+import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 import { IERC404StakingModule } from "../../../src/interfaces/IERC404StakingModule.sol";
 import { LaunchManager } from "../../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../../src/factories/erc404/CurveParamsComputer.sol";
@@ -495,6 +500,166 @@ contract ERC404AgentDelegationTest is Test {
         assertTrue(i.agentDelegationEnabled(), "setAgentDelegationFromFactory ran");
         assertEq(i.symbol(), "SYM", "initializeMetadata (still in-instance) ran");
         assertEq(i.freeMintAllocation(), 0, "initializeFreeMint ran (allocation 0 = disabled)");
+    }
+
+    // ── The three factory-only INIT entry points, negatively (noesis-149 gauntlet) ───────────────
+    //
+    // `initializeProtocol`, `initializeStaking` and `initializeFreeMint` are the only three of the
+    // thirteen whose `if (msg.sender != factory) revert OnlyFactory()` gate had NO negative assertion
+    // anywhere in the tree: every existing use is positive (the create path, or a harness pranking as
+    // the factory). Post-D2 that gate is evaluated on the far side of a new delegatecall seam, so it
+    // gets a regression test. Today the exposure is not a live hole — both calls are reachable only
+    // through `createInstance` (`ERC404Factory.sol:310,464`) — but `initializeProtocol` has no
+    // set-once guard (only `if (!_initialized)`, already true post-create), so a future seam edit that
+    // silently dropped the gate would let ANY caller rewrite `masterRegistry`, `protocolTreasury` and
+    // `bondingFeeBps`. That is what these three assert cannot happen.
+    //
+    // Each is falsifiable in the same A/B shape as the rest of this suite: the rejected calldata is
+    // driven at a state where an UNGATED call would visibly land, the observable target is asserted
+    // unchanged after all three rejections, and the factory then runs the IDENTICAL calldata and the
+    // write is observed. Without that control a bare "it reverted" would also pass with the gate
+    // deleted (`_assertCannotSweepSurplus`'s lesson from noesis-148).
+
+    /// A clone that is `initialize`d but whose free-mint slot is still UNSEALED, with THIS test
+    /// contract as its factory (`initialize` records `factory = msg.sender`).
+    /// @dev LOAD-BEARING for `test_initializeFreeMint_stays_factory_only_across_the_trampoline`.
+    ///      `initializeFreeMint` is set-once (`_freeMintInitialized`) and `createInstance` ALWAYS seals
+    ///      it (`ERC404Factory.sol:475`), so on a factory-created instance an ungated call would revert
+    ///      `AlreadyInitialized` anyway — collapsing through the trampoline into the very same
+    ///      `InitFreeMintFailed` the gate produces. Rejection legs there would prove nothing. On this
+    ///      clone the slot is virgin, so an ungated call WOULD land. Built exactly as
+    ///      `TokenTierOps.t.sol` builds its instance. Otherwise a faithful stand-in: the real
+    ///      `mockRegistry` is wired and `person` (the owner) turns delegation ON, so the `agent` leg
+    ///      below is a genuinely live-checked delegated agent, not a stranger.
+    function _unsealedFreeMintInstance() internal returns (ERC404BondingInstance i) {
+        i = ERC404BondingInstance(payable(LibClone.clone(factory.implementation())));
+        i.initialize(
+            person,
+            address(mockVault),
+            ERC404BondingInstance.BondingParams({
+                maxSupply: 1000e18,
+                unit: 1e18,
+                liquidityReserveBps: 1000,
+                declaredMaxAllowanceBps: 0,
+                curve: BondingCurveMath.Params({
+                    initialPrice: 0.0001 ether,
+                    quarticCoeff: 1,
+                    cubicCoeff: 1,
+                    quadraticCoeff: 1,
+                    normalizationFactor: 1e18
+                })
+            }),
+            address(mockDeployer),
+            address(0),
+            address(new DN404Mirror(address(this)))
+        );
+        i.initializeProtocol(
+            ERC404BondingInstance.ProtocolParams({
+                globalMessageRegistry: mockGMR,
+                protocolTreasury: factory.protocolTreasury(),
+                masterRegistry: address(mockRegistry),
+                bondingFeeBps: 100,
+                weth: address(0xBEEF)
+            })
+        );
+        vm.prank(person);
+        i.setAgentDelegation(true);
+        assertTrue(i.agentDelegationEnabled(), "the agent leg below must face a LIVE delegated agent");
+    }
+
+    /// `initializeProtocol` is FACTORY-ONLY across the trampoline — owner and delegated agent included.
+    /// @dev The highest-stakes of the three: it is re-callable (no set-once), so a dropped gate is a
+    ///      standing rewrite of the protocol's own wiring on a live instance.
+    function test_initializeProtocol_stays_factory_only_across_the_trampoline() public {
+        address instance = _create(agent, "Init Protocol Gate", person);
+        ERC404BondingInstance i = ERC404BondingInstance(payable(instance));
+        assertTrue(i.agentDelegationEnabled(), "the agent IS delegated: delegation must not reach a factory-only init");
+
+        address treasuryBefore = i.protocolTreasury();
+        uint256 feeBefore = i.bondingFeeBps();
+        address registryBefore = address(i.masterRegistry());
+        assertEq(treasuryBefore, factory.protocolTreasury(), "pre: the factory-written treasury");
+        assertEq(registryBefore, address(mockRegistry), "pre: the factory-written registry");
+
+        ERC404BondingInstance.ProtocolParams memory hijack = ERC404BondingInstance.ProtocolParams({
+            globalMessageRegistry: address(0xBAD1),
+            protocolTreasury: address(0xBAD2),
+            masterRegistry: address(0xBAD3),
+            bondingFeeBps: 777,
+            weth: address(0xBAD4)
+        });
+        // Every hijack field genuinely differs, so "unchanged" below is a real assertion.
+        assertTrue(treasuryBefore != hijack.protocolTreasury, "pre: treasury would visibly move");
+        assertTrue(feeBefore != hijack.bondingFeeBps, "pre: fee would visibly move");
+        assertTrue(registryBefore != hijack.masterRegistry, "pre: registry would visibly move");
+
+        bytes memory data = abi.encodeWithSelector(ERC404BondingInstance.initializeProtocol.selector, hijack);
+        _assertRejectedWith(instance, person, data, InitProtocolFailed.selector);
+        _assertRejectedWith(instance, agent, data, InitProtocolFailed.selector);
+        _assertRejectedWith(instance, nobody, data, InitProtocolFailed.selector);
+
+        assertEq(i.protocolTreasury(), treasuryBefore, "a rejected initializeProtocol must not move the treasury");
+        assertEq(i.bondingFeeBps(), feeBefore, "...nor the bonding fee");
+        assertEq(address(i.masterRegistry()), registryBefore, "...nor the master registry");
+
+        // Positive control on the IDENTICAL calldata: `msg.sender` survives the delegatecall, so the
+        // factory still clears `msg.sender != factory` and the write lands. The three rejections above
+        // are therefore the gate — not `_initialized`, not a domain precondition.
+        vm.prank(address(factory));
+        i.initializeProtocol(hijack);
+        assertEq(i.protocolTreasury(), hijack.protocolTreasury, "the FACTORY can rewrite the treasury");
+        assertEq(i.bondingFeeBps(), hijack.bondingFeeBps, "the FACTORY can rewrite the fee");
+        assertEq(address(i.masterRegistry()), hijack.masterRegistry, "the FACTORY can rewrite the registry");
+    }
+
+    /// `initializeStaking` is FACTORY-ONLY across the trampoline.
+    /// @dev Re-callable, so it needs no extra setup: the same calldata that three callers are rejected
+    ///      on is then run by the factory and observed to land.
+    function test_initializeStaking_stays_factory_only_across_the_trampoline() public {
+        address instance = _create(agent, "Init Staking Gate", person);
+        ERC404BondingInstance i = ERC404BondingInstance(payable(instance));
+        assertTrue(i.agentDelegationEnabled(), "the agent IS delegated");
+        assertEq(address(i.stakingModule()), address(mockStaking), "pre: the factory-written module");
+
+        address hijack = address(0xBAD5);
+        bytes memory data = abi.encodeWithSelector(ERC404BondingInstance.initializeStaking.selector, hijack);
+        _assertRejectedWith(instance, person, data, InitStakingFailed.selector);
+        _assertRejectedWith(instance, agent, data, InitStakingFailed.selector);
+        _assertRejectedWith(instance, nobody, data, InitStakingFailed.selector);
+
+        assertEq(address(i.stakingModule()), address(mockStaking), "a rejected initializeStaking must not repoint it");
+
+        vm.prank(address(factory));
+        i.initializeStaking(hijack);
+        assertEq(address(i.stakingModule()), hijack, "the FACTORY can repoint it with the identical calldata");
+    }
+
+    /// `initializeFreeMint` is FACTORY-ONLY across the trampoline.
+    /// @dev Runs on `_unsealedFreeMintInstance()` — see that helper for why a factory-created instance
+    ///      cannot host this assertion falsifiably. Here THIS contract is the clone's factory, so the
+    ///      positive control is a direct call rather than a prank.
+    function test_initializeFreeMint_stays_factory_only_across_the_trampoline() public {
+        ERC404BondingInstance i = _unsealedFreeMintInstance();
+        address instance = address(i);
+        assertEq(i.freeMintAllocation(), 0, "pre: allocation unset");
+        assertTrue(i.gatingScope() == GatingScope.BOTH, "pre: scope at its default");
+
+        uint256 allocation = 7;
+        bytes memory data = abi.encodeWithSelector(
+            ERC404BondingInstance.initializeFreeMint.selector, allocation, GatingScope.PAID_ONLY
+        );
+        _assertRejectedWith(instance, person, data, InitFreeMintFailed.selector);
+        _assertRejectedWith(instance, agent, data, InitFreeMintFailed.selector);
+        _assertRejectedWith(instance, nobody, data, InitFreeMintFailed.selector);
+
+        assertEq(i.freeMintAllocation(), 0, "a rejected initializeFreeMint must not reserve an allocation");
+        assertTrue(i.gatingScope() == GatingScope.BOTH, "...nor move the gating scope");
+
+        // Positive control: the clone's factory (this contract) runs the identical arguments and the
+        // set-once slot visibly seals — so the three rejections above are the gate, not the seal.
+        i.initializeFreeMint(allocation, GatingScope.PAID_ONLY);
+        assertEq(i.freeMintAllocation(), allocation, "the FACTORY can seal the allocation");
+        assertTrue(i.gatingScope() == GatingScope.PAID_ONLY, "the FACTORY can set the scope");
     }
 
     /// Config-only boundary: value-extracting fns stay owner-only — a delegated agent STILL reverts.
