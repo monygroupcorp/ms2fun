@@ -137,7 +137,11 @@ contract ERC404BondingOps is ERC404BondingStorage {
     ///         loop (subject to the caller's skipNFT setting) — nothing is hand-minted here.
     function mintDown(uint256 bandId) external nonReentrant {
         if (!_tiersSealed) revert TiersNotConfigured();
-        (uint256 idx, uint256 weight) = _bandOfId(bandId);
+        // `_bandOf` is the shared, non-reverting range walk in `ERC404BondingStorage` (noesis-143): the
+        // burn-safety hook and `coinBalanceOf` resolve escrow with the exact same code, so the amount
+        // credited on a burn can never drift from the amount charged on a `mintUp`.
+        (bool isBand, uint256 idx, uint256 weight) = _bandOf(bandId);
+        if (!isBand) revert NotBandId();
 
         DN404Storage storage $ = _getDN404Storage();
         Uint32Map storage oo = $.oo;
@@ -178,16 +182,6 @@ contract ERC404BondingOps is ERC404BondingStorage {
             idx = uint256(tierN) - 1;
         }
         band = tierBands[idx];
-    }
-
-    /// @dev Resolve an id to the band containing it. Reverts `NotBandId` for ordinary ids.
-    function _bandOfId(uint256 id) private view returns (uint256 idx, uint256 weight) {
-        uint256 n = tierBands.length;
-        for (uint256 i; i < n; ++i) {
-            TierBand storage b = tierBands[i];
-            if (id >= b.idStart && id <= b.idEnd) return (i, b.weight);
-        }
-        revert NotBandId();
     }
 
     /// @dev Per-band LIFO free list, then the high-water cursor. O(1), never scans.

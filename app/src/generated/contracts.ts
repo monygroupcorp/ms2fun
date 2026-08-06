@@ -4644,6 +4644,13 @@ export const erc404BondingInstanceAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'claimReleasedEscrow',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'claimStakingRewards',
     outputs: [],
     stateMutability: 'nonpayable',
@@ -5045,6 +5052,13 @@ export const erc404BondingInstanceAbi = [
   },
   {
     type: 'function',
+    inputs: [{ name: '', internalType: 'address', type: 'address' }],
+    name: 'pendingEscrowRelease',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
     inputs: [
       { name: 'carveRequestBps', internalType: 'uint256', type: 'uint256' },
     ],
@@ -5222,6 +5236,13 @@ export const erc404BondingInstanceAbi = [
     type: 'function',
     inputs: [],
     name: 'totalBondingSupply',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'totalPendingEscrowRelease',
     outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     stateMutability: 'view',
   },
@@ -5424,6 +5445,31 @@ export const erc404BondingInstanceAbi = [
       },
     ],
     name: 'ETHTransferFallbackToWETH',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      {
+        name: 'holder',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+      {
+        name: 'bandId',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: true,
+      },
+      {
+        name: 'amount',
+        internalType: 'uint256',
+        type: 'uint256',
+        indexed: false,
+      },
+    ],
+    name: 'EscrowReleased',
   },
   {
     type: 'event',
@@ -5730,6 +5776,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'CannotActivateAfterLiquidityDeployed' },
   { type: 'error', inputs: [], name: 'DNAlreadyInitialized' },
   { type: 'error', inputs: [], name: 'DNNotInitialized' },
+  { type: 'error', inputs: [], name: 'EscrowReleaseFailed' },
   { type: 'error', inputs: [], name: 'ExceedsBonding' },
   { type: 'error', inputs: [], name: 'FnSelectorNotRecognized' },
   { type: 'error', inputs: [], name: 'FreeMintAlreadyClaimed' },
@@ -5761,6 +5808,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'NoReserve' },
   { type: 'error', inputs: [], name: 'NormalizationFactorZero' },
   { type: 'error', inputs: [], name: 'NotInitialized' },
+  { type: 'error', inputs: [], name: 'NothingToClaim' },
   { type: 'error', inputs: [], name: 'NothingToWithdraw' },
   { type: 'error', inputs: [], name: 'OnlyFactory' },
   { type: 'error', inputs: [], name: 'OpenTimeMustBeSetFirst' },
@@ -18996,6 +19044,15 @@ export const useReadErc404BondingInstanceOwnershipHandoverExpiresAt =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"pendingEscrowRelease"`
+ */
+export const useReadErc404BondingInstancePendingEscrowRelease =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'pendingEscrowRelease',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"previewCarve"`
  */
 export const useReadErc404BondingInstancePreviewCarve =
@@ -19083,6 +19140,15 @@ export const useReadErc404BondingInstanceTotalBondingSupply =
   /*#__PURE__*/ createUseReadContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'totalBondingSupply',
+  })
+
+/**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"totalPendingEscrowRelease"`
+ */
+export const useReadErc404BondingInstanceTotalPendingEscrowRelease =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'totalPendingEscrowRelease',
   })
 
 /**
@@ -19188,6 +19254,15 @@ export const useWriteErc404BondingInstanceClaimFreeMint =
   /*#__PURE__*/ createUseWriteContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'claimFreeMint',
+  })
+
+/**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimReleasedEscrow"`
+ */
+export const useWriteErc404BondingInstanceClaimReleasedEscrow =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimReleasedEscrow',
   })
 
 /**
@@ -19527,6 +19602,15 @@ export const useSimulateErc404BondingInstanceClaimFreeMint =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'claimFreeMint',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"claimReleasedEscrow"`
+ */
+export const useSimulateErc404BondingInstanceClaimReleasedEscrow =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'claimReleasedEscrow',
   })
 
 /**
@@ -19884,6 +19968,15 @@ export const useWatchErc404BondingInstanceEthTransferFallbackToWethEvent =
   /*#__PURE__*/ createUseWatchContractEvent({
     abi: erc404BondingInstanceAbi,
     eventName: 'ETHTransferFallbackToWETH',
+  })
+
+/**
+ * Wraps __{@link useWatchContractEvent}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `eventName` set to `"EscrowReleased"`
+ */
+export const useWatchErc404BondingInstanceEscrowReleasedEvent =
+  /*#__PURE__*/ createUseWatchContractEvent({
+    abi: erc404BondingInstanceAbi,
+    eventName: 'EscrowReleased',
   })
 
 /**
