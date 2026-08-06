@@ -8,7 +8,18 @@ import {
     InvalidBand,
     BandIdOverflow,
     NothingToClaim,
-    EscrowReleaseFailed
+    EscrowReleaseFailed,
+    BondingEnded,
+    BondingNotConfigured,
+    TooEarly,
+    GatingNotAllowed,
+    StakingModuleNotSet,
+    FreeMintFailed,
+    ClaimFeesFailed,
+    WithdrawDustFailed,
+    StakeFailed,
+    UnstakeFailed,
+    ClaimRewardsFailed
 } from "./ERC404BondingStorage.sol";
 import { LibString } from "solady/utils/LibString.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
@@ -30,14 +41,16 @@ import { IERC404StakingModule } from "../../interfaces/IERC404StakingModule.sol"
 import { SafeResolverLib } from "../../metadata/SafeResolverLib.sol";
 
 // ── Errors ────────────────────────────────────────────────────────────────────
+// NOTE (noesis-148): the errors the six externalized value-path bodies revert with —
+// `BondingEnded`, `BondingNotConfigured`, `TooEarly`, `GatingNotAllowed`, `FreeMintDisabled`,
+// `FreeMintAlreadyClaimed`, `FreeMintExhausted`, `StakingModuleNotSet`, `NothingToWithdraw`,
+// `WithdrawFailed` — now live in `ERC404BondingStorage.sol` so BOTH sides compile them, alongside the
+// generic per-trampoline errors. The ones this contract still raises itself are imported above.
 error AlreadyInitialized();
 error AlreadyDeployed();
-error BondingEnded();
 error BondingNotActive();
-error BondingNotConfigured();
 error CannotActivateAfterLiquidityDeployed();
 error ExceedsBonding();
-error GatingNotAllowed();
 error InsufficientBalance();
 error InvalidGlobalMessageRegistry();
 error InvalidLiquidityDeployer();
@@ -53,22 +66,15 @@ error NoReserve();
 error OpenTimeMustBeSetFirst();
 error OpenTimeNotSet();
 error TimeMustBeInFuture();
-error TooEarly();
 error TransactionExpired();
 error AmountMustBePositive();
-error FreeMintDisabled();
-error FreeMintAlreadyClaimed();
-error FreeMintExhausted();
 error FreeMintNotInitialized();
-error StakingModuleNotSet();
 error StakingAlreadyActive();
 error PurchaseTooSmall();
 error OnlyFactory();
 error NotInitialized();
 error MetadataAlreadySet();
 error ModuleAlreadySet();
-error NothingToWithdraw();
-error WithdrawFailed();
 error InvalidDeclaredMaxAllowance();
 
 /// @notice Read-side of the ERC404Factory's graduation-carve math. The instance reads it LIVE at
@@ -80,18 +86,6 @@ interface ICarveParamsSource {
         external
         view
         returns (uint256);
-}
-
-/// @notice `claimAllFees`'s single settle round-trip to the staking module. Returns the instance's
-///         current `totalStaked` — the instance credits its staking-liability reserve only when the
-///         module can distribute (`totalStaked > 0`), mirroring `recordFeesReceived`'s own guard — AND
-///         the un-accruable stream leak now released (noesis-127): a stream that outlives its stakers
-///         schedules `rewardRate` wei/sec during the zero-stake gap that no staker can ever accrue; the
-///         module hands that un-owed wei back so the instance can debit its `stakingReserve` and let
-///         `withdrawDust` recover it. Declared inline to keep the change local to this file — the shared
-///         `IERC404StakingModule` interface is unchanged.
-interface IStakingTotals {
-    function settleAndReleaseLeak() external returns (uint256 totalStaked, uint256 leaked);
 }
 
 /**
@@ -142,13 +136,13 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     event BondingActiveChanged(bool active);
     event LiquidityDeployed(address indexed deployer, uint256 amountToken, uint256 amountETH);
     event BondingFeePaid(address indexed buyer, uint256 feeAmount);
-    event FreeMintClaimed(address indexed user);
     event AgentDelegationChanged(bool enabled);
     event StakingActivated(address indexed stakingModule);
-    event Staked(address indexed user, uint256 amount);
-    event Unstaked(address indexed user, uint256 amount, uint256 rewardPaid);
-    event StakingRewardsClaimed(address indexed user, uint256 amount);
     event ModuleSet(bytes32 indexed role, address module);
+
+    // `FreeMintClaimed` / `Staked` / `Unstaked` / `StakingRewardsClaimed` moved to
+    // `ERC404BondingStorage` (noesis-148): their emitters now run on the Ops side. Same signatures,
+    // same topic0 — they are still emitted from THIS instance's address under delegatecall.
 
     // ┌─────────────────────────┐
     // │      Constructor        │
@@ -347,32 +341,18 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     }
 
     /// @notice Claim one free mint (= 1 NFT worth of tokens) at zero ETH cost.
-    /// @param gatingData Passed to gatingModule.canMint if scope requires it.
-    // slither-disable-next-line reentrancy-no-eth
-    function claimFreeMint(bytes calldata gatingData) external nonReentrant {
-        if (freeMintAllocation == 0) revert FreeMintDisabled();
-        // Free mints are part of the bonding curve: once graduated the curve is closed, so a late
-        // claim would mint tokens against a drained curve / already-deployed pool (noesis-061 F2).
-        if (graduated) revert BondingEnded();
-        // Free mints are part of the curve, not a pre-sale — they cannot be claimed before it opens
-        // (same open reference the buy/graduation paths use).
-        if (bondingOpenTime == 0) revert BondingNotConfigured();
-        if (block.timestamp < bondingOpenTime) revert TooEarly();
-        if (freeMintClaimed[msg.sender]) revert FreeMintAlreadyClaimed();
-        if (freeMintsClaimed >= freeMintAllocation) revert FreeMintExhausted();
-
-        if (address(gatingModule) != address(0) && gatingActive && gatingScope != GatingScope.PAID_ONLY) {
-            // Single curve → editionId 0; bondingOpenTime is the authoritative open reference.
-            (bool allowed, bool permanent) = gatingModule.canMint(msg.sender, 0, unit, bondingOpenTime, gatingData);
-            if (!allowed) revert GatingNotAllowed();
-            if (permanent) gatingActive = false;
-            gatingModule.onMint(msg.sender, 0, unit);
-        }
-
-        freeMintClaimed[msg.sender] = true;
-        freeMintsClaimed++;
-        _transfer(address(this), msg.sender, unit);
-        emit FreeMintClaimed(msg.sender);
+    /// @dev The body is externalized into the immutable `ERC404BondingOps` (EIP-170 diet — noesis-148)
+    ///      and reached by the same discard-returndata delegatecall trampoline `rerollSelectedNFTs`
+    ///      uses, so it runs in THIS instance's storage context. The selector/param types MUST stay
+    ///      `claimFreeMint(bytes)` so raw `msg.data` forwards verbatim. Ops's specific reverts
+    ///      (`FreeMintDisabled`, `FreeMintExhausted`, `GatingNotAllowed`, ...) surface to the caller as
+    ///      the generic `FreeMintFailed()`; the specifics stay visible in traces and every revert still
+    ///      HAPPENS. NO `nonReentrant` here — the guard lives on the Ops side and engages via the shared
+    ///      fixed slot under delegatecall; guarding both ends would self-revert.
+    // slither-disable-next-line low-level-calls,unused-return
+    function claimFreeMint(bytes calldata) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert FreeMintFailed();
     }
 
     // ┌─────────────────────────┐
@@ -437,100 +417,54 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         emit StakingActivated(address(stakingModule));
     }
 
-    // slither-disable-next-line calls-loop,unused-return
-    function claimAllFees() external onlyOwner nonReentrant {
-        uint256 before = address(this).balance;
-        address[] memory allVaults = masterRegistry.getInstanceVaults(address(this));
-        for (uint256 i = 0; i < allVaults.length; i++) {
-            // Some vaults (e.g. AlignmentEndowmentVault) intentionally revert NotSupported() on
-            // claimFees() — they have no pull-claim model. Skip those silently so one such vault
-            // can't brick fee delivery for the whole instance; the balance-delta below still
-            // credits whatever the supporting vaults DID push.
-            try IAlignmentVault(payable(allVaults[i])).claimFees() { } catch { }
-        }
-        if (stakingActive) {
-            address sm = address(stakingModule); // cache: one SLOAD for the module calls below
-            uint256 delta = address(this).balance - before;
-            if (delta != 0) {
-                IERC404StakingModule(sm).recordFeesReceived(delta);
-            }
-            // Single round-trip (noesis-127): settle the stream, read totalStaked for the noesis-061
-            // credit guard, and release any un-accruable stream leak (ETH a prior stream scheduled during
-            // a zero-stake gap that no staker can ever accrue). Folding the guard-read and the release
-            // into one call keeps the instance under EIP-170.
-            (uint256 totalStaked, uint256 leaked) = IStakingTotals(sm).settleAndReleaseLeak();
-            // Credit the staker-owed reserve ONLY when the module can distribute (totalStaked > 0),
-            // mirroring recordFeesReceived's own guard. When totalStaked == 0 the delta is genuine
-            // undistributable dust the module cannot pay out — leave it recoverable by withdrawDust.
-            // `delta` is a conservative over-estimate of the true liability (the module truncates
-            // rewardPerToken), the safe direction for a sweep guard.
-            if (delta != 0 && totalStaked != 0) {
-                stakingReserve += delta;
-            }
-            // Debit the released leak so it drops out of `stakingReserve` and withdrawDust can sweep it
-            // (a grief-locked remainder is thus always clearable by the owner). `_debitStakingReserve`
-            // clamps, so a 0 leak — the case while a live staker is still accruing — is a safe no-op.
-            _debitStakingReserve(leaked);
-        }
-    }
-
-    /// @dev Debit the staking-liability reserve by ETH actually paid to a staker, clamped so it can
-    ///      never underflow (the reserve is a conservative over-estimate; a payout may exceed the
-    ///      residual tracked liability by truncation dust).
-    function _debitStakingReserve(uint256 amount) private {
-        stakingReserve = amount >= stakingReserve ? 0 : stakingReserve - amount;
+    /// @notice Pull fees from every vault registered to this instance and settle the staking stream.
+    /// @dev Body externalized into `ERC404BondingOps` (noesis-148). NO `onlyOwner` and NO
+    ///      `nonReentrant` here — BOTH live on the Ops side, and `msg.sender` is preserved under
+    ///      `delegatecall` so `onlyOwner` resolves against the same caller and the same Ownable slot.
+    ///      A non-owner call therefore still reverts, as the generic `ClaimFeesFailed()`.
+    // slither-disable-next-line low-level-calls,unused-return
+    function claimAllFees() external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert ClaimFeesFailed();
     }
 
     /// @notice Recover ETH held by the instance that is NOT part of the bonding `reserve`.
-    /// @dev Surplus ETH can accumulate here — e.g. staking fees pushed by a vault while
-    ///      totalStaked == 0 (the staking module can't distribute them, so they sit in the
-    ///      instance balance). Only the balance ABOVE the tracked `reserve` AND the tracked
-    ///      `stakingReserve` is withdrawable; `reserve` backs sellBonding refunds and
-    ///      `stakingReserve` is ETH owed to stakers — neither is ever sweepable (noesis-061 F1).
-    /// @dev `claimAllFees` first releases any un-accruable stream leak out of `stakingReserve`
-    ///      (noesis-127), so by the time this runs `stakingReserve` holds only genuinely-owed ETH and
-    ///      the previously-locked gap remainder has become recoverable surplus here.
-    function withdrawDust() external onlyOwner nonReentrant {
-        uint256 bal = address(this).balance;
-        uint256 locked = reserve + stakingReserve;
-        // Guard against underflow: never withdraw if balance is at/below the locked liabilities.
-        if (bal <= locked) revert NothingToWithdraw();
-        uint256 surplus = bal - locked;
-        (bool ok,) = payable(owner()).call{ value: surplus }("");
-        if (!ok) revert WithdrawFailed();
+    /// @dev Body externalized into `ERC404BondingOps` (noesis-148); the locked-liability guard
+    ///      (`reserve + stakingReserve`, noesis-061 F1) lives there unchanged and reads THIS instance's
+    ///      storage under delegatecall. Owner gate + reentrancy guard are on the Ops side only.
+    // slither-disable-next-line low-level-calls,unused-return
+    function withdrawDust() external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert WithdrawDustFailed();
     }
 
     // ┌─────────────────────────┐
     // │   Staking Functions     │
     // └─────────────────────────┘
+    // All three bodies live in `ERC404BondingOps` (noesis-148) behind the standard discard-returndata
+    // trampoline. `msg.sender` is preserved under `delegatecall`, so every staker-keyed module call
+    // (`recordStake` / `recordUnstake` / `computeClaim`) is keyed to the same address it always was,
+    // and the ETH payout still leaves THIS instance's balance.
 
     /// @notice Stake `amount` tokens. Tokens are held by this contract while staked.
-    function stake(uint256 amount) external nonReentrant {
-        if (!stakingActive) revert StakingModuleNotSet();
-        _transfer(msg.sender, address(this), amount);
-        stakingModule.recordStake(msg.sender, amount);
-        emit Staked(msg.sender, amount);
+    // slither-disable-next-line low-level-calls,unused-return
+    function stake(uint256) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert StakeFailed();
     }
 
     /// @notice Unstake `amount` tokens and auto-claim any pending ETH rewards.
-    function unstake(uint256 amount) external nonReentrant {
-        if (!stakingActive) revert StakingModuleNotSet();
-        uint256 rewardAmount = stakingModule.recordUnstake(msg.sender, amount);
-        _transfer(address(this), msg.sender, amount);
-        if (rewardAmount > 0) {
-            _debitStakingReserve(rewardAmount);
-            SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
-        }
-        emit Unstaked(msg.sender, amount, rewardAmount);
+    // slither-disable-next-line low-level-calls,unused-return
+    function unstake(uint256) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert UnstakeFailed();
     }
 
     /// @notice Claim pending ETH staking rewards without unstaking.
-    function claimStakingRewards() external nonReentrant {
-        if (!stakingActive) revert StakingModuleNotSet();
-        uint256 rewardAmount = stakingModule.computeClaim(msg.sender);
-        _debitStakingReserve(rewardAmount);
-        SmartTransferLib.smartTransferETH(msg.sender, rewardAmount, weth);
-        emit StakingRewardsClaimed(msg.sender, rewardAmount);
+    // slither-disable-next-line low-level-calls,unused-return
+    function claimStakingRewards() external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert ClaimRewardsFailed();
     }
 
     // ┌─────────────────────────┐

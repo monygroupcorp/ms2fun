@@ -41,6 +41,49 @@ error BandIdOverflow();
 error NothingToClaim();
 error EscrowReleaseFailed();
 
+// ── Value-path errors (shared by the instance + the delegatecall Ops — noesis-148 D3 diet) ──────
+// The six value-path bodies (`claimFreeMint`, `claimAllFees`, `withdrawDust`, `stake`, `unstake`,
+// `claimStakingRewards`) live in ERC404BondingOps and revert with these specific errors INTERNALLY;
+// the instance's discard-returndata trampoline surfaces one generic error per entry point (below).
+// Several of these are ALSO raised by bodies that STAYED in the instance — `BondingEnded` and
+// `GatingNotAllowed` in buyBonding, `TooEarly`/`BondingNotConfigured` in deployLiquidity,
+// `StakingModuleNotSet` in activateStaking — and there they still surface verbatim.
+error BondingEnded();
+error BondingNotConfigured();
+error TooEarly();
+error GatingNotAllowed();
+error FreeMintDisabled();
+error FreeMintAlreadyClaimed();
+error FreeMintExhausted();
+error StakingModuleNotSet();
+error NothingToWithdraw();
+error WithdrawFailed();
+
+// ── Generic errors surfaced by the six value-path trampolines (noesis-148) ──────────────────────
+// One per entry point. Returndata is discarded deliberately (bubbling re-triggers the via_ir size
+// cliff the whole diet exists to buy back — re-measured on this tree, see the PR body), so an
+// Ops-side revert reaches the caller as the generic error for that entry point. Every revert still
+// HAPPENS and the specific error stays visible in traces; only message legibility degrades.
+error FreeMintFailed();
+error ClaimFeesFailed();
+error WithdrawDustFailed();
+error StakeFailed();
+error UnstakeFailed();
+error ClaimRewardsFailed();
+
+/// @notice `claimAllFees`'s single settle round-trip to the staking module. Returns the instance's
+///         current `totalStaked` — the instance credits its staking-liability reserve only when the
+///         module can distribute (`totalStaked > 0`), mirroring `recordFeesReceived`'s own guard — AND
+///         the un-accruable stream leak now released (noesis-127): a stream that outlives its stakers
+///         schedules `rewardRate` wei/sec during the zero-stake gap that no staker can ever accrue; the
+///         module hands that un-owed wei back so the instance can debit its `stakingReserve` and let
+///         `withdrawDust` recover it. Declared HERE (moved verbatim out of the instance by noesis-148,
+///         which moved the `claimAllFees` body into Ops) — the shared `IERC404StakingModule` interface
+///         is unchanged.
+interface IStakingTotals {
+    function settleAndReleaseLeak() external returns (uint256 totalStaked, uint256 leaked);
+}
+
 /**
  * @title ERC404BondingStorage
  * @notice Single source of truth for the ERC404 bonding instance's storage layout. Both the deployable
@@ -189,9 +232,34 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     ///         now claimable by `holder` and the id is back on its band's free list.
     event EscrowReleased(address indexed holder, uint256 indexed bandId, uint256 amount);
 
+    // ── Value-path events (emitted by Ops in the instance's context under delegatecall) ──────────
+    // Moved here from `ERC404BondingInstance` by noesis-148 (D3 diet) so the emitting bodies compile
+    // on the Ops side. Moving an event declaration does NOT change its topic0 — the signature is
+    // byte-identical, so every existing indexer/test filter keeps matching.
+    event FreeMintClaimed(address indexed user);
+    event Staked(address indexed user, uint256 amount);
+    event Unstaked(address indexed user, uint256 amount, uint256 rewardPaid);
+    event StakingRewardsClaimed(address indexed user, uint256 amount);
+
     // ── DN404 unit override (shared: DN404 internals in both the instance and Ops read this) ────
     function _unit() internal view override returns (uint256) {
         return unit;
+    }
+
+    // ┌──────────────────────────────────────────────────┐
+    // │  Staking-liability debit (shared, noesis-148)    │
+    // └──────────────────────────────────────────────────┘
+
+    /// @dev Debit the staking-liability reserve by ETH actually paid to a staker, clamped so it can
+    ///      never underflow (the reserve is a conservative over-estimate; a payout may exceed the
+    ///      residual tracked liability by truncation dust).
+    /// @dev Was `private` in `ERC404BondingInstance`; moved to the shared base (unchanged) by
+    ///      noesis-148 because all three of its callers — `claimAllFees`, `unstake`,
+    ///      `claimStakingRewards` — now execute on the Ops side. Declaring it in the base is what
+    ///      guarantees both contracts compile the IDENTICAL clamp (the `_bandOf` precedent from
+    ///      noesis-143 / the `_skipNFTDefault` lesson from noesis-142).
+    function _debitStakingReserve(uint256 amount) internal {
+        stakingReserve = amount >= stakingReserve ? 0 : stakingReserve - amount;
     }
 
     // ┌──────────────────────────────────────┐
