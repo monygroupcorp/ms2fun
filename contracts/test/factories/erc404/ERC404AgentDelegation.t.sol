@@ -5,12 +5,13 @@ import { Test } from "forge-std/Test.sol";
 import { Ownable } from "solady/auth/Ownable.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
 import { ERC404Factory } from "../../../src/factories/erc404/ERC404Factory.sol";
-import { ERC404BondingInstance } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
+import { ERC404BondingInstance, MetadataAlreadySet } from "../../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../../src/factories/erc404/ERC404BondingOps.sol";
 import {
     WithdrawDustFailed,
     ClaimFeesFailed,
     SetMetadataURIFailed,
+    SetContractURIFailed,
     SetBondingOpenTimeFailed,
     SetBondingMaturityTimeFailed,
     SetBondingActiveFailed,
@@ -227,7 +228,7 @@ contract ERC404AgentDelegationTest is Test {
 
     /// Calldata for every NON-CUSTODIAL config/lifecycle fn now gated by `_requireOwnerOrAgent`.
     function _delegableCalls() internal view returns (bytes[] memory calls) {
-        calls = new bytes[](7);
+        calls = new bytes[](8);
         calls[0] = abi.encodeWithSelector(ERC404BondingInstance.setMetadataURI.selector, "ipfs://x");
         calls[1] = abi.encodeWithSelector(ERC404BondingInstance.setBondingOpenTime.selector, block.timestamp + 1 days);
         calls[2] =
@@ -236,6 +237,8 @@ contract ERC404AgentDelegationTest is Test {
         calls[4] = abi.encodeWithSelector(ERC404BondingInstance.setStyle.selector, "ipfs://style");
         calls[5] = abi.encodeWithSelector(ERC404BondingInstance.activateStaking.selector);
         calls[6] = abi.encodeWithSelector(ERC404BondingInstance.deployLiquidity.selector, uint256(0));
+        // noesis-085: the ERC-7572 collection-URI setter rides the same trampoline + the same gate.
+        calls[7] = abi.encodeWithSelector(ERC404BondingInstance.setContractURI.selector, "ipfs://hijacked-collection");
     }
 
     /// Calldata for the value-extracting fns that MUST stay owner-only.
@@ -272,7 +275,7 @@ contract ERC404AgentDelegationTest is Test {
     ///      `Unauthorized` verbatim — the CONTROL proving the collapse is a trampoline artifact and not
     ///      a weakened gate, exactly the role `migrateVault` plays for the value paths.
     function _delegableRejections() internal pure returns (bytes4[] memory sels) {
-        sels = new bytes4[](7);
+        sels = new bytes4[](8);
         sels[0] = SetMetadataURIFailed.selector;
         sels[1] = SetBondingOpenTimeFailed.selector;
         sels[2] = SetBondingMaturityTimeFailed.selector;
@@ -280,6 +283,7 @@ contract ERC404AgentDelegationTest is Test {
         sels[4] = SetStyleFailed.selector;
         sels[5] = ActivateStakingFailed.selector;
         sels[6] = Ownable.Unauthorized.selector; // body stayed in the instance
+        sels[7] = SetContractURIFailed.selector;
     }
 
     /// Assert every config fn REJECTS `caller` **and changed nothing**.
@@ -311,6 +315,9 @@ contract ERC404AgentDelegationTest is Test {
 
         // Pre-state: everything an ungated call would move is at a value the calls below would CHANGE.
         assertEq(i.metadataURI(), "", "pre: metadataURI");
+        // Non-empty at create (noesis-085 threads the create call's collection URI in), and DIFFERENT from
+        // what calls[7] would write — so an ungated `setContractURI` would visibly move it.
+        assertEq(i.contractURI(), "ipfs://metadata", "pre: contractURI is the create-time collection URI");
         assertEq(i.styleUri(), "", "pre: styleUri");
         assertEq(i.bondingOpenTime(), seededOpenAt, "pre: bondingOpenTime seeded (calls[1] would move it)");
         assertEq(i.bondingMaturityTime(), 0, "pre: bondingMaturityTime unset");
@@ -325,6 +332,7 @@ contract ERC404AgentDelegationTest is Test {
 
         // Post-state: identical. An ungated caller would have moved every one of these.
         assertEq(i.metadataURI(), "", "post: metadataURI untouched");
+        assertEq(i.contractURI(), "ipfs://metadata", "post: contractURI untouched");
         assertEq(i.styleUri(), "", "post: styleUri untouched");
         assertEq(i.bondingOpenTime(), seededOpenAt, "post: bondingOpenTime untouched");
         assertEq(i.bondingMaturityTime(), 0, "post: bondingMaturityTime untouched");
@@ -345,6 +353,13 @@ contract ERC404AgentDelegationTest is Test {
         vm.prank(caller);
         i.setMetadataURI("ipfs://moved");
         assertEq(i.metadataURI(), "ipfs://moved", "setMetadataURI took effect through the trampoline");
+
+        // noesis-085: the collection URI is its OWN slot behind its OWN entry point. Both directions are
+        // asserted, because the failure mode worth catching is the two setters writing the same string.
+        vm.prank(caller);
+        i.setContractURI("ipfs://collection-moved");
+        assertEq(i.contractURI(), "ipfs://collection-moved", "setContractURI took effect through the trampoline");
+        assertEq(i.metadataURI(), "ipfs://moved", "setContractURI must not touch the per-token base URI");
 
         vm.prank(caller);
         i.setStyle("ipfs://styled");
@@ -500,6 +515,36 @@ contract ERC404AgentDelegationTest is Test {
         assertTrue(i.agentDelegationEnabled(), "setAgentDelegationFromFactory ran");
         assertEq(i.symbol(), "SYM", "initializeMetadata (still in-instance) ran");
         assertEq(i.freeMintAllocation(), 0, "initializeFreeMint ran (allocation 0 = disabled)");
+    }
+
+    /// noesis-085: the create path hands the instance the SAME collection URI it registers, so the
+    /// registry copy is no longer the only one. `_create` passes "ipfs://metadata" as the create call's
+    /// collection URI and leaves `params.tokenBaseURI` empty — which is what makes this falsifiable: if
+    /// the factory wired `params.tokenBaseURI` into the new slot instead, `contractURI()` would be "".
+    function test_create_populates_the_erc7572_contract_uri_from_the_registered_collection_uri() public {
+        address instance = _create(agent, "Collection URI", person);
+        ERC404BondingInstance i = ERC404BondingInstance(payable(instance));
+
+        assertEq(i.contractURI(), "ipfs://metadata", "contractURI is the create call's collection URI");
+        assertEq(i.metadataURI(), "", "the per-token base URI stays params.tokenBaseURI (empty here)");
+    }
+
+    /// noesis-085: the set-once guard still holds now that `initializeMetadata` also writes the collection
+    /// URI — a second call cannot re-point `contractURI` at another document, even from the factory.
+    /// @dev Falsifiable: the rejected calldata carries a DIFFERENT value for every field it would write,
+    ///      so a dropped guard would visibly land.
+    function test_initializeMetadata_stays_set_once_including_the_contract_uri() public {
+        address instance = _create(agent, "Set Once", person);
+        ERC404BondingInstance i = ERC404BondingInstance(payable(instance));
+
+        vm.prank(address(factory));
+        vm.expectRevert(MetadataAlreadySet.selector);
+        i.initializeMetadata("Renamed", "RN", "ipfs://style2", "ipfs://base2", "ipfs://hijacked-collection");
+
+        assertEq(i.contractURI(), "ipfs://metadata", "a rejected re-init leaves the collection URI alone");
+        assertEq(i.name(), "Set Once", "name untouched");
+        assertEq(i.symbol(), "SYM", "symbol untouched");
+        assertEq(i.metadataURI(), "", "per-token base URI untouched");
     }
 
     // ── The three factory-only INIT entry points, negatively (noesis-149 gauntlet) ───────────────

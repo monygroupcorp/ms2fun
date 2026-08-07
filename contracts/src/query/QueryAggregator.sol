@@ -411,10 +411,10 @@ contract QueryAggregator is SafeOwnableUUPS {
             card.vault = info.vaults.length > 0 ? info.vaults[info.vaults.length - 1] : address(0);
         } catch { }
 
-        // §6 anti-drift (noesis-084): for the instance types that now expose ERC-7572 contractURI()
-        // (ERC1155/ERC721), the INSTANCE is the single source of truth for the collection metadata URI —
-        // read it through and stop trusting the possibly-drifted registry copy. ERC404 has no contractURI()
-        // until noesis-085, so it keeps reading the registry value populated above.
+        // §6 anti-drift (noesis-084, completed by noesis-085): ALL THREE instance types now expose an
+        // ERC-7572 contractURI(), so the INSTANCE is the single source of truth for the collection
+        // metadata URI — read it through and stop trusting the possibly-drifted registry copy. The read
+        // is uniform: no type is exempt any more.
         _hydrateContractURI(card);
 
         // 2–5 don't depend on step 1 succeeding — they use card fields or instance directly
@@ -424,9 +424,16 @@ contract QueryAggregator is SafeOwnableUUPS {
         _hydrateFeatured(card);
     }
 
-    /// @dev §6 read-through: override card.metadataURI with the instance's own contractURI() for the
-    ///      types that expose it (ERC1155/ERC721). Defensive try/catch — on any revert (or ERC404, which
-    ///      has no contractURI()) the registry-sourced value is kept, matching this file's never-brick reads.
+    /// @dev §6 read-through: override card.metadataURI with the instance's own contractURI(). Uniform
+    ///      across all three known instance types since noesis-085 — ERC404 got its ERC-7572 getter, so
+    ///      there is no longer a type that has to be trusted to the registry.
+    /// @dev Two ways the registry copy SURVIVES, both deliberate:
+    ///      1. The call reverts (an unknown type, a non-instance address, a getter that is not there).
+    ///         Defensive try/catch, matching this file's never-brick read contract.
+    ///      2. The instance returns an EMPTY string. Every ERC404 instance deployed BEFORE noesis-085 —
+    ///         and any instance created with an empty collection URI — reads back "". Overwriting
+    ///         unconditionally would BLANK a card that the registry could still describe, which is a
+    ///         regression, not anti-drift. Empty is "I have nothing to say", not "the URI is nothing".
     // slither-disable-next-line calls-loop
     function _hydrateContractURI(ProjectCard memory card) private view {
         bytes32 typeHash;
@@ -436,12 +443,12 @@ contract QueryAggregator is SafeOwnableUUPS {
             return; // no discriminator → keep the registry value
         }
 
-        if (typeHash == TYPE_ERC1155 || typeHash == TYPE_ERC721) {
+        if (typeHash == TYPE_ERC404 || typeHash == TYPE_ERC1155 || typeHash == TYPE_ERC721) {
             try IContractURI(card.instance).contractURI() returns (string memory u) {
-                card.metadataURI = u;
+                if (bytes(u).length != 0) card.metadataURI = u;
             } catch { }
         }
-        // TYPE_ERC404 (and anything else): keep the registry copy (noesis-085 flips ERC404).
+        // Any other type: keep the registry copy — nothing is known about its metadata surface.
     }
 
     // slither-disable-next-line calls-loop
