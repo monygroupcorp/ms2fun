@@ -77,6 +77,36 @@ Both outcomes are pinned in `contracts/test/factories/erc404/TokenTierOps.t.sol`
 `contracts/test/factories/erc404/TierBurnSafety.t.sol`. In every case the coin is conserved and
 reachable — no path leaves escrow stranded.
 
+### The one exception: reroll never dissolves a tier NFT
+
+`rerollSelectedNFTs` is the single debit a holder does not aim at. Every other debit is a deliberate move
+of coin — spend it, sell it, stake it — while a reroll is a request to change *art*, and its coin
+round-trip through the instance is a debit only as an implementation mechanism. So reroll is carved out
+of the rule above:
+
+> **A reroll never dissolves a tier NFT.** Every band id the caller owns is exempted by the contract,
+> whether or not the caller named it in `exemptedNFTIds`.
+
+This is enforced **on-chain, and is not a UI responsibility**. No caller can dissolve a band through
+reroll: not this project's app, not a third-party integrator, not a direct contract call. A UI must not
+be built on the assumption that it is the thing keeping a holder's denomination safe here, and it does
+not need to warn about reroll. Two consequences a UI *does* need to render:
+
+- **A protected band consumes one unit of the reroll budget**, exactly as an explicitly exempted id
+  always has — a band NFT *is* one unit of the position. A holder with one band and three ordinary ids
+  who submits `3 * unit()` rerolls **two** ordinary ids. Show the effective count before submit;
+  it is `tokenAmount / unit()` minus the number of band ids the holder owns.
+- **A holder whose entire position is band NFTs cannot reroll**, and the call reverts rather than
+  succeeding. There is nothing left to shuffle once the bands are protected. The revert surfaces as the
+  generic `RerollFailed()`.
+
+Deliberate dissolution remains available and is the intended path: `mintDown` returns the escrow as
+spendable coin first, and the freed coin rerolls normally afterwards.
+
+Pinned in `contracts/test/factories/erc404/TierCrossFeature.t.sol` — survival without a caller-supplied
+exemption, an unchanged result when the caller does supply it, the budget count, and the all-band
+holder's revert.
+
 ## Deliberately NOT specified here
 
 **No transfer-time warning, confirmation step, or block is required, and none should be added on the
