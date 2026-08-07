@@ -4674,6 +4674,13 @@ export const erc404BondingInstanceAbi = [
   {
     type: 'function',
     inputs: [],
+    name: 'contractURI',
+    outputs: [{ name: '', internalType: 'string', type: 'string' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
     name: 'curveParams',
     outputs: [
       { name: 'initialPrice', internalType: 'uint256', type: 'uint256' },
@@ -4890,6 +4897,7 @@ export const erc404BondingInstanceAbi = [
       { name: 'symbol_', internalType: 'string', type: 'string' },
       { name: 'styleUri_', internalType: 'string', type: 'string' },
       { name: 'tokenBaseURI_', internalType: 'string', type: 'string' },
+      { name: 'contractURI_', internalType: 'string', type: 'string' },
     ],
     name: 'initializeMetadata',
     outputs: [],
@@ -5147,6 +5155,13 @@ export const erc404BondingInstanceAbi = [
     type: 'function',
     inputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
     name: 'setBondingOpenTime',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: '', internalType: 'string', type: 'string' }],
+    name: 'setContractURI',
     outputs: [],
     stateMutability: 'nonpayable',
   },
@@ -5818,6 +5833,7 @@ export const erc404BondingInstanceAbi = [
   { type: 'error', inputs: [], name: 'SetBondingActiveFailed' },
   { type: 'error', inputs: [], name: 'SetBondingMaturityTimeFailed' },
   { type: 'error', inputs: [], name: 'SetBondingOpenTimeFailed' },
+  { type: 'error', inputs: [], name: 'SetContractURIFailed' },
   { type: 'error', inputs: [], name: 'SetMetadataURIFailed' },
   { type: 'error', inputs: [], name: 'SetStyleFailed' },
   {
@@ -18805,6 +18821,15 @@ export const useReadErc404BondingInstanceCoinBalanceOf =
   })
 
 /**
+ * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"contractURI"`
+ */
+export const useReadErc404BondingInstanceContractUri =
+  /*#__PURE__*/ createUseReadContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'contractURI',
+  })
+
+/**
  * Wraps __{@link useReadContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"curveParams"`
  */
 export const useReadErc404BondingInstanceCurveParams =
@@ -19450,6 +19475,15 @@ export const useWriteErc404BondingInstanceSetBondingOpenTime =
   })
 
 /**
+ * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setContractURI"`
+ */
+export const useWriteErc404BondingInstanceSetContractUri =
+  /*#__PURE__*/ createUseWriteContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setContractURI',
+  })
+
+/**
  * Wraps __{@link useWriteContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setMetadataURI"`
  */
 export const useWriteErc404BondingInstanceSetMetadataUri =
@@ -19795,6 +19829,15 @@ export const useSimulateErc404BondingInstanceSetBondingOpenTime =
   /*#__PURE__*/ createUseSimulateContract({
     abi: erc404BondingInstanceAbi,
     functionName: 'setBondingOpenTime',
+  })
+
+/**
+ * Wraps __{@link useSimulateContract}__ with `abi` set to __{@link erc404BondingInstanceAbi}__ and `functionName` set to `"setContractURI"`
+ */
+export const useSimulateErc404BondingInstanceSetContractUri =
+  /*#__PURE__*/ createUseSimulateContract({
+    abi: erc404BondingInstanceAbi,
+    functionName: 'setContractURI',
   })
 
 /**

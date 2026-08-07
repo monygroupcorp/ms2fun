@@ -169,7 +169,7 @@ contract TierBurnSafetyTest is Test {
                 weth: address(0xBEEF)
             })
         );
-        t.initializeMetadata("TierToken", "TIER", "", "");
+        t.initializeMetadata("TierToken", "TIER", "", "", "");
     }
 
     function _defaultBands() internal pure returns (ERC404BondingStorage.TierBand[] memory bands) {

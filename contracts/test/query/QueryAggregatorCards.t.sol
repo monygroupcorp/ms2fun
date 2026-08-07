@@ -116,7 +116,8 @@ contract MockContractURIInstance {
     }
 }
 
-/// @notice noesis-084 §6: instance with a type but NO contractURI() (the ERC404 case pre-085).
+/// @notice noesis-084 §6: instance with a type but NO contractURI() — the never-brick fallback case
+///         (a legacy/foreign instance, or any address that does not implement the getter).
 contract MockNoContractURIInstance {
     bytes32 private immutable _type;
 
@@ -245,8 +246,9 @@ contract QueryAggregatorCardsTest is Test {
         assertEq(_batch(address(e721)).extraData.length, 0, "ERC721 card extraData unused => empty");
     }
 
-    // ── noesis-084 §6 anti-drift: card.metadataURI reads the instance's contractURI() for the
-    //    types that expose it (ERC1155/ERC721), and keeps the registry copy for ERC404. ───────────
+    // ── §6 anti-drift: card.metadataURI reads the instance's own ERC-7572 contractURI() for ALL THREE
+    //    instance types (noesis-084 did ERC1155/ERC721; noesis-085 added ERC404), and falls back to the
+    //    registry copy only when the instance has nothing to say — a revert or an EMPTY string. ───────
 
     function test_s6_erc1155_card_reads_instance_contractURI() public {
         MockContractURIInstance inst = new MockContractURIInstance(keccak256("erc1155"), "instance://erc1155");
@@ -270,14 +272,53 @@ contract QueryAggregatorCardsTest is Test {
         );
     }
 
-    function test_s6_erc404_card_keeps_registry_metadataURI() public {
-        // ERC404 has no contractURI() until noesis-085 → the registry copy must survive.
+    function test_s6_erc404_card_reads_instance_contractURI() public {
+        MockContractURIInstance inst = new MockContractURIInstance(keccak256("erc404"), "instance://erc404");
+        registry.setInstanceMetadataURI(address(inst), "registry://stale");
+        QueryAggregator.ProjectCard memory card = _batch(address(inst));
+        assertEq(
+            card.metadataURI,
+            "instance://erc404",
+            "ERC404 card must read the instance contractURI, not the registry copy (noesis-085)"
+        );
+    }
+
+    /// The read-through must never BLANK a card. Every ERC404 instance deployed before noesis-085 reads
+    /// back "" for contractURI(), and so does any instance created with an empty collection URI — an
+    /// unconditional override would replace a usable registry URI with nothing.
+    function test_s6_empty_instance_contractURI_keeps_registry_copy() public {
+        MockContractURIInstance e404 = new MockContractURIInstance(keccak256("erc404"), "");
+        registry.setInstanceMetadataURI(address(e404), "registry://erc404-kept");
+        assertEq(
+            _batch(address(e404)).metadataURI,
+            "registry://erc404-kept",
+            "an empty instance contractURI must not blank the ERC404 card"
+        );
+
+        // Same guard for the two types noesis-084 already read through — a strict improvement there too.
+        MockContractURIInstance e1155 = new MockContractURIInstance(keccak256("erc1155"), "");
+        registry.setInstanceMetadataURI(address(e1155), "registry://erc1155-kept");
+        assertEq(
+            _batch(address(e1155)).metadataURI,
+            "registry://erc1155-kept",
+            "an empty instance contractURI must not blank the ERC1155 card"
+        );
+
+        MockContractURIInstance e721 = new MockContractURIInstance(keccak256("erc721"), "");
+        registry.setInstanceMetadataURI(address(e721), "registry://erc721-kept");
+        assertEq(
+            _batch(address(e721)).metadataURI,
+            "registry://erc721-kept",
+            "an empty instance contractURI must not blank the ERC721 card"
+        );
+    }
+
+    /// A reverting (or absent) contractURI() keeps the registry copy — the never-brick read contract.
+    function test_s6_reverting_contractURI_keeps_registry_copy() public {
         MockNoContractURIInstance inst = new MockNoContractURIInstance(keccak256("erc404"));
         registry.setInstanceMetadataURI(address(inst), "registry://erc404");
         QueryAggregator.ProjectCard memory card = _batch(address(inst));
-        assertEq(
-            card.metadataURI, "registry://erc404", "ERC404 card must keep the registry metadataURI pending noesis-085"
-        );
+        assertEq(card.metadataURI, "registry://erc404", "a failed contractURI() read must keep the registry copy");
     }
 
     function test_erc721_no_bids_uses_minbid() public {

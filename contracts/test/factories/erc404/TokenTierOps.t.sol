@@ -142,7 +142,7 @@ contract TokenTierOpsTest is Test {
                 weth: address(0xBEEF)
             })
         );
-        token.initializeMetadata("TierToken", "TIER", "", "");
+        token.initializeMetadata("TierToken", "TIER", "", "", "");
 
         vm.deal(user1, 1000 ether);
         vm.deal(user2, 1000 ether);

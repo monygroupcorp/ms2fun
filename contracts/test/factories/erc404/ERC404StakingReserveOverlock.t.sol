@@ -110,7 +110,7 @@ contract ERC404StakingReserveOverlockTest is Test {
                 weth: address(0xBEEF)
             })
         );
-        inst.initializeMetadata("T", "T", "", "");
+        inst.initializeMetadata("T", "T", "", "", "");
         vm.stopPrank();
     }
 
