@@ -250,6 +250,11 @@ contract ERC404BondingOps is ERC404BondingStorage {
         //     `balance` and `totalNFTSupply` are all unchanged — one id leaves, one arrives.
         _swapOwnedId($, oo, msg.sender, holderAlias, tierZeroId, bandId);
 
+        // (d2) Move the band id to owned index 0, so a later debit's LIFO tail burn reaches it LAST.
+        //      Must run AFTER the swap: the band id has to be installed in `owned` before it can move.
+        //      Purely a reorder — no balance, `ownedLength` or escrow effect (see `_moveOwnedIdToFront`).
+        _moveOwnedIdToFront($, oo, msg.sender, holderAlias, bandId);
+
         // (e) Escrow accounting.
         totalTierEscrow += escrowAmount;
 
@@ -355,6 +360,41 @@ contract ERC404BondingOps is ERC404BondingStorage {
             _set($.mayHaveNFTApproval, oldId, false);
             delete $.nftApprovals[oldId];
         }
+    }
+
+    /// @dev Move `id` to owned index 0 in `holder`'s array by swapping it with whatever sits there.
+    ///      WHY: DN404 reconciles `ownedLength == balance / unit` on every debit by burning ids LIFO off
+    ///      the TAIL of `owned[holder]`, so an id's index decides how much of a partial spend it can
+    ///      survive. Index 0 is the last position the burn loop reaches: a holder with any spare liquid
+    ///      coin can transfer without endangering the tier NFT. This is NOT a guarantee of immortality —
+    ///      the final unit of a full spend still burns it, which is the 1-unit floor by design.
+    ///
+    ///      Pure reorder: two `owned` entries trade places and their two `oo` owned-index entries follow.
+    ///      `balance`, `ownedLength`, `totalNFTSupply` and `totalTierEscrow` are all untouched. BOTH ids
+    ///      are rewritten — updating only the moved one would leave the displaced id's owned index
+    ///      pointing at a slot it no longer occupies, and DN404 trusts `oo` absolutely.
+    ///
+    ///      `displacedId` is by construction owned by `holder` (it came out of `holder`'s own array), so
+    ///      it keeps the same `holderAlias`. A holder whose only NFT is `id` has it at index 0 already
+    ///      and returns early.
+    function _moveOwnedIdToFront(
+        DN404Storage storage $,
+        Uint32Map storage oo,
+        address holder,
+        uint32 holderAlias,
+        uint256 id
+    ) private {
+        uint32 slot = _get(oo, _ownedIndex(id));
+        if (slot == 0) return;
+
+        Uint32Map storage ownedIds = $.owned[holder];
+        uint256 displacedId = _get(ownedIds, 0);
+
+        _set(ownedIds, 0, uint32(id));
+        _set(ownedIds, slot, uint32(displacedId));
+
+        _setOwnerAliasAndOwnedIndex(oo, id, holderAlias, 0);
+        _setOwnerAliasAndOwnedIndex(oo, displacedId, holderAlias, slot);
     }
 
     /// @dev The next free ORDINARY id, found exactly the way DN404's mint loop finds one (the `exists`
