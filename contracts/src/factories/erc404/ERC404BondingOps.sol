@@ -70,26 +70,47 @@ contract ERC404BondingOps is ERC404BondingStorage {
     /// @notice Reroll body, moved verbatim from the instance. Keeps `nonReentrant`: the guard uses the
     ///         shared fixed slot, so it engages in the instance's context under delegatecall. No owner
     ///         gate (matches the instance's historic access exactly).
+    /// @dev    REROLL NEVER DISSOLVES A TIER NFT. The coin round trip below is a debit like any other,
+    ///         so an unexempted band id sitting in the burned range of the outward leg is destroyed and
+    ///         its denomination converted to a `pendingEscrowRelease` claim by the T3 hook. That is the
+    ///         one destruction the holder did not aim at — every other one (spend, sell, stake) is a
+    ///         deliberate move of coin — so the protection is in the contract rather than in a caller:
+    ///         `_effectiveExemptions` appends every band id the caller owns to the supplied list, and
+    ///         the whole body reads that combined list. No caller — this project's app, a third party,
+    ///         or a direct contract call — can reroll a band away. Deliberate dissolution remains
+    ///         available through `mintDown`, which returns the escrow as spendable coin first.
+    /// @param  tokenAmount How much of the caller's position goes through the shuffle. A protected band
+    ///         NFT is one unit of that position and consumes one unit of this budget, exactly as an
+    ///         explicitly exempted id always has: a holder of one band plus three ordinary ids passing
+    ///         `3 * unit` rerolls two ordinary ids and keeps the band.
     function rerollSelectedNFTs(uint256 tokenAmount, uint256[] calldata exemptedNFTIds) external nonReentrant {
         if (tokenAmount == 0) revert TokenAmountMustBePositive();
         if (balanceOf(msg.sender) < tokenAmount) revert InsufficientTokenBalance();
+
+        // The effective list, used at EVERY site below. A single site left reading calldata would
+        // exempt an id on one leg and burn it on the other.
+        uint256[] memory exempted = _effectiveExemptions(exemptedNFTIds);
 
         DN404Storage storage $ = _getDN404Storage();
         AddressData storage addressData = $.addressData[msg.sender];
 
         uint256 unitSize = _unit();
-        uint256 exemptCount = exemptedNFTIds.length;
+        uint256 exemptCount = exempted.length;
         if (tokenAmount < exemptCount * unitSize) revert TokenAmountMustRepresentNFT();
 
         uint256 rerollAmount = tokenAmount - (exemptCount * unit);
-        if (rerollAmount / unit == 0) revert TokenAmountMustRepresentNFT(); // round down: standard integer NFT count
+        // Round down: standard integer NFT count. A holder whose ENTIRE position is band NFTs lands
+        // here — auto-exemption leaves no rerollable remainder — and reverts with their NFTs intact.
+        if (rerollAmount / unit == 0) revert TokenAmountMustRepresentNFT();
 
         uint256 balanceBefore = addressData.balance;
 
-        emit RerollInitiated(msg.sender, tokenAmount, exemptedNFTIds);
+        // The effective list, not the caller's: an indexer reading the caller's list would misreport
+        // which ids were protected.
+        emit RerollInitiated(msg.sender, tokenAmount, exempted);
 
         for (uint256 i = 0; i < exemptCount; i++) {
-            _initiateTransferFromNFT(msg.sender, address(this), exemptedNFTIds[i], msg.sender);
+            _initiateTransferFromNFT(msg.sender, address(this), exempted[i], msg.sender);
         }
 
         _transfer(msg.sender, address(this), rerollAmount);
@@ -100,12 +121,84 @@ contract ERC404BondingOps is ERC404BondingStorage {
         _setSkipNFT(msg.sender, originalSkipNFT);
 
         for (uint256 i = 0; i < exemptCount; i++) {
-            _initiateTransferFromNFT(address(this), msg.sender, exemptedNFTIds[i], address(this));
+            _initiateTransferFromNFT(address(this), msg.sender, exempted[i], address(this));
         }
 
         if (addressData.balance != balanceBefore) revert BalanceMismatchAfterReroll();
 
         emit RerollCompleted(msg.sender, tokenAmount);
+    }
+
+    /// @dev The caller's `exemptedNFTIds` plus every band id the caller owns that is not already in it.
+    ///
+    ///      PLACEMENT IS DELIBERATE: this lives in `ERC404BondingOps`, NOT in the shared
+    ///      `ERC404BondingStorage` base. The base compiles into BOTH contracts, so a helper declared
+    ///      there would spend `ERC404BondingInstance`'s scarce EIP-170 headroom on code the instance can
+    ///      never reach — reroll's body is here and the instance only trampolines to it.
+    ///
+    ///      COST. On a tiered whole-position reroll this is CHEAPER than the path it replaces: routing
+    ///      a band through `_initiateTransferFromNFT` (a re-home) costs less than burn -> escrow-release
+    ///      hook -> fresh mint. Untiered instances pay one `tierBands.length` SLOAD and a calldata copy.
+    ///      The scan is O(owned) with an O(supplied) inner dedupe, and it is self-inflicted: the caller
+    ///      pays for the size of their own position. See the PR body for measured numbers.
+    ///
+    ///      DEDUPE is load-bearing, not tidiness. An id present twice in the effective list would be
+    ///      transferred to the instance twice on the outward leg — the second transfer reverts, since
+    ///      the caller no longer owns it — and would inflate `exemptCount`, which feeds the
+    ///      `tokenAmount < exemptCount * unitSize` guard. The scan compares against EVERY entry the
+    ///      caller supplied, so a caller who already named their band gets a byte-identical result.
+    ///      A caller who names the same id twice themselves reverts exactly as it does today; this
+    ///      helper neither creates nor repairs that case.
+    /// @param  supplied The caller's calldata exemption list, passed through unchanged and first.
+    /// @return effective `supplied` for an untiered instance; otherwise `supplied` followed by the
+    ///         caller's un-named band ids in `owned` order.
+    function _effectiveExemptions(uint256[] calldata supplied) private view returns (uint256[] memory effective) {
+        // Untiered instances structurally cannot hold a band id: one SLOAD, then out.
+        if (tierBands.length == 0) return supplied;
+
+        DN404Storage storage $ = _getDN404Storage();
+        // Band ids live STRICTLY above `idLimit`: `initTierBands` seeds its ascending-band check with
+        // `prevEnd = idLimit` and reverts `InvalidBand` on `idStart <= prevEnd`, and DN404 bounds every
+        // auto-minted id with `_wrapNFTId(.., idLimit)`. So `id <= idLimit` proves "ordinary" and the
+        // band walk can be skipped for it. `totalSupply` is fixed at `maxSupply` for this instance's
+        // life, so this is the same `idLimit` the seal validated against.
+        uint256 idLimit = uint256($.totalSupply) / _unit();
+
+        uint256[] memory owned = _ownedIds(msg.sender, 0, type(uint256).max);
+        uint256 suppliedLen = supplied.length;
+        uint256 ownedLen = owned.length;
+
+        // Over-allocate to the maximum possible length, fill, then shrink to the true count.
+        effective = new uint256[](suppliedLen + ownedLen);
+        for (uint256 i = 0; i < suppliedLen; i++) {
+            effective[i] = supplied[i];
+        }
+
+        uint256 count = suppliedLen;
+        for (uint256 i = 0; i < ownedLen; i++) {
+            uint256 id = owned[i];
+            if (id <= idLimit) continue; // ordinary id space — the O(1) early-out
+            (bool isBand,,) = _bandOf(id); // the shared band walk (noesis-143); one source of truth
+            if (!isBand) continue;
+            bool alreadyNamed;
+            for (uint256 j = 0; j < suppliedLen; j++) {
+                if (supplied[j] == id) {
+                    alreadyNamed = true;
+                    break;
+                }
+            }
+            if (alreadyNamed) continue;
+            effective[count] = id;
+            count++;
+        }
+
+        // Shrink the length in place. `count <= suppliedLen + ownedLen` by construction, so this only
+        // ever narrows an allocation this function made — it never reaches memory it does not own and
+        // never extends past the free-memory pointer.
+        /// @solidity memory-safe-assembly
+        assembly {
+            mstore(effective, count)
+        }
     }
 
     // ┌──────────────────────────────┐
