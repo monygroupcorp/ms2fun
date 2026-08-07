@@ -10,7 +10,8 @@ import {
     InvalidBand,
     InitTierBandsFailed,
     FreeMintFailed,
-    UnstakeFailed
+    UnstakeFailed,
+    RerollFailed
 } from "src/factories/erc404/ERC404BondingStorage.sol";
 import { ERC404StakingModule } from "src/factories/erc404/ERC404StakingModule.sol";
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -91,6 +92,10 @@ contract TierCrossFeatureTest is Test {
     uint32 constant T2_END = 1110; // 1000 / 100 =  10 ids, weight 100
 
     event EscrowReleased(address indexed holder, uint256 indexed bandId, uint256 amount);
+    /// @dev Mirrors `ERC404BondingStorage.RerollInitiated`. Redeclared locally so `vm.expectEmit` can
+    ///      match on the payload — the third field is the EFFECTIVE exemption list the contract used,
+    ///      which is what an indexer sees and the only external read of the dedupe.
+    event RerollInitiated(address indexed user, uint256 tokenAmount, uint256[] exemptedNFTIds);
 
     function setUp() public {
         liquidityDeployer = new CrossFeatureLiquidityDeployer();
@@ -443,6 +448,20 @@ contract TierCrossFeatureTest is Test {
         assertEq(_ownedIdsOf(who).length, 3, "setup: band + two ordinary ids");
     }
 
+    /// @dev Same shape one rung wider: 13 units in, `mintUp(1, 1)` escrows nine, leaving
+    ///      `owned == [T1_START, 2, 3, 4]` and 4 units of liquid balance. The extra ordinary id is what
+    ///      makes the reroll BUDGET observable — with three ordinary ids, a `3 * UNIT` reroll that
+    ///      spends one unit protecting the band must leave exactly one of them untouched.
+    function _holderWithABandAndThreeOrdinaryIds(address who) internal returns (uint256 bandId) {
+        _fund(who, 13);
+        vm.prank(who);
+        token.mintUp(1, 1);
+        bandId = T1_START;
+        assertEq(_ownerOrZero(bandId), who, "setup: band issued");
+        assertEq(token.balanceOf(who), 4 * UNIT, "setup: 13 units in, 9 escrowed");
+        assertEq(_ownedIdsOf(who).length, 4, "setup: band + three ordinary ids");
+    }
+
     /// @notice CARRIED. A reroll that EXEMPTS a band id keeps that exact id: the exemption legs move it
     ///         to the instance and back with `_transferFromNFT`, which re-homes an id rather than
     ///         destroying it, so nothing is credited and the escrow never moves. A reroll can therefore
@@ -480,38 +499,185 @@ contract TierCrossFeatureTest is Test {
         _assertAllThree();
     }
 
-    /// @notice BURNED-AND-CREDITED. Reroll's coin round-trip (`_transfer` out to the instance, then
-    ///         back) is a debit like any other, so a band id sitting in the burned range of the outward
-    ///         leg is destroyed — and because the return leg restores the balance exactly, the reroll's
-    ///         `BalanceMismatchAfterReroll` check still passes and the call SUCCEEDS. The T3 hook is
-    ///         what makes that safe: the denomination becomes a `pendingEscrowRelease` claim rather than
-    ///         orphaned coin. Net effect for a holder who rerolls their whole position: the band is
-    ///         gone, the coin is not.
-    function test_rerollCoinRoundTripBurningABandCreditsTheHolder() public {
+    /// @notice CARRIED, WITHOUT THE CALLER ASKING. Reroll's coin round-trip (`_transfer` out to the
+    ///         instance, then back) is a debit like any other, so a band id left in the burned range of
+    ///         the outward leg would be destroyed — silently, because the return leg restores the
+    ///         balance exactly and the `BalanceMismatchAfterReroll` check still passes. That is the one
+    ///         destruction a holder never aimed at: they asked to change their art, not to dissolve a
+    ///         denomination. `rerollSelectedNFTs` therefore auto-exempts every band id the caller owns
+    ///         before it computes anything, so this whole-position reroll re-homes the band through
+    ///         `_transferFromNFT` instead of burning it. Nothing is released and nothing is claimable —
+    ///         there is no burn to credit.
+    /// @dev    The counterpart to `test_rerollExemptingABandIdKeepsTheIdAndItsEscrow`: same outcome,
+    ///         caller-supplied exemption there, contract-side auto-exemption here. Deliberate
+    ///         dissolution is still reachable — `mintDown` first, then reroll the freed coin.
+    function test_rerollAutoExemptsAnOwnedBandInsteadOfDissolvingIt() public {
         _seal();
         uint256 bandId = _holderWithABandAndTwoOrdinaryIds(user1);
+        uint256 escrowBefore = token.totalTierEscrow();
+        uint256 nftSupplyBefore = DN404Mirror(payable(token.mirrorERC721())).totalSupply();
 
-        vm.expectEmit(true, true, true, true, address(token));
-        emit EscrowReleased(user1, bandId, 9 * UNIT);
         vm.prank(user1);
-        token.rerollSelectedNFTs(3 * UNIT, new uint256[](0)); // no exemption: the band is in the burn range
+        token.rerollSelectedNFTs(3 * UNIT, new uint256[](0)); // NO exemption supplied: the contract adds it
 
-        assertEq(_ownerOrZero(bandId), address(0), "the band was burned by the outward leg");
-        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "its denomination became a claim");
-        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
-        assertEq(token.bandOutstanding(1), 0, "the id is back on its band's free list");
+        assertEq(_ownerOrZero(bandId), user1, "the band survived a whole-position reroll, same id");
+        assertEq(token.pendingEscrowRelease(user1), 0, "nothing was released: there was no burn");
+        assertEq(token.totalTierEscrow(), escrowBefore, "escrow untouched");
+        assertEq(token.bandOutstanding(1), 1, "the id never went back on its band's free list");
+        assertEq(DN404Mirror(payable(token.mirrorERC721())).totalSupply(), nftSupplyBefore, "no net mint or burn");
         assertEq(token.balanceOf(user1), 3 * UNIT, "the reroll's balance check held");
+        assertEq(token.coinBalanceOf(user1), 12 * UNIT, "the denomination is intact, not a pending claim");
 
         uint256[] memory after_ = _ownedIdsOf(user1);
-        assertEq(after_.length, 3, "three freshly rolled ids");
+        assertEq(after_.length, 3, "the band plus two freshly rolled ordinary ids");
+        uint256 bandsHeld;
         for (uint256 i; i < after_.length; i++) {
-            assertLe(after_[i], ID_LIMIT, "a rerolled id escaped into a band");
+            if (after_[i] > ID_LIMIT) bandsHeld++;
         }
+        assertEq(bandsHeld, 1, "exactly one band id, and no reroll ever emitted another");
         _assertAllThree();
 
+        // Still fully redeemable, with no claim step in between — the coin never left the escrow.
         vm.prank(user1);
-        token.claimReleasedEscrow();
-        assertEq(token.balanceOf(user1), 12 * UNIT, "nothing lost: 12 units in, 12 units held");
+        token.mintDown(bandId);
+        assertEq(token.balanceOf(user1), 12 * UNIT, "12 units in, 12 units held");
+        _assertAllThree();
+    }
+
+    /// @notice NO DOUBLE-ADD. A caller who already names their band id must get the byte-identical
+    ///         result. The auto-exemption scan compares against every entry the caller supplied, so the
+    ///         effective list stays length 1 — the `RerollInitiated` payload below is the direct pin.
+    /// @dev    This is the failure mode the auto-exemption could introduce and the reason the dedupe is
+    ///         load-bearing rather than tidiness: a duplicated id would be moved to the instance twice
+    ///         on the outward leg (the second move reverting, as the caller no longer owns it) and would
+    ///         inflate `exemptCount`, which feeds the `tokenAmount < exemptCount * unit` guard.
+    function test_rerollAutoExemptDoesNotDoubleAddACallerSuppliedBandId() public {
+        _seal();
+        uint256 bandId = _holderWithABandAndTwoOrdinaryIds(user1);
+        uint256 escrowBefore = token.totalTierEscrow();
+
+        uint256[] memory exempted = new uint256[](1);
+        exempted[0] = bandId;
+
+        // The effective list the contract actually used: one entry, not two.
+        uint256[] memory expected = new uint256[](1);
+        expected[0] = bandId;
+        vm.expectEmit(true, true, true, true, address(token));
+        emit RerollInitiated(user1, 3 * UNIT, expected);
+
+        vm.prank(user1);
+        token.rerollSelectedNFTs(3 * UNIT, exempted);
+
+        assertEq(_ownerOrZero(bandId), user1, "the band survived, same id");
+        assertEq(token.totalTierEscrow(), escrowBefore, "escrow untouched");
+        assertEq(token.pendingEscrowRelease(user1), 0, "nothing was released");
+        assertEq(token.balanceOf(user1), 3 * UNIT, "identical to the auto-exempted case");
+        assertEq(token.coinBalanceOf(user1), 12 * UNIT, "the denomination is intact");
+        assertEq(_ownedIdsOf(user1).length, 3, "band + two freshly rolled ordinary ids");
+        _assertAllThree();
+    }
+
+    /// @notice THE BUDGET. `tokenAmount` means "this much of my position goes through the shuffle", and
+    ///         a protected band NFT is one unit of that position — exactly as an explicitly exempted id
+    ///         always has been. A holder of one band plus three ordinary ids who passes `3 * UNIT`
+    ///         therefore rerolls TWO ordinary ids, not three. Asserting the COUNT, not just the band's
+    ///         survival: the arithmetic is the accepted behaviour and must not drift silently.
+    /// @dev    Counted by identity, which is sound here because this instance leaves DN404's burned
+    ///         pool disabled (`_addToBurnedPool` is the library default, false), so re-mints come off
+    ///         the forward `nextTokenId` cursor and a burned id is not handed straight back.
+    function test_rerollBudgetCountsTheAutoExemptedBandAsOneUnit() public {
+        _seal();
+        uint256 bandId = _holderWithABandAndThreeOrdinaryIds(user1);
+
+        uint256[] memory before = _ownedIdsOf(user1);
+        assertEq(before.length, 4, "setup: band + three ordinary ids");
+
+        vm.prank(user1);
+        token.rerollSelectedNFTs(3 * UNIT, new uint256[](0));
+
+        assertEq(_ownerOrZero(bandId), user1, "the band survived");
+
+        uint256 ordinarySurvivors;
+        for (uint256 i; i < before.length; i++) {
+            if (before[i] > ID_LIMIT) continue; // the band, counted above
+            if (_ownerOrZero(before[i]) == user1) ordinarySurvivors++;
+        }
+        assertEq(ordinarySurvivors, 1, "exactly two of the three ordinary ids were rerolled, not three");
+
+        assertEq(_ownedIdsOf(user1).length, 4, "position size unchanged: band + three ordinary ids");
+        assertEq(token.balanceOf(user1), 4 * UNIT, "balance unchanged");
+        assertEq(token.coinBalanceOf(user1), 13 * UNIT, "denomination intact");
+        _assertAllThree();
+    }
+
+    /// @notice THE ALL-BAND HOLDER REVERTS RATHER THAN DISSOLVING. A holder whose entire position is one
+    ///         band NFT (liquid balance exactly one unit) has nothing left to reroll once their band is
+    ///         protected: `rerollAmount` is zero and the existing whole-NFT guard trips. The revert is
+    ///         the generic `RerollFailed()` — the instance's trampoline discards Ops's returndata by
+    ///         design (bubbling it re-triggers a via_ir size cliff), so the specific reason stays
+    ///         visible in traces only.
+    /// @dev    THIS PIN IS THE POINT OF THE ITEM. Without it, a later change could turn this revert back
+    ///         into a silent success that destroys the NFT — the exact behaviour being removed. A green
+    ///         suite that no longer reaches the destruction-vs-survival distinction is a coverage
+    ///         regression wearing a passing badge.
+    function test_rerollRevertsForAHolderWhoseEntirePositionIsOneBand() public {
+        _seal();
+        _fund(user1, 10);
+        vm.prank(user1);
+        token.mintUp(1, 1); // escrows 9 units; the holder is left with the band and nothing else
+        uint256 bandId = T1_START;
+        assertEq(token.balanceOf(user1), 1 * UNIT, "setup: the whole position is the band");
+        assertEq(_ownedIdsOf(user1).length, 1, "setup: exactly one id, and it is the band");
+
+        vm.prank(user1);
+        vm.expectRevert(RerollFailed.selector);
+        token.rerollSelectedNFTs(1 * UNIT, new uint256[](0));
+
+        assertEq(_ownerOrZero(bandId), user1, "the band survived the reverted reroll");
+        assertEq(token.pendingEscrowRelease(user1), 0, "nothing was released");
+        assertEq(token.coinBalanceOf(user1), 10 * UNIT, "the denomination is intact");
+        _assertAllThree();
+
+        // The deliberate path out is still open: dissolve first, then reroll the freed coin.
+        vm.prank(user1);
+        token.mintDown(bandId);
+        assertEq(token.balanceOf(user1), 10 * UNIT, "mintDown returned the escrow as spendable coin");
+        vm.prank(user1);
+        token.rerollSelectedNFTs(10 * UNIT, new uint256[](0));
+        assertEq(_ownedIdsOf(user1).length, 10, "and the reroll then works normally");
+        _assertAllThree();
+    }
+
+    /// @notice THE SCAN IS BOUNDED AND SELF-INFLICTED. The auto-exemption walks the caller's own owned
+    ///         ids (O(owned)) with an inner pass over the ids they supplied (O(supplied)); a caller pays
+    ///         for the size of their own position and can impose nothing on anyone else. Run at a
+    ///         hundred-plus ids with three live bands to hold the cost to a measured number rather than
+    ///         an assumption, and to prove the protection still holds at that scale.
+    function test_rerollLargePositionScanIsBoundedAndStillProtectsEveryBand() public {
+        _seal();
+        _fund(user1, 130);
+        vm.startPrank(user1);
+        token.mintUp(1, 1);
+        token.mintUp(1, 2);
+        token.mintUp(1, 3);
+        vm.stopPrank();
+
+        uint256[] memory before = _ownedIdsOf(user1);
+        assertEq(before.length, 103, "setup: 103 ids, three of them bands");
+        assertEq(token.balanceOf(user1), 103 * UNIT, "setup: 130 units in, 27 escrowed");
+
+        uint256 gasBefore = gasleft();
+        vm.prank(user1);
+        token.rerollSelectedNFTs(103 * UNIT, new uint256[](0));
+        emit log_named_uint("reroll gas, 103 owned ids / 3 bands / no supplied exemptions", gasBefore - gasleft());
+
+        for (uint256 t = 0; t < 3; t++) {
+            assertEq(_ownerOrZero(T1_START + t), user1, "every band survived the large-position reroll");
+        }
+        assertEq(token.pendingEscrowRelease(user1), 0, "nothing was released");
+        assertEq(token.totalTierEscrow(), 27 * UNIT, "escrow untouched");
+        assertEq(_ownedIdsOf(user1).length, 103, "position size unchanged");
+        assertEq(token.coinBalanceOf(user1), 130 * UNIT, "denomination intact");
         _assertAllThree();
     }
 
@@ -811,7 +977,21 @@ contract TierCrossFeatureTest is Test {
             } else if (op == 1) {
                 // Reroll everything liquid: the coin round-trip that can burn a band off the tail.
                 uint256 whole = (token.balanceOf(who) / UNIT) * UNIT;
-                if (whole != 0) {
+                // Sub-decision B: auto-exemption spends one unit of the reroll budget per band the
+                // caller owns, so a holder whose whole liquid position IS bands has no rerollable
+                // remainder and trips the existing `rerollAmount / unit == 0` guard — reverting with
+                // their tier NFTs intact. That revert is the designed outcome — pinned on its own by
+                // `test_rerollRevertsForAHolderWhoseEntirePositionIsOneBand` — not a conservation
+                // failure, so skip the op and let the sequence keep exploring its remaining steps
+                // rather than abort the whole sweep here. Ids above `ID_LIMIT` are exactly what the
+                // contract's `_effectiveExemptions` appends, so this predicate is the contract's own
+                // guard evaluated ahead of the call, not an independent rule that could drift.
+                uint256 bandsOwned;
+                uint256[] memory held = _ownedIdsOf(who);
+                for (uint256 j; j < held.length; j++) {
+                    if (held[j] > ID_LIMIT) bandsOwned++;
+                }
+                if (whole / UNIT > bandsOwned) {
                     vm.prank(who);
                     token.rerollSelectedNFTs(whole, new uint256[](0));
                 }
