@@ -72,7 +72,8 @@ error UnstakeFailed();
 error ClaimRewardsFailed();
 
 // ── Config-path errors (shared by the instance + the delegatecall Ops — noesis-149 D2 diet) ─────
-// The thirteen init/admin/setter bodies (`initializeProtocol`, `setMetadataURI`, `initializeFreeMint`,
+// The fourteen init/admin/setter bodies (`initializeProtocol`, `setMetadataURI`, `setContractURI`,
+// `initializeFreeMint`,
 // `initTierBands`, `initializeStaking`, `initModule`, `setAgentDelegation`,
 // `setAgentDelegationFromFactory`, `setBondingOpenTime`, `setBondingMaturityTime`, `setBondingActive`,
 // `setStyle`, `activateStaking`) live in ERC404BondingOps and revert with these specific errors
@@ -105,6 +106,7 @@ error StakingAlreadyActive();
 // factory-driven in the create path noesis-141 wires).
 error InitProtocolFailed();
 error SetMetadataURIFailed();
+error SetContractURIFailed();
 error InitFreeMintFailed();
 error InitTierBandsFailed();
 error InitStakingFailed();
@@ -166,6 +168,9 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     uint256 public bondingFeeBps;
 
     string public styleUri;
+    /// @dev PER-TOKEN base URI, consumed by `tokenURI(tokenId)`. NOT the collection URI — that is
+    ///      `contractURI` (ERC-7572), declared at the END of this layout (noesis-085). The two are
+    ///      distinct strings with distinct meanings; never overload one for the other.
     string public metadataURI;
 
     uint256 public bondingOpenTime;
@@ -264,6 +269,20 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
     /// @dev Running sum of `pendingEscrowRelease`. Lets the conservation invariant be checked on-chain
     ///      and keeps `withdrawDust`-style sweeps honest about what this balance already owes.
     uint256 public totalPendingEscrowRelease;
+
+    // ── ERC-7572 collection metadata (noesis-085) ────────────────────────────────────────────────
+
+    /// @notice The COLLECTION-level metadata URI (ERC-7572): the project's own image/banner/description
+    ///         document, the same string the master registry is handed at create. Marketplaces and
+    ///         `QueryAggregator`'s §6 read-through take this as the single source of truth, so a drifted
+    ///         registry copy can no longer win.
+    /// @dev    Deliberately SEPARATE from `metadataURI`, which is the PER-TOKEN base URI for
+    ///         `tokenURI(tokenId)` — the two are different documents and must never be conflated.
+    ///         Declared HERE (the shared base) and APPENDED at the end of the layout, never inserted
+    ///         between existing slots: `ERC404BondingOps` inherits this same base and executes in the
+    ///         instance's storage under delegatecall, so the layouts must stay byte-identical
+    ///         (noesis-091, enforced by `test/factories/erc404/eip170-diet-gate.sh`).
+    string public contractURI;
 
     // ── Reroll events (emitted by Ops in the instance's context under delegatecall) ─────────────
     event RerollInitiated(address indexed user, uint256 tokenAmount, uint256[] exemptedNFTIds);

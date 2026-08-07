@@ -25,6 +25,7 @@ import {
     InvalidOwner,
     InitProtocolFailed,
     SetMetadataURIFailed,
+    SetContractURIFailed,
     InitFreeMintFailed,
     InitTierBandsFailed,
     InitStakingFailed,
@@ -253,6 +254,10 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     // `initializeProtocol`, `initializeFreeMint`, `initializeStaking`, `initModule` and
     // `setAgentDelegationFromFactory` during create).
     // `initialize`, `initializeMetadata` and `migrateVault` deliberately KEPT their bodies here.
+    // `setContractURI` (noesis-085) was AUTHORED as a fourteenth trampoline rather than as an in-instance
+    // setter: this contract is the EIP-170 subject, and a body here costs the scarce bytes while the same
+    // body on the Ops side costs a bare trampoline. It carries no guard for the same reason as the rest —
+    // `_requireOwnerOrAgent` runs on the Ops side against the identical `msg.sender`.
 
     /**
      * @notice Set protocol params. Called by factory immediately after initialize().
@@ -264,13 +269,20 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     }
 
     /**
-     * @notice Set token name, symbol, and styleUri. Called by factory once after initialize().
+     * @notice Set token name, symbol, styleUri and the two metadata URIs. Called by factory once after
+     *         initialize().
+     * @param tokenBaseURI_ The PER-TOKEN base URI `tokenURI(tokenId)` composes against
+     *        (`params.tokenBaseURI` at the factory).
+     * @param contractURI_ The COLLECTION-level ERC-7572 URI (noesis-085) — the project document, the same
+     *        string the factory hands the master registry at create. Distinct from `tokenBaseURI_`: one
+     *        describes the collection, the other is the prefix for every token. Never conflate them.
      */
     function initializeMetadata(
         string calldata name_,
         string calldata symbol_,
         string calldata styleUri_,
-        string calldata tokenBaseURI_
+        string calldata tokenBaseURI_,
+        string calldata contractURI_
     ) external {
         if (msg.sender != factory) revert OnlyFactory();
         if (bytes(_name).length != 0) revert MetadataAlreadySet();
@@ -278,12 +290,24 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
         _symbol = symbol_;
         styleUri = styleUri_;
         metadataURI = tokenBaseURI_;
+        contractURI = contractURI_;
     }
 
+    /// @notice Update the PER-TOKEN base URI for `tokenURI(tokenId)`. Owner or delegated agent.
     // slither-disable-next-line low-level-calls,unused-return
     function setMetadataURI(string calldata) external {
         (bool ok,) = _ops.delegatecall(msg.data);
         if (!ok) revert SetMetadataURIFailed();
+    }
+
+    /// @notice Update the COLLECTION-level ERC-7572 `contractURI`. Owner or delegated agent.
+    /// @dev Same discard-returndata trampoline as `setMetadataURI` (body in `ERC404BondingOps`, guard on
+    ///      that side only). This does NOT touch `metadataURI` — the per-token base URI is a separate slot
+    ///      with a separate setter.
+    // slither-disable-next-line low-level-calls,unused-return
+    function setContractURI(string calldata) external {
+        (bool ok,) = _ops.delegatecall(msg.data);
+        if (!ok) revert SetContractURIFailed();
     }
 
     /// @notice Set free mint params. Called by factory once after initialize().

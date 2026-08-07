@@ -65,7 +65,7 @@ contract ERC404RerollTest is Test {
             })
         );
 
-        token.initializeMetadata("TestToken", "TEST", "", "");
+        token.initializeMetadata("TestToken", "TEST", "", "", "");
 
         // Fund users with ETH
         vm.deal(user1, 10 ether);
@@ -414,7 +414,7 @@ contract ERC404RerollTest is Test {
                 weth: address(0xBEEF)
             })
         );
-        t.initializeMetadata("TestToken", "TEST", "", "");
+        t.initializeMetadata("TestToken", "TEST", "", "", "");
 
         // Give the probe a rerollable balance (2 NFTs) so a NON-reentrant reroll would SUCCEED.
         vm.prank(address(t));

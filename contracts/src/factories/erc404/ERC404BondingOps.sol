@@ -431,6 +431,10 @@ contract ERC404BondingOps is ERC404BondingStorage {
     // shared `_requireOwnerOrAgent` all resolve against exactly the caller they did in-instance.
     // Guards live HERE ONLY — the instance trampolines carry none.
     //
+    // `setContractURI` (noesis-085) is the one body here that was never in the instance: it was AUTHORED
+    // on this side, on the same contract as the thirteen, because the instance is the EIP-170 subject and
+    // a new setter belongs where the other setters already live.
+    //
     // `migrateVault` is deliberately NOT here: it is value-extracting (bare `onlyOwner`, alongside
     // `withdrawDust`/`claimAllFees`) and is noesis-148's CONTROL proving the trampoline error-collapse is
     // an artifact rather than a weakened gate. `initialize` and `initializeMetadata` also stay.
@@ -468,9 +472,20 @@ contract ERC404BondingOps is ERC404BondingStorage {
         bondingFeeBps = protocol.bondingFeeBps;
     }
 
+    /// @notice Update the PER-TOKEN base URI consumed by `tokenURI(tokenId)`.
     function setMetadataURI(string calldata uri) external {
         _requireOwnerOrAgent();
         metadataURI = uri;
+    }
+
+    /// @notice Update the COLLECTION-level ERC-7572 `contractURI` (noesis-085). Exact mirror of
+    ///         `setMetadataURI` above — same owner-or-agent gate, same shape — but a different slot:
+    ///         `contractURI` is the project document marketplaces and `QueryAggregator`'s §6
+    ///         read-through consume, while `metadataURI` is the per-token base for `tokenURI`. Never
+    ///         conflate the two.
+    function setContractURI(string calldata uri) external {
+        _requireOwnerOrAgent();
+        contractURI = uri;
     }
 
     /// @notice Set free mint params. Called by factory once after initialize().

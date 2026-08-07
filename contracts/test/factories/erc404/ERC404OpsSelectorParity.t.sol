@@ -28,7 +28,7 @@ contract ERC404OpsSelectorParityTest is Test {
         assertEq(instanceSel, opsSel, what);
     }
 
-    // ── noesis-149: the thirteen config paths ────────────────────────────────────────────────────
+    // ── noesis-149: the thirteen config paths (+ setContractURI, noesis-085) ─────────────────────
 
     function test_configSelectorsMatchAcrossTheDelegatecallSeam() public pure {
         _assertParity(
@@ -38,6 +38,16 @@ contract ERC404OpsSelectorParityTest is Test {
         );
         _assertParity(
             ERC404BondingInstance.setMetadataURI.selector, ERC404BondingOps.setMetadataURI.selector, "setMetadataURI"
+        );
+        _assertParity(
+            ERC404BondingInstance.setContractURI.selector, ERC404BondingOps.setContractURI.selector, "setContractURI"
+        );
+        // The two URI setters must never collapse into one: a copy-paste that left `setContractURI`
+        // forwarding `setMetadataURI`'s selector would silently write the PER-TOKEN base URI instead of
+        // the collection URI, and every assertion about the write would still pass (noesis-085).
+        assertTrue(
+            ERC404BondingInstance.setContractURI.selector != ERC404BondingInstance.setMetadataURI.selector,
+            "setContractURI must be its own entry point, not an alias of setMetadataURI"
         );
         _assertParity(
             ERC404BondingInstance.initializeFreeMint.selector,
@@ -135,7 +145,8 @@ contract ERC404OpsSelectorParityTest is Test {
                 "initialize(address,address,(uint256,uint256,uint256,uint16,(uint256,uint256,uint256,uint256,uint256)),address,address,address)"
             )
         );
-        mustBeAbsent[2] = bytes4(keccak256("initializeMetadata(string,string,string,string)"));
+        // noesis-085 appended the collection-URI argument: five strings, not four.
+        mustBeAbsent[2] = bytes4(keccak256("initializeMetadata(string,string,string,string,string)"));
 
         for (uint256 i = 0; i < mustBeAbsent.length; i++) {
             (bool ok,) = address(ops).call(abi.encodeWithSelector(mustBeAbsent[i]));
