@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, Vm } from "forge-std/Test.sol";
 import { ERC404BondingInstance } from "src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "src/factories/erc404/ERC404BondingOps.sol";
 import { ERC404BondingStorage, NothingToClaim } from "src/factories/erc404/ERC404BondingStorage.sol";
@@ -251,6 +251,27 @@ contract TierBurnSafetyTest is Test {
             if (ok) return (true, _bandIdAfterMintUp(who, occupancyBefore));
         }
         return (false, 0);
+    }
+
+    /// @dev `mintUp` on the DEEPEST owned id that survives the escrow leg — walk the caller's ordinary
+    ///      ids downward and catch the revert, because the leg burns LIFO off the tail and an id caught
+    ///      by that burn reverts by design (a naive "take the highest id" pick just reverts). For a
+    ///      holder funded in one go, owned order IS id order, so the id this finds sits at the deepest
+    ///      mintable owned index — the worst case for a tier NFT's survival, and the case this item is
+    ///      about. Reverts rather than returning a flag: a silent "none found" would make its callers
+    ///      pass vacuously.
+    function _mintUpDeepestSurvivingId(address who, uint8 tierN) internal returns (uint256 chosenId, uint256 bandId) {
+        bool[] memory occupancyBefore = _bandOccupancy();
+        uint256[] memory ids = _ownedIdsOf(who);
+        for (uint256 i = ids.length; i > 0; i--) {
+            uint256 id = ids[i - 1];
+            if (id > ID_LIMIT) continue; // band ids are not tier-0 material
+            vm.prank(who);
+            // slither-disable-next-line low-level-calls
+            (bool ok,) = address(token).call(abi.encodeWithSignature("mintUp(uint8,uint256)", tierN, id));
+            if (ok) return (id, _bandIdAfterMintUp(who, occupancyBefore));
+        }
+        revert("setup: no ordinary id survived the escrow leg");
     }
 
     /// @dev Put `who` in the canonical pre-burn state: EXACTLY one NFT, and it is a tier-1 band id.
@@ -516,39 +537,191 @@ contract TierBurnSafetyTest is Test {
     ///         the same call. Under T2 alone that was a silent orphan. Here it must self-heal: escrow
     ///         charged once, escrow released once, no coin lost, the id still owned.
     ///
-    ///         Constructed deterministically. 20 units in (ids 1..20 at owned indices 0..19); the first
-    ///         `mintUp` uses id 5 (index 4), so the band lands at index 4 and survives that call's
-    ///         9-NFT tail burn. The second `mintUp` uses id 1 (index 0) and burns indices 10..2 —
-    ///         which includes index 4, the band.
+    ///         Constructed deterministically for a MULTI-BAND holder, which is what it takes now that
+    ///         `mintUp` parks each new band at owned index 0. One band on its own sits at the front,
+    ///         where no escrow leg can reach it: the leg burns 9 ids off the tail, and the tier-0 id
+    ///         being minted up has to survive that same burn, so the burn can never bite deeper than
+    ///         that id's index. A SECOND `mintUp` from a deep tier-0 id displaces the first band down
+    ///         into that deep slot, and a THIRD `mintUp`'s tail burn reaches it there.
+    ///
+    ///         40 units in (ids 1..40 at owned indices 0..39), tier-1 weight 10, so every escrow leg
+    ///         burns exactly 9 ids off the tail:
+    ///           1. `mintUp(1, 11)` — burns indices 31..39; band A takes index 10, then moves to 0.
+    ///           2. `mintUp(1, 22)` — burns indices 22..30; band B takes index 21, the deepest index
+    ///              that survives, then moves to 0 and DISPLACES band A down into index 21.
+    ///           3. `mintUp(1, 2)`  — burns indices 13..21, which now includes band A.
+    ///
+    ///         Which band the leg catches is read out of the logs rather than hard-coded, so the test
+    ///         pins the PATH — one of the caller's own bands burned, credited, and popped straight back
+    ///         inside a single call — instead of a particular owned index. The assertions are exact:
+    ///         one release, for the full `(w - 1) * unit`, on a band the caller held going in.
     function test_mintUpEscrowLegBurningTheCallersOwnBandSelfHeals() public {
         _seal();
-        _fund(token, user1, 20);
+        _fund(token, user1, 40);
 
         vm.prank(user1);
-        token.mintUp(1, 5);
-        uint256 firstBand = T1_START;
-        assertEq(_ownerOrZero(firstBand), user1, "band landed at owned index 4");
-        assertEq(token.balanceOf(user1), 11 * UNIT, "20 units in, 9 escrowed");
-        assertEq(token.totalTierEscrow(), 9 * UNIT, "charged once");
+        token.mintUp(1, 11);
+        uint256 bandA = T1_START;
+        assertEq(_ownerOrZero(bandA), user1, "band A issued");
+
+        vm.prank(user1);
+        token.mintUp(1, 22);
+        uint256 bandB = T1_START + 1;
+        assertEq(_ownerOrZero(bandB), user1, "band B issued");
+        assertEq(token.balanceOf(user1), 22 * UNIT, "40 units in, 18 escrowed");
+        assertEq(token.totalTierEscrow(), 18 * UNIT, "charged once per band");
+        assertEq(token.bandOutstanding(1), 2, "two band ids outstanding");
+        assertEq(token.pendingEscrowRelease(user1), 0, "neither leg has burned a band yet");
         _assertConserved();
 
-        // This mintUp's escrow leg burns owned indices 10..2, band included.
-        vm.expectEmit(true, true, true, true, address(token));
-        emit EscrowReleased(user1, firstBand, 9 * UNIT);
+        // This mintUp's escrow leg burns owned indices 13..21 — one of the caller's own bands is in it.
+        vm.recordLogs();
         vm.prank(user1);
-        token.mintUp(1, 1);
+        token.mintUp(1, 2);
 
-        assertEq(_ownerOrZero(firstBand), user1, "the freed id was popped straight back");
-        assertEq(token.bandOutstanding(1), 1, "exactly one band id outstanding");
-        assertEq(token.totalTierEscrow(), 9 * UNIT, "escrow charged once for the live band");
+        bytes32 releaseSig = keccak256("EscrowReleased(address,uint256,uint256)");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 releaseCount;
+        uint256 releasedId;
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter != address(token) || logs[i].topics.length != 3) continue;
+            if (logs[i].topics[0] != releaseSig) continue;
+            releaseCount++;
+            assertEq(address(uint160(uint256(logs[i].topics[1]))), user1, "credited to the caller");
+            releasedId = uint256(logs[i].topics[2]);
+            assertEq(abi.decode(logs[i].data, (uint256)), 9 * UNIT, "released exactly (w - 1) * unit");
+        }
+        assertEq(releaseCount, 1, "the escrow leg burned exactly one of the caller's own bands");
+        assertTrue(releasedId == bandA || releasedId == bandB, "and it was a band the caller already held");
+
+        assertEq(_ownerOrZero(releasedId), user1, "the freed id was popped straight back");
+        assertEq(_ownerOrZero(bandA), user1, "band A owned");
+        assertEq(_ownerOrZero(bandB), user1, "band B owned");
+        assertEq(token.bandOutstanding(1), 2, "exactly two band ids outstanding");
+        assertEq(token.totalTierEscrow(), 18 * UNIT, "escrow charged once for each live band");
         assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "the burned band's escrow became a claim");
         _assertConserved();
 
         vm.prank(user1);
         token.claimReleasedEscrow();
-        // 20 units in: 1 unit of balance + 9 escrowed behind the live band + 9 reclaimed + 1 liquid.
-        assertEq(token.coinBalanceOf(user1) + token.pendingEscrowRelease(user1), 20 * UNIT, "nothing lost");
+        // 40 units in: 13 units of balance + 18 escrowed behind the two live bands + 9 reclaimed.
+        assertEq(token.coinBalanceOf(user1) + token.pendingEscrowRelease(user1), 40 * UNIT, "nothing lost");
         _assertConserved();
+    }
+
+    // ┌──────────────────────────────────────────────────────────┐
+    // │  Owned-index placement of the tier NFT                    │
+    // └──────────────────────────────────────────────────────────┘
+
+    /// @notice A tier NFT minted up from a DEEP owned index survives a partial spend. DN404 reconciles
+    ///         `ownedLength == balance / unit` by burning ids LIFO off the TAIL of the owned array, so
+    ///         an id's index decides how much of a debit it can absorb — and the tier-0 id a holder
+    ///         picks is whichever one they happened to hold, nothing about it signals that the choice
+    ///         matters. `mintUp` parks the band at index 0, the last position that burn loop reaches,
+    ///         so a holder with spare liquid coin keeps their tier NFT and has nothing to claim.
+    function test_bandMintedFromADeepIndexSurvivesAPartialSpend() public {
+        _seal();
+        _fund(token, user1, 20);
+
+        uint256[] memory before_ = _ownedIdsOf(user1);
+        (uint256 chosenId, uint256 bandId) = _mintUpDeepestSurvivingId(user1, 1);
+        // Otherwise the holder minted up from the front of their own array and the test proves nothing.
+        assertGt(chosenId, before_[0], "setup: the id minted up is NOT the holder's front id");
+
+        uint256 coinBefore = token.coinBalanceOf(user1);
+        assertEq(coinBefore, 20 * UNIT, "mintUp moves no value: 11 liquid + 9 escrowed");
+        _assertConserved();
+
+        // A partial spend, with liquid coin to spare. Two ids burn off the tail; the band is at index 0.
+        vm.prank(user1);
+        token.transfer(sink, 2 * UNIT);
+
+        assertEq(_ownerOrZero(bandId), user1, "the tier NFT survived the partial spend");
+        assertEq(token.bandOutstanding(1), 1, "still outstanding");
+        assertEq(token.totalTierEscrow(), 9 * UNIT, "escrow still sits behind the live band");
+        assertEq(token.pendingEscrowRelease(user1), 0, "nothing destroyed, so nothing to claim");
+        assertEq(token.coinBalanceOf(user1), coinBefore - 2 * UNIT, "down exactly what they spent, no more");
+        assertGt(token.balanceOf(user1), UNIT, "and there was spare liquid coin throughout");
+        _assertConserved();
+    }
+
+    /// @notice Index 0 is not immortality. It changes WHICH id the burn loop reaches last, never whether
+    ///         one must burn: a holder who spends their ENTIRE liquid balance still loses the tier NFT,
+    ///         and the escrow hook makes them whole through the claim. That 1-unit floor is the design,
+    ///         and this item must not be read as a guarantee it does not make.
+    function test_bandAtIndexZeroStillBurnsOnAFullSpend() public {
+        _seal();
+        _fund(token, user1, 20);
+        (, uint256 bandId) = _mintUpDeepestSurvivingId(user1, 1);
+        assertEq(_ownerOrZero(bandId), user1, "setup: the band is owned");
+
+        // Every last unit: `balance / unit` hits 0, so DN404 must burn every id the holder has.
+        uint256 wholeBalance = token.balanceOf(user1);
+        vm.expectEmit(true, true, true, true, address(token));
+        emit EscrowReleased(user1, bandId, 9 * UNIT);
+        vm.prank(user1);
+        token.transfer(sink, wholeBalance);
+
+        assertEq(_ownerOrZero(bandId), address(0), "index 0 is reached LAST, not never");
+        assertEq(token.balanceOf(user1), 0, "the whole liquid balance is gone");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "the holder is made whole by the claim");
+        assertEq(token.totalTierEscrow(), 0, "escrow moved to the claim, not stranded");
+        assertEq(token.bandOutstanding(1), 0, "the id is back on the free list");
+        _assertConserved();
+    }
+
+    /// @notice `oo` / `owned` consistency across the move, which is the whole risk in reordering: the
+    ///         move-to-front swap rewrites the owned index of the DISPLACED id as well as the moved one.
+    ///         Updating only the moved id would leave the displaced band's `oo` entry pointing at index
+    ///         0 — a slot it no longer occupies — and DN404 trusts `oo` absolutely, so the next
+    ///         `mintDown` on that band would write its replacement id over whatever really sits at index
+    ///         0, orphaning one id and duplicating another. `mintDown` is the sharpest probe for that
+    ///         because it resolves the band's slot straight out of `oo`; a full round trip back to
+    ///         ordinary ids then has to reconcile exactly.
+    function test_displacedBandKeepsAConsistentOwnedIndex() public {
+        _seal();
+        _fund(token, user1, 30);
+
+        vm.prank(user1);
+        token.mintUp(1, 21); // burns indices 21..29; band A takes index 20, then moves to 0
+        uint256 bandA = T1_START;
+        vm.prank(user1);
+        token.mintUp(1, 12); // burns indices 12..20; band B takes index 11, moves to 0, displacing A
+        uint256 bandB = T1_START + 1;
+
+        assertEq(_ownerOrZero(bandA), user1, "band A owned");
+        assertEq(_ownerOrZero(bandB), user1, "band B owned");
+        assertEq(token.bandOutstanding(1), 2, "two distinct band ids, neither lost nor duplicated");
+        _assertOwnershipAgreesWithBalance(user1, "after two mintUps");
+        assertEq(token.coinBalanceOf(user1), 30 * UNIT, "no value moved by the reorder");
+        _assertConserved();
+
+        // The displaced band comes back out through the slot `oo` claims it occupies.
+        vm.prank(user1);
+        token.mintDown(bandA);
+        assertEq(_ownerOrZero(bandA), address(0), "band A redeemed");
+        assertEq(_ownerOrZero(bandB), user1, "band B untouched by A's redemption");
+        assertEq(token.bandOutstanding(1), 1, "exactly one band left outstanding");
+        _assertOwnershipAgreesWithBalance(user1, "after redeeming the displaced band");
+        assertEq(token.coinBalanceOf(user1), 30 * UNIT, "the round trip is value-neutral");
+        _assertConserved();
+
+        vm.prank(user1);
+        token.mintDown(bandB);
+        assertEq(_ownerOrZero(bandB), address(0), "band B redeemed");
+        assertEq(token.bandOutstanding(1), 0, "no bands outstanding");
+        assertEq(token.totalTierEscrow(), 0, "all escrow returned");
+        assertEq(token.balanceOf(user1), 30 * UNIT, "back to a fully liquid 30 units");
+        _assertOwnershipAgreesWithBalance(user1, "after the full round trip");
+        _assertConserved();
+    }
+
+    /// @dev The two halves of DN404 ownership must agree. `_ownedIdsOf` counts ids by scanning the
+    ///      OWNERSHIP alias half of `oo`; `balanceOf / unit` is what the OWNED-ARRAY half is reconciled
+    ///      to on every transfer. A half-updated index swap desynchronises them — a duplicated entry
+    ///      makes the scan come up short, an orphan makes it come up long.
+    function _assertOwnershipAgreesWithBalance(address who, string memory why) internal view {
+        assertEq(_ownedIdsOf(who).length * UNIT, token.balanceOf(who), why);
     }
 
     // ┌──────────────────────────────────────────────────────────┐
