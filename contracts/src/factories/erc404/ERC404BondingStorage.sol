@@ -396,6 +396,50 @@ abstract contract ERC404BondingStorage is DN404, Ownable, ReentrancyGuard {
         return true;
     }
 
+    /// @notice THE TRANSFER RULE: any coin-path debit burns your tier NFT and credits you its escrow.
+    ///         Only a deliberate ERC721 transfer moves the NFT itself.
+    /// @dev    DN404's direct-transfer optimization (`DN404.sol:779`) moves `min(sender burns,
+    ///         recipient mints)` ids straight off the sender's `owned` tail to the recipient instead of
+    ///         burning and re-minting. On a tiered instance that path can hand a tier NFT — and the
+    ///         `(w - 1) * unit` of coin escrowed behind it — to the RECIPIENT of an ERC20 transfer. The
+    ///         trigger is not the amount sent: the carry needs `min(burns, mints) > 0`, so it fires only
+    ///         when the recipient crosses a whole-unit boundary. That is a condition the sender cannot
+    ///         see, control, or be warned about, which makes a 1-wei send able to move a whole
+    ///         denomination. The same path lets any ERC20 spender the holder has approved (a router, an
+    ///         aggregator, a bridge) take the denomination through `transferFrom`.
+    ///
+    ///         DN404's carry loop has no per-id hook, so there is no surgical "exclude tier ids" option;
+    ///         the policy gate is the whole mechanism. Turning it off routes every coin-path debit into
+    ///         burn-and-re-mint, where `_afterNFTTransfers` above credits the escrow back to the holder.
+    ///         The ERC721 face is a different function (`_transferFromNFT`) and is untouched — a
+    ///         deliberate sale still carries the id and its full denomination to the buyer.
+    ///
+    ///         TIER-GATED, not global, and that is a decision rather than a nicety: an untiered
+    ///         collection structurally cannot have this hazard, and making the direct-transfer loop
+    ///         unreachable for everyone charges it ~35k gas per 3-NFT transfer to close a hazard it does
+    ///         not have. Gating on the ladder leaves untiered instances on the direct-transfer path for
+    ///         +77 gas. Tiered instances pay ~12.7k per NFT moved on the coin path — the price of the rule.
+    ///
+    ///         Declared HERE, in the shared base, for the same reason `_useAfterNFTTransfers` is: under
+    ///         `delegatecall` `ERC404BondingOps` runs its OWN compiled bytecode, so an override on the
+    ///         instance alone would leave `mintUp`'s escrow leg, reroll's coin round-trip and `stake`
+    ///         still taking the direct-transfer path. Both contracts must compile the identical body.
+    ///
+    ///         `view`, not `pure` — it reads the ladder. The gate is written as `tierBands.length == 0`
+    ///         rather than `!_tiersSealed` because the two are equivalent and this one is FREE:
+    ///         `_afterNFTTransfers` above opens with `tierBands.length` on every transfer, so the gate
+    ///         hits an already-paid slot and adds a comparison rather than a cold SLOAD. The seal flag
+    ///         sits in its own slot that nothing on the transfer path touches, so gating on it costs a
+    ///         genuinely new cold read. Measured on an ordinary 3-NFT transfer: this form 107,108
+    ///         untiered / 146,443 tiered, the seal-flag form 109,114 / 148,449 — 2,006 gas dearer on
+    ///         BOTH, and 3 bytes larger. Equivalence: `_tiersSealed` is set only by `initTierBands`,
+    ///         which reverts `InvalidBand` on an empty array (rolling the flag back) and otherwise
+    ///         pushes at least one band, and makes no external call between the two writes — so no
+    ///         caller can observe a sealed ladder with zero bands.
+    function _useDirectTransfersIfPossible() internal view override returns (bool) {
+        return tierBands.length == 0;
+    }
+
     /// @notice Release the escrow behind any band NFT that DN404 just burned.
     /// @dev PULL, never push (noesis-143 decision 1). This runs in the middle of DN404's own
     ///      accounting — every call site invokes it after the balance/ownership writes but while the
