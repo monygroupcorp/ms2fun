@@ -42,11 +42,11 @@ contract CrossFeatureLiquidityDeployer is ILiquidityDeployerModule {
  *      EVERY path that reduces a holder's balance, and each such path must land in exactly one of two
  *      states — never a third:
  *
- *        CARRIED             — the recipient takes NFTs, the band id moves, and the escrow claim moves
- *                              with it (conserved, redeemable by the new owner);
- *        BURNED-AND-CREDITED — the recipient takes no NFTs, DN404 burns the band, and the
- *                              `_afterNFTTransfers` hook converts `totalTierEscrow` into
- *                              `pendingEscrowRelease[holder]`, claimable via `claimReleasedEscrow()`.
+ *        CARRIED             — a deliberate ERC721 transfer of the id: the band id moves and the escrow
+ *                              claim moves with it (conserved, redeemable by the new owner);
+ *        BURNED-AND-CREDITED — any coin-path debit: DN404 burns the band and the `_afterNFTTransfers`
+ *                              hook converts `totalTierEscrow` into `pendingEscrowRelease[holder]`,
+ *                              claimable via `claimReleasedEscrow()`.
  *
  *      The third state, ORPHANED (escrow still counted, no longer redeemable by anyone), is what this
  *      suite exists to rule out on the paths the tier suites had never touched: `rerollSelectedNFTs`,
@@ -55,9 +55,11 @@ contract CrossFeatureLiquidityDeployer is ILiquidityDeployerModule {
  *      (the orphan detector: `totalTierEscrow` must equal the escrow derivable from the ids still
  *      outstanding) plus `_assertConserved` and `_assertEscrowSolvent`.
  *
- *      TRANSFER SEMANTICS ARE UNDER AN OPEN DESIGN DECISION. Whether CARRIED is a hazard or the
- *      desired secondary-market behaviour is not settled, so this suite takes no side: it pins what
- *      the code does today and nothing more.
+ *      TRANSFER SEMANTICS ARE SETTLED, and this suite pins them. The rule: any coin-path debit burns
+ *      the holder's band NFT and credits them its escrow; only a deliberate ERC721 transfer moves the
+ *      NFT itself. Which of the two states a path lands in is therefore decided by WHICH FACE was
+ *      used, never by the recipient's balance or by who `msg.sender` is — a sealed ladder overrides
+ *      `_useDirectTransfersIfPossible` to false, closing the carry path for every ERC20 route.
  */
 contract TierCrossFeatureTest is Test {
     ERC404BondingInstance token;
@@ -329,33 +331,37 @@ contract TierCrossFeatureTest is Test {
     // │  holder-initiated case in TokenTierOps                                            │
     // └──────────────────────────────────────────────────────────────────────────────────┘
 
-    /// @notice CARRIED. An approved spender pulling ONE unit takes the band NFT — and its whole
-    ///         denomination — with it, exactly as a holder-initiated transfer does: DN404's
-    ///         `_useDirectTransfersIfPossible` re-homes ids when the recipient takes NFTs, and it does
-    ///         not care who `msg.sender` was. Escrow stays conserved and is redeemable by the new
-    ///         owner. The allowance a holder grants a router or exchange is therefore an allowance over
-    ///         their denomination, not just over `balanceOf`.
-    function test_approvedSpenderCarriesTheBandNftAwayFromTheHolder() public {
+    /// @notice AN ERC20 ALLOWANCE IS AN ALLOWANCE OVER `balanceOf`, NOT OVER THE DENOMINATION. An
+    ///         approved spender pulling ONE unit to ITSELF — the recipient that takes NFTs, which is
+    ///         what used to trigger DN404's re-home — burns the band NFT and credits the escrow back to
+    ///         the HOLDER. The spender receives the unit it was approved for and nothing else. A
+    ///         sealed ladder turns off `_useDirectTransfersIfPossible`, so `msg.sender` being a router,
+    ///         aggregator or bridge cannot drain a denomination through an allowance the holder granted
+    ///         for coin.
+    function test_approvedSpenderCannotTakeTheDenomination() public {
         _seal();
         uint256 bandId = _holderWithOneBandNFT(user1, 1);
 
         vm.prank(user1);
         token.approve(spender, UNIT);
+
+        vm.expectEmit(true, true, true, true, address(token));
+        emit EscrowReleased(user1, bandId, 9 * UNIT);
         vm.prank(spender);
         token.transferFrom(user1, spender, UNIT);
 
-        assertEq(_ownerOrZero(bandId), spender, "the band followed the unit to the spender");
-        assertEq(token.coinBalanceOf(spender), 10 * UNIT, "the spender received the whole denomination");
-        assertEq(token.coinBalanceOf(user1), 0, "the holder parted with all of it");
-        assertEq(token.pendingEscrowRelease(user1), 0, "CARRIED, not released: nobody is credited");
-        assertEq(token.totalTierEscrow(), 9 * UNIT, "escrow conserved, not orphaned");
-        assertEq(token.bandOutstanding(1), 1, "still outstanding");
+        assertEq(_ownerOrZero(bandId), address(0), "the band burned rather than following the unit");
+        assertEq(token.coinBalanceOf(spender), UNIT, "the spender got only the unit it was approved for");
+        assertEq(token.pendingEscrowRelease(spender), 0, "the spender is credited nothing");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "the escrow returns to the HOLDER");
+        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
+        assertEq(token.bandOutstanding(1), 0, "no longer outstanding");
         _assertAllThree();
 
-        // ...and the new owner can redeem it, which is what "the escrow follows the id" has to mean.
-        vm.prank(spender);
-        token.mintDown(bandId);
-        assertEq(token.balanceOf(spender), 10 * UNIT, "redeemed by the new owner");
+        // The holder — not the spender, not the recipient — is the one who can claim it.
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        assertEq(token.balanceOf(user1), 9 * UNIT, "the holder is made whole");
         _assertAllThree();
     }
 

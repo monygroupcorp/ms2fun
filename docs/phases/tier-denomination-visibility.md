@@ -1,6 +1,6 @@
 # Requirement — Token Tiers: denomination visibility in a holder-facing UI
 
-**Status:** Requirement recorded, not implemented
+**Status:** Display requirement recorded, not implemented. Transfer semantics: DECIDED and enforced on-chain.
 **Applies to:** any holder-facing surface for a factory-launched ERC404 instance with a sealed tier ladder
 **Source:** noesis-153 (tier cross-feature test expansion), measured against `contracts/src/factories/erc404/**`
 
@@ -47,33 +47,48 @@ All of these are public reads on the instance.
 | What one band id is worth | `(weight - 1) * unit()` of escrow, plus the one unit of balance the NFT itself is |
 | Collection-level totals | `bandOutstanding(tierN)`, `totalTierEscrow()`, `totalPendingEscrowRelease()` |
 
-## The condition that decides a band NFT's fate on a debit
+## What a debit does to a band NFT — the transfer rule
 
-Stated here as a readable fact, because a UI cannot describe a holder's position without it — **not** as
-a prescription for what to do about it (see the next section).
+Transfer-time semantics are **decided and enforced on-chain**. The rule:
 
-DN404 keeps `ownedLength == balance / unit` for every holder, and reconciles it on every debit by taking
-ids off the **tail** of that holder's `owned` array. So any debit that would drop
-`balanceOf(holder) / unit()` below the number of ids the holder owns will take that many ids off the
-tail, and a band id inside that range is one of them. Everything needed to evaluate this off-chain is
-readable: `balanceOf(holder)`, `unit()`, the holder's owned ids (enumerable from the mirror), and which
-of those ids are band ids by the table above.
+> **Any coin-path debit burns your tier NFT and credits you its escrow. Only a deliberate ERC721
+> transfer moves the NFT itself.**
 
-The two outcomes are measured and pinned in
+A sealed tier ladder overrides DN404's `_useDirectTransfersIfPossible` to false, closing the path that
+would otherwise move ids straight from a sender to a recipient during an ERC20 transfer. What a UI can
+rely on:
+
+- **Every coin-path debit is BURNED-AND-CREDITED.** A plain `transfer`, a `transferFrom` by an approved
+  spender, a sell back to the curve, and `stake` all burn a band NFT the debit reaches, and the escrow
+  behind it becomes `pendingEscrowRelease(holder)` for the **holder** — never for the spender who moved
+  it, never for the recipient.
+- **The outcome does not depend on the recipient.** It is a function of the sender's own position alone.
+  DN404 keeps `ownedLength == balance / unit` and reconciles on every debit by taking ids off the
+  **tail** of `owned`, so any debit dropping `balanceOf(holder) / unit()` below the number of ids held
+  takes that many off the tail, and a band id in that range burns. Everything needed to evaluate this
+  off-chain is readable: `balanceOf(holder)`, `unit()`, the holder's owned ids (enumerable from the
+  mirror), and which of those are band ids by the table above.
+- **The ERC721 face is unchanged.** A deliberate `transferFrom` / `safeTransferFrom` of a band id —
+  including by an approved operator, and including to a buyer with `skipNFT` on — moves the id and its
+  full denomination to the new owner, which is what a secondary market for tier NFTs requires.
+
+Both outcomes are pinned in `contracts/test/factories/erc404/TokenTierOps.t.sol`,
 `contracts/test/factories/erc404/TierCrossFeature.t.sol` and
-`contracts/test/factories/erc404/TierBurnSafety.t.sol`: the band id either moves to the recipient with
-its escrow claim intact, or it is burned and its escrow becomes `pendingEscrowRelease` for the holder.
-Which of the two happens depends on whether the recipient takes NFTs. In both cases the coin is
-conserved and reachable — no path leaves escrow stranded.
+`contracts/test/factories/erc404/TierBurnSafety.t.sol`. In every case the coin is conserved and
+reachable — no path leaves escrow stranded.
 
 ## Deliberately NOT specified here
 
-**Transfer-time semantics are an open design decision and this document takes no position on them.** Do
-not implement a warning, a confirmation step, a block, or any other transfer-time behaviour on the
-authority of this file. What a transfer of a tier NFT should mean — including whether a transferred tier
-NFT keeps its id and carries its full denomination, which is what a secondary market for tier NFTs would
-require — is being decided separately. This requirement is scoped to **display**: make the denomination
-visible. Anything beyond that waits for that decision.
+**No transfer-time warning, confirmation step, or block is required, and none should be added on the
+authority of this file.** An earlier revision of this document reserved that question; the contract now
+answers it. A holder cannot lose a denomination to a coin transfer — the escrow returns to them — so
+there is nothing to warn about at transfer time.
+
+One display fact does follow from the rule and sits inside the visibility scope this document covers: on
+a tiered instance, specific NFT **ids** are not persistent across coin transfers. A sender's tail ids
+burn and the recipient receives freshly minted ones, for ordinary ids as well as band ids. The promise
+the system makes is that a holder keeps their **tier** and their **coin**, not that they keep id #42.
+Untiered instances are unaffected and retain DN404's direct-transfer behaviour.
 
 ## How to check this requirement is met
 
