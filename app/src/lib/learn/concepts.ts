@@ -199,7 +199,29 @@ When pieces are burned to trade up, they are **not destroyed**. This is an ERC-4
 
 A tier-1 can itself be a stepping stone to tier-2 under the same rule.
 `,
-    related: ['token-standard'],
+    related: ['token-standard', 'id-persistence'],
+  },
+  'id-persistence': {
+    title: 'Which ids you hold',
+    summary:
+      'On a tiered ERC-404 collection your coin is yours, but the specific piece ids are not pinned — any coin-path move can change them.',
+    body: `
+An ERC-404 collection is coin and art in one balance. **The coin is what you own**; the specific piece ids you are holding are the collection's current way of representing that balance. On a **tiered** collection those ids can change under you.
+
+## Any coin-path move can take ids off the end of your holdings
+Sending coin, selling into the curve, or staking is a **debit of your balance**, and a debit removes whole pieces from the **tail** of your holdings to match. Which ids leave is decided by that ordering, not by which ones you like — so a piece you meant to keep can go out with a coin transfer you thought was unrelated.
+
+**This is true of ordinary pieces too, not only tier NFTs.** If a particular id matters to you, it is not protected simply because your collection has tiers.
+
+## What is guaranteed
+- **Your coin is conserved.** A move debits exactly what you moved; nothing is lost in the id reshuffle.
+- **A burned tier NFT returns its escrow.** If a coin-path debit consumes a tier NFT, its denomination comes back to you as a **claim** you can collect. The tier itself is **re-attainable** — you claim, then mint back up — rather than carried through the move.
+- **A reroll never touches a tier NFT.** Reroll exempts every tier NFT you hold automatically. That protection is in the contract, not a promise this interface makes. Deliberately converting one back to ordinary pieces is what **mintDown** is for.
+
+## How to protect an id you care about
+Move it **deliberately** as a piece — an ERC-721 transfer of that id — rather than assuming it survives a coin transfer. Holding it in a wallet you are **not spending coin from** has the same effect: no debit, no tail to take from.
+`,
+    related: ['tier-upgrade', 'tier-reveal', 'token-standard'],
   },
   'metadata-overlay': {
     title: 'Artist overlay',
@@ -235,7 +257,7 @@ Rules the wizard enforces: ranges must be **ascending and non-overlapping**. The
 
 This is **not** the same as a *tier upgrade*: reveal changes only the **art shown** based on holdings; a tier upgrade moves **pieces** between tiers.
 `,
-    related: ['metadata-overlay', 'tier-upgrade'],
+    related: ['metadata-overlay', 'tier-upgrade', 'id-persistence'],
   },
   'agent-delegation': {
     title: 'Agent delegation',
@@ -316,7 +338,13 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
   { title: 'Gating', slugs: ['gating-overview', 'merkle-allowlist'] },
   {
     title: 'Modules',
-    slugs: ['tier-upgrade', 'tier-reveal', 'metadata-overlay', 'agent-delegation'],
+    slugs: [
+      'tier-upgrade',
+      'tier-reveal',
+      'id-persistence',
+      'metadata-overlay',
+      'agent-delegation',
+    ],
   },
   { title: 'Collection page', slugs: ['onchain-image-cost', 'cover-vs-banner', 'withholding-art'] },
 ]
