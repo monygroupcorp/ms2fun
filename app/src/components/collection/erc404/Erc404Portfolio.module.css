@@ -107,6 +107,28 @@
   color: var(--text-secondary);
 }
 
+/* Tier NFT: not a toggle. Its protection is on-chain, so the tile is presentational — a border
+   treatment that reads as PROTECTED rather than as selected, and no pointer affordance. */
+.tileTier {
+  cursor: default;
+  border-style: dashed;
+  border-color: var(--color-accent, var(--color-text));
+}
+
+.tierBadge {
+  position: absolute;
+  top: var(--space-1);
+  left: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-text);
+  padding: 0 var(--space-1);
+}
+
 .keepBadge {
   position: absolute;
   top: var(--space-1);
