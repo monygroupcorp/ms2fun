@@ -470,8 +470,14 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
                     weth: weth
                 })
             );
+        // `metadataURI` is the create call's COLLECTION URI — the very string handed to
+        // `masterRegistry.registerInstance` in `_createInstance`. Until noesis-085 it was never given to
+        // the instance, which is exactly the drift QueryAggregator's §6 read-through was fighting: the
+        // registry held the only copy and nothing could correct it. It now lands in the instance's
+        // ERC-7572 `contractURI`. `params.tokenBaseURI` stays what it always was — the per-token base for
+        // `tokenURI` — and keeps going to `metadataURI`. Two arguments, two slots, two meanings.
         ERC404BondingInstance(payable(instance))
-            .initializeMetadata(params.name, params.symbol, params.styleUri, params.tokenBaseURI);
+            .initializeMetadata(params.name, params.symbol, params.styleUri, params.tokenBaseURI, metadataURI);
         ERC404BondingInstance(payable(instance)).initializeFreeMint(freeMint.allocation, freeMint.scope);
         if (agentCreated) {
             ERC404BondingInstance(payable(instance)).setAgentDelegationFromFactory();
