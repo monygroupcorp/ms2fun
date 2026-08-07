@@ -977,7 +977,21 @@ contract TierCrossFeatureTest is Test {
             } else if (op == 1) {
                 // Reroll everything liquid: the coin round-trip that can burn a band off the tail.
                 uint256 whole = (token.balanceOf(who) / UNIT) * UNIT;
-                if (whole != 0) {
+                // Sub-decision B: auto-exemption spends one unit of the reroll budget per band the
+                // caller owns, so a holder whose whole liquid position IS bands has no rerollable
+                // remainder and trips the existing `rerollAmount / unit == 0` guard — reverting with
+                // their tier NFTs intact. That revert is the designed outcome — pinned on its own by
+                // `test_rerollRevertsForAHolderWhoseEntirePositionIsOneBand` — not a conservation
+                // failure, so skip the op and let the sequence keep exploring its remaining steps
+                // rather than abort the whole sweep here. Ids above `ID_LIMIT` are exactly what the
+                // contract's `_effectiveExemptions` appends, so this predicate is the contract's own
+                // guard evaluated ahead of the call, not an independent rule that could drift.
+                uint256 bandsOwned;
+                uint256[] memory held = _ownedIdsOf(who);
+                for (uint256 j; j < held.length; j++) {
+                    if (held[j] > ID_LIMIT) bandsOwned++;
+                }
+                if (whole / UNIT > bandsOwned) {
                     vm.prank(who);
                     token.rerollSelectedNFTs(whole, new uint256[](0));
                 }
