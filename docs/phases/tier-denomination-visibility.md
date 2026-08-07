@@ -107,18 +107,47 @@ Pinned in `contracts/test/factories/erc404/TierCrossFeature.t.sol` — survival 
 exemption, an unchanged result when the caller does supply it, the budget count, and the all-band
 holder's revert.
 
+## A self-transfer is not carved out
+
+`transfer(self, amount)` — a holder sending coin to their own address — is a coin-path debit like any
+other, and the rule above applies to it unchanged: a band NFT the debit reaches is **burned**, and
+`(weight - 1) * unit()` becomes `pendingEscrowRelease(holder)`. The ERC20 ledger is unmoved, because the
+coin returns to the address it left, so the whole visible outcome of a self-send is a dissolved tier NFT
+and a claim.
+
+This is the accepted outcome and a recorded decision, not an oversight, and it is the deliberate
+counterpart to the reroll carve-out above: reroll is exempted because changing art is something holders
+do on purpose, and a self-directed transfer is not exempted. Mechanically it follows from the seal — with
+`_useDirectTransfersIfPossible` false, DN404's `from == to` shortcut is not reachable and the ordinary
+tail reconciliation runs. The coin is preserved and claimable in full, and the tier is re-attainable with
+a `claimReleasedEscrow()` plus a fresh `mintUp`.
+
+What a UI does with that: a send flow has no reason to offer the holder's own address as a destination,
+and a holder who sends to themselves anyway loses no coin — they hold a claim instead of a band NFT, and
+the surface should render it as such (see the display requirement above).
+
+Pinned in `contracts/test/factories/erc404/TokenTierOps.t.sol` —
+`test_selfTransferDissolvesABandNftAndCreditsTheEscrowBack`, which asserts the dissolved id, the exact
+credit, the untouched ERC20 balance, a successful claim, and coin conservation.
+
 ## Deliberately NOT specified here
 
 **No transfer-time warning, confirmation step, or block is required, and none should be added on the
 authority of this file.** An earlier revision of this document reserved that question; the contract now
-answers it. A holder cannot lose a denomination to a coin transfer — the escrow returns to them — so
-there is nothing to warn about at transfer time.
+answers it. A coin transfer cannot destroy a holder's coin — the escrow behind a burned band NFT returns
+to them as `pendingEscrowRelease` — so there is nothing to warn about at transfer time. What a transfer
+can and does end is the band NFT itself; that is the rule, not an edge case, and it belongs in the
+display surface rather than in a warning dialog.
 
 One display fact does follow from the rule and sits inside the visibility scope this document covers: on
 a tiered instance, specific NFT **ids** are not persistent across coin transfers. A sender's tail ids
 burn and the recipient receives freshly minted ones, for ordinary ids as well as band ids. The promise
-the system makes is that a holder keeps their **tier** and their **coin**, not that they keep id #42.
-Untiered instances are unaffected and retain DN404's direct-transfer behaviour.
+the system makes is **coin conservation, not tier persistence**: what a holder keeps through a coin-path
+debit is their **coin**, as escrow credited back to them — not id #42, and not the tier. A tier is
+re-attainable rather than permanent, and regaining one costs a `claimReleasedEscrow()` plus a fresh
+`mintUp`. A UI must not tell a holder their tier survives a transfer; it must show the claim the transfer
+produced and what re-attaining the tier takes. Untiered instances are unaffected and retain DN404's
+direct-transfer behaviour.
 
 ## How to check this requirement is met
 

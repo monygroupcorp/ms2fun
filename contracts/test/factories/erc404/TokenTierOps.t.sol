@@ -14,6 +14,7 @@ import {
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
 import { ILiquidityDeployerModule } from "src/interfaces/ILiquidityDeployerModule.sol";
 import { LibClone } from "solady/utils/LibClone.sol";
+import { DN404 } from "dn404/src/DN404.sol";
 import { DN404Mirror } from "dn404/src/DN404Mirror.sol";
 
 /// @dev Minimal graduation sink — records the token/ETH it was handed.
@@ -576,10 +577,16 @@ contract TokenTierOpsTest is Test {
         assertEq(token.coinBalanceOf(user2), 10 * UNIT, "escrow followed the id");
         _assertCoinConserved();
 
-        // The stale approval cannot be replayed by the previous holder.
+        // The stale approval cannot be replayed. The rejection is pinned to DN404's authorisation
+        // check BY NAME — a bare `expectRevert` here is satisfied by any unrelated failure — and the
+        // post-state is asserted so this leg cannot pass on a revert that still moved the id.
+        // Verified falsifiable: with the approval-clearing removed from `_transferFromNFT`, this call
+        // does not revert.
         vm.prank(spender);
-        vm.expectRevert();
+        vm.expectRevert(DN404.TransferCallerNotOwnerNorApproved.selector);
         mirror.transferFrom(user2, user1, T1_START);
+        assertEq(_ownerOrZero(T1_START), user2, "the rejected replay left the id with its owner");
+        assertEq(mirror.getApproved(T1_START), address(0), "and granted no approval on the way out");
     }
 
     // ┌─────────────────────────┐
@@ -1107,6 +1114,58 @@ contract TokenTierOpsTest is Test {
         vm.prank(user1);
         token.claimReleasedEscrow();
         assertEq(token.balanceOf(user1), 9 * UNIT, "the holder is made whole");
+        _assertCoinConserved();
+    }
+
+    /// @notice ACCEPTED, DOCUMENTED BEHAVIOUR — pinned here so it stays known. This is not a defect
+    ///         report. A self-directed ERC20 transfer (`transfer(self, amount)`) is a coin-path debit
+    ///         like any other, so the transfer rule applies to it unchanged: the band NFT the debit
+    ///         reaches is burned and `(weight - 1) * unit()` becomes `pendingEscrowRelease` for the
+    ///         holder. The ERC20 ledger is unmoved — the coin returns to the address it left — so the
+    ///         whole visible outcome is a dissolved tier NFT and a claim, and the claim leg below shows
+    ///         the coin actually reaching the holder. The tier is re-attainable with that claim plus a
+    ///         fresh `mintUp`.
+    /// @dev    KEEPING THIS BEHAVIOUR IS A RECORDED DECISION (`DECISIONS.md`, 2026-08-07), and it is
+    ///         the deliberate counterpart to the reroll carve-out in `ERC404BondingOps`: reroll is
+    ///         exempted, a self-directed transfer is not. Mechanically it follows from the seal itself —
+    ///         a sealed ladder overrides `_useDirectTransfersIfPossible()` to false, which makes DN404's
+    ///         `from == to` carry branch unreachable and leaves the ordinary tail reconciliation to run.
+    ///         `_useDirectTransfersIfPossible()` takes no arguments and cannot observe `from`/`to`, so
+    ///         exempting a self-send would require a different intervention point. Written up for
+    ///         holder-facing surfaces in `docs/phases/tier-denomination-visibility.md`. Changing the
+    ///         behaviour means revisiting that decision first — do not "fix" it against this test.
+    function test_selfTransferDissolvesABandNftAndCreditsTheEscrowBack() public {
+        _seal();
+        _fund(user1, 10);
+        uint256 tierZeroId = _ownedIdsOf(user1)[0];
+        vm.prank(user1);
+        token.mintUp(1, tierZeroId);
+
+        // The setup is real: the ladder is sealed, the holder actually owns a band id, and the escrow
+        // figure below is derived from that band's own weight rather than restated as a constant.
+        (,, uint32 weight) = token.tierBands(0);
+        uint256 escrowed = (uint256(weight) - 1) * token.unit();
+        assertEq(_ownerOrZero(T1_START), user1, "the holder owns the band id before the self-send");
+        assertEq(token.bandOutstanding(1), 1, "one tier-1 band outstanding");
+        assertEq(token.totalTierEscrow(), escrowed, "the band's escrow is held by the instance");
+        uint256 liquidBefore = token.balanceOf(user1);
+        assertEq(token.coinBalanceOf(user1), liquidBefore + escrowed, "true holdings before the send");
+
+        vm.prank(user1);
+        token.transfer(user1, UNIT); // coin to the holder's OWN address
+
+        assertEq(_ownerOrZero(T1_START), address(0), "the band NFT is dissolved by a self-directed send");
+        assertEq(token.pendingEscrowRelease(user1), escrowed, "its escrow is credited back to the holder");
+        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
+        assertEq(token.balanceOf(user1), liquidBefore, "the ERC20 ledger is unmoved by a self-send");
+        assertEq(token.coinBalanceOf(user1) + token.pendingEscrowRelease(user1), liquidBefore + escrowed);
+        _assertCoinConserved();
+
+        // The recoverable half of the accepted outcome: the credit is claimable and the coin lands.
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        assertEq(token.balanceOf(user1), liquidBefore + escrowed, "the holder is made whole by the claim");
+        assertEq(token.pendingEscrowRelease(user1), 0, "nothing left owed");
         _assertCoinConserved();
     }
 
