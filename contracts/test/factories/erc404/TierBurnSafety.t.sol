@@ -91,10 +91,11 @@ contract BurnReenterer {
  *      That is the invariant that would have caught the orphan: a burned band id whose escrow was NOT
  *      credited leaves `totalTierEscrow` claiming coin no holder can reach, and the sum falls short.
  *
- *      NOTE on triggering a burn at all: DN404's `_useDirectTransfersIfPossible` means an ordinary
- *      ERC20 transfer to an NFT-taking recipient RE-HOMES the band id instead of burning it (that is
- *      the T2 finding, pinned by `test_directTransferMovesBandCreditsNobody`). The burn path only
- *      opens when the recipient takes no NFTs — a curve sell, or a holder who set `skipNFT`.
+ *      NOTE on triggering a burn: on a SEALED instance every coin-path debit burns, because the
+ *      shared base overrides `_useDirectTransfersIfPossible` to false once a ladder exists — so the
+ *      hook fires whatever the recipient does with NFTs (pinned by
+ *      `test_directTransferBurnsBandAndCreditsTheSender`). The band id moves only through a deliberate
+ *      ERC721 transfer, which is a different function and keeps carrying the id and its escrow.
  */
 contract TierBurnSafetyTest is Test {
     ERC404BondingInstance token;
@@ -302,8 +303,8 @@ contract TierBurnSafetyTest is Test {
         assertEq(token.bandOutstanding(1), 1, "one band id outstanding");
         _assertConserved();
 
-        // The debit that burns it. `sink` skips NFTs, so DN404 cannot re-home the id by direct
-        // transfer — `numNFTMints == 0`, `numNFTBurns == 1`, and the band NFT is destroyed.
+        // The debit that burns it. A sealed ladder closes the direct-transfer path outright, and
+        // `sink` skips NFTs besides — `numNFTBurns == 1`, and the band NFT is destroyed.
         vm.expectEmit(true, true, true, true, address(token));
         emit EscrowReleased(user1, bandId, 9 * UNIT);
         vm.prank(user1);
@@ -454,22 +455,31 @@ contract TierBurnSafetyTest is Test {
         _assertConserved();
     }
 
-    /// @notice The T2 finding, pinned: an ERC20 transfer of ONE unit to an NFT-taking recipient
-    ///         RE-HOMES the band id (DN404's `_useDirectTransfersIfPossible`) instead of burning it.
-    ///         That is a transfer, not a release — the hook must stay silent, and the escrow rides along.
-    function test_directTransferMovesBandCreditsNobody() public {
+    /// @notice THE TRANSFER RULE, pinned on the burn-safety side: an ERC20 transfer of ONE unit to an
+    ///         NFT-taking recipient BURNS the band id and credits its escrow to the SENDER. A sealed
+    ///         ladder turns off DN404's `_useDirectTransfersIfPossible`, so the re-home path is closed
+    ///         and the hook fires here — which is the point, since the hook is what makes the holder
+    ///         whole. Escrow must never ride along to the recipient on a coin-path debit.
+    function test_directTransferBurnsBandAndCreditsTheSender() public {
         _seal();
         uint256 bandId = _holderWithOneBandNFT(user1, 1);
         uint256 escrowBefore = token.totalTierEscrow();
 
+        vm.expectEmit(true, true, false, true);
+        emit EscrowReleased(user1, bandId, 9 * UNIT);
         vm.prank(user1);
-        token.transfer(user2, UNIT); // user2 takes NFTs => direct transfer, no burn
+        token.transfer(user2, UNIT); // recipient takes NFTs, but the band burns anyway
 
-        assertEq(_ownerOrZero(bandId), user2, "the band id was re-homed, not burned");
-        assertEq(token.pendingEscrowRelease(user1), 0, "no credit on a re-home");
-        assertEq(token.pendingEscrowRelease(user2), 0, "no credit on a re-home");
-        assertEq(token.totalTierEscrow(), escrowBefore, "escrow untouched");
-        assertEq(token.bandOutstanding(1), 1, "still outstanding");
+        assertEq(_ownerOrZero(bandId), address(0), "the band id was burned, not re-homed");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "the SENDER is credited");
+        assertEq(token.pendingEscrowRelease(user2), 0, "the recipient is credited nothing");
+        assertEq(token.totalTierEscrow(), escrowBefore - 9 * UNIT, "escrow left the tier counter");
+        assertEq(token.bandOutstanding(1), 0, "no longer outstanding");
+        _assertConserved();
+
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        assertEq(token.balanceOf(user1), 9 * UNIT, "the sender is made whole");
         _assertConserved();
     }
 
@@ -692,16 +702,26 @@ contract TierBurnSafetyTest is Test {
     // │  Hot path: the early-out                                  │
     // └──────────────────────────────────────────────────────────┘
 
-    /// @notice The hook fires on EVERY NFT transfer in the collection, forever. Decision 2's early-out
-    ///         is what keeps that affordable: one `tierBands.length` SLOAD short-circuits an instance
-    ///         with no ladder, and for a sealed one a single `id < firstBandStart` comparison per id
-    ///         dismisses the entire ordinary id space without walking any band.
+    /// @notice WHAT THIS NUMBER MEANS — read before touching the budget. This gate used to assert that
+    ///         a sealed ladder costs nearly nothing extra than an unsealed one, on the strength of the
+    ///         hook's early-out. That premise is now FALSE BY DESIGN: sealing a ladder also turns off
+    ///         DN404's direct-transfer path, so a sealed instance BURNS AND RE-MINTS ids where an
+    ///         unsealed one moves them in place. The delta below is therefore no longer "the per-id
+    ///         early-out"; it is the price of the always-burn transfer rule, and it is meant to be paid.
     ///
-    ///         This measures the SAME ordinary transfer on a sealed instance and on an unsealed one,
-    ///         with `vm.cool` applied to BOTH first so neither gets a warm-storage discount the other
-    ///         does not. The difference is what a tiers-enabled collection pays on the hot path: two
-    ///         cold SLOADs (`tierBands.length`, `tierBands[0]`) plus one word comparison per id.
-    function test_hotPathGasEarlyOutIsCheap() public {
+    ///         Decomposition of the ~39.3k measured on a 3-NFT transfer: roughly 12.7k per NFT for
+    ///         burn + re-mint (~38.2k of it), plus the early-out's own cost — one `tierBands.length`
+    ///         SLOAD, one `tierBands[0]` SLOAD, and a word comparison per id. Untiered instances keep
+    ///         the direct-transfer path entirely and are unaffected.
+    ///
+    ///         The gate still has teeth: it is scaled to burn+mint of THREE ids and nothing more. A
+    ///         per-id band WALK, or anything recomputing `idLimit` from `totalSupply`/`unit` per id,
+    ///         would push well past the budget. What it can no longer catch is the burn+mint cost
+    ///         itself — that is the rule, not a regression.
+    ///
+    ///         Measures the SAME ordinary transfer on a sealed instance and on an unsealed one, with
+    ///         `vm.cool` applied to BOTH first so neither gets a warm-storage discount the other does not.
+    function test_hotPathCostOfTheAlwaysBurnRule() public {
         ERC404BondingInstance plain = _newInstance(); // no ladder: `tierBands.length == 0`
         _seal(); // `token` has the 2-rung ladder
 
@@ -724,9 +744,11 @@ contract TierBurnSafetyTest is Test {
         emit log_named_uint("ordinary 3-NFT transfer, 2-rung ladder   ", gasSealed);
         emit log_named_uint("hot-path delta                          ", gasSealed - gasUnsealed);
 
-        // Two cold SLOADs (~4200) plus three word comparisons. A per-id band WALK, or anything that
-        // read `totalSupply`/`unit` to recompute `idLimit` per id, would land far above this.
-        assertLt(gasSealed - gasUnsealed, 6000, "the per-id early-out is not early enough");
+        // Budget: measured 39,335 (3 ids burned + re-minted, plus the early-out), rounded up to 45,000
+        // for ~14% of margin against compiler and opcode-price drift. This is a CEILING on the
+        // always-burn rule for three ids — NOT a licence to grow. If a change pushes past it, the
+        // question to answer is which per-id work was added, not what the number should be raised to.
+        assertLt(gasSealed - gasUnsealed, 45_000, "the always-burn rule costs more per id than it should");
     }
 
     /// @notice An instance that never seals a ladder pays only the `tierBands.length` SLOAD: no band

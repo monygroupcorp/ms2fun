@@ -53,6 +53,16 @@ contract TierPolicyProbe is ERC404BondingInstance {
     function probeSkipNFTDefault(address a) external view returns (bool) {
         return _skipNFTDefault(a);
     }
+
+    function probeUseDirectTransfersIfPossible() external view returns (bool) {
+        return _useDirectTransfersIfPossible();
+    }
+
+    /// @dev Lets the parity test confirm its `vm.store` of the ladder landed on the right slot, so the
+    ///      sealed half of the check can never go vacuous if the storage layout shifts.
+    function probeTierBandCount() external view returns (uint256) {
+        return tierBands.length;
+    }
 }
 
 /// @dev The same probe on the Ops side — the two MUST agree, since Ops runs in the instance's storage.
@@ -71,6 +81,14 @@ contract TierOpsPolicyProbe is ERC404BondingOps {
 
     function probeSkipNFTDefault(address a) external view returns (bool) {
         return _skipNFTDefault(a);
+    }
+
+    function probeUseDirectTransfersIfPossible() external view returns (bool) {
+        return _useDirectTransfersIfPossible();
+    }
+
+    function probeTierBandCount() external view returns (uint256) {
+        return tierBands.length;
     }
 }
 
@@ -93,6 +111,7 @@ contract TokenTierOpsTest is Test {
     address owner = address(0x5);
     address user1 = address(0x10);
     address user2 = address(0x20);
+    address spender = address(0x30); // third party holding an ERC721 approval
     address treasury = address(0xFEE);
 
     uint256 constant MAX_SUPPLY = 1_000_000_000 ether;
@@ -172,6 +191,14 @@ contract TokenTierOpsTest is Test {
             who = o;
         } catch {
             who = address(0);
+        }
+    }
+
+    /// @dev No id in any band belongs to `who`. The transfer rule's negative half: a coin-path debit
+    ///      must never leave a band id in the recipient's hands.
+    function _assertNoBandIds(address who, string memory why) internal view {
+        for (uint256 id = T1_START; id <= T2_END; id++) {
+            assertTrue(_ownerOrZero(id) != who, why);
         }
     }
 
@@ -494,6 +521,67 @@ contract TokenTierOpsTest is Test {
         assertEq(token.totalTierEscrow(), 0, "escrow released");
     }
 
+    /// @notice THE ERC721 FACE MUST STAY WHOLE — the counterpart to the coin-path burn rule. A
+    ///         marketplace sale to a buyer who has `skipNFT` ON ASSIGNS the band id rather than burning
+    ///         it on arrival. `_transferFromNFT` is a different function from the ERC20 `_transfer`
+    ///         path, and turning off `_useDirectTransfersIfPossible` must not reach it: if a sale to a
+    ///         skipNFT buyer burned the id, the denomination would be destroyed mid-trade.
+    function test_bandNftSaleToASkipNftBuyerAssignsTheIdAndItsEscrow() public {
+        _seal();
+        _fund(user1, 10);
+        uint256 tierZeroId = _ownedIdsOf(user1)[0];
+        vm.prank(user1);
+        token.mintUp(1, tierZeroId);
+
+        vm.prank(user2);
+        token.setSkipNFT(true); // the buyer takes no NFTs on ERC20 credits
+
+        DN404Mirror mirror = DN404Mirror(payable(token.mirrorERC721()));
+        vm.prank(user1);
+        mirror.transferFrom(user1, user2, T1_START);
+
+        assertEq(_ownerOrZero(T1_START), user2, "the band id was ASSIGNED, not burned on arrival");
+        assertEq(token.coinBalanceOf(user2), 10 * UNIT, "buyer holds the full denomination");
+        assertEq(token.coinBalanceOf(user1), 0, "seller zeroed");
+        assertEq(token.totalTierEscrow(), 9 * UNIT, "escrow rode along with the id, not released");
+        assertEq(token.pendingEscrowRelease(user1), 0, "an ERC721 sale is not a release");
+        _assertCoinConserved();
+
+        vm.prank(user2);
+        token.mintDown(T1_START);
+        assertEq(token.balanceOf(user2), 10 * UNIT, "the skipNFT buyer can still redeem in full");
+        _assertCoinConserved();
+    }
+
+    /// @notice An ERC721 approval on a band id is cleared by the transfer it authorises, exactly as
+    ///         DN404 does for any id — a stale approval would leave the previous holder able to move
+    ///         a denomination out of the buyer's wallet.
+    function test_bandNftApprovalIsClearedOnTransfer() public {
+        _seal();
+        _fund(user1, 10);
+        uint256 tierZeroId = _ownedIdsOf(user1)[0];
+        vm.prank(user1);
+        token.mintUp(1, tierZeroId);
+
+        DN404Mirror mirror = DN404Mirror(payable(token.mirrorERC721()));
+        vm.prank(user1);
+        mirror.approve(spender, T1_START);
+        assertEq(mirror.getApproved(T1_START), spender, "approval set");
+
+        vm.prank(spender);
+        mirror.transferFrom(user1, user2, T1_START);
+
+        assertEq(_ownerOrZero(T1_START), user2, "the approved spender moved the id");
+        assertEq(mirror.getApproved(T1_START), address(0), "approval cleared by the transfer");
+        assertEq(token.coinBalanceOf(user2), 10 * UNIT, "escrow followed the id");
+        _assertCoinConserved();
+
+        // The stale approval cannot be replayed by the previous holder.
+        vm.prank(spender);
+        vm.expectRevert();
+        mirror.transferFrom(user2, user1, T1_START);
+    }
+
     // ┌─────────────────────────┐
     // │       Guard tests       │
     // └─────────────────────────┘
@@ -677,12 +765,16 @@ contract TokenTierOpsTest is Test {
 
     function _assertCoinConserved() internal view {
         // T3 (noesis-143) split a third bucket out of the instance's balance: coin owed to a holder
-        // whose band NFT was burned. It is zero in this suite (nothing here burns a band), but the sum
-        // accounts for it so the invariant stays exact if a future T2-side change ever triggers one.
+        // whose band NFT was burned. The coin-path transfer tests in this suite exercise it directly —
+        // every ERC20 debit on a sealed instance now burns the band and credits `pendingEscrowRelease`,
+        // so this bucket is load-bearing here, not a placeholder.
         uint256 instanceUnescrowed =
             token.balanceOf(address(token)) - token.totalTierEscrow() - token.totalPendingEscrowRelease();
-        uint256 sum = token.coinBalanceOf(user1) + token.pendingEscrowRelease(user1) + token.coinBalanceOf(user2)
-            + token.pendingEscrowRelease(user2) + instanceUnescrowed + token.balanceOf(address(liquidityDeployer));
+        uint256 sum = instanceUnescrowed + token.balanceOf(address(liquidityDeployer));
+        address[3] memory holders = [user1, user2, spender];
+        for (uint256 i; i < holders.length; i++) {
+            sum += token.coinBalanceOf(holders[i]) + token.pendingEscrowRelease(holders[i]);
+        }
         assertEq(sum, token.totalSupply(), "coin conservation broken");
     }
 
@@ -755,17 +847,57 @@ contract TokenTierOpsTest is Test {
         assertEq(
             opsProbe.probeSkipNFTDefault(address(this)), probe.probeSkipNFTDefault(address(this)), "skipNFT parity"
         );
+
+        // ── SPLIT-BRAIN GATE for the transfer rule ──────────────────────────────────────────────
+        // `_useDirectTransfersIfPossible` is the switch that makes a coin-path debit BURN a band NFT
+        // instead of handing it to the recipient. It is an internal DN404 hook reached by a plain jump,
+        // so under `delegatecall` it is OPS's compiled body that decides — an override on the instance
+        // alone would leave `mintUp`'s escrow leg, reroll and `stake` still carrying band NFTs while
+        // the instance's own tests looked green. Both sides are checked in BOTH states, because the
+        // unsealed answer (`true`) is also DN404's default and would pass even if Ops lacked the
+        // override entirely. Only the sealed half proves the override is really compiled into both.
+        assertTrue(probe.probeUseDirectTransfersIfPossible(), "unsealed: DN404's direct-transfer path stays on");
+        assertEq(
+            opsProbe.probeUseDirectTransfersIfPossible(),
+            probe.probeUseDirectTransfersIfPossible(),
+            "direct-transfer policy parity, unsealed"
+        );
+
+        // Seal a ladder on both probes by writing the `tierBands` array length directly — the probes are
+        // never initialized, so `initTierBands` is unreachable on them.
+        bytes32 tierBandsSlot = bytes32(uint256(33));
+        vm.store(address(probe), tierBandsSlot, bytes32(uint256(1)));
+        vm.store(address(opsProbe), tierBandsSlot, bytes32(uint256(1)));
+        assertEq(probe.probeTierBandCount(), 1, "instance probe: the ladder write landed on the right slot");
+        assertEq(opsProbe.probeTierBandCount(), 1, "ops probe: the ladder write landed on the right slot");
+
+        assertFalse(
+            probe.probeUseDirectTransfersIfPossible(), "sealed instance must NOT take DN404's direct-transfer path"
+        );
+        assertFalse(
+            opsProbe.probeUseDirectTransfersIfPossible(),
+            "sealed OPS must NOT take DN404's direct-transfer path (split-brain: the override is missing from Ops)"
+        );
     }
 
-    /// @notice Behavioral half of the burn-pool assertion: a burned id is re-issued by the ordinary
-    ///         mint scan (a cycle), never dealt out of a pool that could also hold band ids.
+    /// @notice Behavioral half of the burn-pool assertion: ids handed to a recipient come from the
+    ///         ordinary mint SCAN, never dealt out of a pool that could also hold band ids.
+    /// @dev    NO band NFT is involved here — user1 holds ordinary ids only. This exercises the ORDINARY
+    ///         holder's experience on a tiered instance. Because a sealed ladder turns off DN404's
+    ///         direct-transfer path, ids no longer move in place: the sender's tail ids BURN and the
+    ///         recipient receives freshly scanned ones. The burned ids return later in the cycle rather
+    ///         than immediately, which is a renumbering, not a change to what the assertion protects —
+    ///         re-issued ids stay in the ordinary space, and a band id is never dealt out by the scan.
+    ///         That an ordinary holder stops keeping their specific ids when they move coin is the
+    ///         accepted cost of the transfer rule; tier persistence is the promise, id persistence is
+    ///         not. Untiered instances are unaffected and keep the direct-transfer path.
     function test_burnedTierZeroIdIsReissuedByTheScan() public {
         _seal();
         _fund(user1, 5);
         uint256[] memory ids = _ownedIdsOf(user1);
 
         vm.prank(user1);
-        token.transfer(user2, 2 * UNIT); // burns user1's two tail ids, mints two for user2
+        token.transfer(user2, 2 * UNIT); // burns user1's two tail ids, mints two fresh ones for user2
 
         assertEq(_ownedIdsOf(user1).length, 3, "user1 down to 3");
         uint256[] memory got = _ownedIdsOf(user2);
@@ -773,7 +905,15 @@ contract TokenTierOpsTest is Test {
         for (uint256 i; i < got.length; i++) {
             assertLe(got[i], ID_LIMIT, "re-issued ids stay in the ordinary space");
         }
-        assertEq(got[0], ids[3], "the freed ids cycle straight back out");
+        _assertNoBandIds(user2, "the scan must never deal a band id");
+
+        // The sender's tail ids were BURNED, not transferred in place.
+        assertEq(_ownerOrZero(ids[3]), address(0), "tail id burned rather than moved");
+        assertEq(_ownerOrZero(ids[4]), address(0), "tail id burned rather than moved");
+        // The recipient's ids came off the scan, above everything user1 ever held.
+        assertGt(got[0], ids[4], "recipient minted fresh ids from the scan, not the sender's");
+        assertEq(got[0], ids[4] + 1, "the scan continues from the high-water mark");
+        assertEq(got[1], ids[4] + 2, "and issues the next id after it");
     }
 
     /// @notice `withdrawDust` sweeps ETH above the tracked liabilities — it has no token leg at all, so
@@ -843,12 +983,13 @@ contract TokenTierOpsTest is Test {
         token.transfer(user2, 2 * UNIT);
     }
 
-    /// @notice HAZARD, PINNED — an ERC20 transfer that drops the sender's balance can carry a band NFT
-    ///         (and therefore `(w-1) * unit` of escrow) to the RECIPIENT, because DN404's
-    ///         `_useDirectTransfersIfPossible` moves ids instead of burn+mint when the recipient takes
-    ///         NFTs. Escrow stays conserved and redeemable — by the new owner. Sending one unit can
-    ///         hand over ten units of value; the app must warn, and T3/T5 own the ergonomics.
-    function test_HAZARD_erc20TransferCanCarryABandNftToTheRecipient() public {
+    /// @notice THE TRANSFER RULE, PINNED — an ERC20 transfer that drops the sender below a whole unit
+    ///         BURNS the band NFT and credits `(w-1) * unit` back to the SENDER. It never hands the
+    ///         band NFT to the recipient. `_useDirectTransfersIfPossible` is overridden to false on a
+    ///         sealed instance precisely so DN404 takes burn+mint here instead of its carry loop, and
+    ///         the escrow lands on the holder through `_afterNFTTransfers`. The recipient receives the
+    ///         coin actually sent and an ordinary id — never the denomination.
+    function test_erc20TransferBurnsTheBandNftAndCreditsTheSender() public {
         _seal();
         _fund(user1, 10);
         uint256 tierZeroId = _ownedIdsOf(user1)[0];
@@ -856,17 +997,84 @@ contract TokenTierOpsTest is Test {
         token.mintUp(1, tierZeroId);
 
         vm.prank(user1);
-        token.transfer(user2, UNIT); // the last liquid unit — DN404 hands the band NFT over with it
+        token.transfer(user2, UNIT); // the last liquid unit — the band NFT burns rather than moving
 
-        assertEq(token.ownerOf(T1_START), user2, "the band NFT followed the unit");
-        assertEq(token.coinBalanceOf(user2), 10 * UNIT, "recipient received the escrow claim too");
-        assertEq(token.coinBalanceOf(user1), 0, "sender parted with the whole denomination");
-        assertEq(token.totalTierEscrow(), 9 * UNIT, "escrow conserved, not orphaned, on this path");
+        assertEq(_ownerOrZero(T1_START), address(0), "the band NFT was burned, not carried");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "escrow credited back to the SENDER");
+        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
+        assertEq(token.coinBalanceOf(user2), UNIT, "recipient received only the coin actually sent");
+        _assertNoBandIds(user2, "recipient must not receive a band id");
         _assertCoinConserved();
 
-        vm.prank(user2);
-        token.mintDown(T1_START); // still fully redeemable
-        assertEq(token.balanceOf(user2), 10 * UNIT, "redeemed by the new owner");
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        assertEq(token.balanceOf(user1), 9 * UNIT, "the sender is made whole");
+        _assertCoinConserved();
+    }
+
+    /// @notice THE REGRESSION THIS ITEM EXISTS FOR — the recipient-crosses-a-boundary case, which had
+    ///         no coverage. DN404's carry loop needs `min(sender burns, recipient mints) > 0`, so
+    ///         before the override the outcome of a send was decided by the RECIPIENT's balance: a
+    ///         1-wei send to a wallet sitting one wei below a whole unit moved the whole band NFT and
+    ///         its escrow, while the same 1-wei send to an empty wallet burned and credited correctly.
+    ///         The sender can neither see nor control that. Both halves are asserted here so the pair
+    ///         proves the outcome no longer depends on the recipient at all.
+    function test_erc20TransferOutcomeIsIndependentOfTheRecipientsBalance() public {
+        _seal();
+        _fund(user1, 10);
+        uint256 tierZeroId = _ownedIdsOf(user1)[0];
+        vm.prank(user1);
+        token.mintUp(1, tierZeroId); // user1: 1 unit liquid, holds the band NFT, 9 units escrowed
+
+        // user2 is parked one wei below a whole unit — the boundary that used to trigger the carry.
+        vm.prank(address(token));
+        token.transfer(user2, UNIT - 1);
+        assertEq(token.balanceOf(user2), UNIT - 1, "user2 sits exactly one wei under a whole unit");
+
+        vm.prank(user1);
+        token.transfer(user2, 1); // ONE WEI
+
+        assertEq(_ownerOrZero(T1_START), address(0), "a 1-wei send must not move the band NFT");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "escrow credited back to the holder");
+        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
+        assertEq(token.balanceOf(user2), UNIT, "recipient received exactly the one wei sent");
+        _assertNoBandIds(user2, "recipient must not receive a band id");
+        _assertCoinConserved();
+
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        // The full denomination minus the single wei actually sent — nothing else left the holder.
+        assertEq(token.balanceOf(user1), 9 * UNIT + (UNIT - 1), "the holder is made whole");
+        _assertCoinConserved();
+    }
+
+    /// @notice The mirror of the case above with the recipient's prior balance at ZERO. Identical
+    ///         outcome — that is the point: the two together pin that a coin-path debit's result is a
+    ///         function of the SENDER's position alone.
+    function test_erc20TransferBurnsTheBandNftWhenRecipientStartsEmpty() public {
+        _seal();
+        _fund(user1, 10);
+        uint256 tierZeroId = _ownedIdsOf(user1)[0];
+        vm.prank(user1);
+        token.mintUp(1, tierZeroId);
+
+        assertEq(token.balanceOf(user2), 0, "recipient starts empty");
+
+        vm.prank(user1);
+        token.transfer(user2, 1); // ONE WEI
+
+        assertEq(_ownerOrZero(T1_START), address(0), "a 1-wei send must not move the band NFT");
+        assertEq(token.pendingEscrowRelease(user1), 9 * UNIT, "escrow credited back to the holder");
+        assertEq(token.totalTierEscrow(), 0, "escrow left the tier counter");
+        assertEq(token.balanceOf(user2), 1, "recipient received exactly the one wei sent");
+        _assertNoBandIds(user2, "recipient must not receive a band id");
+        _assertCoinConserved();
+
+        vm.prank(user1);
+        token.claimReleasedEscrow();
+        // Identical to the boundary case above — same sender position, same result.
+        assertEq(token.balanceOf(user1), 9 * UNIT + (UNIT - 1), "the holder is made whole");
+        _assertCoinConserved();
     }
 
     /// @notice The T2 GAP, now CLOSED by T3 (noesis-143). When the balance-losing leg is not matched by
