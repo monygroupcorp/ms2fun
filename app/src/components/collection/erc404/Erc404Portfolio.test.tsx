@@ -16,6 +16,7 @@ const mockOwnedPieces = vi.hoisted(() =>
       pieces: OwnedPiece[]
       unit: bigint | undefined
       idLimit: bigint | undefined
+      balance: bigint | undefined
       isPending: boolean
       refetch: () => void
     }
@@ -39,6 +40,7 @@ vi.mock('../../../generated/contracts', () => {
   return {
     useReadErc404BondingInstanceDecimals: () => ({ data: 18 }),
     useReadErc404BondingInstanceGetSkipNft: () => ({ data: false, refetch: vi.fn() }),
+    useReadErc404BondingInstanceBalanceOf: () => ({ data: undefined }),
     useWriteErc404BondingInstanceRerollSelectedNfTs: write,
     useWriteErc404BondingInstanceSetSkipNft: write,
   }
@@ -48,11 +50,12 @@ vi.mock('../useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
 
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const
 
-function mount(pieces: OwnedPiece[]) {
+function mount(pieces: OwnedPiece[], opts: { balance?: bigint } = {}) {
   mockOwnedPieces.mockReturnValue({
     pieces,
     unit: UNIT,
     idLimit: 5000n,
+    balance: opts.balance,
     isPending: false,
     refetch: vi.fn(),
   })
@@ -99,4 +102,15 @@ test('an all-tier position disables reroll and explains why instead of letting i
   const readout = screen.getByTestId('erc404-reroll-effective')
   expect(readout).toHaveTextContent(/every piece you hold is a tier nft/i)
   expect(readout).toHaveTextContent(/mintDown/)
+})
+
+test('an amount above the held balance disables reroll and states the shortfall', () => {
+  mount([ordinary(1n), ordinary(2n), ordinary(3n)], { balance: 2n * UNIT })
+
+  fireEvent.change(screen.getByTestId('erc404-reroll-amount'), { target: { value: '3' } })
+
+  expect(screen.getByTestId('erc404-reroll')).toBeDisabled()
+  const readout = screen.getByTestId('erc404-reroll-effective')
+  expect(readout).toHaveTextContent('You entered 3')
+  expect(readout).toHaveTextContent('hold 2')
 })

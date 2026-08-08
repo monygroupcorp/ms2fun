@@ -8,6 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { usePublicClient } from 'wagmi'
 import {
+  useReadErc404BondingInstanceBalanceOf,
   useReadErc404BondingInstanceMirrorErc721,
   useReadErc404BondingInstanceTotalSupply,
   useReadErc404BondingInstanceUnit,
@@ -43,6 +44,9 @@ export interface OwnedPieces {
   unit: bigint | undefined
   /** `totalSupply / unit` — the top of the ordinary id space. Undefined until both reads land. */
   idLimit: bigint | undefined
+  /** `balanceOf(owner)` — plain coin balance, NOT `coinBalanceOf` (escrow-inclusive). Mirrors the
+   *  guard `rerollSelectedNFTs` checks first. Undefined until the read lands. */
+  balance: bigint | undefined
   isPending: boolean
   refetch: () => void
 }
@@ -74,6 +78,13 @@ export function useErc404OwnedPieces(
   })
   const idLimit =
     totalSupply !== undefined && unit !== undefined && unit > 0n ? totalSupply / unit : undefined
+
+  const { data: balance } = useReadErc404BondingInstanceBalanceOf({
+    address: instance,
+    chainId: chainId,
+    args: owner ? [owner] : undefined,
+    query: { enabled: !!owner },
+  })
 
   const { data, isPending, refetch } = useQuery({
     queryKey: [
@@ -145,6 +156,7 @@ export function useErc404OwnedPieces(
     pieces: data ?? [],
     unit,
     idLimit,
+    balance,
     isPending: isPending && !!owner,
     refetch: () => void refetch(),
   }
