@@ -1,7 +1,7 @@
 /**
  * Encodes the metadata-resolution stack (ADR-0006/0007) into the on-chain `MetadataConfig` tuple
  * threaded through the ERC404 `createInstance` 7-arg overload — so the resolver pointer, router
- * children, and the (immutable) band table are all wired in the SAME create tx.
+ * children, and the (immutable) Token Tiers ladder are all wired in the SAME create tx.
  *
  * The wizard exposes three optional module slots: `resolver` (a MetadataResolverRouter), `overlay`
  * (MetadataOverlayModule) and `tier` (TokenTierBandResolver). This module maps those selections +
@@ -14,12 +14,17 @@
  *   - no router, two children      → invalid: stacking needs a router (validation flags it).
  *
  * Token Tiers: a tier NFT is a coin DENOMINATION, and its art is STATIC — an id in band N shows
- * band N's art, unconditionally. There is no holdings threshold and no locked/teaser art. Band ids
- * live ABOVE the mintable supply (`nftCount`): DN404's auto-mint never emits an id past the id
- * ceiling, which is exactly what reserves the band range for the tier mint path.
+ * band N's art, unconditionally. There is no holdings threshold and no locked/teaser art.
  *
- * The band table has no list-of-group renderer, so — exactly like password-tier-gating — it is
- * captured as PARALLEL lists (`tierIdStarts.N`, `tierIdEnds.N`, …) and zipped by row index here.
+ * THE CREATOR SUPPLIES A LADDER, NOT ID RANGES. Each rung is `{weight, count, baseURI}`; the factory
+ * derives every id range from it — packed contiguously above the mintable supply (`nftCount`), where
+ * DN404's auto-mint can never emit them. That derivation seals BOTH the instance's economic ladder
+ * and the resolver's art table from the same ranges, so the two cannot describe different ids. The
+ * app must therefore never compute id ranges for submission: `tierSupplySummary` mirrors the
+ * derivation for DISPLAY only.
+ *
+ * The ladder has no list-of-group renderer, so — exactly like password-tier-gating — it is captured
+ * as PARALLEL lists (`tierWeights.N`, `tierCounts.N`, `tierBaseURIs.N`) and zipped by row index here.
  *
  * Pure TS (no React/wagmi) so it's unit-testable and shared by the wizard + NOEMA. Mirrors the
  * `gatingConfig.ts` pattern.
@@ -29,12 +34,19 @@
 // create a cycle that leaves the const undefined during init. Same literal as submit's ZERO_ADDRESS.
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as const
 
+/** The lowest denomination a tier may carry. The escrow arithmetic is `(weight - 1) * unit`, so a
+ *  weight of 1 would be an ordinary id with extra steps and the seal rejects it. */
+export const MIN_TIER_WEIGHT = 2
+
 // ── On-chain shapes (viem-inferred) ───────────────────────────────────────────
 
-/** One TokenTierBandResolver.Band row (idStart/idEnd uint256, one string URI). */
-export interface MetadataBand {
-  idStart: bigint
-  idEnd: bigint
+/** One `ERC404Factory.TierSpec` row: uint32 weight, uint32 count, one string URI. */
+export interface TierSpec {
+  /** Denomination: this tier's NFT is worth `weight` coin units. >= 2, strictly increasing. */
+  weight: number
+  /** Ids in this tier. 0 => the maximum (`nftCount / weight`); above it the contract clamps. */
+  count: number
+  /** Band art prefix; resolves to `baseURI + id`. '' => fall through to the collection base. */
   baseURI: string
 }
 
@@ -44,7 +56,7 @@ export interface MetadataConfigValue {
   childResolvers: `0x${string}`[]
   overlay: `0x${string}`
   tier: `0x${string}`
-  bands: MetadataBand[]
+  tiers: TierSpec[]
   autoLatest: boolean
   /** uint8 Payout enum: 0 = ARTIST, 1 = SPLIT. */
   defaultPayout: number
@@ -55,7 +67,7 @@ export const EMPTY_METADATA_CONFIG: MetadataConfigValue = {
   childResolvers: [],
   overlay: ZERO_ADDRESS,
   tier: ZERO_ADDRESS,
-  bands: [],
+  tiers: [],
   autoLatest: false,
   defaultPayout: 0,
 }
@@ -81,107 +93,122 @@ function readList(values: Record<string, string>, key: string): string[] {
     .map((k) => values[k] ?? '')
 }
 
-function bigOrZero(v: string | undefined): bigint {
+/** Parse a whole-number form field. Blank / malformed / negative all read as 0. */
+function numOrZero(v: string | undefined): number {
   const t = (v ?? '').trim()
-  if (t === '') return 0n
-  try {
-    return BigInt(t)
-  } catch {
-    return 0n
-  }
+  if (t === '' || !/^\d+$/.test(t)) return 0
+  const n = Number(t)
+  return Number.isSafeInteger(n) && n >= 0 ? n : 0
 }
 
 const nonZero = (a: `0x${string}` | undefined): a is `0x${string}` =>
   a !== undefined && a !== ZERO_ADDRESS
 
-// ── band table ────────────────────────────────────────────────────────────────
+// ── ladder ────────────────────────────────────────────────────────────────────
 
 /**
- * Zip the parallel band lists into Band rows. A row is DROPPED when its start id is blank (so a
- * half-filled trailing row never reaches the contract), keeping the table dense + ordered.
+ * Zip the parallel ladder lists into TierSpec rows. A row is DROPPED when its weight is blank (so a
+ * half-filled trailing row never reaches the contract), keeping the ladder dense + ordered.
  */
-export function encodeBands(values: Record<string, string>): MetadataBand[] {
-  const starts = readList(values, 'tierIdStarts')
-  const ends = readList(values, 'tierIdEnds')
+export function encodeTiers(values: Record<string, string>): TierSpec[] {
+  const weights = readList(values, 'tierWeights')
+  const counts = readList(values, 'tierCounts')
   const bases = readList(values, 'tierBaseURIs')
 
-  const bands: MetadataBand[] = []
-  starts.forEach((s, i) => {
-    if (s.trim() === '') return // drop empty rows (and their paired entries)
-    bands.push({
-      idStart: bigOrZero(s),
-      idEnd: bigOrZero(ends[i]),
+  const tiers: TierSpec[] = []
+  weights.forEach((w, i) => {
+    if (w.trim() === '') return // drop empty rows (and their paired entries)
+    tiers.push({
+      weight: numOrZero(w),
+      count: numOrZero(counts[i]),
       baseURI: (bases[i] ?? '').trim(),
     })
   })
-  return bands
+  return tiers
 }
 
-// ── supply summary (live "reserved ids" helper math) ─────────────────────────
+// ── derived read-out (what the contract will compute) ────────────────────────
 
-/** The running supply → band-range math the wizard shows beside the band table. */
+/** One tier as the contract will derive it, for display beside the ladder form. */
+export interface DerivedTier {
+  /** 1-based tier number, matching `tierBands[n - 1]` on the instance. */
+  tierNumber: number
+  weight: number
+  /** First id in the derived range (0 when the supply is unknown or the row is unusable). */
+  idStart: bigint
+  /** Last id in the derived range, inclusive. */
+  idEnd: bigint
+  /** Ids this tier actually gets — `min(count || max, max)`. */
+  count: bigint
+  /** The most ids the coin supply could back for this weight: `floor(nftCount / weight)`. */
+  maxCount: bigint
+  /** The tier is capped below `maxCount`, so it can sell out while coin remains. */
+  scarce: boolean
+}
+
+/** The running supply → derived-range math the wizard shows beside the ladder form. */
 export interface TierSupplySummary {
   /** The ERC404 core supply the creator entered (0 when not yet set). */
   nftCount: bigint
-  /** Whether the supply is known (> 0) — gates the above-supply verdict. */
+  /** Whether the supply is known (> 0) — ranges cannot be derived without it. */
   supplyKnown: boolean
-  /** At least one band row is present. */
-  hasBands: boolean
-  /** Lowest band start id (0 when no bands). */
-  minId: bigint
-  /** Highest band end id (0 when no bands). */
-  maxId: bigint
-  /** Total ids the band ranges reserve — Σ (idEnd − idStart + 1) over well-formed rows. */
+  /** At least one ladder row is present. */
+  hasTiers: boolean
+  /** Per-tier derivation, in ladder order. Empty when the supply is unknown. */
+  tiers: DerivedTier[]
+  /** Total ids the derived bands reserve. All of them sit ABOVE `nftCount`. */
   bandIdCount: bigint
-  /**
-   * Every band range starts ABOVE `nftCount` — where tier ids actually live. DN404's auto-mint
-   * never emits an id past the id ceiling, so a band above it is reserved and unbuyable; a band
-   * that overlaps the mintable range would collide with ordinary ids. True (vacuously) when the
-   * supply is unknown or there are no bands.
-   */
-  aboveSupply: boolean
 }
 
 /**
- * Compute the supply → band-range breakdown from the current band form + core supply. Pure (no
- * React) so it's unit-testable and shared by the helper component. Malformed rows (idEnd < idStart)
- * contribute 0 to the reserved count rather than a negative — the validator surfaces the error
- * separately; this summary just avoids lying about coverage.
+ * Reproduce the factory's derivation for DISPLAY. Bands pack contiguously ascending from
+ * `nftCount + 1`; each tier's size is `min(count || max, max)` with `max = floor(nftCount / weight)`.
+ * Pure (no React) so it's unit-testable and shared by the helper component.
+ *
+ * A row the contract would REJECT (weight below 2, or a weight so large the band derives to zero
+ * ids) contributes no range and stops the packing — `validateMetadataConfig` surfaces the error; this
+ * summary just avoids inventing a range the contract would never seal.
  */
 export function tierSupplySummary(
   values: Record<string, string>,
   nftCount: bigint,
 ): TierSupplySummary {
-  const bands = encodeBands(values)
+  const specs = encodeTiers(values)
   const supplyKnown = nftCount > 0n
-  if (bands.length === 0) {
-    return {
-      nftCount,
-      supplyKnown,
-      hasBands: false,
-      minId: 0n,
-      maxId: 0n,
-      bandIdCount: 0n,
-      aboveSupply: true,
+  const tiers: DerivedTier[] = []
+  let bandIdCount = 0n
+
+  if (supplyKnown) {
+    let prevEnd = nftCount
+    for (let i = 0; i < specs.length; i++) {
+      const spec = specs[i]!
+      const weight = BigInt(spec.weight)
+      const maxCount = weight >= BigInt(MIN_TIER_WEIGHT) ? nftCount / weight : 0n
+      if (maxCount === 0n) break // unusable row — the contract reverts rather than deriving a range
+      const asked = BigInt(spec.count)
+      const count = asked === 0n || asked > maxCount ? maxCount : asked
+      const idStart = prevEnd + 1n
+      const idEnd = idStart + count - 1n
+      tiers.push({
+        tierNumber: i + 1,
+        weight: spec.weight,
+        idStart,
+        idEnd,
+        count,
+        maxCount,
+        scarce: count < maxCount,
+      })
+      bandIdCount += count
+      prevEnd = idEnd
     }
   }
-  let minId = bands[0]!.idStart
-  let maxId = bands[0]!.idEnd
-  let bandIdCount = 0n
-  for (const b of bands) {
-    if (b.idStart < minId) minId = b.idStart
-    if (b.idEnd > maxId) maxId = b.idEnd
-    if (b.idEnd >= b.idStart) bandIdCount += b.idEnd - b.idStart + 1n
-  }
-  const aboveSupply = supplyKnown ? minId > nftCount : true
+
   return {
     nftCount,
     supplyKnown,
-    hasBands: true,
-    minId,
-    maxId,
+    hasTiers: specs.length > 0,
+    tiers,
     bandIdCount,
-    aboveSupply,
   }
 }
 
@@ -225,7 +252,7 @@ export function encodeMetadataConfig(
     childResolvers,
     overlay,
     tier,
-    bands: tier !== ZERO_ADDRESS ? encodeBands(values) : [],
+    tiers: tier !== ZERO_ADDRESS ? encodeTiers(values) : [],
     autoLatest,
     defaultPayout,
   }
@@ -239,16 +266,18 @@ export function hasMetadataConfig(cfg: MetadataConfigValue): boolean {
 // ── validate ──────────────────────────────────────────────────────────────────
 
 /**
- * Validate the metadata-stack selection + band table before submit. Returns field.key → error (only
- * failures). Mirrors the on-chain reverts (`InvalidRange`, `RangesNotAscending`) and the wiring
- * invariants so the user gets a message instead of a reverted tx.
+ * Validate the metadata-stack selection + ladder before submit. Returns field.key → error (only
+ * failures). Mirrors the create-time reverts so the user gets a message instead of a reverted tx:
+ * the factory refuses a tier module with no ladder and a weight that derives a zero-width band, and
+ * the instance's seal refuses a weight below 2 or a non-increasing ladder.
  *
- * `nftCount` is the ERC404 core supply (whole-id count). When > 0 each band is additionally asserted
- * to START ABOVE it: band ids are reserved denominations that DN404's auto-mint can never emit
- * (`_wrapNFTId` bounds ids to `[1, idLimit]`), which is what makes them unbuyable. A band overlapping
- * the mintable range would collide with ordinary ids — the opposite of the intent. When 0/empty
- * (supply not yet entered) that check is skipped so the table doesn't false-error before the creator
- * has typed a supply; the start/end sanity checks still run.
+ * `nftCount` is the ERC404 core supply (whole-id count) and therefore the instance's id ceiling. When
+ * > 0 each weight is additionally checked against it: a weight above the supply derives `floor(supply
+ * / weight) == 0` ids, which reverts at create. When 0/empty (supply not yet entered) that check is
+ * skipped so the ladder doesn't false-error before the creator has typed a supply.
+ *
+ * Id ranges are NOT validated here and are not app input at all — the contract derives them, which is
+ * what makes an overlapping or below-supply band unrepresentable rather than merely rejected.
  */
 export function validateMetadataConfig(
   sel: MetadataModuleSelection,
@@ -271,29 +300,29 @@ export function validateMetadataConfig(
   }
 
   if (tierSel) {
-    const bands = encodeBands(values)
-    if (bands.length === 0) {
-      errors['tierIdStarts'] = 'Tier module selected — add at least one tier row'
+    const tiers = encodeTiers(values)
+    if (tiers.length === 0) {
+      // A tier module wired with no ladder reverts at create — the instance's tier ops would
+      // otherwise be permanent no-ops and the seal is create-only.
+      errors['tierWeights'] = 'Tier module selected — add at least one tier row'
     }
-    let prevEnd = 0n
-    bands.forEach((b, i) => {
-      // Start id must be a real token id (1-based). Catches an explicit 0/blank-coerced start.
-      if (b.idStart < 1n) {
-        errors[`tierIdStarts.${i}`] = `tier ${i + 1}: start id must be ≥ 1`
-      } else if (b.idStart <= prevEnd) {
-        errors[`tierIdStarts.${i}`] = `tier ${i + 1}: ranges must be ascending + non-overlapping`
-      } else if (nftCount > 0n && b.idStart <= nftCount) {
-        // Band ids are RESERVED above the mintable range — the auto-mint can never emit them, which
-        // is what keeps them unbuyable. Overlapping the supply would collide with ordinary ids.
-        errors[`tierIdStarts.${i}`] =
-          `tier ${i + 1}: start id ${b.idStart} must be above the ${nftCount} NFT supply — tier ids are reserved above the mintable range`
+    let prevWeight = 0
+    tiers.forEach((t, i) => {
+      if (t.weight < MIN_TIER_WEIGHT) {
+        errors[`tierWeights.${i}`] =
+          `tier ${i + 1}: weight must be ≥ ${MIN_TIER_WEIGHT} — a weight of 1 is an ordinary id`
+      } else if (t.weight <= prevWeight) {
+        errors[`tierWeights.${i}`] =
+          `tier ${i + 1}: weight must be greater than tier ${i}'s (${prevWeight}) — the ladder climbs`
+      } else if (nftCount > 0n && BigInt(t.weight) > nftCount) {
+        errors[`tierWeights.${i}`] =
+          `tier ${i + 1}: weight ${t.weight} is above the ${nftCount} NFT supply, so the tier would have no ids`
       }
-      if (b.idEnd < b.idStart) {
-        errors[`tierIdEnds.${i}`] = `tier ${i + 1}: end id must be ≥ start id`
-      }
+      // `count` is intentionally unconstrained: 0 means "as many as the supply can back", and a
+      // value above that maximum is CLAMPED by the contract rather than rejected.
       // Band URIs are intentionally NOT required — the main collection URI is optional (art-optional),
       // so blocking deploy on a per-band URI is inconsistent. A blank URI encodes as an empty string.
-      prevEnd = b.idEnd
+      prevWeight = t.weight
     })
   }
 

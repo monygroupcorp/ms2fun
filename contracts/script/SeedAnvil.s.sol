@@ -15,7 +15,6 @@ import { ProfileRegistry } from "../src/registry/ProfileRegistry.sol";
 import { FreeMintParams } from "../src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "../src/gating/IGatingModule.sol";
 import { IAlignmentVault } from "../src/interfaces/IAlignmentVault.sol";
-import { TokenTierBandResolver } from "../src/metadata/TokenTierBandResolver.sol";
 import { MetadataOverlayModule } from "../src/metadata/MetadataOverlayModule.sol";
 import { Currency } from "v4-core/types/Currency.sol";
 
@@ -682,19 +681,23 @@ contract SeedAnvil is Script {
     }
 
     /// @dev STACKED METADATA: an ERC404 created via the factory's metadata overload (NOT the gating
-    ///      param), wiring resolver(router) → [overlay, tier]. The band table is sealed at create.
-    ///      The band sits ABOVE the instance's id ceiling (nftCount = 10, so the band is ids 11-12):
-    ///      DN404's auto-mint bounds emitted ids to [1..idLimit] (`_wrapNFTId`, DN404.sol:531,544), so
-    ///      band ids are never handed out by an ordinary buy — that is exactly what reserves them for
-    ///      the tier mint path. Seeding a band that overlapped ordinary ids would make the demo lie.
+    ///      param), wiring resolver(router) → [overlay, tier]. Both the economic ladder and the band
+    ///      art table are sealed at create, from the SAME derived id ranges.
+    ///      The ladder is one SCARCE tier: `weight: 5, count: 1` against the 10-id supply. The factory
+    ///      derives its range as the single id 11 — above the instance's id ceiling (nftCount = 10),
+    ///      because DN404's auto-mint bounds emitted ids to [1..idLimit] (`_wrapNFTId`, DN404.sol:531,
+    ///      544), so band ids are never handed out by an ordinary buy. `count: 1` is BELOW the maximum
+    ///      the supply could back (10 / 5 = 2 ids), which is what makes the tier scarce: the second
+    ///      `mintUp` into it reverts `BandExhausted` until a holder mints down, and the demo shows a
+    ///      capped tier rather than one that can never sell out.
     ///      Post-create the deployer (artist) publishes an opt-in event wave and a PAY commission on
     ///      id 3, then — as the holder of id 3 — unlocks + pins it. Token URIs (tokenBaseURI "" → base
-    ///      is the bare id) demonstrate precedence: id3 → "commission-3", ids 11-12 → "tier-N", else "N".
+    ///      is the bare id) demonstrate precedence: id3 → "commission-3", id 11 → "tier-11", else "N".
     function _seedErc404Stacked(Deployed memory d) internal {
-        // Build the sealed band table: ids 11-12 sit above the 10-id mintable supply — reserved,
-        // unbuyable, and carrying their own static art regardless of who holds them.
-        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
-        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 12, baseURI: "tier-" });
+        // The ladder the creator supplies; the factory derives the id range (11-11) and seals both the
+        // instance's economic ladder and the resolver's art table from it.
+        ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](1);
+        tiers[0] = ERC404Factory.TierSpec({ weight: 5, count: 1, baseURI: "tier-" });
 
         address[] memory children = new address[](2);
         children[0] = d.overlay; // precedence: holder pins/events win over...
@@ -705,7 +708,7 @@ contract SeedAnvil is Script {
             childResolvers: children,
             overlay: d.overlay,
             tier: d.tier,
-            bands: bands,
+            tiers: tiers,
             autoLatest: false, // opt-in events — keeps band art visible by default
             defaultPayout: MetadataOverlayModule.Payout.ARTIST
         });

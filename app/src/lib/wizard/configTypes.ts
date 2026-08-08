@@ -109,28 +109,30 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
     configType: 'metadata-tier',
     // Token Tiers. A tier NFT is a coin DENOMINATION and its art is STATIC: an id in band N shows
     // band N's art, unconditionally — no holdings threshold, no locked/teaser art.
-    // On-chain shape: initBands(instance, Band[]) where Band{ idStart, idEnd, baseURI }. The renderer
-    // has no list-of-group, so the table is captured as PARALLEL lists zipped by row index at submit
-    // (mirrors password-tier-gating). Ranges must be ascending and non-overlapping, and must start
-    // ABOVE the NFT supply — the auto-mint never emits an id past the id ceiling, which is what keeps
-    // band ids reserved and unbuyable. The encoder/validator enforces all of it before submit.
+    // On-chain shape: MetadataConfig.tiers, a TierSpec{ weight, count, baseURI } list. The creator
+    // supplies the LADDER only; the factory derives every id range from it and seals the instance's
+    // economic ladder and the resolver's art table from the same ranges, packed above the NFT supply
+    // (the auto-mint never emits an id past the id ceiling, which is what keeps band ids reserved and
+    // unbuyable). The renderer has no list-of-group, so the ladder is captured as PARALLEL lists
+    // zipped by row index at submit (mirrors password-tier-gating). The derived ranges are shown
+    // read-only by TierSupplyHelper — they are never typed and never submitted.
     // Frozen at create — no post-create authoring (mutable rarity = rug).
-    title: 'Tier bands',
+    title: 'Tier ladder',
     fields: [
       {
-        key: 'tierIdStarts',
-        label: 'Band start (token id)',
+        key: 'tierWeights',
+        label: 'Denomination (coin units per NFT)',
         kind: 'list',
-        help: 'One row per band; ascending, non-overlapping, and above the NFT supply',
-        item: { key: 'tierIdStart', label: 'Start id', kind: 'number' },
-        validation: { min: 1 },
+        help: 'One row per tier; at least 2, and climbing — each tier is worth more than the one below',
+        item: { key: 'tierWeight', label: 'Weight', kind: 'number' },
+        validation: { min: 2 },
       },
       {
-        key: 'tierIdEnds',
-        label: 'Band end (token id)',
+        key: 'tierCounts',
+        label: 'How many (blank = as many as the supply allows)',
         kind: 'list',
-        help: 'Inclusive end id, paired with each start row',
-        item: { key: 'tierIdEnd', label: 'End id', kind: 'number' },
+        help: 'Cap this tier below supply ÷ weight to make it scarce; it then sells out and reopens when a holder mints down',
+        item: { key: 'tierCount', label: 'Count', kind: 'number' },
       },
       {
         key: 'tierBaseURIs',

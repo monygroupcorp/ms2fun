@@ -97,9 +97,10 @@ contract DeployComponentRegistryWiringTest is Test {
         MetadataOverlayModule overlay = s.metadataOverlayModule();
         TokenTierBandResolver tier = s.tokenTierBandResolver();
 
-        // Band above the 10-id mintable supply — where tier ids actually live.
-        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
-        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 12, baseURI: "tier-" });
+        // One ladder rung; the factory derives its range above the 10-id mintable supply, where tier
+        // ids actually live (weight 2 → 10 / 2 = 5 ids, so 11-15).
+        ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](1);
+        tiers[0] = ERC404Factory.TierSpec({ weight: 2, count: 0, baseURI: "tier-" });
 
         address[] memory children = new address[](2);
         children[0] = address(overlay);
@@ -110,7 +111,7 @@ contract DeployComponentRegistryWiringTest is Test {
             childResolvers: children,
             overlay: address(overlay),
             tier: address(tier),
-            bands: bands,
+            tiers: tiers,
             autoLatest: false,
             defaultPayout: MetadataOverlayModule.Payout.ARTIST
         });
