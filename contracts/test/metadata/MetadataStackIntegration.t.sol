@@ -455,11 +455,18 @@ contract MetadataStackIntegrationTest is Test {
         _create("gatingAsChild", meta);
     }
 
+    /// @dev Positive control: [overlay, tier] are both resolver-family → the family check permits them,
+    ///      TIER children included. Asserted ON THE TIERED PATH (`cfg.tier` + a one-rung ladder), which
+    ///      is the only shape a TIER module may be wired in under: noesis-162 refuses a TIER-tagged
+    ///      resolver or child with `cfg.tier` unset, because on that path neither `initTierBands` nor
+    ///      `initBands` runs and the instance is sealed as permanently untiered. The family admission
+    ///      being proved here is unchanged — only its untiered variant is now illegal.
     function test_tagScope_childResolver_acceptsOverlayTierFamily() public {
-        // Positive control: [overlay, tier] are both resolver-family → the family check permits them.
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.childResolvers = _children(address(overlay), address(tier));
+        meta.tier = address(tier);
+        meta.tiers = _oneTier(2, 0); // nftCount 10 → band ids 11-15
         address inst = _create("familyChildren", meta);
         assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
     }
