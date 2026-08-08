@@ -24,7 +24,6 @@ import {
     StakingModuleNotSet,
     NothingToWithdraw,
     WithdrawFailed,
-    BandIdOverflow,
     OnlyFactory,
     NotInitialized,
     AlreadyInitialized,
@@ -638,13 +637,22 @@ contract ERC404BondingOps is ERC404BondingStorage {
     ///         with `w_0 = 1` and is never stored. Every band must sit ABOVE `idLimit` — that is what
     ///         makes band ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
     ///         `_wrapNFTId(.., idLimit)` where `idLimit = totalSupply / unit`, fixed for this instance's
-    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is the
-    ///         product's `band_N = S / w_N` (S = the tier-0 id count), rounded DOWN — with a 10-to-1
-    ///         ladder on S = 4000 that is 400 ids for tier 1 and 40 for tier 2, each band able to hold
-    ///         the entire supply if it all concentrated there.
+    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is a
+    ///         PRODUCT CHOICE bounded above by `band_N <= S / w_N` (S = the tier-0 id count), rounded
+    ///         DOWN — an uncapped band at exactly `S / w_N` can hold the entire supply if it all
+    ///         concentrated there, and a band deliberately capped BELOW that is a scarce tier: it can
+    ///         sell out while coin remains, so `BandExhausted` is reachable by design on such a band
+    ///         (and reopens as holders `mintDown`). The ceiling is what the bound protects — a band
+    ///         larger than `S / w_N` would promise ids the coin supply can never back.
     /// @dev    THE LADDER SEAL. Every check below is load-bearing for T2/T3: the burn-safety hook's
     ///         `id < tierBands[0].idStart` early-out assumes ASCENDING bands strictly above `idLimit`,
-    ///         and its `(weight - 1)` escrow arithmetic assumes `weight >= 2`. Moved byte-for-byte.
+    ///         and its `(weight - 1)` escrow arithmetic assumes `weight >= 2`.
+    /// @dev    The caller supplies `idEnd` through `TierBand`'s `uint32` field, so a sealed band id is
+    ///         bounded by `type(uint32).max` structurally — DN404's `_restrictNFTId` ceiling is met by
+    ///         the field width, and a check for it here could never fire. The live uint32 rejection is
+    ///         in `ERC404Factory._wireMetadata`, where ranges are derived in `uint256` and packed ABOVE
+    ///         `idLimit`: DN404 permits an `idLimit` up to `0xfffffffe`, so a derived `idEnd` genuinely
+    ///         exceeds `uint32` on a large supply and must be rejected before it is narrowed.
     /// @param  bands Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
     function initTierBands(TierBand[] calldata bands) external {
         if (msg.sender != factory) revert OnlyFactory();
@@ -659,15 +667,15 @@ contract ERC404BondingOps is ERC404BondingStorage {
         uint256 prevWeight = 1; // w_0
         for (uint256 i = 0; i < n; i++) {
             uint256 idStart = bands[i].idStart;
+            uint256 idEnd = bands[i].idEnd;
             uint256 weight = bands[i].weight;
             if (idStart <= prevEnd) revert InvalidBand();
             if (weight <= prevWeight) revert InvalidBand();
-            uint256 size = idLimit / weight; // round down: a band never over-promises ids
-            if (size == 0) revert InvalidBand();
-            uint256 idEnd = idStart + size - 1;
-            // DN404's `_restrictNFTId` bounds ids to uint32 — an id above that is unownable.
-            if (idEnd > type(uint32).max) revert BandIdOverflow();
-            if (bands[i].idEnd != idEnd) revert InvalidBand();
+            if (idEnd < idStart) revert InvalidBand();
+            uint256 maxSize = idLimit / weight; // round down: a band never over-promises ids
+            if (maxSize == 0) revert InvalidBand();
+            uint256 actual = idEnd - idStart + 1;
+            if (actual > maxSize) revert InvalidBand();
             tierBands.push(bands[i]);
             bandNextFree[i] = idStart;
             prevEnd = idEnd;

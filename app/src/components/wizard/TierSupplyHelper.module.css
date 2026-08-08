@@ -42,15 +42,34 @@
   white-space: nowrap;
 }
 
-.warn {
-  color: var(--color-danger);
+/* A tier capped below supply ÷ weight. Not an error — a product choice — so it reads as emphasis,
+   not as the danger colour the old overlap warning used. */
+.scarce {
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-xs);
+}
+
+.row {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-primary);
+  line-height: 1.6;
 }
 
 .note {
   font-family: var(--font-mono);
   font-size: var(--font-size-caption);
-  color: var(--color-danger);
+  color: var(--text-secondary);
   margin: 0;
 }
