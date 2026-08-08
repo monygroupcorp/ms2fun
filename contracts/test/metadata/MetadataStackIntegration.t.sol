@@ -5,7 +5,12 @@ import { Test } from "forge-std/Test.sol";
 import { ERC404Factory } from "../../src/factories/erc404/ERC404Factory.sol";
 import { ERC404BondingInstance } from "../../src/factories/erc404/ERC404BondingInstance.sol";
 import { ERC404BondingOps } from "../../src/factories/erc404/ERC404BondingOps.sol";
-import { InitModuleFailed } from "../../src/factories/erc404/ERC404BondingStorage.sol";
+import {
+    InitModuleFailed,
+    InitTierBandsFailed,
+    InvalidBand,
+    BandIdOverflow
+} from "../../src/factories/erc404/ERC404BondingStorage.sol";
 import { LaunchManager } from "../../src/factories/erc404/LaunchManager.sol";
 import { CurveParamsComputer } from "../../src/factories/erc404/CurveParamsComputer.sol";
 import { BondingCurveMath } from "../../src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -67,6 +72,10 @@ contract MetadataStackIntegrationTest is Test {
     address unapproved = address(0xDEAD); // never approved in the component registry
 
     uint256 constant PRESET_ID = 1;
+    /// @dev unitPerNFT 1 (one whole token per NFT). Only used by the uint32-derivation test: an id
+    ///      ceiling above `type(uint32).max` needs a small unit, or DN404's own `TotalSupplyOverflow`
+    ///      (totalSupply is uint96) fires first and the create never reaches the derivation.
+    uint256 constant PRESET_TINY_UNIT = 2;
     uint256 constant UNIT = 1e24; // unitPerNFT 1e6 * 1e18
     uint256 internal _nonce;
 
@@ -91,6 +100,16 @@ contract MetadataStackIntegrationTest is Test {
             LaunchManager.Preset({
                 targetETH: 15 ether,
                 unitPerNFT: 1e6,
+                liquidityReserveBps: 2000,
+                curveComputer: address(curveComp),
+                active: true
+            })
+        );
+        launchMgr.setPreset(
+            PRESET_TINY_UNIT,
+            LaunchManager.Preset({
+                targetETH: 15 ether,
+                unitPerNFT: 1,
                 liquidityReserveBps: 2000,
                 curveComputer: address(curveComp),
                 active: true
@@ -131,12 +150,13 @@ contract MetadataStackIntegrationTest is Test {
     }
 
     function _createStacked() internal returns (ERC404BondingInstance b, DN404Mirror mirror) {
-        // Band: ids 1-2 serve "rare-<id>", unconditionally. The band sits on MINTABLE ids here on
-        // purpose — the resolver does not (and must not) enforce the above-the-ceiling convention,
-        // that is a wizard rule — so the precedence assertions below can go through the REAL ERC721
-        // entrypoint (the mirror's tokenURI), which requires the id to exist.
-        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
-        bands[0] = TokenTierBandResolver.Band({ idStart: 1, idEnd: 2, baseURI: "rare-" });
+        // Ladder: one tier at weight 2. On this suite's `nftCount: 10` the factory derives
+        // `maxSize = 10 / 2 = 5`, so the band is ids 11-15, each serving "rare-<id>" unconditionally.
+        // Band ids sit above the mintable ceiling by construction now, and the precedence assertions
+        // below still go through the REAL ERC721 entrypoint (the mirror's `tokenURI`, which requires
+        // the id to exist) because a band id becomes ownable via `mintUp` — see `_mintUpTwice`.
+        ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](1);
+        tiers[0] = ERC404Factory.TierSpec({ weight: 2, count: 0, baseURI: "rare-" });
 
         address[] memory children = new address[](2);
         children[0] = address(overlay); // explicit pins/events win over...
@@ -147,7 +167,7 @@ contract MetadataStackIntegrationTest is Test {
             childResolvers: children,
             overlay: address(overlay),
             tier: address(tier),
-            bands: bands,
+            tiers: tiers,
             autoLatest: false,
             defaultPayout: MetadataOverlayModule.Payout.ARTIST
         });
@@ -232,6 +252,25 @@ contract MetadataStackIntegrationTest is Test {
         b.buyBonding{ value: total }(amount, total, true, bytes(""), "", 0); // mintNFT = true
     }
 
+    /// @dev Open the curve, buy 5 whole units, and convert two of the resulting ordinary ids into the
+    ///      first two band ids (11, 12) through the real tier path. `weight: 2` escrows one unit per
+    ///      `mintUp`, and DN404 reconciles that debit by burning the caller's NFTs LIFO off the tail —
+    ///      so the ids passed in are the caller's LOWEST-index ones (1 then 2), which the tail burn
+    ///      reaches last. After both ops the creator holds band ids 11 and 12 plus one ordinary id.
+    function _openAndMintUpTwo(ERC404BondingInstance b) internal {
+        vm.prank(creator);
+        b.setBondingOpenTime(block.timestamp + 1 hours);
+        vm.prank(creator);
+        b.setBondingActive(true);
+        _buy(b, 5 * UNIT);
+        assertEq(b.balanceOf(creator), 5 * UNIT, "5 whole units bought");
+
+        vm.prank(creator);
+        b.mintUp(1, 1); // ordinary id 1 → band id 11, one unit escrowed
+        vm.prank(creator);
+        b.mintUp(1, 2); // ordinary id 2 → band id 12, one more unit escrowed
+    }
+
     function test_tokenURI_resolvesOverlayThenTierThenBase() public {
         (ERC404BondingInstance b, DN404Mirror mirror) = _createStacked();
 
@@ -239,25 +278,29 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(b.modules(keccak256("metadata.resolver")), address(router));
         assertEq(router.resolverCount(address(b)), 2);
         assertTrue(tier.sealed_(address(b)));
+        // The ladder is sealed on the SAME derived range the art table got: 11-15 for weight 2.
+        (uint32 bandStart, uint32 bandEnd, uint32 bandWeight) = b.tierBands(0);
+        assertEq(bandStart, 11, "band starts one above the 10-id ceiling");
+        assertEq(bandEnd, 15, "band is 10 / 2 = 5 ids wide");
+        assertEq(bandWeight, 2, "weight as supplied");
 
         // ── Pre-mint: band art already resolves for in-band ids; base for everything else ──
-        assertEq(_uri(b, 1), "rare-1"); // overlay "" → band art, holder is address(0) and it does not matter
+        assertEq(_uri(b, 11), "rare-11"); // overlay "" → band art, holder is address(0) and it does not matter
         assertEq(_uri(b, 5), "base/5"); // overlay "" → band "" → collection base
 
-        // ── Mint: creator buys 2 whole units → owns ids 1,2 ──
-        vm.prank(creator);
-        b.setBondingOpenTime(block.timestamp + 1 hours);
-        vm.prank(creator);
-        b.setBondingActive(true);
-        _buy(b, 2 * UNIT);
-        assertEq(b.ownerOf(1), creator);
-        assertEq(b.balanceOf(creator), 2 * UNIT);
+        // ── Mint: creator buys 5 whole units, then mints up twice → owns band ids 11,12 ──
+        _openAndMintUpTwo(b);
+        assertEq(b.ownerOf(11), creator, "band id 11 is genuinely owned");
+        assertEq(b.ownerOf(12), creator, "band id 12 is genuinely owned");
+        // Two units of the five are escrowed against the two band NFTs ((w - 1) * unit each).
+        assertEq(b.balanceOf(creator), 3 * UNIT);
+        assertEq(b.totalTierEscrow(), 2 * UNIT);
 
         // Band art is UNCHANGED by the mint — the same URI before and after ownership moved. The
-        // minted id goes through the REAL ERC721 entrypoint (the mirror's tokenURI) to prove the
+        // owned band id goes through the REAL ERC721 entrypoint (the mirror's tokenURI) to prove the
         // seam end-to-end.
-        assertEq(mirror.tokenURI(1), "rare-1"); // overlay "" → band art, via the mirror
-        assertEq(_uri(b, 2), "rare-2");
+        assertEq(mirror.tokenURI(11), "rare-11"); // overlay "" → band art, via the mirror
+        assertEq(_uri(b, 12), "rare-12");
 
         // ── Overlay event wins over tier when the holder pins it ──
         vm.prank(creator);
@@ -265,18 +308,23 @@ contract MetadataStackIntegrationTest is Test {
             address(b), "evt-", MetadataOverlayModule.WaveCond.NONE, 0, 0, MetadataOverlayModule.Payout.ARTIST
         );
         vm.prank(creator);
-        overlay.select(address(b), 1, w + 3); // pin the wave on id 1
-        assertEq(mirror.tokenURI(1), "evt-1"); // overlay precedence over band art
+        overlay.select(address(b), 11, w + 3); // pin the wave on band id 11
+        assertEq(mirror.tokenURI(11), "evt-11"); // overlay precedence over band art
 
         // ── Paid commission wins over tier too ──
         vm.prank(creator);
         overlay.setCommission(
-            address(b), 2, "comm-2", MetadataOverlayModule.CommCond.PAY, 0.5 ether, MetadataOverlayModule.Payout.ARTIST
+            address(b),
+            12,
+            "comm-12",
+            MetadataOverlayModule.CommCond.PAY,
+            0.5 ether,
+            MetadataOverlayModule.Payout.ARTIST
         );
         vm.deal(creator, 0.5 ether);
         vm.prank(creator);
-        overlay.unlock{ value: 0.5 ether }(address(b), 2);
-        assertEq(mirror.tokenURI(2), "comm-2"); // overlay commission over band art "rare-2"
+        overlay.unlock{ value: 0.5 ether }(address(b), 12);
+        assertEq(mirror.tokenURI(12), "comm-12"); // overlay commission over band art "rare-12"
 
         // id 5 is still pure base — the stack is fully transparent where no module claims it.
         assertEq(_uri(b, 5), "base/5");
@@ -416,48 +464,126 @@ contract MetadataStackIntegrationTest is Test {
         assertEq(router.resolverCount(inst), 2, "overlay+tier children should seal under family check");
     }
 
-    // ── noesis-141 T1: the factory seals BANDS, and range sanity bubbles from the resolver ─────
+    // ── noesis-141 T1 / noesis-160: the factory DERIVES the ranges and seals both tables ────────
     // There is no minBalance any more (the old zero-threshold guard went with it — static art has no
-    // threshold to defeat). What the create path must still enforce is range sanity, which the
-    // resolver owns; the factory just has to let it revert the create.
+    // threshold to defeat), and the creator no longer supplies id ranges at all: the factory packs
+    // them from the ladder, so an overlapping or inverted range is unrepresentable rather than
+    // merely rejected. What the create path must still enforce is that a bad LADDER is refused AT
+    // CREATE, on the money path — which is what the reverts below assert.
+
+    /// @dev One tier list in, two sealed tables out, on the same derived ranges. `nftCount` is 10, so
+    ///      weight 2 derives 11-15 (5 ids) and weight 5 derives 16-17 (2 ids).
+    function _oneTier(uint32 weight, uint32 count) internal pure returns (ERC404Factory.TierSpec[] memory ts) {
+        ts = new ERC404Factory.TierSpec[](1);
+        ts[0] = ERC404Factory.TierSpec({ weight: weight, count: count, baseURI: "tier-" });
+    }
 
     function test_wireMetadata_bandSeals() public {
-        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](2);
-        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 12, baseURI: "tier2-" });
-        bands[1] = TokenTierBandResolver.Band({ idStart: 13, idEnd: 13, baseURI: "tier3-" });
+        ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](2);
+        tiers[0] = ERC404Factory.TierSpec({ weight: 2, count: 0, baseURI: "tier2-" });
+        tiers[1] = ERC404Factory.TierSpec({ weight: 5, count: 0, baseURI: "tier5-" });
 
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
-        meta.bands = bands;
+        meta.tiers = tiers;
         address inst = _create("bandSeal", meta);
         assertTrue(tier.sealed_(inst), "band table seals at create");
         assertEq(tier.bandCount(inst), 2);
+
+        // Both tables describe the SAME ids — that is what the single tier list buys.
+        ERC404BondingInstance b = ERC404BondingInstance(payable(inst));
+        (uint32 s0, uint32 e0,) = b.tierBands(0);
+        (uint32 s1, uint32 e1,) = b.tierBands(1);
+        (uint256 as0, uint256 ae0,) = tier.bands(inst, 0);
+        (uint256 as1, uint256 ae1,) = tier.bands(inst, 1);
+        assertEq(as0, s0, "tier 1 art start == ladder start");
+        assertEq(ae0, e0, "tier 1 art end == ladder end");
+        assertEq(as1, s1, "tier 2 art start == ladder start");
+        assertEq(ae1, e1, "tier 2 art end == ladder end");
+        assertEq(s0, 11, "packed from idLimit + 1");
+        assertEq(e0, 15, "10 / 2 = 5 ids");
+        assertEq(s1, 16, "contiguous with the tier below");
+        assertEq(e1, 17, "10 / 5 = 2 ids");
     }
 
-    function test_wireMetadata_bandRangesNotAscending_reverts() public {
-        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](2);
-        bands[0] = TokenTierBandResolver.Band({ idStart: 11, idEnd: 14, baseURI: "tier2-" });
-        bands[1] = TokenTierBandResolver.Band({ idStart: 13, idEnd: 15, baseURI: "tier3-" }); // overlaps
+    /// @dev A tier module wired with no ladder is the silent-no-op instance (empty `tierBands` reads
+    ///      as "opted out of tiers"), and the seal is create-only, so it could never be repaired.
+    ///      Refused at create.
+    function test_wireMetadata_emptyLadder_reverts() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        // meta.tiers left empty
+        vm.expectRevert(InvalidBand.selector);
+        _create("emptyLadder", meta);
+    }
+
+    /// @dev A weight larger than the id ceiling derives a zero-width band. Rejected by the factory
+    ///      rather than sealed as a dead tier.
+    function test_wireMetadata_zeroSizedBand_reverts() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.tiers = _oneTier(11, 0); // nftCount 10 → 10 / 11 == 0 ids
+        vm.expectRevert(InvalidBand.selector);
+        _create("zeroSizedBand", meta);
+    }
+
+    /// @dev `weight == 0` must revert cleanly rather than panic (0x12) on the `idLimit / weight`
+    ///      division the derivation performs before the seal can raise anything.
+    function test_wireMetadata_zeroWeight_revertsCleanly() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.resolver = address(router);
+        meta.tier = address(tier);
+        meta.tiers = _oneTier(0, 0);
+        vm.expectRevert(InvalidBand.selector);
+        _create("zeroWeight", meta);
+    }
+
+    /// @dev The ladder's own rules (`weight >= 2`, strictly increasing) stay owned by the instance's
+    ///      seal, which the trampoline surfaces as its generic error — the create still reverts.
+    function test_wireMetadata_nonIncreasingWeight_reverts() public {
+        ERC404Factory.TierSpec[] memory tiers = new ERC404Factory.TierSpec[](2);
+        tiers[0] = ERC404Factory.TierSpec({ weight: 5, count: 0, baseURI: "a-" });
+        tiers[1] = ERC404Factory.TierSpec({ weight: 5, count: 0, baseURI: "b-" }); // not increasing
 
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
-        meta.bands = bands;
-        vm.expectRevert(TokenTierBandResolver.RangesNotAscending.selector);
-        _create("overlappingBands", meta);
+        meta.tiers = tiers;
+        vm.expectRevert(InitTierBandsFailed.selector);
+        _create("flatLadder", meta);
     }
 
-    function test_wireMetadata_bandInvalidRange_reverts() public {
-        TokenTierBandResolver.Band[] memory bands = new TokenTierBandResolver.Band[](1);
-        bands[0] = TokenTierBandResolver.Band({ idStart: 14, idEnd: 11, baseURI: "tier2-" });
-
+    /// @dev `nftCount` is bounded only by DN404's own id ceiling (`idLimit <= 0xfffffffe`), and a band
+    ///      is packed ABOVE that ceiling — so a derived `idEnd` genuinely exceeds `uint32` on a large
+    ///      supply, and must REVERT rather than narrow. A truncating `uint32` cast here would wrap the
+    ///      band back down INTO the ordinary id space, handing auto-mintable ids to the tier path. This
+    ///      is the only live uint32 rejection in the system (at the seal the `TierBand.idEnd` field
+    ///      width makes the bound structural), so it is asserted here or nowhere.
+    function test_wireMetadata_derivedIdAboveUint32_reverts() public {
         ERC404Factory.MetadataConfig memory meta;
         meta.resolver = address(router);
         meta.tier = address(tier);
-        meta.bands = bands;
-        vm.expectRevert(TokenTierBandResolver.InvalidRange.selector);
-        _create("invalidBandRange", meta);
+        meta.tiers = _oneTier(2, 0); // full width: idLimit / 2 ids, packed from idLimit + 1
+
+        _nonce++;
+        ERC404Factory.CreateParams memory params = _params("hugeSupply", bytes32(_nonce));
+        // A preset whose unit is one whole token, so the largest id ceiling DN404 permits is reachable
+        // without tripping its uint96 total-supply bound first.
+        params.presetId = uint8(PRESET_TINY_UNIT);
+        params.nftCount = uint256(type(uint32).max) - 1; // DN404's maximum idLimit (0xfffffffe)
+        vm.prank(creator);
+        vm.expectRevert(BandIdOverflow.selector);
+        factory.createInstance(
+            params,
+            "ipfs://c",
+            address(deployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+            meta
+        );
     }
 
     // ── noesis-104 §4.5: a hostile resolver can't brick a DN404 transfer ─────────

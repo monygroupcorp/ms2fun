@@ -8,7 +8,6 @@ import {
     ERC404BondingStorage,
     TierOpFailed,
     InvalidBand,
-    BandIdOverflow,
     InitTierBandsFailed
 } from "src/factories/erc404/ERC404BondingStorage.sol";
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
@@ -102,7 +101,7 @@ contract TierOpsPolicyProbe is ERC404BondingOps {
  *          constant total supply, whatever sequence of tier ops runs.
  *      Ops-side reverts reach the caller as the generic `TierOpFailed()` (the trampoline discards
  *      returndata — noesis-091); the specific errors stay visible in traces. Seal-side reverts
- *      (`InvalidBand`, `BandIdOverflow`, `OnlyFactory`, `AlreadyInitialized`) now do the same: noesis-149
+ *      (`InvalidBand`, `OnlyFactory`, `AlreadyInitialized`) now do the same: noesis-149
  *      moved `initTierBands` behind its own trampoline, so they surface as `InitTierBandsFailed()`.
  */
 contract TokenTierOpsTest is Test {
@@ -262,7 +261,7 @@ contract TokenTierOpsTest is Test {
     // └─────────────────────────┘
     // noesis-149 moved `initTierBands` into `ERC404BondingOps` behind the discard-returndata
     // trampoline, so EVERY seal-invariant rejection below — `OnlyFactory`, `AlreadyInitialized`,
-    // `InvalidBand`, `BandIdOverflow` — now reaches the caller as the single generic
+    // `InvalidBand` — now reaches the caller as the single generic
     // `InitTierBandsFailed()`. The checks themselves moved byte-for-byte and still fire; only the
     // selector the caller sees collapsed. Because that collapse costs the tests their ability to tell
     // one rejection from another, each rejecting case additionally asserts the ladder is STILL UNSEALED
@@ -303,8 +302,10 @@ contract TokenTierOpsTest is Test {
         assertEq(token.totalTierEscrow(), 0, "no escrow at seal");
     }
 
-    /// @notice Band sizing is the product's invariant `band_N x w_N = S`: every band can hold the WHOLE
-    ///         supply if it all concentrated there, so a tier is never "sold out" by an artificial cap.
+    /// @notice An UNCAPPED band is sized at the product's ceiling `band_N x w_N = S`: it can hold the
+    ///         WHOLE supply if it all concentrated there, so such a tier is never "sold out" while coin
+    ///         remains. `S / w_N` is a maximum, not a fixed size — a band may be deliberately capped
+    ///         below it (a scarce tier), and that band CAN sell out; this suite's ladder is uncapped.
     function test_seal_bandSizeEqualsSupplyOverWeight() public pure {
         assertEq(uint256(T1_END - T1_START + 1) * 10, ID_LIMIT, "band_1 x w_1 == S");
         assertEq(uint256(T2_END - T2_START + 1) * 100, ID_LIMIT, "band_2 x w_2 == S");
@@ -361,19 +362,34 @@ contract TokenTierOpsTest is Test {
         _expectSealRejected(bands);
     }
 
-    function test_seal_revertsOnWrongBandSize() public {
+    /// @notice `S / w_N` is a CEILING: a band wider than the coin supply could back is rejected. (A
+    ///         band narrower than it is a scarce tier and is accepted — see `test_seal_acceptsCappedBand`.)
+    function test_seal_revertsOnBandWiderThanSupplyOverWeight() public {
         ERC404BondingStorage.TierBand[] memory bands = _defaultBands();
         bands[0].idEnd = T1_END + 1; // one id too many for w = 10
         _expectSealRejected(bands);
     }
 
-    /// @notice DN404's `_restrictNFTId` bounds ids to uint32 — a band running past it would be unownable.
-    function test_seal_revertsOnUint32Overflow() public {
+    /// @notice A band capped BELOW `S / w_N` seals: a tier may be deliberately scarce, reachable only
+    ///         by early converters. The ids it gives up stay unissued — nothing else moves into them,
+    ///         because the next band still starts strictly above this one's end.
+    function test_seal_acceptsCappedBand() public {
         ERC404BondingStorage.TierBand[] memory bands = new ERC404BondingStorage.TierBand[](1);
-        bands[0] =
-            ERC404BondingStorage.TierBand({ idStart: type(uint32).max - 50, idEnd: type(uint32).max, weight: 10 });
-        _expectSealRejected(bands);
+        bands[0] = ERC404BondingStorage.TierBand({ idStart: T1_START, idEnd: T1_START, weight: 10 }); // 1 of 100
+        token.initTierBands(bands);
+        (uint32 s0, uint32 e0, uint32 w0) = token.tierBands(0);
+        assertEq(s0, T1_START, "capped band start");
+        assertEq(e0, T1_START, "capped band is a single id");
+        assertEq(w0, 10, "weight unchanged by the cap");
+        assertEq(token.bandNextFree(0), T1_START, "cursor still starts at idStart");
     }
+
+    // NOTE: the seal's own uint32 rejection is gone — `TierBand.idEnd` is a `uint32` field, so a sealed
+    // id above `type(uint32).max` is unrepresentable rather than merely rejected, and a seal-level test
+    // would assert only that the type system works. The property MOVED to the factory, where ranges are
+    // derived in `uint256` and packed ABOVE `idLimit` — DN404 permits an `idLimit` up to `0xfffffffe`,
+    // so a derived `idEnd` genuinely overflows `uint32` on a large supply. It is asserted there
+    // (`TierCreatePath.t.sol: test_create_derivedIdAboveUint32_reverts`).
 
     /// @notice A weight so large the band would be empty is rejected rather than sealed as a dead tier.
     function test_seal_revertsOnZeroSizedBand() public {
@@ -689,10 +705,12 @@ contract TokenTierOpsTest is Test {
         token.bandOutstanding(3);
     }
 
-    /// @notice `BandExhausted` is a defensive guard that a VALID ladder can never trip: sizing bands at
-    ///         `S / w_N` means filling one consumes the entire coin supply. Proven here — the whole
-    ///         supply concentrated at tier 2 fills its 10-id band exactly, and there is then neither an
-    ///         id nor a coin left for an eleventh.
+    /// @notice On an UNCAPPED band `BandExhausted` is a guard the supply itself makes unreachable:
+    ///         sizing a band at the full `S / w_N` means filling it consumes the entire coin supply.
+    ///         Proven here — the whole supply concentrated at tier 2 fills its 10-id band exactly, and
+    ///         there is then neither an id nor a coin left for an eleventh. On a band CAPPED below
+    ///         `S / w_N` the guard is reachable by design: that tier sells out while coin remains, and
+    ///         reopens as holders mint down. This case is the uncapped one.
     function test_bandCannotBeExhaustedWhileSupplyBinds() public {
         _seal();
         _fund(user1, ID_LIMIT);

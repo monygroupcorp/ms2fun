@@ -11,6 +11,7 @@ import { IAlignmentVault } from "../../interfaces/IAlignmentVault.sol";
 import { IFactory } from "../../interfaces/IFactory.sol";
 import { ICurveComputer } from "../../interfaces/ICurveComputer.sol";
 import { ERC404BondingInstance } from "./ERC404BondingInstance.sol";
+import { ERC404BondingStorage, InvalidBand, BandIdOverflow } from "./ERC404BondingStorage.sol";
 import { LaunchManager } from "./LaunchManager.sol";
 import { IComponentRegistry } from "../../registry/interfaces/IComponentRegistry.sol";
 import { FreeMintParams } from "../../interfaces/IFactoryTypes.sol";
@@ -75,14 +76,33 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///      (then `childResolvers` is its ordered list) or a single resolver module (then childResolvers
     ///      empty). `overlay`/`tier` are the concrete module addresses to seal per-instance config on
     ///      (address(0) = skip that module). Everything is registry-validated, wired once, then frozen.
+    /// @dev `tiers` is the SINGLE source of truth for Token Tiers. The creator supplies the economic
+    ///      ladder once and the factory derives every id range from it, sealing the instance's ladder
+    ///      (`initTierBands`) and the resolver's art table (`initBands`) from the SAME derived ranges —
+    ///      so the two tables cannot describe different ids. Non-empty is REQUIRED whenever `tier` is
+    ///      set: a tier module wired with no ladder is an instance whose tier ops are permanent no-ops.
     struct MetadataConfig {
         address resolver; // instance modules[METADATA_RESOLVER] target
         address[] childResolvers; // router's ordered children (empty if no router)
         address overlay; // overlay module to initConfig (address(0) = skip)
         address tier; // tier module to initBands (address(0) = skip)
-        TokenTierBandResolver.Band[] bands; // static band→art table (sealed at create)
+        TierSpec[] tiers; // the economic ladder; id ranges are DERIVED from it (sealed at create)
         bool autoLatest; // overlay initial policy
         MetadataOverlayModule.Payout defaultPayout;
+    }
+
+    /// @notice One rung of the Token Tiers ladder, as the creator supplies it. Id ranges are never
+    ///         hand-typed — `_wireMetadata` packs them contiguously above the instance's id ceiling.
+    struct TierSpec {
+        /// @dev Denomination: this tier's NFT is worth `weight` coin units. Must be >= 2 and strictly
+        ///      increasing across the list (enforced by the instance's `initTierBands` seal).
+        uint32 weight;
+        /// @dev How many ids this tier has. 0 => the maximum, `idLimit / weight`. A value above that
+        ///      maximum is CLAMPED to it, never rejected. Below it the tier is deliberately scarce:
+        ///      it can sell out (`BandExhausted`) while coin remains, and reopens on `mintDown`.
+        uint32 count;
+        /// @dev Band art prefix; resolves to `baseURI + id`. "" => fall through to the collection base.
+        string baseURI;
     }
 
     bytes32 internal constant METADATA_RESOLVER = keccak256("metadata.resolver");
@@ -342,14 +362,85 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
         // Per-module sealed config.
         if (cfg.tier != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.tier, FeatureUtils.TIER)) revert UnapprovedResolver();
+            // A tier module with no ladder produces an instance whose `tierBands` is empty, which the
+            // instance's gas short-circuit reads as "opted out of tiers" — mintUp/mintDown/escrow and
+            // the burn-safety hook all become permanent no-ops, and the ladder seal is create-only so
+            // nobody can repair it afterwards. That state must not be constructible.
+            if (cfg.tiers.length == 0) revert InvalidBand();
+
+            // Derive every id range ONCE, then seal the ladder and the art table from the same list.
+            (ERC404BondingStorage.TierBand[] memory ladder, TokenTierBandResolver.Band[] memory art) =
+                _deriveTierBands(instance, cfg.tiers);
+
+            // Ladder first: the economics are what make the art meaningful, and a rejected ladder must
+            // not leave a sealed art table behind on a create that reverts anyway.
+            ERC404BondingInstance(payable(instance)).initTierBands(ladder);
             // No minBalance guard here any more: Token Tiers art is static and unconditional, so
             // there is no threshold that a zero value could defeat. Range sanity (ascending,
             // non-overlapping, idEnd >= idStart) is validated by the resolver at seal.
-            TokenTierBandResolver(cfg.tier).initBands(instance, cfg.bands);
+            TokenTierBandResolver(cfg.tier).initBands(instance, art);
         }
         if (cfg.overlay != address(0)) {
             if (!componentRegistry.isApprovedForTag(cfg.overlay, FeatureUtils.OVERLAY)) revert UnapprovedResolver();
             MetadataOverlayModule(cfg.overlay).initConfig(instance, cfg.autoLatest, cfg.defaultPayout);
+        }
+    }
+
+    /// @dev Derive the Token Tiers id ranges from the creator's ladder, and return them in BOTH shapes:
+    ///      the instance's economic `TierBand[]` and the resolver's art `Band[]`. One derivation, two
+    ///      consumers — that is what makes it impossible for the art table and the ladder to disagree.
+    ///
+    ///      Geometry: `idLimit = maxSupply / unit` is the ordinary id ceiling (the same value the
+    ///      instance's `initTierBands` recomputes for its own bound). Bands pack CONTIGUOUSLY ascending
+    ///      from `idLimit + 1`, so every band id is above the ordinary space and therefore unreachable
+    ///      by DN404's auto-mint. Each tier's size is `min(count, idLimit / weight)`, with `count == 0`
+    ///      meaning the maximum — a caller asking for more than the coin supply could back is clamped,
+    ///      not rejected, while a smaller `count` is an intentional scarce tier.
+    ///
+    ///      ALL ARITHMETIC IS `uint256` AND EVERY RANGE IS REJECTED BEFORE NARROWING. Bands pack ABOVE
+    ///      `idLimit`, and DN404 permits an `idLimit` as high as `0xfffffffe`, so a derived `idEnd`
+    ///      genuinely exceeds `uint32` on a large supply. A bare `uint32(...)` cast would truncate
+    ///      silently and wrap the band back DOWN into the ordinary id space — handing auto-mintable ids
+    ///      to the tier path and sealing a band OTHER than the one derived here, the worst outcome
+    ///      available on this path. So `idEnd > type(uint32).max` reverts `BandIdOverflow` before any
+    ///      assignment into `TierBand`'s `uint32` fields. This is the only live uint32 rejection in the
+    ///      system: at the seal the bound is structural (the `idEnd` field is itself `uint32`), so the
+    ///      check can only matter here. `idEnd >= idStart` always, so checking `idEnd` alone covers the
+    ///      whole range.
+    ///
+    ///      `weight == 0` is caught by the zero-size rule rather than by a bare division: `idLimit / 0`
+    ///      would panic (0x12) before the seal could raise `InvalidBand`. The `weight >= 2` and
+    ///      strictly-increasing rules are NOT duplicated here — the seal owns them, and duplicating a
+    ///      money-code invariant is how the two copies drift.
+    function _deriveTierBands(address instance, TierSpec[] memory tiers)
+        private
+        view
+        returns (ERC404BondingStorage.TierBand[] memory ladder, TokenTierBandResolver.Band[] memory art)
+    {
+        ERC404BondingInstance inst = ERC404BondingInstance(payable(instance));
+        uint256 idLimit = inst.maxSupply() / inst.unit();
+
+        uint256 n = tiers.length;
+        ladder = new ERC404BondingStorage.TierBand[](n);
+        art = new TokenTierBandResolver.Band[](n);
+
+        uint256 prevEnd = idLimit; // bands start strictly above the ordinary id space
+        for (uint256 i = 0; i < n; i++) {
+            uint32 weight = tiers[i].weight;
+            uint256 maxSize = weight == 0 ? 0 : idLimit / uint256(weight);
+            uint256 count = tiers[i].count;
+            uint256 size = count == 0 || count > maxSize ? maxSize : count;
+            if (size == 0) revert InvalidBand();
+
+            uint256 idStart = prevEnd + 1;
+            uint256 idEnd = idStart + size - 1;
+            // Reject BEFORE narrowing. `idEnd >= idStart`, so bounding `idEnd` bounds the whole range.
+            if (idEnd > type(uint32).max) revert BandIdOverflow();
+
+            ladder[i] =
+                ERC404BondingStorage.TierBand({ idStart: uint32(idStart), idEnd: uint32(idEnd), weight: weight });
+            art[i] = TokenTierBandResolver.Band({ idStart: idStart, idEnd: idEnd, baseURI: tiers[i].baseURI });
+            prevEnd = idEnd;
         }
     }
 

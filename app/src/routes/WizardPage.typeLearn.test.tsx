@@ -40,15 +40,12 @@ describe('deploy-blocker surfacing (W8/W7)', () => {
     expect(blockers.some((b) => /fix the metadata module config/i.test(b.message))).toBe(false)
   })
 
-  it('a malformed tier range surfaces the exact row + reason', () => {
-    // Row 1: end id (2) < start id (5).
-    const metaErrors = validateMetadataConfig(
-      { tier: TIER_ADDR },
-      { 'tierIdStarts.0': '5', 'tierIdEnds.0': '2' },
-      0n,
-    )
+  it('a malformed tier rung surfaces the exact row + reason', () => {
+    // Id ranges stopped being app input (noesis-160) — the contract derives them — so the row-level
+    // validation that survives is the LADDER's own: row 1 carries a weight below the minimum.
+    const metaErrors = validateMetadataConfig({ tier: TIER_ADDR }, { 'tierWeights.0': '1' }, 0n)
     const blockers = buildDeployBlockers({ ...okInput(), metaErrors })
-    expect(blockers.some((b) => /tier 1: end id must be ≥ start id/i.test(b.message))).toBe(true)
+    expect(blockers.some((b) => /tier 1: weight must be ≥ 2/i.test(b.message))).toBe(true)
   })
 
   it('a failing core field becomes its own line routed to its owning step', () => {
@@ -70,9 +67,10 @@ describe('deploy-blocker surfacing (W8/W7)', () => {
   })
 
   it('slotErrorCount buckets a slot’s validation errors by key prefix', () => {
+    // A non-increasing ladder: row 2's weight does not climb above row 1's.
     const metaErrors = validateMetadataConfig(
       { tier: TIER_ADDR },
-      { 'tierIdStarts.0': '5', 'tierIdEnds.0': '2' },
+      { 'tierWeights.0': '10', 'tierWeights.1': '10' },
       0n,
     )
     expect(slotErrorCount('tier', metaErrors)).toBeGreaterThan(0)
