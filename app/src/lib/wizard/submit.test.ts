@@ -237,16 +237,17 @@ describe('metadata config threading', () => {
   const OVERLAY = '0x2222222222222222222222222222222222222222' as const
   const TIER = '0x3333333333333333333333333333333333333333' as const
 
-  // A fully-wired stack: router pointer + [overlay, tier] children + one tier band + overlay flags.
-  // The band sits above the mintable supply, where tier ids actually live.
+  // A fully-wired stack: router pointer + [overlay, tier] children + a one-rung tier ladder +
+  // overlay flags. The creator supplies the DENOMINATION; the contract derives the id range above
+  // the mintable supply, where tier ids actually live.
   function stackCtx(extra: Partial<CreateContext> = {}): CreateContext {
     const meta = encodeMetadataConfig(
       { resolver: RESOLVER, overlay: OVERLAY, tier: TIER },
       {
         overlayAutoLatest: 'true',
         overlayDefaultPayout: '1',
-        'tierIdStarts.0': '101',
-        'tierIdEnds.0': '103',
+        'tierWeights.0': '10',
+        'tierCounts.0': '',
         'tierBaseURIs.0': 'tier-',
       },
     )
@@ -266,9 +267,10 @@ describe('metadata config threading', () => {
     expect(call.args[5]?.childResolvers).toEqual([OVERLAY, TIER])
     expect(call.args[5]?.autoLatest).toBe(true)
     expect(call.args[5]?.defaultPayout).toBe(1)
-    expect(call.args[5]?.bands[0]?.baseURI).toBe('tier-')
-    expect(call.args[5]?.bands[0]?.idStart).toBe(101n)
-    expect(call.args[5]?.bands[0]?.idEnd).toBe(103n)
+    expect(call.args[5]?.tiers[0]?.baseURI).toBe('tier-')
+    expect(call.args[5]?.tiers[0]?.weight).toBe(10)
+    // 0 = "as many ids as the supply can back"; the app never computes the range.
+    expect(call.args[5]?.tiers[0]?.count).toBe(0)
   })
 
   it('the 6-arg metadata args encode against the factory ABI', () => {
@@ -287,8 +289,7 @@ describe('metadata config threading', () => {
     const meta = encodeMetadataConfig(
       { tier: TIER },
       {
-        'tierIdStarts.0': '101',
-        'tierIdEnds.0': '103',
+        'tierWeights.0': '10',
         'tierBaseURIs.0': 'r-',
       },
     )
