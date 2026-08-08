@@ -15,7 +15,7 @@
  * Self-hides when disconnected. Owned ids come from the mirror Transfer-log replay (useErc404OwnedPieces).
  */
 import { useEffect, useMemo, useState } from 'react'
-import { parseUnits } from 'viem'
+import { formatUnits, parseUnits } from 'viem'
 import { useAccount, useWaitForTransactionReceipt } from 'wagmi'
 import {
   useReadErc404BondingInstanceDecimals,
@@ -36,7 +36,7 @@ const DEFAULT_DECIMALS = 18
 export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
-  const { pieces, unit, isPending, refetch } = useErc404OwnedPieces(instance, address)
+  const { pieces, unit, balance, isPending, refetch } = useErc404OwnedPieces(instance, address)
   const [keep, setKeep] = useState<Set<string>>(new Set())
 
   const decimalsRead = useReadErc404BondingInstanceDecimals({
@@ -143,6 +143,7 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
             decimals={decimals}
             pieces={pieces}
             unit={unit}
+            balance={balance}
             keptIds={keptIds}
             onDone={() => {
               refetch()
@@ -162,6 +163,7 @@ function RerollDropdown({
   decimals,
   pieces,
   unit,
+  balance,
   keptIds,
   onDone,
 }: {
@@ -169,6 +171,7 @@ function RerollDropdown({
   decimals: number
   pieces: OwnedPiece[]
   unit: bigint | undefined
+  balance: bigint | undefined
   keptIds: bigint[]
   onDone: () => void
 }) {
@@ -215,7 +218,7 @@ function RerollDropdown({
   const reason = txErrorReason(reroll.error)
 
   // What the chain will actually do with this amount (rerollMath mirrors the contract).
-  const plan = planReroll({ amount, unit, pieces, keptIds })
+  const plan = planReroll({ amount, unit, balance, pieces, keptIds })
   const tierCount = pieces.filter((p) => p.isTier).length
 
   return (
@@ -270,6 +273,12 @@ function RerollDropdown({
               for this to reroll. To turn a tier NFT back into ordinary pieces, use <b>mintDown</b>:
               it releases the piece&rsquo;s escrow as coin, which you can then hold as ordinary
               pieces.
+            </p>
+          ) : plan.blockReason === 'insufficient-balance' ? (
+            <p className={styles.note} data-testid="erc404-reroll-effective">
+              You entered <b>{amount !== undefined ? formatUnits(amount, decimals) : '0'}</b> but
+              hold <b>{balance !== undefined ? formatUnits(balance, decimals) : '0'}</b>. Enter an
+              amount at or below your balance.
             </p>
           ) : plan.blockReason === 'amount-below-exempt-cost' ||
             plan.blockReason === 'nothing-left-to-reroll' ? (
