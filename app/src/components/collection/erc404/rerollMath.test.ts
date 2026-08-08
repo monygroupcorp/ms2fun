@@ -113,4 +113,54 @@ describe('planReroll — the app-side mirror of rerollSelectedNFTs', () => {
     expect(plan.canReroll).toBe(false)
     expect(plan.blockReason).toBeUndefined()
   })
+
+  it('blocks an entered amount above the held balance (contract: balanceOf < tokenAmount)', () => {
+    const plan = planReroll({
+      amount: 3n * UNIT,
+      unit: UNIT,
+      balance: 2n * UNIT,
+      pieces: [ordinary(1n), ordinary(2n), ordinary(3n)],
+      keptIds: [],
+    })
+    expect(plan.canReroll).toBe(false)
+    expect(plan.blockReason).toBe('insufficient-balance')
+    expect(plan.effectiveCount).toBe(0)
+  })
+
+  it('does not block when the entered amount equals the balance (guard is <, not <=)', () => {
+    const plan = planReroll({
+      amount: 3n * UNIT,
+      unit: UNIT,
+      balance: 3n * UNIT,
+      pieces: [ordinary(1n), ordinary(2n), ordinary(3n)],
+      keptIds: [],
+    })
+    expect(plan.canReroll).toBe(true)
+    expect(plan.blockReason).toBeUndefined()
+  })
+
+  it('does not block on an un-landed balance read', () => {
+    const plan = planReroll({
+      amount: 3n * UNIT,
+      unit: UNIT,
+      balance: undefined,
+      pieces: [ordinary(1n), ordinary(2n), ordinary(3n)],
+      keptIds: [],
+    })
+    expect(plan.canReroll).toBe(true)
+    expect(plan.blockReason).toBeUndefined()
+  })
+
+  it('reports insufficient-balance over amount-below-exempt-cost, pinning the contract order', () => {
+    const plan = planReroll({
+      amount: 1n * UNIT,
+      unit: UNIT,
+      balance: UNIT / 2n,
+      pieces: [ordinary(1n), tier(9001n), tier(9002n)],
+      keptIds: [],
+    })
+    expect(plan.exemptCount).toBe(2)
+    expect(plan.canReroll).toBe(false)
+    expect(plan.blockReason).toBe('insufficient-balance')
+  })
 })
