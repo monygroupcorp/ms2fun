@@ -343,18 +343,39 @@ contract ERC404Factory is OwnableRoles, ReentrancyGuard, IFactory {
     ///      are registry-validated; the instance slot + router list + band table + overlay config are
     ///      each wired exactly once here, then frozen (sealed mechanism — no owner setter).
     function _wireMetadata(address instance, MetadataConfig memory cfg) private {
+        // A ladder is only ever consumed under a wired `cfg.tier`, and only when the metadata feature is
+        // on at all — so a non-empty `tiers` with either pointer unset would be silently discarded: the
+        // create succeeds, the creator's ladder never reaches an instance, and the seal is create-only,
+        // so it can never be supplied afterwards. Checked ABOVE the feature-off return, because
+        // `resolver == address(0)` is one of the two ways to drop it.
+        if (cfg.tiers.length != 0 && (cfg.resolver == address(0) || cfg.tier == address(0))) revert InvalidBand();
+
         if (cfg.resolver == address(0)) return; // feature off
+
+        // Mirror of the empty-ladder rejection below. A TIER-tagged module is resolver-family, so it can
+        // reach the metadata chain through the resolver slot or a router child with `cfg.tier` unset —
+        // and on that path neither `initTierBands` nor `initBands` ever runs. The instance then carries a
+        // tier resolver over an empty `tierBands`, which the instance's gas short-circuit reads as "opted
+        // out of tiers": every tier op is a permanent no-op, and the create-only seal cannot repair it.
+        // Component tags are exclusive (one tag per component), so this rejects exactly the TIER family
+        // members: a router, a resolver or an overlay in either position is unaffected, and a TIER module
+        // WITH `cfg.tier` set is the ordinary tiered path. `InvalidBand` for the same reason as below —
+        // the module is approved; what is invalid is wiring it with no band ladder behind it.
+        bool untiered = cfg.tier == address(0);
 
         // Resolver slot accepts any resolver-family module (a MetadataResolverRouter or a single
         // resolver/overlay/tier module used directly), matching the MetadataConfig docstring. The
         // family check still rejects a gating/staking/liquidity module in the slot (the actual hole).
         if (!_isApprovedResolverFamily(cfg.resolver)) revert UnapprovedResolver();
+        if (untiered && componentRegistry.isApprovedForTag(cfg.resolver, FeatureUtils.TIER)) revert InvalidBand();
         ERC404BondingInstance(payable(instance)).initModule(METADATA_RESOLVER, cfg.resolver);
 
         // Router children (precedence order), validated + sealed. Empty when resolver is a single module.
         if (cfg.childResolvers.length > 0) {
             for (uint256 i = 0; i < cfg.childResolvers.length; i++) {
-                if (!_isApprovedResolverFamily(cfg.childResolvers[i])) revert UnapprovedResolver();
+                address child = cfg.childResolvers[i];
+                if (!_isApprovedResolverFamily(child)) revert UnapprovedResolver();
+                if (untiered && componentRegistry.isApprovedForTag(child, FeatureUtils.TIER)) revert InvalidBand();
             }
             MetadataResolverRouter(cfg.resolver).initResolvers(instance, cfg.childResolvers);
         }

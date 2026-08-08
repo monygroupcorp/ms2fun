@@ -16,6 +16,8 @@ import { CurveParamsComputer } from "src/factories/erc404/CurveParamsComputer.so
 import { BondingCurveMath } from "src/factories/erc404/libraries/BondingCurveMath.sol";
 import { ComponentRegistry } from "src/registry/ComponentRegistry.sol";
 import { TokenTierBandResolver } from "src/metadata/TokenTierBandResolver.sol";
+import { MetadataResolverRouter } from "src/metadata/MetadataResolverRouter.sol";
+import { MetadataOverlayModule } from "src/metadata/MetadataOverlayModule.sol";
 import { ILiquidityDeployerModule } from "src/interfaces/ILiquidityDeployerModule.sol";
 import { FreeMintParams } from "src/interfaces/IFactoryTypes.sol";
 import { GatingScope } from "src/gating/IGatingModule.sol";
@@ -64,6 +66,8 @@ contract TierCreatePathTest is Test {
     TierCreateVault vault;
     TierCreateDeployer deployer;
     TokenTierBandResolver tier;
+    MetadataResolverRouter router;
+    MetadataOverlayModule overlay;
 
     address protocolAdmin = address(0x9);
     address creator = address(0x2);
@@ -132,6 +136,12 @@ contract TierCreatePathTest is Test {
 
         tier = new TokenTierBandResolver(address(registry));
         componentRegistry.approveComponent(address(tier), keccak256("tier"), "Tier");
+        // A RESOLVER-tagged router and an OVERLAY-tagged module, so the create-time wiring guards can be
+        // exercised on the child path and against non-tier family members that must stay admitted.
+        router = new MetadataResolverRouter(address(registry));
+        componentRegistry.approveComponent(address(router), keccak256("resolver"), "Router");
+        overlay = new MetadataOverlayModule(address(registry));
+        componentRegistry.approveComponent(address(overlay), keccak256("overlay"), "Overlay");
         registry.setComponentRegistry(address(componentRegistry));
 
         vm.stopPrank();
@@ -522,5 +532,99 @@ contract TierCreatePathTest is Test {
         (uint32 s0, uint32 e0,) = b.tierBands(0);
         assertEq(s0, type(uint32).max, "the single band id is the last representable id");
         assertEq(e0, type(uint32).max);
+    }
+
+    // ┌───────────────────────────────────────────────────────────────────┐
+    // │  noesis-162: the untiered mirror states are unconstructible       │
+    // └───────────────────────────────────────────────────────────────────┘
+    // The empty-ladder refusal above keys on `cfg.tier`, so it only sees configs that set it. Two mirror
+    // states reach the same silent-no-op instance without ever setting `cfg.tier`: routing the TIER
+    // module in through the resolver slot or a router child (it is resolver-family, so the family check
+    // admits it), and supplying a ladder that no `cfg.tier` will ever consume. Both are direct-call
+    // shapes — the wizard emits neither — and both are refused at create.
+
+    /// @dev Config built directly: `_meta` always sets `cfg.tier`, which is the field under test here.
+    function _untieredMeta(address resolver_, address[] memory children)
+        internal
+        pure
+        returns (ERC404Factory.MetadataConfig memory meta)
+    {
+        meta.resolver = resolver_;
+        meta.childResolvers = children;
+    }
+
+    function _expectCreateRevert(string memory name, bytes4 err, ERC404Factory.MetadataConfig memory meta) internal {
+        vm.prank(creator);
+        vm.expectRevert(err);
+        factory.createInstance(
+            _params(name, 1000),
+            "ipfs://c",
+            address(deployer),
+            address(0),
+            FreeMintParams({ allocation: 0, scope: GatingScope.BOTH }),
+            meta
+        );
+    }
+
+    /// @notice The TIER module in the resolver slot with `cfg.tier` unset: it lands in the metadata
+    ///         chain, `initTierBands`/`initBands` never run, and the resulting instance reads as opted
+    ///         out of tiers forever. Refused.
+    function test_create_tierAsResolverWithoutTierConfig_reverts() public {
+        _expectCreateRevert("tierSlotUntiered", InvalidBand.selector, _untieredMeta(address(tier), new address[](0)));
+    }
+
+    /// @notice Same state through a router child — the other way a TIER module reaches the chain.
+    function test_create_tierAsChildWithoutTierConfig_reverts() public {
+        address[] memory children = new address[](1);
+        children[0] = address(tier);
+        _expectCreateRevert("tierChildUntiered", InvalidBand.selector, _untieredMeta(address(router), children));
+    }
+
+    /// @notice The symmetric drop: a ladder supplied with no `cfg.tier` to consume it. Before this
+    ///         refusal the create succeeded and the ladder went nowhere, unrecoverably — the seal is
+    ///         create-only.
+    function test_create_ladderWithoutTierModule_reverts() public {
+        ERC404Factory.MetadataConfig memory meta = _untieredMeta(address(router), new address[](0));
+        meta.tiers = _tiers(10, 0, "t1-");
+        _expectCreateRevert("ladderNoTier", InvalidBand.selector, meta);
+    }
+
+    /// @notice And with the metadata feature off entirely (`resolver == address(0)`), which returns
+    ///         before any per-module wiring — so the ladder must be rejected above that return.
+    function test_create_ladderWithoutResolver_reverts() public {
+        ERC404Factory.MetadataConfig memory meta;
+        meta.tier = address(tier); // set, but unreachable behind the feature-off return
+        meta.tiers = _tiers(10, 0, "t1-");
+        _expectCreateRevert("ladderNoResolver", InvalidBand.selector, meta);
+    }
+
+    /// @notice NEGATIVE CONTROL for both guards: an untiered chain of non-tier family members is a
+    ///         legitimate configuration and still creates. A guard that rejected this would cost every
+    ///         collection that wants overlay art and no tiers.
+    function test_create_untieredNonTierChain_stillCreates() public {
+        address[] memory children = new address[](1);
+        children[0] = address(overlay);
+        ERC404BondingInstance b = _create(_params("untieredOk", 1000), _untieredMeta(address(router), children));
+        assertEq(router.resolverCount(address(b)), 1, "an untiered router+overlay chain wires unchanged");
+        assertEq(b.modules(keccak256("metadata.resolver")), address(router));
+    }
+
+    /// @notice NEGATIVE CONTROL for the TIER-tag guard specifically: the SAME TIER child, this time with
+    ///         `cfg.tier` and a ladder set, is the ordinary tiered path and creates with the ladder
+    ///         sealed. So the refusal is about the untiered wiring, not about TIER modules in the chain.
+    function test_create_tierChildWithTierConfig_stillCreates() public {
+        address[] memory children = new address[](2);
+        children[0] = address(overlay);
+        children[1] = address(tier);
+
+        ERC404Factory.MetadataConfig memory meta = _untieredMeta(address(router), children);
+        meta.tier = address(tier);
+        meta.tiers = _tiers(10, 0, "t1-");
+
+        ERC404BondingInstance b = _create(_params("tieredChildOk", 1000), meta);
+        assertEq(router.resolverCount(address(b)), 2, "overlay + tier children seal under the family check");
+        (uint32 s0, uint32 e0,) = b.tierBands(0);
+        assertEq(s0, 1001, "the ladder sealed: packed from idLimit + 1");
+        assertEq(uint256(e0) - s0 + 1, 100, "1000 / 10 ids");
     }
 }
