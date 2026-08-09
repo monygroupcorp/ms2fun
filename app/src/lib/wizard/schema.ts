@@ -170,7 +170,16 @@ export function isFieldVisible(field: FieldSchema, values: Record<string, unknow
   const v = readValue(values, w.field)
   if (w.equals !== undefined) return v === w.equals
   if (w.notEquals !== undefined) return v !== w.notEquals
-  if (w.greaterThan !== undefined) return typeof v === 'number' && v > w.greaterThan
+  // NUMERIC-STRING TOLERANT on purpose. The wizard's values bag is `Record<string, string>` — every
+  // input, `number`/`bigint` kinds included, arrives as the raw string from the DOM. A
+  // `typeof v === 'number'` test therefore never held in the real app, only in unit tests that handed
+  // in numbers: ERC-404's free-mint `Gating scope` (visibleWhen allocation > 0) could not be rendered
+  // by any creator, whatever they typed. Blank/garbage still reads as not-greater.
+  if (w.greaterThan !== undefined) {
+    const raw = typeof v === 'number' ? String(v) : String(v ?? '').trim()
+    const n = Number(raw)
+    return raw !== '' && Number.isFinite(n) && n > w.greaterThan
+  }
   if (w.isTruthy !== undefined) return Boolean(v) === w.isTruthy
   return true
 }
