@@ -185,7 +185,14 @@ export function WizardPage() {
 
   const [typeKey, setTypeKey] = useState<ProjectTypeSchema['key']>('erc1155')
   const projectType = getProjectType(typeKey)
-  const [values, setValues] = useState<Record<string, string>>({})
+  // SEEDED with the type's field defaults, never `{}`. `SchemaForm` renders `field.default` when the
+  // bag has no entry, so an unseeded bag makes a defaulted field LOOK chosen while `validateFields`
+  // reads it as empty — ERC404's required `presetId` then blocked deploy on "Launch preset is
+  // required" with NICHE visibly selected, and only re-picking the same option cleared it. Seeding at
+  // mount + on every `pickType` keeps what is displayed and what is validated/submitted the same value.
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    collectDefaults(getProjectType('erc1155')?.coreFields ?? []),
+  )
   const [vault, setVault] = useState<`0x${string}` | undefined>(undefined)
   const [modules, setModules] = useState<Record<string, `0x${string}`>>({})
   // Metadata-stack (overlay/tier) per-slot configType + a SHARED values bag (the overlay/tier form
@@ -348,7 +355,8 @@ export function WizardPage() {
 
   function pickType(key: ProjectTypeSchema['key']) {
     setTypeKey(key)
-    setValues({})
+    // Reset to the NEW type's defaults (not `{}`) — see the `values` state note above.
+    setValues(collectDefaults(getProjectType(key)?.coreFields ?? []))
     setVault(undefined)
     setModules({})
     setMetaConfigTypes({})

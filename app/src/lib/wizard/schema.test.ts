@@ -68,6 +68,21 @@ describe('isFieldVisible', () => {
       expect(isFieldVisible(f, { 'freeMint.allocation': 'five' })).toBe(false)
     })
 
+    // The REAL shape the wizard passes: `values` is `Record<string, string>`, so a number field's
+    // value is always a numeric STRING. Asserting only on numbers hid a live bug where ERC-404's
+    // free-mint Gating scope never rendered.
+    it('returns true for a numeric STRING above the threshold (the wizard values bag)', () => {
+      expect(isFieldVisible(f, { 'freeMint.allocation': '10' })).toBe(true)
+    })
+
+    it('returns false for the numeric string "0"', () => {
+      expect(isFieldVisible(f, { 'freeMint.allocation': '0' })).toBe(false)
+    })
+
+    it('returns false for a blank string', () => {
+      expect(isFieldVisible(f, { 'freeMint.allocation': '' })).toBe(false)
+    })
+
     it('returns false when sibling is absent', () => {
       expect(isFieldVisible(f, {})).toBe(false)
     })
