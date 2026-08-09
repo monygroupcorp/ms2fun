@@ -124,6 +124,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         label: 'Denomination (coin units per NFT)',
         kind: 'list',
         help: 'One row per tier; at least 2, and climbing — each tier is worth more than the one below',
+        learnMore: 'token-tiers',
         item: { key: 'tierWeight', label: 'Weight', kind: 'number' },
         validation: { min: 1 },
       },
@@ -132,6 +133,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         label: 'How many (blank = as many as the supply allows)',
         kind: 'list',
         help: 'Cap this tier below supply ÷ weight to make it scarce; it then sells out and reopens when a holder mints down',
+        learnMore: 'token-tiers',
         item: { key: 'tierCount', label: 'Count', kind: 'number' },
       },
       {
@@ -139,6 +141,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         label: 'Band base URI',
         kind: 'list',
         help: 'Token id is appended to this prefix for every id in the band; blank falls through to the collection base',
+        learnMore: 'token-tiers',
         item: { key: 'tierBaseURI', label: 'Band URI', kind: 'text' },
       },
     ],

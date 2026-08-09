@@ -221,7 +221,7 @@ Sending coin, selling into the curve, or staking is a **debit of your balance**,
 ## How to protect an id you care about
 Move it **deliberately** as a piece — an ERC-721 transfer of that id — rather than assuming it survives a coin transfer. Holding it in a wallet you are **not spending coin from** has the same effect: no debit, no tail to take from.
 `,
-    related: ['tier-upgrade', 'tier-reveal', 'token-standard'],
+    related: ['tier-upgrade', 'token-tiers', 'token-standard'],
   },
   'metadata-overlay': {
     title: 'Artist overlay',
@@ -240,24 +240,31 @@ Two kinds of overlay content:
 
 The collection's **base art is never overwritten** — the overlay augments it, and a holder can always fall back to the base.
 `,
-    related: ['tier-reveal', 'token-standard'],
+    related: ['token-tiers', 'token-standard'],
   },
-  'tier-reveal': {
-    title: 'Tier reveal',
+  'token-tiers': {
+    title: 'Token Tiers',
     summary:
-      'Rarity-by-ownership: a piece reveals its rare art only while the holder clears a holdings threshold. The tier table is set at create and never changes.',
+      'A tier NFT is a coin denomination, not a rank — convert coin into a band and back, reversibly, with per-id art.',
     body: `
-Tier reveal ties a piece's artwork to **how much of the collection its holder owns**. You define ranges of token ids, and for each range a **minimum-holdings threshold** and a **revealed base URI** (optionally also a *locked* teaser URI).
+Token Tiers turns pieces of your collection into **coin denominations**. A tier of weight \`w\` is one NFT worth \`w\` coin units — the same coin your collection already trades, just held as a single larger piece instead of \`w\` ordinary ones.
 
-- A piece in a range shows its **revealed** art only while the holder's **effective holdings** — wallet balance **plus staked balance** — clear that tier's threshold.
-- Below the threshold, the piece shows the **locked** URI, or falls through to the collection's base art if you leave locked blank.
-- Reveal is **live and reversible**: it follows current holdings, so a piece re-locks if the holder sells below the threshold.
+## Converting up and down
+- **Mint up** converts coin into a tier NFT: it escrows \`(weight − 1) × unitSize\` and hands you the band piece.
+- **Mint down** reverses it: the band piece is returned and the escrow releases back to coin.
 
-Rules the wizard enforces: ranges must be **ascending and non-overlapping**. The tier table is **sealed at create and is immutable** — there is no post-create editing, because mutable rarity would let a creator rug the reveal after buyers have committed.
+Nothing is created or destroyed by moving between them — it's the same coin, repackaged. A holder can go up when it suits them and back down later.
 
-This is **not** the same as a *tier upgrade*: reveal changes only the **art shown** based on holdings; a tier upgrade moves **pieces** between tiers.
+## Why band ids sit above the ceiling
+Every instance has an ordinary id ceiling (the ids the auto-mint can ever emit). Tier bands are id ranges placed **above** that ceiling, so they are never reachable by ordinary minting — the only way to hold one is to convert up. The creator supplies a **ladder** — for each tier, a denomination (weight), how many (count, optional), and an art prefix (base URI) — and the factory derives every band's id range from it; you never type an id yourself.
+
+## Scarcity is optional, and reversible
+A band's count can be capped below what the supply could fill, making it **deliberately scarce** — reachable only by early converters. A capped band that fills reverts \`BandExhausted\`, but it isn't final: minting a piece back down out of that band reopens a slot for the next converter.
+
+## Art is per-id
+Each id in a band resolves its own metadata via its band's base URI plus the id — a tier is a set of uniques, not one shared image.
 `,
-    related: ['metadata-overlay', 'tier-upgrade', 'id-persistence'],
+    related: ['tier-upgrade', 'id-persistence', 'token-standard'],
   },
   'agent-delegation': {
     title: 'Agent delegation',
@@ -340,7 +347,7 @@ export const CONCEPT_GROUPS: { title: string; slugs: string[] }[] = [
     title: 'Modules',
     slugs: [
       'tier-upgrade',
-      'tier-reveal',
+      'token-tiers',
       'id-persistence',
       'metadata-overlay',
       'agent-delegation',
