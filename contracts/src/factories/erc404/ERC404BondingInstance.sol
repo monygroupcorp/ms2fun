@@ -323,13 +323,15 @@ contract ERC404BondingInstance is ERC404BondingStorage, IInstanceLifecycle {
     ///         with `w_0 = 1` and is never stored. Every band must sit ABOVE `idLimit` — that is what
     ///         makes band ids unreachable by ordinary minting (DN404 bounds every auto-minted id with
     ///         `_wrapNFTId(.., idLimit)` where `idLimit = totalSupply / unit`, fixed for this instance's
-    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is the
-    ///         product's `band_N = S / w_N` (S = the tier-0 id count), rounded DOWN — with a 10-to-1
-    ///         ladder on S = 4000 that is 400 ids for tier 1 and 40 for tier 2, each band able to hold
-    ///         the entire supply if it all concentrated there.
+    ///         life), so a reserved band carves NOTHING out of the sellable supply. Band size is a
+    ///         PRODUCT CHOICE bounded above by `band_N <= S / w_N` (S = the tier-0 id count), rounded
+    ///         DOWN — an uncapped band at exactly `S / w_N` can hold the entire supply if it all
+    ///         concentrated there, and a band deliberately capped BELOW that is a scarce tier: it can
+    ///         sell out while coin remains, so `BandExhausted` is reachable by design on such a band
+    ///         (and reopens as holders `mintDown`).
     /// @dev    The seal's invariants (`_tiersSealed` set-once, ascending bands strictly above `idLimit`,
-    ///         `weight >= 2`, `idEnd` exact, uint32 bound) are load-bearing for the burn-safety hook and
-    ///         were moved BYTE-FOR-BYTE into `ERC404BondingOps.initTierBands`. Nothing was relaxed.
+    ///         `weight >= 2`) are load-bearing for the burn-safety hook and were moved BYTE-FOR-BYTE
+    ///         into `ERC404BondingOps.initTierBands`.
     /// @dev    Ascending, non-overlapping bands with strictly increasing weights (`w >= 2`).
     // slither-disable-next-line low-level-calls,unused-return
     function initTierBands(TierBand[] calldata) external {
