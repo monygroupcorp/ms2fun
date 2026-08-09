@@ -26,8 +26,11 @@ error RerollFailed();
 // ── Token Tiers errors (shared by the instance seal/trampolines + the delegatecall Ops) ─────────
 // Same split as reroll: the tier bodies (`mintUp` / `mintDown`) live in ERC404BondingOps and revert
 // with these specific errors INTERNALLY; the instance's discard-returndata trampoline surfaces the
-// generic `TierOpFailed()` to the caller (the specifics stay visible in traces). `InvalidBand` and
-// `BandIdOverflow` are raised by the instance's OWN `initTierBands` seal, so those two surface verbatim.
+// generic `TierOpFailed()` to the caller (the specifics stay visible in traces). `InvalidBand` is
+// raised by the instance's OWN `initTierBands` seal (reached through the same discard-returndata
+// trampoline), so it surfaces as the generic `InitTierBandsFailed()`, not verbatim. `BandIdOverflow`
+// is raised by `ERC404Factory._deriveTierBands` before narrowing — the only live uint32 rejection in
+// the system — and therefore surfaces verbatim from the factory.
 error TiersNotConfigured();
 error InvalidBand();
 error BandExhausted();
