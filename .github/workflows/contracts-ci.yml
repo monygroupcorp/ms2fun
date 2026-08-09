@@ -56,6 +56,13 @@ jobs:
       - name: Build contracts
         run: forge build
 
+      # EIP-170 size/headroom + storage-layout equality gate (noesis-091/142/148/166). Enforces the
+      # invariant ERC404BondingStorage.sol documents as CI-checked: ERC404BondingInstance and
+      # ERC404BondingOps must have byte-identical storage layouts, since Ops runs in the instance's
+      # storage context via delegatecall. A mismatch is a storage-collision bug and must fail the job.
+      - name: EIP-170 + storage-layout gate
+        run: bash test/factories/erc404/eip170-diet-gate.sh
+
       # Default profile. foundry.toml `skip=[…RealSettlement…]` keeps the exact-0.8.26
       # v4 test out of this pinned-0.8.28 compile; the test/fork/** suites self-skip at
       # runtime (vm.skip(true) when no fork URL), so no RPC secret is needed.
