@@ -44,7 +44,7 @@ describe('empty cover image is not a deploy blocker', () => {
       ownerNeedsAgent: true,
       vaultSelected: false,
       coreErrors: { nftCount: 'Supply is required' },
-      metaErrors: { tierIdStarts: 'Tier module selected — add at least one tier row' },
+      metaErrors: { tierWeights: 'Tier module selected — add at least one tier row' },
     })
     expect(blockers.length).toBeGreaterThan(0)
     for (const b of blockers) expect(b.message).not.toMatch(/image/i)

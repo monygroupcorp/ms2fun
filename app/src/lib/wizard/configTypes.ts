@@ -125,7 +125,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         kind: 'list',
         help: 'One row per tier; at least 2, and climbing — each tier is worth more than the one below',
         item: { key: 'tierWeight', label: 'Weight', kind: 'number' },
-        validation: { min: 2 },
+        validation: { min: 1 },
       },
       {
         key: 'tierCounts',
