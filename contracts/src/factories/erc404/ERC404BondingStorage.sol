@@ -49,8 +49,8 @@ error EscrowReleaseFailed();
 // `claimStakingRewards`) live in ERC404BondingOps and revert with these specific errors INTERNALLY;
 // the instance's discard-returndata trampoline surfaces one generic error per entry point (below).
 // Several of these are ALSO raised by bodies that STAYED in the instance — `BondingEnded` and
-// `GatingNotAllowed` in buyBonding, `TooEarly`/`BondingNotConfigured` in deployLiquidity,
-// `StakingModuleNotSet` in activateStaking — and there they still surface verbatim.
+// `GatingNotAllowed` in buyBonding, `TooEarly`/`BondingNotConfigured` in deployLiquidity —
+// and there they still surface verbatim.
 error BondingEnded();
 error BondingNotConfigured();
 error TooEarly();
