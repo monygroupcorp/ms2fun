@@ -15,7 +15,7 @@ export const MODULE_CONCEPT_BY_CONFIG_TYPE: Record<string, string> = {
   'merkle-allowlist-gating': 'merkle-allowlist',
   // Wired once noesis-046 landed the concepts (contract-verified).
   'metadata-overlay': 'metadata-overlay',
-  'metadata-tier': 'tier-reveal', // configType 'metadata-tier' → the tier-reveal concept (NOT tier-upgrade)
+  'metadata-tier': 'token-tiers', // configType 'metadata-tier' → the token-tiers concept (NOT tier-upgrade)
 }
 
 /** Concept slug for a module `configType`, or undefined if unmapped (→ no card link). */

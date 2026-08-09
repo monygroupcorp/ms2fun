@@ -14,9 +14,9 @@ describe('module-card concept map', () => {
 
   it('moduleConceptSlug returns the mapped slug for a known configType', () => {
     expect(moduleConceptSlug('merkle-allowlist-gating')).toBe('merkle-allowlist')
-    // Wired in noesis-049 once the concepts landed (046). 'metadata-tier' maps to tier-reveal.
+    // 'metadata-tier' maps to the token-tiers concept.
     expect(moduleConceptSlug('metadata-overlay')).toBe('metadata-overlay')
-    expect(moduleConceptSlug('metadata-tier')).toBe('tier-reveal')
+    expect(moduleConceptSlug('metadata-tier')).toBe('token-tiers')
   })
 
   it('moduleConceptSlug returns undefined for an unmapped configType', () => {

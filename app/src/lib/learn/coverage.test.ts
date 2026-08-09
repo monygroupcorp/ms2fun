@@ -79,21 +79,13 @@ const EXEMPT: Record<string, string> = {
   // Optional modules with no dedicated concept in the registry (049 adds none).
   'erc404/slot:stakingModule': 'staking module; no dedicated staking concept exists',
   'erc404/slot:resolver':
-    'on/off router for the overlay/tier stack; the concepts live on the overlay (metadata-overlay) and tier (tier-reveal) slots it drives',
+    'on/off router for the overlay/tier stack; the concepts live on the overlay (metadata-overlay) and tier (token-tiers) slots it drives',
   // Overlay config fields — the module concept is linked from the matching moduleSlot
   // (overlay→metadata-overlay); per-knob links would just re-point there.
   'cfg:metadata-overlay.overlayAutoLatest':
     'concept linked from the overlay slot (metadata-overlay)',
   'cfg:metadata-overlay.overlayDefaultPayout':
     'concept linked from the overlay slot (metadata-overlay)',
-  // Token Tiers ladder knobs. There is no tier concept in the registry to point at: `tier-reveal`
-  // was retired with the TierReveal mechanism, and the replacement is not written yet.
-  'cfg:metadata-tier.tierWeights':
-    'no tier concept authored yet — T7 (learn + DNT copy) owns writing `token-tiers` and wiring learnMore here',
-  'cfg:metadata-tier.tierCounts':
-    'no tier concept authored yet — T7 (learn + DNT copy) owns writing `token-tiers` and wiring learnMore here',
-  'cfg:metadata-tier.tierBaseURIs':
-    'no tier concept authored yet — T7 (learn + DNT copy) owns writing `token-tiers` and wiring learnMore here',
 }
 
 describe('wizard doc-coverage', () => {
