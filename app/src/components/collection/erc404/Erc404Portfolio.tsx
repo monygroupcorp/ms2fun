@@ -28,6 +28,7 @@ import { txErrorReason } from '../../ui/useTxAction'
 import { IpfsImage } from '../../ui/IpfsImage'
 import { LearnLink } from '../../wizard/LearnLink'
 import { useErc404OwnedPieces, type OwnedPiece } from './useErc404OwnedPieces'
+import { useTierPosition } from './useTierPosition'
 import { planReroll } from './rerollMath'
 import styles from './Erc404Portfolio.module.css'
 
@@ -37,6 +38,11 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
   const chainId = useCollectionChainId()
   const { address, isConnected } = useAccount()
   const { pieces, unit, balance, isPending, refetch } = useErc404OwnedPieces(instance, address)
+  const { bandPieces } = useTierPosition(instance, address)
+  const bandPieceById = useMemo(
+    () => new Map(bandPieces.map((bp) => [bp.id.toString(), bp])),
+    [bandPieces],
+  )
   const [keep, setKeep] = useState<Set<string>>(new Set())
 
   const decimalsRead = useReadErc404BondingInstanceDecimals({
@@ -107,6 +113,12 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
               // A tier NFT is exempt on-chain whether or not it is clicked, so a "keep" toggle on it
               // would be a no-op control. It renders as a non-interactive, protected tile instead.
               if (p.isTier) {
+                // What this piece is worth: a band NFT at `weight` is `(weight - 1) * unit` of
+                // escrow plus the one unit the NFT itself already is — i.e. `weight * unit` total.
+                // Undefined until both the ladder match and `unit` land; the plain badge is the
+                // fallback, never a "worth 0" placeholder.
+                const band = bandPieceById.get(p.id.toString())
+                const worth = band && unit !== undefined ? band.weight * unit : undefined
                 return (
                   <li key={p.id.toString()}>
                     <div
@@ -115,7 +127,9 @@ export function Erc404Portfolio({ instance }: { instance: `0x${string}` }) {
                     >
                       {art}
                       <span className={styles.tierBadge} title="Tier NFTs are never rerolled.">
-                        tier · protected
+                        {band && worth !== undefined
+                          ? `tier ${band.tierN} · protected · worth ${formatUnits(worth, decimals)}`
+                          : 'tier · protected'}
                       </span>
                     </div>
                   </li>
