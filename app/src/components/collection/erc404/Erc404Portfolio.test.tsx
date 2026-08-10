@@ -24,6 +24,31 @@ const mockOwnedPieces = vi.hoisted(() =>
 )
 vi.mock('./useErc404OwnedPieces', () => ({ useErc404OwnedPieces: mockOwnedPieces }))
 
+interface MockBandPiece {
+  id: bigint
+  tierN: number
+  weight: bigint
+}
+
+// noesis-172: mocked directly (per the item spec) rather than the chain reads underneath it —
+// this component only consumes `bandPieces`.
+const mockTierPosition = vi.hoisted(() =>
+  vi.fn<
+    () => {
+      tiered: boolean
+      ladder: unknown[]
+      bandPieces: MockBandPiece[]
+      balance: bigint | undefined
+      holdings: bigint | undefined
+      localHoldings: bigint | undefined
+      pendingEscrowRelease: bigint | undefined
+      isPending: boolean
+      refetch: () => void
+    }
+  >(),
+)
+vi.mock('./useTierPosition', () => ({ useTierPosition: mockTierPosition }))
+
 vi.mock('wagmi', () => ({
   useAccount: () => ({ address: '0x1111111111111111111111111111111111111111', isConnected: true }),
   useWaitForTransactionReceipt: () => ({ isSuccess: false, isLoading: false }),
@@ -50,12 +75,26 @@ vi.mock('../useCollectionChain', () => ({ useCollectionChainId: () => 1 }))
 
 const INSTANCE = '0x2222222222222222222222222222222222222222' as const
 
-function mount(pieces: OwnedPiece[], opts: { balance?: bigint } = {}) {
+function mount(
+  pieces: OwnedPiece[],
+  opts: { balance?: bigint; bandPieces?: MockBandPiece[] } = {},
+) {
   mockOwnedPieces.mockReturnValue({
     pieces,
     unit: UNIT,
     idLimit: 5000n,
     balance: opts.balance,
+    isPending: false,
+    refetch: vi.fn(),
+  })
+  mockTierPosition.mockReturnValue({
+    tiered: (opts.bandPieces?.length ?? 0) > 0,
+    ladder: [],
+    bandPieces: opts.bandPieces ?? [],
+    balance: opts.balance,
+    holdings: undefined,
+    localHoldings: undefined,
+    pendingEscrowRelease: undefined,
     isPending: false,
     refetch: vi.fn(),
   })
@@ -68,6 +107,7 @@ const tier = (id: bigint): OwnedPiece => ({ id, image: undefined, isTier: true }
 afterEach(() => {
   cleanup()
   mockOwnedPieces.mockReset()
+  mockTierPosition.mockReset()
 })
 
 test('a tier NFT renders as a protected, non-interactive tile', () => {
@@ -113,4 +153,21 @@ test('an amount above the held balance disables reroll and states the shortfall'
   const readout = screen.getByTestId('erc404-reroll-effective')
   expect(readout).toHaveTextContent('You entered 3')
   expect(readout).toHaveTextContent('hold 2')
+})
+
+test('a band tile shows its tier and denomination', () => {
+  mount([ordinary(1n), tier(9001n)], { bandPieces: [{ id: 9001n, tierN: 2, weight: 3n }] })
+
+  const tierTile = screen.getByTestId('erc404-portfolio-tile-tier')
+  // weight 3 * unit 1 = 3 whole tokens: the one unit the NFT already is, plus 2 units of escrow.
+  expect(tierTile).toHaveTextContent(/protected/i)
+  expect(tierTile).toHaveTextContent('tier 2')
+  expect(tierTile).toHaveTextContent('worth 3')
+})
+
+test('an untiered position renders no denomination chrome', () => {
+  mount([ordinary(1n), ordinary(2n)])
+
+  expect(screen.queryAllByTestId('erc404-portfolio-tile-tier')).toHaveLength(0)
+  expect(screen.queryByText(/worth/i)).not.toBeInTheDocument()
 })
