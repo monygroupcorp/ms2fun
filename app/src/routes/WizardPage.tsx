@@ -26,7 +26,9 @@ import { collectionToDataUri, type CollectionMetadata } from '../lib/metadata'
 import { useReadDeployBondEscrowBondAmount } from '../generated/contracts'
 import { forkChainId } from '../lib/addresses'
 import { validateCollectionName } from '../lib/wizard/collectionName'
+import { formatCount, supplyCeilingError } from '../lib/wizard/supplyCeiling'
 import { useNameAvailability } from '../components/wizard/useNameAvailability'
+import { usePresetSupplyCeiling } from '../components/wizard/usePresetSupplyCeiling'
 import { CarveDisclosure } from '../components/wizard/CarveDisclosure'
 import { BondNotice } from '../components/wizard/BondNotice'
 import { TierSupplyHelper } from '../components/wizard/TierSupplyHelper'
@@ -127,6 +129,9 @@ export interface DeployBlockerInput {
   coreErrors: Record<string, string>
   /** `validateMetadataConfig(...)` — ungated; empty when no metadata module is selected. */
   metaErrors: Record<string, string>
+  /** `supplyCeilingError(...)` — ERC-404 only: `nftCount` above what the chosen preset's unit size
+   *  admits under DN404's uint96 total supply. Null when it fits, or while the ceiling is unread. */
+  supplyCeilingError?: string | null
 }
 
 /**
@@ -158,6 +163,10 @@ export function buildDeployBlockers(input: DeployBlockerInput): DeployBlocker[] 
   for (const [key, message] of Object.entries(input.coreErrors)) {
     out.push({ message, step: coreFieldStep(key) })
   }
+  // The preset's supply ceiling. Not a `FieldSchema` rule because the bound is not static — it comes
+  // from the selected preset's on-chain `unitPerNFT` — but it blocks deploy exactly like one, and it
+  // belongs to the Contract step where both inputs live.
+  if (input.supplyCeilingError) out.push({ message: input.supplyCeilingError, step: 'contract' })
   // Expand each metadata-stack error (tier rows, router wiring…) — all owned by the Modules step.
   for (const message of Object.values(input.metaErrors)) {
     out.push({ message, step: 'modules' })
@@ -289,6 +298,24 @@ export function WizardPage() {
 
   const nameStatus = useNameAvailability(metadata.name)
 
+  // ERC-404 only: the selected preset's `unitPerNFT` fixes a hard maximum `nftCount`, because create
+  // initializes DN404 with `nftCount * unitPerNFT * 1e18` and that total supply is a uint96. Read live
+  // (presets are DAO-settable) and enforced as a deploy blocker below — without it the wizard prices
+  // and sends a create that reverts `TotalSupplyOverflow()`, surfacing only as "transaction failed".
+  const presetLimit = usePresetSupplyCeiling(typeKey === 'erc404' ? values['presetId'] : undefined)
+  const presetLabel =
+    (typeKey === 'erc404'
+      ? projectType?.coreFields
+          .find((f) => f.key === 'presetId')
+          ?.options?.find((o) => o.value === (values['presetId'] ?? '').trim())
+          ?.label?.split('—')[0]
+          ?.trim()
+      : undefined) ?? 'selected'
+  const supplyError =
+    typeKey === 'erc404'
+      ? supplyCeilingError(values['nftCount'], presetLimit.ceiling, presetLabel)
+      : null
+
   // Everything that would make handleSubmit bail before it ever sends the create tx — surfaced on the
   // Review step so "Deploy" never silently no-ops. Ungated (independent of `attempted`): the deploy
   // button must stay disabled while any of these hold. Each line names the specific missing input and
@@ -308,6 +335,7 @@ export function WizardPage() {
     vaultSelected: Boolean(vault),
     coreErrors: deployCoreErrors,
     metaErrors: deployMetaErrors,
+    supplyCeilingError: supplyError,
   })
 
   // Assemble the exact `createInstance` call from current wizard state. Shared by the deploy submit
@@ -381,6 +409,8 @@ export function WizardPage() {
       Object.keys(validateMetadataConfig(metaSelection, metaValues, coreNftCount)).length > 0
     )
       return
+    // A supply above the preset's ceiling reverts DN404's `TotalSupplyOverflow()` inside create.
+    if (supplyError) return
 
     const salt = toHex(crypto.getRandomValues(new Uint8Array(32)))
     submit.submit(assembleCall(vault, salt))
@@ -532,6 +562,16 @@ export function WizardPage() {
                 onChange={(key, value) => setValues((v) => ({ ...v, [key]: value }))}
                 errors={coreErrors}
               />
+              {/* The preset's supply ceiling, stated where both inputs are — not saved for Review.
+                  `unitPerNFT` coin units per NFT against DN404's uint96 total supply is the whole
+                  reason the bound exists, so the number is shown rather than asserted. */}
+              {typeKey === 'erc404' && presetLimit.ceiling !== undefined && (
+                <p className={supplyError ? styles.error : styles.help}>
+                  {supplyError ??
+                    `${presetLabel} mints ${formatCount(presetLimit.unitPerNFT ?? 0n)} coin units per NFT, ` +
+                      `so this preset allows up to ${formatCount(presetLimit.ceiling)} NFTs.`}
+                </p>
+              )}
               {settingOtherOwner && (
                 <p className={ownerNeedsAgent ? styles.error : styles.help}>
                   {ownerNeedsAgent

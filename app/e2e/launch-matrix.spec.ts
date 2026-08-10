@@ -380,39 +380,62 @@ test('@fork launch GAP tier slot is not offered on the ERC-404 modules step', as
 })
 
 /**
- * GAP 2 — supply is not validated against the launch preset's unit size.
+ * The preset supply ceiling, from both sides.
  *
  * `nftCount * unitPerNFT * 1e18` must stay under `type(uint96).max` or DN404 reverts
- * `TotalSupplyOverflow()` (0xe5cfe957) inside create. With NICHE (unitPerNFT 1e9) the real ceiling is
- * ~79 NFTs, but the wizard accepts any supply, shows no blocker, prices a gas estimate, and the deploy
- * reverts — surfacing only as "transaction failed — try again". The fix is a client-side bound read
- * from the selected preset (and a blocker line naming it), not a bigger error string.
+ * `TotalSupplyOverflow()` (0xe5cfe957) inside create — NICHE (unitPerNFT 1e9) admits at most 79 NFTs.
+ * The wizard used to accept any supply, price a gas estimate for it, and fail as "transaction failed
+ * — try again"; it now reads the ceiling from the selected preset and blocks with a named line.
+ *
+ * Two assertions, because a bound that only ever refuses is indistinguishable from a broken form:
+ * over the ceiling must be REFUSED before any transaction, and exactly AT the ceiling must still
+ * launch. The second is what would catch an off-by-one that quietly costs creators a whole NFT.
  */
-test('@fork launch GAP NICHE preset with 1000 supply is blocked before deploy', async ({
+test('@fork launch preset ceiling refuses an over-ceiling supply before any tx', async ({
   page,
 }) => {
-  test.fail()
   test.setTimeout(180_000)
-  const blocked = await launchIsBlocked(page, {
-    id: 'lm404gap-niche-overflow',
+  const blockers = await launchBlockers(page, {
+    id: 'lm404-niche-over-ceiling',
     type: 'erc404',
     fields: { ...ERC404_BASE, 'NFT supply': '1000' },
     modules: { 'Liquidity deployer': 'Uniswap V4' },
     align: { community: 'MS2|Milady', venue: 'Uniswap V4' },
   })
-  expect(blocked, 'wizard should refuse an over-ceiling supply instead of reverting on-chain').toBe(
-    true,
-  )
+  // Refused FOR THIS REASON — a bare "was blocked" would also pass on an unrelated missing field.
+  expect(
+    blockers,
+    'wizard should refuse an over-ceiling supply instead of reverting on-chain',
+  ).not.toBeNull()
+  expect(blockers).toMatch(/NICHE/)
+  expect(blockers).toMatch(/79/)
+  expect(blockers).toMatch(/1,000/)
 })
 
-/** Walk a case to Review and report whether the wizard REFUSES to deploy it (a blocker line or a
- *  disabled Deploy button). Used by the gap cases — it never sends a transaction. */
-async function launchIsBlocked(page: Page, c: LaunchCase): Promise<boolean> {
+test('@fork launch preset ceiling admits a supply exactly AT the ceiling (79 @ NICHE)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+  const slug = await launch(page, {
+    id: 'lm404-niche-at-ceiling',
+    type: 'erc404',
+    fields: { ...ERC404_BASE, 'NFT supply': '79' },
+    modules: { 'Liquidity deployer': 'Uniswap V4' },
+    align: { community: 'MS2|Milady', venue: 'Uniswap V4' },
+  })
+  await expect(page.locator('body')).toContainText(new RegExp(slug, 'i'), { timeout: 30_000 })
+})
+
+/** Walk a case to Review and return the wizard's blocker lines if it REFUSES to deploy, else null.
+ *  Never sends a transaction on the refused path. Returning the text (not a boolean) is what lets a
+ *  caller assert the refusal names the right reason. */
+async function launchBlockers(page: Page, c: LaunchCase): Promise<string | null> {
   try {
     await launch(page, c)
-    return false
+    return null
   } catch (err) {
-    // `launch` throws its own "deploy blocked" error when the wizard surfaced blocker lines.
-    return /deploy blocked/.test(String(err))
+    // `launch` throws its own "[id] deploy blocked: <lines>" when the wizard surfaced blocker lines.
+    const message = String(err)
+    return /deploy blocked/.test(message) ? message : null
   }
 }
