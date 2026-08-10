@@ -140,7 +140,7 @@ export const CONFIG_SCHEMAS: ConfigSchema[] = [
         key: 'tierBaseURIs',
         label: 'Band base URI',
         kind: 'list',
-        help: 'Token id is appended to this prefix for every id in the band; blank falls through to the collection base',
+        help: "Token id is appended to this prefix for every id in the band; blank falls through to the collection base. The metadata behind this prefix must state the band's denomination — nothing on-chain enforces it",
         learnMore: 'token-tiers',
         item: { key: 'tierBaseURI', label: 'Band URI', kind: 'text' },
       },

@@ -263,6 +263,9 @@ A band's count can be capped below what the supply could fill, making it **delib
 
 ## Art is per-id
 Each id in a band resolves its own metadata via its band's base URI plus the id — a tier is a set of uniques, not one shared image.
+
+## Metadata must state the denomination
+A tier NFT looks like an ordinary ERC-721 to anything that doesn't know the ladder — the contract has no way to mark a band piece as worth more, and \`holder\` plays no part in how its art resolves. That means the JSON you publish at each id is the only place a viewer can learn what a piece is worth: state the denomination in the metadata (a trait is enough) for every id in every band. Nothing on-chain checks this — it's on you to keep it visible, or a band piece can trade at an ordinary piece's price.
 `,
     related: ['tier-upgrade', 'id-persistence', 'token-standard'],
   },
