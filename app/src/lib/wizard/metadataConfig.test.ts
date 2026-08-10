@@ -146,14 +146,24 @@ describe('validateMetadataConfig', () => {
     expect(errs['resolver']).toMatch(/no overlay or tier/i)
   })
 
+  it('flags a tier selection with no resolver — the factory rejects a direct tier pointer', () => {
+    const errs = validateMetadataConfig({ tier: TIER }, TWO_ROWS)
+    expect(errs['resolver']).toMatch(/select a metadata resolver/i)
+  })
+
+  it('a tier selection paired with a resolver clears the resolver error', () => {
+    const errs = validateMetadataConfig({ resolver: RESOLVER, tier: TIER }, TWO_ROWS)
+    expect(errs['resolver']).toBeUndefined()
+  })
+
   it('flags a tier module selected with an empty ladder (the contract reverts at create)', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, {})
+    const errs = validateMetadataConfig({ resolver: RESOLVER, tier: TIER }, {})
     expect(errs['tierWeights']).toMatch(/at least one tier/i)
   })
 
   it('flags a weight below 2 — the escrow math needs a real denomination', () => {
     const errs = validateMetadataConfig(
-      { tier: TIER },
+      { resolver: RESOLVER, tier: TIER },
       { 'tierWeights.0': '1', 'tierBaseURIs.0': 'r-' },
     )
     expect(errs['tierWeights.0']).toMatch(/weight must be ≥ 2/)
@@ -161,7 +171,7 @@ describe('validateMetadataConfig', () => {
 
   it('flags a non-increasing ladder', () => {
     const errs = validateMetadataConfig(
-      { tier: TIER },
+      { resolver: RESOLVER, tier: TIER },
       {
         'tierWeights.0': '10',
         'tierBaseURIs.0': 'a-',
@@ -173,13 +183,16 @@ describe('validateMetadataConfig', () => {
   })
 
   it('does NOT require a band URI — consistent with the optional main collection URI', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, { 'tierWeights.0': '10' })
+    const errs = validateMetadataConfig(
+      { resolver: RESOLVER, tier: TIER },
+      { 'tierWeights.0': '10' },
+    )
     expect(errs['tierBaseURIs.0']).toBeUndefined()
   })
 
   it('does NOT constrain count — 0 means "as many as possible" and a large value is clamped', () => {
     const errs = validateMetadataConfig(
-      { tier: TIER },
+      { resolver: RESOLVER, tier: TIER },
       { 'tierWeights.0': '10', 'tierCounts.0': '999999' },
       1000n,
     )
@@ -188,7 +201,7 @@ describe('validateMetadataConfig', () => {
 
   it('accepts a strictly climbing ladder', () => {
     const errs = validateMetadataConfig(
-      { tier: TIER },
+      { resolver: RESOLVER, tier: TIER },
       {
         'tierWeights.0': '2',
         'tierBaseURIs.0': 'a-',
@@ -205,32 +218,44 @@ describe('validateMetadataConfig', () => {
   // `floor(nftCount / weight) == 0` reverts at create.
 
   it('passes a weight the supply can back', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, { 'tierWeights.0': '10' }, 4000n)
+    const errs = validateMetadataConfig(
+      { resolver: RESOLVER, tier: TIER },
+      { 'tierWeights.0': '10' },
+      4000n,
+    )
     expect(errs).toEqual({})
   })
 
   it('flags a weight above the supply, with the specific supply message', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, { 'tierWeights.0': '5000' }, 4000n)
+    const errs = validateMetadataConfig(
+      { resolver: RESOLVER, tier: TIER },
+      { 'tierWeights.0': '5000' },
+      4000n,
+    )
     expect(errs['tierWeights.0']).toBe(
       'tier 1: weight 5000 is above the 4000 NFT supply, so the tier would have no ids',
     )
   })
 
   it('a weight exactly equal to the supply is fine — it derives a single id', () => {
-    const errs = validateMetadataConfig({ tier: TIER }, { 'tierWeights.0': '4000' }, 4000n)
+    const errs = validateMetadataConfig(
+      { resolver: RESOLVER, tier: TIER },
+      { 'tierWeights.0': '4000' },
+      4000n,
+    )
     expect(errs).toEqual({})
   })
 
   it('skips the supply check when nftCount is 0/empty (do not false-error pre-supply)', () => {
     const big = { 'tierWeights.0': '5000' }
-    expect(validateMetadataConfig({ tier: TIER }, big, 0n)).toEqual({})
+    expect(validateMetadataConfig({ resolver: RESOLVER, tier: TIER }, big, 0n)).toEqual({})
     // Default arg (no nftCount) behaves the same as 0n.
-    expect(validateMetadataConfig({ tier: TIER }, big)).toEqual({})
+    expect(validateMetadataConfig({ resolver: RESOLVER, tier: TIER }, big)).toEqual({})
   })
 
   it('flags only the offending row', () => {
     const errs = validateMetadataConfig(
-      { tier: TIER },
+      { resolver: RESOLVER, tier: TIER },
       {
         'tierWeights.0': '1', // below 2
         'tierBaseURIs.0': 'a-',
