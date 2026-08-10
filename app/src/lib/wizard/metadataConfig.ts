@@ -293,6 +293,10 @@ export function validateMetadataConfig(
   const childCount = (overlaySel ? 1 : 0) + (tierSel ? 1 : 0)
   if (!resolverSel && childCount >= 2) {
     errors['resolver'] = 'Select a metadata resolver (router) to stack overlay + tier'
+  } else if (!resolverSel && tierSel) {
+    // Unlike overlay, tier can never be pointed at directly — the factory only accepts it wired
+    // through a router (`InvalidBand` at create otherwise).
+    errors['resolver'] = 'Select a metadata resolver to enable Token Tiers'
   }
   // A router with no children resolves to nothing — likely a mis-selection.
   if (resolverSel && childCount === 0) {
