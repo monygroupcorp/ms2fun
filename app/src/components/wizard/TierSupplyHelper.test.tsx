@@ -18,6 +18,8 @@ describe('TierSupplyHelper', () => {
     expect(el.textContent).toContain('400 of 400 possible')
     expect(el.textContent).toContain('×10')
     expect(el.textContent).toContain('bands reserve 400 ids above the supply')
+    expect(el.textContent).toContain('metadata must state its denomination')
+    expect(el.textContent).toContain('a tier 1 piece is worth ×10 in coin')
   })
 
   test('a capped tier reads as scarce, showing what it gets vs what it could have', () => {
@@ -63,5 +65,6 @@ describe('TierSupplyHelper', () => {
     const el = screen.getByTestId('tier-supply-helper')
     expect(el).toHaveAttribute('data-derived', 'false')
     expect(el.textContent).toContain('no tiers yet')
+    expect(el.textContent).not.toContain('metadata must state its denomination')
   })
 })

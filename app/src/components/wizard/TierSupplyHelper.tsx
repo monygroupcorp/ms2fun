@@ -15,6 +15,16 @@
 import { tierSupplySummary } from '../../lib/wizard/metadataConfig'
 import styles from './TierSupplyHelper.module.css'
 
+/** "a tier 1 piece is worth ×10 in coin[, a tier 2 piece is worth ×100 in coin] and …" — one clause per
+ *  rung of the ladder, so the metadata-denomination note stays correct whether the creator authored one
+ *  tier or a full ladder. */
+function tierWorthSentence(tiers: { tierNumber: number; weight: number }[]): string {
+  const clauses = tiers.map((t) => `a tier ${t.tierNumber} piece is worth ×${t.weight} in coin`)
+  const last = clauses[clauses.length - 1] ?? ''
+  if (clauses.length <= 1) return last
+  return `${clauses.slice(0, -1).join(', ')}, and ${last}`
+}
+
 export function TierSupplyHelper({
   nftCount,
   values,
@@ -65,6 +75,14 @@ export function TierSupplyHelper({
             </li>
           ))}
         </ul>
+      )}
+      {derived && (
+        <p className={styles.note}>
+          Each band&apos;s metadata must state its denomination. Band art is baseURI + id and the
+          JSON is yours to write — the collection cannot enforce it. {tierWorthSentence(s.tiers)},
+          and an ERC-721 transfer moves all of it, so a band that does not say what it is worth can
+          be sold at an ordinary piece&apos;s price.
+        </p>
       )}
       {derived && s.tiers.some((t) => t.scarce) && (
         <p className={styles.note}>
