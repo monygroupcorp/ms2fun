@@ -1,0 +1,27 @@
+/* TierPanel (noesis-171) — layout only; field/input/button chrome comes from BondingSurface.module.css
+   (imported as `bonding` in the component), same split StakingPanel uses. */
+
+.formSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-secondary);
+}
+
+.formSection:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.hint,
+.note {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-caption);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.fullWidthBtn {
+  width: 100%;
+}
