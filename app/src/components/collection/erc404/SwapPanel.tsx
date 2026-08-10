@@ -29,6 +29,7 @@ import {
   useWriteErc404BondingInstanceSellBonding,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
+import { useTierPosition } from './useTierPosition'
 import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
 import type { CurveParamsTuple } from './useBondingData'
@@ -245,6 +246,11 @@ export function SwapPanel({
     query: { enabled: Boolean(address) },
   })
 
+  // Holdings readout (noesis-172): `balance` above stays the ONLY read used for the sell quote,
+  // limit, and quick-fill presets (the balanceOf-primacy rule — see useTierPosition's docstring).
+  // `tiered`/`holdings`/`pendingEscrowRelease` here drive display only.
+  const { tiered, holdings, pendingEscrowRelease } = useTierPosition(instance, address)
+
   const buy = useWriteErc404BondingInstanceBuyBonding()
   const sell = useWriteErc404BondingInstanceSellBonding()
   const activeWrite = isBuy ? buy : sell
@@ -394,8 +400,26 @@ export function SwapPanel({
           onPick={setAmountStr}
           presets={isBuy ? buyEthPresets() : sellPctPresets(balance.data, decimals)}
         />
-        {!isBuy && balance.data !== undefined && (
+        {/* Untiered (every ERC-404 shipped to date): unchanged from before this readout existed. */}
+        {!isBuy && balance.data !== undefined && !tiered && (
           <span className={styles.note}>balance: {formatEther(balance.data)}</span>
+        )}
+        {/* Tiered: Holdings (coinBalanceOf, escrow-inclusive) beside balance (transferable) so
+            coin folded into a band NFT reads as held, not lost. `balance` still drives the sell
+            quote/limit above — this block is display only. Each value renders only once its own
+            read has landed; a momentary "0" here would be exactly the false loss this exists to
+            stop. */}
+        {!isBuy && balance.data !== undefined && tiered && (
+          <div className={styles.note} data-testid="erc404-holdings-readout">
+            {holdings !== undefined && <div>holdings: {formatEther(holdings)}</div>}
+            <div>balance: {formatEther(balance.data)}</div>
+          </div>
+        )}
+        {!isBuy && tiered && pendingEscrowRelease !== undefined && pendingEscrowRelease > 0n && (
+          <p className={styles.note} data-testid="erc404-pending-escrow-note">
+            {formatEther(pendingEscrowRelease)} released from escrow and waiting to be claimed — not
+            yet in your balance.
+          </p>
         )}
       </div>
 
