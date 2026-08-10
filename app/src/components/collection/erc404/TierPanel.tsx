@@ -101,7 +101,21 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
   const mintDownBusy = mintDown.isPending || mintDownRx.isLoading
   const claimBusy = claim.isPending || claimRx.isLoading
 
-  const canMintUp = tierN !== '' && tierZeroId !== '' && ordinaryIds.length > 0
+  // Mint up escrows `(weight - 1) * unit` of COIN as its very first leg
+  // (`ERC404BondingOps.mintUp` -> `_transfer(msg.sender, address(this), escrowAmount)`), so holding
+  // the tier-0 id is necessary but not sufficient: a holder short of that coin reverts. Because the
+  // op runs through the returndata-discarding trampoline, that revert reaches the user as the bare
+  // `TierOpFailed()`, which names no cause — so this is refused here, in words, instead. Guarded on
+  // `position.balance` (transferable), NEVER on Holdings: the escrowed coin behind a band NFT is
+  // exactly what cannot be spent on another one.
+  const mintUpEscrow =
+    selectedTierBand && owned.unit !== undefined
+      ? (selectedTierBand.weight - 1n) * owned.unit
+      : undefined
+  const canAffordMintUp =
+    mintUpEscrow !== undefined && position.balance !== undefined && position.balance >= mintUpEscrow
+
+  const canMintUp = tierN !== '' && tierZeroId !== '' && ordinaryIds.length > 0 && canAffordMintUp
   const canMintDown = bandId !== '' && ownedBandIds.length > 0
   const hasClaimable =
     position.pendingEscrowRelease !== undefined && position.pendingEscrowRelease > 0n
@@ -171,6 +185,16 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
             {selectedTierBand.weight - 1n === 1n ? '' : 's'} move into escrow behind it and leave
             your transferable balance — this is the number other surfaces will show as a loss. Your
             Holdings are unchanged. Reversible via mint down.
+          </p>
+        )}
+
+        {/* Said before the button is reached for, not after a revert that names no cause. */}
+        {selectedTierBand && mintUpEscrow !== undefined && !canAffordMintUp && (
+          <p className={styles.note} data-testid="tier-panel-mint-up-short">
+            Not enough transferable balance: this tier escrows{' '}
+            <b>{formatUnits(mintUpEscrow, decimals)}</b> and you can transfer{' '}
+            <b>{formatUnits(position.balance ?? 0n, decimals)}</b>. Coin already escrowed behind a
+            band NFT cannot pay for another — mint down first, or hold more.
           </p>
         )}
 
