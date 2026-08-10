@@ -3,7 +3,7 @@
  * reads (`useTierPosition`, `useErc404OwnedPieces`) and the write hooks are mocked; what is under
  * test is what a holder is shown and offered.
  */
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { OwnedPiece } from './useErc404OwnedPieces'
 import type { TierPosition, TierPositionBandPiece } from './useTierPosition'
@@ -74,12 +74,13 @@ function mountPosition(opts: {
   bandPieces?: TierPositionBandPiece[]
   pendingEscrowRelease?: bigint
   isPending?: boolean
+  balance?: bigint
 }) {
   mockTierPosition.mockReturnValue({
     tiered: opts.tiered,
     ladder: opts.ladder ?? [],
     bandPieces: opts.bandPieces ?? [],
-    balance: 10n * UNIT,
+    balance: opts.balance ?? 10n * UNIT,
     holdings: 12n * UNIT,
     localHoldings: 12n * UNIT,
     pendingEscrowRelease: opts.pendingEscrowRelease,
@@ -169,4 +170,34 @@ test('claim affordance shows only when pendingEscrowRelease is non-zero', () => 
   mountPosition({ tiered: true, ladder: ladder([2n]), pendingEscrowRelease: 3n * UNIT })
   rerender(<TierPanel instance={INSTANCE} />)
   expect(screen.getByTestId('tier-panel-claim')).toBeEnabled()
+})
+
+test('mint up is refused, in words, when the escrow exceeds the transferable balance', () => {
+  // Tier 1 at weight 100 escrows 99 units; the holder can transfer 10. On-chain this reverts in
+  // mintUp's first leg and reaches the user as the causeless `TierOpFailed()`, so it must be
+  // refused here instead.
+  mountPosition({ tiered: true, ladder: ladder([100n]), balance: 10n * UNIT })
+  mountOwned([ordinary(1n)])
+
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+  fireEvent.change(screen.getByTestId('tier-panel-zero-id-select'), { target: { value: '1' } })
+
+  expect(screen.getByTestId('tier-panel-mint-up-short')).toHaveTextContent(
+    /not enough transferable/i,
+  )
+  expect(screen.getByTestId('tier-panel-mint-up')).toBeDisabled()
+})
+
+test('mint up stays available when the balance covers the escrow', () => {
+  // Same shape, affordable: weight 2 escrows 1 unit against a 10-unit balance.
+  mountPosition({ tiered: true, ladder: ladder([2n]), balance: 10n * UNIT })
+  mountOwned([ordinary(1n)])
+
+  render(<TierPanel instance={INSTANCE} />)
+  fireEvent.change(screen.getByTestId('tier-panel-tier-select'), { target: { value: '1' } })
+  fireEvent.change(screen.getByTestId('tier-panel-zero-id-select'), { target: { value: '1' } })
+
+  expect(screen.queryByTestId('tier-panel-mint-up-short')).toBeNull()
+  expect(screen.getByTestId('tier-panel-mint-up')).not.toBeDisabled()
 })
