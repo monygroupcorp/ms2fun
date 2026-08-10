@@ -9,6 +9,7 @@
 import { BondingSurface } from '../erc404/BondingSurface'
 import { Erc404Charts } from '../erc404/Erc404Charts'
 import { Erc404Portfolio } from '../erc404/Erc404Portfolio'
+import { TierPanel } from '../erc404/TierPanel'
 import { Erc404AdminPanel } from '../erc404/Erc404AdminPanel'
 import { Erc404NftGallery } from '../erc404/Erc404NftGallery'
 import styles from './TypeSection.module.css'
@@ -38,7 +39,14 @@ export function Erc404ChartsSection({ instance }: Erc404SurfaceProps) {
 
 export function Erc404PortfolioSection({ instance }: Erc404SurfaceProps) {
   // Self-hides when disconnected / holds no pieces.
-  return <Erc404Portfolio instance={instance} />
+  return (
+    <>
+      <Erc404Portfolio instance={instance} />
+      {/* Self-hides when disconnected / untiered — TierPanel is a no-op on every instance shipped
+          before Token Tiers. */}
+      <TierPanel instance={instance} />
+    </>
+  )
 }
 
 export function Erc404Gallery({ instance }: Erc404SurfaceProps) {
