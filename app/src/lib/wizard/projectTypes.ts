@@ -167,16 +167,26 @@ const erc404: ProjectTypeSchema = {
       required: false,
     },
     // ── Metadata-resolution stack (ADR-0006/0007) ──────────────────────────────
-    // All optional. The resolver (router) is the instance's METADATA_RESOLVER target; overlay is its
-    // child, wired + frozen at create. Selecting the resolver turns the feature on; the overlay slot
-    // supplies the concrete module the router stacks. (Tier reveal is retired from the wizard —
-    // noesis-138 — Token Tiers replaces it; see tier-denominations-productdef.md.)
+    // All optional. The resolver (router) is the instance's METADATA_RESOLVER target; overlay and
+    // tier are its children, wired + frozen at create. Selecting the resolver turns the feature on;
+    // the overlay/tier slots supply the concrete modules the router stacks. A single child can also
+    // be pointed at directly with no resolver — except tier, which always requires one (see
+    // `validateMetadataConfig`). (Tier reveal is retired from the wizard — noesis-138 — Token Tiers
+    // replaces it; see tier-denominations-productdef.md.)
     {
       key: 'resolver',
       label: 'Metadata resolver',
       tag: 'resolver',
       required: false,
-      help: 'Router that stacks dynamic-metadata modules (overlay). Off when unset.',
+      help: 'Router that stacks dynamic-metadata modules (overlay, tier). Off when unset.',
+    },
+    {
+      key: 'tier',
+      label: 'Token Tiers',
+      tag: 'tier',
+      required: false,
+      help: 'NFTs that are coin denominations — fold coin into a band NFT and back.',
+      learnMore: 'token-tiers',
     },
     {
       key: 'overlay',

@@ -18,11 +18,58 @@
  * Each case needs a UNIQUE collection name — the registry claims names globally and
  * case-insensitively — so names are suffixed with a per-run token.
  */
-import { test, expect, connectWallet } from './fixtures/anvilWallet'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { createPublicClient, http, type Address } from 'viem'
+import { test, expect, connectWallet, ANVIL_RPC } from './fixtures/anvilWallet'
 import type { Page } from '@playwright/test'
 
 /** Per-run suffix so re-running against a live fork never collides on a claimed name. */
 const RUN = `${Date.now().toString(36)}`
+
+// ── On-chain readback (tiered case only) ────────────────────────────────────────
+// Everything else in this spec asserts purely off the UI. The tiered case additionally reads the
+// deployed instance's ladder on-chain — a create that "succeeds" with an empty ladder is exactly the
+// state the factory guards against, so the UI redirect alone doesn't prove the fix.
+const forkChain = {
+  id: 1337,
+  name: 'anvil-fork',
+  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+  rpcUrls: { default: { http: [ANVIL_RPC] } },
+} as const
+
+const deployment = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../src/config/local-deployment.json', import.meta.url)),
+    'utf8',
+  ),
+) as { contracts: { MasterRegistryV1: Address } }
+const MASTER_REGISTRY = deployment.contracts.MasterRegistryV1
+
+const REGISTRY_ABI = [
+  {
+    type: 'function',
+    name: 'resolveName',
+    stateMutability: 'view',
+    inputs: [{ type: 'string' }],
+    outputs: [{ type: 'address' }],
+  },
+] as const
+const INSTANCE_ABI = [
+  {
+    type: 'function',
+    name: 'tierBands',
+    stateMutability: 'view',
+    inputs: [{ type: 'uint256' }],
+    outputs: [
+      { name: 'idStart', type: 'uint32' },
+      { name: 'idEnd', type: 'uint32' },
+      { name: 'weight', type: 'uint32' },
+    ],
+  },
+] as const
+
+const client = createPublicClient({ chain: forkChain, transport: http(ANVIL_RPC) })
 
 type TypeKey = 'erc404' | 'erc1155' | 'erc721'
 
@@ -212,8 +259,8 @@ async function goToStep(page: Page, label: string): Promise<void> {
  * coin units at create, and DN404 reverts `TotalSupplyOverflow()` once that passes `type(uint96).max`
  * (~7.92e28). With the deployed presets (unitPerNFT 1e9 / 1e6 / 1e3) the ceilings are:
  *   NICHE ≈ 79 NFTs · STANDARD ≈ 79,228 · HYPE ≈ 79,228,162.
- * Each case below stays inside its preset's ceiling. (The wizard does not yet enforce this — a
- * NICHE + 1000-supply launch reverts on-chain; see the KNOWN-GAP case at the end of the matrix.)
+ * Each case below stays inside its preset's ceiling. (See the preset-ceiling tests at the end of the
+ * matrix for the over/at-ceiling boundary itself.)
  */
 const ERC404_BASE = {
   Symbol: 'LM',
@@ -244,8 +291,8 @@ const CASES: LaunchCase[] = [
     modules: { 'Liquidity deployer': 'Cypher' },
     align: { community: 'MS2|Milady', venue: 'Cypher' },
   },
-  // ERC-404 — every slot the wizard OFFERS, on at once (tier is not offered — see the gap cases),
-  // free mint on with a narrowed gating scope, HYPE preset, largest supply.
+  // ERC-404 — every slot except tier, on at once (tier needs its own ladder + resolver — see the
+  // dedicated tiered case below), free mint on with a narrowed gating scope, HYPE preset, largest supply.
   {
     id: 'lm404-full-stack',
     type: 'erc404',
@@ -348,35 +395,58 @@ for (const c of CASES) {
   })
 }
 
-// ── Known gaps ────────────────────────────────────────────────────────────────
-// Two combinations a creator can reach that do NOT launch today. Both are `test.fail()`, so the suite
-// stays green while the gap stands AND goes red the moment it's fixed — at which point delete the
-// `test.fail()` and move the case into CASES above. They are cases, not comments, so neither gap can
-// be quietly forgotten.
-
 /**
- * GAP 1 — Token Tiers is unreachable from the wizard.
- *
- * Everything else about tiers is wired: the `tier` ComponentRegistry tag resolves to a deployed
- * TokenTierBandResolver, `CONFIG_SCHEMAS` carries the `metadata-tier` ladder form, `encodeMetadataConfig`
- * threads `tiers` into the factory's 7-arg `createInstance`, `validateMetadataConfig` validates the
- * ladder, `TierSupplyHelper` renders the derived bands, and WizardPage's Modules step asks for a
- * `tier` slot. But `PROJECT_TYPES.erc404.moduleSlots` never declares one, so `slotByKey('tier')` is
- * undefined and the picker never renders — no creator can launch a tiered collection.
+ * A tiered ERC-404 launches end-to-end: the Modules step offers Token Tiers, a two-rung ladder wired
+ * through a resolver deploys, and the instance's `tierBands` is non-empty on chain — proving the
+ * create actually wired a ladder rather than an empty one slipping past the factory's guard.
  */
-test('@fork launch GAP tier slot is not offered on the ERC-404 modules step', async ({ page }) => {
-  test.fail()
-  test.setTimeout(60_000)
-  await page.goto('/launch')
-  await connectWallet(page)
-  await page
-    .getByRole('button', { name: /^ERC-404/ })
-    .first()
-    .click()
-  await goToStep(page, 'Modules')
-  await expect(page.getByRole('button', { name: /Token Tiers/i }).first()).toBeVisible({
-    timeout: 15_000,
+test('@fork launch a tiered ERC-404 deploys with a non-empty on-chain ladder', async ({ page }) => {
+  test.setTimeout(180_000)
+  const slug = await launch(page, {
+    id: 'lm404-tiered',
+    type: 'erc404',
+    fields: { ...ERC404_BASE, 'NFT supply': '1000' },
+    selects: { 'Launch preset': 'HYPE — 50 ETH target' },
+    modules: {
+      'Liquidity deployer': 'Uniswap V4',
+      'Metadata resolver': 'Metadata Resolver',
+      'Token Tiers': 'Token Tiers',
+    },
+    tiers: [
+      { weight: '2', count: '10', baseURI: 'lo-' },
+      { weight: '10', count: '5', baseURI: 'hi-' },
+    ],
+    align: { community: 'MS2|Milady', venue: 'Uniswap V4' },
   })
+  await expect(page.locator('body')).toContainText(new RegExp(slug, 'i'), { timeout: 30_000 })
+
+  const instance = await client.readContract({
+    address: MASTER_REGISTRY,
+    abi: REGISTRY_ABI,
+    functionName: 'resolveName',
+    args: [slug],
+  })
+  expect(instance, 'registry should resolve the deployed slug to the new instance').not.toBe(
+    '0x0000000000000000000000000000000000000000',
+  )
+
+  // A ladder-less tier module reverts `InvalidBand` at create, so the instance existing at all
+  // already implies a ladder — this reads it back directly rather than inferring it.
+  // `tierBands` is a public array of a 3-field struct, so its getter has THREE outputs and viem
+  // returns a positional tuple `[idStart, idEnd, weight]` — not an object. Naming the outputs in
+  // the ABI above does not change that; `band.weight` reads `undefined` and the assertion passes
+  // nothing.
+  const band = await client.readContract({
+    address: instance,
+    abi: INSTANCE_ABI,
+    functionName: 'tierBands',
+    args: [0n],
+  })
+  const [idStart, idEnd, weight] = band
+  expect(weight, 'first band carries the ladder its creator authored').toBe(2)
+  // A sealed band spans a real id range above the ordinary ceiling; a zero-width one is the
+  // degenerate state the factory's derivation exists to prevent.
+  expect(idEnd).toBeGreaterThanOrEqual(idStart)
 })
 
 /**
