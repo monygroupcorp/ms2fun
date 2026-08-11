@@ -29,6 +29,8 @@ import {
   useWriteErc404BondingInstanceSellBonding,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
+import { txErrorReason } from '../../ui/useTxAction'
+import { tierErrorCopy } from './tierErrorCopy'
 import { useTierPosition } from './useTierPosition'
 import type { BondingView } from './bondingPhase'
 import { applyBuySlippage, applySellSlippage, formatBps } from './bondingFormat'
@@ -310,6 +312,8 @@ export function SwapPanel({
 
   const isBusy = activeWrite.isPending || isConfirming
   const hasError = activeWrite.isError
+  const swapReason = txErrorReason(activeWrite.error)
+  const swapErrorCopy = tierErrorCopy(swapReason)
 
   // Whether the action can fire. A gated buy additionally needs a resolved merkle proof.
   const canSubmit = isBuy
@@ -535,7 +539,9 @@ export function SwapPanel({
       </button>
 
       {hasError && (
-        <p className={`${styles.txStatus} ${styles.txError}`}>transaction failed — try again</p>
+        <p className={`${styles.txStatus} ${styles.txError}`}>
+          {swapErrorCopy ?? 'transaction failed — try again'}
+        </p>
       )}
     </div>
   )
