@@ -324,6 +324,7 @@ contract DeployCore is Script {
             address(zrouter),
             cfg.zrouterFee,
             cfg.zrouterTickSpacing,
+            address(treasury),
             IVaultPriceValidator(address(priceValidator)),
             alignmentRegistry,
             cfg.zQuoter // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT, see HUMAN_GATES

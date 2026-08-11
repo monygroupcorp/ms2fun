@@ -76,7 +76,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     error TransferFailed();
     error NotBenefactor();
     error NotDelegate();
-    error PendingETHNotConverted();
     error DeviationTooHigh();
     error ExceedsMaxBps();
     error TreasuryNotSet();
@@ -145,7 +144,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // Protocol yield cut — the 80/19/1 alignment law (hard immutable, noesis-051)
     /// @notice Protocol treasury cut of LP yield: 1%. Compile-time constant — there is deliberately
-    ///         NO owner setter (the ratio is locked; only `setProtocolTreasury` moves the destination).
+    ///         NO owner setter. The ratio is locked, and so is the destination: `protocolTreasury`
+    ///         is set once at `initialize` from the deploying factory's immutable and never moves.
     uint256 public constant PROTOCOL_CUT_BPS = 100;
     /// @notice Per-target alignment sink cut of LP yield: 19%. Compile-time constant.
     uint256 public constant TARGET_CUT_BPS = 1900;
@@ -206,11 +206,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     event ProtocolYieldCollected(uint256 amount);
     event TargetYieldCollected(uint256 amount);
-    event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
     event TargetFeesWithdrawn(uint256 amount);
 
-    event AlignmentTokenUpdated(address indexed oldToken, address indexed newToken);
     event V4PoolKeyUpdated(bytes32 indexed poolId);
     event ZQuoterUpdated(address indexed zQuoter);
     event PriceValidatorUpdated(address indexed validator);
@@ -231,6 +229,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     /// @param _priceValidator Oracle/TWAP price validator for manipulation protection
     /// @param _alignmentRegistry Registry that manages approved alignment targets
     /// @param _alignmentTargetId ID of the alignment target this vault serves
+    /// @param _protocolTreasury Destination of the 1% protocol yield cut; fixed for the vault's life
     // slither-disable-next-line events-maths
     function initialize(
         address _initialOwner,
@@ -243,7 +242,8 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         int24 _zRouterTickSpacing,
         IVaultPriceValidator _priceValidator,
         IAlignmentRegistry _alignmentRegistry,
-        uint256 _alignmentTargetId
+        uint256 _alignmentTargetId,
+        address _protocolTreasury
     ) external {
         if (_initialized) revert AlreadyInitialized();
         _initialized = true;
@@ -254,6 +254,10 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         if (_poolManager == address(0)) revert InvalidAddress();
         if (_alignmentToken == address(0)) revert InvalidAddress();
         if (address(_alignmentRegistry) == address(0)) revert InvalidAddress();
+        // The 1% protocol cut accrues from the first fee collection onward, and the vault carries no
+        // setter for its destination — a zero treasury would accrue into a bucket with no exit, so it
+        // is refused here rather than at withdrawal time (mirrors ZAMMAlignmentVault.initialize).
+        if (_protocolTreasury == address(0)) revert TreasuryNotSet();
         if (!_alignmentRegistry.isAlignmentTargetActive(_alignmentTargetId)) revert TargetNotActive();
         if (!_alignmentRegistry.isTokenInTarget(_alignmentTargetId, _alignmentToken)) revert TokenNotInTarget();
 
@@ -266,6 +270,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         priceValidator = _priceValidator;
         alignmentRegistry = _alignmentRegistry;
         alignmentTargetId = _alignmentTargetId;
+        protocolTreasury = _protocolTreasury;
 
         // Initialize defaults that can't use declaration initializers with clones
         v3PreferredFee = 3000;
@@ -637,21 +642,15 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // ========== Fee Accumulation ==========
 
-    /// @notice Manually record fees accumulated outside of V4 LP (owner-only)
-    /// @param feeAmount ETH amount to add to accumulatedFees
-    function recordAccumulatedFees(uint256 feeAmount) external onlyOwner {
-        if (feeAmount == 0) revert AmountMustBePositive();
-        _accrueFees(feeAmount);
-        emit FeesAccumulated(feeAmount);
-    }
-
     /// @dev Accrue fees into both the lifetime total and the per-share accumulator.
     ///      Existing holders' entitlement (shares*accFeesPerShare - debt) is preserved when new
     ///      shares mint later, because minting only raises the new holder's debt, not accPerShare.
     ///      NOTE: if totalShares == 0 the amount is recorded in accumulatedFees but not attributable;
     ///      fees only accrue after a conversion has minted shares, so this path should not occur in
     ///      normal operation. Consider reverting here if that assumption must be enforced.
-    function _accrueFees(uint256 amount) private {
+    ///      `internal` rather than `private` so test harnesses can drive the accumulator through the
+    ///      same arithmetic production uses instead of restating it. No external surface is added.
+    function _accrueFees(uint256 amount) internal {
         accumulatedFees += amount;
         if (totalShares > 0) {
             accFeesPerShare += (amount * 1e18) / totalShares;
@@ -913,30 +912,6 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
 
     // ========== Configuration ==========
 
-    /// @notice Change the alignment token (must be in the vault's alignment target)
-    /// @dev All pending ETH must be converted first. Validates against AlignmentRegistry.
-    /// @param newToken New ERC20 token address to buy and LP
-    function setAlignmentToken(address newToken) external onlyOwner {
-        if (newToken == address(0)) revert InvalidAddress();
-        if (totalPendingETH != 0) revert PendingETHNotConverted();
-        if (!alignmentRegistry.isTokenInTarget(alignmentTargetId, newToken)) revert TokenNotInTarget();
-
-        address oldToken = alignmentToken;
-        alignmentToken = newToken;
-
-        if (newToken.code.length > 0) {
-            try IERC20Metadata(newToken).decimals() returns (uint8 decimals) {
-                alignmentTokenDecimals = decimals;
-            } catch {
-                alignmentTokenDecimals = 18;
-            }
-        } else {
-            alignmentTokenDecimals = 18;
-        }
-
-        emit AlignmentTokenUpdated(oldToken, newToken);
-    }
-
     /// @notice Set the Uniswap V4 pool key for liquidity operations
     /// @dev Validates fee tier, tick spacing, currency ordering, and alignment token presence.
     /// @param newPoolKey V4 PoolKey struct identifying the target pool
@@ -976,6 +951,9 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
     }
 
     /// @notice Set the threshold at which accumulated dust shares are distributed
+    /// @dev Owner is the deploying factory, so this is reached through
+    ///      UniAlignmentVaultFactory.setVaultDustDistributionThreshold. The default (1e18) assumes an
+    ///      18-decimal alignment token; vaults aligned to a token with other decimals retune it here.
     /// @param newThreshold Minimum accumulated dust before redistribution (must be > 0)
     function setDustDistributionThreshold(uint256 newThreshold) external onlyOwner {
         if (newThreshold == 0) revert AmountMustBePositive();
@@ -983,24 +961,7 @@ contract UniAlignmentVault is ReentrancyGuard, Ownable, IUnlockCallback, IAlignm
         emit DustDistributionThresholdUpdated(newThreshold);
     }
 
-    /// @notice Deposit ETH directly into the accumulated fees pool (owner-only)
-    /// @dev Used for manual fee injection outside of LP yield collection.
-    function depositFees() external payable onlyOwner {
-        if (msg.value == 0) revert AmountMustBePositive();
-        _accrueFees(msg.value);
-        emit FeesAccumulated(msg.value);
-    }
-
     // ========== Protocol / Target Yield ==========
-
-    /// @notice Set the protocol treasury address for yield cut withdrawals
-    /// @param _treasury New treasury address (must not be zero)
-    function setProtocolTreasury(address _treasury) external onlyOwner {
-        if (_treasury == address(0)) revert InvalidAddress();
-        address old = protocolTreasury;
-        protocolTreasury = _treasury;
-        emit ProtocolTreasuryUpdated(old, _treasury);
-    }
 
     /// @notice Withdraw accumulated protocol yield cut to the treasury
     /// @dev Callable by anyone. Sends accumulatedProtocolFees to protocolTreasury.
