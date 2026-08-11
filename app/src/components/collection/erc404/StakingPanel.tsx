@@ -21,6 +21,8 @@ import {
   useWriteErc404BondingInstanceUnstake,
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
+import { txErrorReason } from '../../ui/useTxAction'
+import { tierErrorCopy } from './tierErrorCopy'
 import { useStaking } from './useStaking'
 import bonding from './BondingSurface.module.css'
 import styles from './StakingPanel.module.css'
@@ -58,6 +60,10 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
   const stakeRx = useWaitForTransactionReceipt({ hash: stake.data })
   const unstakeRx = useWaitForTransactionReceipt({ hash: unstake.data })
   const claimRx = useWaitForTransactionReceipt({ hash: claim.data })
+
+  const stakeErrorCopy = tierErrorCopy(txErrorReason(stake.error))
+  const unstakeErrorCopy = tierErrorCopy(txErrorReason(unstake.error))
+  const claimErrorCopy = tierErrorCopy(txErrorReason(claim.error))
 
   // Refetch reads once each write confirms; clear the corresponding input on stake/unstake.
   // Effects (not in-render side effects) keep this safe across re-renders / strict mode.
@@ -164,7 +170,9 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
                 : 'stake'}
         </button>
         {stake.isError && (
-          <p className={`${bonding.txStatus} ${bonding.txError}`}>stake failed — try again</p>
+          <p className={`${bonding.txStatus} ${bonding.txError}`}>
+            {stakeErrorCopy ?? 'stake failed — try again'}
+          </p>
         )}
       </div>
 
@@ -208,7 +216,9 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
                 : 'unstake'}
         </button>
         {unstake.isError && (
-          <p className={`${bonding.txStatus} ${bonding.txError}`}>unstake failed — try again</p>
+          <p className={`${bonding.txStatus} ${bonding.txError}`}>
+            {unstakeErrorCopy ?? 'unstake failed — try again'}
+          </p>
         )}
       </div>
 
@@ -222,7 +232,9 @@ export function StakingPanel({ instance, decimals }: StakingPanelProps) {
         {claim.isPending ? 'confirm in wallet…' : claimRx.isLoading ? 'claiming…' : 'claim rewards'}
       </button>
       {claim.isError && (
-        <p className={`${bonding.txStatus} ${bonding.txError}`}>claim failed — try again</p>
+        <p className={`${bonding.txStatus} ${bonding.txError}`}>
+          {claimErrorCopy ?? 'claim failed — try again'}
+        </p>
       )}
     </div>
   )
