@@ -18,6 +18,7 @@ import { Currency } from "v4-core/types/Currency.sol";
 import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { StateLibrary } from "v4-core/libraries/StateLibrary.sol";
 import { TickMath } from "v4-core/libraries/TickMath.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title VaultUniGraduationFork
@@ -40,8 +41,10 @@ contract VaultUniGraduationForkTest is ForkTestBase {
     uint24 constant FEE = 3000;
     int24 constant TICK_SPACING = 60;
     uint256 constant TARGET_ID = 1;
+    address constant TREASURY = address(0xFEE);
 
     UniAlignmentVault vault;
+    zRouter router;
     IPoolManager poolManager;
     address alignmentToken;
     address alice;
@@ -58,7 +61,7 @@ contract VaultUniGraduationForkTest is ForkTestBase {
         vm.etch(CREATEX, CREATEX_BYTECODE);
 
         // Real routing + price validator (as production deploys wire them).
-        zRouter router = new zRouter();
+        router = new zRouter();
         UniswapVaultPriceValidator priceValidator = new UniswapVaultPriceValidator(
             WETH, UNISWAP_V2_FACTORY, UNISWAP_V3_FACTORY, UNISWAP_V4_POOL_MANAGER, 1000, 1800
         );
@@ -75,6 +78,7 @@ contract VaultUniGraduationForkTest is ForkTestBase {
             address(router),
             FEE,
             TICK_SPACING,
+            TREASURY,
             IVaultPriceValidator(address(priceValidator)),
             IAlignmentRegistry(address(registry)),
             address(0)
@@ -191,5 +195,51 @@ contract VaultUniGraduationForkTest is ForkTestBase {
 
         emit log_named_uint("Convert #2 residual re-credited (wei)", residual);
         emit log_named_uint("Convert #2 ETH deployed (wei)", deployed);
+    }
+
+    /// @notice The 1% protocol leg, end to end on real V4: LP fees are earned by the vault's live
+    ///         position, collected into `accumulatedProtocolFees` by the production collection path,
+    ///         and paid out by `withdrawProtocolFees()` to the destination the FACTORY threaded in.
+    /// @dev No test seam anywhere in this path — the vault is a plain factory-deployed clone and the
+    ///      accrual is real swap fees. Fork-gated (see the contract doc): this does NOT run in CI.
+    function test_protocolCut_realAccrual_paysOutToFactoryTreasury() public {
+        assertEq(vault.protocolTreasury(), TREASURY, "factory threaded its treasury into the vault");
+
+        // Alice funds the vault and converts, giving it a live full-range V4 position.
+        vm.deal(alice, 60 ether);
+        vm.prank(alice);
+        (bool ok,) = address(vault).call{ value: 10 ether }("");
+        require(ok, "contribution failed");
+        vault.convertAndAddLiquidity(1);
+        assertGt(vault.totalLPUnits(), 0, "vault must hold a live position to earn fees");
+
+        // Generate real swap volume across that pool so the position earns fees.
+        address trader = makeAddr("trader");
+        vm.etch(trader, "");
+        vm.deal(trader, 500 ether);
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(trader);
+            (, uint256 usdcOut) = router.swapV4{ value: 50 ether }(
+                trader, false, FEE, TICK_SPACING, address(0), alignmentToken, 50 ether, 0, block.timestamp + 1
+            );
+            vm.startPrank(trader);
+            IERC20(alignmentToken).approve(address(router), usdcOut);
+            router.swapV4(trader, false, FEE, TICK_SPACING, alignmentToken, address(0), usdcOut, 0, block.timestamp + 1);
+            vm.stopPrank();
+        }
+
+        // Collection is interval-gated; move past it so the claim triggers a fresh collection.
+        vm.warp(block.timestamp + 2 days);
+
+        vm.prank(alice);
+        vault.claimFees(); // production path: collect → 80/19/1 split → pay the benefactor leg
+
+        uint256 protocolAccrued = vault.accumulatedProtocolFees();
+        assertGt(protocolAccrued, 0, "real LP fees must accrue the 1% protocol leg");
+
+        uint256 treasuryBefore = TREASURY.balance;
+        vault.withdrawProtocolFees(); // permissionless
+        assertEq(TREASURY.balance - treasuryBefore, protocolAccrued, "protocol cut lands in the treasury");
+        assertEq(vault.accumulatedProtocolFees(), 0, "protocol bucket cleared");
     }
 }

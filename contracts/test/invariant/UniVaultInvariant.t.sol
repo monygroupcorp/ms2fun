@@ -18,7 +18,7 @@ import { IHooks } from "v4-core/interfaces/IHooks.sol";
 import { UniVaultHandler } from "./handlers/UniVaultHandler.sol";
 
 contract UniVaultInvariantTest is StdInvariant, Test {
-    UniAlignmentVault public vault;
+    TestableUniAlignmentVault public vault;
     MockEXECToken public alignmentToken;
     MockZRouter public mockZRouter;
     MockVaultPriceValidator public mockValidator;
@@ -54,7 +54,8 @@ contract UniVaultInvariantTest is StdInvariant, Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockAlignmentRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            treasury
         );
 
         PoolKey memory mockPoolKey = PoolKey({
@@ -65,7 +66,6 @@ contract UniVaultInvariantTest is StdInvariant, Test {
             hooks: IHooks(address(0))
         });
         vault.setV4PoolKey(mockPoolKey);
-        vault.setProtocolTreasury(treasury);
 
         actors.push(address(0xA11CE));
         actors.push(address(0xB0B));

@@ -57,7 +57,8 @@ contract VaultInterfaceComplianceTest is Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockRegistry)),
-            1
+            1,
+            address(0xFEE) // protocol treasury (1% yield-cut destination, fixed at initialize)
         );
 
         // Deploy ZAMMAlignmentVault via clone+initialize pattern

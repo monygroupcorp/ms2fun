@@ -38,6 +38,9 @@ contract SeedSepolia is Script {
     address constant MASTER_REGISTRY_ADDR = 0x00001152CBa5fDB16A0FAE780fFebD5b9dF8e7cF;
     address constant PRICE_VALIDATOR = 0x2d3C9f10671314639FCBD4d85F3DcfbFF2D5610E;
     address constant ZROUTER = 0x4ABdEaB1A6Dca8CEFB3280cb2843DDbEf0FA1CFB;
+    // Destination of the 1% protocol yield cut for every vault this script seeds. Recorded in
+    // deployments/sepolia.json as ProtocolTreasury, same vanity set as the registries above.
+    address constant PROTOCOL_TREASURY = 0x00001152e56eb45082De505e9E9be5DC158E4cfC;
     // On-chain best-route quoter wired into the seeded vault factory (enables multi-venue acquisition).
     // address(0) = best-route DISABLED (fixed-pool fallback only). Sepolia has no canonical zQuoter, so this
     // is left 0 until an operator points it at a compatible quoter. OPERATOR INPUT — see docs/HUMAN_GATES.md.
@@ -107,6 +110,7 @@ contract SeedSepolia is Script {
             ZROUTER,
             POOL_FEE,
             POOL_TICK_SPACING,
+            PROTOCOL_TREASURY,
             IVaultPriceValidator(PRICE_VALIDATOR),
             ALIGNMENT_REGISTRY,
             ZQUOTER // best-route quoter (address(0) = fixed-pool fallback only); OPERATOR INPUT, see HUMAN_GATES

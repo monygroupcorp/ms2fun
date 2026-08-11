@@ -19,6 +19,10 @@ contract UniAlignmentVaultFactory is Ownable {
 
     address public immutable weth;
     address public immutable poolManager;
+    /// @notice Destination of the 1% protocol yield cut, threaded into every vault at initialize.
+    ///         Fixed at factory construction — the vault carries no setter, so the destination a
+    ///         vault is born with is the destination it keeps (mirrors ZAMMAlignmentVaultFactory).
+    address public immutable protocolTreasury;
     address public immutable zRouter;
     uint24 public immutable zRouterFee;
     int24 public immutable zRouterTickSpacing;
@@ -37,6 +41,7 @@ contract UniAlignmentVaultFactory is Ownable {
         address _zRouter,
         uint24 _zRouterFee,
         int24 _zRouterTickSpacing,
+        address _protocolTreasury,
         IVaultPriceValidator _defaultPriceValidator,
         IAlignmentRegistry _alignmentRegistry,
         // slither-disable-next-line missing-zero-check
@@ -48,6 +53,7 @@ contract UniAlignmentVaultFactory is Ownable {
         zRouter = _zRouter;
         zRouterFee = _zRouterFee;
         zRouterTickSpacing = _zRouterTickSpacing;
+        protocolTreasury = _protocolTreasury;
         defaultPriceValidator = _defaultPriceValidator;
         alignmentRegistry = _alignmentRegistry;
         zQuoter = _zQuoter;
@@ -78,6 +84,17 @@ contract UniAlignmentVaultFactory is Ownable {
     /// @param bps Deviation in basis points
     function setVaultMaxPriceDeviationBps(address vault, uint256 bps) external onlyOwner {
         UniAlignmentVault(payable(vault)).setMaxPriceDeviationBps(bps);
+    }
+
+    /// @notice Set the dust distribution threshold on a vault deployed by this factory.
+    /// @dev onlyOwner passthrough — the factory owns the vault. The vault's default threshold is
+    ///      1e18, which is denominated in the vault's own share units; a vault whose alignment token
+    ///      does not use 18 decimals needs the threshold retuned after deployment. Mirrors
+    ///      setVaultPoolKey.
+    /// @param vault Address of the vault (must have been deployed by this factory)
+    /// @param newThreshold Minimum accumulated dust shares before redistribution (must be > 0)
+    function setVaultDustDistributionThreshold(address vault, uint256 newThreshold) external onlyOwner {
+        UniAlignmentVault(payable(vault)).setDustDistributionThreshold(newThreshold);
     }
 
     /// @notice Deploy a new vault clone via CREATE3
@@ -111,7 +128,8 @@ contract UniAlignmentVaultFactory is Ownable {
                 zRouterTickSpacing,
                 priceValidator == IVaultPriceValidator(address(0)) ? defaultPriceValidator : priceValidator,
                 alignmentRegistry,
-                alignmentTargetId
+                alignmentTargetId,
+                protocolTreasury
             );
 
         // Wire best-route acquisition post-init (factory is the vault owner). address(0) leaves the

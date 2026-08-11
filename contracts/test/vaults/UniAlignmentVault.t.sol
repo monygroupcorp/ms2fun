@@ -23,7 +23,7 @@ import { Ownable } from "solady/auth/Ownable.sol";
  * @dev Tests all functionality: contributions, shares, claims, conversions, access control
  */
 contract UniAlignmentVaultTest is Test {
-    UniAlignmentVault public vault;
+    TestableUniAlignmentVault public vault;
     MockEXECToken public alignmentToken;
 
     address public owner = address(0x1);
@@ -41,6 +41,7 @@ contract UniAlignmentVaultTest is Test {
     TestableUniAlignmentVault public vaultImpl;
 
     uint256 constant TARGET_ID = 1;
+    address constant TREASURY = address(0xFEE);
 
     // Events
     event ContributionReceived(address indexed benefactor, uint256 amount);
@@ -86,7 +87,8 @@ contract UniAlignmentVaultTest is Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockAlignmentRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
 
         // Set V4 pool key for conversion tests (using native ETH)
@@ -106,7 +108,8 @@ contract UniAlignmentVaultTest is Test {
         vm.deal(bob, 100 ether);
         vm.deal(charlie, 100 ether);
         vm.deal(dave, 100 ether);
-        vm.deal(owner, 100 ether);
+        vm.deal(owner, 1000 ether);
+        vm.deal(address(this), 1000 ether);
     }
 
     // ========== Initialization Tests ==========
@@ -140,7 +143,8 @@ contract UniAlignmentVaultTest is Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockAlignmentRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
     }
 
@@ -157,7 +161,8 @@ contract UniAlignmentVaultTest is Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockAlignmentRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
     }
 
@@ -174,7 +179,8 @@ contract UniAlignmentVaultTest is Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockAlignmentRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
     }
 
@@ -191,7 +197,8 @@ contract UniAlignmentVaultTest is Test {
             60,
             IVaultPriceValidator(address(mockValidator)),
             IAlignmentRegistry(address(mockAlignmentRegistry)),
-            TARGET_ID
+            TARGET_ID,
+            TREASURY
         );
     }
 
@@ -507,15 +514,6 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
     }
 
-    function test_ConvertAndAddLiquidity_RevertsWhenNoAlignmentTokenSet() public {
-        // We can't actually set alignment token to zero because of constructor check
-        // Instead, we test that the revert message exists by trying to deploy with zero
-        // This test verifies the check is in place
-        vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        vm.prank(owner);
-        vault.setAlignmentToken(address(0));
-    }
-
     function test_ConvertAndAddLiquidity_RevertsWhenNoV4PoolSet() public {
         // Deploy new vault without V4 pool set
         TestableUniAlignmentVault newVault = _freshClone();
@@ -557,68 +555,18 @@ contract UniAlignmentVaultTest is Test {
 
     // ========== Fee Accumulation Tests ==========
 
-    function test_RecordAccumulatedFees_OwnerCanRecordFees() public {
-        vm.startPrank(owner);
-
-        vm.expectEmit(true, true, true, true);
-        emit FeesAccumulated(5 ether);
-
-        vault.recordAccumulatedFees(5 ether);
-
-        vm.stopPrank();
-
-        assertEq(vault.accumulatedFees(), 5 ether, "Accumulated fees should be 5 ether");
-    }
-
-    function test_RecordAccumulatedFees_AccumulatesMultipleTimes() public {
-        vm.startPrank(owner);
-
-        vault.recordAccumulatedFees(3 ether);
-        vault.recordAccumulatedFees(2 ether);
-
-        vm.stopPrank();
-
-        assertEq(vault.accumulatedFees(), 5 ether, "Accumulated fees should be 5 ether");
-    }
-
-    function test_RecordAccumulatedFees_RevertsOnZeroAmount() public {
-        vm.startPrank(owner);
-        vm.expectRevert(UniAlignmentVault.AmountMustBePositive.selector);
-        vault.recordAccumulatedFees(0);
-        vm.stopPrank();
-    }
-
-    function test_RecordAccumulatedFees_RevertsWhenNotOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.recordAccumulatedFees(5 ether);
-    }
-
-    function test_DepositFees_OwnerCanDepositFees() public {
-        vm.startPrank(owner);
-
-        vm.expectEmit(true, true, true, true);
-        emit FeesAccumulated(5 ether);
-
-        vault.depositFees{ value: 5 ether }();
-
-        vm.stopPrank();
+    function test_FeeAccrual_CreditsAccumulatedFees() public {
+        vault.simulateFeeAccrual{ value: 5 ether }(5 ether);
 
         assertEq(vault.accumulatedFees(), 5 ether, "Accumulated fees should be 5 ether");
         assertEq(address(vault).balance, 5 ether, "Vault balance should be 5 ether");
     }
 
-    function test_DepositFees_RevertsOnZeroAmount() public {
-        vm.startPrank(owner);
-        vm.expectRevert(UniAlignmentVault.AmountMustBePositive.selector);
-        vault.depositFees{ value: 0 }();
-        vm.stopPrank();
-    }
+    function test_FeeAccrual_AccumulatesMultipleTimes() public {
+        vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
+        vault.simulateFeeAccrual{ value: 2 ether }(2 ether);
 
-    function test_DepositFees_RevertsWhenNotOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.depositFees{ value: 5 ether }();
+        assertEq(vault.accumulatedFees(), 5 ether, "Accumulated fees should be 5 ether");
     }
 
     // ========== Fee Claim Tests ==========
@@ -634,7 +582,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Owner deposits fees
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         // Alice claims
         uint256 aliceBalanceBefore = alice.balance;
@@ -665,7 +613,7 @@ contract UniAlignmentVaultTest is Test {
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         rejecter.claim(vault); // must NOT revert despite reverting receive()
 
@@ -683,7 +631,7 @@ contract UniAlignmentVaultTest is Test {
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         vm.prank(alice);
         vault.delegateBenefactor(address(rejecter));
@@ -711,7 +659,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Owner deposits 30 ether in fees
         vm.prank(owner);
-        vault.depositFees{ value: 30 ether }();
+        vault.simulateFeeAccrual{ value: 30 ether }(30 ether);
 
         // Alice claims
         uint256 aliceBalanceBefore = alice.balance;
@@ -743,7 +691,7 @@ contract UniAlignmentVaultTest is Test {
 
         // First fee deposit and claim
         vm.prank(owner);
-        vault.depositFees{ value: 5 ether }();
+        vault.simulateFeeAccrual{ value: 5 ether }(5 ether);
 
         vm.prank(alice);
         uint256 claimed1 = vault.claimFees();
@@ -751,7 +699,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Second fee deposit and claim
         vm.prank(owner);
-        vault.depositFees{ value: 3 ether }();
+        vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
 
         vm.prank(alice);
         uint256 claimed2 = vault.claimFees();
@@ -767,7 +715,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         uint256 timestampBefore = block.timestamp;
 
@@ -806,7 +754,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         // First claim succeeds
         vm.prank(alice);
@@ -833,7 +781,7 @@ contract UniAlignmentVaultTest is Test {
 
         // First fee deposit
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         // Alice claims first
         vm.prank(alice);
@@ -842,7 +790,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Second fee deposit
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         // Bob claims both rounds
         vm.prank(bob);
@@ -886,7 +834,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         uint256 claimable = vault.calculateClaimableAmount(alice);
         assertEq(claimable, 10 ether, "Claimable should be 10 ether");
@@ -902,14 +850,14 @@ contract UniAlignmentVaultTest is Test {
 
         // First fee deposit and claim
         vm.prank(owner);
-        vault.depositFees{ value: 5 ether }();
+        vault.simulateFeeAccrual{ value: 5 ether }(5 ether);
 
         vm.prank(alice);
         vault.claimFees();
 
         // Second fee deposit
         vm.prank(owner);
-        vault.depositFees{ value: 3 ether }();
+        vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
 
         // Check unclaimed
         uint256 unclaimed = vault.getUnclaimedFees(alice);
@@ -925,7 +873,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         vm.prank(alice);
         vault.claimFees();
@@ -947,14 +895,14 @@ contract UniAlignmentVaultTest is Test {
 
         // First deposit, then a partial claim consumes the watermark.
         vm.prank(owner);
-        vault.depositFees{ value: 5 ether }();
+        vault.simulateFeeAccrual{ value: 5 ether }(5 ether);
 
         vm.prank(alice);
         vault.claimFees();
 
         // Second deposit — only this delta should be claimable, not the lifetime gross of 8 ether.
         vm.prank(owner);
-        vault.depositFees{ value: 3 ether }();
+        vault.simulateFeeAccrual{ value: 3 ether }(3 ether);
 
         assertEq(
             vault.calculateClaimableAmount(alice),
@@ -975,7 +923,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         vm.prank(alice);
         vault.claimFees();
@@ -987,53 +935,6 @@ contract UniAlignmentVaultTest is Test {
     }
 
     // ========== Configuration Tests ==========
-
-    function test_SetAlignmentToken_OwnerCanUpdate() public {
-        address newToken = address(0x9999);
-        // Register new token in the same alignment target
-        mockAlignmentRegistry.setTokenInTarget(TARGET_ID, newToken, true);
-
-        vm.prank(owner);
-        vault.setAlignmentToken(newToken);
-
-        assertEq(vault.alignmentToken(), newToken, "Alignment token should be updated");
-    }
-
-    function test_SetAlignmentToken_RevertsOnZeroAddress() public {
-        vm.prank(owner);
-        vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        vault.setAlignmentToken(address(0));
-    }
-
-    function test_SetAlignmentToken_RevertsWhenNotOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.setAlignmentToken(address(0x9999));
-    }
-
-    function test_SetAlignmentToken_RevertsWhenPendingETH() public {
-        address newToken = address(0x9999);
-        mockAlignmentRegistry.setTokenInTarget(TARGET_ID, newToken, true);
-
-        // Contribute ETH so totalPendingETH > 0
-        vm.deal(alice, 1 ether);
-        vm.prank(alice);
-        (bool s,) = address(vault).call{ value: 1 ether }("");
-        require(s);
-
-        vm.prank(owner);
-        vm.expectRevert(UniAlignmentVault.PendingETHNotConverted.selector);
-        vault.setAlignmentToken(newToken);
-    }
-
-    function test_SetAlignmentToken_RevertsWhenTokenNotInTarget() public {
-        address rogueToken = address(0xBAD);
-        // NOT registered in the alignment target
-
-        vm.prank(owner);
-        vm.expectRevert(UniAlignmentVault.TokenNotInTarget.selector);
-        vault.setAlignmentToken(rogueToken);
-    }
 
     function test_SetV4PoolKey_OwnerCanUpdate() public {
         PoolKey memory newPoolKey = PoolKey({
@@ -1114,7 +1015,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         vm.prank(alice);
         vault.claimFees();
@@ -1135,7 +1036,7 @@ contract UniAlignmentVaultTest is Test {
 
         // 3. Fees accumulate
         vm.prank(owner);
-        vault.depositFees{ value: 5 ether }();
+        vault.simulateFeeAccrual{ value: 5 ether }(5 ether);
 
         // 4. Alice claims
         uint256 balanceBefore = alice.balance;
@@ -1166,7 +1067,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Fees accumulate
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         // Alice claims
         vm.prank(alice);
@@ -1195,7 +1096,7 @@ contract UniAlignmentVaultTest is Test {
 
         // More fees
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
         // Bob claims - should get his share proportion
         vm.prank(bob);
@@ -1270,7 +1171,6 @@ contract UniAlignmentVaultTest is Test {
 
     event ProtocolYieldCollected(uint256 amount);
     event TargetYieldCollected(uint256 amount);
-    event ProtocolTreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
     event ProtocolFeesWithdrawn(uint256 amount);
     event TargetFeesWithdrawn(uint256 amount);
 
@@ -1279,13 +1179,12 @@ contract UniAlignmentVaultTest is Test {
         assertEq(vault.TARGET_CUT_BPS(), 1900, "target cut is 19% (immutable)");
     }
 
-    function test_YieldCut_DepositFeesNotTaxed() public {
-        // depositFees bypasses yield cut (it's owner-deposited, not LP yield)
-        vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+    function test_YieldCut_DirectAccrualNotTaxed() public {
+        // Benefactor-side accrual is not LP yield, so it carries no protocol/target cut.
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
-        assertEq(vault.accumulatedFees(), 10 ether, "depositFees should not be taxed");
-        assertEq(vault.accumulatedProtocolFees(), 0, "No protocol fees from depositFees");
+        assertEq(vault.accumulatedFees(), 10 ether, "direct accrual is not taxed");
+        assertEq(vault.accumulatedProtocolFees(), 0, "no protocol cut on direct accrual");
     }
 
     // ── 80/19/1 fee split + per-target sink (noesis-051) ──────────────────────
@@ -1354,68 +1253,47 @@ contract UniAlignmentVaultTest is Test {
         assertEq(alice.balance - balBefore, 0.8 ether, "creator 80% unaffected by unset sink");
     }
 
-    function test_YieldCut_SetProtocolTreasury() public {
-        address treasury = address(0xFEE);
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit ProtocolTreasuryUpdated(address(0), treasury);
-        vault.setProtocolTreasury(treasury);
-
-        assertEq(vault.protocolTreasury(), treasury, "Treasury should be set");
+    function test_YieldCut_TreasuryThreadedAtInitialize() public view {
+        assertEq(vault.protocolTreasury(), TREASURY, "Treasury is set at initialize and never zero");
     }
 
-    function test_YieldCut_SetProtocolTreasury_RevertsOnZero() public {
-        vm.prank(owner);
-        vm.expectRevert(UniAlignmentVault.InvalidAddress.selector);
-        vault.setProtocolTreasury(address(0));
+    function test_Initialize_RevertsOnZeroProtocolTreasury() public {
+        TestableUniAlignmentVault v = _freshClone();
+        vm.expectRevert(UniAlignmentVault.TreasuryNotSet.selector);
+        v.initialize(
+            address(this),
+            mockWETH,
+            mockPoolManager,
+            address(alignmentToken),
+            address(mockZRouter),
+            3000,
+            60,
+            IVaultPriceValidator(address(mockValidator)),
+            IAlignmentRegistry(address(mockAlignmentRegistry)),
+            TARGET_ID,
+            address(0)
+        );
     }
 
-    function test_YieldCut_SetProtocolTreasury_OnlyOwner() public {
-        vm.prank(alice);
-        vm.expectRevert();
-        vault.setProtocolTreasury(address(0xFEE));
-    }
-
-    function test_YieldCut_WithdrawProtocolFees() public {
-        address treasury = address(0xFEE);
-        vm.prank(owner);
-        vault.setProtocolTreasury(treasury);
-
-        // Setup: contribute, convert, deposit fees via depositFees
-        // Since depositFees doesn't go through yield cut, we simulate protocol fees
-        // by directly setting accumulatedProtocolFees (need to use recordAccumulatedFees path)
-        // Actually, let's use the proper flow: deposit fees for benefactors first,
-        // then accumulate protocol fees via a different route.
-
-        // Simpler: contribute, convert, then use recordAccumulatedFees which bypasses yield cut
-        // The protocol fees accumulate through claimFees() LP yield path.
-        // For unit tests, we can't easily trigger _claimVaultFees() (needs real poolManager).
-        // So let's test withdrawProtocolFees by manually setting state.
-
-        // Setup benefactor and shares
+    function test_YieldCut_WithdrawProtocolFees_RevertsWithNothingAccrued() public {
+        // Benefactor-side accrual carries no protocol cut, so the protocol bucket stays empty.
         vm.prank(alice);
         (bool s,) = address(vault).call{ value: 10 ether }("");
         assertTrue(s);
         vm.prank(dave);
         vault.convertAndAddLiquidity(1);
 
-        // Owner deposits fees (simulating LP yield — goes to accumulatedFees only)
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
 
-        // Since we can't trigger real LP yield in unit tests, let's verify the withdrawal
-        // mechanism works by using a different approach:
-        // We'll set yield cut to 0 first, verify no protocol fees, then check withdrawal reverts
-        assertEq(vault.accumulatedProtocolFees(), 0);
+        assertEq(vault.accumulatedProtocolFees(), 0, "no protocol cut from direct accrual");
 
         vm.expectRevert(UniAlignmentVault.NoFeesToClaim.selector);
         vault.withdrawProtocolFees();
     }
 
     function test_YieldCut_WithdrawProtocolFees_HappyPath() public {
-        address treasury = address(0xFEE);
-        vm.prank(owner);
-        vault.setProtocolTreasury(treasury);
+        address treasury = TREASURY;
 
         // Simulate protocol fee accrual (LP yield cut that would come from _claimVaultFees)
         TestableUniAlignmentVault testableVault = TestableUniAlignmentVault(payable(address(vault)));
@@ -1436,9 +1314,7 @@ contract UniAlignmentVaultTest is Test {
     }
 
     function test_YieldCut_WithdrawProtocolFees_MultipleAccumulations() public {
-        address treasury = address(0xFEE);
-        vm.prank(owner);
-        vault.setProtocolTreasury(treasury);
+        address treasury = TREASURY;
 
         TestableUniAlignmentVault testableVault = TestableUniAlignmentVault(payable(address(vault)));
 
@@ -1459,25 +1335,14 @@ contract UniAlignmentVaultTest is Test {
         vault.withdrawProtocolFees();
     }
 
-    function test_YieldCut_WithdrawProtocolFees_RevertsNoTreasury() public {
-        // Treasury not set (default address(0))
-        vm.expectRevert(UniAlignmentVault.TreasuryNotSet.selector);
-        vault.withdrawProtocolFees();
-    }
-
     function test_YieldCut_WithdrawProtocolFees_RevertsNoFees() public {
-        vm.prank(owner);
-        vault.setProtocolTreasury(address(0xFEE));
-
         vm.expectRevert(UniAlignmentVault.NoFeesToClaim.selector);
         vault.withdrawProtocolFees();
     }
 
     function test_YieldCut_WithdrawProtocolFees_Permissionless() public {
         // Anyone can call withdrawProtocolFees, not just owner
-        address treasury = address(0xFEE);
-        vm.prank(owner);
-        vault.setProtocolTreasury(treasury);
+        address treasury = TREASURY;
 
         // No fees to withdraw, but the access control check should pass
         vm.prank(alice);
@@ -1486,16 +1351,18 @@ contract UniAlignmentVaultTest is Test {
         // If it reverted with "No fees" (not Unauthorized), access control passed
     }
 
-    function test_YieldCut_TreasuryNotSet_StillAccumulates() public {
-        // Protocol treasury not set — fees should still accumulate
-        // (withdrawable after treasury is set later)
-        assertEq(vault.protocolTreasury(), address(0), "Treasury not set initially");
-        assertEq(vault.PROTOCOL_CUT_BPS(), 100, "Immutable 1% protocol cut");
+    function test_YieldCut_AccruesToTheInitializedTreasury() public {
+        // The 1% leg accrues into accumulatedProtocolFees and is withdrawable to the destination the
+        // vault was initialized with — the split math and the payout share one fixed address.
+        assertEq(vault.protocolTreasury(), TREASURY, "destination fixed at initialize");
 
-        // The yield cut math works regardless of treasury being set.
-        // It accumulates in accumulatedProtocolFees and is only sent on withdrawal.
-        // We verify by checking the default state allows accumulation in the split logic.
-        // (Full integration test would require real LP yield path)
+        vm.deal(address(this), 1 ether);
+        vault.exerciseFeeSplit{ value: 1 ether }(1 ether);
+        assertEq(vault.accumulatedProtocolFees(), 0.01 ether, "1% accrued");
+
+        uint256 before = TREASURY.balance;
+        vault.withdrawProtocolFees();
+        assertEq(TREASURY.balance - before, 0.01 ether, "1% paid out to the initialized treasury");
     }
 
     // ========================================================================
@@ -1514,7 +1381,7 @@ contract UniAlignmentVaultTest is Test {
 
         // Fees accrue entirely to Alice's batch.
         vm.prank(owner);
-        vault.depositFees{ value: 10 ether }();
+        vault.simulateFeeAccrual{ value: 10 ether }(10 ether);
         uint256 aliceBefore = vault.getUnclaimedFees(alice);
         assertApproxEqRel(aliceBefore, 10 ether, 0.01e18, "Alice should be owed ~10 ETH");
 
@@ -1547,7 +1414,7 @@ contract UniAlignmentVaultTest is Test {
         vault.convertAndAddLiquidity(1);
 
         vm.prank(owner);
-        vault.depositFees{ value: 11 ether }();
+        vault.simulateFeeAccrual{ value: 11 ether }(11 ether);
 
         // Charlie joins in a later conversion.
         vm.prank(charlie);
