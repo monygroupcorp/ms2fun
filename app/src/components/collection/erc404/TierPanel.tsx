@@ -25,6 +25,7 @@ import {
 } from '../../../generated/contracts'
 import { useCollectionChainId } from '../useCollectionChain'
 import { txErrorReason } from '../../ui/useTxAction'
+import { tierErrorCopy } from './tierErrorCopy'
 import { useTierPosition } from './useTierPosition'
 import { useErc404OwnedPieces } from './useErc404OwnedPieces'
 import bonding from './BondingSurface.module.css'
@@ -215,8 +216,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
         </button>
         {mintUpReason && (
           <p className={`${bonding.txStatus} ${bonding.txError}`}>
-            mint up failed: {mintUpReason}. Check that you still own the selected id and that the
-            tier is still eligible, then try again.
+            mint up failed: {tierErrorCopy(mintUpReason) ?? mintUpReason}
           </p>
         )}
       </div>
@@ -281,8 +281,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
         </button>
         {mintDownReason && (
           <p className={`${bonding.txStatus} ${bonding.txError}`}>
-            mint down failed: {mintDownReason}. Check that you still own the selected band NFT, then
-            try again.
+            mint down failed: {tierErrorCopy(mintDownReason) ?? mintDownReason}
           </p>
         )}
       </div>
@@ -313,8 +312,7 @@ export function TierPanel({ instance }: { instance: `0x${string}` }) {
           </button>
           {claimReason && (
             <p className={`${bonding.txStatus} ${bonding.txError}`}>
-              claim failed: {claimReason}. Check the released amount above is still non-zero, then
-              try again.
+              claim failed: {tierErrorCopy(claimReason) ?? claimReason}
             </p>
           )}
         </div>
